@@ -1,0 +1,1051 @@
+{
+ "format": 1,
+ "map": "map2",
+ "squads": [
+  {
+   "name": "1 Kroot Carnivores 1",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 49.82432432432432,
+     "y_in": 33.48508771929824,
+     "wounds": 1
+    },
+    {
+     "x_in": 51.122240919179035,
+     "y_in": 34.23702688758298,
+     "wounds": 1
+    },
+    {
+     "x_in": 49.82208419991656,
+     "y_in": 34.98508604657819,
+     "wounds": 1
+    },
+    {
+     "x_in": 51.124481043586805,
+     "y_in": 32.73702856030303,
+     "wounds": 1
+    },
+    {
+     "x_in": 48.52416760506184,
+     "y_in": 34.233146878293454,
+     "wounds": 1
+    },
+    {
+     "x_in": 48.52640772946961,
+     "y_in": 32.73314855101351,
+     "wounds": 1
+    },
+    {
+     "x_in": 52.420157514033754,
+     "y_in": 34.988966055867714,
+     "wounds": 1
+    },
+    {
+     "x_in": 52.82432097888422,
+     "y_in": 33.48956796811377,
+     "wounds": 1
+    },
+    {
+     "x_in": 51.320442642314745,
+     "y_in": 36.085401157823206,
+     "wounds": 1
+    },
+    {
+     "x_in": 49.81984407550879,
+     "y_in": 36.485084373858136,
+     "wounds": 1
+    }
+   ]
+  },
+  {
+   "name": "2 Battlewagon 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 47.56666666666666,
+     "y_in": 9.9,
+     "wounds": 16
+    }
+   ]
+  },
+  {
+   "name": "1 Ghostkeel Battlesuit 1",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 10.54054054054054,
+     "y_in": 27.68803258145363,
+     "wounds": 12
+    }
+   ]
+  },
+  {
+   "name": "2 Kill Rig 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 10.366666666666665,
+     "y_in": 9.9,
+     "wounds": 16
+    }
+   ]
+  },
+  {
+   "name": "1 Devilfish",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 35.472972972972975,
+     "y_in": 34.13370927318296,
+     "wounds": 13
+    }
+   ]
+  },
+  {
+   "name": "2 Deff Dread 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 44.410000000000004,
+     "y_in": 10.82,
+     "wounds": 8
+    }
+   ]
+  },
+  {
+   "name": "1 The Twin Lance 1",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 46.45945945945946,
+     "y_in": 33.56616541353383,
+     "wounds": 8
+    },
+    {
+     "x_in": 46.15770649414181,
+     "y_in": 36.00758818477236,
+     "wounds": 8
+    }
+   ]
+  },
+  {
+   "name": "2 Boyz 1 + Warboss + Painboy",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 25.997142857142858,
+     "y_in": 10.02,
+     "wounds": 2
+    },
+    {
+     "x_in": 25.997142857142858,
+     "y_in": 8.52,
+     "wounds": 1
+    },
+    {
+     "x_in": 27.296180962819516,
+     "y_in": 9.27,
+     "wounds": 1
+    },
+    {
+     "x_in": 24.6981047514662,
+     "y_in": 9.270000000000001,
+     "wounds": 1
+    },
+    {
+     "x_in": 25.997142857142858,
+     "y_in": 7.02,
+     "wounds": 1
+    },
+    {
+     "x_in": 24.497142857142858,
+     "y_in": 7.421923788646684,
+     "wounds": 1
+    },
+    {
+     "x_in": 27.497142857142858,
+     "y_in": 7.421923788646684,
+     "wounds": 1
+    },
+    {
+     "x_in": 28.595219068496174,
+     "y_in": 8.52,
+     "wounds": 1
+    },
+    {
+     "x_in": 23.399066645789542,
+     "y_in": 8.520000000000001,
+     "wounds": 1
+    },
+    {
+     "x_in": 25.997142857142858,
+     "y_in": 5.52,
+     "wounds": 1
+    },
+    {
+     "x_in": 24.458052212177346,
+     "y_in": 5.791383206463412,
+     "wounds": 1
+    },
+    {
+     "x_in": 27.536233502108367,
+     "y_in": 5.791383206463412,
+     "wounds": 1
+    },
+    {
+     "x_in": 23.10459861355343,
+     "y_in": 6.572800005964599,
+     "wounds": 1
+    },
+    {
+     "x_in": 28.889687100732285,
+     "y_in": 6.572800005964599,
+     "wounds": 1
+    },
+    {
+     "x_in": 22.100028540112884,
+     "y_in": 7.77,
+     "wounds": 1
+    },
+    {
+     "x_in": 29.894257174172832,
+     "y_in": 7.77,
+     "wounds": 1
+    },
+    {
+     "x_in": 30.428777745697793,
+     "y_in": 9.238583200498812,
+     "wounds": 1
+    },
+    {
+     "x_in": 25.997142857142858,
+     "y_in": 4.02,
+     "wounds": 1
+    },
+    {
+     "x_in": 24.505003534153733,
+     "y_in": 4.208501033228212,
+     "wounds": 1
+    },
+    {
+     "x_in": 27.489282180131987,
+     "y_in": 4.208501033228213,
+     "wounds": 1
+    },
+    {
+     "x_in": 21.565507968587923,
+     "y_in": 10.801416799501187,
+     "wounds": 6
+    },
+    {
+     "x_in": 24.6981047514662,
+     "y_in": 10.77,
+     "wounds": 3
+    }
+   ]
+  },
+  {
+   "name": "1 Riptide Battlesuit 1",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 2.635135135135135,
+     "y_in": 34.45802005012531,
+     "wounds": 14
+    }
+   ]
+  },
+  {
+   "name": "2 Gretchin 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 32.02642857142857,
+     "y_in": 6.685000000000002,
+     "wounds": 1
+    },
+    {
+     "x_in": 33.325466677105226,
+     "y_in": 7.435000000000002,
+     "wounds": 1
+    },
+    {
+     "x_in": 33.325466677105226,
+     "y_in": 8.935000000000002,
+     "wounds": 1
+    },
+    {
+     "x_in": 32.02642857142857,
+     "y_in": 5.185000000000002,
+     "wounds": 1
+    },
+    {
+     "x_in": 30.526428571428568,
+     "y_in": 5.586923788646686,
+     "wounds": 1
+    },
+    {
+     "x_in": 33.52642857142857,
+     "y_in": 5.586923788646686,
+     "wounds": 1
+    },
+    {
+     "x_in": 32.02642857142857,
+     "y_in": 3.6850000000000023,
+     "wounds": 1
+    },
+    {
+     "x_in": 30.487337926463056,
+     "y_in": 3.956383206463415,
+     "wounds": 1
+    },
+    {
+     "x_in": 33.56551921639408,
+     "y_in": 3.956383206463415,
+     "wounds": 1
+    },
+    {
+     "x_in": 29.13388432783914,
+     "y_in": 4.737800005964601,
+     "wounds": 1
+    },
+    {
+     "x_in": 32.02642857142857,
+     "y_in": 8.185000000000002,
+     "wounds": 2
+    }
+   ]
+  },
+  {
+   "name": "1 Stealth Battlesuits 1",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 43.98648648648649,
+     "y_in": 39.403759398496234,
+     "wounds": 2
+    },
+    {
+     "x_in": 45.043197488713695,
+     "y_in": 40.73543573220949,
+     "wounds": 2
+    },
+    {
+     "x_in": 43.36157645298589,
+     "y_in": 40.984736137740136,
+     "wounds": 2
+    },
+    {
+     "x_in": 45.6681075222143,
+     "y_in": 39.15445899296559,
+     "wounds": 2
+    },
+    {
+     "x_in": 42.30486545075868,
+     "y_in": 39.65305980402688,
+     "wounds": 2
+    }
+   ]
+  },
+  {
+   "name": "2 Gretchin 2",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 13.788571428571426,
+     "y_in": 8.870000000000001,
+     "wounds": 1
+    },
+    {
+     "x_in": 15.087609534248084,
+     "y_in": 9.620000000000001,
+     "wounds": 1
+    },
+    {
+     "x_in": 15.087609534248084,
+     "y_in": 11.120000000000001,
+     "wounds": 1
+    },
+    {
+     "x_in": 13.788571428571426,
+     "y_in": 7.370000000000001,
+     "wounds": 1
+    },
+    {
+     "x_in": 12.288571428571425,
+     "y_in": 7.771923788646685,
+     "wounds": 1
+    },
+    {
+     "x_in": 15.288571428571426,
+     "y_in": 7.771923788646685,
+     "wounds": 1
+    },
+    {
+     "x_in": 16.386647639924742,
+     "y_in": 8.870000000000001,
+     "wounds": 1
+    },
+    {
+     "x_in": 16.788571428571426,
+     "y_in": 10.370000000000001,
+     "wounds": 1
+    },
+    {
+     "x_in": 13.788571428571426,
+     "y_in": 5.870000000000001,
+     "wounds": 1
+    },
+    {
+     "x_in": 12.249480783605915,
+     "y_in": 6.141383206463414,
+     "wounds": 1
+    },
+    {
+     "x_in": 13.788571428571426,
+     "y_in": 10.370000000000001,
+     "wounds": 2
+    }
+   ]
+  },
+  {
+   "name": "1 Pathfinder Team 1",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 12.486486486486484,
+     "y_in": 38.43082706766918,
+     "wounds": 3
+    },
+    {
+     "x_in": 11.338499557321583,
+     "y_in": 39.396293799600706,
+     "wounds": 1
+    },
+    {
+     "x_in": 11.076374305542592,
+     "y_in": 37.91937458976565,
+     "wounds": 1
+    },
+    {
+     "x_in": 12.748611738265478,
+     "y_in": 39.90774627750423,
+     "wounds": 1
+    },
+    {
+     "x_in": 12.224361234707493,
+     "y_in": 36.953907857834125,
+     "wounds": 1
+    },
+    {
+     "x_in": 13.896598667430377,
+     "y_in": 38.9422795455727,
+     "wounds": 1
+    },
+    {
+     "x_in": 13.634473415651385,
+     "y_in": 37.46536033573765,
+     "wounds": 1
+    },
+    {
+     "x_in": 10.190512628156684,
+     "y_in": 40.361760531532234,
+     "wounds": 1
+    },
+    {
+     "x_in": 11.46358153067943,
+     "y_in": 41.251051429556966,
+     "wounds": 1
+    },
+    {
+     "x_in": 9.532648066816376,
+     "y_in": 38.955077571227164,
+     "wounds": 1
+    }
+   ]
+  },
+  {
+   "name": "2 Flash Gitz 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 50.15,
+     "y_in": 6.000000000000001,
+     "wounds": 2
+    },
+    {
+     "x_in": 50.15,
+     "y_in": 4.32,
+     "wounds": 2
+    },
+    {
+     "x_in": 51.60492267835786,
+     "y_in": 5.160000000000001,
+     "wounds": 2
+    },
+    {
+     "x_in": 48.69507732164214,
+     "y_in": 5.160000000000002,
+     "wounds": 2
+    },
+    {
+     "x_in": 51.60492267835786,
+     "y_in": 6.840000000000001,
+     "wounds": 2
+    },
+    {
+     "x_in": 48.695077321642145,
+     "y_in": 6.840000000000002,
+     "wounds": 2
+    },
+    {
+     "x_in": 50.15,
+     "y_in": 7.6800000000000015,
+     "wounds": 2
+    },
+    {
+     "x_in": 50.15,
+     "y_in": 2.6400000000000006,
+     "wounds": 2
+    },
+    {
+     "x_in": 48.47,
+     "y_in": 3.0901546432842872,
+     "wounds": 2
+    },
+    {
+     "x_in": 51.83,
+     "y_in": 3.0901546432842864,
+     "wounds": 2
+    }
+   ]
+  },
+  {
+   "name": "1 Strike Team 1",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 28.41068412162162,
+     "y_in": 34.569501879699246,
+     "wounds": 2
+    },
+    {
+     "x_in": 28.203891476161484,
+     "y_in": 36.055179099617355,
+     "wounds": 1
+    },
+    {
+     "x_in": 27.020653584618632,
+     "y_in": 35.133252805374035,
+     "wounds": 1
+    },
+    {
+     "x_in": 29.593922013164473,
+     "y_in": 35.491428173942566,
+     "wounds": 1
+    },
+    {
+     "x_in": 27.997098830701344,
+     "y_in": 37.540856319535465,
+     "wounds": 1
+    },
+    {
+     "x_in": 29.538185972971192,
+     "y_in": 37.349562953705224,
+     "wounds": 1
+    },
+    {
+     "x_in": 26.566831533134977,
+     "y_in": 36.93597766278495,
+     "wounds": 1
+    },
+    {
+     "x_in": 30.77715990470733,
+     "y_in": 36.41335446818589,
+     "wounds": 1
+    },
+    {
+     "x_in": 31.382038561457836,
+     "y_in": 34.98308717061952,
+     "wounds": 1
+    },
+    {
+     "x_in": 27.790306185241207,
+     "y_in": 39.02653353945357,
+     "wounds": 1
+    }
+   ]
+  },
+  {
+   "name": "2 Tankbustas 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 50.26428571428571,
+     "y_in": 10.370000000000001,
+     "wounds": 2
+    },
+    {
+     "x_in": 51.56332381996237,
+     "y_in": 9.620000000000001,
+     "wounds": 2
+    },
+    {
+     "x_in": 51.56332381996237,
+     "y_in": 11.120000000000001,
+     "wounds": 2
+    },
+    {
+     "x_in": 52.86236192563903,
+     "y_in": 8.870000000000001,
+     "wounds": 2
+    },
+    {
+     "x_in": 53.26428571428571,
+     "y_in": 10.370000000000001,
+     "wounds": 2
+    },
+    {
+     "x_in": 53.15682995787514,
+     "y_in": 6.9228000059646,
+     "wounds": 2
+    }
+   ]
+  },
+  {
+   "name": "2 Warbikers 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 5.982857142857142,
+     "y_in": 10.02,
+     "wounds": 4
+    },
+    {
+     "x_in": 5.982857142857142,
+     "y_in": 7.959999999999999,
+     "wounds": 3
+    },
+    {
+     "x_in": 4.198844811061198,
+     "y_in": 8.99,
+     "wounds": 3
+    }
+   ]
+  },
+  {
+   "name": "2 Warbikers 2",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 1.98,
+     "y_in": 10.02,
+     "wounds": 4
+    },
+    {
+     "x_in": 1.9800000000000002,
+     "y_in": 7.959999999999999,
+     "wounds": 3
+    },
+    {
+     "x_in": 1.9800000000000002,
+     "y_in": 5.8999999999999995,
+     "wounds": 3
+    }
+   ]
+  },
+  {
+   "name": "1 Crisis Starscythe Battlesuits 1 + Commander in Coldstar Battlesuit",
+   "owner": "Player 1",
+   "placement": "reserves",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 5
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 5
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 5
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 8
+    }
+   ]
+  },
+  {
+   "name": "1 Crisis Sunforge Battlesuits 1 + Commander Farsight",
+   "owner": "Player 1",
+   "placement": "reserves",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 5
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 5
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 5
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 8
+    }
+   ]
+  },
+  {
+   "name": "2 Stormboyz 1",
+   "owner": "Player 2",
+   "placement": "reserves",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 2
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1
+    }
+   ]
+  },
+  {
+   "name": "2 Deffkoptas 1",
+   "owner": "Player 2",
+   "placement": "reserves",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4
+    }
+   ]
+  },
+  {
+   "name": "1 Breacher Team 1 + Cadre Fireblade",
+   "owner": "Player 1",
+   "placement": "embarked",
+   "embarked_in": "1 Devilfish",
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 10.8,
+     "y_in": 41.3,
+     "wounds": 2
+    },
+    {
+     "x_in": 12.3,
+     "y_in": 41.3,
+     "wounds": 1
+    },
+    {
+     "x_in": 13.8,
+     "y_in": 41.3,
+     "wounds": 1
+    },
+    {
+     "x_in": 15.3,
+     "y_in": 41.3,
+     "wounds": 1
+    },
+    {
+     "x_in": 16.8,
+     "y_in": 41.3,
+     "wounds": 1
+    },
+    {
+     "x_in": 10.8,
+     "y_in": 43.3,
+     "wounds": 1
+    },
+    {
+     "x_in": 12.3,
+     "y_in": 43.3,
+     "wounds": 1
+    },
+    {
+     "x_in": 13.8,
+     "y_in": 43.3,
+     "wounds": 1
+    },
+    {
+     "x_in": 15.3,
+     "y_in": 43.3,
+     "wounds": 1
+    },
+    {
+     "x_in": 16.8,
+     "y_in": 43.3,
+     "wounds": 1
+    },
+    {
+     "x_in": 8.0,
+     "y_in": 41.0,
+     "wounds": 3
+    }
+   ]
+  },
+  {
+   "name": "2 Beast Snagga Boyz 1 + Beastboss",
+   "owner": "Player 2",
+   "placement": "embarked",
+   "embarked_in": "2 Kill Rig 1",
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 2
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 6
+    }
+   ]
+  },
+  {
+   "name": "2 Meganobz 1 + Warboss in Mega Armour",
+   "owner": "Player 2",
+   "placement": "embarked",
+   "embarked_in": "2 Battlewagon 1",
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 3
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 3
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 3
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 3
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 3
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 3
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 7
+    }
+   ]
+  }
+ ],
+ "turn": {
+  "battle_round": 1,
+  "phase": "Movement",
+  "turn_owner": "Player 2",
+  "active_player": "Player 2"
+ },
+ "command_points": {
+  "Player 1": 1,
+  "Player 2": 2
+ }
+}

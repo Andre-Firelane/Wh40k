@@ -1,0 +1,16 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# Generated game logs (one per run; regenerated every launch)
+logs/
+
+# Debug/measurement output artifacts
+deployment_test.png
+headroom_map2.txt
