@@ -3,8 +3,9 @@ import time
 
 import pygame
 
-from game import config
+from game import config, sprites
 from game.dice import REROLL_ANIMATION_DURATION, HIT_ROLL, SNAP_SHOT_HIT_ROLL, WOUND_ROLL, SAVE_ROLL
+from game.ui import button_style
 from game.ui.text_utils import wrap_text
 
 # User supplied a die-face sprite (Sprites/Dice.png - a blank white/grey
@@ -51,6 +52,46 @@ PIP_LAYOUT = {
 PIP_RADIUS_RATIO = 0.085  # fraction of the die's width
 LABEL_COLOR = (255, 255, 255)
 TARGET_COLOR = (255, 210, 90)
+# The "who is shooting at whom" line above the roll's own heading. User:
+# "wenn du beim wuerfel panel anzeigst, was auf wen schiesst, baue bitte die
+# sprites mit ein, damit man es besser auf den ersten blick erkennen kann" -
+# a name alone reads as text you have to parse ("2 Boyz 1 + Warboss"), the
+# unit's own art is recognised at a glance. Attacker on the left in its own
+# colour, target on the right in the existing TARGET_COLOR, an arrow between
+# them, so which way the attack runs is readable without reading anything.
+ATTACKER_COLOR = (150, 205, 255)
+# The art sits in the same chamfered cell the Actions panel gives a unit
+# listing (see its _draw_unit_portrait), so a unit reads the same wherever it
+# is shown. User: "nutze fuer die sprites bitte auch diese kasten, die du auch
+# bei der pregame anzeige nutzt in der linken spalte."
+MATCHUP_PORTRAIT_PX = 54   # side of one (square) thumbnail cell
+MATCHUP_PORTRAIT_INSET = 10  # art is fitted this much smaller than its cell
+MATCHUP_PORTRAIT_BG = (8, 14, 22)
+MATCHUP_PORTRAIT_CHAMFER = 6
+MATCHUP_PORTRAIT_GAP = 4   # between two thumbnails of the same unit
+MATCHUP_ART_TEXT_GAP = 8   # between a unit's art and its name
+MATCHUP_SIDE_GAP = 12      # between a side and the word between them
+# What sits between the two units. Was a drawn arrow; user: "ersetze den
+# pfeil durch ein 'Attack' label. der pfeil ist ziemlich haesslich." Its
+# width is measured, not declared - the font is whatever the OS gave us.
+MATCHUP_VERB_TEXT = "ATTACK"
+MATCHUP_VERB_COLOR = (225, 225, 225)
+MATCHUP_BOTTOM_GAP = 8
+# A side gives up thumbnails (second one first, then the last) rather than
+# squeeze its name below this. Without it a narrow window turns a long
+# attached-unit name into a one-character-per-line column: half the panel
+# minus two portraits can be a couple of pixels wide, and wrap_text() only
+# promises to fit what it is given.
+MATCHUP_MIN_TEXT_PX = 90
+# What a critical die BUYS, printed under the die itself. User: "markiere
+# bitte die kritischen gewuerfelten treffer mit 'lethal hit', wenn diese
+# Regel aktiv ist. Gleiches gilt fuer 'sustained hit' oder 'devastating
+# wound'." The row's dice are spaced further apart while any such label is
+# on screen - a label is wider than a 50px die, and crowding two of them
+# into DICE_GAP would run them into each other.
+CRIT_LABEL_COLOR = (255, 225, 120)
+CRIT_LABEL_GAP = 4        # between the die and its first label line
+CRIT_LABEL_DICE_GAP = 26  # DICE_GAP replacement while labels are shown
 HINT_COLOR = (230, 230, 230)
 RESULT_SUMMARY_COLOR = (255, 150, 150)
 REROLL_HIGHLIGHT_COLOR = (255, 210, 0)   # rule 15.02: border of a die currently being re-rolled
@@ -135,7 +176,25 @@ class DicePanel:
         self.label_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE + 4, bold=True)
         self.value_font = pygame.font.SysFont(config.FONT_NAME, 28, bold=True)
         self.hint_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE - 2)
+        # Deliberately a notch smaller than target_font: the matchup line
+        # holds two full unit names side by side in half the panel width
+        # each, and an attached unit's name ("1 Crisis Starscythe Battlesuits
+        # 1 + Commander in Coldstar Battlesuit") needs the extra characters
+        # per line to not turn into five wrapped rows.
+        self.matchup_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE - 2, bold=True)
+        # Small on purpose: a crit label sits under a single die, so its
+        # widest word ("DEVASTATING") is what decides how far apart the dice
+        # in a row have to be.
+        self.crit_font = pygame.font.SysFont(config.FONT_NAME, 11, bold=True)
         self._die_rects = []  # [(original_index, rect), ...] from the last draw() - for click detection
+        # The backdrop this panel actually put on screen last frame, or None
+        # if it drew nothing (no roll, suppressed, finished sliding out).
+        # Same lifetime as _die_rects above - a record of what was drawn,
+        # not of what was asked for. main.py's AI badge reads it so the
+        # badge can step out of a visible roll's way instead of landing on
+        # top of it (rule 15.02's Command Re-roll fires while the roll is
+        # still on screen - see main()'s show_thinking_overlay()).
+        self.last_backdrop_rect = None
 
         # The die-face sprite, pre-scaled to DICE_SIZE once. Loaded
         # defensively - a missing/unreadable file just falls back to the
@@ -189,6 +248,7 @@ class DicePanel:
         once the notice is gone (rather than jumping straight to its result,
         which is what simply skipping the draw call would do)."""
         self._die_rects = []
+        self.last_backdrop_rect = None
         now = time.monotonic()
         if suppressed:
             if self._hold_start is None:
@@ -328,10 +388,13 @@ class DicePanel:
         ops = []
         movable_rects = []
 
-        if dice_manager.target_name:
-            y = self._draw_wrapped(
-                ops, movable_rects, surface, f"Target: {dice_manager.target_name}", self.target_font, TARGET_COLOR,
-                y, text_max_width, panel_centerx,
+        target_squad = getattr(dice_manager, "target_squad", None)
+        attacker_squad = getattr(dice_manager, "attacker_squad", None)
+        if dice_manager.target_name or target_squad is not None:
+            y = self._draw_matchup(
+                ops, movable_rects, surface, attacker_squad, target_squad, dice_manager.target_name,
+                y, text_max_width, panel_left, panel_width,
+                subject_label=getattr(dice_manager, "subject_label", "Target") or "Target",
             )
             y += 4
 
@@ -403,6 +466,7 @@ class DicePanel:
                 for rect in movable_rects:
                     rect.move_ip(0, offset_y)
 
+        self.last_backdrop_rect = backdrop_rect
         backdrop_surf = pygame.Surface(backdrop_rect.size, pygame.SRCALPHA)
         backdrop_surf.fill(BACKDROP_COLOR)
         pygame.draw.rect(backdrop_surf, BACKDROP_BORDER_COLOR, backdrop_surf.get_rect(), width=2, border_radius=8)
@@ -425,6 +489,114 @@ class DicePanel:
             ops.append(lambda s=line_surf, r=line_rect: surface.blit(s, r))
             y = line_rect.bottom + 2
         return y
+
+    def _unit_side_size(self, squad, name, max_width):
+        """(art surfaces, wrapped name lines, width, height) for one side of
+        the matchup line, laid out as art-then-name within `max_width`.
+
+        Measured before anything is drawn because the two sides have to agree
+        on a common height (the arrow between them is centred on it) and
+        because a side whose name is one line tall still has to reserve room
+        for its thumbnail.
+
+        Each thumbnail is a SQUARE cell (see MATCHUP_PORTRAIT_PX), so the cell
+        is what is reserved rather than the art's own width - the art is
+        centred in it, and the cell's chamfered frame is drawn at full size
+        whether the figure inside is wide or narrow."""
+        arts = [
+            sprites.fitted_surface(path, MATCHUP_PORTRAIT_PX - MATCHUP_PORTRAIT_INSET)
+            for path in (sprites.portrait_paths(squad, limit=2) if squad is not None else [])
+        ]
+
+        def art_width(items):
+            if not items:
+                return 0
+            return (len(items) * MATCHUP_PORTRAIT_PX
+                    + (len(items) - 1) * MATCHUP_PORTRAIT_GAP + MATCHUP_ART_TEXT_GAP)
+
+        while arts and max_width - art_width(arts) < MATCHUP_MIN_TEXT_PX:
+            arts.pop()
+        art_w = art_width(arts)
+        text_w = max(1, max_width - art_w)
+        lines = wrap_text(self.matchup_font, name, text_w) if name else []
+        line_h = self.matchup_font.get_height() + 1
+        text_h = len(lines) * line_h
+        width = art_w + (max(self.matchup_font.size(l)[0] for l in lines) if lines else 0)
+        return arts, lines, width, max(text_h, MATCHUP_PORTRAIT_PX if arts else 0)
+
+    def _draw_unit_side(self, ops, movable_rects, surface, arts, lines, color, x, y, height):
+        """Draws one side of the matchup at (x, y), vertically centring both
+        the art and the name block within `height` (the taller of the two
+        sides) so a one-line name doesn't sit at the top of a three-line
+        neighbour."""
+        cursor = x
+        for art in arts:
+            cell = pygame.Rect(cursor, 0, MATCHUP_PORTRAIT_PX, MATCHUP_PORTRAIT_PX)
+            cell.centery = y + height // 2
+            movable_rects.append(cell)
+            # `cell` is the same mutable Rect already in movable_rects, so the
+            # art is centred off it LIVE, once the slide offset has been
+            # applied - no second rect to keep in sync with it.
+            ops.append(lambda a=art, r=cell: (
+                button_style.draw_box(surface, r, chamfer=MATCHUP_PORTRAIT_CHAMFER,
+                                      bg_color=MATCHUP_PORTRAIT_BG),
+                surface.blit(a, a.get_rect(center=r.center)),
+            ))
+            cursor += MATCHUP_PORTRAIT_PX + MATCHUP_PORTRAIT_GAP
+        if arts:
+            cursor += MATCHUP_ART_TEXT_GAP - MATCHUP_PORTRAIT_GAP
+
+        line_h = self.matchup_font.get_height() + 1
+        text_y = y + (height - len(lines) * line_h) // 2
+        for line in lines:
+            line_surf = self.matchup_font.render(line, True, color)
+            line_rect = line_surf.get_rect(x=cursor, y=text_y)
+            movable_rects.append(line_rect)
+            ops.append(lambda s=line_surf, r=line_rect: surface.blit(s, r))
+            text_y += line_h
+
+    def _draw_matchup(self, ops, movable_rects, surface, attacker_squad, target_squad, target_name,
+                      y, max_width, panel_left, panel_width, subject_label="Target"):
+        """The "who is attacking whom" line: attacker (art + name) on the
+        left, an arrow, the target on the right - see ATTACKER_COLOR's own
+        comment for the user report this comes from.
+
+        Falls back to the old single centred "Target: X" line whenever there
+        is no attacker to name (a battle-shock test, an Advance/Charge roll,
+        a Damage roll resolved from inside DamageAllocationSession, which
+        only knows who is being shot at). Art is optional throughout: a unit
+        with no image of its own just renders as its name, the same "missing
+        art is fine" convention sprite_for() has."""
+        content_left = panel_left + CONTENT_PADDING
+        centerx = panel_left + panel_width // 2
+        target_name = target_name or (target_squad.name if target_squad is not None else "")
+
+        if attacker_squad is None:
+            arts, lines, width, height = self._unit_side_size(
+                target_squad, f"{subject_label}: {target_name}", max_width,
+            )
+            self._draw_unit_side(
+                ops, movable_rects, surface, arts, lines, TARGET_COLOR,
+                centerx - width // 2, y, height,
+            )
+            return y + height + MATCHUP_BOTTOM_GAP
+
+        verb_surf = self.matchup_font.render(MATCHUP_VERB_TEXT, True, MATCHUP_VERB_COLOR)
+        half = max(1, (max_width - verb_surf.get_width() - 2 * MATCHUP_SIDE_GAP) // 2)
+        a_arts, a_lines, _a_w, a_h = self._unit_side_size(attacker_squad, attacker_squad.name, half)
+        t_arts, t_lines, _t_w, t_h = self._unit_side_size(target_squad, target_name, half)
+        height = max(a_h, t_h)
+
+        self._draw_unit_side(ops, movable_rects, surface, a_arts, a_lines, ATTACKER_COLOR,
+                             content_left, y, height)
+        self._draw_unit_side(ops, movable_rects, surface, t_arts, t_lines, TARGET_COLOR,
+                             content_left + half + verb_surf.get_width() + 2 * MATCHUP_SIDE_GAP,
+                             y, height)
+
+        verb_rect = verb_surf.get_rect(center=(centerx, y + height // 2))
+        movable_rects.append(verb_rect)
+        ops.append(lambda s=verb_surf, r=verb_rect: surface.blit(s, r))
+        return y + height + MATCHUP_BOTTOM_GAP
 
     def _draw_label_bar(self, ops, movable_rects, surface, text, font, roll_kind, y, max_width, panel_left, panel_width):
         """The dice panel's own heading (dice_manager.label) gets a colored
@@ -463,7 +635,15 @@ class DicePanel:
         faked) - it's only ever grouped/ordered by draw() using the real
         values too, just never split into success/failure rows while not
         revealed, so no information leaks through layout either."""
-        total_width = len(row) * DICE_SIZE + (len(row) - 1) * DICE_GAP
+        # A crit label is wider than the die it belongs to, so the whole row
+        # spreads out while any is on screen (see CRIT_LABEL_DICE_GAP). Only
+        # while `revealed` - entrance_elapsed being set means the dice are
+        # still tumbling, and the outcome, including which of them are
+        # critical, must not leak through spacing either.
+        crit_labels = tuple(getattr(dice_manager, "crit_labels", ()) or ())
+        show_crits = bool(crit_labels) and entrance_elapsed is None
+        gap = CRIT_LABEL_DICE_GAP if show_crits else DICE_GAP
+        total_width = len(row) * DICE_SIZE + (len(row) - 1) * gap
         x = panel_left + (panel_width - total_width) // 2
 
         now = time.monotonic()
@@ -474,11 +654,13 @@ class DicePanel:
             and now - dice_manager.rerolled_at < REROLL_ANIMATION_DURATION
         )
 
+        placed = []  # (value, rect) for this row only - the crit labels below
         for index, value in row:
             die_rect = pygame.Rect(x, y, DICE_SIZE, DICE_SIZE)
             self._die_rects.append((index, die_rect))
             movable_rects.append(die_rect)
-            x += DICE_SIZE + DICE_GAP
+            placed.append((value, die_rect))
+            x += DICE_SIZE + gap
 
             if entrance_tick is not None:
                 # Rolling-dice flicker while still sliding in - staggered by
@@ -525,7 +707,32 @@ class DicePanel:
                 self._draw_pips(surface, rect, value, DICE_VALUE_COLOR)
 
             ops.append(draw_die)
-        return y + DICE_SIZE
+        if not show_crits:
+            return y + DICE_SIZE
+
+        # The labels themselves, under each critical die. Wrapped on whole
+        # words at the die's own width - "DEVASTATING WOUND" is two lines,
+        # "LETHAL HIT" fits on one at this size.
+        label_lines = []
+        for text in crit_labels:
+            # Wrapped narrower than the cell it sits in, so two labelled
+            # dice standing next to each other keep a visible gap between
+            # their text rather than reading as one run-on line.
+            label_lines.extend(wrap_text(self.crit_font, text, DICE_SIZE + gap - 10))
+        if not label_lines:
+            return y + DICE_SIZE
+        line_h = self.crit_font.get_height()
+        for value, rect in placed:
+            if not dice_manager.is_critical(value):
+                continue
+            label_y = rect.bottom + CRIT_LABEL_GAP
+            for line in label_lines:
+                text_surf = self.crit_font.render(line, True, CRIT_LABEL_COLOR)
+                text_rect = text_surf.get_rect(centerx=rect.centerx, y=label_y)
+                movable_rects.append(text_rect)
+                ops.append(lambda s=text_surf, r=text_rect: surface.blit(s, r))
+                label_y += line_h
+        return y + DICE_SIZE + CRIT_LABEL_GAP + len(label_lines) * line_h
 
     def _draw_die_face(self, surface, rect, bg_color, border_color, border_width):
         """User: use the Sprites/Dice.png sprite for the die face, tinted

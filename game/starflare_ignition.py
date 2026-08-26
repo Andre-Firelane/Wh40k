@@ -86,6 +86,7 @@ engine, so that is where both are enforced.
 """
 
 from game.squad import ENGAGEMENT_RANGE_IN, edge_distance
+from game.strategic_reserves import withdraw_to_reserves
 
 STARFLARE_IGNITION_SYSTEM_NAME = "Starflare Ignition System"
 STARFLARE_IGNITION_SYSTEM_POINTS = 20
@@ -374,21 +375,12 @@ class StarflareIgnitionController:
                     f"after all - {reason}; it stays on the battlefield."
                 )
             return False
-        for model in list(squad.models):
-            if model in self.game_state.tokens:
-                self.game_state.tokens.remove(model)
-        self.game_state.reserves.append(squad)
-        # Rule 20.04's post-arrival lock describes an arrival that has just
-        # been undone - confirm_ingress() sets it again on the next one.
-        squad.ingress_locked = False
-        # Rule 14.02: Level of Control is recomputed at the end of each phase
-        # and turn, and this happens at exactly such a boundary - the unit may
-        # have been the only thing holding an objective.
-        for objective in self.game_state.objectives:
-            objective.update_control(self.game_state.tokens)
-        if self.game_log is not None:
-            self.game_log.add(
-                f"{squad.owner}: {squad.name} uses the {STARFLARE_IGNITION_SYSTEM_NAME} to leave "
-                f"the battlefield and go into Strategic Reserves (rule 20.03)."
-            )
-        return True
+        # The mechanical move (models out of tokens, unit into reserves, the
+        # ingress lock cleared, objectives recomputed) is shared with Seer
+        # Council's Unshrouded Truth - see game/strategic_reserves.py, which
+        # also records why those last two are not optional.
+        return withdraw_to_reserves(
+            self.game_state, squad, log=self.game_log,
+            message=(f"{squad.owner}: {squad.name} uses the {STARFLARE_IGNITION_SYSTEM_NAME} to "
+                     f"leave the battlefield and go into Strategic Reserves (rule 20.03)."),
+        )

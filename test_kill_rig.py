@@ -394,16 +394,32 @@ c.true("with +1 Strength the same threes wound", (wounds_in(buffed) or 0) > 0)
 c.true("both runs really reached the wound step",
        plain["log"].has("wound roll") and buffed["log"].has("wound roll"))
 
-# [LETHAL HITS] (24.23) turns a critical HIT straight into a wound, skipping
-# the wound roll for it entirely. With every hit critical that is a total
-# difference: without the keyword the engine rolls to wound (and all 1s
-# produce nothing), with it there is no wound roll left to make.
+# [LETHAL HITS] (24.23) turns a critical HIT straight into a wound, so those
+# hits never reach the wound roll. Every hit here is critical and Get Stuck
+# In doubles them with [SUSTAINED HITS], so the wound roll should be exactly
+# half as many dice with the keyword as without: 27 instead of 54.
+#
+# This used to assert that NO wound roll happened at all - which was true
+# before rule 24.23 stopped asking how many crits to auto-wound, but only
+# because the unanswered prompt stalled the sequence before the wound step.
+# It was measuring the stall, not the rule.
+def wound_dice(scene):
+    """How many dice the wound roll actually threw - read out of the roll's
+    own bracketed list, not by counting commas in the whole line (the tail
+    of it has commas of its own)."""
+    line = scene["log"].find("wound roll")
+    if not line or "[" not in line:
+        return 0
+    return len(line.split("[", 1)[1].split("]", 1)[0].split(","))
+
+
 lethal = swing_choppas(True, True, 1)
 no_lethal = swing_choppas(True, False, 1)
 c.true("without [LETHAL HITS] a wound roll happens...", no_lethal["log"].has("wound roll"))
 c.eq("...and all 1s produce nothing", wounds_in(no_lethal), 0)
-c.eq("with [LETHAL HITS] the critical hits skip the wound roll entirely",
-     lethal["log"].has("wound roll"), False)
+c.eq("with [LETHAL HITS] only the non-critical hits roll to wound",
+     wound_dice(lethal) * 2, wound_dice(no_lethal))
+c.true("...and that is genuinely fewer dice", wound_dice(lethal) < wound_dice(no_lethal))
 
 
 # The adjuster itself, directly - no mutation of the shared instance.

@@ -44,7 +44,17 @@ checks.eq("W12", p.wounds, 12)
 checks.eq("Ld7+", p.leadership, "7+")
 checks.eq("OC3", p.oc, 3)
 checks.eq("no invulnerable save", p.invulnerable_save, "-")
-checks.eq("60 mm base", round(p.base_radius_in, 3), round(60 / 2 / 25.4, 3))
+# NOT the printed 60 mm (1.181"). User report: "der falcon ist zu klien.
+# genau so gross machen wie devilfish" - the other grav-tank on the table
+# does not use its printed base either (it was enlarged on user request), so
+# the two are matched deliberately. Pinned against DevilfishProfile rather
+# than a literal, so the pair cannot drift apart unnoticed.
+from game.units import DevilfishProfile  # noqa: E402
+
+checks.eq("base matched to the Devilfish, not the printed 60 mm",
+          p.base_radius_in, DevilfishProfile.base_radius_in)
+checks.true("and it is bigger than the printed 60 mm it started from",
+            p.base_radius_in > 60 / 2 / 25.4)
 checks.true("VEHICLE", p.vehicle)
 checks.true("FLY", p.fly)
 checks.true("TRANSPORT", p.transport)

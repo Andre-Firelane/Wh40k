@@ -76,6 +76,9 @@ class ChargeController:
         }
         return {s for s in enemy_squads if squad.min_distance_to(s) <= max_range}
 
+    # Set by main.py - rule 16.01's "not eligible to declare a charge" lock.
+    action_controller = None
+
     def can_declare_charge(self, squad, ignore_phase=False):
         """Rule 11.02 step 1 eligibility.
 
@@ -97,6 +100,11 @@ class ChargeController:
             return False  # rule 20.04: not eligible for any other move type until the next Charge phase
         if squad.charge_locked_until_end_of_turn:
             return False  # rules 18.04/18.05: Rapid/Combat/Emergency Disembark forbid a charge this turn
+        # Rule 16.01: "If a unit starts an action, until the end of the turn...
+        # it is not eligible to declare a charge." No TITANIC carve-out on this
+        # half of the rule, unlike the shooting one.
+        if self.action_controller is not None and self.action_controller.blocks_charge(squad):
+            return False
         # Stormboyz' "Full Throttle" (user-supplied): "eligible to declare a
         # charge in a turn in which it Advanced or Fell Back" - a named
         # exception to the two checks right below, not to any other check
@@ -124,7 +132,17 @@ class ChargeController:
         self.charge_targets = []
         self.state = DECLARING_TARGETS
         if self.dice_manager is not None:
-            self.dice_manager.roll(count=2, sides=6, label="Charge Roll", target_name=squad.name, roll_kind=CHARGE_ROLL)
+            # target_squad/subject_label: the unit named on a Charge roll is
+            # the one DOING the charging (its targets are not even chosen yet -
+            # they are filtered out of what the roll reaches, see
+            # targets_reachable_with()), so the panel shows its art and calls
+            # it "Charging" rather than "Target". User: "wenn charge overlay
+            # kommt, also wenn angesagt wird, wer den charge roll macht - da
+            # will ich auch ein sprite haben."
+            self.dice_manager.roll(
+                count=2, sides=6, label="Charge Roll", target_name=squad.name,
+                roll_kind=CHARGE_ROLL, target_squad=squad, subject_label="Charging",
+            )
             self._pending_roll = True
 
     def can_start_reactive_charge(self, squad):
@@ -171,7 +189,8 @@ class ChargeController:
         self._on_reactive_finished = on_finished
         if self.dice_manager is not None:
             self.dice_manager.roll(
-                count=2, sides=6, label="Charge Roll (Heroic Intervention)", target_name=squad.name, roll_kind=CHARGE_ROLL,
+                count=2, sides=6, label="Charge Roll (Heroic Intervention)", target_name=squad.name,
+                roll_kind=CHARGE_ROLL, target_squad=squad, subject_label="Charging",
             )
             self._pending_roll = True
 

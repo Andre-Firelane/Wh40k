@@ -155,6 +155,69 @@ checks.eq("Pathfinders: two carbine swaps also land on four different models",
           (pf["Rail Rifle"], pf["Ion Rifle - Standard"], pf["Pulse Carbine"]), (2, 2, 6))
 
 
+# --- addressing models by index -------------------------------------------
+# The cursor decides HOW MANY, never WHICH. Two swaps giving up different
+# weapons therefore both start at model 0 - correct for a champion taking a
+# gun and a melee upgrade, wrong for a list that wants them apart. Writing a
+# list of model indices instead of a count is how an army list says which.
+def loadout_at(squad, index):
+    """Weapons of the index-th model of the Storm Guardian LINE (so the
+    platform, which is built first, does not shift the numbering)."""
+    line = [m for m in squad.models if m.profile.name == "Storm Guardian"]
+    return sorted(w.name for w in line[index].weapons)
+
+
+by_index = storm(name="1 Storm Guardians 3a", choices={"Storm Guardian": {
+    STORM_GUARDIAN_PISTOL_TO_FLAMER: 2,
+    STORM_GUARDIAN_CCW_TO_POWER_SWORD: [2, 3],
+}})
+checks.eq("by count, the flamers take the first two models",
+          [loadout_at(by_index, i) for i in (0, 1)],
+          [["Close Combat Weapon", "Flamer"]] * 2)
+checks.eq("the addressed swords take exactly the models named",
+          [loadout_at(by_index, i) for i in (2, 3)],
+          [["Power Sword", "Shuriken Pistol"]] * 2)
+checks.eq("...and nobody carries both", 
+          [m for m in by_index.models
+           if {"Flamer", "Power Sword"} <= {w.name for w in m.weapons}], [])
+checks.eq("an index list prices exactly like the same count",
+          by_index.points,
+          storm(name="1 Storm Guardians 3b", choices={"Storm Guardian": {
+              STORM_GUARDIAN_PISTOL_TO_FLAMER: 2,
+              STORM_GUARDIAN_CCW_TO_POWER_SWORD: 2,
+          }}).points)
+
+# The cursor steps over an addressed model, so mixing the two spellings on one
+# line cannot silently stack them. Here the flamers would otherwise want
+# models 0-1 and the swords own model 1.
+mixed = storm(name="1 Storm Guardians 3c", choices={"Storm Guardian": {
+    STORM_GUARDIAN_PISTOL_TO_FLAMER: 2,
+    STORM_GUARDIAN_CCW_TO_POWER_SWORD: [1],
+}})
+checks.eq("a counted swap steps over an addressed model",
+          [loadout_at(mixed, i) for i in (0, 1, 2)],
+          [["Close Combat Weapon", "Flamer"],
+           ["Power Sword", "Shuriken Pistol"],
+           ["Close Combat Weapon", "Flamer"]])
+
+# An index list is capped and range-checked like any other over-eager choice:
+# max_models is 2, and index 99 does not exist. Out-of-range is DROPPED, not
+# clamped - clamping would pile the option onto the last model, the very thing
+# an explicit list is written to avoid.
+overshot = storm(name="1 Storm Guardians 3d", choices={"Storm Guardian": {
+    STORM_GUARDIAN_CCW_TO_POWER_SWORD: [0, 1, 2, 3],
+}})
+checks.eq("an index list is trimmed to the option's cap",
+          weapons_of(overshot)["Power Sword"], 2)
+out_of_range = storm(name="1 Storm Guardians 3e", choices={"Storm Guardian": {
+    STORM_GUARDIAN_CCW_TO_POWER_SWORD: [0, 99],
+}})
+checks.eq("an out-of-range index is dropped, not clamped onto the last model",
+          weapons_of(out_of_range)["Power Sword"], 1)
+checks.eq("...on the model that WAS named", loadout_at(out_of_range, 0),
+          ["Power Sword", "Shuriken Pistol"])
+
+
 # -------------------------------------------------------- 4. Serpent Shield
 
 print("--- 4. Serpent Shield ---")
@@ -293,10 +356,106 @@ checks.eq("Stormblades is no longer recorded as missing",
 print("--- 7. sprites ---")
 
 art = [os.path.basename(x) for x in sprites.portrait_paths(squad, 4)]
-checks.eq("the user's file name differs from the datasheet name", art, ["Assault Guardian.png"])
-checks.eq("the platform has no art of its own and falls through to the same image",
+# Rank and file FIRST, platform second: a listing has to say "Storm
+# Guardians", and the single support model is the least representative
+# thing in the unit - see game/sprites.py's _by_line_frequency().
+checks.eq("the user's file name differs from the datasheet name",
+          art, ["Assault Guardian.png", "Bright Lance Weapon Platform.png"])
+# The platform has no art of its own; on user request it borrows the Guardian
+# Defenders' platform image rather than falling through to the rank and file,
+# so it reads as a platform on the board. (It carries no gun at all, so the
+# Bright Lance on that art is wrong - deliberately accepted, see
+# game/sprites.py's MODEL_SPRITE_KEYS entry.)
+checks.eq("the platform borrows the Bright Lance platform art",
           os.path.basename(sprites.sprite_for(model_named(squad, "Serpent's Scale Platform"))),
+          "Bright Lance Weapon Platform.png")
+checks.eq("...while the rank and file are unchanged",
+          os.path.basename(sprites.sprite_for(model_named(squad, "Storm Guardian"))),
           "Assault Guardian.png")
+
+# The three special-weapon variants. These need no mapping in sprites.py: the
+# files were dropped in already named to the "<squad key> - <weapon name>"
+# convention that _variant_candidates() builds, and the weapon names match the
+# profiles exactly. What the test pins is that they STAY matched - rename
+# either side and a model silently falls back to the plain art instead.
+def art_of(sq, model):
+    path = sprites.sprite_for(model)
+    return os.path.basename(path) if path is not None else None
+
+
+def variant_squad(name, choices):
+    sq = storm(name=name, choices={"Storm Guardian": choices})
+    # Every model that took a swap, in build order.
+    swapped = [m for m in sq.models
+               if m.profile.name == "Storm Guardian" and sprites._unusual_weapon_names(m)]
+    return sq, swapped
+
+
+for label, option, expected in (
+    ("flamer", STORM_GUARDIAN_PISTOL_TO_FLAMER, "Assault Guardian - Flamer.png"),
+    ("fusion gun", STORM_GUARDIAN_PISTOL_TO_FUSION, "Assault Guardian - Fusion Gun.png"),
+    ("power sword", STORM_GUARDIAN_CCW_TO_POWER_SWORD, "Assault Guardian - Power Sword.png"),
+):
+    sq_v, swapped = variant_squad(f"1 Storm Guardians V{label}", {option: 2})
+    checks.eq(f"the {label} swap lands on exactly 2 models", len(swapped), 2)
+    checks.eq(f"a {label} model gets its own art",
+              sorted({art_of(sq_v, m) for m in swapped}), [expected])
+    # The unswapped rank and file must NOT drift onto the variant art - that
+    # would mean the "unusual loadout" comparison, not the file name, is what
+    # is broken.
+    plain = [m for m in sq_v.models
+             if m.profile.name == "Storm Guardian" and not sprites._unusual_weapon_names(m)]
+    checks.eq(f"...while the other {len(plain)} keep the plain art",
+              sorted({art_of(sq_v, m) for m in plain}), ["Assault Guardian.png"])
+
+# A model can legally carry TWO of these at once - ask for both swaps by COUNT
+# and the cursor starts each at the first model, because they give up
+# different weapons. Only one sprite can be drawn, and _variant_candidates()
+# walks the model's weapon list in order, so the FLAMER wins.
+#
+# That order comes from the datasheet's wargear_options declaration order,
+# which nobody would think of as sprite-affecting. Pinned so reordering those
+# options is a visible failure rather than a silent change of what the board
+# looks like. (Player 1's list used to be exactly this shape; it now puts the
+# swords on different models, which is the case just below.)
+squad_dual, _ = variant_squad("1 Storm Guardians VD", {
+    STORM_GUARDIAN_PISTOL_TO_FLAMER: 2,
+    STORM_GUARDIAN_CCW_TO_POWER_SWORD: 2,
+})
+dual = [m for m in squad_dual.models
+        if {"Flamer", "Power Sword"} <= {w.name for w in m.weapons}]
+checks.eq("asking by count puts both swaps on the same two models", len(dual), 2)
+checks.eq("a model carrying both shows the flamer (weapon list order decides)",
+          sorted({art_of(squad_dual, m) for m in dual}), ["Assault Guardian - Flamer.png"])
+
+# Naming the sword models by index instead splits them apart - Player 1's
+# actual list - and that is what puts the power sword art on the board at all.
+squad_split, _ = variant_squad("1 Storm Guardians VX", {
+    STORM_GUARDIAN_PISTOL_TO_FLAMER: 2,
+    STORM_GUARDIAN_PISTOL_TO_FUSION: 2,
+    STORM_GUARDIAN_CCW_TO_POWER_SWORD: [4, 5],
+})
+checks.eq("addressing the swords by index keeps them off the flamer models",
+          [m for m in squad_split.models
+           if len({"Flamer", "Fusion Gun", "Power Sword"} & {w.name for w in m.weapons}) > 1],
+          [])
+checks.eq("...so all three variants are on screen at once",
+          sorted(Counter(art_of(squad_split, m) for m in squad_split.models).items()),
+          sorted({"Assault Guardian.png": 4,
+                  "Assault Guardian - Flamer.png": 2,
+                  "Assault Guardian - Fusion Gun.png": 2,
+                  "Assault Guardian - Power Sword.png": 2,
+                  "Bright Lance Weapon Platform.png": 1}.items()))
+
+# ...and when only ONE of the two has art, the tie does not arise at all:
+# _variant_candidates() yields both names and the missing file simply falls
+# through. This is what makes the power sword art reachable for any list that
+# takes the sword without the flamer.
+sq_sword, sword_models = variant_squad("1 Storm Guardians VS",
+                                       {STORM_GUARDIAN_CCW_TO_POWER_SWORD: 2})
+checks.eq("a sword-only model reaches the sword art",
+          sorted({art_of(sq_sword, m) for m in sword_models}),
+          ["Assault Guardian - Power Sword.png"])
 
 
 # ---------------------------------------------------------- 8. A/B probes

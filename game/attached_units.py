@@ -278,8 +278,11 @@ def _leader_allows_joining_led_unit(incoming, already):
         ALREADY attached (a WARLOCKS unit).
 
     Getting that direction wrong would grant the permission to the wrong
-    datasheet - notably it must NOT let a Warlock Conclave join a unit that
-    Eldrad already leads, only the reverse.
+    datasheet: this clause is Eldrad's, and it is what lets HIM be the second
+    unit on a Conclave-joined bodyguard. The reverse direction - a Conclave
+    joining a unit that a Farseer already leads - is legal for a completely
+    different reason and is NOT this clause; see
+    _join_not_bound_by_leader_slot() below.
 
     "EVEN IF ONE WARLOCKS UNIT" - exactly one, and it must be the WARLOCKS
     unit. So this widens one leader to two and no further, and only for that
@@ -308,6 +311,53 @@ def _leader_allows_joining_led_unit(incoming, already):
     return _warlocks_unit(already[0])
 
 
+def _join_not_bound_by_leader_slot(incoming, already):
+    """The Warlock Conclave's LEADER ability, which is not worded as an
+    attachment at all:
+
+        "At the start of the Declare Battle Formations step, if this unit is
+         not an Attached unit, this unit can join one GUARDIAN DEFENDERS or
+         STORM GUARDIANS unit from your army (a unit cannot have more than one
+         WARLOCK CONCLAVE unit joined to it). If it does, until the end of the
+         battle, every model in this unit counts as being part of that
+         Bodyguard unit, and that Bodyguard unit's Starting Strength is
+         increased accordingly."
+
+    It states its OWN limit, and that limit is one Conclave per unit - not
+    19.01's one-leader-per-bodyguard default, which the rule itself prefixes
+    with "unless otherwise stated". So a Conclave may join a unit a Farseer
+    already leads.
+
+    THE ASYMMETRY IS DELIBERATE, and it is what the two printed texts together
+    say rather than a convenience:
+
+      * Conclave joining a Farseer-led unit: allowed here, because the
+        Conclave's own restriction says nothing about other leaders.
+      * Farseer attaching to a Conclave-joined unit: still refused, because
+        that IS an ordinary 19.01 attachment. Eldrad Ulthran's LEADER line
+        overrides it explicitly ("even if one WARLOCKS unit has already been
+        attached to it") and a plain Farseer's does not - fetched verbatim
+        from both datasheets rather than assumed either way.
+
+    Which means the ORDER matters for a plain Farseer: Farseer first, then
+    Conclave. main.py's Player 1 roster attaches them in that order and says
+    why. If Eldrad's clause did not exist this asymmetry would be
+    unmotivated - his clause is the evidence that a Conclave-joined unit does
+    block an ordinary leader.
+
+    Only ever WIDENS what is legal, so a datasheet without the flag behaves
+    exactly as before.
+    """
+    if not any(getattr(m.profile, "joins_without_leader_slot", False)
+               for m in getattr(incoming, "models", None) or ()):
+        return False
+    # "A unit cannot have more than one WARLOCK CONCLAVE unit joined to it" -
+    # the one restriction it does print. Asked of the components already
+    # attached, which is the granularity a datasheet keyword line has (19.01's
+    # merge keeps each component's datasheet) - see unit_has_datasheet_keyword().
+    return not any(_warlocks_unit(component) for component in already)
+
+
 def can_attach(leader_squad, bodyguard_squad):
     """Rule 19.01/24.22/24.34's legality conditions, as a list of reasons it
     is NOT allowed (empty list = allowed) - the same shape as Squad's own
@@ -329,15 +379,18 @@ def can_attach(leader_squad, bodyguard_squad):
 
     # "Unless otherwise stated, each bodyguard unit can only have one leader
     # unit and one support unit attached to it" (19.01). The exception the rule
-    # leaves room for is real and is printed on FOUR datasheets here, from BOTH
-    # directions: Boyz' and Kroot Carnivores' "Bodyguard" grants it from the
-    # bodyguard side, Eldrad Ulthran's LEADER line from the incoming-leader side.
+    # leaves room for is real and is printed on FIVE datasheets here, in THREE
+    # shapes: Boyz' and Kroot Carnivores' "Bodyguard" grants it from the
+    # bodyguard side, Eldrad Ulthran's LEADER line from the incoming-leader
+    # side, and Warlock Conclave's LEADER ability is not an attachment at all
+    # but a JOIN that states its own limit.
     # Each helper carries its own conditions and why the direction matters.
     if role is not None:
         already = [c for c in leader_components(bodyguard_squad) if c.role == role]
         if already and not (role == LEADER and (
                 _bodyguard_allows_second_leader(bodyguard_squad, leader_squad, already)
-                or _leader_allows_joining_led_unit(leader_squad, already))):
+                or _leader_allows_joining_led_unit(leader_squad, already)
+                or _join_not_bound_by_leader_slot(leader_squad, already))):
             label = "leader" if role == LEADER else "support"
             errors.append(
                 f'"{bodyguard_squad.name}" already has a {label} unit attached '

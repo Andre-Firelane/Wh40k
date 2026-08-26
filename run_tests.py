@@ -61,6 +61,9 @@ KNOWN_FAILURES = {
 # frame count: its default run is 105 s and a smoke pass does not need the long
 # tail.
 HEAVY = (
+    # A handful of frames: it clicks a map tile and two army tiles, then reads
+    # the built battlefield, so it is by far the cheapest thing here.
+    ("smoke_setup_screens.py", ()),
     ("smoke_log_input.py", ("map2",)),
     ("smoke_pregame.py", ("map2",)),
     ("selfplay.py", ("map2", "1500")),

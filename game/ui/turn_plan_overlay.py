@@ -1,7 +1,7 @@
 import pygame
 
 from game import config
-from game.ui import button_style
+from game.ui import button_style, unit_thumbs
 from game.ui.text_utils import wrap_text
 
 # User: "ich habe gerade einen test gemacht... ich kann den plan auch nicht
@@ -26,6 +26,14 @@ HINT_TEXT_COLOR = (185, 185, 185)
 ROLE_TEXT_COLOR = (170, 210, 235)
 MAX_BOX_HEIGHT_MARGIN = 40  # keep at least this much clearance to the window edges
 HEADER_BLOCK_HEIGHT = button_style.HEADER_MARGIN + button_style.HEADER_BAR_HEIGHT + 8
+# One small portrait beside each unit's own block, so a plan naming eight
+# units can be scanned by picture rather than by reading eight names. User:
+# "ich fände die portraits überall gut, wo von einheiten gesprochen wird. in
+# allen overlays." Beside rather than above, the same call
+# ActionPanel._draw_unit_row() makes: this is a REPEATED entry, and a
+# portrait row above each of eight of them would push the box off-screen.
+UNIT_THUMB_PX = 38
+UNIT_THUMB_GAP = 8
 
 
 class TurnPlanOverlay:
@@ -36,14 +44,20 @@ class TurnPlanOverlay:
         self.hint_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE - 2)
         self._plan = None
 
-    def show(self, plan):
+    def show(self, plan, squads=()):
         """plan: the sanitized {"turn_intent": str, "unit_plans": {squad:
         {"role", "target", "priority", "reason"}}} dict from
         ai/claude_agent.py's _sanitize_turn_plan() (AIMemory.turn_plan).
         Shown as-is, squads ordered by their own priority (lower first) -
         the same order ai/agent_driver.py's _movement_priority_key() will
-        actually move them in."""
+        actually move them in.
+
+        `squads` is every unit in the game (GameState.all_squads()); the plan
+        is keyed by unit NAME, so this is what resolves each entry back to a
+        unit whose art can be shown beside it. Optional - without it the
+        overlay draws exactly as it did before."""
         self._plan = plan
+        self._squads = list(squads)
 
     @property
     def is_pending(self):
@@ -56,16 +70,24 @@ class TurnPlanOverlay:
         intent_lines = wrap_text(self.body_font, self._plan["turn_intent"], content_width) or [""]
         entries = sorted(self._plan["unit_plans"].items(), key=lambda item: item[1]["priority"])
 
+        by_name = {squad.name: squad for squad in getattr(self, "_squads", [])}
         unit_specs = []
         for squad_name, entry in entries:
             detail = entry["target"]
             if entry["reason"]:
                 detail = f"{detail} - {entry['reason']}" if detail else entry["reason"]
-            detail_lines = wrap_text(self.body_font, detail, content_width - 20) if detail else []
             # An attached unit's name (19.01) plus its role can exceed even
             # this wide box, so the heading line wraps like the detail does.
-            role_lines = wrap_text(self.role_font, f"{squad_name}: {entry['role']}", content_width) or [squad_name]
-            unit_specs.append((role_lines, detail_lines))
+            squad = by_name.get(squad_name)
+            thumbs, _w, _h = unit_thumbs.row_size(
+                [squad] if squad is not None else [], content_width, box_px=UNIT_THUMB_PX, per_unit=1,
+            )
+            # The text loses the portrait's width so it still wraps inside
+            # the box rather than under the thumbnail column.
+            text_width = content_width - (UNIT_THUMB_PX + UNIT_THUMB_GAP if thumbs else 0)
+            role_lines = wrap_text(self.role_font, f"{squad_name}: {entry['role']}", text_width) or [squad_name]
+            detail_lines = wrap_text(self.body_font, detail, text_width - 20) if detail else []
+            unit_specs.append((role_lines, detail_lines, squad if thumbs else None))
         return intent_lines, unit_specs
 
     def draw(self, surface):
@@ -78,9 +100,10 @@ class TurnPlanOverlay:
         box_height = HEADER_BLOCK_HEIGHT + BOX_PADDING
         box_height += len(intent_lines) * (self.body_font.get_height() + LINE_GAP)
         box_height += SECTION_GAP
-        for role_lines, detail_lines in unit_specs:
-            box_height += len(role_lines) * (self.role_font.get_height() + LINE_GAP)
-            box_height += len(detail_lines) * (self.body_font.get_height() + LINE_GAP)
+        for role_lines, detail_lines, squad in unit_specs:
+            text_h = (len(role_lines) * (self.role_font.get_height() + LINE_GAP)
+                      + len(detail_lines) * (self.body_font.get_height() + LINE_GAP))
+            box_height += max(text_h, UNIT_THUMB_PX + LINE_GAP if squad is not None else 0)
         box_height += HINT_TOP_GAP + self.hint_font.get_height() + BOX_PADDING
         # A large army's plan can exceed the window - cap the box rather
         # than letting it overflow off-screen (content is still clipped to
@@ -106,15 +129,24 @@ class TurnPlanOverlay:
             y += self.body_font.get_height() + LINE_GAP
 
         y += SECTION_GAP
-        for role_lines, detail_lines in unit_specs:
+        for role_lines, detail_lines, squad in unit_specs:
+            text_x, top = x, y
+            if squad is not None:
+                unit_thumbs.draw_row(
+                    surface, [squad], x, y, content_width,
+                    box_px=UNIT_THUMB_PX, per_unit=1, gap_below=0,
+                )
+                text_x = x + UNIT_THUMB_PX + UNIT_THUMB_GAP
             for line in role_lines:
                 role_surf = self.role_font.render(line, True, ROLE_TEXT_COLOR)
-                surface.blit(role_surf, (x, y))
+                surface.blit(role_surf, (text_x, y))
                 y += self.role_font.get_height() + LINE_GAP
             for line in detail_lines:
                 detail_surf = self.body_font.render(line, True, HINT_TEXT_COLOR)
-                surface.blit(detail_surf, (x + 20, y))
+                surface.blit(detail_surf, (text_x + 20, y))
                 y += self.body_font.get_height() + LINE_GAP
+            if squad is not None:
+                y = max(y, top + UNIT_THUMB_PX + LINE_GAP)
         surface.set_clip(previous_clip)
 
         hint_y = min(y + HINT_TOP_GAP, box_rect.bottom - self.hint_font.get_height() - BOX_PADDING // 2)

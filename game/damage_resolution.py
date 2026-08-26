@@ -1,6 +1,6 @@
 from game.dice import DAMAGE_ROLL
 from game.dice_notation import DiceNotationRoll
-from game import molten_form
+from game import damage_reduction, molten_form
 from game.feel_no_pain import FeelNoPainRoll
 from game.ramshackle import adjusted_ap as ramshackle_adjusted_ap
 from game.thresholds import parse_threshold
@@ -19,6 +19,40 @@ def _resolve_save(roll, ap, sv_threshold, insv_threshold):
     if sv_threshold is not None and (roll + ap) >= sv_threshold:
         return "no_damage"
     return "damage"
+
+
+def save_thresholds(model, weapon, waaagh=None):
+    """The three numbers rule 05.04's save actually turns on, for ONE model
+    against ONE weapon: the printed armour save, the invulnerable save in
+    force, and the AP actually applying.
+
+    Pulled out so that the DISPLAY and the RESOLUTION cannot disagree. They
+    did: the dice panel was handed only `armour + (-weapon.ap)`, so a die that
+    passed on the INVULNERABLE save was shown red and counted among the
+    failures - user report, "oft werden bestandene rettungswuerfe rot
+    angezeigt". A Riptide (Sv3+/Inv4+) under AP-2 is the plain case: its
+    armour is a 5+ there, so a rolled 4 saves on the invuln and looked failed.
+    The Battlewagon's Ramshackle had the mirror problem (the panel did not
+    know the AP had been worsened against it)."""
+    sv = parse_threshold(model.profile.armor_save)
+    insv = parse_threshold(effective_invulnerable_save(
+        model, waaagh, melee=getattr(weapon, "weapon_type", None) == MELEE,
+    ))
+    return sv, insv, ramshackle_adjusted_ap(weapon.ap, model)
+
+
+def displayed_save_threshold(model, weapon, waaagh=None):
+    """The single number a save die has to REACH to save - the best of the
+    AP-modified armour save and the (AP-proof) invulnerable save, which is
+    exactly what _resolve_save() above lets through.
+
+    None when neither can ever save; the callers turn that into the 7 that
+    marks "no passing roll exists". Note the unmodified-1 rule is NOT folded
+    in here - DiceManager.is_success() applies that itself, for every kind of
+    roll."""
+    sv, insv, ap = save_thresholds(model, weapon, waaagh)
+    reachable = [t for t in ((sv - ap) if sv is not None else None, insv) if t is not None]
+    return min(reachable) if reachable else None
 
 
 def _select_candidates(group):
@@ -182,27 +216,14 @@ class DamageAllocationSession:
                 return
 
             roll = self._rolls.pop(0)
-            sv_threshold = parse_threshold(group[0].profile.armor_save)
-            # Orks army rule "Waaagh!" (user-supplied): a model with this
-            # ability has (at least) a 5+ invulnerable save while active -
-            # effective_invulnerable_save() is a no-op passthrough of the
-            # model's own value unless that actually applies and improves on it.
-            # The attack type is passed because some printed invulnerable saves
-            # improve against melee only (Howling Banshees' 5+, improved to 4+).
-            # self.weapon is the weapon this Save roll is being made against, so
-            # it is the authoritative answer rather than an inference.
-            insv_threshold = parse_threshold(effective_invulnerable_save(
-                group[0], self.waaagh,
-                melee=getattr(self.weapon, "weapon_type", None) == MELEE,
-            ))
-            # Battlewagon's "Ramshackle but Rugged" (user-supplied): "each
-            # time an attack is allocated to this model, worsen the Armour
-            # Penetration characteristic of that attack by 1". A DEFENDER's
-            # adjustment, so it is applied here at allocation against the
-            # model actually taking the wound - not chained onto the
-            # attacker's weapon like every other adjuster. No-op passthrough
-            # for anyone without the ability; see game/ramshackle.py.
-            effective_ap = ramshackle_adjusted_ap(self.weapon.ap, group[0])
+            sv_threshold, insv_threshold, effective_ap = save_thresholds(
+                group[0], self.weapon, self.waaagh,
+            )
+            # Waaagh!'s granted 5+ invulnerable, a printed invulnerable that
+            # improves against melee (Howling Banshees), and the Battlewagon's
+            # Ramshackle AP worsening all live in save_thresholds() above -
+            # one definition, so the dice panel colours a die by the same
+            # numbers this line resolves it with.
             outcome = _resolve_save(roll, effective_ap, sv_threshold, insv_threshold)
 
             if outcome == "no_damage":
@@ -271,6 +292,12 @@ class DamageAllocationSession:
             damage_roll = DiceNotationRoll(
                 self.weapon.damage_notation, count=1, dice_manager=self.dice_manager,
                 label=f"Damage: {self.weapon.name}", roll_kind=DAMAGE_ROLL, log=self.log,
+                # No attacker to name here (the session only knows who is
+                # being shot at), so DicePanel shows the target on its own -
+                # a softer degradation than dropping the matchup line for
+                # this one step in the middle of the sequence.
+                target_name=self.target_squad.name if self.target_squad is not None else None,
+                target_squad=self.target_squad,
             )
             if damage_roll.is_pending:
                 self.pending_damage_roll = damage_roll
@@ -365,6 +392,8 @@ class DamageAllocationSession:
                 self.weapon.damage_notation, count=1, dice_manager=self.dice_manager,
                 label=f"Damage (Sunforge re-roll): {self.weapon.name}", roll_kind=DAMAGE_ROLL,
                 log=self.log, is_reroll=True,
+                target_name=self.target_squad.name if self.target_squad is not None else None,
+                target_squad=self.target_squad,
             )
             if reroll.is_pending:
                 self.pending_damage_roll = reroll
@@ -374,7 +403,7 @@ class DamageAllocationSession:
                     self._notify_resumed()
                 return
             amount = reroll.total
-        fnp = FeelNoPainRoll(model, self._molten(model, amount), self.dice_manager,
+        fnp = FeelNoPainRoll(model, self._reduced_damage(model, amount), self.dice_manager,
                              log=self.log, waaagh=self.waaagh)
         if fnp.is_pending:
             self.pending_fnp = fnp
@@ -388,21 +417,35 @@ class DamageAllocationSession:
         if resumed:
             self._notify_resumed()
 
-    def _molten(self, model, amount):
-        """The Avatar of Khaine's Molten Form: "each time an attack is allocated
-        to this model, halve the Damage characteristic of that attack".
+    def _reduced_damage(self, model, amount):
+        """Every "change the Damage characteristic of the attack allocated to
+        this model" ability, applied in one place.
+
+        Renamed from _molten() when the second carrier arrived: the Avatar's
+        Molten Form was the only one while it was called that, and the Necron
+        Overlord's Implacable Resilience / Void Dragon's Necrodermis would have
+        made the name a lie (CLAUDE.md's own rule about renaming as soon as a
+        second carrier exists).
 
         Called at BOTH places this session builds a FeelNoPainRoll - the
         synchronous fixed-damage path and the rolled-notation/Sunforge path -
         because those are the two points where the amount is finally settled and
         there is no single funnel below them. Before Feel No Pain deliberately:
-        the ability halves the Damage CHARACTERISTIC, and FNP (24.12) is then
-        rolled per remaining wound. See game/molten_form.py."""
-        halved = molten_form.adjusted_damage(model, amount)
-        if halved != amount and self.log is not None:
+        these change the Damage CHARACTERISTIC, and FNP (24.12) is then rolled
+        per remaining wound.
+
+        Halving runs before subtraction - the core rules' own order for
+        characteristic modifiers. See game/molten_form.py and
+        game/damage_reduction.py."""
+        result = molten_form.adjusted_damage(model, amount)
+        if result != amount and self.log is not None:
             self.log(f"Molten Form: {model.profile.name} halves this attack's Damage "
-                     f"{amount} -> {halved}.")
-        return halved
+                     f"{amount} -> {result}.")
+        reduced = damage_reduction.adjusted_damage(model, result)
+        if reduced != result and self.log is not None:
+            self.log(f"{damage_reduction.label_for(model)}: {model.profile.name} reduces "
+                     f"this attack's Damage {result} -> {reduced}.")
+        return reduced
 
     def _apply_feel_no_pain(self, model, roll, amount, was_pending):
         """Only used by the fully-synchronous path (_after_stealth_drones(),
@@ -414,7 +457,7 @@ class DamageAllocationSession:
         comment).
 
         comment)."""
-        fnp = FeelNoPainRoll(model, self._molten(model, amount), self.dice_manager,
+        fnp = FeelNoPainRoll(model, self._reduced_damage(model, amount), self.dice_manager,
                              log=self.log, waaagh=self.waaagh)
         if fnp.is_pending:
             self.pending_fnp = fnp

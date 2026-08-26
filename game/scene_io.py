@@ -21,10 +21,18 @@ turn state and command points.
 
 That is deliberate rather than lazy. Rebuilding a unit from a dump would mean
 re-deriving its composition, wargear choices and attached-unit structure, all
-of which already have exactly one correct source (main.py's roster), and a
+of which already have exactly one correct source (game/army_lists.py), and a
 second one would drift from it silently. The cost is that a snapshot is tied to
 the roster that produced it - restore() says so plainly instead of quietly
 placing half an army.
+
+WHICH LISTS were on the table IS stored, though, and only since either player
+could field any of them: without it a snapshot taken of an Aeldari-vs-Orks game
+would restore into whatever config happened to say, and every single unit name
+would then miss. It is one line - {player: army key} - and it is what --load
+rebuilds the armies from (see armies_in() and main()). Optional on the way in:
+a snapshot written before this existed simply has no such line, and is restored
+against the configured lists exactly as it always was.
 
 Not stored either: blood decals (cosmetic), the AI's turn plan (regenerated),
 and anything derived from the above.
@@ -68,7 +76,7 @@ def _squad_entries(state):
     return entries
 
 
-def capture(state, map_key, turn_tracker=None, command_points=None):
+def capture(state, map_key, turn_tracker=None, command_points=None, armies=None):
     """The current board position as a plain dict, ready for write()."""
     squads = []
     for name, (squad, placement, transport_name) in _squad_entries(state).items():
@@ -95,6 +103,10 @@ def capture(state, map_key, turn_tracker=None, command_points=None):
         "map": map_key,
         "squads": squads,
     }
+    if armies:
+        # Written next to the map key and read back the same way: both answer
+        # "what has to be rebuilt before these positions mean anything".
+        data["armies"] = dict(armies)
     if turn_tracker is not None:
         data["turn"] = {
             "battle_round": getattr(turn_tracker, "battle_round", None),
@@ -125,6 +137,18 @@ def read(path):
             f"format {FORMAT_VERSION}"
         )
     return data
+
+
+def armies_in(path):
+    """{player -> army key} this snapshot was taken of, or None if it predates
+    that being recorded.
+
+    Read on its own, before anything is built, because the armies have to be
+    known EARLIER than the positions do: main() rebuilds the units first and
+    only then puts them back where they stood. Same shape as the map key, which
+    --load already reads out of the file for the same reason."""
+    armies = read(path).get("armies")
+    return dict(armies) if armies else None
 
 
 def restore(data, state, squads=None):

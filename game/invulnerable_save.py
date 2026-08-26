@@ -31,6 +31,7 @@ from game.waaagh import WAAAGH_INVULNERABLE_SAVE
 
 SERPENT_SHIELD_INVULNERABLE_SAVE = "5+"
 SHIMMERSHIELD_INVULNERABLE_SAVE = "4+"
+DISPERSION_SHIELD_INVULNERABLE_SAVE = "4+"
 
 
 def unit_has_serpent_shield(squad):
@@ -71,6 +72,13 @@ def effective_invulnerable_save(model, waaagh=None, melee=False):
     save = model.profile.invulnerable_save
     if melee:
         save = _better(save, getattr(model.profile, "invulnerable_save_vs_melee", None))
+    else:
+        # The mirror clause: "INSV 5+ * Against ranged attacks only" (Rangers,
+        # Shroud Runners). Where the Banshees' version IMPROVES a save they
+        # already have, this one is usually the only save on the sheet - so it
+        # is folded in exactly the same way, and a model with neither keeps
+        # whatever invulnerable_save prints.
+        save = _better(save, getattr(model.profile, "invulnerable_save_vs_ranged", None))
     squad = getattr(model, "squad", None)
 
     if (waaagh is not None and model.profile.waaagh
@@ -87,5 +95,13 @@ def effective_invulnerable_save(model, waaagh=None, melee=False):
     # removed.
     if getattr(model, "shimmershield", False):
         save = _better(save, SHIMMERSHIELD_INVULNERABLE_SAVE)
+
+    # Lychguard's Dispersion Shield: "The bearer has a 4+ invulnerable save" -
+    # the same per-BEARER shape as the shimmershield above, and read the same
+    # way. It differs only in reaching every model of the unit rather than one
+    # character, which is a property of the Gear item that sets it
+    # (all_models=True in game/factions/necrons.py), not of this test.
+    if getattr(model, "dispersion_shield", False):
+        save = _better(save, DISPERSION_SHIELD_INVULNERABLE_SAVE)
 
     return save

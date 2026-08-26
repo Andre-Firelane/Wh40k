@@ -1,4 +1,5 @@
 from game.doks_toolz import doks_toolz_feel_no_pain
+from game.rites_of_reanimation import rites_of_reanimation_feel_no_pain
 from game.stim_injectors import stim_injectors_feel_no_pain
 from game.thresholds import parse_threshold
 from game.waaagh import effective_feel_no_pain
@@ -30,7 +31,10 @@ def current_feel_no_pain(model, waaagh=None):
     the "never worse than what's printed" guarantee still holds across all of
     them: a model that already prints a 5+ keeps it under a granted 6+."""
     best = _better_threshold(effective_feel_no_pain(model, waaagh), stim_injectors_feel_no_pain(model))
-    return _better_threshold(best, doks_toolz_feel_no_pain(model))
+    best = _better_threshold(best, doks_toolz_feel_no_pain(model))
+    # The Necron Technomancer's Rites of Reanimation - the Painboy's Dok's
+    # Toolz under another name, and folded in exactly the same way.
+    return _better_threshold(best, rites_of_reanimation_feel_no_pain(model))
 
 
 class FeelNoPainRoll:

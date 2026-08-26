@@ -2,7 +2,7 @@ import pygame
 
 from game import config, movement, sprites, status_effects
 from game.placement_overlay import PlacementOverlay
-from game.squad import ENGAGEMENT_RANGE_IN, max_model_radius, strongest_model
+from game.squad import ENGAGEMENT_RANGE_IN, strongest_model
 from game.terrain import DENSE, EXPOSED, LIGHT
 from game.ui.text_utils import wrap_text
 
@@ -22,8 +22,22 @@ EXPOSED_TERRAIN_COLOR = (66, 92, 96)  # Exposed fallback color, same "only used 
 BARRICADE_COLOR = (78, 168, 208)  # Light terrain shaped like a fence/line (see _is_barricade_shaped) fallback color, same "only used if the tile texture is missing" as above
 TERRAIN_COLORS = {DENSE: OBSTACLE_COLOR, LIGHT: LIGHT_TERRAIN_COLOR, EXPOSED: EXPOSED_TERRAIN_COLOR}
 BARRICADE_MAX_THICKNESS_IN = 2.75  # a Light obstacle this thin (or thinner) on its short side reads as a fence line, not a ruin floor
-GROUND_TILE_SIZE_IN = 12.0  # physical size of one Sprites/Ground.<ext> tile - see Renderer._cached_tile()
-COVER_TILE_SIZE_IN = 3.0  # physical size of one Sprites/Dense_Cover.<ext>/Normal_Cover.<ext> tile - User feedback: shrink it so more copies tile at a sharper resolution (a smaller physical tile packs the same source resolution into fewer on-screen pixels - a downscale rather than a mild upscale, so less blur, at the cost of the pattern repeating more often)
+# Physical WIDTH of one cover tile (its height follows the art's own aspect
+# ratio - see Renderer._cached_tile). One per texture rather than one shared
+# value: the two are pictures of different things at different real-world
+# scales, so the size that makes a ruin's flagstones read is not the size
+# that makes a boulder read.
+#
+# Both started at the shared 3.0 (User feedback back then: shrink it so more
+# copies tile at a sharper resolution - a smaller physical tile packs the
+# same source resolution into fewer on-screen pixels, a downscale rather
+# than a mild upscale, so less blur, at the cost of repeating more often).
+# The dense one is bigger now (User: "dense cover kachel ist jetzt
+# quadratisch. mach sie etwas größer auf der map"): at 3.0 its flagstones
+# came out around 0.6" across, well under one infantry base, which read as
+# noise rather than as a floor.
+DENSE_COVER_TILE_SIZE_IN = 4.5
+NORMAL_COVER_TILE_SIZE_IN = 3.0
 TERRAIN_TILE_ALPHA = 200  # User feedback: "etwas transparent, damit der Kontrast etwas verringert wird" - every non-Dense terrain footprint uses one of these two cover tiles (picked per TerrainArea.has_dense_feature, see _render_static_layer()), blended at less than full opacity so the base Ground tile underneath still shows through a little
 VISIBILITY_HIGHLIGHT_COLOR = (255, 255, 120)
 SELECTED_MODEL_COLOR = (0, 220, 255)
@@ -31,27 +45,33 @@ SHOOT_TARGET_COLOR = (255, 120, 0)
 COHERENCY_REMOVAL_COLOR = (200, 20, 20)
 DAMAGE_CHOICE_COLOR = (255, 210, 0)
 ASSIGNING_MODEL_COLOR = (190, 60, 230)
-OWN_ARMY_COLOR = (40, 200, 60)
+OWN_ARMY_COLOR = (60, 120, 240)  # User: "ändere die farbe der eigenen bases von grün zu blau. gegner bleibt rot" - was (40, 200, 60). Deliberately a deep blue rather than anything near SELECTED_MODEL_COLOR's cyan, which is drawn as a thicker ring 6 px OUTSIDE this rim (see draw_selected_model) and would otherwise read as the same colour twice.
 ENEMY_ARMY_COLOR = (220, 40, 40)
 UNUSUAL_LOADOUT_TINT = 55  # added to each RGB channel for models with an off-squad weapon loadout (Long-quill etc.) - NOT used for squad_leader models anymore, see SQUAD_LEADER_RING_COLOR
 # User report (screenshot: 3 identical-looking Battlesuits, leader
 # indistinguishable): UNUSUAL_LOADOUT_TINT's +55-per-channel brighten was
-# too subtle to read at a glance, especially against OWN_ARMY_COLOR's
-# already-bright green (200 in that channel alone, so tinting only ever
-# nudged the other two). A squad_leader model's ring is now a fixed,
+# too subtle to read at a glance, especially against a team colour that
+# already runs one channel near its ceiling, so tinting only ever nudged
+# the other two. A squad_leader model's ring is now a fixed,
 # team-color-independent gold instead of a tinted variant of it - same
 # "gold = important" language already used for panel headers
 # (config.PANEL_HEADER_COLOR) - so it reads the same regardless of which
-# side's colors it's sitting on top of. The fill stays the normal team
-# color; only the ring (and its glow) changes.
+# side's colors it's sitting on top of. Since the fill was removed the ring
+# is ALL there is to a base, which only makes this matter more.
 SQUAD_LEADER_RING_COLOR = (255, 215, 0)
-SQUAD_LEADER_BORDER_WIDTH = 3  # a notch thicker than TOKEN_BORDER_WIDTH, on top of the distinct color, for extra visibility
-MODEL_LABEL_COLOR = (235, 245, 255)  # light text - reads on the dark token fill below, regardless of ring color
-TOKEN_FILL_DARKEN = 0.16  # token disc fill is the team color darkened to this fraction, not drawn at full brightness
-TOKEN_BORDER_WIDTH = 2
-TOKEN_GLOW_ALPHA = 90
-TOKEN_GLOW_WIDTH_FACTOR = 0.3  # outer glow stroke width, scaled off each token's own on-screen radius
-TOKEN_GLOW_MIN_WIDTH = 3
+SQUAD_LEADER_BORDER_WIDTH = 2  # the outer ring for a squad_leader model: thicker than TOKEN_BORDER_WIDTH, on top of the distinct color, for extra visibility. Same on-screen-pixel units, same _ring_width() conversion.
+MODEL_LABEL_COLOR = (235, 245, 255)  # light text. It used to sit on the dark token fill; on-board bases have no fill anymore (see _draw_tokens), so it now reads against the ground itself - which on the two live factions affects exactly one model, the Painboy, the only one of 152 with no art of its own. The label is still drawn on the dark fill in the embarked-passenger icon below.
+TOKEN_FILL_DARKEN = 0.16  # the team color darkened to this fraction. Only _draw_embarked_icon()'s art-less fallback badge fills a disc with it now - an on-board model base is a ring with nothing inside it (see _draw_tokens).
+TOKEN_BORDER_WIDTH = 1  # the OUTER, team-colored half of a base's rim, in on-screen pixels - Renderer._ring_width() scales it up to the board's own render resolution
+# User report: "der ring hat jetzt zu wenig kontrast auf hellen boden. kannst
+# du ihn 2 teilig machen? ein farbiger äußerer ring und einen dunklen inneren
+# ring? beide aber dünn". With the fill gone, a mid-bright red or blue rim
+# sits directly on desert sand, which is bright enough that neither team
+# color separates from it. A dark line immediately inside the colored one
+# gives the rim an edge to read against on ANY floor, without a fill and
+# without thickening the colored ring itself.
+TOKEN_INNER_RING_WIDTH = 1  # the inner, dark half, same on-screen units as TOKEN_BORDER_WIDTH - both deliberately thin ("beide aber dünn")
+TOKEN_INNER_RING_COLOR = (16, 18, 22)  # near-black, a shade under config.BACKGROUND_COLOR. Deliberately NOT a darkened team color: the point is a constant dark reference next to a rim whose color varies, and gold/red/blue all darken to something different.
 STATUS_LABEL_TEXT_COLOR = (255, 255, 255)
 STATUS_LABEL_COLORS = {
     status_effects.BATTLE_SHOCKED: (200, 40, 40),
@@ -152,15 +172,26 @@ class Renderer:
         # Später-Liste (Kamera-Scrolling/Viewport, higher render resolution):
         # almost everything this class draws lands on board_surface, which
         # main.py now renders at render_scale times the on-screen
-        # resolution (config.RENDER_SUPERSAMPLE) - circle radii/line widths
-        # already scale correctly since they're computed via
-        # board.in_to_px_len(), but a font's pixel size is a fixed constant,
-        # not something board.py's inch<->pixel math touches. Left
-        # unscaled, board-drawn text would render render_scale times too
-        # SMALL once that whole surface gets scaled back down to fit the
-        # screen at the default zoom (User report: "die font size ist jetzt
-        # zu klein") - scaled up here instead, so it reads at the same
-        # apparent on-screen size as before any of this existed.
+        # resolution (derived per map/screen - see
+        # game/render_resolution.py) - circle RADII already scale correctly
+        # since they're computed via board.in_to_px_len(), but a font's
+        # pixel size is a fixed constant, not something board.py's
+        # inch<->pixel math touches. Left unscaled, board-drawn text would
+        # render render_scale times too SMALL once that whole surface gets
+        # scaled back down to fit the screen at the default zoom (User
+        # report: "die font size ist jetzt zu klein") - scaled up here
+        # instead, so it reads at the same apparent on-screen size as
+        # before any of this existed.
+        #
+        # A hardcoded LINE WIDTH has exactly the same problem, which this
+        # comment used to claim it didn't: measured on map2 at a 1300x900
+        # board area, the derived resolution is 54.2 ppi (render_scale
+        # 3.01) and the camera shows it at 0.400, so a model base's
+        # 2-pixel rim was landing on 0.80 of a screen pixel and getting
+        # blended away into the floor - which is the report behind
+        # TOKEN_INNER_RING_WIDTH. _ring_width() below is the same
+        # correction the fonts get.
+        self.render_scale = render_scale
         self.font = pygame.font.SysFont(config.FONT_NAME, round(config.FONT_SIZE * render_scale))
         self.label_font = pygame.font.SysFont(config.FONT_NAME, round(max(10, config.FONT_SIZE - 5) * render_scale), bold=True)
         # Deliberately smaller than label_font (used for the 2-letter model-
@@ -181,12 +212,15 @@ class Renderer:
         # draw() by far, and one that scales with board AREA - a real problem
         # once main.py started rendering the board at several times its
         # on-screen resolution so Camera zoom wouldn't look blocky (see
-        # main.py's RENDER_SUPERSAMPLE): measured ~45ms/frame for just this
+        # game/render_resolution.py): measured ~45ms/frame for just this
         # static part at 4x supersampling, on its own already blowing the
         # ~16.6ms/frame budget for 60fps. Cached here instead - rendered once
         # into its own persistent Surface, then just blitted (cheap, no
         # per-obstacle work) every frame; _cached_static_layer() only
         # re-renders it if the board/obstacles/zones actually changed.
+        # main.py additionally clips that blit to the camera's visible rect,
+        # so its cost follows the SCREEN area, not the board's pixel count -
+        # which is what makes the derived (much higher) resolution affordable.
         self._static_cache_key = None
         self._static_cache_surface = None
         # Same reasoning as the static-layer cache above, for the handful of
@@ -201,13 +235,20 @@ class Renderer:
         # ~1.7ms to clear one already that size) - see _reusable_overlay()
         # below.
         self._overlay_cache = {}
-        self._ground_tile_cache = {}  # (path, tile_px) -> pygame.Surface - any tiled texture (ground, ruin floors, ...), see _cached_tile()
+        self._ground_tile_cache = {}  # (path, tile_px) -> pygame.Surface - the two cover textures' tiles (the ground itself is no longer tiled, see _draw_ground), see _cached_tile()
         # The placement (Set Up / Ingress / Disembark) legality overlay goes a
         # step further than _reusable_overlay: its CONTENT doesn't change
         # either while a unit is being placed, so both the legality mask and
         # the rendered Surface are kept across frames - see
         # game/placement_overlay.py.
         self._placement_overlay = PlacementOverlay()
+
+    def _ring_width(self, on_screen_px):
+        """A stroke width given in ON-SCREEN pixels, converted to the board
+        surface's own (supersampled) render resolution - the same
+        correction the fonts get in __init__, and for the same reason. At
+        least 1, so a thin rim never rounds away to nothing."""
+        return max(1, round(on_screen_px * self.render_scale))
 
     def _reusable_overlay(self, cache_key, size):
         """A persistent SRCALPHA Surface for the given cache_key/size,
@@ -240,9 +281,12 @@ class Renderer:
         path = sprites.blood_decal_path()
         if path is None:
             return
-        for x_in, y_in, radius_in in decals:
-            diameter_px = board.in_to_px_len(radius_in * 2)
-            decal_surf = sprites.blood_decal_surface(path, diameter_px)
+        # One size for every stain (sprites.BLOOD_DECAL_DIAMETER_IN), not one
+        # per dead model's base - see that constant for the user report.
+        decal_surf = sprites.blood_decal_surface(
+            path, board.in_to_px_len(sprites.BLOOD_DECAL_DIAMETER_IN),
+        )
+        for x_in, y_in in decals:
             px, py = board.to_px(x_in, y_in)
             rect = decal_surf.get_rect(center=(round(px), round(py)))
             surface.blit(decal_surf, rect)
@@ -283,7 +327,10 @@ class Renderer:
             # footprint with no wall at all (a standalone barricade/crater) -
             # picked once per TerrainArea, not per feature, since that's the
             # whole "terrain area" a wall does or doesn't belong to.
-            cover_path = dense_cover_path if area.has_dense_feature else normal_cover_path
+            cover_path, cover_tile_size_in = (
+                (dense_cover_path, DENSE_COVER_TILE_SIZE_IN) if area.has_dense_feature
+                else (normal_cover_path, NORMAL_COVER_TILE_SIZE_IN)
+            )
             for obstacle in area.features:
                 if obstacle.category == DENSE:
                     continue
@@ -297,7 +344,7 @@ class Renderer:
                     # underneath still shows through a little (less contrast
                     # against the surrounding ground than a flat opaque tile).
                     self._tile_texture(
-                        surface, cover_path, board, rect, COVER_TILE_SIZE_IN, alpha=TERRAIN_TILE_ALPHA,
+                        surface, cover_path, board, rect, cover_tile_size_in, alpha=TERRAIN_TILE_ALPHA,
                     )
                     continue
                 if obstacle.category == LIGHT and self._is_barricade_shaped(obstacle):
@@ -324,18 +371,65 @@ class Renderer:
         return surface
 
     def _draw_ground(self, surface, board):
-        """Später-Liste (Sprites): Sprites/Ground.<ext>, if the user has
-        dropped one in, tiled across the whole board as its floor texture -
-        falls back to the plain BACKGROUND_COLOR fill (as before any ground
-        art existed) if there isn't one, same "missing art is fine"
-        convention as unit sprites (see game/sprites.py). Only ever called
-        from _render_static_layer(), itself cached (see draw()) - the tiling
-        loop below runs once per scene, not once per frame."""
+        """Später-Liste (Sprites): the battlefield floor
+        (Sprites/<sprites.GROUND_TEXTURE_NAME>.<ext>), if the user has
+        dropped one in - falls back to the plain BACKGROUND_COLOR fill (as
+        before any ground art existed) if there isn't one, same "missing art
+        is fine" convention as unit sprites (see game/sprites.py).
+
+        Unlike the two cover textures this is NOT a repeatable tile (User:
+        "wueste-boden ist keine wiederholbare kachel. das sprite soll die
+        gesamte map ausfuellen"): it's one picture of a whole desert
+        battlefield, so a SINGLE copy is scaled to cover the whole board
+        (_ground_image below). Tiling it the way the old seamless
+        Sprites/Ground.jpg was tiled would repeat that picture's own frame,
+        edge seam and large-scale features several times across the board.
+
+        Only ever called from _render_static_layer(), itself cached (see
+        draw()) - the scale below runs once per scene, not once per frame.
+        That's also why the scaled copy isn't kept in a cache of its own: it
+        would be a second full-board-sized Surface (tens of MB at the
+        supersampled render resolution) held alongside the static layer it
+        was just blitted into."""
         ground_path = sprites.ground_texture_path()
         if ground_path is None:
             surface.fill(config.BACKGROUND_COLOR)
             return
-        self._tile_texture(surface, ground_path, board, surface.get_rect(), GROUND_TILE_SIZE_IN)
+        surface.blit(self._ground_image(ground_path, surface.get_size()), (0, 0))
+
+    @staticmethod
+    def _ground_image(path, size):
+        """The ground art scaled to exactly `size`, "cover"-style: scaled by
+        the LARGER of the two axis ratios, so it reaches BOTH board edges
+        rather than leaving a strip of unpainted board along the shorter
+        one, then centre-cropped to size.
+
+        Deliberately a crop rather than a plain stretch to `size`. The art's
+        own aspect ratio is close to map2's 60x44 (1024x748, so ~0.4% of it
+        is cropped away there), but map1 is 44x60 PORTRAIT - stretching one
+        into the other would smear the sand grain to nearly twice its width.
+        Losing a little of the picture off one axis instead is invisible on
+        a ground texture."""
+        board_w, board_h = size
+        raw = pygame.image.load(path).convert()
+        src_w, src_h = raw.get_size()
+        scale = max(board_w / src_w, board_h / src_h)
+        # The max() guards the rounding: the axis that set `scale` lands on
+        # the board size exactly in exact arithmetic, but a float hair under
+        # it would leave a one-pixel unpainted line along that edge.
+        scaled = pygame.transform.smoothscale(
+            raw, (max(board_w, round(src_w * scale)), max(board_h, round(src_h * scale))),
+        )
+        if scaled.get_size() == size:
+            return scaled
+        image = pygame.Surface(size)
+        crop = pygame.Rect(
+            (scaled.get_width() - board_w) // 2,
+            (scaled.get_height() - board_h) // 2,
+            board_w, board_h,
+        )
+        image.blit(scaled, (0, 0), crop)
+        return image
 
     def _tile_texture(self, surface, path, board, rect, tile_size_in, alpha=None):
         """Tiles the image at `path` across `rect` (clipped to it, so this
@@ -364,40 +458,62 @@ class Renderer:
         surface.set_clip(previous_clip)
 
     def _cached_tile(self, path, board, tile_size_in):
-        """A texture scaled to tile_size_in physical inches - a deliberate,
-        purely aesthetic pick for each texture (no scale was specified for
-        either), chosen close to that texture's own source resolution so
-        tiling it doesn't blur/pixelate it any further than necessary.
-        Cached per (path, tile_px) - recomputed only if the board's own
-        render resolution changes, not per tile/frame."""
+        """A texture scaled to tile_size_in physical inches WIDE, keeping its
+        own aspect ratio - a deliberate, purely aesthetic pick for each
+        texture (no scale was specified for either), chosen close to that
+        texture's own source resolution so tiling it doesn't blur/pixelate
+        it any further than necessary. Cached per (path, tile_px) -
+        recomputed only if the board's own render resolution changes, not
+        per tile/frame.
+
+        The height follows from the source's aspect rather than being
+        forced square, which is what this used to do. It cost nothing while
+        every texture happened to be square, and then a 1024x748
+        Dense_Cover-Desert.jpg turned up and had its stonework squeezed
+        ~27% narrower than it was drawn. (The art has since been redrawn
+        square, so today this is a no-op on the real files - the rule
+        stays because nothing makes the next one square.)
+        _tile_texture() steps by the tile's own width and height
+        separately, so a non-square tile lays out exactly the same."""
         tile_px = max(1, round(board.in_to_px_len(tile_size_in)))
         cache_key = (path, tile_px)
         cached = self._ground_tile_cache.get(cache_key)
         if cached is not None:
             return cached
         raw = pygame.image.load(path).convert()
-        tile = pygame.transform.smoothscale(raw, (tile_px, tile_px))
+        src_w, src_h = raw.get_size()
+        tile = pygame.transform.smoothscale(raw, (tile_px, max(1, round(tile_px * src_h / src_w))))
         self._ground_tile_cache[cache_key] = tile
         return tile
 
     def _draw_tokens(self, surface, board, tokens, active_player):
-        """Glowing-badge look (User reference image: dark disc, bright
-        glowing ring, bold light label) instead of a single flat-filled
-        circle. Two passes, same reasoning as the terrain draw above: pass 1
-        strokes every token's glow ring onto one shared, board-sized
-        SRCALPHA overlay (one allocation/blit for the whole frame, not one
-        per token) and blits it in a single call; pass 2 then draws each
-        token's dark fill + crisp border directly on `surface`, on top of
-        the glow - the fill covers the glow stroke's inward half, leaving
-        only an outward halo visible around the rim, exactly like
-        button_style.draw_button()'s glow technique. Pass 3 draws the
-        wound badges last, for the same reason status labels are a
-        separate pass: a badge sits partly OUTSIDE its own token's disc,
-        so drawing it inside pass 2 would let the next token in the list
-        paint its disc straight over a neighbour's badge."""
+        """A model's base is a colored RING and nothing else - no fill at
+        all, so the ground (and any blood decal or terrain tint already
+        drawn on it) shows straight through the middle of every base. User:
+        "nimm die fuellung komplett raus sodass nur der farbige ring uebrig
+        bleibt innen sind sie transparent".
+
+        Taking the fill out took the glow pass with it. That pass stroked
+        an SRCALPHA ring onto a shared board-sized overlay before the fill
+        went down - but pygame strokes a circle INWARD from its radius, so
+        the fill (drawn at the same radius) covered every pixel of it:
+        measured 0 changed pixels of 1.28M on a full board with the glow
+        switched off, i.e. the "outward halo" it was documented as
+        producing had never actually been on screen. Removing the fill
+        would have made it visible for the first time, as a translucent
+        band around the inside of each rim - precisely the not-transparent
+        middle being asked about here - so it is deleted rather than moved
+        outward, along with a per-frame overlay clear + blit that was
+        producing nothing.
+
+        Two passes: pass 1 strokes each base's ring and puts its art (or
+        its 2-letter label) on top; pass 2 draws the wound badges last, for
+        the same reason status labels are a separate pass - a badge sits
+        partly OUTSIDE its own base, so drawing it inside pass 1 would let
+        the next token in the list paint straight over a neighbour's
+        badge."""
         unusual_loadout_models = self._unusual_loadout_models(tokens)
-        draws = []
-        glow_overlay = self._reusable_overlay("glow", surface.get_size())
+        badges = []
         for token in tokens:
             color = self._token_color(token, active_player)
             is_leader = token.profile is not None and token.profile.squad_leader
@@ -415,36 +531,37 @@ class Renderer:
                 border_width = TOKEN_BORDER_WIDTH
             px, py = board.to_px(token.x_in, token.y_in)
             r_px = round(board.in_to_px_len(token.radius_in))
-            glow_width = max(TOKEN_GLOW_MIN_WIDTH, round(r_px * TOKEN_GLOW_WIDTH_FACTOR))
-            pygame.draw.circle(glow_overlay, (*ring_color, TOKEN_GLOW_ALPHA), (round(px), round(py)), r_px, width=glow_width)
-            draws.append((token, color, ring_color, border_width, px, py, r_px))
-        surface.blit(glow_overlay, (0, 0))
-
-        for token, color, ring_color, border_width, px, py, r_px in draws:
-            # Fill always stays the plain team color - only the ring/glow
-            # (drawn above and below, respectively) distinguishes a leader.
-            fill_color = tuple(round(c * TOKEN_FILL_DARKEN) for c in color)
+            # Two thin concentric strokes, team color outside and near-black
+            # immediately inside it - see TOKEN_INNER_RING_WIDTH. pygame
+            # strokes a circle INWARD from the radius it is given, so
+            # drawing the second one at the first one's inner edge butts
+            # them together with no overlap and no gap.
+            #
+            # Both are stroked FIRST and the art goes on top of them (User
+            # feedback: the art must sit over the base, not have the ring
+            # cut across it on top) - and the base keeps its real,
+            # unchanged size either way (art must not inflate the effective
+            # base footprint).
+            outer_width = self._ring_width(border_width)
+            inner_width = self._ring_width(TOKEN_INNER_RING_WIDTH)
+            pygame.draw.circle(surface, ring_color, (round(px), round(py)), r_px, width=outer_width)
+            inner_radius = r_px - outer_width
+            if inner_radius > inner_width:
+                pygame.draw.circle(surface, TOKEN_INNER_RING_COLOR, (round(px), round(py)), inner_radius, width=inner_width)
             sprite_path = sprites.sprite_for(token)
             if sprite_path is not None:
-                # Später-Liste (Sprites): draw the unit's own art instead of
-                # the flat disc + letter label, sized to roughly match the
-                # base (see sprites.SPRITE_SCALE) - only allowed to overhang
-                # it a little, not blown up past it. The base's own ring is
-                # drawn FIRST and the art on top of it (User feedback: the
-                # art must sit over the base, not have the ring cut across
-                # it on top) - the base itself keeps its real, unchanged
-                # size (art must not inflate the effective base footprint).
-                pygame.draw.circle(surface, fill_color, (round(px), round(py)), r_px)
-                pygame.draw.circle(surface, ring_color, (round(px), round(py)), r_px, width=border_width)
+                # Später-Liste (Sprites): the unit's own art instead of the
+                # letter label, sized to roughly match the base (see
+                # sprites.SPRITE_SCALE) - only allowed to overhang it a
+                # little, not blown up past it.
                 sprite_surf = sprites.scaled_surface(sprite_path, r_px * 2)
                 anchor_x, anchor_y = sprites.anchor_offset(sprite_path, sprite_surf.get_size())
                 surface.blit(sprite_surf, (round(px - anchor_x), round(py - anchor_y)))
             else:
-                pygame.draw.circle(surface, fill_color, (round(px), round(py)), r_px)
-                pygame.draw.circle(surface, ring_color, (round(px), round(py)), r_px, width=border_width)
                 self._draw_model_label(surface, token, px, py)
+            badges.append((token, px, py, r_px))
 
-        for token, _color, _ring_color, _border_width, px, py, r_px in draws:
+        for token, px, py, r_px in badges:
             self._draw_wound_badge(surface, token, px, py, r_px)
 
     def _draw_wound_badge(self, surface, token, px, py, r_px):
@@ -496,7 +613,7 @@ class Renderer:
         embarked in the same TRANSPORT (rare, but its capacity can allow it)
         are laid out side by side across that same center point rather than
         overlapping. `active_player` is only used for the icon's own team
-        color (same green/own vs red/enemy convention as _token_color()),
+        color (same blue/own vs red/enemy convention as _token_color()),
         never gates whether it's drawn - the whole point is that this is
         visible regardless of whose turn it is."""
         for transport_token in tokens:
@@ -786,7 +903,7 @@ class Renderer:
                 surface.blit(secured_surf, secured_surf.get_rect(center=secured_bg.center))
 
     def _token_color(self, token, active_player):
-        """The currently active player's own models are green, everyone
+        """The currently active player's own models are blue, everyone
         else's are red - a quick visual reminder of whose turn it is, on top
         of the player banner. Falls back to the token's own color if there's
         no active player to compare against (or no squad, which shouldn't
@@ -970,19 +1087,31 @@ class Renderer:
             return
 
         allowed_targets = set(movement_controller.charge_targets) if move_mode == "charge" else set()
-        # The widest model in the unit, not an arbitrary one: this paints the
-        # keep-out ring a model must not end its move inside, and an attached
-        # unit (19.01) can mix base sizes, so sizing it off models[0] would
-        # under-draw the zone for the biggest model in the squad.
-        moving_radius_in = max_model_radius(squad, default=0.0) if squad.models else 0.0
 
         overlay = self._reusable_overlay("forbidden_engagement", surface.get_size())
         for token in all_tokens:
             if token.squad is None or token.squad.owner == squad.owner or token.squad in allowed_targets:
                 continue
             cx, cy = board.to_px(token.x_in, token.y_in)
-            radius_in = token.radius_in + ENGAGEMENT_RANGE_IN + moving_radius_in
-            radius_px = board.in_to_px_len(radius_in)
+            # Engagement Range itself, measured from this enemy's base EDGE -
+            # so the ring is exactly 2" wide and the rule to read off it is
+            # "don't touch it with your base", which is what rule 03.04
+            # actually says (Squad.is_engaged() uses edge_distance()).
+            #
+            # It used to also add the moving unit's own widest base radius,
+            # making the ring the keep-out zone for a model's CENTRE instead.
+            # Same forbidden set, but the user has to hold the conversion in
+            # their head while dragging - "die roten kreise der gegner ... sind
+            # gerade größer als 2 zoll. meine models dürfen sie mit der base
+            # mitte nicht betreten. kannst du das so ändern, dass sie genau 2"
+            # sind und ich sie mit dem baserand nicht betreten darf? das ist
+            # intuitiver".
+            #
+            # It is also strictly more accurate for an attached unit (19.01),
+            # which mixes base sizes: the old ring had to be sized off the
+            # WIDEST model in the squad and so over-painted the zone for every
+            # smaller one. Each model now brings its own base to the same ring.
+            radius_px = board.in_to_px_len(token.radius_in + ENGAGEMENT_RANGE_IN)
             pygame.draw.circle(overlay, ENGAGEMENT_WARNING_COLOR, (round(cx), round(cy)), round(radius_px))
         surface.blit(overlay, (0, 0))
 

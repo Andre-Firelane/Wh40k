@@ -8,6 +8,7 @@ display, no API calls.
 Run: python test_pregame.py
 """
 
+import io
 import random
 import sys
 
@@ -27,6 +28,7 @@ from game.factions.tau_empire import (
 )
 from game.game_state import GameState
 from game.setup import SetupController
+from game.terrain import DENSE
 from game.squad import squad_has_infiltrators
 from game.turn import TurnTracker
 
@@ -455,6 +457,148 @@ INFILTRATORS_TEST_MARGIN = 10.0  # comfortably beyond the 8" limit
 
 
 # --------------------------------------------------------------------------
+# 6b. The deployment overlay deliberately does not paint model overlap
+# --------------------------------------------------------------------------
+def test_overlay_hides_model_overlap():
+    section("Deployment overlay: the other-models term is not painted")
+    battle_map, state, setup, dice, decisions, tt, ctrl, started = _build_scene("map2")
+    strike = build_squad(STRIKE_TEAM, "Player 1", name="1 Strike Team 1")
+    kroot = build_squad(KROOT_CARNIVORES, "Player 1", name="1 Kroot Carnivores 1")
+    stealth = build_squad(STEALTH_BATTLESUITS, "Player 1", name="1 Stealth Battlesuits 1")
+    boyz = build_squad(BOYZ, "Player 2", name="2 Boyz 1")
+    ctrl.start({"Player 1": [strike, kroot, stealth], "Player 2": [boyz]})
+
+    p1_zone = deployment.zone_for(state.deployment_zones, "Player 1")
+    cx, cy, w, h = p1_zone.rects[0]
+
+    # A friendly model already standing in the middle of the zone - exactly
+    # the "roter Bereich um meine Einheiten" the user pointed at.
+    neighbour = kroot.models[0]
+    neighbour.x_in, neighbour.y_in = cx, cy
+    state.add_token(neighbour)
+
+    token = strike.models[0]
+    forbidden_r = token.radius_in + neighbour.radius_in
+
+    check("the RULE still refuses a spot on top of another model",
+          not ctrl.position_valid(strike, token, cx, cy))
+    check("the OVERLAY paints that same spot as legal",
+          ctrl.overlay_position_valid(strike, token, cx, cy))
+    just_outside = cx + forbidden_r + 0.01
+    check("both agree once the bases no longer touch",
+          ctrl.position_valid(strike, token, just_outside, cy)
+          and ctrl.overlay_position_valid(strike, token, just_outside, cy),
+          f"{forbidden_r:.3f} = {token.radius_in:.3f} + {neighbour.radius_in:.3f}")
+
+    # The rule's own boundary is unchanged - it only stops being DRAWN.
+    lo, hi = 0.0, 5.0
+    for _ in range(40):
+        mid = (lo + hi) / 2
+        if ctrl.position_valid(strike, token, cx + mid, cy):
+            hi = mid
+        else:
+            lo = mid
+    check("the enforced exclusion radius is still base+base",
+          abs(hi - forbidden_r) < 1e-3, f"{hi:.3f} vs {forbidden_r:.3f}")
+    check("the overlay has no exclusion around it at all",
+          all(ctrl.overlay_position_valid(strike, token, cx + d, cy)
+              for d in (0.0, 0.25, 0.5, forbidden_r / 2, forbidden_r - 0.01)))
+
+    # Everything the overlay still HAS to paint - the invisible half.
+    check("overlay still refuses the enemy deployment zone",
+          not ctrl.overlay_position_valid(strike, token, cx, 6.0))
+    check("overlay still refuses no man's land",
+          not ctrl.overlay_position_valid(strike, token, cx, config.BOARD_HEIGHT_IN / 2))
+    check("overlay still refuses off the board edge",
+          not ctrl.overlay_position_valid(strike, token, 0.1, cy))
+
+    dense = [o for o in state.obstacles
+             if o.category == DENSE
+             and p1_zone.contains_point((o.min_x + o.max_x) / 2, (o.min_y + o.max_y) / 2)]
+    check("map2 has Dense terrain inside Player 1's zone to test against", bool(dense))
+    if dense:
+        wall = dense[0]
+        wx, wy = (wall.min_x + wall.max_x) / 2, (wall.min_y + wall.max_y) / 2
+        check("overlay still refuses Dense terrain (13.05)",
+              not ctrl.overlay_position_valid(strike, token, wx, wy),
+              f"wall at ({wx:.1f},{wy:.1f})")
+        clear_y = wy + wall.height_in / 2 + token.radius_in + 1.0
+        check("...and allows clear ground next to it, so that was terrain not the zone",
+              ctrl.overlay_position_valid(strike, token, wx, clear_y))
+
+    # 24.20's two bubbles are NOT the overlap term and must survive.
+    itoken = stealth.models[0]
+    p2_zone = deployment.zone_for(state.deployment_zones, "Player 2")
+    edge = p2_zone.rects[0][1] + p2_zone.rects[0][3] / 2
+    check("overlay still refuses INFILTRATORS 4in from the enemy zone",
+          not ctrl.overlay_position_valid(stealth, itoken, cx, edge + 4.0))
+    far_y = edge + INFILTRATORS_TEST_MARGIN
+    check("overlay allows INFILTRATORS beyond the 8in line",
+          ctrl.overlay_position_valid(stealth, itoken, cx, far_y))
+    for i, model in enumerate(boyz.models):
+        model.x_in, model.y_in = cx + i * 1.2, far_y + 2.0
+        state.add_token(model)
+    check("overlay still paints the 8in bubble around ENEMY MODELS (24.20)",
+          not ctrl.overlay_position_valid(stealth, itoken, cx, far_y))
+    for model in boyz.models:
+        state.tokens.remove(model)
+
+    # ...and the rule is still enforced twice over, so nothing illegal can be
+    # committed just because it is no longer painted. Driven through
+    # SetupController directly with the validator start_deployment() hands it,
+    # so the check does not depend on which side wins the roll-off.
+    setup.start_setup(
+        strike, cx + 8.0, cy, on_cancel=lambda squad: None,
+        extra_check=ctrl._extra_check,
+        placement_validator=lambda token, x, y: ctrl.position_valid(strike, token, x, y),
+    )
+    dragged = setup.setting_up_squad.models[0]
+    landed_x, landed_y = setup.clamp_drag(dragged, cx, cy)
+    gap = ((landed_x - cx) ** 2 + (landed_y - cy) ** 2) ** 0.5
+    check("clamp_drag still refuses to drop a model onto its neighbour",
+          gap >= forbidden_r - 0.2, f"landed {gap:.2f} away, needs {forbidden_r:.2f}")
+    for model in setup.setting_up_squad.models:
+        model.x_in, model.y_in = cx, cy
+    setup.confirm_setup()
+    check("confirm_setup still rejects an overlapping placement",
+          setup.setting_up_squad is strike and setup.errors != [],
+          "; ".join(setup.errors))
+    setup.cancel_setup()
+
+
+# --------------------------------------------------------------------------
+# 6c. Wiring: main.py must actually use the overlay predicate
+# --------------------------------------------------------------------------
+def test_overlay_wiring():
+    section("Wiring: main.py routes the deployment overlay through it")
+    source = io.open("main.py", encoding="utf-8").read()
+
+    check("main.py calls overlay_position_valid",
+          "pregame_controller.overlay_position_valid(" in source)
+    deploy_branch = source.find("elif pregame_controller.is_deploying(placement_squad):")
+    generic_branch = source.find("elif placement_squad is setup_controller.setting_up_squad:")
+    check("the deployment branch exists", deploy_branch != -1)
+    check("it is tested BEFORE the generic PLACING branch it specialises",
+          deploy_branch != -1 and generic_branch != -1 and deploy_branch < generic_branch,
+          f"deploy at {deploy_branch}, generic at {generic_branch}")
+
+    # The relaxation is for DRAWING only: everything that decides whether a
+    # placement may stand keeps the full predicate.
+    ai_source = io.open("ai/deployment_ai.py", encoding="utf-8").read()
+    check("the AI's placer still probes the strict predicate",
+          "pregame_ctrl.position_valid(squad, model, px, py)" in ai_source
+          and "overlay_position_valid" not in ai_source)
+    setup_source = io.open("game/setup.py", encoding="utf-8").read()
+    check("clamp_drag/apply_group_drag/arrange_as_block go through placement_validator()",
+          setup_source.count("valid = self.placement_validator(") == 3,
+          f"found {setup_source.count('valid = self.placement_validator(')}")
+    check("no ingress/disembark path opts into the relaxation",
+          "ignore_model_overlap" not in io.open("game/ingress.py", encoding="utf-8").read()
+          and "ignore_model_overlap" not in io.open("game/transport.py", encoding="utf-8").read())
+
+
+
+# --------------------------------------------------------------------------
 # 7. set_up_this_turn must not leak into battle round 1
 # --------------------------------------------------------------------------
 def test_set_up_this_turn():
@@ -615,6 +759,8 @@ def main():
     test_turn_tracker()
     test_full_sequence()
     test_placement_predicate()
+    test_overlay_hides_model_overlap()
+    test_overlay_wiring()
     test_set_up_this_turn()
     test_scouts()
 

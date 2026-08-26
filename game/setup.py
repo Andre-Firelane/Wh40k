@@ -271,7 +271,7 @@ class SetupController:
             and token in self.setting_up_squad.models
         )
 
-    def position_valid(self, token, x_in, y_in, squad=None):
+    def position_valid(self, token, x_in, y_in, squad=None, ignore_model_overlap=False):
         """Whether `token` could legally end up at (x_in, y_in) right now -
         used to paint the green/red placement overlay (Renderer.
         draw_placement_overlay()), including while a squad is still being
@@ -283,7 +283,14 @@ class SetupController:
         deliberately NOT this squad's own other members, since we don't
         know where they'll end up yet, and not coherency/engagement, which
         depend on the whole squad's final positions together, not a single
-        point."""
+        point.
+
+        `ignore_model_overlap=True` drops the other-models term as well, for
+        a caller that only wants to DRAW the legal region (see
+        PregameController.overlay_position_valid() - user: "ich sehe ja, wenn
+        sich modelle ueberlappen"). Never for a caller that decides whether a
+        placement may stand: overlap is still clamped and still checked at
+        confirm time."""
         if squad is None:
             squad = self.setting_up_squad
         if self.board_width_in is not None and not (token.radius_in <= x_in <= self.board_width_in - token.radius_in):
@@ -296,12 +303,13 @@ class SetupController:
             # move/be placed through it (rule 13.06) - see Squad.check_terrain().
             if obstacle.category == DENSE and obstacle.overlaps_circle(x_in, y_in, token.radius_in):
                 return False
-        for other in self.all_tokens:
-            if other is token or (squad is not None and other in squad.models):
-                continue
-            dist = ((x_in - other.x_in) ** 2 + (y_in - other.y_in) ** 2) ** 0.5
-            if dist < token.radius_in + other.radius_in:
-                return False
+        if not ignore_model_overlap:
+            for other in self.all_tokens:
+                if other is token or (squad is not None and other in squad.models):
+                    continue
+                dist = ((x_in - other.x_in) ** 2 + (y_in - other.y_in) ** 2) ** 0.5
+                if dist < token.radius_in + other.radius_in:
+                    return False
         return True
 
     # How finely clamp_drag() splits the drag segment when the cursor leaves

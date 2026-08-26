@@ -26,6 +26,7 @@ from game import diviner_of_futures as dof
 from game import doom as dm
 from game import guide as gd
 from game import protect
+from game import units as un
 from game.attached_units import attach, can_attach
 from game.command_points import BONUS_CP_PER_ROUND_CAP, CommandPointManager
 from game.factions import aeldari as ae
@@ -64,13 +65,22 @@ checks.eq("Ld6+", p.leadership, "6+")
 checks.eq("OC1", p.oc, 1)
 checks.eq("4+ invulnerable", p.invulnerable_save, "4+")
 checks.eq("WS/BS 2+", (p.weapon_skill, p.ballistic_skill), ("2+", "2+"))
+# His printed 32 mm base already equals the Warlock Conclave's, so the user's
+# "make them the same size" request changed no number for him - pinned against
+# that profile anyway so the coupling is explicit.
 checks.eq("32 mm base", round(p.base_radius_in, 3), round(32 / 2 / 25.4, 3))
+checks.eq("...which is the Warlock Conclave's base",
+          p.base_radius_in, un.WarlockProfile.base_radius_in)
 # Tougher and more wounds than the plain Farseer, whose numbers he is otherwise
 # close to - pinned so a copy-paste from that profile would fail.
 fp = tk.build(ae.FARSEER, "Player 1", name="1 Farseer 1").models[0].profile
 checks.true("tougher than the plain Farseer", p.toughness > fp.toughness)
 checks.true("...and more wounds", p.wounds > fp.wounds)
-checks.true("...on a bigger base", p.base_radius_in > fp.base_radius_in)
+# NOT a bigger base any more: the user asked for the Farseer to match the
+# Warlock Conclave, which is exactly Eldrad's own size - so this pair is now
+# equal on purpose, and that is what gets pinned.
+checks.eq("...on the same base as the plain Farseer, both matching the Conclave",
+          p.base_radius_in, fp.base_radius_in)
 for kw in ("INFANTRY", "CHARACTER", "EPIC HERO", "PSYKER", "FARSEER"):
     checks.true(f"keyword {kw}", kw in ae.ELDRAD_ULTHRAN.keywords)
 checks.true("FARSEER on the profile too - Protect reads this", p.farseer)
@@ -132,15 +142,31 @@ body = led_by_conclave()
 checks.eq("he may join a unit a WARLOCKS unit has already joined",
           can_attach(eldrad(), body), [])
 
-# DIRECTION MATTERS. The permission is printed on him, so it must not work the
-# other way round: a Conclave may not join a unit Eldrad already leads.
+# DIRECTION. This clause is printed on HIM, so what it grants is "Eldrad may
+# be the second unit". The reverse direction turned out to be legal too, but
+# for a different reason entirely, and this pair of checks is where that was
+# got wrong once:
+#
+# This test used to assert "a Conclave may NOT join a unit Eldrad already
+# leads", which was 19.01's one-leader default applied on the assumption that
+# a Conclave attaches like any other leader. Then the Conclave's own LEADER
+# text was fetched, and it is not an attachment at all - it is a JOIN that
+# states its own limit ("a unit cannot have more than one WARLOCK CONCLAVE
+# unit joined to it"), and says nothing about other leaders. So the assertion
+# was pinning an assumption rather than a rule, and it is inverted here on
+# purpose rather than quietly deleted. See
+# game/attached_units.py's _join_not_bound_by_leader_slot().
 body2 = guardians(name="1 Guardian Defenders 2")
 lord = eldrad(name="1 Eldrad Ulthran 2")
 tk.line_up(body2, x=30.0, y=20.0)
 tk.line_up(lord, x=30.0, y=18.5)
 attach(lord, body2)
-checks.true("but a Conclave may NOT join a unit Eldrad already leads",
-            bool(can_attach(conclave(name="1 Warlock Conclave 9"), body2)))
+checks.eq("a Conclave MAY join a unit Eldrad already leads (its own limit is one Conclave)",
+          can_attach(conclave(name="1 Warlock Conclave 9"), body2), [])
+# ...and its one printed limit is enforced: a second Conclave is refused.
+body2b = attach(conclave(name="1 Warlock Conclave 9b"), body2)
+checks.true("but a SECOND Conclave is not",
+            bool(can_attach(conclave(name="1 Warlock Conclave 9c"), body2b)))
 
 # "even if ONE WARLOCKS unit" - one, and it must be WARLOCKS.
 body3 = guardians(name="1 Guardian Defenders 3")
@@ -150,6 +176,10 @@ tk.line_up(seer, x=40.0, y=18.5)
 attach(seer, body3)
 checks.true("not a second leader behind a non-WARLOCKS one (a plain Farseer)",
             bool(can_attach(eldrad(name="1 Eldrad Ulthran 3"), body3)))
+# The other way round on that same pairing IS legal, and it is the order
+# main.py's Guardian Defenders use: Farseer first, then Conclave.
+checks.eq("but a Conclave may join those same Farseer-led Guardians",
+          can_attach(conclave(name="1 Warlock Conclave 3b"), body3), [])
 
 # And the permission is HIS, not every Farseer's.
 body4 = led_by_conclave("4")

@@ -160,6 +160,7 @@ class FlickerjumpController:
             self.dice_manager.roll(
                 count=len(models), sides=6, label="Flickerjump",
                 success_threshold=FLICKERJUMP_MORTAL_ON + 1, target_name=squad.name,
+                target_squad=squad,
             )
             return
 

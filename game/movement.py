@@ -44,6 +44,7 @@ class MovementController:
         self.selected_model = None  # the exact model clicked; anchor for the LOS check
         self.state = IDLE
         self.move_start = {}       # token.id -> (x_in, y_in) at the very start of the whole move
+        self.last_move_start = {}  # the same map for the move that JUST finished - survives _clear_move_state() so on_move_finished listeners can still read it (see game/wraith_form.py)
         self.last_waypoint = {}    # token.id -> (x_in, y_in), the last committed point
         self.remaining_range = {}  # token.id -> inches still available to move
         self.previous_waypoint = {}       # token.id -> waypoint before the last committed segment (1-step undo)
@@ -83,7 +84,19 @@ class MovementController:
         # confirm_move()'s bookkeeping, because the handler opens a break point
         # for the opponent and that must not land mid-settle. Receives
         # (squad, move_mode) so a consumer can tell the three apart.
-        self.on_move_finished = None
+        # Listeners for "directly after a unit ends a Normal, Advance or Fall
+        # Back move" - a LIST since Rangers' Path of the Outcast joined Seer
+        # Council's Isha's Fury on it, the same generalisation
+        # on_squad_finished_shooting and target_reactions already got.
+        self.on_move_finished = []
+        # Fired when a SCOUT move (24.32) ends, by confirm OR cancel, with the
+        # squad. Its own hook rather than a place in on_move_finished above,
+        # because that list is deliberately restricted to Normal/Advance/Fall
+        # Back moves - Wraith Form and Isha's Fury read it and must not see a
+        # pre-game scout move. game/scouts.py needs the opposite: it has to
+        # know the human is finished with the unit so the SCOUTS queue can move
+        # on, and "cancelled" counts just as much as "confirmed".
+        self.on_scout_move_finished = None
         self._move_finished_pending = None
         self.charge_targets = []           # squads the current charge move must end engaged with (rule 11.04)
         self.pile_in_targets = []          # squads the current pile-in move must still be engaged with (rule 12.03)
@@ -319,9 +332,40 @@ class MovementController:
         self._begin_move(effective_movement_in if max_distance is None else max_distance)
         self.move_mode = move_mode
 
-    def start_battle_focus_move(self, squad, max_distance):
-        """The Aeldari Agile Manoeuvres Opportunity Seized and Fade Back (see
-        game/battle_focus.py): "can make a Normal move of up to D6+1"".
+    #: Every move_mode that can be OPEN while it is the other player's turn.
+    #:
+    #: This exists because the AI driver has to know when to hold still. A
+    #: reactive move belongs to the player who is NOT taking the turn, and the
+    #: DecisionManager window that offered it has already closed by the time the
+    #: move is open - so nothing else tells the AI that a human is mid-drag.
+    #: ai/agent_driver.py's _is_blocked() reads exactly this set.
+    #:
+    #: It lives here, on start_battle_focus_move(), because that method is the
+    #: single door every such move comes through: any mode passed to it is
+    #: reactive by construction and BELONGS IN THIS SET. Own-turn extra moves
+    #: (Torchstar Gambit, Tactical Acumen) go through start_post_shooting_move()
+    #: instead and deliberately are not here.
+    #:
+    #: Hard-coding one mode here instead of a set is a bug that has now been
+    #: reported TWICE, in the same words both times: "the AI did not let me make
+    #: the move, it just carried on". First for Fade Back, when nothing looked at
+    #: the open move at all; then for Rangers' Path of the Outcast, when the gate
+    #: looked but compared against the string "battle_focus" only.
+    REACTIVE_MOVE_MODES = frozenset({"battle_focus", "path_of_the_outcast"})
+
+    def start_battle_focus_move(self, squad, max_distance, move_mode="battle_focus"):
+        """A reactive Normal move of an already-rolled distance, taken in the
+        OPPONENT's turn.
+
+        ANY `move_mode` passed here must also be listed in REACTIVE_MOVE_MODES
+        above, or the AI will walk straight over the move it just granted.
+
+        Built for the Aeldari Agile Manoeuvres Opportunity Seized and Fade Back
+        (see game/battle_focus.py): "can make a Normal move of up to D6+1"".
+        Rangers' Path of the Outcast is the second, identical in every way that
+        matters, which is why `move_mode` is a parameter rather than fixed: it
+        is what routes the Confirm button back to the controller that owns the
+        consequence, so each ability needs its own.
 
         `max_distance` is that already-rolled distance, not a characteristic -
         the manoeuvre names its own number, so effective_movement_in() would be
@@ -337,7 +381,7 @@ class MovementController:
         if squad is None or squad is not self.selected_squad:
             return
         self._begin_move(lambda model: max_distance)
-        self.move_mode = "battle_focus"
+        self.move_mode = move_mode
 
     def start_retro_thruster_move(self, squad, fall_back=False):
         """The Twin Lance's Retro-thrusters (see game/retro_thrusters.py):
@@ -393,13 +437,38 @@ class MovementController:
         self.consolidate_targets = targets
         self.consolidate_mode = mode
 
+    def can_advance(self):
+        """Rule 09.06: whether this move can still be turned into an Advance.
+
+        The ONE definition, read by start_run() itself and by the panel's
+        Advance button - game/ui/action_panel.py used to carry its own
+        hand-maintained list of move modes that must NOT offer it, and a list
+        that has to grow with every new mode grows wrong: "scout" was missing
+        from it.
+
+        `move_mode is None` is the whole rule, not shorthand. An Advance is a
+        choice made as part of a unit's OWN Movement-phase move, and that is
+        the only move this controller leaves unnamed. Every named mode is
+        either not a move that can Advance (charge, pile_in, consolidate,
+        surge, fall_back) or a move granted by something else whose printed
+        text says "a Normal move" - scout (24.32), torchstar, tactical_acumen,
+        battle_focus, path_of_the_outcast, retro_thrusters.
+
+        The remaining three terms mirror start_run()'s own refusals, so the
+        button appears exactly when clicking it would do something (this
+        project's standing rule: the engine must not offer what it would not
+        accept)."""
+        return (
+            self.state == MOVING
+            and self.selected_squad is not None
+            and self.move_mode is None
+            and not self.run_used
+            and self.dice_manager is not None
+            and self.selected_squad not in self.advance_bonus_by_squad
+        )
+
     def start_run(self):
-        if (
-            self.selected_squad is None
-            or self.run_used
-            or self.dice_manager is None
-            or self.selected_squad in self.advance_bonus_by_squad
-        ):
+        if not self.can_advance():
             return
 
         # Jain Zar's Whirling Death: "do not make an Advance roll. Instead ...
@@ -593,6 +662,9 @@ class MovementController:
                 errors.extend(model_errors)
         self.errors = list(dict.fromkeys(errors))
 
+    # Set by main.py - rule 16.01's move-cancellation hook, see confirm_move().
+    action_controller = None
+
     def confirm_move(self):
         if self.selected_squad is None:
             return
@@ -659,7 +731,8 @@ class MovementController:
         if self.move_mode == "charge":
             self.selected_squad.fights_first = True
             self.selected_squad.charged_this_turn = True
-        elif self.move_mode not in ("pile_in", "consolidate", "scout", "torchstar", "tactical_acumen"):
+        elif self.move_mode not in ("pile_in", "consolidate", "scout", "torchstar",
+                                    "tactical_acumen", "battle_focus", "path_of_the_outcast"):
             # The two post-shooting modes are excluded for a related reason
             # (see start_post_shooting_move()): they happen in the SHOOTING
             # phase and are
@@ -670,6 +743,17 @@ class MovementController:
             # when a unit SHOOTS, this unit has already shot, and the only
             # shooting still ahead of it is a Snap Shot (15.09), which
             # ignores every modifier anyway.
+            #
+            # The two REACTIVE modes ("battle_focus" - Fade Back and
+            # Opportunity Seized - and "path_of_the_outcast") are excluded for
+            # the same reason one step further out: they happen in the
+            # OPPONENT's turn, so booking them claims a Movement phase that is
+            # not merely over but belongs to the other player. It self-heals
+            # today, because reset_movement_phase() runs before the reacting
+            # player's own Movement phase - but Rangers are the datasheet that
+            # makes the stakes concrete, since [HEAVY] (24.16) is on their main
+            # gun, and relying on a reset in another file for correctness is
+            # exactly the coupling the note below warns about.
             #
             # "scout" is excluded explicitly, not by accident: a Scout Move
             # (24.32) happens in rule 03.01's Resolve Pre-battle Abilities
@@ -714,6 +798,22 @@ class MovementController:
                     dist = ((model.x_in - start[0]) ** 2 + (model.y_in - start[1]) ** 2) ** 0.5
                     max_dist = max(max_dist, dist)
             self.moved_distance_this_turn[self.selected_squad] = max_dist
+        # Where every model STOOD before this move, kept past the state clear
+        # below. Canoptek Wraiths' Wraith Form needs the segment each model
+        # actually travelled ("one enemy unit it MOVED OVER"), and
+        # on_move_finished fires after _clear_move_state() has emptied
+        # move_start - so the snapshot has to be taken here. Additive: no
+        # listener signature changes, see game/wraith_form.py.
+        self.last_move_start = dict(self.move_start)
+        # Rule 16.01: "If a unit performing an action makes a move (excluding
+        # pile-in and consolidation moves) ... that unit does not complete that
+        # action." Reported here, at the one place every confirmed move passes
+        # through, and with the move's OWN mode so the two named exceptions are
+        # recognised by name rather than guessed at.
+        if self.action_controller is not None:
+            self.action_controller.notify_move(self.selected_squad, self.move_mode)
+        # Captured before the clear below wipes it - see on_scout_move_finished.
+        _finished_scout = self.selected_squad if self.move_mode == "scout" else None
         self._clear_move_state()
         self.errors = []
         self.state = SELECTED
@@ -730,10 +830,13 @@ class MovementController:
         self._fell_back_pending = None
         if fell_back is not None and self.on_fall_back_finished is not None:
             self.on_fall_back_finished(fell_back)
+        if _finished_scout is not None and self.on_scout_move_finished is not None:
+            self.on_scout_move_finished(_finished_scout)
         moved = self._move_finished_pending
         self._move_finished_pending = None
-        if moved is not None and self.on_move_finished is not None:
-            self.on_move_finished(*moved)
+        if moved is not None:
+            for listener in (self.on_move_finished or ()):
+                listener(*moved)
 
     def cancel_move(self):
         if self.selected_squad is None:
@@ -744,6 +847,9 @@ class MovementController:
             if origin is not None:
                 model.x_in, model.y_in = origin
 
+        # A cancelled scout move still ENDS it, and the SCOUTS queue is waiting
+        # on exactly that - without this a cancel would strand the pre-game.
+        _finished_scout = self.selected_squad if self.move_mode == "scout" else None
         self._clear_move_state()
         self.errors = []
         self.state = SELECTED
@@ -755,6 +861,8 @@ class MovementController:
         self.flying_this_move = False
         self.desperate_escape_this_move = False
         self.surge_target = None
+        if _finished_scout is not None and self.on_scout_move_finished is not None:
+            self.on_scout_move_finished(_finished_scout)
 
     def is_movable(self, token):
         return (

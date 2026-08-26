@@ -28,7 +28,7 @@ from ai.agent_driver import (
     _centroid,
     _ingress_pack_positions,
 )
-from game import attached_units, deployment, formations, movement, pregame
+from game import attached_units, combat_focus, deployment, formations, movement, pregame
 from game.squad import max_model_radius, squad_has_infiltrators
 
 # Candidate grid over the deploying player's own zone. 2" is fine enough that
@@ -212,15 +212,37 @@ def is_heavy(squad):
 
 
 def _deployment_role(squad):
-    """"heavy" | "screen" | "shooter" | "key" - what this unit wants out of a
-    deployment spot. Hiding behind terrain is only the right answer for SOME
-    units, so one scorer for the whole army would be wrong for most of it.
+    """"heavy" | "assault" | "screen" | "shooter" | "key" - what this unit
+    wants out of a deployment spot. Hiding behind terrain is only the right
+    answer for SOME units, so one scorer for the whole army would be wrong for
+    most of it.
 
     "heavy" is checked FIRST, ahead of "key", because the two want opposite
     things and a Battlewagon is both. "key" says hide it; "heavy" says give it
     room to move, which means the front row. Room won: a hidden vehicle that
     cannot get out of its own deployment zone contributes nothing to the game,
-    whereas an exposed one that reaches the fight can at least trade."""
+    whereas an exposed one that reaches the fight can at least trade.
+
+    "assault" is checked LAST, and only ever takes units that would otherwise
+    have been a plain "screen". User report: "die skorpekh destroyer standen
+    sehr weit hinten und sind nicht durch die warrior durchgekommen. warum so
+    weit hinten? nahkkaempfer sollten eher weiter vorne starten, aber
+    moeglichst versteckt." Measured on that deployment: the Skorpekh came out
+    at -3.04" of forward progress, the second most rearward unit of the whole
+    army, behind even the "key" units that are supposed to hide at the back,
+    with 1 of 3 models Hidden.
+
+    They were not mis-SCORED - a screen's key already starts with
+    -forward_bucket. They were mis-QUEUED and mis-passed: deployment_order_key()
+    sorted them behind every bigger unit, so a 3-model elite chose from what a
+    21-model blob had left, and _wants_hidden_pass() withholds the fully-hidden
+    pass from a screen. Both are right for a screen and wrong for a unit whose
+    only job is to arrive; see those two functions.
+
+    The melee test is game/combat_focus.py's, shared with the Charge phase's
+    own block, and it is deliberately the strict one rather than "leans melee":
+    Gretchin lean melee too (0.97) and are the archetypal cheap screen the
+    user wants left on the home objective. See that module for both bands."""
     if is_heavy(squad):
         return "heavy"
     profile = squad.models[0].profile if squad.models else None
@@ -231,6 +253,8 @@ def _deployment_role(squad):
         return "key"
     if _bulk_ranged_range(squad) >= SHOOTER_RANGE_IN:
         return "shooter"
+    if combat_focus.is_assault_unit(squad):
+        return "assault"
     return "screen"
 
 
@@ -254,7 +278,7 @@ def deployment_order_key(squad):
     role = _deployment_role(squad)
     return (
         squad_has_infiltrators(squad),
-        {"heavy": 0}.get(role, 2 if role == "key" else 1),
+        {"heavy": 0, "assault": 1}.get(role, 3 if role == "key" else 2),
         -len(squad.models),
         -(squad.points or 0),
     )
@@ -358,7 +382,7 @@ def can_be_hidden(squad):
 def _hidden_pass_points(squad, context, points, terrain_areas):
     """Which candidate spots the "fully hidden" pass may use for this unit.
 
-    Every Dense spot, except for a plain "screen", which only gets the ones
+    Every Dense spot, except for an "assault" unit, which only gets the ones
     that cost it NO forward ground - the same "hide where hiding is free"
     the heavy role already gets, rather than an all-or-nothing choice between
     the two.
@@ -367,13 +391,21 @@ def _hidden_pass_points(squad, context, points, terrain_areas):
     reported Boyz mob at the front edge, but it also stops every cheap screen
     from using cover it could have had for nothing, and map 2's mean exposure
     went 0.30 -> 0.60 of 33 probe points with the worst single unit at 5. The
-    forward-bucket test keeps the aggression and gets the cover back."""
+    forward-bucket test keeps the aggression and gets the cover back.
+
+    THIS BRANCH USED TO NAME "screen" AND WAS UNREACHABLE. Reaching it needed
+    _wants_hidden_pass() to be True with role == "screen", which only happens
+    for the home garrison - and the line above already returns for the home
+    garrison. So the measurement in the paragraph above was made, the finding
+    was kept, and then the code that carried it was stranded when screens lost
+    the pass outright. "assault" is the role that actually wants this bargain,
+    and pointing the branch at it makes the finding live again."""
     if not _wants_hidden_pass(squad, context):
         return []
     dense = [p for p in points if _in_dense_area(p[0], p[1], terrain_areas)]
     if not dense or context.get("is_home_garrison"):
         return dense
-    if context["roles"][id(squad)] != "screen":
+    if context["roles"][id(squad)] != "assault":
         return dense
     fx, fy = context["forward"]
     ox, oy = context["origin"]
@@ -407,6 +439,15 @@ def _wants_hidden_pass(squad, context):
     if context.get("is_home_garrison"):
         return True
     return context["roles"][id(squad)] != "screen"
+
+
+# NOTE on the role list above: "assault" is NOT excluded, so it does get the
+# pass. That is the second half of the reported Skorpekh fix - the user asked
+# for "moeglichst versteckt" in the same breath as "weiter vorne" - and it is
+# safe here in a way it was not for a plain screen, because
+# _hidden_pass_points() restricts an assault unit's Dense candidates to the
+# forward bucket it would have reached anyway. It can only hide where hiding
+# is free, which is the same bargain the "heavy" role already gets.
 
 
 def _in_dense_area(x_in, y_in, terrain_areas):
@@ -545,10 +586,17 @@ def deployment_score(point, squad, pregame_ctrl, context):
         # only demoted - within the same forward band it still takes the least
         # visible spot it can find, so it hides where hiding is free.
         return (-int(forward // HEAVY_FORWARD_BUCKET_IN), exposure, round(to_objective, 1))
-    if role == "screen":
+    if role in ("screen", "assault"):
         # Still the most forward bucket - a screen that hides is not screening
         # anything - but within that bucket it takes cover and 13.09 rather
         # than whatever spot happens to be 0.1" further up.
+        #
+        # "assault" shares this key unchanged, and that is the point: forward
+        # first, hidden within the forward band, is already exactly the user's
+        # "nahkkaempfer sollten eher weiter vorne starten, aber moeglichst
+        # versteckt". What an assault unit needed was not a different key but
+        # an earlier place in the queue and the fully-hidden pass - see
+        # deployment_order_key() and _wants_hidden_pass().
         return (-forward_bucket, hidden, exposure, round(to_objective, 1))
     if role == "shooter":
         # Wants a lane into SOME of the enemy zone but not to stand in the

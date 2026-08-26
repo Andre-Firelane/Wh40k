@@ -272,4 +272,21 @@ ad.applies = original
 restored = fire(tau.DEVILFISH, FACES)
 checks.eq("A/B: restored", steps(restored), ["Hit roll", "Wound roll", "Damage roll"])
 
+print("--- the Exarch is marked as the squad leader ---")
+import testkit as _tk_leader  # noqa: E402
+from game.factions.aeldari import FIRE_DRAGONS as _sheet_for_leader  # noqa: E402
+from game.units import FireDragonExarchProfile as _ExarchProfile  # noqa: E402
+
+# User report: "bei warp spider und avengers kann ich den exarch nicht
+# unterscheiden". There is no separate Exarch art for this datasheet, so the
+# leader ring/label the renderer draws for squad_leader models is the ONLY
+# thing that tells it apart - and the flag was simply never set here (the
+# Striking Scorpion and Howling Banshee Exarchs already had it).
+checks.true("the Exarch is flagged squad_leader", _ExarchProfile.squad_leader)
+_exarch_squad = _tk_leader.build(_sheet_for_leader, "Player 1", name="1 FIRE_DRAGONS L1")
+_leaders = [m for m in _exarch_squad.models if m.profile.squad_leader]
+checks.eq("exactly one model in the unit carries it", len(_leaders), 1)
+checks.eq("and it is the Exarch", _leaders[0].profile.name, "Fire Dragon Exarch")
+
+
 checks.finish()

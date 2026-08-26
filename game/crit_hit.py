@@ -34,12 +34,14 @@ of this module any more:
 """
 
 from game import whispering_web as ww
+from game.attached_units import leader_ability
 
 DEFAULT_CRIT_HIT_THRESHOLD = 6
 
 UNBRIDLED_CARNAGE_CRIT_HIT_THRESHOLD = 5
 MANDIBLASTERS_CRIT_HIT_THRESHOLD = 5
 WHISPERING_WEB_CRIT_HIT_THRESHOLD = 5
+HARBINGER_OF_DESTRUCTION_CRIT_HIT_THRESHOLD = 5
 
 
 def _unbridled_carnage_applies(squad):
@@ -61,8 +63,26 @@ def _mandiblasters_applies(model, squad):
     return squad is not None and getattr(squad, "charged_this_turn", False)
 
 
-def crit_hit_threshold(model, target_squad=None, whispering_web=None, melee_only=False):
+def _threshold_number(value):
+    """"2+" -> 2. None/"-" -> None."""
+    try:
+        return int(str(value).rstrip("+"))
+    except (TypeError, ValueError):
+        return None
+
+
+def crit_hit_threshold(model, target_squad=None, whispering_web=None, melee_only=False,
+                       hit_threshold=None):
     """The unmodified hit roll this model needs for a Critical Hit.
+
+    `hit_threshold` is the roll this attack actually needs to HIT, and is only
+    read by Baharroth's Cry of the Wind, whose printed wording is not a fixed
+    number at all: "a successful unmodified Hit roll scores a Critical Hit", so
+    the two thresholds are the same roll. The callers that have it pass it (the
+    hit step and its re-roll branch); the one that does not is the dice-panel
+    label, which falls back to the model's own printed Ballistic Skill - the
+    same answer whenever nothing is modifying the roll, which is the case the
+    label is describing anyway.
 
     Takes the attacking MODEL so the call sites read their group's
     representative exactly like every other per-group adjuster does. Exact
@@ -90,4 +110,28 @@ def crit_hit_threshold(model, target_squad=None, whispering_web=None, melee_only
             threshold = min(threshold, MANDIBLASTERS_CRIT_HIT_THRESHOLD)
     if whispering_web is not None and whispering_web.applies(squad, target_squad):
         threshold = min(threshold, WHISPERING_WEB_CRIT_HIT_THRESHOLD)
+    # Baharroth's Cry of the Wind: "each time this model is set up on the
+    # battlefield, until the end of the turn, each time this model makes a
+    # ranged attack, a successful unmodified Hit roll scores a Critical Hit."
+    # RANGED only, hence the melee_only guard - and it is not a fixed number,
+    # it is whatever the attack needs to hit.
+    # Gated on the PRINTED ability as well as the runtime flag: main.py only
+    # ever sets the flag on a model whose profile has it, and this makes that
+    # true by construction rather than by convention.
+    if (not melee_only
+            and getattr(model, "cry_of_the_wind_active", False)
+            and getattr(model.profile, "cry_of_the_wind", False)):
+        needed = hit_threshold
+        if needed is None:
+            needed = _threshold_number(getattr(model.profile, "ballistic_skill", None))
+        if needed is not None:
+            threshold = min(threshold, needed)
+    # The Necron Plasmancer's Harbinger of Destruction: "while this model is
+    # leading a unit, each time a model in that unit makes a RANGED attack, a
+    # successful unmodified Hit roll of 5+ scores a Critical Hit." Ranged only,
+    # hence the same melee_only guard Cry of the Wind uses; and a LEADER
+    # ability, so it is read with leader_ability() rather than off the model -
+    # none of the bodyguards print it, which is the whole point of one.
+    if not melee_only and leader_ability(squad, "harbinger_of_destruction"):
+        threshold = min(threshold, HARBINGER_OF_DESTRUCTION_CRIT_HIT_THRESHOLD)
     return threshold

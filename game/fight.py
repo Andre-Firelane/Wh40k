@@ -1,8 +1,8 @@
 from game import attached_units
-from game import monster_hunters
+from game import awakened_dynasty, destroyer_cult, guardian_protocols, protocol_hungry_void, implacable_eradication, mechanical_augmentation, monster_hunters, plasmacyte, reroll_scope
 from game import way_of_the_short_blade
 from game.ard_as_nails import ARD_AS_NAILS_WOUND_PENALTY, ard_as_nails_wound_modifier_applies
-from game.damage_resolution import DamageAllocationSession, DevastatingWoundAllocationSession, MortalWoundAllocationSession
+from game.damage_resolution import DamageAllocationSession, DevastatingWoundAllocationSession, MortalWoundAllocationSession, displayed_save_threshold
 from game.dice import ATTACKS_ROLL, HIT_ROLL, SAVE_ROLL, WOUND_ROLL
 from game.dice_notation import DiceNotationRoll, describe as describe_dice_notation
 from game.ferocious_rage import ferocious_rage_adjusted_weapon
@@ -14,7 +14,7 @@ from game.shooting import (
     _damaged_modifier, _group_label, _resolve_roll, _threshold_note, _wound_crit_threshold, _wound_threshold,
     extra_attack_dice, melta_adjusted_weapon,
 )
-from game.squad import allocation_target_profile, attached_unit_toughness, model_engaged_with, squad_has_fights_first, squad_has_might_is_right, tank_hunters_modifiers
+from game.squad import allocation_target_model, allocation_target_profile, attached_unit_toughness, model_engaged_with, squad_has_fights_first, squad_has_might_is_right, tank_hunters_modifiers
 from game.thresholds import parse_threshold as _parse_threshold
 from game.turn import PHASE_FIGHT
 from game import aspect_shrine
@@ -133,6 +133,7 @@ class FightController:
         self, game_log=None, dice_manager=None, turn_tracker=None, all_tokens=None,
         pile_in_controller=None, charge_controller=None, decision_manager=None, suppression=None, stealth_drones=None,
         waaagh=None, target_reactions=(), guide=None, doom=None, whispering_web=None,
+        objectives=None,
     ):
         self.game_log = game_log
         self.dice_manager = dice_manager
@@ -144,6 +145,11 @@ class FightController:
         self.suppression = suppression  # Strike Team's Suppression Volley ability - optional, like decision_manager; see game/suppression.py
         self.stealth_drones = stealth_drones  # Ghostkeel Battlesuit's Stealth Drones ability - optional, like suppression; see game/stealth_drones.py
         self.guide = guide  # the Farseer's Guide mark - optional; read by _hit_modifiers() (see game/guide.py)
+        # Immortals' Implacable Eradication upgrades its re-roll when the
+        # target is within range of an objective marker, so the melee side
+        # needs the markers too - ShootingController has carried them since
+        # Breach and Clear. Optional, so every existing caller is unchanged.
+        self.objectives = objectives if objectives is not None else []
         self.doom = doom  # Eldrad Ulthran's Doom mark - optional; read by _wound_modifiers() (see game/doom.py)
         self.whispering_web = whispering_web  # Lhykhis' Whispering Web mark - optional; read by the hit step's crit threshold (see game/whispering_web.py)
         self.waaagh = waaagh  # Orks army rule "Waaagh!" - optional, like suppression/stealth_drones; see game/waaagh.py
@@ -193,6 +199,7 @@ class FightController:
         self._pending_sustained_roll = None  # DiceNotationRoll while pending_step == "sustained_hits" (a dice-notation [SUSTAINED HITS X])
         self._pending_twin_linked_reroll = None  # rule 24.38: context dict while pending_step == "wound_twin_linked_reroll"
         self._pending_hit_reroll = None  # Monster Hunters: context dict while pending_step == "hit_monster_hunters_reroll"
+        self._pending_ones_reroll = None  # a two-clause source's automatic re-roll of 1s: context dict while pending_step == "hit_reroll_ones"/"wound_reroll_ones"
         self.one_shot_used = set()  # rule 24.26: (model.id, id(weapon)) pairs already fought with - persists for the whole battle, never reset
         self.mortal_wound_session = None  # MortalWoundAllocationSession while pending_step == "hazard_wounds"
         self.hold_still_session = None  # MortalWoundAllocationSession while pending_step == "hold_still_wounds" - Painboy's "Hold Still and Say 'Aargh!'", see game/hold_still.py
@@ -290,7 +297,28 @@ class FightController:
             return False
         if not any(not m.is_dead() for m in squad.models):
             return False
-        return squad.is_engaged(self.all_tokens) or squad in self.engaged_at_start or squad_has_fights_first(squad)
+        # Rule 12.04's own two conditions and nothing else: in Engagement
+        # Range now, or engaged when the Fight step began (so a unit whose
+        # only nearby enemy has since died still gets to swing).
+        #
+        # Fights First (24.13) is deliberately NOT a third one. It decides
+        # the ORDER eligible units fight in - which is what
+        # _eligible_fighters(fights_first_only=True) uses it for - not who
+        # is eligible. Reading it as eligibility made every Howling Banshees
+        # / Jain Zar unit on the board eligible every Fight phase no matter
+        # where it stood, which is the "was ist diese meldung immer am ende
+        # des gegnerischen zugs? irgendeine aeldari trigger?" report: the
+        # phase then refused to settle and demanded a unit be selected (or
+        # the Appendix's Pass be clicked) with nothing of the player's
+        # anywhere near an enemy. Measured at the time: Banshees 18.8" from
+        # the nearest enemy came back eligible, an otherwise identical Boyz
+        # mob at the same distance did not.
+        #
+        # Nothing legitimate is lost: every other source of Squad.fights_first
+        # (a completed charge 11.04, Heroic Intervention 15.11,
+        # Counteroffensive 15.12) leaves the unit in Engagement Range anyway,
+        # so it stays eligible through the first condition.
+        return squad.is_engaged(self.all_tokens) or squad in self.engaged_at_start
 
     def is_eligible_to_fight(self, squad):
         """Public reading of rule 12.04 eligibility, for callers outside this
@@ -538,8 +566,10 @@ class FightController:
         self.assignment_queue = [pair for plist in groups.values() for pair in plist]
         self.assignments = {}
         self.state = ASSIGNING
-        if not self.assignment_queue:
-            self._finish_current_fight()
+        # Drops the models that are out of Engagement Range before the player
+        # is ever asked about them, and ends the activation outright if that
+        # leaves nothing to assign - see _advance_assignment().
+        self._advance_assignment()
 
     def current_assignment(self):
         """(model, weapon) awaiting a target during split-fire assignment, or None."""
@@ -568,6 +598,74 @@ class FightController:
             if not _melee_locked_out(m, w, self._used_other_melee_weapon)
         ]
 
+        self._advance_assignment()
+
+    def skip_current(self):
+        """Leave the model+weapon at the front of the assignment queue
+        unused and move on to the next one - game/shooting.py's
+        skip_current() with the same rule 04.01 basis ("one or more"
+        weapons, not all of them), for the identically shaped melee
+        assignment step.
+
+        The dead end it escapes is worse here than in shooting:
+        _melee_attack_groups() is deliberately unfiltered by target (see its
+        docstring - rule 12.02's Engagement Range check happens per model
+        against the CHOSEN target), so a charging mob queues every model it
+        has while only the front rank is within Engagement Range of
+        anything. Reproduced with a 10-model mob: 4 models assignable, the
+        queue then frozen forever on the 5th. _advance_assignment() drops
+        those on its own now, so this is the deliberate "this model holds
+        back" choice."""
+        if self.state != ASSIGNING or not self.assignment_queue:
+            return
+        model, weapon = self.assignment_queue.pop(0)
+        self._log(f"{self.fighting_squad.name}: {model.profile.name} does not attack with its {weapon.name}.")
+        self._advance_assignment()
+
+    def finish_assignment(self):
+        """Stop assigning and resolve whatever has a target already - the
+        split-fire counterpart of stop_fighting()."""
+        if self.state != ASSIGNING:
+            return
+        skipped = len(self.assignment_queue)
+        self.assignment_queue = []
+        if skipped:
+            self._log(f"{self.fighting_squad.name}: {skipped} weapon(s) left unused.")
+        self._advance_assignment()
+
+    def _prune_unassignable(self):
+        """Drop pairs from the FRONT of the queue whose model is not within
+        Engagement Range of ANY of this unit's melee targets, so the player
+        is never asked to pick a target that does not exist.
+
+        Rule 12.05 is why this is a correctness fix and not a convenience:
+        only models within Engagement Range make attacks at all, so a
+        trailing model was never an option to begin with. Pure geometry
+        here (no line of sight), so unlike shooting.py's counterpart the
+        sweep is cheap; front-only all the same, to keep the two flows the
+        same shape."""
+        targets = self.engaged_enemy_squads(self.fighting_squad) if self.fighting_squad else []
+        dropped = []
+        while self.assignment_queue:
+            model, weapon = self.assignment_queue[0]
+            if any(model_engaged_with(model, squad) for squad in targets):
+                break
+            self.assignment_queue.pop(0)
+            dropped.append(weapon.name)
+        if dropped and self.fighting_squad is not None:
+            names = ", ".join(sorted(set(dropped)))
+            self._log(
+                f"{self.fighting_squad.name}: {len(dropped)} weapon(s) belong to models out of "
+                f"Engagement Range and do not attack ({names})."
+            )
+
+    def _advance_assignment(self):
+        """Shared tail of every split-fire assignment step (assign, skip,
+        finish, begin): make sure the pair now at the front is one the player
+        can answer for, and once nothing is left to assign, resolve what was
+        assigned. Nothing assigned at all ends the activation through
+        _begin_next_split_group() -> _finish_current_fight()."""
+        self._prune_unassignable()
         if self.assignment_queue:
             return
 
@@ -712,6 +810,8 @@ class FightController:
                 weapon.attacks_notation, count=len(pairs), dice_manager=self.dice_manager,
                 label=f"Attacks: {weapon_label} ({len(pairs)} model(s), {describe_dice_notation(weapon.attacks_notation)} each)",
                 roll_kind=ATTACKS_ROLL, log=self._log,
+                target_name=target_squad.name,
+                attacker_squad=self.fighting_squad, target_squad=target_squad,
             )
             if self._pending_attacks_roll.is_pending:
                 self.pending_step = "attacks"
@@ -750,24 +850,7 @@ class FightController:
             # current Ork melee weapon actually has [TORRENT], but the
             # adjustment function is a no-op unless its own condition
             # applies, so this stays correct if one ever does.
-            torrent_weapon = waaagh_melee_adjusted_weapon(weapon, group["pairs"], self.waaagh)
-            # War Horde's Get Stuck In (user-supplied): [SUSTAINED HITS 1]
-            # on Orks models' melee weapons - chained here too for the same
-            # completeness reason as the Waaagh! adjustment right above,
-            # even though [TORRENT] forces crits=0 below (so sustained_hits
-            # is a no-op in practice for a torrent weapon specifically).
-            torrent_weapon = get_stuck_in_adjusted_weapon(torrent_weapon, group["pairs"])
-            # Beastboss's Ferocious Rage: chained here for the same
-            # completeness reason - and unlike the two above this one is NOT
-            # a no-op for a torrent weapon: [DEVASTATING WOUNDS] (24.10)
-            # hangs off the WOUND roll, which a [TORRENT] weapon still
-            # makes; only the hit roll is skipped.
-            torrent_weapon = ferocious_rage_adjusted_weapon(
-                torrent_weapon, group["pairs"], self.charge_controller, self.fighting_squad,
-            )
-            # Spirit of Gork chained here too: its +1 Strength feeds the
-            # wound roll, which a [TORRENT] weapon still makes.
-            torrent_weapon = spirit_of_gork_adjusted_weapon(torrent_weapon, self.fighting_squad)
+            torrent_weapon = self._adjusted_weapon(group["pairs"], target_squad)
             # War Horde's Unbridled Carnage needs no equivalent hook here:
             # it only lowers the hit roll's CRITICAL threshold, and [TORRENT]
             # means there is no hit roll at all - no die exists to come up an
@@ -784,7 +867,11 @@ class FightController:
             count=total_attacks, sides=6,
             label=label,
             success_threshold=threshold if threshold is not None else 7,
-            target_name=target_squad.name, roll_kind=HIT_ROLL,
+            target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, roll_kind=HIT_ROLL,
+            # `weapon` here is the printed profile; the conditional grants
+            # (Get Stuck In, Spirit of Gork) are only applied at resolution
+            # time, so the note has to ask for the adjusted one itself.
+            **self._crit_note("hit", self._adjusted_weapon(group["pairs"], target_squad), target_squad),
         )
         self.pending_step = "hit"
 
@@ -910,22 +997,7 @@ class FightController:
         # at the wound step (Waaagh!'s own S/AP-only adjustment could wait
         # either way, since neither touches sustained_hits - so ordering
         # between the two doesn't matter here).
-        weapon = waaagh_melee_adjusted_weapon(weapon, group["pairs"], self.waaagh)
-        weapon = get_stuck_in_adjusted_weapon(weapon, group["pairs"])
-        # Beastboss's Ferocious Rage (user-supplied): [DEVASTATING WOUNDS] on
-        # its own melee weapons for the rest of the turn after it charged.
-        # Chained here for the same reason as Get Stuck In - it has to be on
-        # `weapon` before the wound step below reads the ability off it. Per
-        # MODEL rather than per unit, which is why it takes `pairs`; see
-        # game/ferocious_rage.py.
-        weapon = ferocious_rage_adjusted_weapon(
-            weapon, group["pairs"], self.charge_controller, self.fighting_squad,
-        )
-        # Kill Rig's Spirit of Gork (user-supplied): +1 Strength, and
-        # [LETHAL HITS] on a 6, for the whole unit it was cast on - a unit
-        # flag rather than a per-model check, see game/spirit_of_gork.py.
-        weapon = spirit_of_gork_adjusted_weapon(weapon, self.fighting_squad)
-
+        weapon = self._adjusted_weapon(group["pairs"], group["target_squad"])
         if self.pending_step == "hit":
             threshold = apply_modifiers(
                 _parse_threshold(effective_weapon_skill(group["pairs"][0][0], weapon)),
@@ -964,7 +1036,43 @@ class FightController:
                 sum(1 for i in free if results[i] == "critical"),
                 len(free),
             )
-            self._finish_hit_roll(hits, crits, weapon, target_squad, weapon_label, rerollable, threshold)
+            ones = sum(1 for i in free if rolls[i] == 1)
+            self._finish_hit_roll(hits, crits, weapon, target_squad, weapon_label, rerollable, threshold,
+                                  ones=ones)
+
+        elif self.pending_step == "hit_reroll_ones":
+            ctx = self._pending_ones_reroll
+            self._pending_ones_reroll = None
+            crit_threshold = crit_hit_threshold(
+                group["pairs"][0][0], target_squad, self.whispering_web, melee_only=True,
+            )
+            results = [_resolve_roll(r, ctx["threshold"], crit_threshold) for r in rolls]
+            extra_hits = sum(1 for r in results if r != "fail")
+            extra_crits = sum(1 for r in results if r == "critical")
+            self._log(
+                f"{ctx['weapon_label']}: {ctx.get('reason', 'ability')} re-roll of 1s {rolls} -> "
+                f"{extra_hits} additional hit(s) (of which {extra_crits} critical)."
+            )
+            self._apply_sustained_hits(
+                ctx["hits"] + extra_hits, ctx["crits"] + extra_crits, ctx["weapon"],
+                ctx["target_squad"], ctx["weapon_label"],
+            )
+
+        elif self.pending_step == "wound_reroll_ones":
+            ctx = self._pending_ones_reroll
+            self._pending_ones_reroll = None
+            crit_threshold = _wound_crit_threshold(ctx["weapon"], ctx["target_squad"])
+            results = [_resolve_roll(r, ctx["threshold"], crit_threshold) for r in rolls]
+            extra_wounds = sum(1 for r in results if r != "fail")
+            extra_crits = sum(1 for r in results if r == "critical")
+            self._log(
+                f"{ctx['weapon_label']}: {ctx.get('reason', 'ability')} re-roll of 1s {rolls} -> "
+                f"{extra_wounds} additional wound(s) (of which {extra_crits} critical)."
+            )
+            self._resolve_wounds(
+                ctx["weapon"], ctx["target_squad"], ctx["target_profile"], ctx["weapon_label"],
+                ctx["wounds"] + extra_wounds, ctx["crits"] + extra_crits,
+            )
 
         elif self.pending_step == "hit_monster_hunters_reroll":
             # Which scope the player picked arrives purely as "how many
@@ -1019,10 +1127,19 @@ class FightController:
                 f"{_threshold_note(wound_threshold, _wound_threshold(weapon.strength, attached_unit_toughness(target_squad)), self._wound_modifiers(weapon, target_squad))}: "
                 f"{wounds} wound(s) (of which {crits} critical), {no_effect} no effect."
             )
+            ones = sum(1 for i, r in enumerate(rolls) if r == 1 and i not in spent)
             if self._twin_linked_choice_needed(weapon, free_no_effect, target_squad):
                 self._offer_twin_linked_choice(
                     free_no_effect, wounds, crits, weapon, target_squad, target_profile, weapon_label, wound_threshold,
-                    self.fighting_squad.owner, rerollable,
+                    self.fighting_squad.owner, rerollable, ones=ones,
+                )
+            elif ones and implacable_eradication.applies(self.fighting_squad):
+                # The base clause, fired only when its whole-roll alternative
+                # was NOT offered above - "instead" makes the two exclusive.
+                self._begin_ones_reroll(
+                    "wound", ones, wound_threshold, weapon, target_squad, weapon_label,
+                    wounds=wounds, crits=crits, target_profile=target_profile,
+                    reason=implacable_eradication.IMPLACABLE_ERADICATION_LABEL,
                 )
             else:
                 self._resolve_wounds(weapon, target_squad, target_profile, weapon_label, wounds, crits)
@@ -1070,38 +1187,84 @@ class FightController:
                 self.devastating_wound_session.on_fnp_acknowledged()
                 self._check_devastating_wounds_done()
 
+    def _adjusted_weapon(self, pairs, target_squad=None):
+        """This weapon group's melee profile with every conditional grant
+        applied, in one place - game/shooting.py's own _adjusted_weapon() for
+        the ranged side.
+
+        Waaagh! (+1 S), War Horde's Get Stuck In ([SUSTAINED HITS 1]),
+        Ferocious Rage ([DEVASTATING WOUNDS]) and Spirit of Gork (+1 S and
+        [LETHAL HITS]). Order matters for the last three: the hit and wound
+        steps read those keywords straight off the returned weapon, so they
+        have to be in place before those steps run. Waaagh! only touches
+        Strength/AP, so where it sits among them does not matter.
+
+        Extracted because three callers need the same answer and must not
+        disagree: the [TORRENT] shortcut (which skips straight to
+        _handle_hit_results without ever reaching the hit step),
+        on_dice_acknowledged()'s own resolution, and _crit_note(), which has
+        to know at ROLL time whether a critical die is a [LETHAL HITS] or
+        [DEVASTATING WOUNDS] one - the grants are what decide that, and they
+        are conditional. Unbridled Carnage needs no place here: it lowers the
+        hit roll's CRITICAL threshold rather than granting a keyword, and
+        _crit_note()/the hit step both read that from crit_hit_threshold()."""
+        weapon = waaagh_melee_adjusted_weapon(pairs[0][1], pairs, self.waaagh)
+        weapon = get_stuck_in_adjusted_weapon(weapon, pairs)
+        weapon = ferocious_rage_adjusted_weapon(
+            weapon, pairs, self.charge_controller, self.fighting_squad,
+        )
+        weapon = spirit_of_gork_adjusted_weapon(weapon, self.fighting_squad)
+        # Illuminor Szeras's Mechanical Augmentation. Its printed text says
+        # "makes an attack", not "a ranged attack", so it reaches this phase
+        # too. `target_squad` falls back to the controller's current one for
+        # any caller that has none in hand - the defender half is the only
+        # part that needs it, and it is simply skipped when it is unknown.
+        weapon = mechanical_augmentation.adjusted_weapon(
+            weapon, self.fighting_squad,
+            target_squad if target_squad is not None else self.target_squad,
+            self.all_tokens)
+        # Skorpekh Destroyers' Plasmacyte: [DEVASTATING WOUNDS] on melee
+        # weapons until the end of the phase - the same shape as Ferocious
+        # Rage above, and in the chain for the same reason: _crit_note()
+        # must know at ROLL time that a critical die is a devastating one.
+        weapon = plasmacyte.adjusted_weapon(weapon, self.fighting_squad)
+        # Awakened Dynasty's Protocol of the Hungry Void: +1 Strength on melee
+        # weapons, and +1 AP as well while a CHARACTER leads the unit. Last in
+        # the chain because it changes S/AP only - nothing downstream reads a
+        # keyword it might have granted.
+        return protocol_hungry_void.adjusted_weapon(weapon, self.fighting_squad)
+
+    def _crit_note(self, kind, weapon, target_squad):
+        """See game/shooting.py's _crit_note - identical purpose, with
+        melee_only=True on the hit threshold (Unbridled Carnage and
+        Mandiblasters are both worded "melee attack"; see game/crit_hit.py)
+        and `weapon` expected to be _adjusted_weapon()'s result."""
+        if kind == "hit":
+            model = self.current_group["pairs"][0][0] if self.current_group else None
+            threshold = crit_hit_threshold(model, target_squad, self.whispering_web, melee_only=True)
+            labels = []
+            if weapon.lethal_hits:
+                labels.append("LETHAL HIT")
+            if weapon.sustained_hits or weapon.sustained_hits_notation is not None:
+                labels.append("SUSTAINED HIT")
+        else:
+            threshold = _wound_crit_threshold(weapon, target_squad)
+            labels = ["DEVASTATING WOUND"] if weapon.devastating_wounds else []
+        return {"crit_threshold": threshold, "crit_labels": tuple(labels)}
+
     def _handle_hit_results(self, hits, crits, weapon, target_squad, weapon_label):
         """See shooting.py's identical method - shared continuation after
         the hit count is known, whether from an actual hit roll or (rule
         24.37, [TORRENT]) with no roll at all."""
         if hits > 0:
-            if self._lethal_hits_choice_needed(weapon, crits):
-                self._offer_lethal_hits_choice(hits, crits, weapon, target_squad, weapon_label, self.fighting_squad.owner)
-            else:
-                self._continue_after_hit_roll(hits, 0, weapon, target_squad, weapon_label)
+            # Rule 24.23 ([LETHAL HITS]) is taken for every critical hit
+            # without asking - see shooting.py's identical branch for the
+            # user report and the trade it accepts.
+            self._continue_after_hit_roll(
+                hits, crits if weapon.lethal_hits else 0, weapon, target_squad, weapon_label,
+            )
         else:
             self._finish_group()
-
-    def _lethal_hits_choice_needed(self, weapon, crits):
-        """Rule 24.23 ([LETHAL HITS]): see shooting.py's identical method -
-        the choice only exists with at least one critical hit and an actual
-        DecisionManager to pause on."""
-        return weapon.lethal_hits and crits > 0 and self.decision_manager is not None
-
-    def _offer_lethal_hits_choice(self, hits, crits, weapon, target_squad, weapon_label, owner):
-        """See shooting.py's _offer_lethal_hits_choice - identical logic,
-        duplicated here because ShootingController/FightController each own
-        their own dice/decision state machine."""
-        options = []
-        for n in range(crits, -1, -1):
-            label = f"Auto-wound {n} of {crits} critical hit(s)" if n > 0 else "Roll all hits normally"
-            options.append((
-                label,
-                lambda n=n: self._continue_after_hit_roll(hits, n, weapon, target_squad, weapon_label),
-            ))
-        self.decision_manager.request(
-            owner, f"{weapon_label}: [LETHAL HITS] - how many critical hits should automatically wound?", options,
-        )
 
     def _continue_after_hit_roll(self, hits, auto_wounds, weapon, target_squad, weapon_label):
         """See shooting.py's _continue_after_hit_roll. Also where the
@@ -1120,7 +1283,8 @@ class FightController:
                 count=remaining, sides=6,
                 label=label,
                 success_threshold=wound_threshold,
-                target_name=target_squad.name, roll_kind=WOUND_ROLL,
+                target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, roll_kind=WOUND_ROLL,
+                **self._crit_note("wound", weapon, target_squad),
             )
             self.pending_step = "wound"
         else:
@@ -1186,9 +1350,14 @@ class FightController:
                 # *defending* player's decisions, not the attacker's.
                 self.turn_tracker.set_active(target_squad.owner)
 
-            save_threshold = _parse_threshold(target_profile.armor_save)
-            if save_threshold is not None:
-                save_threshold += -weapon.ap
+            # The number a die must REACH, from the same definition
+            # game/damage_resolution.py resolves the save with - so a die
+            # saved by the INVULNERABLE save (or under Ramshackle's worsened
+            # AP) is no longer coloured red and counted as a failure. User
+            # report: "oft werden bestandene rettungswuerfe rot angezeigt".
+            save_threshold = displayed_save_threshold(
+                allocation_target_model(target_squad), weapon, self.waaagh,
+            )
             # Melta-adjusted damage preview (rule 24.25) - positions don't
             # change between kicking off this roll and its acknowledgement,
             # so this is the same value _begin_damage_allocation() will use.
@@ -1200,7 +1369,7 @@ class FightController:
                 count=normal_wounds, sides=6,
                 label=f"Save Roll: {weapon_label} ({normal_wounds} wound(s))",
                 success_threshold=save_threshold if save_threshold is not None else 7,
-                target_name=target_squad.name, roll_kind=SAVE_ROLL,
+                target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, roll_kind=SAVE_ROLL,
                 damage_per_failure=damage_preview,
             )
             self.pending_step = "save"
@@ -1233,7 +1402,7 @@ class FightController:
         self.dice_manager.roll(
             count=hold_still_rule.dice_count(crits), sides=hold_still_rule.HOLD_STILL_DICE_SIDES,
             label=hold_still_rule.roll_label(crits, target_squad),
-            target_name=target_squad.name,
+            target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad,
         )
         self.pending_step = "hold_still"
 
@@ -1310,7 +1479,42 @@ class FightController:
         self.devastating_wound_session = None
         self._finish_group_after_wounds()
 
-    def _finish_hit_roll(self, hits, crits, weapon, target_squad, weapon_label, rerollable, hit_threshold):
+    def _hit_reroll_reason(self, target_squad):
+        """Which ability grants a re-roll of THIS group's Hit roll, as a label.
+
+        The melee twin of shooting.py's method of the same name. Skorpekh
+        Destroyers' Whirling Onslaught is a two-clause source, so - exactly as
+        Swift Demise is on the ranged side - it counts as a "reason" only when
+        its WHOLE-roll half is live; its base clause is the automatic 1s."""
+        if monster_hunters.applies(self.fighting_squad, target_squad):
+            return monster_hunters.MONSTER_HUNTERS_REROLL_LABEL
+        if destroyer_cult.whirling_onslaught_offers_full_reroll(self.fighting_squad):
+            return destroyer_cult.WHIRLING_ONSLAUGHT_LABEL
+        return None
+
+    def _begin_ones_reroll(self, kind, ones, threshold, weapon, target_squad, weapon_label, **ctx):
+        """The automatic "re-roll a Hit/Wound roll of 1" half of a two-clause
+        source, as a real visible dice step - see shooting.py's method of the
+        same name, which this mirrors so the two phases behave alike.
+
+        Not optional ("re-roll", not "you can"), so nothing is prompted.
+        is_reroll=True marks the dice thrown here as spent, which is what stops
+        anything throwing them a second time."""
+        self._pending_ones_reroll = {
+            "kind": kind, "ones": ones, "threshold": threshold, "weapon": weapon,
+            "target_squad": target_squad, "weapon_label": weapon_label, **ctx,
+        }
+        self.dice_manager.roll(
+            count=ones, sides=6,
+            label=f"{weapon_label}: {'Hit' if kind == 'hit' else 'Wound'} Roll re-roll of 1s "
+                  f"({ctx.get('reason', 'ability')})",
+            success_threshold=threshold, target_name=target_squad.name,
+            attacker_squad=self.fighting_squad, target_squad=target_squad,
+            is_reroll=True,
+        )
+        self.pending_step = f"{kind}_reroll_ones"
+
+    def _finish_hit_roll(self, hits, crits, weapon, target_squad, weapon_label, rerollable, hit_threshold, ones=0):
         """Tail of the hit-roll step - offers Monster Hunters' optional
         re-roll of the whole Hit roll BEFORE [SUSTAINED HITS] is applied,
         since the extra hits a critical grants have to be computed from
@@ -1320,7 +1524,18 @@ class FightController:
         if self._hit_reroll_choice_needed(target_squad, rerollable[2]):
             self._offer_hit_reroll_choice(
                 hits, crits, weapon, target_squad, weapon_label, hit_threshold, rerollable,
-                self.fighting_squad.owner,
+                self.fighting_squad.owner, ones=ones,
+            )
+            return
+        # Whirling Onslaught's base clause. Held back above while its
+        # whole-roll alternative is actually on offer, because "instead" makes
+        # the two exclusive - the same arrangement shooting.py uses.
+        if ones and destroyer_cult.whirling_onslaught_applies(self.fighting_squad):
+            free_hits, free_crits, free_count = rerollable
+            self._begin_ones_reroll(
+                "hit", ones, hit_threshold, weapon, target_squad, weapon_label,
+                hits=hits, crits=crits, reason=destroyer_cult.WHIRLING_ONSLAUGHT_LABEL,
+                rerollable=(free_hits, free_crits, free_count - ones),
             )
             return
         self._apply_sustained_hits(hits, crits, weapon, target_squad, weapon_label)
@@ -1394,7 +1609,8 @@ class FightController:
             weapon.sustained_hits_notation, count=crits, dice_manager=self.dice_manager,
             label=(f"[SUSTAINED HITS {describe_dice_notation(weapon.sustained_hits_notation)}]: "
                    f"{weapon_label} ({crits} critical hit(s))"),
-            log=self._log,
+            log=self._log, target_name=target_squad.name,
+            attacker_squad=self.fighting_squad, target_squad=target_squad,
         )
         if self._pending_sustained_roll.is_pending:
             self.pending_step = "sustained_hits"
@@ -1427,19 +1643,23 @@ class FightController:
         no re-rollable dice left."""
         if self.decision_manager is None or self._hit_reroll_used:
             return False
-        return free_count > 0 and monster_hunters.applies(self.fighting_squad, target_squad)
+        return free_count > 0 and self._hit_reroll_reason(target_squad) is not None
 
-    def _offer_hit_reroll_choice(self, hits, crits, weapon, target_squad, weapon_label, hit_threshold, rerollable, owner):
+    def _offer_hit_reroll_choice(self, hits, crits, weapon, target_squad, weapon_label, hit_threshold, rerollable, owner, ones=0):
         """Both scopes are offered as real choices - failures only (never a
         loss) or the whole roll (can lose hits, but can improve a roll whose
         failures are few). See shooting.py's identical method for the full
         reasoning and the user instruction behind it."""
-        reason = monster_hunters.MONSTER_HUNTERS_REROLL_LABEL
+        reason = self._hit_reroll_reason(target_squad)
         free_hits, free_crits, free_count = rerollable
         free_misses = free_count - free_hits
         kept_hits, kept_crits = hits - free_hits, crits - free_crits
+        # A two-clause source (Whirling Onslaught) grants the 1s OR the whole
+        # roll - "failures only" is not among its options, since that would
+        # allow re-rolling a 2 that missed. See game/reroll_scope.py.
+        ones_or_whole = reroll_scope.is_ones_or_whole(reason)
         options = []
-        if free_misses > 0:
+        if free_misses > 0 and not ones_or_whole:
             options.append((
                 f"Re-roll failed hit rolls ({free_misses} dice)",
                 lambda: self._reroll_hit(
@@ -1453,9 +1673,23 @@ class FightController:
                 full=True,
             ),
         ))
-        options.append(
-            ("Keep result", lambda: self._apply_sustained_hits(hits, crits, weapon, target_squad, weapon_label))
-        )
+        # With 1s on the table a two-clause source's base clause is
+        # MANDATORY, so "keep result" is not a legal answer - the player picks
+        # which of the two re-rolls to take.
+        if ones_or_whole and ones > 0:
+            options.append((
+                f"Re-roll the 1s only ({ones} dice)",
+                lambda: self._begin_ones_reroll(
+                    "hit", ones, hit_threshold, weapon, target_squad, weapon_label,
+                    hits=hits, crits=crits, reason=reason,
+                    rerollable=(free_hits, free_crits, free_count - ones),
+                ),
+            ))
+        else:
+            options.append(
+                ("Keep result", lambda: self._apply_sustained_hits(hits, crits, weapon, target_squad, weapon_label))
+            )
+        self._hit_reroll_used = True
         self.decision_manager.request(owner, f"{weapon_label}: {reason} - re-roll the Hit roll?", options)
 
     def _reroll_hit(self, count, hits, crits, weapon, target_squad, weapon_label, hit_threshold, reason, full=False):
@@ -1469,8 +1703,9 @@ class FightController:
         scope = f"re-rolling all {count}" if full else f"re-rolling {count} failed"
         self.dice_manager.roll(
             count=count, sides=6, label=f"Hit Roll ({scope}): {weapon_label} {reason}",
-            success_threshold=hit_threshold, target_name=target_squad.name, roll_kind=HIT_ROLL,
+            success_threshold=hit_threshold, target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, roll_kind=HIT_ROLL,
             is_reroll=True,  # these dice have now used their one re-roll
+            **self._crit_note("hit", weapon, target_squad),
         )
         self.pending_step = "hit_monster_hunters_reroll"
 
@@ -1488,6 +1723,12 @@ class FightController:
         model = self.current_group["pairs"][0][0] if self.current_group and self.current_group.get("pairs") else None
         if storm_of_silence.applies(model, target_squad):
             return storm_of_silence.STORM_OF_SILENCE_LABEL
+        # Immortals' Implacable Eradication says "makes an attack", not "a
+        # melee attack", so it reaches this phase too - and like the hit side's
+        # Whirling Onslaught it is a "reason" only when its whole-roll half is
+        # live; the base clause is the automatic 1s.
+        if implacable_eradication.offers_full_reroll(self.fighting_squad, target_squad, self.objectives):
+            return implacable_eradication.IMPLACABLE_ERADICATION_LABEL
         return None
 
     def _wound_reroll_is_full(self, weapon, target_squad):
@@ -1495,7 +1736,9 @@ class FightController:
         failures. Jain Zar's Storm of Silence reads "you can re-roll the Wound
         roll" with no "failed", the wording that settled every full source on
         the shooting side."""
-        return self._wound_reroll_reason(weapon, target_squad) == storm_of_silence.STORM_OF_SILENCE_LABEL
+        reason = self._wound_reroll_reason(weapon, target_squad)
+        return reason in (storm_of_silence.STORM_OF_SILENCE_LABEL,
+                          implacable_eradication.IMPLACABLE_ERADICATION_LABEL)
 
     def _twin_linked_choice_needed(self, weapon, no_effect, target_squad):
         """Pointless with zero failures, and once per weapon group - see
@@ -1506,7 +1749,7 @@ class FightController:
                 and no_effect > 0 and self.decision_manager is not None
                 and not self._twin_linked_used)
 
-    def _offer_twin_linked_choice(self, no_effect, wounds, crits, weapon, target_squad, target_profile, weapon_label, wound_threshold, owner, rerollable=None):
+    def _offer_twin_linked_choice(self, no_effect, wounds, crits, weapon, target_squad, target_profile, weapon_label, wound_threshold, owner, rerollable=None, ones=0):
         """`no_effect` is the number of FAILED wound dice that may still be
         re-rolled - see shooting.py's identical method and the user correction
         that scoped [TWIN-LINKED] to failures only ("es sollten nur fails
@@ -1516,6 +1759,32 @@ class FightController:
         option, plus the failures-only subset of it: "you can re-roll the Wound
         roll" permits re-rolling fewer of its dice than all."""
         reason = self._wound_reroll_reason(weapon, target_squad)
+        # A two-clause source grants the 1s OR the whole roll, never the
+        # failures - see game/reroll_scope.py and shooting.py's twin.
+        if reroll_scope.is_ones_or_whole(reason) and rerollable is not None:
+            free_wounds, free_crits, free_no_effect = rerollable
+            free_count = free_wounds + free_no_effect
+            kept_wounds, kept_crits = wounds - free_wounds, crits - free_crits
+            options = [(
+                f"Re-roll the whole Wound roll ({free_count} dice)",
+                lambda: self._reroll_wound(free_count, kept_wounds, kept_crits, weapon, target_squad, target_profile, weapon_label, wound_threshold),
+            )]
+            if ones > 0:
+                options.append((
+                    f"Re-roll the 1s only ({ones} dice)",
+                    lambda: self._begin_ones_reroll(
+                        "wound", ones, wound_threshold, weapon, target_squad, weapon_label,
+                        wounds=wounds, crits=crits, target_profile=target_profile, reason=reason,
+                    ),
+                ))
+            else:
+                options.append(
+                    ("Keep result", lambda: self._resolve_wounds(weapon, target_squad, target_profile, weapon_label, wounds, crits))
+                )
+            self._twin_linked_used = True
+            self.decision_manager.request(
+                owner, f"{weapon_label}: {reason} - re-roll the Wound roll?", options)
+            return
         options = [(
             f"Re-roll failed wound rolls ({no_effect} dice)",
             lambda: self._reroll_wound(no_effect, wounds, crits, weapon, target_squad, target_profile, weapon_label, wound_threshold),
@@ -1549,8 +1818,9 @@ class FightController:
             count=no_effect, sides=6,
             label=f"Wound Roll (re-rolling {no_effect} failed): {weapon_label} [TWIN-LINKED]",
             success_threshold=wound_threshold,
-            target_name=target_squad.name, roll_kind=WOUND_ROLL,
+            target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, roll_kind=WOUND_ROLL,
             is_reroll=True,  # these dice have now used their one re-roll
+            **self._crit_note("wound", weapon, target_squad),
         )
         self.pending_step = "wound_twin_linked_reroll"
 
@@ -1646,6 +1916,11 @@ class FightController:
         # this engine's Modifier sign convention (positive worsens).
         if self.fighting_squad is not None and squad_has_might_is_right(self.fighting_squad):
             modifiers.append(Modifier(-1, "Might is Right"))
+        # Awakened Dynasty's Command Protocols - the same shape as Might is
+        # Right above (a leader granting his whole unit +1 to hit), differing
+        # only in reaching BOTH phases: its text says "an attack", not "a melee
+        # attack", so game/shooting.py reads it too.
+        modifiers.extend(awakened_dynasty.hit_modifiers(self.fighting_squad))
         return modifiers
 
     def _wound_modifiers(self, weapon, target_squad):
@@ -1695,6 +1970,16 @@ class FightController:
         # attack", not "makes a ranged attack" - see
         # game/way_of_the_short_blade.py.
         modifiers.extend(way_of_the_short_blade.wound_modifiers(self.fighting_squad, target_squad))
+        # Lychguard's Guardian Protocols. Wired HERE as well as in shooting.py
+        # because its printed text says "each time an attack targets this
+        # unit", not "a ranged attack" - the Wave Serpent Shield, which is
+        # otherwise the same rule, does say ranged and is shooting-only.
+        # `weapon` is already the adjusted profile at this point, so a melee
+        # Strength raised by something else is compared at its real value.
+        if guardian_protocols.applies(target_squad, weapon.strength):
+            modifiers.append(Modifier(
+                guardian_protocols.GUARDIAN_PROTOCOLS_PENALTY,
+                guardian_protocols.GUARDIAN_PROTOCOLS_LABEL))
         return modifiers
 
     def _finish_group(self):

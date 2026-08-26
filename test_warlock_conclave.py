@@ -296,4 +296,177 @@ protect.applies = original_protect
 checks.true("A/B: restored",
             any(m.source == "Protect" for m in shoot["shooting"]._wound_modifiers(led)))
 
+# --- 9. the LEADER ability is a JOIN, not a 19.01 attachment ---------------
+print("--- 9. the JOIN, not an attachment ---")
+
+# Printed verbatim: "this unit can join one GUARDIAN DEFENDERS or STORM
+# GUARDIANS unit from your army (a unit cannot have more than one WARLOCK
+# CONCLAVE unit joined to it)". It states its OWN limit, and "already has a
+# leader" is not it - which is what makes the user's list legal (a Farseer AND
+# a Conclave on one Guardian squad).
+#
+# The asymmetry is the whole point and is checked in both directions, because a
+# test that only built the working order could not tell the difference between
+# "the rule works" and "the rule is not there".
+from game import attached_units as au  # noqa: E402
+
+
+def fresh_guardians(suffix):
+    body = tk.build(ae.GUARDIAN_DEFENDERS, "Player 1", name="1 Guardian Defenders " + suffix)
+    tk.line_up(body, x=20.0, y=20.0)
+    return body
+
+
+def fresh_farseer(suffix):
+    seer = tk.build(ae.FARSEER, "Player 1", name="1 Farseer " + suffix)
+    tk.line_up(seer, x=20.0, y=18.0)
+    return seer
+
+
+def fresh_conclave(suffix):
+    c = conclave(name="1 Warlock Conclave " + suffix)
+    tk.line_up(c, x=20.0, y=17.0)
+    return c
+
+
+led_by_farseer = fresh_guardians("J1")
+checks.eq("a plain Farseer attaches to Guardian Defenders",
+          au.can_attach(fresh_farseer("J1"), led_by_farseer), [])
+led_by_farseer = au.attach(fresh_farseer("J1b"), led_by_farseer)
+checks.eq("...and the Conclave may then JOIN, despite 19.01's one-leader default",
+          au.can_attach(fresh_conclave("J1"), led_by_farseer), [])
+joined = au.attach(fresh_conclave("J1c"), led_by_farseer)
+checks.eq("...giving one 14-model unit", len(joined.models), 14)
+checks.eq("...of three components", len(au.components(joined)), 3)
+
+# Its own printed limit IS enforced.
+checks.true("a SECOND Conclave is refused - its own one-per-unit limit",
+            bool(au.can_attach(fresh_conclave("J1d"), joined)))
+
+# THE REVERSE is still refused: a plain Farseer attaching after the Conclave is
+# an ordinary 19.01 attachment, and only Eldrad's LEADER line overrides that.
+led_by_conclave_only = au.attach(fresh_conclave("J2"), fresh_guardians("J2"))
+checks.true("a plain Farseer may NOT attach after the Conclave has joined",
+            bool(au.can_attach(fresh_farseer("J2"), led_by_conclave_only)))
+checks.eq("...but Eldrad may - his own LEADER line says so",
+          au.can_attach(tk.build(ae.ELDRAD_ULTHRAN, "Player 1", name="1 Eldrad J2"),
+                        led_by_conclave_only), [])
+
+# And 19.01's default is untouched for everything else: two plain leaders are
+# still one too many.
+two_seers = au.attach(fresh_farseer("J3"), fresh_guardians("J3"))
+checks.true("two plain leaders are still refused (19.01 intact)",
+            bool(au.can_attach(fresh_farseer("J3b"), two_seers)))
+
+# Storm Guardians, the other unit its LEADER line names.
+storm = tk.build(ae.STORM_GUARDIANS, "Player 1", name="1 Storm Guardians J4")
+tk.line_up(storm, x=30.0, y=20.0)
+checks.eq("it joins Storm Guardians too", au.can_attach(fresh_conclave("J4"), storm), [])
+# ...and nothing else.
+checks.true("but not Dire Avengers",
+            bool(au.can_attach(fresh_conclave("J5"),
+                               tk.build(ae.DIRE_AVENGERS, "Player 1", name="1 Dire Avengers J5"))))
+
+# A/B: with the flag off it falls straight back to 19.01's one-leader default,
+# which is what this suite would otherwise be unable to distinguish.
+ab_body = au.attach(fresh_farseer("J6"), fresh_guardians("J6"))
+ab_conclave = fresh_conclave("J6")
+for m in ab_conclave.models:
+    m.profile = __import__("copy").copy(m.profile)
+    m.profile.joins_without_leader_slot = False
+checks.true("A/B: without the flag the Conclave is refused, as a 19.01 leader would be",
+            bool(au.can_attach(ab_conclave, ab_body)))
+for m in ab_conclave.models:
+    m.profile.joins_without_leader_slot = True
+checks.eq("A/B: restored", au.can_attach(ab_conclave, ab_body), [])
+
+
+# --- 10. the Attacks half reaches the real roll ------------------------------
+# User report: "schau mal ob die anzahl des destruktors richtig berechnet
+# wurde". Section 4 above only ever called psychic_communion_adjusted_weapon()
+# directly, which is exactly why this survived: the adjuster was right, but the
+# Destructor's Attacks is a printed D6 and that roll is thrown at the TOP of
+# _begin_resolution(), long before the late adjuster chain runs - so the
+# Attacks half was never read at all while the Strength half worked. Driven
+# through the real ShootingController here for that reason.
+print("--- 10. the Attacks half reaches the real roll ---")
+import copy as _copy  # noqa: E402
+
+_REAL_MAX_BONUS = pc.PSYCHIC_COMMUNION_MAX_BONUS
+
+
+def _destructor_activation(spacing, zero_bonus=False, toughness=None):
+    scene = tk.shooting_scene(ae.WARLOCK_CONCLAVE, orks.BOYZ,
+                              attacker_owner="Player 1", gap=6.0)
+    squad = scene["attacker"]
+    tk.line_up(squad, x=20.0, y=20.0, spacing=spacing)
+    if toughness is not None:
+        for model in scene["target"].models:
+            model.profile = _copy.copy(model.profile)
+            model.profile.toughness = toughness
+    script(3, 6, default=3)                  # the two D6 Attacks dice
+    if zero_bonus:
+        # Neutralised at the SOURCE, not by clearing the stored value after
+        # the fact: the bonus is part of _attack_key() now, so it has to be
+        # settled before start_shooting() groups the weapons - changing it
+        # mid-activation would re-key the groups under the activation's feet.
+        pc.PSYCHIC_COMMUNION_MAX_BONUS = 0
+    try:
+        scene["shooting"].start_shooting(squad)
+    finally:
+        pc.PSYCHIC_COMMUNION_MAX_BONUS = _REAL_MAX_BONUS
+    scene["shooting"].choose_target_squad(scene["target"])
+    key = next(k for k, label, *_ in scene["shooting"].weapon_eligibility()
+               if "Destructor" in label)
+    scene["shooting"].choose_weapon(key)
+    return scene
+
+
+live = _destructor_activation(1.2)           # both Warlocks within 6" of each other
+checks.eq("each Warlock is holding a +1", 
+          [m.psychic_communion_bonus for m in live["attacker"].models], [1, 1])
+checks.true("the label the player reads shows the bonus",
+            "D6+1 each" in live["dice"].last_roll[0])
+live["shooting"].on_dice_acknowledged()
+# (3+1) + (6+1) = 11, not the 3 + 6 = 9 the report saw.
+checks.eq("the Attacks roll is boosted per model",
+          len(live["dice"].rolled[-1][1]), 11)
+
+# A/B: with the count zeroed the very same activation throws the unboosted 9.
+ab = _destructor_activation(1.2, zero_bonus=True)
+checks.true("A/B: with no bonus the label is a plain D6",
+            "D6 each" in ab["dice"].last_roll[0])
+ab["shooting"].on_dice_acknowledged()
+checks.eq("A/B: and the unboosted roll is the 9 the report saw",
+          len(ab["dice"].rolled[-1][1]), 9)
+
+# The Strength half must still be applied EXACTLY once - a T6 target tells S6
+# (wound on 4+) from a double-applied S7 (3+); base Destructor is S5.
+tough = _destructor_activation(1.2, toughness=6)
+tough["shooting"].on_dice_acknowledged()
+checks.eq("Strength is still applied once, not twice", tough["dice"].success_threshold, 4)
+
+# Two Warlocks that deserve DIFFERENT bonuses must not share a weapon group -
+# _attack_key() reads the raw weapon.strength, so before the bonus went into
+# the key both landed in one group and the representative's bonus leaked to
+# the other. Built the way the real army does it: a Farseer beside one of them.
+from game.shooting import _attack_groups  # noqa: E402
+
+split = tk.shooting_scene(ae.WARLOCK_CONCLAVE, orks.BOYZ,
+                          attacker_owner="Player 1", gap=6.0)
+split_squad = split["attacker"]
+split_squad.models[0].x_in, split_squad.models[0].y_in = 20.0, 20.0
+split_squad.models[1].x_in, split_squad.models[1].y_in = 20.0, 32.0   # sees nobody
+seer = tk.build(ae.FARSEER, "Player 1", name="1 Farseer S1")
+seer.models[0].x_in, seer.models[0].y_in = 22.0, 20.0                 # 2" from model 0 only
+split["state"].add_token(seer.models[0])
+split["shooting"].start_shooting(split_squad)
+checks.eq("one Warlock is buffed, the other is not",
+          [m.psychic_communion_bonus for m in split_squad.models], [1, 0])
+destructor_groups = [g for g in _attack_groups(split_squad).values()
+                     if any(w.name == "Destructor" for _, w in g)]
+checks.eq("so they are rolled as two groups, not one", len(destructor_groups), 2)
+checks.eq("one model each", sorted(len(g) for g in destructor_groups), [1, 1])
+
+
 checks.finish()

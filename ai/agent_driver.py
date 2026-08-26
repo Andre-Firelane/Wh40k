@@ -7,6 +7,7 @@ from game import status_effects
 from game.ingress import INGRESS_MIN_BATTLE_ROUND
 from game import arrokon_protocol as arrokon_module
 from game import coldstar
+from game import combat_focus
 from game import config
 from game import attached_units
 from game.coherency import coherency_report, connected_groups
@@ -22,9 +23,15 @@ from game import game_log as game_log_module
 from game import geometry
 from game import greater_good as greater_good_module
 from game import line_of_sight
+# For REACTIVE_MOVE_MODES - the set of move_modes a player can have OPEN
+# during the opponent's turn, which _is_blocked() has to hold still for.
+from game.movement import MovementController
 from game import overwatch as overwatch_module
 from game import pathfinding
+from game import protocol_conquering_tyrant
+from game import protocol_hungry_void
 from game import shooting as shooting_module
+from game.weapons import RANGED as RANGED_WEAPON
 from game.charge import CHARGE_RANGE_IN
 from game.consolidate import CONSOLIDATE_RANGE_IN
 from game.damage_estimate import expected_wounds_against
@@ -6920,7 +6927,7 @@ def _maybe_resolve_coherency_removal(coherency_enforcer, player, game_log=None):
 def _is_blocked(
     turn_tracker, decision_manager, dice_manager, coherency_enforcer, player,
     shooting_controller=None, charge_controller=None, rapid_ingress_controller=None, setup_controller=None,
-    fire_overwatch_controller=None,
+    fire_overwatch_controller=None, movement_controller=None,
 ):
     """Real bug, found via user report: 'when I charge, the AI just sits
     there during Pile In and when striking back.' Command/Movement/
@@ -7010,7 +7017,34 @@ def _is_blocked(
     CHOOSING_UNIT here can only be the OTHER (human) player's own pending
     choice - same "still-pending-window, regardless of whose - the call
     above already drained player's own" reasoning as rapid_ingress_
-    controller.pending_squad just above."""
+    controller.pending_squad just above.
+
+    Sixth, found via user report and then REPORTED AGAIN, in the same words,
+    for a second ability: "ki hat mich den fadeback move nicht ausfuehren
+    lassen, sondern hat direkt weitergemacht", and later "ranger / gleiches
+    problem, wie damals bei fade back. die ki laesst mich nicht bewegen und
+    macht gleich weiter". The first fix looked at the open move but compared
+    move_mode to the single string "battle_focus", so Rangers' Path of the
+    Outcast - which is the same manoeuvre under its own mode name - walked
+    straight back into it. The set of reactive modes therefore lives at
+    MovementController.REACTIVE_MOVE_MODES, next to the one method they all
+    come through, and this gate reads it.
+
+    Battle Focus' reactive manoeuvres (Fade Back, Opportunity Seized - see
+    game/battle_focus.py) and Rangers' Path of the Outcast (game/
+    path_of_the_outcast.py) fire in the OPPONENT's turn: the DecisionManager
+    break point that offers them resolves the instant "spend a token" is
+    picked, but all that does is OPEN a Normal move (move_mode ==
+    "battle_focus") that the human still has to drag and confirm. Exactly the
+    same shape as the fourth case above - dropping a Rapid Ingress card
+    closes its own window while leaving a placement in progress - and with
+    exactly the same consequence: decision_manager.is_pending is already
+    False, Fade Back fires during the AI's OWN Shooting phase so turn_owner
+    == player is already true, and nothing else looked at the open move at
+    all, so the AI simply carried on shooting with its next unit underneath
+    it. Only blocks a move that is NOT `player`'s own, for the same reason
+    the placement check above does: the AI's own granted move is driven by
+    the AI itself and must not deadlock against this gate."""
     if decision_manager.is_pending or dice_manager.is_pending:
         return True
     if coherency_enforcer is not None and coherency_enforcer.pending_squad is not None:
@@ -7019,6 +7053,17 @@ def _is_blocked(
         return True
     if fire_overwatch_controller is not None and fire_overwatch_controller.state == overwatch_module.CHOOSING_UNIT:
         return True
+    if (
+        movement_controller is not None
+        and movement_controller.move_mode in MovementController.REACTIVE_MOVE_MODES
+    ):
+        # A reactive move is open - see the sixth case above. Read off the set
+        # rather than compared to one mode name: this gate said "battle_focus"
+        # only, and Rangers' Path of the Outcast then reproduced the very bug
+        # the sixth case was written to fix.
+        reactive_squad = movement_controller.selected_squad
+        if reactive_squad is not None and reactive_squad.owner != player:
+            return True
     if (
         setup_controller is not None and setup_controller.state == PLACING
         and setup_controller.setting_up_squad is not None
@@ -7326,6 +7371,10 @@ def take_one_action(
     fire_overwatch_controller=None, waaagh_controller=None, arrokon_controller=None,
     unbridled_carnage_controller=None, ere_we_go_controller=None,
     retro_thrusters_controller=None,
+    # Awakened Dynasty's three PROACTIVE protocols. The reactive three need
+    # nothing here - they answer inside their own controllers via auto_players.
+    hungry_void_controller=None, conquering_tyrant_controller=None,
+    sudden_storm_controller=None,
 ):
     """Resolve exactly ONE pending decision for `player` (Player 2 by
     default) and return - this is the function main.py's "A" key calls. A
@@ -7522,7 +7571,7 @@ def take_one_action(
     if _is_blocked(
         turn_tracker, decision_manager, dice_manager, coherency_enforcer, player,
         shooting_controller, charge_controller, rapid_ingress_controller, setup_controller,
-        fire_overwatch_controller,
+        fire_overwatch_controller, movement_controller,
     ):
         return
 
@@ -7574,12 +7623,15 @@ def take_one_action(
             waaagh_controller=waaagh_controller, ere_we_go_controller=ere_we_go_controller,
             last_ranged_attack_turn=getattr(shooting_controller, "last_ranged_attack_turn", None),
             mission_controller=mission_controller,
+            sudden_storm_controller=sudden_storm_controller,
+            shooting_controller=shooting_controller,
         )
     elif phase == PHASE_SHOOTING:
         acted = _handle_shooting(
             agent, memory, player, all_tokens, shooting_controller, explosives_controller, on_thinking,
             greater_good_controller=greater_good_controller, plan=_current_unit_plans(memory),
             charge_controller=charge_controller, arrokon_controller=arrokon_controller,
+            conquering_tyrant_controller=conquering_tyrant_controller, game_log=game_log,
         )
     elif phase == PHASE_CHARGE:
         acted = _handle_charge(
@@ -7592,6 +7644,7 @@ def take_one_action(
             agent, memory, player, all_tokens, fight_controller, pile_in_controller, movement_controller, on_thinking,
             consolidate_controller=consolidate_controller, game_log=game_log,
             unbridled_carnage_controller=unbridled_carnage_controller,
+            hungry_void_controller=hungry_void_controller,
         )
     else:
         acted = False
@@ -8601,6 +8654,15 @@ def _validate_turn_plan(plan, player, state, turn_tracker, game_log=None):
         # Rule 20.03: Strategic Reserves cannot arrive before a set round.
         if role == "reserve_commit" and turn_tracker.battle_round < INGRESS_MIN_BATTLE_ROUND:
             entry["role"] = "reserve"
+            # The reason goes with the role. See the over-garrison pass below
+            # for the reported failure this prevents: _handle_movement() hands
+            # the whole entry to the tactical layer as plan_context, so a
+            # reason still arguing to arrive this turn outranks the field that
+            # says it cannot.
+            entry["reason"] = (
+                f"Stays in Strategic Reserves - rule 20.03 allows no arrival before battle "
+                f"round {INGRESS_MIN_BATTLE_ROUND}, and this is round {turn_tracker.battle_round}."
+            )
             corrections.append(
                 f"{name}: 'reserve_commit' in battle round {turn_tracker.battle_round} "
                 f"-> 'reserve' (rule 20.03: no arrival before round {INGRESS_MIN_BATTLE_ROUND})"
@@ -8709,6 +8771,10 @@ def _validate_turn_plan(plan, player, state, turn_tracker, game_log=None):
             transport = squad.embarked_in
             if transport is None:
                 entry["role"] = "hold"
+                entry["reason"] = (
+                    "Ordered to disembark, but this unit is not aboard anything - it is already "
+                    "on the battlefield. Hold and use it from where it stands."
+                )
                 corrections.append(f"{name}: ordered to disembark but is not embarked -> 'hold'")
                 continue
             predicted = _predict_squad_positions_from_point(
@@ -8720,6 +8786,10 @@ def _validate_turn_plan(plan, player, state, turn_tracker, game_log=None):
             takes_objective = _reaches_objective_after_disembark(squad, predicted, state.objectives)
             if not has_target and not takes_objective:
                 entry["role"] = "stage"
+                entry["reason"] = (
+                    "Stays aboard its transport - disembarking here would leave it with nothing "
+                    "to shoot and no objective in reach this turn (rules 18.04/18.05)."
+                )
                 corrections.append(
                     f"{name}: ordered to disembark with nothing to shoot and no objective in "
                     f"reach -> 'stage' (stays aboard; rules 18.04/18.05)"
@@ -8760,6 +8830,34 @@ def _validate_turn_plan(plan, player, state, turn_tracker, game_log=None):
             # tactical layer does instead is legal by construction. `target`
             # stays - it governs shooting and charging, not where to stand.
             entry["position"] = None
+            # AND THE REASON, which is the half that was missing. Reported as
+            # "die necron warriors sind nicht aus der eigenen deployment zone
+            # rausgekommen. war das der plan? die sollten lieber nach vorne
+            # marschieren." - and the log shows this very correction firing on
+            # them ("role 'hold' -> 'advance' and garrison spot (30,7)
+            # dropped"), followed by "Player 2 has 2 Necron Warriors 1 +
+            # Technomancer remain stationary."
+            #
+            # The role was rewritten and the reason was not, so the entry that
+            # reached the tactical layer said role='advance' next to "cheapest
+            # way to keep holding it is to leave this big blob here as
+            # garrison since it's already in place; stay Hidden and do not
+            # fire" - and _handle_movement() hands the WHOLE entry over as
+            # plan_context, reason included. It obeyed the sentence, not the
+            # field. ai/planner_prompt.py already warns the planner about
+            # exactly this hazard for the "disembark" role ("on the role, not
+            # on your reason"); nothing was enforcing it on the corrections
+            # this file makes itself.
+            #
+            # Replaced rather than appended to: the old text is the problem,
+            # and a reason that argues both ways is not better than one that
+            # argues the wrong way.
+            entry["reason"] = (
+                f"Freed from garrisoning {objective.name} - {keeper.name} holds it alone "
+                f"(rules 14.01-14.02: control is the higher OC total, not how many units are "
+                f"present). Move this unit forward and put its points to work somewhere the "
+                f"game is being decided."
+            )
             # Says what actually changed rather than a fixed phrase. The
             # reported Kill Rig is why: its role was ALREADY "advance" and only
             # the coordinate parked it, so a blanket "-> 'advance'" would have
@@ -8807,6 +8905,15 @@ def _validate_turn_plan(plan, player, state, turn_tracker, game_log=None):
         # replacement that serves a purpose it cannot see. Without one the
         # movement options come from the engine and are legal by construction.
         held["position"] = None
+        # Same stale-reason fix as the over-garrison pass above, and this site
+        # is where the asymmetry was most visible: the REPLACEMENT already got
+        # a fresh reason written for it two lines up, while the unit being
+        # freed kept the sentence explaining why it should stay.
+        held["reason"] = (
+            f"Freed from garrisoning {objective.name} - {replacement.name} takes that job "
+            f"instead (rules 14.01-14.02: control is the higher OC total). Move this unit "
+            f"forward and put its points to work somewhere the game is being decided."
+        )
         did = []
         if had_role != "advance":
             did.append(f"role '{had_role}' -> 'advance'")
@@ -9134,6 +9241,7 @@ def _handle_movement(
     agent, memory, player, state, movement_controller, transport_controller, setup_controller,
     game_log, on_thinking, ingress_controller=None, fall_back_controller=None, waaagh_controller=None,
     last_ranged_attack_turn=None, mission_controller=None, ere_we_go_controller=None,
+    sudden_storm_controller=None, shooting_controller=None,
 ):
     all_tokens = state.tokens
 
@@ -9167,6 +9275,15 @@ def _handle_movement(
     if _handle_ere_we_go(
         player, all_tokens, movement_controller, ere_we_go_controller, waaagh_controller,
         movement_controller.turn_tracker, game_log,
+    ):
+        return True
+
+    # Awakened Dynasty's Sudden Storm shares 'Ere We Go's window exactly - a
+    # Movement-phase Stratagem whose value is spent the moment the unit moves -
+    # so it is checked in the same place and for the same reason.
+    if _handle_sudden_storm(
+        player, all_tokens, movement_controller, sudden_storm_controller,
+        shooting_controller, game_log,
     ):
         return True
 
@@ -10151,6 +10268,28 @@ def _choose_shooting_target_and_weapon(agent, memory, player, all_tokens, shooti
     else:
         target = _squad_by_name(chosen["target"], all_tokens)
         shooting_controller.choose_target_squad(target)
+        # STOP HERE if picking the target opened a decision. Rule 10.02's
+        # select-targets step is the trigger for every target reaction
+        # (Psychic Shield, Stim Injectors, 'Ard as Nails), and choose_weapon()
+        # below immediately throws the Hit roll - so doing both in one call
+        # put the dice on screen before the defender had answered. User
+        # report: "bei psychic shield kann ich erst entscheiden, wenn der hit
+        # roll schon gewuerfelt wird. das ist falsch. die ki muss mit dem
+        # hitroll warten, bis ich mich entschieden habe."
+        #
+        # Worse for Psychic Shield specifically, which is why it surfaced
+        # there: answering it can make the selection that just happened
+        # ILLEGAL (see game/psychic_shield.py), so the Hit roll was being
+        # thrown for a target the attacker was about to lose.
+        #
+        # Returning is enough - nothing is left half-done. _is_blocked()
+        # treats a pending decision as a hard stop, and once it is answered
+        # _handle_shooting() resumes this activation either way: at
+        # CHOOSING_WEAPON if the answer left the target alone, or at
+        # CHOOSING_TARGET if Psychic Shield undid it. Both branches already
+        # exist above.
+        if shooting_controller.decision_manager is not None and shooting_controller.decision_manager.is_pending:
+            return True
         weapons = shooting_controller.weapon_eligibility()
         if weapons:
             shooting_controller.choose_weapon(weapons[0][0])
@@ -10160,7 +10299,7 @@ def _choose_shooting_target_and_weapon(agent, memory, player, all_tokens, shooti
     return True
 
 
-def _handle_shooting(agent, memory, player, all_tokens, shooting_controller, explosives_controller, on_thinking, greater_good_controller=None, plan=None, charge_controller=None, arrokon_controller=None):
+def _handle_shooting(agent, memory, player, all_tokens, shooting_controller, explosives_controller, on_thinking, greater_good_controller=None, plan=None, charge_controller=None, arrokon_controller=None, conquering_tyrant_controller=None, game_log=None):
     # Real, severe bug found via user report ("die KI verliert die
     # Kontrolle..."): resume an activation someone ELSE already started
     # for `player`'s squad and left sitting at CHOOSING_TARGET with no
@@ -10241,6 +10380,13 @@ def _handle_shooting(agent, memory, player, all_tokens, shooting_controller, exp
             if _handle_arrokon_for_squad(agent, memory, player, all_tokens, squad, arrokon_controller, on_thinking):
                 return True
 
+    # Awakened Dynasty's Conquering Tyrant, ahead of the shoot loop for the
+    # same reason Arro'kon's own loop is: "has not been selected to shoot this
+    # phase". Deterministic, so a "yes" costs no agent call.
+    if _handle_conquering_tyrant(player, all_tokens, shooting_controller,
+                                 conquering_tyrant_controller, game_log):
+        return True
+
     for squad in sorted(_all_squads(all_tokens), key=lambda s: s.name):
         if squad.owner != player or squad.name in memory.declined_shoot or not shooting_controller.can_shoot(squad):
             continue
@@ -10319,6 +10465,51 @@ def _handle_crushing_impact_for_squad(agent, memory, player, all_tokens, squad, 
         if models:
             crushing_impact_controller.choose_model(models[0])
     return True
+
+
+def _shooting_specialist_charge_block(squad):
+    """Why this unit is not offered a charge at all, or None if it may charge.
+
+    User report, from a game in which the Lokhust Heavy Destroyers charged
+    Howling Banshees + Jain Zar and the Immortals charged Striking Scorpions:
+    "havey destroyer - die sollten nicht chargen. das sind fernkampf
+    einheiten. erst recht keine so starken nahkampfeinheiten, wie banshees.
+    baue gerne eine charge sperre ein, wenn die fernkampfwaffen so extrem viel
+    staerker sind als die nahkampfwaffen. [...] aber da musst du vorsichtig
+    sein. manche einhetien sind sowohl nahkaempfer als auch fernkaempfer. wie
+    zb shard of the void dragen. da soll die sperre nicht greifen."
+
+    WITHHELD RATHER THAN ARGUED AGAINST. Offering the charge with a warning
+    attached is the shape this file has been caught by before (the rearward
+    staging points, the three charge odds to choose between): a list with a
+    bad entry plus the hope that the model reads the sign does not work, and
+    the option that should never be taken should not be in the list. It also
+    saves the API call the choice would have cost.
+
+    THE MEASUREMENT IS game/combat_focus.py's, not a second one here, and it
+    is deliberately defender-FREE even though a target is available at this
+    point. A per-target ratio was built first and measured, and it does not
+    separate: against 1-wound T2 Gretchin everything wounds, so the Immortals
+    come out at 1.03 there while the Necron Warriors - a unit that must stay
+    free - reach 1.19 against a Deff Dread. The two sets overlap, and a
+    threshold inside an overlap decides by whichever enemy happens to stand
+    nearest. The unit's own profile does separate, cleanly and with a factor
+    of six of headroom on the case the user named; see that module's
+    docstring for both bands.
+
+    The 1" the charge itself is worth is NOT weighed against the shooting it
+    costs, and that is the point rather than an omission: for a unit whose
+    guns are worth 1.4x its fists, being locked in engagement range is a
+    running cost for as long as the combat lasts, and no single-turn
+    comparison sees that.
+    """
+    if not combat_focus.is_shooting_specialist(squad):
+        return None
+    return (
+        f"not offered a charge - this is a shooting unit ("
+        f"{combat_focus.describe_ratio(squad)}), so a charge trades its best attack for "
+        f"its worst and locks it out of shooting for as long as the fight lasts"
+    )
 
 
 def _handle_charge(agent, memory, player, all_tokens, charge_controller, movement_controller, on_thinking, crushing_impact_controller=None, plan=None, game_log=None):
@@ -10481,6 +10672,22 @@ def _handle_charge(agent, memory, player, all_tokens, charge_controller, movemen
     # enemy is within 12" straight-line).
     for candidate in sorted(_all_squads(all_tokens), key=lambda s: s.name):
         if candidate.owner != player or candidate.name in memory.declined_charge or not charge_controller.can_declare_charge(candidate):
+            continue
+
+        # A shooting unit is never offered the choice - see
+        # _shooting_specialist_charge_block(). Recorded in declined_charge
+        # (the same set a real decline writes to) rather than re-derived every
+        # frame: the verdict itself is a pure function of the unit and costs
+        # nothing to recompute, but the log line does not want repeating, and
+        # the set is already reset per battle_round/phase/player.
+        #
+        # `continue`, not `return True`: no game action was taken, so the next
+        # candidate is considered in this same call rather than a frame later.
+        blocked = _shooting_specialist_charge_block(candidate)
+        if blocked is not None:
+            memory.declined_charge.add(candidate.name)
+            if game_log is not None:
+                game_log.add(f"  [charge] {candidate.name}: {blocked}", file_only=True)
             continue
 
         # Real user report ("die generischen kroot haben 2 mal einen charge
@@ -10785,6 +10992,281 @@ def _squad_remaining_wounds(squad):
     return sum(m.current_wounds for m in squad.models if not m.is_dead() and m.current_wounds is not None)
 
 
+# --- Awakened Dynasty: the three PROACTIVE protocols ------------------------
+#
+# The three reactive ones (Undying Legions, Eternal Revenant, Vengeful Stars)
+# need nothing here: they resolve inside their own controllers via
+# auto_players, the same arrangement 'Ard as Nails and Grot Orderly use, so
+# the human prompt and the AI answer share one verdict.
+#
+# These three are different for one reason: rule 15.01 allows ONE use of a
+# Stratagem per phase, so the choice is not "should this unit buy it" but
+# "which of my units should" - and that is a comparison across the army, which
+# only a handler here can make. Same shape, and same reasoning, as
+# _handle_unbridled_carnage() and _handle_ere_we_go().
+#
+# NONE of them takes a memory.declined_* memo, for the reason those two record:
+# the verdict is a pure function of the board, so a "no" this frame is a "no"
+# next frame and re-deriving it costs nothing. A "yes" cannot repeat because
+# can_use() refuses once the grant is up and 15.01 refuses a second use.
+
+
+def _hungry_void_verdict(squad, fight_controller):
+    """Protocol of the Hungry Void (1CP), decided deterministically.
+
+    Returns the GAIN in expected melee wounds (a positive float) if the CP is
+    worth spending, else None. The float doubles as the ranking key, since
+    15.01 allows one use per phase.
+
+    Measured as a real A/B rather than a heuristic: expected_wounds_against()
+    is asked once with the unit's ordinary weapons and once with the boosted
+    ones, and the difference is the answer. That matters because +1 Strength
+    is worth a great deal or nothing at all depending on where it lands
+    relative to the target's Toughness - S7 against T8 is a 5+ to wound, S8
+    against T8 is a 4+, while S9 against T8 was already a 3+ and gains
+    nothing.
+
+    Like Unbridled Carnage, it is SKIPPED when the unit can already erase an
+    engaged target unaided: the sensible line there is to swing at that one
+    and keep the CP. And like it, game/damage_estimate.py's documented
+    understatement is the safe direction - it can only make a target look more
+    survivable than it is, i.e. buy the Stratagem in a borderline case rather
+    than skip it."""
+    if fight_controller is None:
+        return None
+    targets = fight_controller.engaged_enemy_squads(squad)
+    if not targets:
+        return None  # nothing to swing at - the grant would buy nothing
+    best = 0.0
+    for target in targets:
+        plain = expected_wounds_against(squad, target, melee=True) or 0.0
+        if plain >= _squad_remaining_wounds(target):
+            return None  # can already erase something - save the CP
+        boosted = _boosted_melee_wounds(squad, target)
+        best = max(best, boosted - plain)
+    return best if best > 0 else None
+
+
+def _boosted_melee_wounds(squad, target):
+    """`squad`'s expected melee output against `target` AS IF Hungry Void were
+    up, without buying it.
+
+    THE ADJUSTED WEAPONS HAVE TO BE SWAPPED IN, not merely flagged:
+    game/damage_estimate.py reads model.weapons directly and knows nothing
+    about any adjuster chain, so setting hungry_void_active alone measures
+    exactly the unmodified unit. (Found the hard way - the first version of
+    this did that and every verdict came back 0.)
+
+    So the grant is applied through the SAME
+    protocol_hungry_void.adjusted_weapon() the real fight step calls, the
+    copies are swapped in, measured, and swapped back in a finally. Reusing
+    that function rather than re-deriving "+1 Strength" also picks up the AP
+    half of the grant for free, which a hand-rolled version would miss."""
+    was_active = getattr(squad, "hungry_void_active", False)
+    originals = {}
+    try:
+        squad.hungry_void_active = True
+        for model in squad.models:
+            if model.is_dead():
+                continue
+            originals[id(model)] = model.weapons
+            model.weapons = [
+                protocol_hungry_void.adjusted_weapon(weapon, squad)
+                if weapon.weapon_type != RANGED_WEAPON else weapon
+                for weapon in model.weapons
+            ]
+        return expected_wounds_against(squad, target, melee=True) or 0.0
+    finally:
+        squad.hungry_void_active = was_active
+        for model in squad.models:
+            if id(model) in originals:
+                model.weapons = originals[id(model)]
+
+
+def _handle_hungry_void(player, all_tokens, fight_controller, hungry_void_controller,
+                        game_log=None):
+    """Buy Hungry Void for whichever of `player`'s units gains most from it.
+
+    Checked BEFORE any unit is selected to fight, because the Stratagem's own
+    TARGET clause is "a unit that has NOT been selected to fight this phase" -
+    an offer after that point would be illegal."""
+    if hungry_void_controller is None:
+        return False
+    best_squad, best_value = None, 0.0
+    for squad in sorted(_all_squads(all_tokens), key=lambda s: s.name):
+        if squad.owner != player or not hungry_void_controller.can_use(squad):
+            continue
+        value = _hungry_void_verdict(squad, fight_controller)
+        if value is not None and value > best_value:
+            best_squad, best_value = squad, value
+    if best_squad is None:
+        return False
+    if not hungry_void_controller.use(best_squad):
+        return False
+    if game_log is not None:
+        game_log.add(
+            f"[hungry void] {player}: {best_squad.name} - +1 Strength is worth about "
+            f"{best_value:.1f} extra wound(s) in melee.",
+            file_only=True,
+        )
+    return True
+
+
+def _conquering_tyrant_verdict(squad, all_tokens, shooting_controller):
+    """Protocol of the Conquering Tyrant (1CP), decided deterministically.
+
+    Returns the unit's expected ranged output against the best target it can
+    actually reach AT HALF RANGE, or None if the CP would buy nothing. The
+    float is the ranking key for 15.01's one use per phase.
+
+    HALF RANGE IS THE WHOLE GATE, and it is what makes this verdict different
+    from Unbridled Carnage's: the Stratagem only re-rolls "an attack that
+    targets a unit within half range", so a unit whose targets are all further
+    off gains literally nothing. That is measured through the Stratagem's own
+    applies(), not re-derived - it already knows to read half range through
+    game/weapon_range.py rather than off the printed characteristic.
+
+    The re-roll's VALUE scales with how many dice the unit throws, which is
+    what expected output stands in for. No attempt is made to model the
+    re-roll itself: game/damage_estimate.py explicitly does not, and the
+    ranking only needs to be monotonic in volume, not exact."""
+    if shooting_controller is None:
+        return None
+    best = 0.0
+    for target in _all_squads(all_tokens):
+        if target.owner == squad.owner:
+            continue
+        if not any(not m.is_dead() for m in target.models):
+            continue
+        # Would any of this unit's weapons actually be re-rolled against it?
+        # Asked with the grant switched on, since applies() gates on it.
+        was_active = getattr(squad, "conquering_tyrant_active", False)
+        try:
+            squad.conquering_tyrant_active = True
+            in_half = any(
+                protocol_conquering_tyrant.applies(
+                    squad, weapon, [(model, weapon)], target)
+                for model in squad.models if not model.is_dead()
+                for weapon in model.weapons if weapon.weapon_type == RANGED_WEAPON
+            )
+        finally:
+            squad.conquering_tyrant_active = was_active
+        if not in_half:
+            continue
+        expected = expected_wounds_against(squad, target) or 0.0
+        best = max(best, expected)
+    return best if best > 0 else None
+
+
+def _handle_conquering_tyrant(player, all_tokens, shooting_controller,
+                              conquering_tyrant_controller, game_log=None):
+    """Buy Conquering Tyrant for whichever unit throws the most dice at
+    something inside half range.
+
+    Ahead of the shoot loop, for the same reason Arro'kon's own loop is: the
+    TARGET clause says "has not been selected to shoot this phase"."""
+    if conquering_tyrant_controller is None:
+        return False
+    best_squad, best_value = None, 0.0
+    for squad in sorted(_all_squads(all_tokens), key=lambda s: s.name):
+        if squad.owner != player or not conquering_tyrant_controller.can_use(squad):
+            continue
+        value = _conquering_tyrant_verdict(squad, all_tokens, shooting_controller)
+        if value is not None and value > best_value:
+            best_squad, best_value = squad, value
+    if best_squad is None:
+        return False
+    if not conquering_tyrant_controller.use(best_squad):
+        return False
+    if game_log is not None:
+        game_log.add(
+            f"[conquering tyrant] {player}: {best_squad.name} - about {best_value:.1f} "
+            f"expected wound(s) against a target inside half range.",
+            file_only=True,
+        )
+    return True
+
+
+def _sudden_storm_verdict(squad, movement_controller):
+    """Protocol of the Sudden Storm (1CP), decided deterministically.
+
+    Returns how many of the unit's ranged weapons would be RESCUED by the
+    [ASSAULT] grant, or None if none would be.
+
+    THE GATE IS "WOULD THIS UNIT ADVANCE", and it is the whole point. Rule
+    10.05 already lets an Advancing unit fire [ASSAULT] weapons, so this
+    Stratagem is worth exactly the weapons that do NOT already have it, on a
+    unit that is actually going to Advance. Bought by a unit that then walks,
+    it does nothing at all.
+
+    "Would Advance" is read as "cannot reach a target without Advancing",
+    which is the only version of the question available at this point in the
+    phase - the AI has not yet decided how this unit moves, and the Stratagem's
+    window closes once it has. Deliberately conservative: a unit already in
+    range of something is assumed to walk and shoot, which is the line that
+    cannot waste a CP."""
+    if movement_controller is None:
+        return None
+    rescuable = [
+        weapon
+        for model in squad.models if not model.is_dead()
+        for weapon in model.weapons
+        if weapon.weapon_type == RANGED_WEAPON and not weapon.assault
+    ]
+    if not rescuable:
+        return None  # every gun is already [ASSAULT] - the grant buys nothing
+    return float(len(rescuable))
+
+
+def _handle_sudden_storm(player, all_tokens, movement_controller, sudden_storm_controller,
+                         shooting_controller=None, game_log=None):
+    """Buy Sudden Storm for the unit with the most guns to rescue, but only
+    for one that would actually have to Advance to reach anything.
+
+    Bought at the START of the Movement phase, ahead of anything that moves -
+    the same placement 'Ere We Go uses, and for the same reason: its own
+    window closes once the unit has moved."""
+    if sudden_storm_controller is None:
+        return False
+    best_squad, best_value = None, 0.0
+    for squad in sorted(_all_squads(all_tokens), key=lambda s: s.name):
+        if squad.owner != player or not sudden_storm_controller.can_use(squad):
+            continue
+        if shooting_controller is not None and _has_target_without_advancing(
+                squad, all_tokens, shooting_controller):
+            continue  # it can shoot after a plain move - the grant is wasted
+        value = _sudden_storm_verdict(squad, movement_controller)
+        if value is not None and value > best_value:
+            best_squad, best_value = squad, value
+    if best_squad is None:
+        return False
+    if not sudden_storm_controller.use(best_squad):
+        return False
+    if game_log is not None:
+        game_log.add(
+            f"[sudden storm] {player}: {best_squad.name} - {best_value:.0f} ranged weapon(s) "
+            f"gain [ASSAULT], so it can Advance and still shoot.",
+            file_only=True,
+        )
+    return True
+
+
+def _has_target_without_advancing(squad, all_tokens, shooting_controller):
+    """Whether this unit already has something it could shoot where it stands.
+
+    Used only to REFUSE Sudden Storm: a unit that can already shoot has no
+    reason to Advance, so the [ASSAULT] grant would buy it nothing. Asked
+    through the engine's own eligibility, not a distance guess, so "could
+    shoot" means what it means everywhere else (range, visibility, engagement).
+
+    Note this is measured BEFORE the unit moves, so it answers "from where it
+    stands now" - which is the only version of the question available while
+    the Stratagem's window is still open."""
+    types = shooting_module.available_shooting_types(squad, all_tokens)
+    return any(shooting_controller.has_valid_target(squad, shooting_type, all_tokens)
+               for shooting_type in types)
+
+
 def _unbridled_carnage_verdict(squad, fight_controller):
     """War Horde's Unbridled Carnage (1CP, game/unbridled_carnage.py), decided
     DETERMINISTICALLY - no agent call, per the user: "ki soll diese
@@ -10868,6 +11350,7 @@ def _handle_unbridled_carnage(player, all_tokens, fight_controller, unbridled_ca
 def _handle_fight(
     agent, memory, player, all_tokens, fight_controller, pile_in_controller, movement_controller, on_thinking,
     consolidate_controller=None, game_log=None, unbridled_carnage_controller=None,
+    hungry_void_controller=None,
 ):
     # Rule 12.07/12.08 (Consolidate): checked first, for any of player's own
     # squads that have already fought and haven't consolidated (or declined
@@ -10933,6 +11416,11 @@ def _handle_fight(
     if _handle_unbridled_carnage(player, all_tokens, fight_controller, unbridled_carnage_controller, game_log):
         return True
 
+    # Awakened Dynasty's Hungry Void: the same window and the same "not yet
+    # selected to fight" TARGET clause, so it sits alongside.
+    if _handle_hungry_void(player, all_tokens, fight_controller, hungry_void_controller, game_log):
+        return True
+
     eligible = sorted(fight_controller.eligible_to_select_now(), key=lambda s: s.name)
     if not eligible:
         if fight_controller.can_pass():
@@ -10948,6 +11436,23 @@ def _handle_fight(
         squad = _squad_by_name(chosen["squad"], all_tokens)
 
     fight_controller.select_to_fight(squad)
+    # STOP HERE if selecting opened a decision - the Fight-phase twin of the
+    # guard _choose_shooting_target_and_weapon() already carries, and it was
+    # missing here. select_to_fight() auto-picks the target when a unit is
+    # engaged with exactly one enemy (the ordinary case), and THAT is rule
+    # 12.02's select-targets step - the trigger for every target reaction
+    # (Forewarned, Stim Injectors, 'Ard as Nails). _resolve_fight_choices()
+    # below immediately throws the Hit roll, so doing both in one call put
+    # the dice on screen before the defender had answered. User report:
+    # "forewarned wurde angeboten, da wurde der trefferwurf schon
+    # gewuerfelt. das ist zu frueh. das muss ich davor entscheiden."
+    #
+    # Returning is enough and nothing is left half-done: _is_blocked() treats
+    # a pending decision as a hard stop, and once it is answered the
+    # CHOOSING_TARGET/CHOOSING_WEAPON resume branch above re-enters
+    # _resolve_fight_choices() for this same unit.
+    if _defender_is_deciding(fight_controller):
+        return True
     return _resolve_fight_choices(agent, player, all_tokens, fight_controller, squad, on_thinking)
 
 
@@ -11076,6 +11581,18 @@ def _choose_melee_weapon(agent, player, all_tokens, fight_controller, squad, wea
     fight_controller.choose_weapon(key)
 
 
+def _defender_is_deciding(fight_controller):
+    """Whether the target-selection step just handed the DEFENDER an open
+    choice (rule 12.02 is the trigger for Forewarned, Stim Injectors and
+    'Ard as Nails).
+
+    Its own function rather than the condition inline twice: both places that
+    constitute the select-targets step here must stop at it, and the shooting
+    side already learned that lesson one report earlier."""
+    manager = getattr(fight_controller, "decision_manager", None)
+    return manager is not None and manager.is_pending
+
+
 def _resolve_fight_choices(agent, player, all_tokens, fight_controller, squad, on_thinking):
     """Pick this unit's fight target and its next melee weapon group. Split out
     of _handle_fight() so it can be re-entered on a LATER call - a unit with
@@ -11093,6 +11610,11 @@ def _resolve_fight_choices(agent, player, all_tokens, fight_controller, squad, o
             chosen2 = _choose(agent, all_tokens, fight_controller.turn_tracker, target_options, player, on_thinking)
             target = _squad_by_name(chosen2["target"], all_tokens)
         fight_controller.choose_target_squad(target)
+        # The multi-target half of the same break point - see the guard in
+        # _handle_fight(). This is the path an explicitly chosen target takes,
+        # and it raises the very same reactions.
+        if _defender_is_deciding(fight_controller):
+            return True
 
     if fight_controller.state == fight_module.CHOOSING_WEAPON:
         weapons = fight_controller.weapon_eligibility()

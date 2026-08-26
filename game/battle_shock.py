@@ -135,7 +135,9 @@ class BattleShockController:
             count=LEADERSHIP_DICE_COUNT, sides=LEADERSHIP_DICE_SIDES,
             label=label,
             success_threshold=threshold if threshold is not None else IMPOSSIBLE_THRESHOLD,
-            target_name=squad.name,
+            # The unit named here is the one TAKING the test, so the panel
+            # shows its art and says so rather than calling it a target.
+            target_name=squad.name, target_squad=squad, subject_label="Testing",
         )
 
     def on_dice_acknowledged(self):

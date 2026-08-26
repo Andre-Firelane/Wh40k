@@ -175,6 +175,66 @@ check("_resolve_own_damage_choice() does not touch Player 1's own allocation",
       _resolve_own_damage_choice("Player 2", [controller]) is None
       and controller.pending_damage_choice is not None)
 
+# --------------------------------------------------------------------------
+# Rule 05.03, the half a user report asked about: once every BODYGUARD model
+# is destroyed, the remaining attacks carry on onto the attached CHARACTER -
+# they are NOT wasted. Pinned as a NON-bug so the next report of it does not
+# start the same investigation over.
+#
+# Reported as "der avatar hat gegen die meganobz zugeschlagen ... der rest
+# seiner verwundungen haetten auf den charakter gehen sollen. die sind aber
+# dann irgendwie verfallen." What actually expires is EXCESS DAMAGE inside a
+# single attack (a D6+2 that rolls 8 into a 3-wound Meganob loses 5) - damage
+# never spills from one model to the next, only Mortal Wounds do. Both halves
+# are checked here so the two cannot be confused again.
+print("")
+print("--- rule 05.03: attacks carry on onto the attached CHARACTER ---")
+import testkit as _tk  # noqa: E402
+from game.factions.aeldari import AVATAR_OF_KHAINE as _AVATAR  # noqa: E402
+
+_scene = _tk.fight_scene(_AVATAR, orks.MEGANOBZ, attacker_owner="Player 1")
+_fc, _tgt, _dice = _scene["fight"], _scene["target"], _scene["dice"]
+_boss = _tk.build(orks.WARBOSS_MEGA_ARMOUR, _tgt.owner, name="Warboss A1")
+attached_units.attach(_boss, _tgt)
+for _m in _boss.models:
+    _scene["state"].add_token(_m)
+    _m.x_in, _m.y_in = _tgt.models[0].x_in, _tgt.models[0].y_in + 0.6
+
+check("bodyguards are allocated before the CHARACTER (rule 05.03)",
+      [m.profile.name for m in _tgt.allocation_groups()[0]] == ["Meganob", "Meganob"]
+      and [m.profile.name for m in _tgt.allocation_groups()[-1]] == ["Warboss in Mega Armour"])
+
+# Non-critical hits and wounds (4s), then every save fails (1s).
+_tk.script(*([4] * 12), *([4] * 12), *([1] * 12), default=1)
+_fc.select_to_fight(_scene["attacker"])
+_fc.choose_weapon(next(k for k, label, *_ in _fc.weapon_eligibility() if "Sweep" in label))
+for _ in range(200):
+    if _fc.pending_damage_choice:
+        _fc.choose_damage_model(_fc.pending_damage_choice[0])
+    elif _scene["decision"].is_pending:
+        _scene["decision"].choose(0)
+    elif _dice.is_pending:
+        _fc.on_dice_acknowledged()
+    else:
+        break
+_hit_boss = [l for l in _scene["log"].lines if "damage to Warboss" in l]
+check("the leftover attacks reach the Warboss instead of being wasted",
+      bool(_hit_boss), f"{len(_hit_boss)} attack(s) landed on him")
+# attach() merges the models into the bodyguard squad and discards the leader
+# Squad object, so the Warboss is found in the target unit now (rule 19.01).
+_boss_model = next(m for m in _tgt.models if m.profile.name == "Warboss in Mega Armour")
+check("and he can be killed by them", _boss_model.is_dead())
+check("only THEN is the remainder wasted",
+      any("wasted (unit destroyed)" in l for l in _scene["log"].lines))
+
+# The other half: excess damage inside one attack does not spill.
+_spill = _tk.build(orks.MEGANOBZ, "Player 2", name="Meganobz S1")
+_victim = _spill.models[0]
+_victim.apply_damage(_victim.profile.wounds + 5)
+check("excess damage from a single attack is lost, it does not carry over",
+      _victim.is_dead() and all(not m.is_dead() for m in _spill.models[1:]),
+      f"{_victim.profile.wounds}W model hit for {_victim.profile.wounds + 5}")
+
 print(f"\n{len(PASS)} passed, {len(FAIL)} failed")
 if FAIL:
     print("FAILED: " + "; ".join(FAIL))

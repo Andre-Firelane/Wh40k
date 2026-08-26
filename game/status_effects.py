@@ -1,3 +1,4 @@
+from game import illuminor
 from game.squad import edge_distance, squad_is_attached_unit
 from game.terrain import DENSE
 
@@ -52,7 +53,7 @@ def targeting_range_limit(squad):
     return min(limits) if limits else None
 
 
-def lone_operative_range(squad):
+def lone_operative_range(squad, all_tokens=()):
     """Rule 24.24: the unit's Lone Operative range (X", default 12"), or
     None if it doesn't have the ability right now. "Unless part of an
     attached unit" (squad_is_attached_unit()) suspends it entirely - an
@@ -65,6 +66,14 @@ def lone_operative_range(squad):
     if squad is None or squad_is_attached_unit(squad):
         return None
     values = [m.profile.lone_operative for m in squad.models if m.profile.lone_operative]
+    # Illuminor Szeras grants it CONDITIONALLY ("while this model is within 3"
+    # of one or more other friendly NECRONS units"), so it cannot be a printed
+    # value on the profile and has to be asked about instead. `all_tokens` is
+    # optional and defaults to empty, so every existing caller keeps meaning
+    # exactly what it did - a caller that does not pass the board simply never
+    # sees the conditional grant. See game/illuminor.py.
+    if illuminor.grants_lone_operative(squad, all_tokens):
+        values.append(illuminor.ILLUMINOR_LONE_OPERATIVE_RANGE_IN)
     if not values:
         return None
     return max(values)

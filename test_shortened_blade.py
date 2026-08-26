@@ -206,9 +206,9 @@ print("\n4) the placement rule is scoped to this one arrival")
 sc = scene()
 start_arrival(sc)
 sc["blade"].use(sc["arriving"])
-check("armed", sc["ingress"].shortened_blade_squad is sc["arriving"])
+check("armed", sc["ingress"].relaxed_arrival_squad is sc["arriving"])
 sc["ingress"].cancel_ingress()
-check("cancelling the arrival disarms it", sc["ingress"].shortened_blade_squad is None)
+check("cancelling the arrival disarms it", sc["ingress"].relaxed_arrival_squad is None)
 check("but the charge lock stays - it is a property of the turn, not the placement",
       sc["arriving"].charge_locked_until_end_of_turn)
 
@@ -217,13 +217,13 @@ start_arrival(sc)
 sc["blade"].use(sc["arriving"])
 put_at(sc, 30.0)
 sc["ingress"].confirm_ingress()
-check("confirming disarms it too", sc["ingress"].shortened_blade_squad is None)
+check("confirming disarms it too", sc["ingress"].relaxed_arrival_squad is None)
 
 # A DIFFERENT unit arriving while the flag names another one keeps the normal 8".
 sc = scene()
 start_arrival(sc)
 other = build_squad(CRISIS_STARSCYTHE, "Player 1", name="1 Other 1")
-sc["ingress"].shortened_blade_squad = other
+sc["ingress"].relaxed_arrival_squad = other
 token = sc["arriving"].models[0]
 near_y = 22.0 + INGRESS_MIN_ENEMY_DISTANCE_IN - 1.0
 check("another unit's grant does not relax this arrival",

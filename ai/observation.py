@@ -2,6 +2,7 @@ import math
 from game import config
 from game import formation_layout
 from game import line_of_sight
+from game import reanimation_protocols
 from game import status_effects
 from game.ingress import INGRESS_MIN_BATTLE_ROUND
 from game.missions import BATTLE_ROUNDS
@@ -908,6 +909,29 @@ def squad_summary(squad, in_reserve=False, embarked_in=None, include_weapons=Fal
     # guns" unanswerable in principle.
     summary["ranged_weapons"] = ranged_weapon_summary(squad)
     summary["melee_weapons"] = melee_weapon_summary(squad)
+    # NECRONS only: how much this unit would actually get back if its
+    # Reanimation Protocols activated right now, healing and revived models
+    # together. A PRE-COMPUTED number rather than raw wounds, per this repo's
+    # second recurring error class - anything the model has to derive itself,
+    # it derives badly, and this one needs the CHARACTER exclusion and the
+    # starting-strength cap to come out right.
+    #
+    # Deliberately NOT a meta-level "go turn" field like waaagh: reanimation is
+    # a steady per-unit trickle rather than a moment to build a plan around, so
+    # it belongs on the unit. Absent entirely for a non-Necron unit, so no
+    # other army pays a key for it.
+    if reanimation_protocols.has_reanimation_protocols(squad):
+        recoverable = reanimation_protocols.recoverable_wounds(squad)
+        returnable = len(reanimation_protocols.revivable_models(squad))
+        summary["reanimation_protocols"] = {
+            "wounds_you_could_recover": recoverable,
+            "destroyed_models_that_could_return": returnable,
+            "note": (
+                "at the end of your Command phase this unit heals D3 wounds; surplus "
+                "healing revives destroyed models (not CHARACTERS). 0 means a roll for "
+                "this unit can achieve nothing."
+            ),
+        }
     defence = defensive_profile(squad)
     if defence is not None:
         summary["defensive_profile"] = defence

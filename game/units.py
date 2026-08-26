@@ -68,6 +68,7 @@ class UnitProfile:
     assured_destruction = False  # Fire Dragons' own ability: in YOUR Shooting phase, a ranged attack against a MONSTER or VEHICLE unit may re-roll its Hit roll, its Wound roll and its Damage roll - see game/assured_destruction.py
     aspect_shrine = False  # ASPECT WARRIORS wargear: this unit may take 1 Aspect Shrine token per 5 models, each of which can once per battle change one Hit or Wound roll made for a non-CHARACTER model in it to an unmodified 6 - see game/aspect_shrine.py
     bladestorm = False  # Dire Avengers' own ability: this unit's ranged weapons have [SUSTAINED HITS 1] while targeting an enemy unit within half range - see game/bladestorm.py
+    invulnerable_save_vs_ranged = None  # an invulnerable save that applies only against RANGED attacks - the mirror of invulnerable_save_vs_melee below, and the shape Rangers and Shroud Runners print ("INSV 5+ * Against ranged attacks only"). Unlike the Banshees' clause this is usually the ONLY save the model has, so invulnerable_save stays "-" and this carries it. Read by game/invulnerable_save.py
     invulnerable_save_vs_melee = None  # a BETTER invulnerable save that applies only against melee attacks, e.g. Howling Banshees' printed "5+, improved to 4+ against melee attacks". None = no such clause, the plain invulnerable_save applies to everything. Read by game/invulnerable_save.py, which gets the attack type from the weapon the Save roll is being made against
     mandiblasters = False   # Striking Scorpions' own ability: after this unit made a Charge move this turn, its melee attacks score a Critical Hit on an unmodified 5+ - see game/crit_hit.py
     serpent_shield = False  # Serpent's Scale Platform's wargear: every model in the BEARER'S UNIT gets a 5+ invulnerable save - read live (so it ends with the bearer) by game/invulnerable_save.py
@@ -108,7 +109,17 @@ class UnitProfile:
     battlesuit_support_system = False  # Crisis Starscythe Battlesuits' "Battlesuit Support System" ability (user-supplied, not a core rule): this unit remains eligible to shoot after Falling Back - see squad_has_battlesuit_support_system()
     damaged_threshold = None  # Ghostkeel Battlesuit's own "Damaged: 1-4 Wounds Remaining" ability (user-supplied, not a core rule): while this model's own current_wounds is at or below this value, -1 to its own Hit rolls - None = no such tier, see game/shooting.py's _damaged_modifier()
     stealth_drones = 0  # Ghostkeel Battlesuit's own "Stealth Drones" ability (user-supplied, not a core rule): max uses per BATTLE of "change an allocated attack's Damage to 0" - 0 = no ability, see game/stealth_drones.py
-    weapon_support_system = False  # Riptide Battlesuit's own "Weapon Support System" wargear ability (user-supplied, not a core rule): "each time the bearer makes a ranged attack, you can ignore any or all modifiers to the Hit roll" - identical wording, and identical handling, to rule 24.29's [PSYCHIC] half; see game/shooting.py's _hit_modifiers()
+    burning_lance = False  # Fuegan's own ability: while he is LEADING a unit, Melta weapons in that unit add 6" to their Range characteristic - see game/burning_lance.py / game/weapon_range.py
+    unquenchable_resolve = False  # Fuegan's own ability: the first time this model is destroyed it rolls a D6 at the end of the phase and returns on a 2+ - see game/unquenchable_resolve.py
+    crystalline_targeting = False  # War Walkers' own ability: after this unit shoots, every friendly AELDARI attack against one unit it hit improves its AP by 1 until the end of the phase - see game/crystalline_targeting.py
+    wave_serpent_shield = False  # Wave Serpent's own ability: -1 to the Wound roll of any ranged attack whose Strength is greater than this model's Toughness - see game/wave_serpent_shield.py
+    grenade_pack_flyover = False  # Swooping Hawks' own ability: once per turn in your Movement phase, on being set up or ending a move, D6 per model at 4+ for 1 mortal wound each (max 6) against an enemy unit within 8" - see game/grenade_pack_flyover.py
+    cloudstrider = False  # Baharroth's own ability, in two halves - see game/cloudstrider.py
+    cry_of_the_wind = False  # Baharroth's own ability: each time this model is set up, until the end of the turn its ranged attacks score a Critical Hit on any successful unmodified Hit roll - see game/crit_hit.py
+    path_of_the_outcast = False  # Rangers' own ability: in the opponent's Movement phase, when an enemy unit ends a move within 8", an unengaged unit with this may make a D6" Normal move - see game/path_of_the_outcast.py
+    target_acquisition = False  # Shroud Runners' own ability: after this unit shoots, one enemy unit hit by a LONG RIFLE attack cannot have the Benefit of Cover until the end of the phase - see game/target_acquisition.py
+    swift_demise = False  # Windriders' "Swift Demise": every ranged attack re-rolls a Hit roll of 1, and against the CLOSEST eligible target the whole Hit roll may be re-rolled instead (one or the other, never both) - see game/swift_demise.py
+    ignores_hit_modifiers = False  # "each time a model in this unit makes a ranged attack, you can ignore any or all modifiers to that attack's Ballistic Skill characteristic and any or all modifiers to the Hit roll" - printed under TWO names so far (Riptide Battlesuit's "Weapon Support System" wargear ability, Dark Reapers' "Inescapable Accuracy"), which is why the flag is named after the EFFECT rather than either datasheet. Identical wording, and identical handling, to rule 24.29's [PSYCHIC] half; see game/shooting.py's _hit_modifiers(). The "modifiers to Ballistic Skill" half needs nothing extra here: this engine applies both to the same hit threshold
     ignores_cover = False  # a UNIT-level "Ignores Cover" rule (The Twin Lance): every attack this unit makes ignores the Benefit of Cover (13.08), regardless of the weapon's own [IGNORES COVER] keyword (24.18) - see game/shooting.py's _cover_ignored_for_group()
     exemplars_of_montka = False  # The Twin Lance's own "Exemplars of Mont'ka" ability (user-supplied, not a core rule): ranged attacks against the CLOSEST eligible target get [SUSTAINED HITS 1] and [IGNORES COVER] - see game/exemplars_of_montka.py
     neocapacitor_shields = False  # The Twin Lance's own "Neocapacitor Shields" ability (user-supplied): at the start of the opponent's Charge phase, one enemy unit within 12" takes a Battle-shock test and suffers -1 to its Charge rolls that turn - see game/neocapacitor_shields.py
@@ -129,6 +140,7 @@ class UnitProfile:
     krumpin_time = False  # Meganobz's own "Krumpin' Time" ability (user-supplied, not a core rule): while the Waaagh! is active for this model's owner, this model has the Feel No Pain 5+ ability - see game/waaagh.py's effective_feel_no_pain() (that function's own note covers which damage sources this reaches and which it doesn't)
     bodyguard_two_leaders = False  # Boyz'/Kroot Carnivores' own "Bodyguard" ability (user-supplied datasheet text): if THIS unit has a Starting Strength of 20, up to TWO Leader units may be attached to it instead of one, provided one of them is a WARBOSS model - rule 19.01's own "unless otherwise stated" escape hatch. Read by game/attached_units.py's can_attach()
     joins_warlock_led_unit = False  # Eldrad Ulthran's own LEADER line: he may be attached to a unit even if one WARLOCKS unit is already attached to it. The MIRROR of bodyguard_two_leaders above - that one is printed on the bodyguard and asks what is arriving, this one is printed on the arriving leader and asks what is already there. Read by game/attached_units.py's can_attach(); it is what finally makes game/protect.py reachable
+    joins_without_leader_slot = False  # Warlock Conclave's LEADER ability is printed as a JOIN with its OWN restriction ("a unit cannot have more than one WARLOCK CONCLAVE unit joined to it") rather than as an ordinary attachment, so 19.01's one-leader-per-bodyguard default is not what limits it. Read by game/attached_units.py's can_attach(); the direction matters and is asymmetric on purpose - see _join_not_bound_by_leader_slot() there
     doks_toolz = False  # Painboy's own "Dok's Toolz" ability (user-supplied, not a core rule): while this model is LEADING a unit (19.01), models in that unit have the Feel No Pain 5+ ability - see game/doks_toolz.py, read through game/feel_no_pain.py's current_feel_no_pain()
     waaagh_dead_brutal_damage = None  # Warboss in Mega Armour's own "Dead Brutal" ability (user-supplied, not a core rule): while the Waaagh! is active for this model's owner, this model's melee weapon has a Damage characteristic of this value (an absolute override, not a bonus) - None = no such override; see game/waaagh.py's waaagh_melee_adjusted_weapon()
     tank_hunters = False  # Tankbustas' own "Tank Hunters" ability (user-supplied, not a core rule): each time a model with this ability makes an attack (ranged or melee) that targets a MONSTER or VEHICLE unit, add 1 to the Hit roll and add 1 to the Wound roll - see game/shooting.py's/game/fight.py's own _hit_modifiers()/_wound_modifiers()
@@ -144,6 +156,30 @@ class UnitProfile:
     might_is_right = False  # Warboss's own "Might is Right" ability (user-supplied, not a core rule): while this model is LEADING a unit (19.01), each time a model in that unit makes a melee attack, add 1 to the Hit roll - a leader ability granted to the whole attached unit, so read with squad_has_might_is_right() rather than unit_wide_ability(); see game/fight.py's _hit_modifiers()
     volley_fire = False  # Cadre Fireblade's own "Volley Fire" ability (user-supplied, not a core rule): while this model is LEADING a unit (19.01), add 1 to the Attacks characteristic of ranged weapons equipped by models in that unit - a leader ability granted to the whole attached unit, unlike every other flag here, so it is read with squad_has_volley_fire() rather than unit_wide_ability(); see game/volley_fire.py
     crack_shot = False  # Cadre Fireblade's own "Crack Shot" ability (user-supplied, not a core rule): each time this model makes a ranged attack, on a Critical Wound, that attack has an Armour Penetration characteristic of -3 (a flat override, not a modifier) - see game/crack_shot.py
+
+    # --- Necrons (game/factions/necrons.py) ---
+    noble = False  # the NOBLE keyword - matters because Lychguard's Guardian Protocols names it specifically ("while a NOBLE model is leading this unit"), the same reason `farseer` above is kept separate from `psyker`; see game/guardian_protocols.py
+    reanimation_protocols = False  # the NECRONS army rule: at the end of your Command phase, every unit with this on the battlefield heals D3 wounds, and the core "heal" rule (02.02.04) turns surplus into REVIVED destroyed models (01.02.03) - see game/reanimation_protocols.py
+    reanimation_reroll = False  # Necron Warriors' own ability: "each time this unit's Reanimation Protocols activate, you can re-roll the dice to see how many wounds are reanimated" - see game/reanimation_protocols.py
+    implacable_eradication = False  # Immortals' own ability: re-roll a Wound roll of 1, or the whole Wound roll when the target is within range of an objective marker - see game/implacable_eradication.py
+    wraith_form = False  # Canoptek Wraiths' own ability: after a Normal move, one enemy unit moved over takes a D6 per model in this unit, 1 mortal wound per 4+ - see game/wraith_form.py
+    overwhelming_obliteration = False  # Doomsday Ark's own ability: if this model Remains Stationary, its doomsday cannon has [DEVASTATING WOUNDS] until the end of the turn - see game/overwhelming_obliteration.py
+    hard_wired_for_destruction = False  # Lokhust Destroyers' own ability: re-roll a Hit roll of 1 against the closest eligible target, or the whole Hit roll if that target is within range of an objective marker the opponent controls - see game/destroyer_cult.py
+    optimised_for_slaughter = False  # Lokhust Heavy Destroyers' own ability: re-roll a Wound roll of 1, with the enmitic exterminator against non-MONSTER/VEHICLE and the gauss destructor against MONSTER/VEHICLE - a per-WEAPON condition, unlike the flags above - see game/destroyer_cult.py
+    whirling_onslaught = False  # Skorpekh Destroyers' own ability: re-roll a melee Hit roll of 1, or the whole Hit roll if this unit made a Charge move this turn - see game/destroyer_cult.py
+    guardian_protocols = False  # Lychguard's own ability: while a NOBLE model leads this unit, subtract 1 from the Wound roll of any attack whose Strength exceeds this unit's Toughness - mechanically the Wave Serpent Shield, so it reads the same _wound_modifiers(strength=) hook; see game/guardian_protocols.py
+    my_will_be_done = False  # Overlord's own ability: once per battle round, reduce by 1 the CP cost of a Stratagem targeting this model's unit - a StratagemController.cost_discounts collaborator, see game/my_will_be_done.py
+    damage_reduction = 0  # "subtract N from the Damage characteristic of that attack" as a flat per-model reduction (Overlord's Implacable Resilience, Void Dragon's Necrodermis - both print N=1); 0 = no such ability. Mortal wounds are excluded, exactly as game/molten_form.py's halving is; see game/damage_reduction.py
+    harbinger_of_destruction = False  # Plasmancer's own ability: while this model is LEADING a unit (19.01), ranged attacks by that unit score a Critical Hit on an unmodified 5+ - a leader ability, so read with attached_units.leader_ability(); see game/crit_hit.py
+    living_lightning = False  # Plasmancer's own ability: in your Shooting phase, one enemy unit within 18" and visible takes four D6, 1 mortal wound per 4+ - see game/mortal_wound_abilities.py
+    rites_of_reanimation = False  # Technomancer's own ability: while this model is LEADING a unit (19.01), models in that unit have Feel No Pain 5+ - one more fold in game/feel_no_pain.py's current_feel_no_pain()
+    technomancer_repair = False  # Technomancer's own ability: at the end of your Movement phase, one friendly NECRONS model within 6" regains up to D3 lost wounds, once per model per turn - see game/technomancer.py
+    matter_absorption = False  # Void Dragon's own ability: at the start of your Shooting phase, one enemy VEHICLE unit within 12" takes D3 mortal wounds on a 2+, and this model regains up to that many lost wounds - see game/mortal_wound_abilities.py
+    enslaved_star_god = False  # Void Dragon's own "Enslaved Star God": "this model cannot be your WARLORD". A documented NO-OP - this engine has no Warlord concept at all, the same status as the "ignore vertical distance" abilities
+    illuminor = False  # Illuminor Szeras's own ability: while within 3" of one or more OTHER friendly NECRONS units, this model has Lone Operative - a CONDITIONAL form of `lone_operative` above, so it is resolved at read time; see game/illuminor.py
+    mechanical_augmentation = 0  # Illuminor Szeras's own Aura, in inches (printed 3", grows to a maximum of 12"): a friendly NECRONS BATTLELINE unit within this range improves its attacks' AP by 1 and worsens the AP of attacks targeting it by 1; 0 = no such aura - see game/mechanical_augmentation.py
+    mechanical_augmentation_max = 0  # the ceiling the aura can grow to, in inches (printed 12") - paired with the flag above so the growth rule has a bound to read rather than a literal
+    atomic_energy_manipulator = 0  # Illuminor Szeras's own ability, in inches (printed 3"): at the end of the Fight phase, if this model destroyed one or more models this phase, add this much to its Mechanical Augmentation range for the rest of the battle - see game/mechanical_augmentation.py
 
     @property
     def can_move_through_dense_terrain(self):
@@ -1480,7 +1516,7 @@ class RiptideProfile(UnitProfile):
     deadly_demise_notation = D6()  # "Deadly Demise D6"
     damaged_threshold = 4  # "Damaged: 1-4 Wounds Remaining" - see game/shooting.py's _damaged_modifier()
     battlesuit_support_system = True  # see squad_has_battlesuit_support_system() / Crisis Starscythe's own use of this field
-    weapon_support_system = True  # "Weapon Support System" - see game/shooting.py's _hit_modifiers()
+    ignores_hit_modifiers = True  # printed here as "Weapon Support System" - see game/shooting.py's _hit_modifiers()
     nova_charge = 1  # "Nova Charge: Once per battle..." - see game/nova_charge.py
 
 
@@ -1926,6 +1962,13 @@ class WarpSpiderExarchProfile(WarpSpiderProfile):
     rather than copied, same reasoning as the other Aspect Warrior Exarchs."""
     name = "Warp Spider Exarch"
     wounds = 2
+    # User report: "bei warp spider und avengers kann ich den exarch nicht
+    # unterscheiden". There is no separate Exarch art for these datasheets, so
+    # the only thing that can tell it apart on the board is the leader ring/label
+    # the renderer already draws for every other sergeant-equivalent model -
+    # and this flag is what turns that on. The Striking Scorpion and Howling
+    # Banshee Exarchs already set it; these three were simply missed.
+    squad_leader = True
 
 
 class DireAvengerProfile(UnitProfile):
@@ -1952,6 +1995,13 @@ class DireAvengerProfile(UnitProfile):
 class DireAvengerExarchProfile(DireAvengerProfile):
     name = "Dire Avenger Exarch"
     wounds = 2
+    # User report: "bei warp spider und avengers kann ich den exarch nicht
+    # unterscheiden". There is no separate Exarch art for these datasheets, so
+    # the only thing that can tell it apart on the board is the leader ring/label
+    # the renderer already draws for every other sergeant-equivalent model -
+    # and this flag is what turns that on. The Striking Scorpion and Howling
+    # Banshee Exarchs already set it; these three were simply missed.
+    squad_leader = True
 
 
 class FireDragonProfile(UnitProfile):
@@ -1979,6 +2029,13 @@ class FireDragonExarchProfile(FireDragonProfile):
     rather than copied, same reasoning as the other Aspect Warrior Exarchs."""
     name = "Fire Dragon Exarch"
     wounds = 2
+    # User report: "bei warp spider und avengers kann ich den exarch nicht
+    # unterscheiden". There is no separate Exarch art for these datasheets, so
+    # the only thing that can tell it apart on the board is the leader ring/label
+    # the renderer already draws for every other sergeant-equivalent model -
+    # and this flag is what turns that on. The Striking Scorpion and Howling
+    # Banshee Exarchs already set it; these three were simply missed.
+    squad_leader = True
 
 
 class FalconProfile(UnitProfile):
@@ -1989,7 +2046,15 @@ class FalconProfile(UnitProfile):
     model has, so nothing ever reads a model-level one. Set to match it rather
     than left at the class default, so the two cannot disagree."""
     name = "Falcon"
-    base_radius_in = 1.181          # 60 mm flying base
+    # 60 mm flying base is 1.181" by the usual mm/2/25.4 conversion, but the
+    # Devilfish - the other grav-tank on the table - does NOT use its own
+    # printed base either: it was enlarged to 2.1" on user request. User
+    # report: "der falcon ist zu klien. genau so gross machen wie devilfish",
+    # so the two now match. Purely cosmetic in the sense that no rule reads a
+    # base size directly, but it is NOT free: base_radius_in feeds placement,
+    # movement clamping and edge-to-edge distance everywhere, so this Falcon
+    # takes up as much room as a Devilfish.
+    base_radius_in = 2.1            # matched to DevilfishProfile, not the printed 60 mm
     movement_in = 14
     weapon_skill = "4+"
     ballistic_skill = "3+"
@@ -2045,6 +2110,12 @@ class AsurmenProfile(UnitProfile):
     The lone AELDARI CHARACTER here so far, which is why it is also the first
     Aeldari profile to set `leader` - rule 19.01's attachment legality is read
     off the points list's own LEADER line (UnitPoints.leads)."""
+    # The CHARACTER keyword. Every one of these prints it on its datasheet; the
+    # engine simply never set it, which left rule 05.03's allocation protection,
+    # Epic Challenge, Heroic Intervention and Precision all silently inert for
+    # Aeldari. NOT set on the Aspect Exarchs - a 10th-edition Exarch is part of
+    # its unit and carries no CHARACTER keyword.
+    character = True
     name = "Asurmen"
     base_radius_in = 0.787          # 40 mm printed base
     movement_in = 7
@@ -2066,6 +2137,12 @@ class AsurmenProfile(UnitProfile):
 class JainZarProfile(UnitProfile):
     """The second Phoenix Lord here, and the faster one - M8" before Whirling
     Death, which adds another 6" to it on an Advance."""
+    # The CHARACTER keyword. Every one of these prints it on its datasheet; the
+    # engine simply never set it, which left rule 05.03's allocation protection,
+    # Epic Challenge, Heroic Intervention and Precision all silently inert for
+    # Aeldari. NOT set on the Aspect Exarchs - a 10th-edition Exarch is part of
+    # its unit and carries no CHARACTER keyword.
+    character = True
     name = "Jain Zar"
     base_radius_in = 0.787          # 40 mm printed base
     movement_in = 8
@@ -2094,6 +2171,12 @@ class LhykhisProfile(UnitProfile):
     Prints no Ballistic Skill, and that is not an omission: her only ranged
     weapon is [TORRENT] (24.37), which makes no hit roll. Left at the
     UnitProfile default, which nothing reads for her."""
+    # The CHARACTER keyword. Every one of these prints it on its datasheet; the
+    # engine simply never set it, which left rule 05.03's allocation protection,
+    # Epic Challenge, Heroic Intervention and Precision all silently inert for
+    # Aeldari. NOT set on the Aspect Exarchs - a 10th-edition Exarch is part of
+    # its unit and carries no CHARACTER keyword.
+    character = True
     name = "Lhykhis"
     base_radius_in = 0.787          # 40 mm printed base
     movement_in = 12
@@ -2121,6 +2204,12 @@ class AvatarOfKhaineProfile(UnitProfile):
 
     Not a leader: this datasheet prints no LEADER line, so there is no
     UnitPoints.leads entry either."""
+    # The CHARACTER keyword. Every one of these prints it on its datasheet; the
+    # engine simply never set it, which left rule 05.03's allocation protection,
+    # Epic Challenge, Heroic Intervention and Precision all silently inert for
+    # Aeldari. NOT set on the Aspect Exarchs - a 10th-edition Exarch is part of
+    # its unit and carries no CHARACTER keyword.
+    character = True
     name = "Avatar of Khaine"
     base_radius_in = 1.575          # 80 mm printed base - the largest here
     movement_in = 10
@@ -2148,6 +2237,12 @@ class WarlockProfile(UnitProfile):
     It is both a LEADER unit (it attaches to Guardian Defenders or Storm
     Guardians) and, per its own Protect ability, a unit that can itself be led
     by a Farseer."""
+    # The CHARACTER keyword. Every one of these prints it on its datasheet; the
+    # engine simply never set it, which left rule 05.03's allocation protection,
+    # Epic Challenge, Heroic Intervention and Precision all silently inert for
+    # Aeldari. NOT set on the Aspect Exarchs - a 10th-edition Exarch is part of
+    # its unit and carries no CHARACTER keyword.
+    character = True
     name = "Warlock"
     base_radius_in = 0.630          # 32 mm printed base
     movement_in = 7
@@ -2164,6 +2259,7 @@ class WarlockProfile(UnitProfile):
     leader = True                   # its CORE line
     battle_focus = True             # Aeldari army rule - see game/battle_focus.py
     psychic_communion = True        # see game/psychic_communion.py
+    joins_without_leader_slot = True  # its LEADER ability is worded as a JOIN with its own one-Conclave-per-unit restriction, not as a 19.01 attachment - see game/attached_units.py
     protect = True                  # see game/protect.py
 
 
@@ -2173,8 +2269,14 @@ class FarseerProfile(UnitProfile):
     contains Warlocks, and a Conclave is itself a leader unit that neither
     datasheet's LEADER line names. Eldrad Ulthran is the one that reaches it,
     through his own LEADER line - see EldradUlthranProfile and game/protect.py."""
+    # The CHARACTER keyword. Every one of these prints it on its datasheet; the
+    # engine simply never set it, which left rule 05.03's allocation protection,
+    # Epic Challenge, Heroic Intervention and Precision all silently inert for
+    # Aeldari. NOT set on the Aspect Exarchs - a 10th-edition Exarch is part of
+    # its unit and carries no CHARACTER keyword.
+    character = True
     name = "Farseer"
-    base_radius_in = 0.492          # 25 mm printed base, the smallest here
+    base_radius_in = WarlockProfile.base_radius_in  # User: "farseer und eldrad scheinen mir zu klein. sie sollen genau so groesse sein, wie warlock conclaive". His printed base is 25 mm (0.492"), the smallest here - deliberately NOT used, same call as the Falcon's, and pinned against the Warlock's profile rather than repeating its number so the pair cannot drift apart unnoticed. Not cosmetic: base_radius_in feeds placement, the movement clamp, edge_distance and coherency
     movement_in = 7
     weapon_skill = "2+"
     ballistic_skill = "2+"
@@ -2201,8 +2303,14 @@ class EldradUlthranProfile(UnitProfile):
     FARSEER, so Guardians + Warlock Conclave + Eldrad is a unit with a Farseer
     leading Warlocks, which is exactly Protect's condition. See
     game/attached_units.py's _leader_allows_joining_led_unit()."""
+    # The CHARACTER keyword. Every one of these prints it on its datasheet; the
+    # engine simply never set it, which left rule 05.03's allocation protection,
+    # Epic Challenge, Heroic Intervention and Precision all silently inert for
+    # Aeldari. NOT set on the Aspect Exarchs - a 10th-edition Exarch is part of
+    # its unit and carries no CHARACTER keyword.
+    character = True
     name = "Eldrad Ulthran"
-    base_radius_in = 0.630          # 32 mm printed base
+    base_radius_in = WarlockProfile.base_radius_in  # his printed 32 mm base already equals the Warlock's, so this changes no number - pinned against that profile because the user asked for the two to match (see FarseerProfile), which makes the coupling explicit instead of a coincidence of two literals
     movement_in = 7
     weapon_skill = "2+"
     ballistic_skill = "2+"
@@ -2220,3 +2328,640 @@ class EldradUlthranProfile(UnitProfile):
     doom = True                     # see game/doom.py (Guide's twin, sharing game/psychic_mark.py)
     diviner_of_futures = True       # see game/diviner_of_futures.py
     joins_warlock_led_unit = True   # the second sentence of his LEADER line, see the class docstring
+
+
+class DarkReaperProfile(UnitProfile):
+    """Aspect Warriors built entirely around one gun: a 48" launcher that
+    ignores cover, on a unit that can also ignore every Hit-roll modifier
+    working against it."""
+    name = "Dark Reaper"
+    base_radius_in = 0.561          # 28.5 mm printed base, as Guardian Defenders
+    movement_in = 6
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 3
+    wounds = 1
+    leadership = "6+"
+    armor_save = "3+"
+    oc = 1
+    invulnerable_save = "5+"
+    infantry = True
+    battle_focus = True             # Aeldari army rule - see game/battle_focus.py
+    aspect_shrine = True            # "for every 5 models, 1 token" - see game/aspect_shrine.py
+    ignores_hit_modifiers = True    # printed here as "Inescapable Accuracy"
+
+
+class DarkReaperExarchProfile(DarkReaperProfile):
+    """Subclasses rather than repeating the statline: the two rows differ in
+    Wounds and Ballistic Skill and nothing else, and a copied near-duplicate is
+    how a value drifts between two lines of ONE datasheet."""
+    name = "Dark Reaper Exarch"
+    wounds = 2
+    ballistic_skill = "2+"
+    squad_leader = True
+
+
+class ShiningSpearProfile(UnitProfile):
+    """MOUNTED, not INFANTRY - so no Dense-terrain crossing (13.06) and no
+    Hidden (13.09), and game/ai/agent_driver.py's _needs_open_ground() treats
+    them the way it treats Warbikers. MOUNTED itself is purely descriptive in
+    this engine (like SMOKE and PSYKER), so it lives on the datasheet's keyword
+    line rather than as a flag."""
+    name = "Shining Spear"
+    # ON-TABLE SIZE, not the printed base. User request: these read a quarter
+    # too big next to the rest of the army, so the radius is three quarters of
+    # the printed 60 mm - which lands on 45 mm, itself a real base size. The
+    # Warlock Skyrunner was then set to the SAME number from the other side (it
+    # read too small on its printed 32 mm), so the three MOUNTED jetbike units
+    # in the roster now match each other rather than their datasheets.
+    #
+    # This is a gameplay number as well as a visual one - edge_distance() reads
+    # it, so Engagement Range, overlap, coherency and formation packing all
+    # shift with it. Same kind of call as the Falcon's, which was ENLARGED to
+    # the Devilfish's on user request and likewise no longer matches its own
+    # printed base.
+    base_radius_in = 0.886          # 45 mm on the table; printed base is 60 mm
+    movement_in = 14                # the fastest profile in the engine
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 4
+    wounds = 2
+    leadership = "6+"
+    armor_save = "3+"
+    oc = 2
+    invulnerable_save = "5+"
+    fly = True                      # the FLY keyword, rule 21.03
+    battle_focus = True
+
+
+class ShiningSpearExarchProfile(ShiningSpearProfile):
+    name = "Shining Spear Exarch"
+    wounds = 3
+    squad_leader = True
+
+
+class WarlockSkyrunnerProfile(UnitProfile):
+    """The jetbike Warlock. Shares the foot Warlock's psychic kit and its JOIN
+    wording, and differs in three ways that matter: it rides (MOUNTED/FLY,
+    M14", so no Dense-terrain crossing and no Hidden), it joins WINDRIDERS
+    rather than Guardians, and it does NOT have Protect - checked against the
+    printed ability list rather than inherited from its near-twin, which is
+    exactly how a free ability gets handed out by accident."""
+    # The CHARACTER keyword. Every one of these prints it on its datasheet; the
+    # engine simply never set it, which left rule 05.03's allocation protection,
+    # Epic Challenge, Heroic Intervention and Precision all silently inert for
+    # Aeldari. NOT set on the Aspect Exarchs - a 10th-edition Exarch is part of
+    # its unit and carries no CHARACTER keyword.
+    character = True
+    name = "Warlock Skyrunner"
+    # ON-TABLE SIZE, not the printed base. User request: these read a quarter
+    # too big next to the rest of the army, so the radius is three quarters of
+    # the printed 60 mm - which lands on 45 mm, itself a real base size. The
+    # Warlock Skyrunner was then set to the SAME number from the other side (it
+    # read too small on its printed 32 mm), so the three MOUNTED jetbike units
+    # in the roster now match each other rather than their datasheets.
+    #
+    # This is a gameplay number as well as a visual one - edge_distance() reads
+    # it, so Engagement Range, overlap, coherency and formation packing all
+    # shift with it. Same kind of call as the Falcon's, which was ENLARGED to
+    # the Devilfish's on user request and likewise no longer matches its own
+    # printed base.
+    base_radius_in = 0.886          # 45 mm on the table; printed base is 32 mm
+    movement_in = 14
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 4
+    wounds = 3
+    leadership = "6+"
+    armor_save = "6+"
+    oc = 2
+    invulnerable_save = "4+"
+    fly = True                      # the FLY keyword, rule 21.03
+    psyker = True
+    leader = True                   # its LEADER ability, worded as a JOIN
+    joins_without_leader_slot = True  # ...with its own one-Skyrunners-per-unit limit, exactly the Warlock Conclave's wording - see game/attached_units.py
+    battle_focus = True
+    psychic_communion = True        # see game/psychic_communion.py
+    # "Runes of Battle: weapons equipped by models in this unit have the
+    # [IGNORES COVER] ability." Same effect as the unit-level Ignores Cover
+    # rule The Twin Lance prints, so it SHARES that flag rather than getting a
+    # module of its own - the game/fieldcraft.py precedent, where one flag
+    # carries a rule printed under three different flavour names. Read by
+    # game/shooting.py's _cover_ignored_for_group(), which asks the whole
+    # unit, so after a 19.01 merge the joined Windriders get it too - which is
+    # what "models in this unit" means once they are one unit.
+    ignores_cover = True
+
+
+class WindriderProfile(UnitProfile):
+    """Jetbikes. MOUNTED rather than INFANTRY, so no Dense-terrain crossing
+    (13.06) and no Hidden (13.09), and NO invulnerable save at all - the
+    printed statline has an armour save of 4+ and nothing else, which was
+    confirmed with a second targeted lookup because the first reading of the
+    table produced a spurious "6+" invulnerable."""
+    name = "Windrider"
+    base_radius_in = 0.630          # 32 mm printed flying base
+    movement_in = 14
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 4
+    wounds = 2
+    leadership = "7+"
+    armor_save = "4+"
+    oc = 2
+    fly = True
+    battle_focus = True
+    swift_demise = True             # see game/swift_demise.py
+
+
+class RangerProfile(UnitProfile):
+    """Snipers. Two things about this statline are easy to get wrong and were
+    both confirmed with a second, targeted lookup before being written down:
+    the SHURIKEN PISTOL is printed at BS2+ while the model and its long rifle
+    are 3+ (a pistol more accurate than a sniper rifle reads like a
+    transcription error and is not one), and the invulnerable save applies
+    against RANGED attacks only."""
+    name = "Ranger"
+    base_radius_in = 0.561          # 28.5 mm printed base
+    movement_in = 7
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 3
+    wounds = 1
+    leadership = "7+"
+    armor_save = "5+"
+    oc = 1
+    invulnerable_save_vs_ranged = "5+"   # "INSV 5+ * Against ranged attacks only"
+    infantry = True
+    battle_focus = True
+    infiltrators = True             # CORE, rule 24.20 - already implemented
+    stealth = True                  # CORE, rule 24.33 - already implemented
+    path_of_the_outcast = True      # see game/path_of_the_outcast.py
+
+
+class ShroudRunnerProfile(UnitProfile):
+    """Ranger jetbikes: the sniper kit on a 14" MOUNTED platform, so no
+    Dense-terrain crossing (13.06) and no Hidden (13.09) - and, unlike the
+    Rangers they are drawn from, no Infiltrators. Scouts 9" instead, which is
+    the longest Scout move in the engine."""
+    name = "Shroud Runner"
+    # ON-TABLE SIZE, not the printed base. User request: these read a quarter
+    # too big next to the rest of the army, so the radius is three quarters of
+    # the printed 60 mm - which lands on 45 mm, itself a real base size. The
+    # Warlock Skyrunner was then set to the SAME number from the other side (it
+    # read too small on its printed 32 mm), so the three MOUNTED jetbike units
+    # in the roster now match each other rather than their datasheets.
+    #
+    # This is a gameplay number as well as a visual one - edge_distance() reads
+    # it, so Engagement Range, overlap, coherency and formation packing all
+    # shift with it. Same kind of call as the Falcon's, which was ENLARGED to
+    # the Devilfish's on user request and likewise no longer matches its own
+    # printed base.
+    base_radius_in = 0.886          # 45 mm on the table; printed base is 60 mm
+    movement_in = 14
+    weapon_skill = "3+"
+    ballistic_skill = "2+"
+    toughness = 4
+    wounds = 3
+    leadership = "7+"
+    armor_save = "5+"
+    oc = 2
+    invulnerable_save_vs_ranged = "5+"
+    fly = True                      # the FLY keyword, rule 21.03
+    battle_focus = True
+    scouts = 9.0                    # CORE "Scouts 9\"" - rule 24.31/24.32
+    stealth = True                  # CORE, rule 24.33
+    target_acquisition = True       # see game/target_acquisition.py
+
+
+class SwoopingHawkProfile(UnitProfile):
+    """Jump-pack Aspect Warriors: INFANTRY, so unlike the Aeldari jetbikes they
+    keep Dense-terrain crossing (13.06) and Hidden (13.09) despite the 14" move
+    and FLY."""
+    name = "Swooping Hawk"
+    base_radius_in = 0.630          # 32 mm printed base
+    movement_in = 14
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 3
+    wounds = 1
+    leadership = "6+"
+    armor_save = "4+"
+    oc = 1
+    invulnerable_save = "5+"
+    infantry = True
+    fly = True                      # the FLY keyword, rule 21.03
+    jump_pack = True                # the JUMP PACK keyword
+    deep_strike = True              # CORE, rule 24.09
+    battle_focus = True
+    aspect_shrine = True            # "for every 5 models, 1 token"
+    grenade_pack_flyover = True     # see game/grenade_pack_flyover.py
+
+
+class SwoopingHawkExarchProfile(SwoopingHawkProfile):
+    """Subclasses rather than repeating the statline: the two rows differ in
+    Wounds and nothing else."""
+    name = "Swooping Hawk Exarch"
+    wounds = 2
+    squad_leader = True
+
+
+class BaharrothProfile(UnitProfile):
+    """Phoenix Lord of the Swooping Hawks - the fourth here, after Asurmen,
+    Jain Zar and Lhykhis, and the first with DEEP STRIKE."""
+    # The CHARACTER keyword. Every one of these prints it on its datasheet; the
+    # engine simply never set it, which left rule 05.03's allocation protection,
+    # Epic Challenge, Heroic Intervention and Precision all silently inert for
+    # Aeldari. NOT set on the Aspect Exarchs - a 10th-edition Exarch is part of
+    # its unit and carries no CHARACTER keyword.
+    character = True
+    name = "Baharroth"
+    base_radius_in = 0.787          # 40 mm printed base
+    movement_in = 14
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 3
+    wounds = 5
+    leadership = "6+"
+    armor_save = "2+"
+    oc = 1
+    invulnerable_save = "4+"
+    infantry = True
+    fly = True
+    jump_pack = True
+    deep_strike = True              # CORE, rule 24.09
+    leader = True                   # CORE - leads Swooping Hawks and nothing else
+    battle_focus = True
+    cloudstrider = True             # see game/cloudstrider.py
+    cry_of_the_wind = True          # see game/crit_hit.py
+
+
+class WarWalkerProfile(UnitProfile):
+    """A light Aeldari walker - VEHICLE, but not a grav-tank, so unlike the
+    Falcon and the Wave Serpent it keeps its own printed 60 mm base rather than
+    being matched to the Devilfish."""
+    name = "War Walker"
+    base_radius_in = 1.181          # 60 mm printed base
+    movement_in = 10
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 7
+    wounds = 6
+    leadership = "7+"
+    armor_save = "3+"
+    oc = 2
+    invulnerable_save = "5+"
+    vehicle = True
+    battle_focus = True
+    scouts = 9.0                    # CORE "Scouts 9\"" - rule 24.31/24.32
+    crystalline_targeting = True    # see game/crystalline_targeting.py
+
+
+class WaveSerpentProfile(UnitProfile):
+    """The Aeldari troop transport - the same hull as the Falcon, which is why
+    it takes the same base radius rather than its own printed 60 mm: the two
+    would otherwise sit on the table at wildly different sizes (see
+    FalconProfile, enlarged to match the Devilfish on user request).
+
+    weapon_skill is not printed on the statline; the Wraithbone hull prints its
+    own WS4+, which is the only melee this model has, so it is set to match
+    rather than left at the class default."""
+    name = "Wave Serpent"
+    base_radius_in = 2.1            # matched to FalconProfile/DevilfishProfile, not the printed 60 mm
+    movement_in = 14
+    weapon_skill = "4+"
+    ballistic_skill = "3+"
+    toughness = 9
+    wounds = 13
+    leadership = "7+"
+    armor_save = "3+"
+    oc = 2
+    invulnerable_save = "5+"
+    vehicle = True
+    fly = True
+    battle_focus = True
+    deadly_demise_notation = D3()   # CORE "Deadly Demise D3", rule 24.08
+    damaged_threshold = 4           # "DAMAGED: 1-4 WOUNDS REMAINING" - -1 to Hit
+    wave_serpent_shield = True      # see game/wave_serpent_shield.py
+    transport = True                # rule 18.01
+    transport_capacity = 12
+    transport_requires_infantry = True
+    transport_excludes = ("jump_pack",)
+
+
+class FueganProfile(UnitProfile):
+    """The Phoenix Lord of the Fire Dragons.
+
+    The statline is the shared Phoenix Lord chassis this project already fields
+    four times over (Asurmen, Jain Zar, Baharroth, Lhykhis): T3, Sv2+, W5, Ld6+,
+    OC1, Invulnerable 4+. Those four are why T3 is transcribed as printed rather
+    than queried - it is the edition's number for an Aspect Warrior, not a slip."""
+    name = "Fuegan"
+    base_radius_in = 0.787          # 40 mm, like the other foot Phoenix Lords
+    movement_in = 7
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 3
+    wounds = 5
+    leadership = "6+"
+    armor_save = "2+"
+    oc = 1
+    invulnerable_save = "4+"
+    infantry = True
+    character = True
+    epic_hero = True
+    leader = True                   # the CHARACTER/LEADER pair, rule 24.22 - the pairing itself is UnitPoints.leads
+    battle_focus = True
+    burning_lance = True            # see game/burning_lance.py
+    unquenchable_resolve = True     # see game/unquenchable_resolve.py
+
+
+# ===========================================================================
+# Necrons - see game/factions/necrons.py
+#
+# Every profile here carries reanimation_protocols: it is the army rule, and
+# rule 01.02.03's "revived models" half is the reason Squad.destroyed_models
+# exists at all. Note that MOUNTED and BATTLELINE are NOT flags on this class
+# - they are purely descriptive keywords and live in the Datasheet's keyword
+# tuple, read through attached_units.unit_has_datasheet_keyword().
+# ===========================================================================
+
+
+class NecronWarriorProfile(UnitProfile):
+    name = "Necron Warrior"
+    base_radius_in = 0.630          # 32 mm
+    movement_in = 5
+    weapon_skill = "4+"
+    ballistic_skill = "4+"
+    toughness = 4
+    wounds = 1
+    leadership = "7+"
+    armor_save = "4+"
+    oc = 2
+    infantry = True
+    reanimation_protocols = True
+    reanimation_reroll = True       # see game/reanimation_protocols.py
+
+
+class ImmortalProfile(UnitProfile):
+    name = "Immortal"
+    base_radius_in = 0.630          # 32 mm
+    movement_in = 5
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 5
+    wounds = 1
+    leadership = "7+"
+    armor_save = "3+"
+    oc = 2
+    infantry = True
+    reanimation_protocols = True
+    implacable_eradication = True   # see game/implacable_eradication.py
+
+
+class LychguardProfile(UnitProfile):
+    name = "Lychguard"
+    base_radius_in = 0.630          # 32 mm
+    movement_in = 5
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 5
+    wounds = 2
+    leadership = "7+"
+    armor_save = "3+"
+    oc = 1
+    infantry = True
+    reanimation_protocols = True
+    guardian_protocols = True       # see game/guardian_protocols.py
+    # NOTE: no invulnerable_save here. The 4+ comes from the dispersion shield,
+    # which is a Gear item and therefore a per-TOKEN grant read by
+    # game/invulnerable_save.py - the same arrangement as the shimmershield.
+
+
+class OverlordProfile(UnitProfile):
+    name = "Overlord"
+    base_radius_in = 0.787          # 40 mm
+    movement_in = 5
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 5
+    wounds = 6
+    leadership = "6+"
+    armor_save = "2+"
+    oc = 1
+    invulnerable_save = "4+"
+    infantry = True
+    character = True
+    noble = True                    # the printed NOBLE keyword - read by game/guardian_protocols.py
+    leader = True                   # rule 24.22 - the pairing itself is UnitPoints.leads
+    reanimation_protocols = True
+    my_will_be_done = True          # see game/my_will_be_done.py
+    damage_reduction = 1            # "Implacable Resilience", see game/damage_reduction.py
+
+
+class PlasmancerProfile(UnitProfile):
+    name = "Plasmancer"
+    base_radius_in = 0.630          # 32 mm
+    movement_in = 5
+    weapon_skill = "4+"
+    ballistic_skill = "4+"
+    toughness = 4
+    wounds = 4
+    leadership = "6+"
+    armor_save = "4+"
+    oc = 1
+    infantry = True
+    character = True
+    leader = True
+    reanimation_protocols = True
+    harbinger_of_destruction = True  # see game/crit_hit.py
+    living_lightning = True          # see game/mortal_wound_abilities.py
+
+
+class TechnomancerProfile(UnitProfile):
+    name = "Technomancer"
+    base_radius_in = 0.984          # 50 mm
+    movement_in = 10                # 11th edition puts this Cryptek on a Canoptek construct - M10" and FLY, checked rather than assumed
+    weapon_skill = "4+"
+    ballistic_skill = "4+"
+    toughness = 4
+    wounds = 4
+    leadership = "6+"
+    armor_save = "4+"
+    oc = 1
+    infantry = True
+    character = True
+    fly = True
+    leader = True
+    reanimation_protocols = True
+    rites_of_reanimation = True     # see game/feel_no_pain.py
+    technomancer_repair = True      # see game/technomancer.py
+
+
+class IlluminorSzerasProfile(UnitProfile):
+    name = "Illuminor Szeras"
+    base_radius_in = 1.575          # 80 mm
+    movement_in = 8
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 8
+    wounds = 9
+    leadership = "6+"
+    armor_save = "2+"
+    oc = 3
+    invulnerable_save = "4+"
+    feel_no_pain = "4+"
+    infantry = True
+    character = True
+    epic_hero = True
+    reanimation_protocols = True
+    illuminor = True                        # conditional Lone Operative, see game/illuminor.py
+    mechanical_augmentation = 3             # printed 3", grows by 3" a phase to a maximum of 12"
+    mechanical_augmentation_max = 12
+    atomic_energy_manipulator = 3           # see game/mechanical_augmentation.py
+    # NOTE: no `leader`. Szeras has no printed LEADER line - his Aura is how he
+    # helps a unit, and that is a range test, not an attachment.
+
+
+class CanoptekWraithProfile(UnitProfile):
+    name = "Canoptek Wraith"
+    base_radius_in = 0.984          # 50 mm
+    movement_in = 10
+    weapon_skill = "4+"
+    ballistic_skill = "4+"
+    toughness = 6
+    wounds = 4
+    leadership = "8+"
+    armor_save = "3+"
+    oc = 2
+    invulnerable_save = "4+"
+    beasts = True
+    fly = True
+    reanimation_protocols = True
+    wraith_form = True              # see game/wraith_form.py
+
+
+class SkorpekhDestroyerProfile(UnitProfile):
+    name = "Skorpekh Destroyer"
+    base_radius_in = 0.984          # 50 mm
+    movement_in = 8
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 6
+    wounds = 3
+    leadership = "7+"
+    armor_save = "3+"
+    oc = 2
+    infantry = True
+    reanimation_protocols = True
+    whirling_onslaught = True       # see game/destroyer_cult.py
+
+
+class LokhustDestroyerProfile(UnitProfile):
+    name = "Lokhust Destroyer"
+    # ALL THREE DESTROYER DATASHEETS SHARE ONE TABLE SIZE - the Skorpekh
+    # Destroyers' printed 50 mm - on the user's instruction ("alle Destroyer
+    # sollen die gleiche Groesse haben"). Printed 60 mm for this one, so it is
+    # a reduction; see SkorpekhDestroyerProfile, which is where the number
+    # comes from and which is what the tests pin these against.
+    base_radius_in = 0.984          # printed 60 mm, table size 50 mm (the Skorpekh size)
+    movement_in = 8
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 6
+    wounds = 3
+    leadership = "7+"
+    armor_save = "3+"
+    oc = 2
+    fly = True
+    reanimation_protocols = True
+    hard_wired_for_destruction = True   # see game/destroyer_cult.py
+
+
+class LokhustHeavyDestroyerProfile(UnitProfile):
+    name = "Lokhust Heavy Destroyer"
+    # The same table size as the other two Destroyer datasheets - see
+    # LokhustDestroyerProfile above. Deliberately the SAME number rather than
+    # three literals: a shared size written down three times drifts apart the
+    # next time one of them is touched, so the tests pin all three against
+    # SkorpekhDestroyerProfile, which is where the 50 mm actually comes from.
+    #
+    # This is a GAMEPLAY number, not only a cosmetic one: edge_distance()
+    # reads the radius, so Engagement Range, overlap, coherency and formation
+    # packing all move with it. Smaller is the wanted direction here for the
+    # reason the movement section records - six 60 mm bases are among the
+    # worst-fitting footprints on this terrain.
+    base_radius_in = 0.984          # printed 60 mm, table size 50 mm (the Skorpekh size)
+    movement_in = 8
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 6
+    wounds = 4
+    leadership = "7+"
+    armor_save = "3+"
+    oc = 2
+    fly = True
+    reanimation_protocols = True
+    optimised_for_slaughter = True      # see game/destroyer_cult.py
+
+
+class DoomsdayArkProfile(UnitProfile):
+    name = "Doomsday Ark"
+    # Matched to the other grav tanks (Falcon, Devilfish, Wave Serpent, Kill
+    # Rig), not to the printed 60 mm - user: "doomsday Ark so gross wie die
+    # anderen panzer: falcon und devilfish". Third case of a base deviating
+    # from its printed size on purpose, after the Falcon (matched to the
+    # Devilfish) and the three MOUNTED jetbikes.
+    #
+    # Note this makes the Ark BIGGER, where every previous request of this
+    # kind made something smaller - and it is the only unit here that grows.
+    # It is a real gameplay change in the harder direction: a 2.1" radius is
+    # nearly twice the 1.181" it had, so the corridors on map 3 (where it now
+    # fields) are correspondingly tighter for it.
+    base_radius_in = 2.1            # matched to the other grav tanks, not the printed 60 mm
+    movement_in = 10
+    weapon_skill = "4+"
+    ballistic_skill = "3+"
+    toughness = 9
+    wounds = 14
+    leadership = "7+"
+    armor_save = "3+"
+    oc = 5
+    invulnerable_save = "4+"
+    vehicle = True
+    fly = True
+    reanimation_protocols = True
+    overwhelming_obliteration = True    # see game/overwhelming_obliteration.py
+    damaged_threshold = 5               # "Damaged: 1-5 Wounds Remaining" -> -1 to its own Hit rolls, see game/shooting.py's _damaged_modifier()
+    deadly_demise = 3                   # documentation leftover only, see deadly_demise_notation below
+    deadly_demise_notation = D3()       # "Deadly Demise D3"
+
+
+class CtanShardOfTheVoidDragonProfile(UnitProfile):
+    """The C'tan Shard of the Void Dragon.
+
+    Necrodermis is `damage_reduction`, the same flat -1 the Overlord's
+    Implacable Resilience prints, so both read one module rather than two."""
+    name = "C'tan Shard of the Void Dragon"
+    base_radius_in = 1.575          # 80 mm
+    movement_in = 10
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 11
+    wounds = 16
+    leadership = "6+"
+    armor_save = "3+"
+    oc = 4
+    invulnerable_save = "4+"
+    feel_no_pain = "5+"
+    monster = True
+    character = True
+    epic_hero = True
+    fly = True
+    deep_strike = True
+    reanimation_protocols = True
+    matter_absorption = True        # see game/mortal_wound_abilities.py
+    damage_reduction = 1            # "Necrodermis", see game/damage_reduction.py
+    enslaved_star_god = True        # "cannot be your WARLORD" - a documented no-op, this engine has no Warlord
+    deadly_demise = 6               # documentation leftover only, see deadly_demise_notation below
+    deadly_demise_notation = D6()   # "Deadly Demise D6"

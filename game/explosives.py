@@ -88,6 +88,11 @@ class ExplosivesController:
                 return False
         if squad.is_engaged(self.all_tokens):
             return False
+        # Swooping Hawks' Grenade Pack Flyover: "each time this unit uses this
+        # ability, until the end of the turn, you cannot target this unit with
+        # the Explosives Stratagem" - see game/grenade_pack_flyover.py.
+        if getattr(squad, "explosives_locked_until_end_of_turn", False):
+            return False
         if self.movement_controller is not None and squad in self.movement_controller.advanced_squad_ids:
             return False
         if not self._qualifying_models(squad):
@@ -165,7 +170,7 @@ class ExplosivesController:
             count=EXPLOSIVES_DICE_COUNT, sides=6,
             label=f"Explosives: {self.acting_model.profile.name}",
             success_threshold=EXPLOSIVES_SUCCESS_THRESHOLD,
-            target_name=self.target_squad.name,
+            target_name=self.target_squad.name, target_squad=self.target_squad,
         )
         self._pending_roll = True
 

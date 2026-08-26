@@ -33,6 +33,11 @@ from testkit import Checks, DiceManager, GameState, Log, TurnTracker, build, lin
 checks = Checks("Battle Focus")
 
 
+def _read_source(path):
+    with open(path, encoding="utf-8") as handle:
+        return handle.read()
+
+
 def aeldari(squad):
     """Give every model in this unit the Battle Focus ability."""
     for model in squad.models:
@@ -601,6 +606,103 @@ checks.eq("an ordinary unit is not excluded",
           battle_focus.excluded_from_reactive_manoeuvre(runner10), False)
 
 
+# ------------------------- 10b. a unit that is already dead is not asked
+
+print("--- 10b. wiped-out units are not offered a reactive move ---")
+
+# User report: "Du brauchst nicht nach 'Fadeback' der aeldari zu fragen, wenn
+# der Trupp vollstaendig gestorben ist."
+#
+# Fade Back fires from ShootingController.on_squad_finished_shooting, and that
+# hook runs INSIDE the activation that did the killing - remove_dead_models()
+# runs once per frame, afterwards. So the unit this activation wiped out is
+# still in `hit_squads` with a full models list of corpses. Testing
+# `squad.models` alone answers True for it, which is why this needs its own
+# predicate rather than the emptiness check _perform_reactive() already had -
+# and that one runs after the D6 and after the token is spent anyway.
+
+dead10 = aeldari(trim(build(STRIKE_TEAM, "Player 1", name="Wiped"), 3))
+line_up(dead10, x=10.0, y=34.0)
+checks.true("a living unit counts as on the battlefield",
+            battle_focus.is_on_the_battlefield(dead10))
+
+p10c = reactive_pool(mover10, tracker10, scene10["state"].tokens)
+checks.true("and while it lives it IS offered Fade Back",
+            p10c.offer_fade_back(shooter10, {dead10}))
+
+# BEFORE the sweep: every model at 0 wounds, all still in squad.models.
+for model in dead10.models:
+    model.current_wounds = 0
+checks.eq("every model is dead", sum(1 for m in dead10.models if not m.is_dead()), 0)
+checks.true("but the corpses are still in squad.models - this is the frame the "
+            "hook runs in", len(dead10.models) > 0)
+checks.eq("a wiped-out unit is not on the battlefield",
+          battle_focus.is_on_the_battlefield(dead10), False)
+
+p10d = reactive_pool(mover10, tracker10, scene10["state"].tokens,
+                     decisions=DecisionManager())
+checks.eq("and it is NOT offered Fade Back", p10d.offer_fade_back(shooter10, {dead10}), False)
+checks.eq("so no decision is raised at all", p10d.decision_manager.is_pending, False)
+checks.eq("and no token is spent", p10d.tokens["Player 1"], 4)
+
+# AFTER the sweep, one frame later: models list emptied. Same answer, and it is
+# the same expression that gives it - an empty list makes any() False.
+dead10.models = []
+checks.eq("an emptied unit is not on the battlefield either",
+          battle_focus.is_on_the_battlefield(dead10), False)
+p10e = reactive_pool(mover10, tracker10, scene10["state"].tokens,
+                     decisions=DecisionManager())
+checks.eq("nor offered Fade Back after the sweep",
+          p10e.offer_fade_back(shooter10, {dead10}), False)
+
+# A live unit hit in the same activation still gets its offer - the gate is per
+# unit, not "somebody in this activation died".
+p10f = reactive_pool(mover10, tracker10, scene10["state"].tokens,
+                     decisions=DecisionManager())
+checks.true("a survivor hit by the same activation is still offered it",
+            p10f.offer_fade_back(shooter10, {dead10, runner10}))
+checks.eq("and only the survivor is named",
+          [o["label"] for o in p10f.decision_manager.options
+           if "Decline" not in o["label"]],
+          [f'Fade Back: {runner10.name} makes a D6+1" Normal move'])
+
+# The gate lives in _reactive_candidates(), which both manoeuvres go through,
+# so Opportunity Seized is covered by construction rather than separately.
+src_bf = _read_source("game/battle_focus.py")
+gate = "if not is_on_the_battlefield(squad):"
+checks.eq("the check is written exactly once", src_bf.count(gate), 1)
+checks.eq("and the function it sits in is _reactive_candidates - the gate BOTH "
+          "manoeuvres go through, so Opportunity Seized inherits it rather "
+          "than needing its own copy",
+          src_bf[:src_bf.index(gate)].rsplit("    def ", 1)[1].split("(")[0],
+          "_reactive_candidates")
+
+# A/B: put the pre-fix world back - the gate removed - and the offer returns.
+# On a FRESH corpse, not on dead10: that one has been emptied by the sweep
+# above, and an emptied unit is refused further down the gate anyway, so the
+# probe would pass for the wrong reason and report the bug had never existed.
+corpse = aeldari(trim(build(STRIKE_TEAM, "Player 1", name="Fresh Corpse"), 3))
+line_up(corpse, x=10.0, y=36.0)
+for model in corpse.models:
+    model.current_wounds = 0
+
+_pre_fix = battle_focus.is_on_the_battlefield
+battle_focus.is_on_the_battlefield = lambda squad: True
+try:
+    p10g = reactive_pool(mover10, tracker10, scene10["state"].tokens,
+                         decisions=DecisionManager())
+    checks.true("A/B: without the gate the wiped-out unit IS offered Fade Back "
+                "again - i.e. the gate is what answers the report",
+                p10g.offer_fade_back(shooter10, {corpse}))
+finally:
+    battle_focus.is_on_the_battlefield = _pre_fix
+
+p10h = reactive_pool(mover10, tracker10, scene10["state"].tokens,
+                     decisions=DecisionManager())
+checks.eq("and with it back in place, it is refused again",
+          p10h.offer_fade_back(shooter10, {corpse}), False)
+
+
 # ----------------------------------------------- 11. Opportunity Seized
 
 print("--- 11. Opportunity Seized ---")
@@ -683,5 +785,67 @@ battle_focus.excluded_from_reactive_manoeuvre = lambda squad: False
 checks.true("A/B: without the TITANIC exclusion the titan IS offered",
             p10b.offer_fade_back(shooter10, {titan}))
 battle_focus.excluded_from_reactive_manoeuvre = saved_excl
+
+# --- the AI has to wait for a reactive move it does not own -----------------
+# User report: "ki hat mich den fadeback move nicht ausfuehren lassen, sondern
+# hat direkt weitergemacht". Picking "spend a token" resolves the
+# DecisionManager break point immediately, but all that does is OPEN a Normal
+# move the human still has to drag and confirm - and nothing looked at that
+# open move, so the AI carried straight on with its next shooting activation
+# underneath it. Same shape as the Rapid Ingress placement case _is_blocked()
+# already covers.
+print("--- the AI waits for a foreign reactive move ---")
+from ai.agent_driver import _is_blocked  # noqa: E402
+from game.factions import aeldari as ae  # noqa: E402
+from game.turn import PHASE_SHOOTING as _PS  # noqa: E402
+from testkit import DiceManager as _DiceM, GameState as _GameState  # noqa: E402
+from testkit import TurnTracker as _TT, build as _build, line_up as _line_up  # noqa: E402
+
+_DM = DecisionManager
+_Mover = MovementController
+
+_wait_state = _GameState()
+_wait_squad = _build(ae.GUARDIAN_DEFENDERS, "Player 1", name="1 Guardian Defenders W1")
+_line_up(_wait_squad)
+for _m in _wait_squad.models:
+    _wait_state.add_token(_m)
+_wait_tt = _TT("Player 2")
+while _wait_tt.phase != _PS or _wait_tt.turn_owner != "Player 2":
+    _wait_tt.advance_phase()
+_wait_mover = _Mover(obstacles=[], all_tokens=_wait_state.tokens, turn_tracker=_wait_tt)
+_wait_dec, _wait_dice = _DM(), _DiceM()
+
+
+def _ai_blocked(mover=None):
+    return _is_blocked(_wait_tt, _wait_dec, _wait_dice, None, "Player 2",
+                       movement_controller=mover)
+
+
+checks.eq("nothing open: the AI acts", _ai_blocked(_wait_mover), False)
+
+# What BattleFocusPool._perform_reactive() does: hand the active-player flag to
+# the reacting player, then open the move.
+_wait_tt.set_active("Player 1")
+_wait_mover.select(_wait_squad.models[0])
+_wait_mover.start_battle_focus_move(_wait_squad, 5.0)
+checks.eq("the granted move is open", _wait_mover.move_mode, "battle_focus")
+checks.eq("so the AI waits", _ai_blocked(_wait_mover), True)
+# A/B: this is exactly what the AI used to see - nothing at all.
+checks.eq("A/B: without the check the AI carried on regardless", _ai_blocked(None), False)
+
+_wait_mover.cancel_move()
+_wait_tt.set_active("Player 2")
+checks.eq("and it is released once the move is resolved", _ai_blocked(_wait_mover), False)
+
+# The AI's OWN granted move must NOT block it - it is the thing driving it.
+_own_squad = _build(ae.GUARDIAN_DEFENDERS, "Player 2", name="2 Guardian Defenders W2")
+_line_up(_own_squad, y=30.0)
+for _m in _own_squad.models:
+    _wait_state.add_token(_m)
+_wait_mover.select(_own_squad.models[0])
+_wait_mover.start_battle_focus_move(_own_squad, 5.0)
+checks.eq("its own reactive move does not deadlock it", _ai_blocked(_wait_mover), False)
+_wait_mover.cancel_move()
+
 
 checks.finish()

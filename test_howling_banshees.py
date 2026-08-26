@@ -292,4 +292,86 @@ checks.eq("A/B: without Acrobatic a fall back blocks the charge",
 for cls in (HowlingBansheeProfile, HowlingBansheeExarchProfile):
     cls.full_throttle = saved_ft
 
+# --- [ANTI-INFANTRY 3+] on every weapon row ---------------------------------
+# User report: "anti-infanterie bei den banshees greift nicht". It was missing
+# from all five rows - the printed Keywords column carries it on the Banshee
+# blade, Executioner, Mirrorswords and BOTH Triskele rows.
+print("--- [ANTI-INFANTRY 3+] ---")
+from game.weapons import (  # noqa: E402
+    BansheeBladeProfile, ExecutionerProfile, MirrorswordsProfile,
+    TriskeleRangedProfile, TriskeleMeleeProfile,
+)
+
+for cls in (BansheeBladeProfile, ExecutionerProfile, MirrorswordsProfile,
+            TriskeleRangedProfile, TriskeleMeleeProfile):
+    checks.eq(f"{cls.name} ({cls.weapon_type}) is [ANTI-INFANTRY 3+]",
+              cls.anti, ("INFANTRY", 3))
+
+# ...and it reaches the real wound step, not just the profile. S4 into T5 Boyz
+# normally wounds on 5+, so a hand of 3s and 4s is zero wounds - with
+# [ANTI-INFANTRY 3+] every one of them is a CRITICAL wound and auto-wounds.
+import testkit as _tk  # noqa: E402
+from game.factions import orks as _orks  # noqa: E402
+from game.squad import squad_has_fights_first  # noqa: E402
+from testkit import script  # noqa: E402
+
+fight = _tk.fight_scene(HOWLING_BANSHEES, _orks.BOYZ, attacker_owner="Player 1")
+script(*([4] * 12), *([3] * 12), default=1)
+fight["fight"].select_to_fight(fight["attacker"])
+blade_key = next(k for k, label, *_ in fight["fight"].weapon_eligibility()
+                 if "Banshee Blade" in label)
+fight["fight"].choose_weapon(blade_key)
+for _ in range(4):
+    if fight["dice"].is_pending:
+        fight["fight"].on_dice_acknowledged()
+wound_line = next(l for l in fight["log"].lines if "wound roll" in l)
+checks.true("the wound roll needed 5+ without it", "needed 5+" in wound_line)
+checks.true("but every 3+ crits and auto-wounds", "10 wound(s) (of which 10 critical)" in wound_line)
+
+
+# ---------------------------------------------------------------------------
+# Fights First (24.13) is an ORDER, not an eligibility (rule 12.04)
+# ---------------------------------------------------------------------------
+#
+# User report: "was ist diese meldung immer am ende des gegnerischen zugs?
+# irgendeine aeldari trigger? verstehe ich nicht" - an unexplained
+# "Fight: Player 1's turn to select a unit" plus a "Pass (no eligible unit in
+# range)" button at the end of every enemy turn. It WAS an Aeldari trigger:
+# _is_eligible_to_fight() read Fights First as a third way to be eligible, so
+# every Banshee squad on the board was eligible every Fight phase no matter
+# where it stood, and the phase refused to settle.
+print("--- 8. Fights First does not make a unit eligible to fight ---")
+
+far = _tk.fight_scene(HOWLING_BANSHEES, _orks.BOYZ, attacker_owner="Player 1", engaged=False)
+checks.true("the datasheet ability is on the unit",
+            squad_has_fights_first(far["attacker"]))
+checks.true("...and it is genuinely nowhere near an enemy",
+            far["attacker"].min_distance_to(far["target"]) > 5.0)
+checks.eq("so it is NOT eligible to fight (12.04)",
+          far["fight"].is_eligible_to_fight(far["attacker"]), False)
+checks.eq("...and the Fight step settles instead of demanding a selection",
+          far["fight"].state, "done")
+checks.eq("...so there is no Pass to click either", far["fight"].can_pass(), False)
+
+# The ability itself still works where it applies: engaged, it is eligible
+# and selectable like any other unit (its ORDER within the step is what
+# Fights First decides, via _eligible_fighters(fights_first_only=True)).
+near = _tk.fight_scene(HOWLING_BANSHEES, _orks.BOYZ, attacker_owner="Player 1")
+checks.eq("engaged, it is eligible", near["fight"].is_eligible_to_fight(near["attacker"]), True)
+checks.true("...and selectable",
+            near["attacker"] in near["fight"].eligible_to_select_now())
+
+# A/B: the pre-fix predicate, as a local copy - it says the far-away unit IS
+# eligible, which is the report.
+def pre_fix_eligible(fc, squad):
+    if squad in fc.fought_squad_ids or not any(not m.is_dead() for m in squad.models):
+        return False
+    return (squad.is_engaged(fc.all_tokens) or squad in fc.engaged_at_start
+            or squad_has_fights_first(squad))
+
+
+checks.eq("PRE-FIX: the same far-away unit came back eligible",
+          pre_fix_eligible(far["fight"], far["attacker"]), True)
+
+
 checks.finish()

@@ -68,6 +68,40 @@ AELDARI_POINTS = {
     "Lhykhis": UnitPoints(
         [PointsTier({1: 135})], leads=("Warp Spiders",),
     ),
+    # 1 Exarch + 4 or 9 Dark Reapers. Every wargear option is free.
+    "Dark Reapers": flat_points({5: 100, 10: 210}),
+    # 1 Exarch + 4 or 9 Swooping Hawks, tiered by how many copies the army
+    # already fields - the same shape Warp Spiders and the Ghostkeel use.
+    "Swooping Hawks": UnitPoints([
+        PointsTier({5: 95, 10: 190}, to_unit=2),
+        PointsTier({5: 110, 10: 205}),
+    ]),
+    # EPIC HERO, PHOENIX LORD. Leads one datasheet only.
+    "Baharroth": UnitPoints([PointsTier({1: 125})], leads=("Swooping Hawks",)),
+    # 5-10 Rangers. No wargear options at all.
+    "Rangers": flat_points({5: 60, 10: 110}),
+    # 3-6 Shroud Runners. No wargear options at all.
+    "Shroud Runners": flat_points({3: 90, 6: 175}),
+    # 3 or 6 jetbikes. Every wargear option is free.
+    "Windriders": flat_points({3: 80, 6: 170}),
+    # 1-2 models. Its LEADER ability is a JOIN rather than an ordinary
+    # attachment (see game/attached_units.py), but `leads` is what
+    # can_attach() reads for the pairing table either way.
+    "Warlock Skyrunners": UnitPoints(
+        [PointsTier({1: 55, 2: 90})], leads=("Windriders",),
+    ),
+    # 1 Exarch + 2 or 5 Shining Spears. Every wargear option is free.
+    "Shining Spears": flat_points({3: 100, 6: 200}),
+    # 1-2 War Walkers. Every wargear option is free on the list.
+    "War Walkers": flat_points({1: 85, 2: 160}),
+    # A DEDICATED TRANSPORT, tiered by copies fielded - the shape Warp
+    # Spiders and Swooping Hawks use. Every wargear option is free.
+    "Wave Serpent": UnitPoints([
+        PointsTier({1: 115}, to_unit=3),
+        PointsTier({1: 125}),
+    ]),
+    # EPIC HERO, PHOENIX LORD. Leads one datasheet only, like the other four.
+    "Fuegan": UnitPoints([PointsTier({1: 130})], leads=("Fire Dragons",)),
     "Eldrad Ulthran": UnitPoints(
         [PointsTier({1: 130})], leads=("Guardian Defenders", "Storm Guardians"),
     ),

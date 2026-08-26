@@ -104,7 +104,7 @@ _PALETTES = {
 }
 
 
-def _chamfer_points(rect, cut):
+def chamfer_points(rect, cut):
     """Hexagon outline: a rectangle with its top-left and bottom-right
     corners cut off diagonally, matching the angled-corner look."""
     x, y, w, h = rect.x, rect.y, rect.width, rect.height
@@ -119,6 +119,21 @@ def _chamfer_points(rect, cut):
         (x, y + h),
         (x, y + cut),
     ]
+
+
+def draw_glow(surface, rect, color, chamfer=CHAMFER_SIZE, width=4, alpha=45, pad=7):
+    """Soft outward halo around a chamfered shape: a wide, low-alpha copy of
+    the outline, on its own alpha surface, meant to be drawn BEFORE the fill -
+    the fill then covers the inward half of that stroke, leaving only the
+    outward halo visible around the shape.
+
+    Extracted from draw_button() when game/ui/ai_busy_badge.py became the
+    second caller (repo convention: extract at the SECOND consumer, not
+    later), so the two cannot drift into two different-looking halos."""
+    glow_surf = pygame.Surface((rect.width + pad * 2, rect.height + pad * 2), pygame.SRCALPHA)
+    points = [(px - rect.x + pad, py - rect.y + pad) for px, py in chamfer_points(rect, chamfer)]
+    pygame.draw.polygon(glow_surf, (*color, alpha), points, width=width)
+    surface.blit(glow_surf, (rect.x - pad, rect.y - pad))
 
 
 def draw_button(surface, rect, label, font, hovered=False, pressed=False, accent=None):
@@ -139,19 +154,14 @@ def draw_button(surface, rect, label, font, hovered=False, pressed=False, accent
     border = border_active if pressed else (border_hover if hovered else border_normal)
     text_color = TEXT_ACTIVE if pressed else (text_hover if hovered else text_normal)
 
-    points = _chamfer_points(button_rect, CHAMFER_SIZE)
+    points = chamfer_points(button_rect, CHAMFER_SIZE)
 
-    # Soft glow: a wide, low-alpha copy of the outline on its own alpha
-    # surface, drawn BEFORE the fill - the fill then covers the inward half
-    # of that stroke, leaving only an outward halo visible around the
-    # shape. Brighter/wider while hovered or pressed.
-    glow_pad = 7
-    glow_surf = pygame.Surface((button_rect.width + glow_pad * 2, button_rect.height + glow_pad * 2), pygame.SRCALPHA)
-    glow_points = [(px - button_rect.x + glow_pad, py - button_rect.y + glow_pad) for px, py in points]
-    glow_width = 9 if pressed else (7 if hovered else 4)
-    glow_alpha = 130 if pressed else (90 if hovered else 45)
-    pygame.draw.polygon(glow_surf, (*border, glow_alpha), glow_points, width=glow_width)
-    surface.blit(glow_surf, (button_rect.x - glow_pad, button_rect.y - glow_pad))
+    # Brighter/wider while hovered or pressed - see draw_glow().
+    draw_glow(
+        surface, button_rect, border, chamfer=CHAMFER_SIZE,
+        width=9 if pressed else (7 if hovered else 4),
+        alpha=130 if pressed else (90 if hovered else 45),
+    )
 
     pygame.draw.polygon(surface, bg, points)
     pygame.draw.polygon(surface, border, points, width=2)
@@ -165,9 +175,9 @@ def draw_button(surface, rect, label, font, hovered=False, pressed=False, accent
     return button_rect
 
 
-def draw_header_bar(surface, rect, text, font, text_color=None, bg_color=None, text_margin=10):
+def draw_header_bar(surface, rect, text, font, text_color=None, bg_color=None, text_margin=10, center=False):
     """One flat, rectangular background bar with its title text sitting on
-    top (left-aligned, vertically centered) - the shared building block
+    top (left-aligned unless `center`, vertically centered) - the shared building block
     behind both draw_panel_header() (a panel's main title) and any inline
     sub-header a caller wants at a custom rect (see GameStatusPanel's
     ROUND/PHASE/... row labels). Deliberately plain (no border, no
@@ -176,7 +186,13 @@ def draw_header_bar(surface, rect, text, font, text_color=None, bg_color=None, t
     distinct as the only clickable chrome."""
     pygame.draw.rect(surface, bg_color if bg_color is not None else HEADER_BG_COLOR, rect)
     title_surf = font.render(text, True, text_color if text_color is not None else config.PANEL_HEADER_COLOR)
-    surface.blit(title_surf, title_surf.get_rect(midleft=(rect.x + text_margin, rect.centery)))
+    if center:
+        # For a bar that isn't the full width of its panel and so has no left
+        # edge to align to - see GameStatusPanel's Round counter, which sits
+        # in the gap between the two players' faction badges.
+        surface.blit(title_surf, title_surf.get_rect(center=rect.center))
+    else:
+        surface.blit(title_surf, title_surf.get_rect(midleft=(rect.x + text_margin, rect.centery)))
 
 
 def draw_panel_header(surface, rect, text, font, text_color=None, bg_color=None):
@@ -198,6 +214,6 @@ def draw_box(surface, rect, chamfer=BOX_CHAMFER, bg_color=None, border_color=Non
     REQUIRED callout) - same dark-navy-fill/cyan-border/cut-corner
     language as the buttons and header bar, instead of each box picking
     its own flat rounded-rect style."""
-    points = _chamfer_points(rect, chamfer)
+    points = chamfer_points(rect, chamfer)
     pygame.draw.polygon(surface, bg_color if bg_color is not None else BOX_BG_COLOR, points)
     pygame.draw.polygon(surface, border_color if border_color is not None else BOX_BORDER_COLOR, points, width=border_width)

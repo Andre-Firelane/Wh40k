@@ -1,7 +1,7 @@
 import pygame
 
 from game import config
-from game.ui import button_style
+from game.ui import button_style, unit_thumbs
 from game.ui.text_utils import wrap_text
 
 OVERLAY_DIM_COLOR = (0, 0, 0, 160)
@@ -26,6 +26,7 @@ STRATAGEM_BOX_BORDER_COLOR = button_style.BORDER_NORMAL_STRATAGEM
 STRATAGEM_PLAYER_COLOR = button_style.TEXT_NORMAL_STRATAGEM
 
 BOX_WIDTH = 420
+THUMB_GAP = 10  # between the thumbnail row and the prompt text under it
 PLAYER_LINE_HEIGHT = 26
 PROMPT_LINE_HEIGHT = 20
 BUTTON_HEIGHT = 36        # minimum - an option button grows to fit its wrapped label
@@ -46,7 +47,13 @@ class DecisionOverlay:
         self.button_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE, bold=True)
         self._button_rects = []
 
-    def draw(self, surface, decision_manager):
+    def draw(self, surface, decision_manager, squads=()):
+        """`squads` is every unit in the game (GameState.all_squads()) - the
+        ones this prompt actually talks about are picked out of its own text
+        and shown as thumbnails above it. User: "der text ist mir zu
+        unübersichtlich ... ich fände die portraits überall gut, wo von
+        einheiten gesprochen wird." Optional: passing nothing just draws the
+        box as before."""
         self._button_rects = []
         if not decision_manager.is_pending:
             return
@@ -72,9 +79,15 @@ class DecisionOverlay:
             for lines in option_lines
         ]
         player_lines = PLAYER_LINE_HEIGHT if decision_manager.player else 0
+        # The units this prompt is about, drawn above its text. Measured
+        # first because the box has to be sized before anything is placed in
+        # it - see unit_thumbs.row_size().
+        named = unit_thumbs.squads_named_in(decision_manager.prompt, squads)
+        thumb_paths, _thumb_w, thumb_h = unit_thumbs.row_size(named, content_width)
         box_height = (
             2 * BOX_PADDING
             + player_lines
+            + (thumb_h + THUMB_GAP if thumb_paths else 0)
             + len(prompt_lines) * PROMPT_LINE_HEIGHT
             + sum(height + BUTTON_GAP for height in option_heights)
         )
@@ -90,6 +103,11 @@ class DecisionOverlay:
             player_surf = self.player_font.render(f"{decision_manager.player} - Decision", True, player_color)
             surface.blit(player_surf, (box_rect.x + BOX_PADDING, y))
             y += PLAYER_LINE_HEIGHT
+
+        if thumb_paths:
+            y = unit_thumbs.draw_row(
+                surface, named, box_rect.x + BOX_PADDING, y, content_width, gap_below=THUMB_GAP,
+            )
 
         for line in prompt_lines:
             line_surf = self.prompt_font.render(line, True, PROMPT_COLOR)

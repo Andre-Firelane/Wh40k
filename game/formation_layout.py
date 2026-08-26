@@ -68,13 +68,44 @@ def on_board(x_in, y_in, radius_in):
     )
 
 
-def ring_candidates(origin_x, origin_y, step, base_angle, rings=PACK_RINGS):
+def ring_candidates(origin_x, origin_y, step, base_angle, rings=PACK_RINGS,
+                    inner_radius=None):
     """The drop point, then concentric rings outwards, each ring's angles
     ordered by how close they are to `base_angle` - so the block grows on the
-    chosen side first and stays as near the drop point as the ground allows."""
+    chosen side first and stays as near the drop point as the ground allows.
+
+    `inner_radius` ADDS one more ring at that distance, keeping every ring the
+    plain grid already had. It exists because `step` is derived from the
+    SMALLEST base in the unit while the model that ends up standing on the drop
+    point is the WIDEST one, so the first ring can sit closer than those two
+    bases can legally stand - see pack_positions().
+
+    Added rather than substituted, and that is deliberate: moving the first
+    ring out instead was built and measured first, and it takes slots AWAY
+    from the pairs of models that DID fit on the original ring - within one
+    unit the required clearance differs per pair, so one radius cannot serve
+    all of them. An extra ring cannot lose anyone: every slot that was legal
+    before is still offered, in the same order, and the new one is only ever
+    reached by a model that found nothing closer.
+
+    It does NOT follow that the change is free. A denser block is a different
+    block, and measure_crowded_movement.py's per-unit numbers move either way
+    on it - on the Ork army, Boyz + Warboss + Painboy gained 6 points of
+    crowded progress on map 1 while Gretchin 2, squeezed at gap_in 1.05, lost
+    10 on map 2. Medians across the three maps: 64->65, 62->59, 29->28. What
+    the additive form buys is that no model can be refused a slot it used to
+    have; it does not promise every unit a better route."""
+    radii = [step * k for k in range(1, rings + 1)]
+    # Only when it is FURTHER OUT than the first ring, i.e. only when that
+    # ring is the unusable one this exists for. An inner_radius inside the
+    # grid would be a second, tighter ring for every unit in the game - which
+    # a homogeneous one has (2r + 0.05 against a 2r + 0.1 pitch) and does not
+    # want: nothing was refusing it a slot.
+    if inner_radius is not None and inner_radius > step + 1e-9:
+        radii.append(inner_radius)
+        radii.sort()  # nearest first, so a model still prefers the closest slot
     candidates = [(origin_x, origin_y)]
-    ring_radius = step
-    for _ in range(rings):
+    for ring_radius in radii:
         capacity = max(1, int((2 * math.pi * ring_radius) / step))
         astep = 2 * math.pi / capacity
         angles = sorted(
@@ -85,7 +116,6 @@ def ring_candidates(origin_x, origin_y, step, base_angle, rings=PACK_RINGS):
             (origin_x + ring_radius * math.cos(a), origin_y + ring_radius * math.sin(a))
             for a in angles
         )
-        ring_radius += step
     return candidates
 
 
@@ -116,15 +146,48 @@ def pack_positions(squad, origin_x, origin_y, base_angle=-math.pi / 2, position_
     # Candidate PITCH comes from the SMALLEST base, not the largest - the same
     # correction game/agent_driver.py's disembark rings needed, and for the
     # same reason. A 19.01 attached unit is not homogeneous: pitching 21 Boyz
-    # (0.63") apart as if they were all a 0.98" Warboss spreads a 22-model mob
-    # to 10.3" across, which rule 09.02's own 9" span limit then rejects at
-    # every facing - i.e. the unit simply cannot be deployed. Each slot is
-    # still checked against the CONCRETE model that would stand on it (see
-    # _first_legal_slot), and the widest models pick first, so nothing
-    # overlaps; only the grid gets denser. For a homogeneous unit min and max
-    # are the same number, so this changes nothing at all for one.
+    # (0.63") apart as if they were all a 0.98" Warboss blows the 22-model mob
+    # out from 6.24" to 9.00" across.
+    #
+    # That used to be stated here as "rule 09.02's 9" span limit then rejects
+    # it at every facing, i.e. the unit cannot be deployed". Only half true
+    # now: config.SPREAD_LIMIT_PLAYERS lifted that half of 09.02 for the AI,
+    # so measured on the real mob the wide pitch is REJECTED for Player 1 -
+    # who reaches this through game/setup.py's "Place as Block" - and LEGAL
+    # for the AI. The pitch stays where it is for both of them either way,
+    # because a 2.76" wider block is worth nothing to anyone: a small
+    # footprint is the design goal (13.09 needs EVERY model in the dense area,
+    # and units in a column block each other less).
+    #
+    # Each slot is still checked against the CONCRETE model that would stand
+    # on it (see _first_legal_slot), and the widest models pick first, so
+    # nothing overlaps; only the grid gets denser. For a homogeneous unit min
+    # and max are the same number, so this changes nothing at all for one.
     step = max(gap_in, 2 * min(m.radius_in for m in squad.models) + 0.1)
-    candidates = ring_candidates(origin_x, origin_y, step, base_angle, rings)
+    # ...but the INNERMOST ring has to clear the model standing on the drop
+    # point, and by the widest-first order in _fill() that is the WIDEST model
+    # in the unit. With a pitch off the smallest base the two disagree, and the
+    # whole first ring then fails _first_legal_slot()'s overlap bound at every
+    # angle - it does not cost one slot, it costs the entire ring.
+    #
+    # User report on the Necron Warriors: "welcher Mechanismus sorgt eigentlich
+    # dafuer, dass hier die Nekonkrieger so viel Abstand zu ihrem Character
+    # halten, der angeschlossen ist? Das sorgt nur dafuer, dass der Footprint
+    # unnoetig gross wird." Measured on that unit (21 models, a 0.98"
+    # Technomancer among 0.63" Warriors): ring 1 seated ZERO models, the
+    # Technomancer sat alone in a 1.39" moat while his Warriors stood 0.29"
+    # apart, and the block spread to 7.20". Offering a ring at the distance
+    # those two bases actually need: moat 0.05", spread 6.24", and the first
+    # ring seats six.
+    #
+    # The ring is ADDED to the grid, never swapped in for it - see
+    # ring_candidates(). So this can be asked for unconditionally: a unit that
+    # was already packing fine keeps every slot it had, and only a model with
+    # nowhere legal to stand closer ever lands on the new ring. A homogeneous
+    # unit does not even get one, since max + min + 0.05 is below `step`
+    # whenever `step` is 2*r + 0.1.
+    candidates = ring_candidates(origin_x, origin_y, step, base_angle, rings,
+                                 inner_radius=_inner_radius(squad.models))
 
     plain = _fill(squad, candidates, position_valid)
 
@@ -164,6 +227,19 @@ def pack_positions(squad, origin_x, origin_y, base_angle=-math.pi / 2, position_
     keep = led if no_worse_than(
         led, plain, lambda i: squad.models[i].radius_in) else plain
     return _stack_leftovers(squad, keep, origin_x, origin_y)
+
+
+def _inner_radius(models):
+    """How far out the innermost ring has to sit for the model standing on the
+    drop point to have a neighbour at all: its own base plus the smallest base
+    in the unit, plus _first_legal_slot()'s own overlap bound.
+
+    None when there is nothing to size it against, which leaves
+    ring_candidates() on its plain grid."""
+    if not models:
+        return None
+    radii = [m.radius_in for m in models]
+    return max(radii) + min(radii) + 0.05 + 1e-6
 
 
 def _fill(squad, candidates, position_valid, first=(), first_candidates=None):

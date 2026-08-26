@@ -39,7 +39,7 @@ Important: "zoom" is deliberately relative to "the whole screen area is
 covered" (DEFAULT_ZOOM), NOT to raw 1-native-pixel-per-screen-pixel parity -
 those are only the same thing when native_w/h == screen_w/h. Once main.py
 started rendering the board's offscreen Surface at a higher resolution than
-the screen (config.RENDER_SUPERSAMPLE, so Camera zoom wouldn't look
+the screen (see game/render_resolution.py, so Camera zoom wouldn't look
 blocky), native_w/h became e.g. 2x screen_w/h - under a naive "zoom 1.0 ==
 1:1 native:screen" definition, DEFAULT_ZOOM would then already show only
 HALF the board (a de-facto 2x crop) with no way to zoom out any further,

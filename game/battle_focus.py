@@ -191,6 +191,26 @@ def melee_move_range_in(squad, printed_range_in):
     return printed_range_in
 
 
+def is_on_the_battlefield(squad):
+    """Whether this unit still has a model standing.
+
+    Both halves matter, and the SECOND is the one that was missing (user:
+    "Du brauchst nicht nach 'Fadeback' der aeldari zu fragen, wenn der Trupp
+    vollstaendig gestorben ist"). Fade Back fires from
+    ShootingController.on_squad_finished_shooting, and that hook runs INSIDE
+    the activation that did the killing - GameState.remove_dead_models() runs
+    once per frame, afterwards. So a unit this very activation wiped out is
+    still sitting in `hit_squads` with a full `squad.models` list of corpses,
+    and testing `squad.models` alone answers True for it. Measured on a
+    10-model unit with every model at 0 wounds: the offer was raised, named
+    the dead unit, and taking it would have spent a Battle Focus token.
+
+    `squad.models` empty covers the same unit one frame later, after the
+    sweep; `any(not m.is_dead())` covers it before. An empty list makes any()
+    False, so one expression covers both."""
+    return squad is not None and any(not m.is_dead() for m in squad.models)
+
+
 def excluded_from_reactive_manoeuvre(squad):
     """Opportunity Seized / Fade Back: "excluding TITANIC units"."""
     return attached_units.unit_has_datasheet_keyword(squad, REACTIVE_EXCLUDED_KEYWORD)
@@ -484,6 +504,8 @@ class BattleFocusPool:
         out = []
         for squad in squads:
             if squad is None or squad.owner != player:
+                continue
+            if not is_on_the_battlefield(squad):
                 continue
             if excluded_from_reactive_manoeuvre(squad):
                 continue

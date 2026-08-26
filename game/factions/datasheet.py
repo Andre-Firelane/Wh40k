@@ -135,14 +135,25 @@ class Gear:
     from these 3", two separate allowances that must not be spendable on
     each other. None (the default) means the item just counts against the
     line's single flat cap, which is what every datasheet before this one
-    needed; see Datasheet.gear_slots for how the two forms are expressed."""
+    needed; see Datasheet.gear_slots for how the two forms are expressed.
 
-    def __init__(self, model_line_name, name, effect, max_count=1, group=None, points=0):
+    `all_models` turns the item from "this line's character takes it" into
+    "every model on this line takes it". Every menu before the Necrons needed
+    the former (a Shas'ui's drones, an Exarch's shimmershield), so it defaults
+    to False and no existing datasheet changes behaviour. Lychguard are the
+    first case of the latter: their printed option replaces the warscythe with
+    "1 hyperphase sword and 1 dispersion shield" on ALL models at once, and a
+    shield that only ever reached the first model would silently give four of
+    the five no invulnerable save."""
+
+    def __init__(self, model_line_name, name, effect, max_count=1, group=None, points=0,
+                 all_models=False):
         self.model_line_name = model_line_name
         self.name = name
         self.effect = effect  # callable(token) -> None
         self.max_count = max_count
         self.group = group
+        self.all_models = all_models
         # What the faction's points list charges per copy taken, same meaning
         # (and same "read it out of UnitPoints.wargear, never repeat the
         # literal" convention) as WargearOption.points. 0 for the many free
@@ -270,13 +281,47 @@ def _resolved_choices(datasheet, lines, choices):
         option_choices = (choices or {}).get(line.name, {})
         per_option = {}
         for option in datasheet.wargear_for(line.name):
-            take = option_choices.get(option.name, 0)
+            take = _requested_count(option_choices.get(option.name, 0))
             cap = option.max_for(unit_size)
             if cap is not None:
                 take = min(take, cap)
             per_option[option] = min(take, line.count)
         resolved[line.name] = per_option
     return resolved
+
+
+def _requested_count(value):
+    """How many models a `choices` entry asks for, whether it was written as
+    a plain count or as an explicit list of model indices (see build_squad).
+    Pricing goes through here too, so the two spellings cost the same."""
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return len(set(value))
+    return value
+
+
+def _explicit_indices(datasheet, lines, choices, resolved):
+    """{model_line_name: {WargearOption: (model index, ...)}} for the options
+    a caller addressed by index rather than by count - empty for the usual
+    case, since every entry written as a plain number is left to the cursor.
+
+    Trimmed against the SAME resolved count the caps produced, so an
+    over-eager index list is cut down the same way an over-eager number is
+    (and so it still prices as what was actually applied). Out-of-range
+    indices are dropped rather than clamped: clamping would quietly pile two
+    options onto the last model, which is the very thing an explicit list is
+    written to avoid."""
+    explicit = {}
+    for line in lines:
+        option_choices = (choices or {}).get(line.name, {})
+        per_option = {}
+        for option in datasheet.wargear_for(line.name):
+            value = option_choices.get(option.name, 0)
+            if not isinstance(value, (list, tuple, set, frozenset)):
+                continue
+            wanted = sorted({i for i in value if 0 <= i < line.count})
+            per_option[option] = tuple(wanted[:resolved[line.name][option]])
+        explicit[line.name] = per_option
+    return explicit
 
 
 def build_squad(
@@ -294,7 +339,19 @@ def build_squad(
     `composition_index` selects one of datasheet.compositions() (e.g. 0 for
     Boyz's 10-model build, 1 for its 20-model build). `choices` is
     {model_line_name: {wargear_option_name: model_count}} - how many models
-    of that line take each option, applied in the order given. Each
+    of that line take each option, applied in the order given.
+
+    A count may instead be written as an explicit list of 0-based model
+    indices within that line, for the one thing the cursor cannot express:
+    WHICH models. Two options replacing DIFFERENT weapons deliberately land
+    on the same models (a champion taking both a gun and a melee upgrade is
+    the common case, and Player 1's earlier Storm Guardians list wanted
+    exactly that), so a list is how an army list says "these two upgrades go
+    on different models" instead. It is a property of the list, not of the
+    datasheet - both distributions are legal - which is why it lives here and
+    not on WargearOption. An addressed option ignores the cursor entirely,
+    and the cursor steps over any model an addressed option claimed, so the
+    two spellings can be mixed on one line without colliding. Each
     option's own max_for(unit size) and its ModelLine's model count both
     still cap it, so an over-eager choice is silently trimmed rather than
     rejected - callers presenting this as a UI choice (as opposed to a
@@ -318,6 +375,7 @@ def build_squad(
     gear = gear or {}
     lines = datasheet.compositions()[composition_index]
     resolved = _resolved_choices(datasheet, lines, choices)
+    explicit = _explicit_indices(datasheet, lines, choices, resolved)
 
     models = []
     # What gear was ACTUALLY applied, line by line, after every cap has
@@ -351,10 +409,15 @@ def build_squad(
         # still start at model 0, since those legitimately share a model with a
         # swap.
         cursor_groups = []  # [[union of replaced profiles, next free model index], ...]
+        # Models an explicit index list has claimed on this line. The cursor
+        # steps over these, so mixing the two spellings cannot silently stack
+        # a counted option on top of an addressed one.
+        claimed = {i for idx in explicit[line.name].values() for i in idx}
         for option, take in resolved[line.name].items():
+            addressed = explicit[line.name].get(option)
             replaced = frozenset(option.replaced_profiles or ())
             group = None
-            if replaced:
+            if addressed is None and replaced:
                 for candidate in cursor_groups:
                     if candidate[0] & replaced:
                         candidate[0] |= replaced
@@ -363,13 +426,20 @@ def build_squad(
                 if group is None:
                     group = [set(replaced), 0]
                     cursor_groups.append(group)
-            start = group[1] if group is not None else 0
-            if group is not None:
-                group[1] = start + take
-            for offset in range(take):
-                index = start + offset
-                if index >= line.count:
-                    break  # the line ran out of models - trimmed silently, same convention as the caps above
+            if addressed is not None:
+                # Written by index: this option says which models itself, so
+                # it neither reads nor advances a cursor.
+                indices = list(addressed)
+            else:
+                indices = []
+                index = group[1] if group is not None else 0
+                while len(indices) < take and index < line.count:
+                    if index not in claimed:
+                        indices.append(index)
+                    index += 1
+                if group is not None:
+                    group[1] = index
+            for index in indices:
                 weapons = assignments[index]
                 if option.replaced_profiles:
                     # A swap whose premise is false is skipped, not silently
@@ -424,7 +494,13 @@ def build_squad(
                     per_group[item.group] = per_group.get(item.group, 0) + 1
                 counts[gear_name] = counts.get(gear_name, 0) + 1
                 applied += 1
-                item.effect(line_tokens[0])
+                # Normally the line's first model - that is what a "this
+                # character can be equipped with" menu means. Gear(all_models=True)
+                # is the printed "ALL models in this unit can each have..."
+                # form instead; see Gear's own docstring.
+                targets = line_tokens if item.all_models else line_tokens[:1]
+                for target in targets:
+                    item.effect(target)
                 # Remember WHAT was applied, not just its effect. A Gear item
                 # is a callback that mutates the token (a Shield Drone bumps
                 # Wounds, a Guardian Drone sets a flag, a Marker Drone can be
@@ -433,7 +509,11 @@ def build_squad(
                 # otherwise identical units that differ ONLY by their drones
                 # are indistinguishable in any UI. Needed by
                 # game/loadout.py's unit description.
-                line_tokens[0].gear_names.append(gear_name)
+                for target in targets:
+                    target.gear_names.append(gear_name)
+                # Recorded once per SELECTION, not once per bearer: this list
+                # is what points_for() prices, and the printed option is one
+                # choice however many models it dresses.
                 applied_gear.setdefault(line.name, []).append(gear_name)
 
     squad = Squad(

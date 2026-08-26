@@ -2,6 +2,13 @@
 supplied - every model line, every weapon, the three attached units, and the
 two transport assignments the AI is instructed to honour.
 
+STILL PLAYER 2'S ARMY, just no longer the DEFAULT one: config.PLAYER2_ARMY now
+says "necrons", and this list is fielded with `--army2 orks`. Nothing here
+changes as a result - the suite builds the roster itself rather than reading
+the config, and the Ork army is still built, still fielded and still played by
+the AI whenever that flag is passed. See test_player2_necron_army.py for the
+list that turns up by default.
+
 Every item on that list is modeled, including the three whose rules arrived
 after the datasheets did (the Warboss's Attack Squig, the Battlewagon's Zzap
 gun and the Flash Gitz' Ammo Runt) - those have their own suite in

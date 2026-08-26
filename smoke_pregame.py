@@ -194,6 +194,21 @@ def fake_events():
         surf = pygame.display.get_surface()
         return _click((surf.get_width() - 8, surf.get_height() - 8))
 
+    # Rule 24.31/24.32: the human's Scouts choice now really is a choice, and
+    # its first option OPENS a scout move rather than resolving anything. The
+    # harness clicks option 0 below, so it also has to finish what that starts -
+    # otherwise the pre-game sits in MOVING for ever and this smoke reports
+    # "the pre-game never finished", which is exactly how this was found.
+    #
+    # Confirmed rather than cancelled, and with the models left where they
+    # stand: a zero-distance scout move is legal (24.31 offers, never compels)
+    # and it exercises the confirm path, which is the one that has to resume
+    # the SCOUTS queue.
+    mover = loc.get("movement_controller")
+    if mover is not None and getattr(mover, "move_mode", None) == "scout":
+        mover.confirm_move()
+        return []
+
     decisions = loc.get("decision_manager")
     if decisions is not None and decisions.is_pending:
         overlay = loc.get("decision_overlay")
@@ -233,6 +248,22 @@ pygame.event.get = lambda *a, **k: fake_events()
 from game import config  # noqa: E402
 
 config.PREGAME_DEPLOYMENT = PREGAME
+# The army selection screen (game/ui/army_select.py) waits for a click, and
+# nothing here answers one before main()'s own loop starts - so this harness
+# fields whatever config.PLAYER1_ARMY/PLAYER2_ARMY say, exactly as every run
+# of it did before that screen existed. smoke_army_select.py is the one that
+# drives the screen for real.
+config.ARMY_SELECT = False
+# The map selection screen (game/ui/map_select.py) waits for a click too -
+# same reason as ARMY_SELECT above.
+config.MAP_SELECT = False
+# The Tactical Secondary Mission deck asks the human a question at the end of
+# every one of their turns, and this harness answers no prompt that belongs to
+# the human outside the pre-game - so leaving it on would stall here on a
+# decision nobody is present to make. Same reason ARMY_SELECT/MAP_SELECT are
+# off above. test_secondary_missions.py has a source guard requiring this of
+# every harness.
+config.SECONDARY_MISSION_CARD_PLAYERS = ()
 
 import main  # noqa: E402
 

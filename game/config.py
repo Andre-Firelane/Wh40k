@@ -4,6 +4,68 @@
 # `python main.py --map 1` overrides it for one run without editing this.
 MAP = "map2"
 
+# WHICH ARMY LIST EACH PLAYER FIELDS: "aeldari", "orks", "necrons" or "tau" (see
+# game/army_lists.py, which holds all four and can build any of them for
+# either player). `python main.py --army1 orks --army2 aeldari` overrides both
+# for one run without editing this.
+#
+# These are the DEFAULTS the selection screen opens on, not the final answer:
+# with ARMY_SELECT below on, whatever the player picks there is written back
+# over them at startup (army_lists.apply_to_config()).
+#
+# A per-player setting rather than something derived from the units, for the
+# same reason SEER_COUNCIL_PLAYERS below is: this decides which units get
+# BUILT, so there is nothing on the board to infer it from yet.
+#
+# No list is ever deleted - every datasheet, ability and stratagem of all
+# four is still built and still tested. Only who turns up by default moves.
+PLAYER1_ARMY = "aeldari"
+PLAYER2_ARMY = "necrons"
+
+# Whether the battle opens with the map selection screen
+# (game/ui/map_select.py): the battlefield picked from large tiles showing each
+# map's own rendered picture, before the army lists and long before rule
+# 03.01's pre-game sequence.
+#
+# It runs FIRST because everything downstream depends on it - board size,
+# deployment zones, terrain, and on map3 even which units are fielded (User:
+# "Vor der Fraktion würde ich jetzt allerdings gerne noch die Map auswählen").
+#
+# Turned OFF by the headless harnesses for the same reason ARMY_SELECT below
+# is: nothing there answers a click. `python main.py --no-map-select` does the
+# same for one run, and naming a map with `--map` skips it too.
+MAP_SELECT = True
+
+# Whether the battle opens with the army selection screen
+# (game/ui/army_select.py): each player's list picked from large tiles, one
+# player after the other, before rule 03.01's pre-game sequence starts.
+#
+# THE HUMAN PICKS BOTH. User: "Aber ich wähle für die KI. Die KI soll nicht
+# selber wählen." - so this is two steps of one screen, not a player step and
+# an AI step; Player 2's list is assigned to the AI, never chosen by it.
+#
+# The lists themselves stay PREDEFINED (user: "Die Listen sollen auch erstmal
+# predefined sein. Also, wir brauchen noch keine Listenbaukosten. Das kommt
+# erst viel später"). This screen chooses WHO PLAYS WHICH of the predefined
+# lists in game/army_lists.py; it is not the army-building flow on CLAUDE.md's
+# Später-Liste, and it costs nothing.
+#
+# Turned OFF by the headless harnesses (selfplay.py, smoke_*.py), which drive
+# main()'s real loop with synthetic input and have no one to answer a screen
+# that waits for a click - they run on the settings above instead.
+# `python main.py --no-army-select` does the same for one run.
+ARMY_SELECT = True
+
+# Whose army is an AWAKENED DYNASTY detachment (the Necron detachment this
+# build implements). Like SEER_COUNCIL_PLAYERS below, this CANNOT be derived
+# from the units: a detachment is a list-building declaration, and a Necron
+# unit looks identical whichever detachment it was taken in.
+#
+# Player 2 by default, because that is who fields the Necron list when
+# PLAYER2_ARMY is "necrons" - it is inert for an Ork army, since every gate
+# also checks that the unit is actually a NECRONS one.
+AWAKENED_DYNASTY_PLAYERS = ("Player 2",)
+
 # Whether the battle opens with rule 03.01's real pre-game sequence
 # (game/pregame.py): Declare Battle Formations -> roll-off -> alternating
 # deployment -> roll-off for the first turn -> Resolve Pre-battle Abilities.
@@ -49,34 +111,26 @@ PIXELS_PER_INCH = 18  # lower than before (was 28, for the old 44"x30" board) so
 # screen resolution turns out to be.
 FULLSCREEN = True
 
-# Später-Liste (Kamera-Scrolling/Viewport): the on-screen board area stays
-# sized to PIXELS_PER_INCH (so the window itself doesn't change size), but
-# main.py renders the board's own offscreen Surface at PIXELS_PER_INCH *
-# RENDER_SUPERSAMPLE instead - extra detail for Camera to zoom into before
-# it starts looking blocky (User report: "alles ist total verpixelt, wenn
-# ich reinzoome"). Deliberately set equal to game.camera.MAX_ZOOM (2.5): at
-# the camera's own maximum zoom, the native render resolution then exactly
-# equals the screen's displayed resolution - genuinely crisp detail across
-# the WHOLE 1x-2.5x zoom range, never just an upscaled blur/blocky guess
-# beyond what's actually there. Raising this further only pays off if
-# MAX_ZOOM also goes up - past that point it's wasted render cost for
-# resolution the camera can never actually show.
+# How sharp the board looks when zoomed in. The board is drawn onto its own
+# offscreen Surface and Camera scales the visible part of it to fill the
+# on-screen board area (see game/camera.py), so that Surface's resolution is
+# what decides whether zooming in shows real detail or an upscaled guess.
 #
-# Profiled directly against the ~140-model demo army, worst case (a squad
-# actively selected/moving, all range overlays active at once): 2.5x costs
-# ~12ms/frame just for board rendering - more than 2x's ~8ms, but the
-# game's overall per-frame cost turned out to already be dominated by
-# unrelated, pre-existing per-frame recomputation elsewhere (~12ms on its
-# own even with rendering stubbed out entirely - several controllers'
-# eligible-target/choosable-model checks run unconditionally every frame,
-# not just when their state is actually active) - i.e. this game was
-# already well below a strict 60fps in this scene before touching
-# RENDER_SUPERSAMPLE at all. Against that baseline, 2.5x's extra cost is a
-# comparatively small fraction, and this is a turn-based tactics game, not
-# an action game - occasional real-world framerates in the 35-45fps range
-# for a full 140-model army remain entirely playable. Not fixing that
-# separate, pre-existing overhead here - out of scope for a resolution bump.
-RENDER_SUPERSAMPLE = 2.5
+# This used to be a hand-tuned RENDER_SUPERSAMPLE = 2.5 multiplier on
+# PIXELS_PER_INCH, from when there was one fixed board size. It is now
+# DERIVED per map and per screen instead - see game/render_resolution.py for
+# why a single constant cannot be right for more than one map (measured: the
+# same 2.5 left 27% of the shown pixels invented on map2, 46% on map1 and
+# 64% on the small map3, because a smaller board gets magnified more).
+#
+# What stays configurable is the ceiling. The per-FRAME cost follows the
+# visible screen area (main.py clips the board draw to the camera's visible
+# rect), but MEMORY follows the full board: the board Surface, the cached
+# static terrain layer and the placement overlay are each board-sized at 4
+# bytes a pixel, so this budget is worth ~3x itself in RAM at peak. 20 MP
+# renders 1920x1200 with zero upscaling at max zoom on all three maps;
+# lowering it trades some max-zoom sharpness back for memory.
+RENDER_MAX_PIXELS = 20_000_000
 
 FPS = 60
 BACKGROUND_COLOR = (22, 24, 28)  # dark battlefield background, subtle board guide lines drawn on top (see Renderer)
@@ -174,15 +228,40 @@ SPREAD_LIMIT_PLAYERS = ("Player 1",)
 BATTLE_SIZE = "strike_force"
 
 # Which players field the Aeldari Seer Council detachment, whose rule Strands
-# of Fate gives them a Fate dice pool (see game/strands_of_fate.py). Empty
-# until an army is actually built with it, which is why the rule is inert
-# rather than wrong today.
+# of Fate gives them a Fate dice pool (see game/strands_of_fate.py).
+#
+# Set to Player 1 when its roster became Aeldari. The supplied list did not
+# name a detachment, so this is a judgement call rather than a transcription -
+# but the army is two Warlock Conclaves, a Farseer and Eldrad Ulthran, which is
+# what Seer Council is for, and with it empty all six of its stratagems plus
+# the Fate dice pool stay unreachable. One line to revert if the list turns out
+# to be a different detachment.
 #
 # Unlike the ASURYANI army rule next door, this genuinely CANNOT be derived: a
 # detachment is a list-building declaration, and there is nothing on a unit to
 # infer it from (game/factions/detachment.py is deliberately pure data). Same
 # owner-keyed shape as WALL_CROSSING_PLAYERS and SPREAD_LIMIT_PLAYERS above.
-SEER_COUNCIL_PLAYERS = ()
+SEER_COUNCIL_PLAYERS = ("Player 1",)
+
+# Which players run the Tactical Secondary Mission card deck
+# (game/secondary_missions.py) INSTEAD of the standard "No Mercy" Secondary.
+# The Primary is untouched and stays the same for everyone.
+#
+# User: "Die Missionen sollen nur fuer mich gelten, fuer den menschlichen
+# Spieler. Die KI soll ihre Standard-Mission erstmal behalten." So exactly one
+# entry, the human. Same owner-keyed shape and the same justification as
+# SEER_COUNCIL_PLAYERS above: which missions a player brought is a
+# list-building declaration, and there is nothing on the board to infer it
+# from - two identical armies can be running entirely different missions.
+#
+# THE HEADLESS HARNESSES SET THIS TO () - smoke_pregame.py, smoke_log_input.py,
+# smoke_setup_screens.py, smoke_measure_tool.py and selfplay.py. The deck asks
+# the human a question at the end of every one of their turns, and none of
+# those harnesses answers a prompt that belongs to the human outside the
+# pre-game (a documented limit, see CLAUDE.md) - so leaving it on would stall
+# them on a decision nobody is there to make. test_secondary_missions.py has a
+# source guard requiring all five, so a new harness cannot quietly forget.
+SECONDARY_MISSION_CARD_PLAYERS = ("Player 1",)
 
 AI_MODEL = "claude-haiku-4-5"
 # The strategic planning phase's model (ai/claude_agent.py's plan_turn()) -

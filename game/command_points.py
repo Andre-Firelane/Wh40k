@@ -18,6 +18,23 @@ class CommandPointManager:
             self.cp[player] += amount
         self._log(f"Gain Core CP: every player gains {amount} CP.")
 
+    def bonus_cp_remaining(self, player, battle_round):
+        """How much of BONUS_CP_PER_ROUND_CAP this player has left THIS battle
+        round. The one definition of the cap's arithmetic - gain_cp() below
+        reads it too, so an offer that consults this can never disagree with
+        what the grant actually does.
+
+        Exists because an ability that OFFERS a bonus CP as a choice (e.g.
+        discarding a Secondary Mission card, game/secondary_missions.py) has to
+        know beforehand whether it would pay anything: offering a trade that
+        silently grants 0 is the "the engine must not offer what it does not
+        want chosen" mistake this codebase keeps running into. Read-only -
+        unlike gain_cp() it does not lazily reset the stale round counter, it
+        just reports 0 spent for a round that has not started counting yet."""
+        if self._bonus_cp_round.get(player) != battle_round:
+            return BONUS_CP_PER_ROUND_CAP
+        return max(0, BONUS_CP_PER_ROUND_CAP - self._bonus_cp_gained.get(player, 0))
+
     def gain_cp(self, player, battle_round, amount=1, reason=None):
         """Single-player CP grant (unlike gain_core_cp(), which is every
         player alike, rule 08.02) - for unit abilities that award CP to
@@ -36,10 +53,10 @@ class CommandPointManager:
         can never be silently skipped by a caller forgetting to pass it -
         every non-core CP grant is expected to go through this one method.
         Returns the amount actually granted (0 if the cap was already hit)."""
+        remaining = self.bonus_cp_remaining(player, battle_round)
         if self._bonus_cp_round.get(player) != battle_round:
             self._bonus_cp_round[player] = battle_round
             self._bonus_cp_gained[player] = 0
-        remaining = max(0, BONUS_CP_PER_ROUND_CAP - self._bonus_cp_gained[player])
         granted = min(amount, remaining)
         if granted <= 0:
             self._log(

@@ -19,6 +19,7 @@ from game import branching_fates as bf
 from game import guide as gd
 from game import protect
 from game import unmodified_six
+from game import units as un
 from game.attached_units import attach, can_attach
 from game.factions import aeldari as ae
 from game.factions import tau_empire as tau
@@ -52,8 +53,16 @@ checks.eq("Ld6+", p.leadership, "6+")
 checks.eq("OC1", p.oc, 1)
 checks.eq("4+ invulnerable", p.invulnerable_save, "4+")
 checks.eq("WS/BS 2+", (p.weapon_skill, p.ballistic_skill), ("2+", "2+"))
-checks.eq("25 mm base - the smallest here",
-          round(p.base_radius_in, 3), round(25 / 2 / 25.4, 3))
+# User: "farseer und eldrad scheinen mir zu klein. sie sollen genau so gross
+# sein, wie warlock conclaive" - so the printed 25 mm base is deliberately not
+# used. Pinned against the Warlock's own profile rather than against a literal,
+# so the two cannot drift apart unnoticed (same call as the Falcon/Devilfish
+# pair). This is not cosmetic: base_radius_in feeds placement, the movement
+# clamp, edge_distance and coherency.
+checks.eq("same base as the Warlock Conclave, not his printed 25 mm",
+          p.base_radius_in, un.WarlockProfile.base_radius_in)
+checks.true("...which really is bigger than the printed 25 mm",
+            p.base_radius_in > round(25 / 2 / 25.4, 3))
 checks.true("PSYKER", p.psyker)
 checks.true("FARSEER", p.farseer)
 checks.true("LEADER, from his CORE line", p.leader)
@@ -299,17 +308,26 @@ checks.eq("...once that target is the marked one",
 # --- 7. Protect: honestly, still not reachable -----------------------------
 print("--- 7. Protect ---")
 
-# This datasheet was expected to make Warlock Conclave's Protect live, the way
-# the Conclave made Wraithguard's Psychic Guidance live. It does not, and the
-# reason is in the printed LEADER lines rather than in the code: Protect needs
-# a Farseer LEADING a unit that contains Warlocks, and a Warlock Conclave is
-# itself a leader unit which the Farseer's own LEADER line does not name. The
-# a bodyguard unit with TWO leaders attached is the only shape that satisfies
-# it. Rule 19.01 allows that where the BODYGUARD datasheet says so (none here
-# does) - or, as Eldrad Ulthran turned out to print, where the arriving LEADER
-# says so. Eldrad is therefore the datasheet that makes Protect live; these
-# checks stay about the PLAIN Farseer, which prints no such clause. See
-# test_eldrad_ulthran.py for the other half.
+# Protect needs a Farseer LEADING a unit that contains Warlocks. This section
+# is about which shapes of that a PLAIN Farseer can reach, and the answer has
+# been revised twice as printed text arrived, so both revisions are recorded
+# here rather than left as a bare set of assertions:
+#
+#   1. First reading: unreachable for a plain Farseer. A Warlock Conclave is
+#      itself a leader unit, so the Farseer cannot attach TO it, and 19.01
+#      allows a bodyguard only one leader.
+#   2. Then Eldrad Ulthran's LEADER line arrived, printing the "even if one
+#      WARLOCKS unit has already been attached" permission - so HE could be the
+#      second unit, and a plain Farseer still could not.
+#   3. Then the Conclave's OWN LEADER text arrived, and it is not an
+#      attachment at all: it is a JOIN whose only printed limit is one Conclave
+#      per unit. So a plain Farseer reaches Protect after all - by attaching
+#      FIRST and letting the Conclave join him. Which is exactly the order
+#      main.py's Guardian Defenders use.
+#
+# What has not changed is that the Farseer cannot attach to a Conclave, nor be
+# the second unit on one. Both are checked below, and so is the order that
+# works - because the difference between them IS the rule.
 conclave = tk.build(ae.WARLOCK_CONCLAVE, "Player 1", name="1 Warlock Conclave 1")
 errors = can_attach(farseer(), conclave)
 checks.true("a Farseer cannot be attached to a Warlock Conclave", bool(errors))
@@ -321,8 +339,19 @@ tk.line_up(body, x=20.0, y=20.0)
 tk.line_up(lord, x=20.0, y=18.5)
 attach(lord, body)
 tk.line_up(conclave, x=20.0, y=17.0)
-checks.true("and a second leader on the same bodyguard is refused too",
-            bool(can_attach(conclave, body)))
+# 19.01's one-leader default is intact - checked with a second FARSEER, which
+# is what it is actually about. This check used to use the Conclave and assert
+# refusal; that was pinning the pre-fetch assumption that a Conclave attaches
+# like any other leader, and it is corrected rather than deleted.
+checks.true("a second FARSEER on the same bodyguard is refused (19.01)",
+            bool(can_attach(farseer(name="1 Farseer 1b"), body)))
+# The Conclave, by contrast, JOINS - its own printed limit is one Conclave per
+# unit, and it says nothing about other leaders. So this is the shape that
+# gives a plain Farseer his Protect.
+checks.eq("...but the Conclave may still join him", can_attach(conclave, body), [])
+with_protect = attach(conclave, body)
+checks.true("...and Protect applies to the merged unit",
+            protect.applies(with_protect))
 # The predicate itself is correct for whichever merge becomes legal: given the
 # components it describes, it fires.
 from game.attached_units import AttachedComponent, BODYGUARD, LEADER  # noqa: E402

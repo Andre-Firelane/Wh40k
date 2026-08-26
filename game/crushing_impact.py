@@ -118,7 +118,7 @@ class CrushingImpactController:
         self.dice_manager.roll(
             count=count, sides=6,
             label=f"Crushing Impact: {self.acting_model.profile.name} (T{count})",
-            target_name=self.enemy_squad.name,
+            target_name=self.enemy_squad.name, target_squad=self.enemy_squad,
         )
         self._pending_roll = True
 

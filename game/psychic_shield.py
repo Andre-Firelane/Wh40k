@@ -41,6 +41,11 @@ revalidate_target_selection() drops the entries for a selection it undoes.
 NOT FIRE OVERWATCH. A snap shot (15.08/15.09) is a ranged attack made at the end
 of the opponent's MOVEMENT phase, and this WHEN names their Shooting phase - so
 the offer is gated on the phase, not merely on "someone shot at me".
+
+AND NOT WHEN THE SHOOTER IS ALREADY INSIDE 18". See the gate in can_use() - a
+shooter that close keeps this target whether the stratagem is used or not, so
+the offer would be a pure interruption. That gate is the one thing here that is
+a choice about WHEN TO ASK rather than about the rule.
 """
 
 from game import attached_units
@@ -112,6 +117,26 @@ class PsychicShieldController:
         if not eligible_unit(target):
             return False
         if not near_friendly_psyker(target, self.all_tokens):
+            return False
+        # RELEVANCE GATE (user: "frage nur nach psychic shield, wenn angreifer
+        # mehr als 18\" entfernt"). Not a heuristic - a certainty, and it is
+        # measured with the SAME yardstick the effect itself is enforced with:
+        # game/shooting.py's _is_valid_target_squad() denies the target only
+        # when NO attacking model is within the limit of ANY target model, i.e.
+        # exactly when the closest pair is beyond it. min_distance_to() is that
+        # closest edge-to-edge pair. So a shooter already inside 18" would be
+        # allowed to keep this target either way and the CP buys literally
+        # nothing against it. Same honest-eligibility line as Fire Overwatch's
+        # _eligible_squads() and The Arro'kon Protocol's "nothing in reach is
+        # big enough" - and it matters more here than for most, because this
+        # trigger fires on EVERY enemy target selection.
+        #
+        # Deliberately not a "the offer is still worth something against some
+        # OTHER unit later this phase" allowance: the effect lasts the phase,
+        # but the prompt names this attacker and this target, and offering it
+        # on a shooter it cannot affect is the interruption the user asked to
+        # be rid of.
+        if attacker.min_distance_to(target) <= PSYCHIC_SHIELD_RANGE_IN:
             return False
         return self.stratagem_controller.can_use(target.owner, self._stratagem, [target])
 

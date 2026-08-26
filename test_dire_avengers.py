@@ -290,4 +290,21 @@ checks.eq("A/B: without the grant the bearer is back to 5+",
 inv_mod.SHIMMERSHIELD_INVULNERABLE_SAVE = saved
 checks.eq("A/B: restored", effective_invulnerable_save(shielded.models[0]), "4+")
 
+print("--- the Exarch is marked as the squad leader ---")
+import testkit as _tk_leader  # noqa: E402
+from game.factions.aeldari import DIRE_AVENGERS as _sheet_for_leader  # noqa: E402
+from game.units import DireAvengerExarchProfile as _ExarchProfile  # noqa: E402
+
+# User report: "bei warp spider und avengers kann ich den exarch nicht
+# unterscheiden". There is no separate Exarch art for this datasheet, so the
+# leader ring/label the renderer draws for squad_leader models is the ONLY
+# thing that tells it apart - and the flag was simply never set here (the
+# Striking Scorpion and Howling Banshee Exarchs already had it).
+checks.true("the Exarch is flagged squad_leader", _ExarchProfile.squad_leader)
+_exarch_squad = _tk_leader.build(_sheet_for_leader, "Player 1", name="1 DIRE_AVENGERS L1")
+_leaders = [m for m in _exarch_squad.models if m.profile.squad_leader]
+checks.eq("exactly one model in the unit carries it", len(_leaders), 1)
+checks.eq("and it is the Exarch", _leaders[0].profile.name, "Dire Avenger Exarch")
+
+
 checks.finish()

@@ -126,10 +126,24 @@ def allocation_target_profile(squad):
     save separately. Left batched deliberately - that is a pre-existing
     property of this engine's dice flow, not something attached units
     introduced, and splitting it would mean a dice roll per model."""
+    model = allocation_target_model(squad)
+    return model.profile if model is not None else None
+
+
+def allocation_target_model(squad):
+    """The MODEL allocation_target_profile() above speaks for - the first
+    living model of the first allocation group that still has one.
+
+    Split out because a save threshold needs more than the profile: an
+    invulnerable save can be granted per model (Waaagh!, Serpent Shield) and
+    Ramshackle worsens the attack's AP against the model taking it, so both
+    game/damage_resolution.py's own resolution and the dice panel's colouring
+    have to ask about a model, not a statline."""
     for group in squad.allocation_groups():
-        if any(not m.is_dead() for m in group):
-            return group[0].profile
-    return squad.models[0].profile if squad.models else None
+        for model in group:
+            if not model.is_dead():
+                return model
+    return squad.models[0] if squad.models else None
 
 
 def max_model_radius(squad, default=0.5):
@@ -405,7 +419,8 @@ class Squad:
         self.aspect_shrine_tokens_used = 0  # ...and how many of them have been spent. Once per battle each, so this only ever grows
         self.flickerjump_active = False  # Warp Spiders' Flickerjump: "until the end of the turn, models in it have a Move characteristic of 24 inches" - read by game/coldstar.py's effective_movement_in() as an OVERRIDE, not a bonus. The other half of the ability ("not eligible to declare a charge") reuses charge_locked_until_end_of_turn below rather than adding a second flag with the same lifetime; see game/flickerjump.py
         self.disembarked_from_this_turn = None  # the TRANSPORT token this unit disembarked from this turn, if any - set by TransportController.confirm_disembark(), read by game/fire_support.py, cleared at end of turn alongside the flags below
-        self.charge_locked_until_end_of_turn = False  # rules 18.04/18.05: Rapid/Combat Disembark and Emergency Disembark set this
+        self.charge_locked_until_end_of_turn = False
+        self.explosives_locked_until_end_of_turn = False  # Swooping Hawks' Grenade Pack Flyover, see game/grenade_pack_flyover.py  # rules 18.04/18.05: Rapid/Combat Disembark and Emergency Disembark set this
         self.fell_back_this_turn = False  # rule 09.07: a Fall Back move sets this - blocks shooting/charging until end of turn, cleared alongside charge_locked_until_end_of_turn
         self.set_up_this_turn = False  # rule 18.02: blocks embarking the same turn a unit was set up; cleared at end of turn
         self.embarked_in = None  # rule 18.02: the TRANSPORT Token this squad is embarked within, or None if it's on the battlefield

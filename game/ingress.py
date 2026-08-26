@@ -1,4 +1,5 @@
 from game.homing_beacon import HOMING_BEACON_MIN_ENEMY_DISTANCE_IN, HOMING_BEACON_RANGE_IN
+from game import unshrouded_truth
 from game.squad import edge_distance
 
 INGRESS_SET_UP_DISTANCE_IN = 6.0
@@ -78,7 +79,13 @@ class IngressController:
         # nothing about the placement RULE outlives the placement. (The
         # stratagem's RESTRICTIONS clause does outlive it, but that lives on
         # the Squad, not here.) None means "use the normal rule".
-        self.shortened_blade_squad = None
+        # The unit whose CURRENT arrival uses the relaxed 6" minimum in place
+        # of rule 20.04's 8", and skips the board-edge band. Armed by TWO
+        # sources with the same printed effect - Retaliation Cadre's The
+        # Shortened Blade (see game/shortened_blade.py) and Baharroth's
+        # Cloudstrider (see game/cloudstrider.py) - which is why it is named
+        # after what it DOES rather than after either of them.
+        self.relaxed_arrival_squad = None
         # Optional callable(squad) - fired once `squad`'s Set Up workflow
         # actually concludes (confirm_ingress() succeeds, or
         # cancel_ingress() abandons it) - wired in main.py to
@@ -86,7 +93,11 @@ class IngressController:
         # Ingress-chained Fire Overwatch offer (rule 15.08) waits for the
         # human to actually finish this placement instead of hijacking it
         # mid-drag (see that method's own docstring for the full bug report).
-        self.on_ingress_resolved = None
+        # Listeners for "this unit is set up on the battlefield" - a LIST since
+        # Swooping Hawks' Grenade Pack Flyover joined Rapid Ingress on it, the
+        # same generalisation on_move_finished and on_squad_finished_shooting
+        # already got.
+        self.on_ingress_resolved = []
 
     def reset_movement_phase(self):
         self.ingressed_this_phase = set()
@@ -94,6 +105,12 @@ class IngressController:
     def can_ingress(self, squad):
         if squad is None or squad not in self.game_state.reserves:
             return False
+        # Seer Council's Unshrouded Truth prints "your unit MUST make an ingress
+        # move this phase", which is only possible if it overrides rule 20.03's
+        # round gate - so it does, and only for the unit it was used on. See
+        # game/unshrouded_truth.py.
+        if unshrouded_truth.applies(squad):
+            return True
         if self.turn_tracker is not None and self.turn_tracker.battle_round < INGRESS_MIN_BATTLE_ROUND:
             return False
         return True
@@ -124,7 +141,14 @@ class IngressController:
 
     def _has_deep_strike(self, squad):
         """Rule 24.09 ([DEEP STRIKE]): only applies "if every model in this
-        unit has this ability" - a mixed unit gets no benefit from it."""
+        unit has this ability" - a mixed unit gets no benefit from it.
+
+        Seer Council's Unshrouded Truth grants it to the unit for this arrival
+        ("your unit has Deep Strike"), which is a UNIT-level grant and therefore
+        not subject to the every-model test - the datasheet ability is what that
+        test is about."""
+        if unshrouded_truth.applies(squad):
+            return True
         return all(m.profile.deep_strike for m in squad.models)
 
     def deep_striking(self, squad):
@@ -145,7 +169,7 @@ class IngressController:
         that is more than 6\"..."), and is strictly the more permissive of the
         two on distance - a player who has just spent 2 CP on it should not
         then be held to the beacon's own 9"."""
-        if self.shortened_blade_squad is squad:
+        if self.relaxed_arrival_squad is squad:
             return SHORTENED_BLADE_MIN_ENEMY_DISTANCE_IN
         if self.homing_beacon_bearer is not None:
             return HOMING_BEACON_MIN_ENEMY_DISTANCE_IN
@@ -191,7 +215,7 @@ class IngressController:
         return False
 
     def _extra_check(self, squad):
-        if self.shortened_blade_squad is squad:
+        if self.relaxed_arrival_squad is squad:
             return self._shortened_blade_extra_check(squad)
         if self.homing_beacon_bearer is not None:
             return self._homing_beacon_extra_check(squad)
@@ -318,7 +342,7 @@ class IngressController:
         bearer = self.homing_beacon_bearer
         min_enemy_distance = self._min_enemy_distance(squad)
 
-        if self.shortened_blade_squad is squad:
+        if self.relaxed_arrival_squad is squad:
             pass  # "anywhere on the battlefield" - only the distance below applies
         elif bearer is not None:
             if not any(
@@ -348,9 +372,9 @@ class IngressController:
                 self.game_log.add(f"{squad.owner}: {squad.name} arrives via Ingress move (rule 20.04).")
             self._ingressing_squad = None
             self.homing_beacon_bearer = None
-            self.shortened_blade_squad = None
-            if self.on_ingress_resolved is not None:
-                self.on_ingress_resolved(squad)
+            self.relaxed_arrival_squad = None
+            for listener in (self.on_ingress_resolved or ()):
+                listener(squad)
 
     def cancel_ingress(self):
         squad = self.setup_controller.setting_up_squad
@@ -359,9 +383,9 @@ class IngressController:
         self.setup_controller.cancel_setup()
         self._ingressing_squad = None
         self.homing_beacon_bearer = None
-        self.shortened_blade_squad = None
-        if self.on_ingress_resolved is not None:
-            self.on_ingress_resolved(squad)
+        self.relaxed_arrival_squad = None
+        for listener in (self.on_ingress_resolved or ()):
+            listener(squad)
 
     def destroy_remaining_reserves(self):
         """Rule 20.03: "At the end of the third battle round... all

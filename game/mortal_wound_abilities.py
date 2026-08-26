@@ -1,0 +1,334 @@
+"""Two Necron abilities that inflict MORTAL WOUNDS by picking a unit and rolling.
+
+Two abilities, one module, because they are the same machine: pick one enemy
+unit in range, roll dice, inflict mortal wounds. Keeping them together means
+the target-picking and the mortal-wound plumbing exist once.
+
+RULES (printed, word for word):
+
+  Living Lightning: "In your Shooting phase, select one enemy unit within 18"
+  of and visible to this model (excluding units with the Lone Operative ability
+  that are not part of an Attached unit and are not within 12" of this model)
+  and roll four D6: for each 4+, that enemy unit suffers 1 mortal wound."
+
+  Matter Absorption: "At the start of your Shooting phase, select one enemy
+  VEHICLE unit within 12" of this model and roll one D6: on a 2+, that enemy
+  unit suffers D3 mortal wounds and this model regains up to that many lost
+  wounds."
+
+THE LONE OPERATIVE CLAUSE is transcribed rather than simplified: rule 24.24's
+protection normally stops a unit being SELECTED as a target beyond 12", and
+this ability restates it for itself because it is not an attack and so would
+otherwise ignore targeting rules entirely. game/status_effects.py's
+lone_operative_range() already answers "does this unit have it right now",
+including Illuminor Szeras's conditional grant, so it is asked rather than
+re-derived.
+
+MATTER ABSORPTION HEALS THE BEARER, and "up to that many" is a cap, not a
+grant: a Void Dragon missing one wound regains one from a roll of 3, not three.
+Its two rolls are separate visible steps - the D6 that decides whether it
+happens at all, then the D3 for how much - because a single combined roll could
+not show which number did what.
+
+Both AI answers are deterministic and use the same measure: the eligible target
+with the highest game/damage_estimate.py value, which is the ranking every
+other deterministic target choice in this engine already uses.
+"""
+
+from game.status_effects import lone_operative_range
+
+LIVING_LIGHTNING_RANGE_IN = 18.0
+LIVING_LIGHTNING_LONE_OPERATIVE_RANGE_IN = 12.0
+LIVING_LIGHTNING_DICE = 4
+MORTAL_WOUND_THRESHOLD = 4
+
+MATTER_ABSORPTION_RANGE_IN = 12.0
+MATTER_ABSORPTION_THRESHOLD = 2      # "on a 2+"
+MATTER_ABSORPTION_DICE_SIDES = 3     # "D3 mortal wounds"
+
+
+def _bearers(squad, attribute):
+    return [m for m in getattr(squad, "models", ()) or ()
+            if getattr(m.profile, attribute, False) and not m.is_dead()]
+
+
+def _enemy_squads(squad, all_tokens):
+    seen = {}
+    for token in all_tokens or ():
+        other = getattr(token, "squad", None)
+        if other is None or token.is_dead() or other.owner == squad.owner:
+            continue
+        seen.setdefault(id(other), other)
+    return list(seen.values())
+
+
+def _gap(model, other_squad):
+    """Edge-to-edge distance from one MODEL to the nearest model of a unit.
+
+    Squad.min_distance_to() measures unit to unit; both abilities here measure
+    from the bearer specifically ("within 12" of THIS MODEL"), which for a
+    multi-model unit is not the same number."""
+    live = [t for t in other_squad.models if not t.is_dead()]
+    if not live:
+        return float("inf")
+    return min(((t.x_in - model.x_in) ** 2 + (t.y_in - model.y_in) ** 2) ** 0.5
+               - t.radius_in - model.radius_in for t in live)
+
+
+# --- Living Lightning -------------------------------------------------------
+
+def has_living_lightning(squad):
+    return bool(_bearers(squad, "living_lightning"))
+
+
+def living_lightning_targets(squad, all_tokens, visible=None):
+    """Every enemy unit this model may select.
+
+    `visible(model, target_squad) -> bool` is supplied by the caller (main.py
+    passes the real line-of-sight test), so this module never re-derives
+    visibility. None means "do not filter", which is what a headless test
+    wants."""
+    out = []
+    for bearer in _bearers(squad, "living_lightning"):
+        for enemy in _enemy_squads(squad, all_tokens):
+            if enemy in out:
+                continue
+            gap = _gap(bearer, enemy)
+            if gap > LIVING_LIGHTNING_RANGE_IN:
+                continue
+            if visible is not None and not visible(bearer, enemy):
+                continue
+            # The printed Lone Operative carve-out.
+            lone = lone_operative_range(enemy, all_tokens)
+            if lone is not None and gap > LIVING_LIGHTNING_LONE_OPERATIVE_RANGE_IN:
+                continue
+            out.append(enemy)
+    return out
+
+
+# --- Matter Absorption ------------------------------------------------------
+
+def has_matter_absorption(squad):
+    return bool(_bearers(squad, "matter_absorption"))
+
+
+def matter_absorption_targets(squad, all_tokens):
+    """"one enemy VEHICLE unit within 12" of this model"."""
+    out = []
+    for bearer in _bearers(squad, "matter_absorption"):
+        for enemy in _enemy_squads(squad, all_tokens):
+            if enemy in out:
+                continue
+            if not any(getattr(m.profile, "vehicle", False) for m in enemy.models if not m.is_dead()):
+                continue
+            if _gap(bearer, enemy) <= MATTER_ABSORPTION_RANGE_IN:
+                out.append(enemy)
+    return out
+
+
+class _MortalWoundOfferController:
+    """Shared plumbing for both abilities: pick a target, roll, allocate.
+
+    Subclasses supply the eligibility test and the roll; everything else - the
+    auto/prompt split, the pending slot, the mortal-wound session - is the same
+    machine, which is why the two abilities share a module at all."""
+
+    label = "Ability"
+
+    def __init__(self, dice_manager=None, decision_manager=None, game_log=None,
+                 game_state=None, auto_players=(), target_pick=None):
+        self.dice_manager = dice_manager
+        self.decision_manager = decision_manager
+        self.game_log = game_log
+        self.game_state = game_state
+        self.auto_players = set(auto_players)
+        # target_pick(attacker, candidates) -> squad. main.py passes the shared
+        # damage-value ranking, so the AI uses the same measure as every other
+        # deterministic target choice; None falls back to name order, which
+        # keeps a headless test reproducible.
+        self.target_pick = target_pick
+        self._pending = None
+        self.mortal_wound_session = None
+
+    def _log(self, message, file_only=False):
+        if self.game_log is not None:
+            self.game_log.add(message, file_only=file_only)
+
+    def _tokens(self):
+        return list(self.game_state.tokens) if self.game_state is not None else []
+
+    @property
+    def is_busy(self):
+        return self._pending is not None
+
+    def _pick(self, squad, targets):
+        """Which enemy unit to hit. `squad` is passed so the ranking can use
+        the shared damage estimate, which needs an attacker to mean anything -
+        without it the measure collapses to "biggest unit", the exact bias
+        game/damage_estimate.py exists to avoid."""
+        if self.target_pick is not None:
+            chosen = self.target_pick(squad, targets)
+            if chosen is not None:
+                return chosen
+        return sorted(targets, key=lambda s: s.name)[0]
+
+    def _inflict(self, target, wounds):
+        if wounds <= 0:
+            return
+        from game.damage_resolution import MortalWoundAllocationSession
+        self.mortal_wound_session = MortalWoundAllocationSession(
+            target, wounds, dice_manager=self.dice_manager,
+            log=(lambda m: self._log(m)) if self.game_log is not None else None)
+
+
+class LivingLightningController(_MortalWoundOfferController):
+    """The Plasmancer's. Offered once per Shooting phase per bearer unit."""
+
+    label = "Living Lightning"
+
+    def __init__(self, *args, visible=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        # visible(model, squad) -> bool. main.py passes the real line-of-sight
+        # test; None means no filtering, which is what a headless test wants.
+        self.visible = visible
+        self._used_this_phase = set()
+
+    def reset_phase(self):
+        self._used_this_phase.clear()
+
+    def can_use(self, squad):
+        return (self._pending is None
+                and has_living_lightning(squad)
+                and id(squad) not in self._used_this_phase
+                and bool(living_lightning_targets(squad, self._tokens(), self.visible)))
+
+    def offer_at_shooting_phase(self, squads, player):
+        for squad in sorted((s for s in squads if s.owner == player), key=lambda s: s.name):
+            if self.can_use(squad):
+                return self.offer(squad)
+        return False
+
+    def offer(self, squad):
+        if not self.can_use(squad):
+            return False
+        targets = living_lightning_targets(squad, self._tokens(), self.visible)
+        if squad.owner in self.auto_players or self.decision_manager is None:
+            return self._use(squad, self._pick(squad, targets))
+        options = [(f"Living Lightning: {t.name}", (lambda target=t: self._use(squad, target)))
+                   for t in targets]
+        options.append(("Decline", None))
+        self.decision_manager.request(
+            squad.owner, f"{squad.name}: Living Lightning - strike which unit?", options)
+        return True
+
+    def _use(self, squad, target):
+        if target is None:
+            return False
+        self._used_this_phase.add(id(squad))
+        self._pending = {"squad": squad, "target": target}
+        self.dice_manager.roll(
+            LIVING_LIGHTNING_DICE, 6, label=self.label,
+            success_threshold=MORTAL_WOUND_THRESHOLD,
+            target_name=target.name, attacker_squad=squad, target_squad=target)
+        return True
+
+    def on_dice_acknowledged(self):
+        if self._pending is None:
+            return False
+        ctx, self._pending = self._pending, None
+        values = (self.dice_manager.last_values if self.dice_manager is not None else None) or []
+        wounds = sum(1 for v in values if v >= MORTAL_WOUND_THRESHOLD)
+        name = ctx["squad"].name
+        self._log(f"Living Lightning ({name}): {values} - "
+                  f"{ctx['target'].name} suffers {wounds} mortal wound(s).")
+        self._inflict(ctx["target"], wounds)
+        return True
+
+
+class MatterAbsorptionController(_MortalWoundOfferController):
+    """The Void Dragon's. Two visible rolls, deliberately: the D6 that decides
+    whether it happens at all, then the D3 for how much. One combined roll
+    could not show which number did what."""
+
+    label = "Matter Absorption"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._used_this_phase = set()
+        self._stage = None
+
+    def reset_phase(self):
+        self._used_this_phase.clear()
+
+    def can_use(self, squad):
+        return (self._pending is None
+                and has_matter_absorption(squad)
+                and id(squad) not in self._used_this_phase
+                and bool(matter_absorption_targets(squad, self._tokens())))
+
+    def offer_at_shooting_phase(self, squads, player):
+        for squad in sorted((s for s in squads if s.owner == player), key=lambda s: s.name):
+            if self.can_use(squad):
+                return self.offer(squad)
+        return False
+
+    def offer(self, squad):
+        """Not optional - the printed text says "select", not "you can". So the
+        only decision is WHICH vehicle, and with a single candidate there is
+        nothing to ask at all."""
+        if not self.can_use(squad):
+            return False
+        targets = matter_absorption_targets(squad, self._tokens())
+        if len(targets) == 1 or squad.owner in self.auto_players or self.decision_manager is None:
+            return self._use(squad, self._pick(squad, targets))
+        options = [(f"Matter Absorption: {t.name}", (lambda target=t: self._use(squad, target)))
+                   for t in targets]
+        self.decision_manager.request(
+            squad.owner, f"{squad.name}: Matter Absorption - drain which vehicle?", options)
+        return True
+
+    def _use(self, squad, target):
+        if target is None:
+            return False
+        self._used_this_phase.add(id(squad))
+        self._pending = {"squad": squad, "target": target}
+        self._stage = "gate"
+        self.dice_manager.roll(
+            1, 6, label=self.label, success_threshold=MATTER_ABSORPTION_THRESHOLD,
+            target_name=target.name, attacker_squad=squad, target_squad=target)
+        return True
+
+    def on_dice_acknowledged(self):
+        if self._pending is None:
+            return False
+        values = (self.dice_manager.last_values if self.dice_manager is not None else None) or [1]
+        ctx = self._pending
+        if self._stage == "gate":
+            if values[0] < MATTER_ABSORPTION_THRESHOLD:
+                self._pending = None
+                self._stage = None
+                self._log(f"Matter Absorption ({ctx['squad'].name}): rolled a {values[0]}, "
+                          f"needed {MATTER_ABSORPTION_THRESHOLD}+ - nothing is drained.")
+                return True
+            self._stage = "amount"
+            self.dice_manager.roll(
+                1, MATTER_ABSORPTION_DICE_SIDES, label=f"{self.label} - mortal wounds",
+                target_name=ctx["target"].name, attacker_squad=ctx["squad"],
+                target_squad=ctx["target"])
+            return True
+        self._pending = None
+        self._stage = None
+        wounds = values[0]
+        target, squad = ctx["target"], ctx["squad"]
+        # "this model regains UP TO that many lost wounds" - a cap, not a grant:
+        # a Void Dragon one wound short regains one from a roll of 3.
+        healed = 0
+        for bearer in _bearers(squad, "matter_absorption"):
+            missing = bearer.profile.wounds - bearer.current_wounds
+            healed = max(0, min(wounds, missing))
+            bearer.current_wounds += healed
+            break
+        self._log(f"Matter Absorption ({squad.name}): {target.name} suffers {wounds} mortal "
+                  f"wound(s); {squad.name} regains {healed}.")
+        self._inflict(target, wounds)
+        return True

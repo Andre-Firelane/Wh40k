@@ -160,7 +160,7 @@ def hit_modifiers_for(wounds, support_system):
     if not support_system:
         # A/B: same model, same wounds, ability switched off - so a
         # difference can only come from the ability itself.
-        m_.profile = type("NoWSS", (type(m_.profile),), {"weapon_support_system": False})
+        m_.profile = type("NoWSS", (type(m_.profile),), {"ignores_hit_modifiers": False})
     tgt_ = make_target()
     tokens_ = list(sq_.models) + list(tgt_.models)
     sc_ = ShootingController(all_tokens=tokens_, player_name="Player 1")
@@ -188,9 +188,9 @@ check("at 4 wounds, WITH the ability EVERY worsening modifier is ignored",
 check("...including ones from other sources in the same list (Benefit of Cover)",
       any(m.amount > 0 and m.source != "Damaged" for m in damaged_without)
       and not any(m.amount > 0 for m in damaged_with))
-check("the Riptide profile actually carries the ability", RiptideProfile.weapon_support_system is True)
+check("the Riptide profile actually carries the ability", RiptideProfile.ignores_hit_modifiers is True)
 check("no other datasheet gained it by accident",
-      not build_squad(KROOT_CARNIVORES, "Player 2", name="K").models[0].profile.weapon_support_system)
+      not build_squad(KROOT_CARNIVORES, "Player 2", name="K").models[0].profile.ignores_hit_modifiers)
 
 
 # --- 5. Nova Charge ------------------------------------------------------

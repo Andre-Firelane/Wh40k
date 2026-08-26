@@ -36,6 +36,7 @@ from game.decision import DecisionManager
 from game.factions import aeldari as ae
 from game.factions import tau_empire as tau
 from game.leadership import leadership_success, leadership_threshold
+from game.movement import MovementController
 from game.stratagems import StratagemController
 from game.turn import PHASE_COMMAND, PHASE_FIGHT, PHASE_MOVEMENT, PHASE_SHOOTING
 from game.weapons import MELEE
@@ -378,14 +379,41 @@ s7["dm"].choose(1)
 checks.eq("declining leaves the selection alone", sh7.target_squad, s7["scene"]["target"])
 checks.eq("...and costs no CP", s7["points"].cp[AELDARI], 6)
 
-# An attacker already INSIDE 18" keeps its target - the shield buys nothing there.
+# An attacker already INSIDE 18" is not even ASKED. User: "frage nur nach
+# psychic shield, wenn angreifer mehr als 18\" entfernt" - and that is a
+# certainty rather than a preference: _is_valid_target_squad() only denies a
+# target when NO attacking model is within the limit, so a shooter this close
+# keeps it either way and the CP would buy nothing. Matters because this
+# trigger fires on EVERY enemy target selection.
 s8 = shield_scene(gap=6.0)
 sh8 = s8["scene"]["shooting"]
 sh8.start_shooting(s8["scene"]["attacker"])
 sh8.choose_target_squad(s8["scene"]["target"])
-if s8["dm"].is_pending:
-    s8["dm"].choose(0)
-checks.eq("a shooter within 18\" keeps its target", sh8.target_squad, s8["scene"]["target"])
+checks.true("precondition: the shooter really is inside 18\"",
+            s8["scene"]["attacker"].min_distance_to(s8["scene"]["target"]) <= 18.0)
+checks.eq("a shooter within 18\" is not offered the shield at all",
+          s8["dm"].is_pending, False)
+checks.eq("...and keeps its target", sh8.target_squad, s8["scene"]["target"])
+checks.eq("...and no CP moved", s8["points"].cp[AELDARI], 6)
+
+# A/B: with the gate's range zeroed the same close-range scene is offered
+# again - which is what it used to do, and what the report was about.
+_real_range = ps.PSYCHIC_SHIELD_RANGE_IN
+ps.PSYCHIC_SHIELD_RANGE_IN = 0.0
+try:
+    s8b = shield_scene(gap=6.0)
+    s8b["scene"]["shooting"].start_shooting(s8b["scene"]["attacker"])
+    s8b["scene"]["shooting"].choose_target_squad(s8b["scene"]["target"])
+    checks.true("A/B: without the gate the close shooter IS offered it",
+                s8b["dm"].is_pending)
+finally:
+    ps.PSYCHIC_SHIELD_RANGE_IN = _real_range
+
+# The far shooter is still asked - the gate must not swallow the real case.
+s8c = shield_scene(gap=24.0)
+s8c["scene"]["shooting"].start_shooting(s8c["scene"]["attacker"])
+s8c["scene"]["shooting"].choose_target_squad(s8c["scene"]["target"])
+checks.true("a shooter beyond 18\" is still offered it", s8c["dm"].is_pending)
 
 
 
@@ -489,8 +517,231 @@ checks.eq("with the far unit out of reach the shielded one is still excluded",
 checks.true("and the activation does not hang at the select-targets step",
             sh_b.state != "choosing_target")
 
+# --- 6c. and it does not roll the Hit dice before the defender answers ------
+# User report: "bei psychic shield kann ich erst entscheiden, wenn der hit roll
+# schon gewuerfelt wird. das ist falsch. die ki muss mit dem hitroll warten,
+# bis ich mich entschieden habe." The AI used to pick the target and the weapon
+# in one call, and choose_weapon() throws the Hit roll immediately - so the
+# dice were on screen before the prompt could be answered, for a target the
+# attacker was about to lose.
+print("--- 6c. the AI waits for the answer before rolling ---")
+
+class _ShootAt:
+    """Picks the option aimed at one named unit - _Shoot takes the FIRST shoot
+    option, which here is the nearby decoy, and a shooter that close is
+    (correctly) never offered the shield at all."""
+
+    def __init__(self, name):
+        self.name = name
+
+    def decide(self, observation, *a, **k):
+        actions = observation.get("available_actions", []) if isinstance(observation, dict) else []
+        for i, action in enumerate(actions):
+            if action.get("type") == "shoot" and action.get("target") == self.name:
+                return i
+        raise AssertionError(f"no shoot option for {self.name}")
+
+
+c = ai_scene()
+sh_c = c["scene"]["shooting"]
+dice_c = c["scene"]["dice"]
+acted_c = agent_driver._handle_shooting(
+    _ShootAt(c["scene"]["target"].name), agent_driver.AIMemory(), FOE,
+    c["scene"]["state"].tokens, sh_c, None, None,
+)
+checks.true("the AI took its shooting action", acted_c)
+checks.true("the shield is being offered", c["scene"]["decision"].is_pending)
+checks.eq("...to the defender", c["scene"]["decision"].player, AELDARI)
+checks.eq("NO Hit roll has been thrown yet", dice_c.is_pending, False)
+checks.eq("...and no weapon group was opened", sh_c.current_group, None)
+checks.eq("...the activation waits at the weapon step", sh_c.state, "choosing_weapon")
+
+# Declining lets it carry straight on - the wait must not become a stall.
+def _drive_shooting(scene, shooting, name, limit=6):
+    """Keep handing the AI its turn until it throws dice. More than one call
+    is normal and has nothing to do with the wait: weapon_eligibility() lists
+    this Strike Team's 12" Pulse Pistols first, the AI takes weapons[0][0]
+    without checking reach, and that group resolves to nothing at 24" - so the
+    Pulse Rifles are only reached on the NEXT call. Measured, self-correcting
+    (the spent group leaves remaining_weapon_types), and pre-existing; asserted
+    around rather than pinned to a single call."""
+    for _ in range(limit):
+        agent_driver._handle_shooting(
+            _ShootAt(name), agent_driver.AIMemory(), FOE,
+            scene["state"].tokens, shooting, None, None,
+        )
+        if scene["dice"].is_pending:
+            return True
+    return False
+
+
+c["scene"]["decision"].choose(1)
+checks.true("once declined, the Hit roll follows",
+            _drive_shooting(c["scene"], sh_c, c["scene"]["target"].name))
+checks.true("...against the target that was selected all along",
+            sh_c.target_squad is c["scene"]["target"])
+
+# A/B: a shot with no reaction pending must NOT be delayed by this.
+d = ai_scene()
+d["shield"].decision_manager = None          # nothing can be offered
+sh_d = d["scene"]["shooting"]
+agent_driver._handle_shooting(
+    _ShootAt(d["scene"]["target"].name), agent_driver.AIMemory(), FOE,
+    d["scene"]["state"].tokens, sh_d, None, None,
+)
+checks.eq("A/B: with nothing offered the AI is not held at the target step",
+          sh_d.state, "choosing_weapon")
+checks.eq("A/B: ...and nothing is waiting on the defender",
+          d["scene"]["decision"].is_pending, False)
+checks.true("A/B: ...so it gets to the Hit roll unimpeded",
+            _drive_shooting(d["scene"], sh_d, d["scene"]["target"].name))
+
+
+# --- 8. Unshrouded Truth -------------------------------------------------
+print("--- 8. Unshrouded Truth ---")
+
+from game import ingress as ingress_mod  # noqa: E402
+from game import unshrouded_truth as ut  # noqa: E402
+from game.game_state import GameState  # noqa: E402
+from game.ingress import IngressController  # noqa: E402
+from game.setup import SetupController  # noqa: E402
+
+
+def ut_scene(phase=PHASE_MOVEMENT, owner_turn=AELDARI, cp=6, psyker_gap=4.0, battle_round=1):
+    sc_strat, points, log = strats(cp)
+    state = GameState()
+    unit = guardians(name="1 Guardian Defenders UT")
+    caster = conclave(name="1 Warlock Conclave UT")
+    foe = tk.build(tau.STRIKE_TEAM, FOE, name="1 Strike Team UT")
+    tk.line_up(unit, x=20.0, y=20.0)
+    tk.line_up(caster, x=20.0, y=20.0 + psyker_gap)
+    tk.line_up(foe, x=20.0, y=50.0)
+    for squad in (unit, caster, foe):
+        for model in squad.models:
+            state.add_token(model)
+    tt = tk._tracker(phase, owner=owner_turn)
+    tt.battle_round = battle_round
+    dice = tk.RecordingDice()
+    mv = MovementController([], log, owner_turn, dice, tt, state.tokens)
+    setup = SetupController(state, [], state.tokens, log)
+    ing = IngressController(setup, state, state.tokens, game_log=log, turn_tracker=tt)
+    ctrl = ut.UnshroudedTruthController(
+        sc_strat, game_state=state, movement_controller=mv, turn_tracker=tt,
+        game_log=log, all_tokens=state.tokens,
+    )
+    return dict(ctrl=ctrl, unit=unit, state=state, ing=ing, setup=setup, mv=mv,
+                points=points, log=log, tt=tt, foe=foe)
+
+
+u = ut_scene()
+checks.true("usable in your own Movement phase", u["ctrl"].can_use(u["unit"]))
+checks.eq("not in the opponent's", ut_scene(owner_turn=FOE)["ctrl"].can_use(
+    ut_scene(owner_turn=FOE)["unit"]), False)
+checks.eq("not in another phase", ut_scene(phase=PHASE_SHOOTING)["ctrl"].can_use(
+    ut_scene(phase=PHASE_SHOOTING)["unit"]), False)
+checks.eq("no Psyker within 9 inches: refused", ut_scene(psyker_gap=20.0)["ctrl"].can_use(
+    ut_scene(psyker_gap=20.0)["unit"]), False)
+checks.eq("no CP: refused", ut_scene(cp=0)["ctrl"].can_use(ut_scene(cp=0)["unit"]), False)
+u_moved = ut_scene()
+u_moved["mv"].moved_squad_ids.add(u_moved["unit"])
+checks.eq("a unit that already moved this phase is refused", u_moved["ctrl"].can_use(u_moved["unit"]), False)
+# "Selected to move" is not "highlighted in the UI" - and getting that wrong
+# would have made the ActionPanel button unreachable, since the panel only draws
+# for the highlighted squad.
+u_sel = ut_scene()
+u_sel["mv"].select(u_sel["unit"].models[0])
+checks.true("a merely SELECTED squad still qualifies - the button has to be reachable",
+            u_sel["ctrl"].can_use(u_sel["unit"]))
+u_mid = ut_scene()
+u_mid["mv"].select(u_mid["unit"].models[0])
+u_mid["mv"].start_move()
+checks.true("...but a squad whose move has STARTED does not",
+            not u_mid["ctrl"].can_use(u_mid["unit"]))
+u_setup = ut_scene()
+u_setup["unit"].set_up_this_turn = True
+checks.eq("...and one that was set up this turn too", u_setup["ctrl"].can_use(u_setup["unit"]), False)
+u_wraith = ut_scene()
+checks.eq("a WRAITH CONSTRUCT unit is excluded",
+          u_wraith["ctrl"].can_use(tk.build(ae.WRAITHGUARD, AELDARI, name="1 Wraithguard UT")), False)
+
+# The move itself: board -> Strategic Reserves.
+u2 = ut_scene()
+u2["unit"].ingress_locked = True          # a stale lock from an earlier arrival
+on_board_before = len([t for t in u2["state"].tokens if t.squad is u2["unit"]])
+checks.true("the unit starts on the board", on_board_before > 0)
+checks.true("using it succeeds", u2["ctrl"].use(u2["unit"]))
+checks.eq("...its models leave the board",
+          [t for t in u2["state"].tokens if t.squad is u2["unit"]], [])
+checks.true("...and the unit is in Strategic Reserves", u2["unit"] in u2["state"].reserves)
+checks.eq("...the stale ingress lock is cleared - that arrival was undone",
+          u2["unit"].ingress_locked, False)
+checks.eq("...1 CP spent", 6 - u2["points"].cp[AELDARI], 1)
+checks.true("...and the grant is up", ut.applies(u2["unit"]))
+
+# "Your unit has Deep Strike" - a UNIT-level grant, so not subject to 24.09's
+# every-model test (Guardian Defenders have no printed Deep Strike at all).
+checks.eq("no model of it has printed Deep Strike",
+          any(m.profile.deep_strike for m in u2["unit"].models), False)
+checks.true("...but it deep strikes for this arrival", u2["ing"].deep_striking(u2["unit"]))
+
+# "must make an ingress move THIS phase" - which needs rule 20.03's round gate
+# lifted, and only for this unit.
+checks.eq("it is battle round 1", u2["tt"].battle_round, 1)
+checks.true("it may ingress anyway", u2["ing"].can_ingress(u2["unit"]))
+other_reserve = guardians(name="1 Guardian Defenders PLAIN")
+u2["state"].reserves.append(other_reserve)
+checks.eq("...while an ordinary reserve unit still may not (20.03)",
+          u2["ing"].can_ingress(other_reserve), False)
+
+# "sofort wieder platzieren": the owed arrival is handed over exactly once.
+checks.eq("the placement is owed", u2["ctrl"].pending_placement, u2["unit"])
+taken = u2["ctrl"].take_pending_placement()
+checks.eq("...taken once", taken, u2["unit"])
+checks.eq("...and not twice", u2["ctrl"].take_pending_placement(), None)
+
+# And it really can come back down, in round 1, away from the board edge.
+u2["ing"].start_ingress(u2["unit"], 22.0, 30.0)
+checks.true("the arrival starts", u2["setup"].setting_up_squad is u2["unit"])
+# Two rows, not tk.line_up(): eleven models at 1.4" spacing span 14" and would
+# break rule 09.02's 9" limit - the placement has to be legal for the confirm to
+# tell us anything about the stratagem.
+for n, model in enumerate(u2["unit"].models):
+    model.x_in = 22.0 + (n % 6) * 1.4
+    model.y_in = 30.0 + (n // 6) * 1.4
+u2["ing"].confirm_ingress()
+checks.eq("...and confirms", u2["setup"].setting_up_squad, None)
+checks.true("the unit is back on the board",
+            any(t.squad is u2["unit"] for t in u2["state"].tokens))
+checks.eq("...and out of reserves", u2["unit"] in u2["state"].reserves, False)
+
+# RESTRICTIONS needs no code of its own: 20.04's own lock already blocks the
+# move, and the charge on top - stricter than this stratagem, not looser.
+checks.true("rule 20.04's post-arrival lock is set", u2["unit"].ingress_locked)
+checks.eq("...so it cannot be selected to move", u2["mv"].can_make_move(u2["unit"]), False)
+
+# The grant is phase-scoped, and expires even while the unit sits in reserves.
+u3 = ut_scene()
+u3["ctrl"].use(u3["unit"])
+checks.true("still in reserves, grant up", ut.applies(u3["unit"]) and u3["unit"] in u3["state"].reserves)
+ut.reset_phase(list(u3["state"].reserves))
+checks.eq("the phase ends and the grant goes with it", ut.applies(u3["unit"]), False)
+checks.eq("...so the round gate is back", u3["ing"].can_ingress(u3["unit"]), False)
+
+# A/B: without the grant nothing about the arrival changes.
+u4 = ut_scene()
+u4["state"].reserves.append(u4["unit"])
+for model in list(u4["unit"].models):
+    if model in u4["state"].tokens:
+        u4["state"].tokens.remove(model)
+checks.eq("A/B: a plain unit in reserves cannot ingress in round 1",
+          u4["ing"].can_ingress(u4["unit"]), False)
+checks.eq("A/B: ...nor deep strike", u4["ing"].deep_striking(u4["unit"]), False)
+u4["unit"].unshrouded_truth_active = True
+checks.true("A/B: with the grant, both", u4["ing"].can_ingress(u4["unit"])
+            and u4["ing"].deep_striking(u4["unit"]))
+
 # --- 7. A/B probes -------------------------------------------------------
-print("--- 7. A/B probes ---")
+print("--- 9. A/B probes ---")
 
 saved = ps.PSYCHIC_SHIELD_RANGE_IN
 victim2 = guardians(name="1 Guardian Defenders 8")

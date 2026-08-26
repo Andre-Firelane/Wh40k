@@ -44,6 +44,27 @@ WAAAGH_BIGGEST_AND_BEST_ATTACKS_BONUS = 4  # Warboss's own "Da Biggest and da Be
 WAAAGH_KRUMPIN_TIME_FEEL_NO_PAIN = "5+"  # Meganobz's own "Krumpin' Time" (user-supplied, not a core rule)
 
 
+def qualifying_players(squads):
+    """Which players' armies count as ORKS for this rule.
+
+    The same derivation game/battle_focus.py's own qualifying_players() uses,
+    and for the same reason it gives: this engine has no army-faction
+    declaration, so "your Army Faction is ORKS" is read as "this player's army
+    contains units with the Waaagh! ability". Derived rather than configured,
+    because a config constant is the thing someone forgets to update - and the
+    failure mode of forgetting is a whole army rule quietly doing nothing, or
+    (as reported) firing for an army that does not have it.
+
+    Meant to be called ONCE, when the armies are complete: army faction is
+    fixed at list-building and does not stop being ORKS when the last Boy
+    dies."""
+    return frozenset(
+        squad.owner for squad in squads
+        if squad.owner is not None
+        and any(getattr(m.profile, "waaagh", False) for m in getattr(squad, "models", ()) or ())
+    )
+
+
 class WaaaghController:
     """Tracks, per player, whether a Waaagh! has been called yet this
     battle (`used_players` - permanent, once per battle) and whether one is
@@ -54,9 +75,33 @@ class WaaaghController:
         self.game_log = game_log
         self.used_players = set()
         self.active_players = set()
+        # Whose army rule this actually IS. Set once by main.py from the built
+        # armies (qualifying_players below).
+        #
+        # None means "nobody has told me", and only THAT lifts the restriction -
+        # so every existing caller and test that never sets it behaves exactly
+        # as before. An EMPTY set is a real answer meaning "no player fields
+        # Orks", which is precisely the reported case (a Necron army against
+        # Aeldari) and must therefore refuse. Writing this as a plain truthiness
+        # test is the obvious mistake and it silently re-opens the bug: an empty
+        # frozenset is falsy.
+        #
+        # Real bug, user report: "die necrons haben soeben einen waagh
+        # ausgerufen. das koennen nur orks." can_call() checked once-per-battle
+        # and the phase, and nothing else - which was safe only for as long as
+        # Player 2 was ALWAYS Orks. The moment Player 2's army became
+        # switchable, ai/agent_driver.py's _maybe_call_waaagh() (pure policy:
+        # "call it in battle round 2") happily called one for a Necron army.
+        #
+        # Gated HERE rather than in the AI, so the human's button is covered by
+        # the same answer: the engine must not offer what it does not want
+        # chosen.
+        self.orks_players = None
         self.on_called = None  # optional callable(player) - see main.py's WaaaghNoticeOverlay wiring, same pattern as StratagemController.on_stratagem_used
 
     def can_call(self, player, turn_tracker):
+        if self.orks_players is not None and player not in self.orks_players:
+            return False   # not an ORKS army - see orks_players
         if player in self.used_players:
             return False
         if turn_tracker is not None and (turn_tracker.phase != PHASE_COMMAND or turn_tracker.turn_owner != player):

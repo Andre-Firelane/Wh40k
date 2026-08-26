@@ -1,5 +1,24 @@
 """How far does the AI actually get, on a board that has an army on it?
 
+MEASURES THE ORK ARMY, DELIBERATELY, AND NO LONGER THE DEFAULT ONE. This script
+builds its own roster from game/factions/orks.py rather than reading
+config.PLAYER2_ARMY, so it kept measuring the Orks when Player 2's default army
+switched to the Necrons - and that is the intended behaviour, not an oversight
+of the kind CLAUDE.md's error class 16 describes.
+
+The reason is that this is a BASELINE, not a test: every number in CLAUDE.md's
+movement-quality section (54% -> 64% achieved progress, 185" -> 206" of ground,
+the "perfect ordering is worth ~3%" result, the rejected formation solver) was
+measured here against this exact army on this exact terrain. Re-pointing it at a
+different army would not update those numbers, it would make them
+incomparable - and the whole value of the series is that a movement change can
+be measured against what came before.
+
+So: this says what the AI's movement is like, it does not say what the current
+default army's movement is like. Those were the same statement until the armies
+were switched; they are not any more. A Necron equivalent, if one is ever
+wanted, belongs beside this as its own baseline rather than replacing it.
+
 WHY THIS EXISTS, and why measure_movement_fixes.py is not enough: that harness
 sets `state.tokens = list(sq.models)` - it measures a board with ONE unit
 standing on it. Blockage by the AI's own units, the single biggest disruptor of

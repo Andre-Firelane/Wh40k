@@ -147,7 +147,7 @@ class IshasFuryController:
             count=ISHAS_FURY_DICE_COUNT, sides=6,
             label=f"Isha's Fury: {acting_squad.name}",
             success_threshold=ISHAS_FURY_SUCCESS_THRESHOLD,
-            target_name=mover.name,
+            target_name=mover.name, target_squad=mover,
         )
         self._pending_roll = True
 

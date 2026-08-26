@@ -1,3 +1,6 @@
+from game import config
+
+
 def _other_player(player):
     return "Player 2" if player == "Player 1" else "Player 1"
 
@@ -45,6 +48,24 @@ class MissionController:
     def total_points(self, player):
         return self.primary_points.get(player, 0) + self.secondary_points.get(player, 0)
 
+    def plays_secondary_cards(self, player):
+        """Whether this player runs the Tactical Secondary card deck
+        (game/secondary_missions.py) INSTEAD of "No Mercy". Read from config at
+        call time, never imported by value, so a harness that empties the tuple
+        really turns it off."""
+        return player in config.SECONDARY_MISSION_CARD_PLAYERS
+
+    def add_secondary_points(self, player, amount):
+        """The one way anything other than "No Mercy" credits Secondary VP -
+        used by the Tactical card deck when the human cashes a card in. Lands
+        in the SAME secondary_points ledger GameStatusPanel and the mission
+        cards already read, so no display needs to know where the points came
+        from."""
+        if amount <= 0:
+            return 0
+        self.secondary_points[player] = self.secondary_points.get(player, 0) + amount
+        return amount
+
     def record_destroyed_squad(self, squad):
         """Call once a squad's model list has reached zero (see main.py's
         remove_dead_models() loop) - credits the OPPONENT of that squad's
@@ -78,7 +99,17 @@ class MissionController:
         the game it happened - e.g. a reactive kill made during the
         opponent's own turn, such as Fire Overwatch, simply waits here
         until `player`'s own turn actually ends) is credited now, then
-        cleared."""
+        cleared.
+
+        Skipped entirely for a player running the Tactical Secondary card deck
+        (game/secondary_missions.py): the deck REPLACES this player's standard
+        Secondary, per the user - "die Missionen sollen nur fuer mich gelten...
+        die KI soll ihre Standard-Mission erstmal behalten". The pending kill
+        count is still cleared, so it cannot build up a backlog that would land
+        all at once if the flag ever changed mid-battle."""
+        if self.plays_secondary_cards(player):
+            self._unscored_kills[player] = 0
+            return 0
         kills = self._unscored_kills.get(player, 0)
         gained = kills * SECONDARY_POINTS_PER_KILL
         if gained:

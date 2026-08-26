@@ -61,7 +61,7 @@ it back is a real option for a human - a bigger D3 is worth more when more
 models are down - which is why the prompt is not simply skipped for everyone.
 """
 
-from game import attached_units
+from game import attached_units, model_return
 from game.formation_layout import returning_positions
 from game.squad import is_below_starting_strength
 from game.turn import PHASE_COMMAND
@@ -201,7 +201,7 @@ class GrotOrderlyController:
         self.dice_manager.roll(
             count=1, sides=GROT_ORDERLY_DICE_SIDES,
             label=f"Grot Orderly: D3 models returned to {squad.name}",
-            target_name=squad.name,
+            target_name=squad.name, target_squad=squad,
         )
 
     def on_dice_acknowledged(self):
@@ -247,12 +247,7 @@ class GrotOrderlyController:
         return self.position_valid(model, x_in, y_in)
 
     def _return_model(self, squad, model, spot):
-        model.x_in, model.y_in = spot
-        model.current_wounds = model.profile.wounds
-        if model not in squad.models:
-            squad.models.append(model)
-        model.squad = squad
-        if model in getattr(squad, "destroyed_models", ()):
-            squad.destroyed_models.remove(model)
-        if self.game_state is not None and model not in self.game_state.tokens:
-            self.game_state.tokens.append(model)
+        """The four halves of "back" - see game/model_return.py, which owns
+        that sequence now that four abilities perform it. Bodyguards return at
+        full wounds, which is set_up_model()'s default."""
+        model_return.set_up_model(model, spot, game_state=self.game_state)

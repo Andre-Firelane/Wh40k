@@ -492,11 +492,14 @@ class PregameController:
     def _enemy_zones_for(self, squad):
         return deployment.enemy_zones(getattr(self.game_state, "deployment_zones", ()), squad.owner)
 
-    def position_valid(self, squad, token, x_in, y_in):
-        """The live per-position predicate for a deployment placement - the
-        same one the green/red overlay paints and clamp_drag() holds the
-        mouse inside, so what you see and what you may do cannot drift."""
-        if not self.setup_controller.position_valid(token, x_in, y_in, squad=squad):
+    def position_valid(self, squad, token, x_in, y_in, ignore_model_overlap=False):
+        """The live per-position predicate for a deployment placement - what
+        clamp_drag() holds the mouse inside, what the AI's placer probes, and
+        (minus one term, see overlay_position_valid()) what the green/red
+        overlay paints."""
+        if not self.setup_controller.position_valid(
+            token, x_in, y_in, squad=squad, ignore_model_overlap=ignore_model_overlap,
+        ):
             return False
         if squad_has_infiltrators(squad):
             return self._infiltrator_position_valid(squad, token.radius_in, x_in, y_in)
@@ -504,6 +507,33 @@ class PregameController:
         if zone is None:
             return True
         return zone.contains_circle(x_in, y_in, token.radius_in)
+
+    def overlay_position_valid(self, squad, token, x_in, y_in):
+        """What the green/red placement overlay paints DURING DEPLOYMENT: the
+        full predicate above minus the "another model already stands here"
+        term (user: "ich finde es sinnlos bei der aufstellung. ich sehe ja,
+        wenn sich modelle ueberlappen").
+
+        The omitted term is the only one you can read off the board with your
+        own eyes - a base is drawn where it stands. Everything the overlay
+        still paints is invisible information: the deployment zone edge
+        (03.01), Dense terrain you may not end on (13.05), the board edge, and
+        the 8" INFILTRATORS bubbles (24.20).
+
+        Deliberately NOT dropped from the real predicate. The rule is still
+        enforced twice over - clamp_drag()/apply_group_drag() slide a model to
+        the boundary rather than onto a neighbour, and confirm_setup() runs
+        Squad.check_model_overlap() - so what this hides can never be
+        committed, only un-nagged about. This is therefore a painted region
+        slightly LARGER than the legal one, and that direction is the safe
+        one: a drag into it stops with the reason visibly standing there.
+
+        Only deployment. Ingress (20.04) and Disembark (18.04/18.05) keep the
+        full picture: those place a unit next to enemies under a distance
+        limit, where a spot lost to a foreign base is neither obvious nor
+        cheap - a failed Emergency Disembark destroys the unit.
+        """
+        return self.position_valid(squad, token, x_in, y_in, ignore_model_overlap=True)
 
     def _infiltrator_position_valid(self, squad, radius_in, x_in, y_in):
         """Rule 24.20 (INFILTRATORS): "During deployment, if every model in a

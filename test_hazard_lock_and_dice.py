@@ -244,4 +244,65 @@ c.eq("the built model carries it", mega.models[0].radius_in, 0.98)
 c.eq("...and matches the plain Warboss on the board", mega.models[0].radius_in,
      plain.models[0].radius_in)
 
+# --- passed saves must not be shown red -------------------------------------
+# User report: "oft werden bestandene rettungswuerfe rot angezeigt". The panel
+# was handed only the AP-modified ARMOUR save, while the engine resolves a save
+# against the armour save OR the invulnerable save - so a die that saved on the
+# invuln was coloured red and grouped with the failures.
+#
+# The Riptide is the plain case: Sv2+ / Inv4+. Under AP-3 its armour is a 5+
+# there, so a rolled 4 fails the armour save and passes the invulnerable one.
+print("--- passed saves are not shown red ---")
+from game.damage_resolution import displayed_save_threshold, save_thresholds  # noqa: E402
+from game.factions.tau_empire import RIPTIDE_BATTLESUIT  # noqa: E402
+from game.weapons import WeaponProfile, RANGED  # noqa: E402
+
+
+class _Ap3Gun(WeaponProfile):
+    name = "AP-3 test gun"
+    weapon_type = RANGED
+    strength = 8
+    ap = -3
+    damage = 1
+
+
+rip = tk.build(RIPTIDE_BATTLESUIT, "Player 1", name="1 Riptide Battlesuit 1")
+model = rip.models[0]
+c.eq("precondition: Sv2+", model.profile.armor_save, "2+")
+c.eq("precondition: Inv4+", model.profile.invulnerable_save, "4+")
+sv, insv, ap = save_thresholds(model, _Ap3Gun())
+c.eq("the armour save is a 5+ under AP-3", sv - ap, 5)
+c.eq("the invulnerable save is unaffected by AP", insv, 4)
+c.eq("so the number a die must reach is 4, not 5",
+     displayed_save_threshold(model, _Ap3Gun()), 4)
+
+# It is the ENGINE's own verdict, not a second opinion: drive a real save roll
+# and check the panel's own success/failure split against what the resolution
+# actually did.
+scene = tk.shooting_scene(BOYZ, RIPTIDE_BATTLESUIT, attacker_owner="Player 2", gap=6.0)
+sc, dice = scene["shooting"], scene["dice"]
+for m in scene["attacker"].models:
+    m.weapons = [_Ap3Gun()]
+# Boyz are BS5+, so 5s to hit and to wound; the SAVE dice then come up 4,
+# which is the number this whole check is about.
+tk.script(*([5] * 20), default=4)
+sc.start_shooting(scene["attacker"])
+sc.choose_target_squad(scene["target"])
+sc.choose_weapon(sc.weapon_eligibility()[0][0])
+for _ in range(8):
+    if dice.is_pending and "Save" in (dice.label or ""):
+        break
+    sc.on_dice_acknowledged()
+c.true("a Save roll is on the table", "Save" in (dice.label or ""))
+c.eq("the panel's threshold is the invulnerable 4+, not the armour 5+",
+     dice.success_threshold, 4)
+c.true("...so a rolled 4 counts as a success", dice.is_success(4))
+c.eq("...and an unmodified 1 still never does", dice.is_success(1), False)
+
+# A/B: the old armour-only number would have called that same 4 a failure.
+_old_threshold = 5                          # Sv3+ worsened by AP-2
+c.eq("A/B: the old armour-only threshold would have shown it red",
+     4 >= _old_threshold, False)
+
+
 c.finish()

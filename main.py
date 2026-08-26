@@ -6,6 +6,7 @@ import time
 import pygame
 
 from ai import deployment_ai
+from ai import observation as ai_observation
 from ai.agent_driver import AIMemory, take_one_action
 from ai.claude_agent import ClaudeAgent
 # from ai.mock_agent import MockAgent  # free/offline alternative - no API key or network needed
@@ -30,6 +31,7 @@ from game.fall_back import FallBackController
 from game.fieldcraft import apply_fieldcraft
 from game.grot_riggers import apply_grot_riggers
 from game.thievin_scavengers import ThievinScavengersController
+from game import waaagh as waaagh_module
 from game.waaagh import WaaaghController
 from game.stratagems import StratagemController
 from game.consolidate import ConsolidateController
@@ -43,6 +45,8 @@ from game.fight import FightController
 from game.insane_bravery import InsaneBraveryController
 from game.game_log import GameLog
 from game.missions import MissionController
+from game.secondary_missions import SecondaryMissionController
+from game.actions import ActionController
 from game.ingress import IngressController
 from game.firing_deck import FiringDeckController
 from game.game_state import GameState
@@ -50,7 +54,7 @@ from game.greater_good import GreaterGoodController
 from game.heroic_intervention import HeroicInterventionController
 from game.homing_beacon import HomingBeaconController
 from game.movement import MovementController
-from game import neocapacitor_shields, scene_io
+from game import neocapacitor_shields, render_resolution, scene_io
 from game.neocapacitor_shields import NeocapacitorShieldsController
 from game.nova_charge import NovaChargeController
 from game.overwatch import FireOverwatchController
@@ -65,6 +69,21 @@ from game.starflare_ignition import StarflareIgnitionController
 from game.ard_as_nails import ArdAsNailsController
 from game.ammo_runt import AmmoRuntController
 from game.grot_orderly import GrotOrderlyController, unit_has_grot_orderly
+from game.reanimation_protocols import ReanimationProtocolsController
+from game.technomancer import TechnomancerController
+from game.resurrection_orb import ResurrectionOrbController
+from game.mortal_wound_abilities import LivingLightningController, MatterAbsorptionController
+from game.wraith_form import WraithFormController
+from game.mechanical_augmentation import AtomicEnergyManipulatorController
+from game.my_will_be_done import MyWillBeDoneDiscount
+from game import overwhelming_obliteration, plasmacyte
+from game.protocol_hungry_void import HungryVoidController
+from game.protocol_sudden_storm import SuddenStormController
+from game.protocol_conquering_tyrant import ConqueringTyrantController
+from game.protocol_undying_legions import UndyingLegionsController
+from game.protocol_eternal_revenant import EternalRevenantController
+from game.protocol_vengeful_stars import VengefulStarsController
+from game import protocol_sudden_storm
 from game.spirit_of_gork import SpiritOfGorkController, unit_has_spirit_of_gork
 from game.ere_we_go import EreWeGoController
 from game import hand_of_asuryan
@@ -84,6 +103,15 @@ from game.fate_inescapable import FateInescapableController
 from game.forewarned import ForewarnedController
 from game.ishas_fury import IshasFuryController
 from game.presentiment_of_dread import PresentimentOfDreadController
+from game import unshrouded_truth as unshrouded_truth_mod
+from game.unshrouded_truth import UnshroudedTruthController
+from game.path_of_the_outcast import PathOfTheOutcastController
+from game import target_acquisition
+from game.target_acquisition import TargetAcquisitionController
+from game.crystalline_targeting import CrystallineTargetingController
+from game.unquenchable_resolve import UnquenchableResolveController
+from game.cloudstrider import CloudstriderController
+from game.grenade_pack_flyover import GrenadePackFlyoverController
 from game.psychic_shield import PsychicShieldController
 from game.tactical_acumen import TacticalAcumenController
 from game.flickerjump import FlickerjumpController
@@ -92,31 +120,17 @@ from game.support_turret import SupportTurretController
 from game.transport import TransportController
 from game.squad import Squad
 from game.token import Token
-from game.factions import build_squad
-from game.factions.orks import (
-    BATTLEWAGON, BATTLEWAGON_ADD_BIG_SHOOTAS, BATTLEWAGON_ADD_ZZAP_GUN, BATTLEWAGON_ARD_CASE,
-    BEAST_SNAGGA_BOYZ, BEASTBOSS, BOYZ, BOYZ_BIG_CHOPPA_TO_POWER_KLAW, DEFF_DREAD, DEFFKOPTAS,
-    FLASH_GITZ, FLASH_GITZ_AMMO_RUNT, GRETCHIN, KILL_RIG, MEGANOBZ, PAINBOY,
-    PAINBOY_GROT_ORDERLY, STORMBOYZ,
-    STORMBOYZ_CHOPPA_TO_POWER_KLAW, TANKBUSTAS, TANKBUSTAS_ADD_ROKKIT_LAUNCHA, TANKBUSTAS_BOSS_NOB_ADD_SMASH_HAMMER,
-    WARBIKERS, WARBIKERS_ADD_POWER_KLAW, WARBOSS, WARBOSS_ADD_ATTACK_SQUIG, WARBOSS_MEGA_ARMOUR,
-)
-from game.factions.tau_empire import (
-    BREACHER_TEAM, CADRE_FIREBLADE, COLDSTAR_ADD_2X_BURST_CANNON, COLDSTAR_ADD_CYCLIC_ION_BLASTER,
-    COMMANDER_FARSIGHT, COMMANDER_IN_COLDSTAR_BATTLESUIT, CRISIS_STARSCYTHE, CRISIS_SUNFORGE,
-    DEVILFISH, DEVILFISH_SEEKER_MISSILE_OPTION,
-    GHOSTKEEL_BATTLESUIT, GHOSTKEEL_FLAMER_TO_FUSION_BLASTER, GHOSTKEEL_FUSION_TO_ION_RAKER,
-    KROOT_CARNIVORES, PATHFINDER_CARBINE_TO_GRENADE_LAUNCHER,
-    PATHFINDER_CARBINE_TO_RAIL_RIFLE, PATHFINDER_TEAM,
-    RIPTIDE_BATTLESUIT, RIPTIDE_BURST_TO_ION_ACCELERATOR, RIPTIDE_PLASMA_TO_TWIN_FUSION,
-    STARSCYTHE_FLAMER_TO_BURST, STEALTH_BATTLESUITS, STRIKE_TEAM, THE_TWIN_LANCE,
-)
+from game import army_lists
+from game.factions.faction import player_factions as derive_player_factions
 from game.input_handler import InputManager
 from game.renderer import Renderer
 from game.shooting import ShootingController
 from game.turn import TurnTracker, PHASE_COMMAND, PHASE_MOVEMENT, PHASE_SHOOTING, PHASE_CHARGE, PHASE_FIGHT
 from game.unbridled_carnage import UnbridledCarnageController
 from game.ui.action_panel import ActionPanel
+from game.ui.army_select import ArmySelectScreen
+from game.ui.map_select import MapSelectScreen
+from game.ui.ai_busy_badge import AiBusyBadge, draw_auto_play_dot
 from game.ui.decision_overlay import DecisionOverlay
 from game.ui.stratagem_notice_overlay import StratagemNoticeOverlay
 from game.ui.waaagh_notice_overlay import WaaaghNoticeOverlay
@@ -126,6 +140,7 @@ from game.ui.dice_panel import DicePanel
 from game.ui.game_status_panel import GameStatusPanel
 from game.ui.log_panel import LogPanel
 from game.ui.mission_cards import MissionCardsOverlay
+from game.ui.mission_draw_overlay import MissionDrawOverlay
 from game.ui.player_banner import PlayerBanner
 from game.ui.reserves_panel import ReservesPanel
 from game.ui.unit_datacard import UnitDatacardOverlay
@@ -151,6 +166,21 @@ def _player_squads(state, owner):
     for candidate in [t.squad for t in state.tokens] + state.embarked_squads + state.reserves:
         if candidate is not None and candidate.owner == owner and candidate not in squads:
             squads.append(candidate)
+    return squads
+
+
+def _all_squads(state, pregame_controller=None):
+    """Every unit in the battle, wherever it currently is - including the
+    ones the pre-game sequence (rule 03.01) has not deployed yet, which are
+    in neither state.tokens nor state.reserves until they are placed.
+    _player_squads() alone would therefore see an empty board for the whole
+    of deployment."""
+    squads = _player_squads(state, "Player 1") + _player_squads(state, "Player 2")
+    if pregame_controller is not None:
+        for owner in ("Player 1", "Player 2"):
+            for squad in pregame_controller.army(owner):
+                if squad not in squads:
+                    squads.append(squad)
     return squads
 
 
@@ -216,27 +246,46 @@ def main(map_key=None):
     load_dotenv()  # picks up ANTHROPIC_API_KEY from the project's local .env, if present
     pygame.init()
 
-    # Which battlefield this run is played on (User: "ich hätte gerne eine 2te
-    # map ... es soll zusätzlich existieren"). Board size, deployment zones,
-    # terrain and both armies' deployment positions all come from it - see
-    # game/maps.py. apply_to_config() has to happen here, before ANY of the
-    # board dimensions below are read: the whole engine and the AI read
-    # config.BOARD_WIDTH_IN/BOARD_HEIGHT_IN directly.
-    battle_map = maps.apply_to_config(maps.get(map_key if map_key is not None else config.MAP))
-
     # Fullscreen is now the default display mode (User: "es wird zeit, einen
     # vollbild modus einzuführen (default)"). The window is sized to
     # whatever the desktop resolution actually is - (0, 0) tells SDL to use
     # the current display mode - instead of a size computed ahead of time
     # from the board's own pixel dimensions like the old fixed-window layout
-    # did. `board` is still built at RENDER_SUPERSAMPLE times
-    # config.PIXELS_PER_INCH (see config.RENDER_SUPERSAMPLE's own comment for
-    # why) - its pixel size is now used only to work out the board area's
-    # aspect ratio below, never to size the window itself.
-    board = Board(config.BOARD_WIDTH_IN, config.BOARD_HEIGHT_IN, config.PIXELS_PER_INCH * config.RENDER_SUPERSAMPLE)
+    # did. `board` is built further down, once board_rect_screen is known -
+    # its render resolution is DERIVED from that rect (see
+    # game/render_resolution.py), so it cannot be created before the window
+    # exists any more.
+    #
+    # THIS NOW COMES FIRST, ahead of the map. It used to sit below
+    # apply_to_config(), which was fine while the map was a setting - but the
+    # map is picked on a screen now (User: "Vor der Fraktion würde ich jetzt
+    # allerdings gerne noch die Map auswählen"), and a screen needs a window to
+    # be drawn on. Nothing between here and apply_to_config() reads a board
+    # dimension, which is what makes the swap safe.
     fullscreen = config.FULLSCREEN
     screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN if fullscreen else 0)
     pygame.display.set_caption("WH40k Board - Step 4")
+
+    # WHICH BATTLEFIELD this run is played on (User: "ich hätte gerne eine 2te
+    # map ... es soll zusätzlich existieren"). Board size, deployment zones,
+    # terrain, and on a small board even WHICH units are fielded
+    # (BattleMap.army_roster) all come from it - see game/maps.py - so it is
+    # asked before anything else, and its tiles show the board itself, rendered
+    # (see game/ui/map_preview.py).
+    #
+    # Skipped when --map named one, and when a saved scene is being opened:
+    # that snapshot records the board it was taken on, and offering a choice
+    # that would then be overruled is worse than not offering one.
+    if map_key is None and config.MAP_SELECT and not config.LOAD_SCENE:
+        map_key = MapSelectScreen(default=config.MAP).run(screen)
+        if map_key is None:
+            pygame.quit()
+            return
+
+    # apply_to_config() has to happen before ANY of the board dimensions below
+    # are read: the whole engine and the AI read config.BOARD_WIDTH_IN/
+    # BOARD_HEIGHT_IN directly.
+    battle_map = maps.apply_to_config(maps.get(map_key if map_key is not None else config.MAP))
     window_width, window_height = screen.get_size()
 
     # UI overlay stays fixed (User: "das ui overlay soll fixed sein"): the
@@ -255,6 +304,39 @@ def main(map_key=None):
     # scale factor applies to both axes - covering the screen exactly,
     # cropping a bit of whichever axis has "extra" board at zoom==min (reach
     # it by panning), same as any further zoom-in already worked.
+    # WHO PLAYS WHICH LIST, asked before anything else is built - the units,
+    # the deployment zones' occupants, the detachment settings and every
+    # controller below all follow from it (User: "ich hätte gerne noch, bevor
+    # das Pre game losgeht, eine Auswahlmöglichkeit für die Völker/listen").
+    #
+    # ONE HUMAN ANSWERS BOTH STEPS. User: "Aber ich wähle für die KI. Die KI
+    # soll nicht selber wählen." - Player 2's list is assigned to the AI here,
+    # never picked by it, which is also why this runs before the agent exists
+    # at all.
+    #
+    # Skipped when a saved scene is being opened: that snapshot's squad names
+    # already say which lists were on the table, and offering a choice that
+    # would then be overruled is worse than not offering one (see the armies=
+    # note in game/scene_io.py).
+    armies = army_lists.configured_choices()
+    if config.LOAD_SCENE:
+        # A snapshot records which lists were on the table (see
+        # scene_io.armies_in()); without adopting them, every unit name in it
+        # would miss and the restore would place nothing. A file written before
+        # that was recorded returns None and falls back to the settings, which
+        # is what it always did.
+        armies = scene_io.armies_in(config.LOAD_SCENE) or armies
+    if config.ARMY_SELECT and not config.LOAD_SCENE:
+        chosen = ArmySelectScreen(defaults=armies).run(screen)
+        if chosen is None:
+            pygame.quit()
+            return
+        armies = chosen
+    # Writes who fields Seer Council and who Awakened Dynasty - the one part of
+    # a list that genuinely cannot be derived from the units on the board. Has
+    # to happen before ANY unit is built, same as maps.apply_to_config() above.
+    army_lists.apply_to_config(armies)
+
     top_row_height = window_height - config.RESERVES_PANEL_HEIGHT
     available_width = window_width - config.LEFT_PANEL_WIDTH - config.RIGHT_PANEL_WIDTH
     board_rect_screen = pygame.Rect(config.LEFT_PANEL_WIDTH, 0, available_width, top_row_height)
@@ -270,6 +352,18 @@ def main(map_key=None):
     # Every renderer.draw_*(board_surface, ...) call and every board-inch/
     # pixel conversion elsewhere is unaffected by any of this - only the
     # camera's own to_native_px()/visible_rect() know zoom/pan even exists.
+    #
+    # The resolution it is rendered at is derived from board_rect_screen and
+    # the map's own size rather than configured - see
+    # game/render_resolution.py (User: "kannst du die auflösung der sprites
+    # noch erhöhen. das ist momentan alles noch sehr pixelig"). At this
+    # resolution the camera never has to invent a pixel: at MAX_ZOOM one
+    # rendered pixel is exactly one screen pixel.
+    render_ppi = render_resolution.board_pixels_per_inch(
+        board_rect_screen.width, board_rect_screen.height,
+        config.BOARD_WIDTH_IN, config.BOARD_HEIGHT_IN,
+    )
+    board = Board(config.BOARD_WIDTH_IN, config.BOARD_HEIGHT_IN, render_ppi)
     board_surface = pygame.Surface((board.width_px, board.height_px))
     camera = Camera(board_rect_screen.width, board_rect_screen.height, board.width_px, board.height_px)
     reserves_panel_rect = pygame.Rect(0, top_row_height, window_width, config.RESERVES_PANEL_HEIGHT)
@@ -311,7 +405,7 @@ def main(map_key=None):
         not field is simply never registered: it was built and is then dropped
         on the floor, which costs a few milliseconds and keeps the roster code
         free of per-map conditionals."""
-        if not battle_map.fields(squad):
+        if not battle_map.fields(squad, armies):
             return squad
         scene_units.append({"squad": squad, "destination": destination, "transport": transport})
         if config.PREGAME_DEPLOYMENT:
@@ -326,496 +420,34 @@ def main(map_key=None):
                 state.add_token(model)
         return squad
 
-    # Player 1 fields the T'au Empire (Retaliation Cadre) list the user
-    # supplied (2026-07-31, replacing the previous 550pt/6-unit roster
-    # wholesale): Char1 Cadre Fireblade, Char2 Commander in Coldstar
-    # Battlesuit, 1x Breacher Team, 2x Strike Team, 1x Crisis Starscythe
-    # Battlesuits, 1x Devilfish, 1x Ghostkeel Battlesuit, 2x Kroot
-    # Carnivores, 1x Stealth Battlesuits - built via the game.factions
-    # scaffold (build_squad()) rather than hand-placed Tokens. Each
-    # Fire-Warrior-type Shas'ui gets whatever gear the list actually lists
-    # for THAT specific model line (Strike Team 2's own Shas'ui gets none
-    # this time, unlike Strike Team 1's); Kroot take no gear (none listed).
-    # User instruction: a 10-model squad forms 2 ranks of 5, not one
-    # spread-out line.
+    # WHO FIELDS WHICH LIST is a per-player choice now, made on the army
+    # selection screen before any of this runs (see game/ui/army_select.py) and
+    # resolved into `armies` above. The three lists themselves live in
+    # game/army_lists.py, one builder each, and every one of them can be built
+    # for EITHER player - which is the whole reason they had to leave main().
     #
-    # Deployment (user instruction, this session): "den fireblade zu den
-    # breachern im devilfish" - Cadre Fireblade embarks in the SAME Devilfish
-    # as the Breacher Team instead of deploying separately (Attached Units
-    # isn't a live mechanic in this engine - same gap as every Leader
-    # ability here, e.g. Ork Tankbustas' own note in game/factions/orks.py -
-    # so "joins them" just means "embarked in the same TRANSPORT", same
-    # convention already used for the Ork Warboss riding along with Boyz 2).
-    # Capacity check: 10 Breacher Fire Warriors + 1 Cadre Fireblade
-    # (INFANTRY, not BATTLESUIT/KROOT/VESPID STINGWINGS, so
-    # transport-eligible) = 11 of the Devilfish's 12-model capacity.
-    # "den coldstar zu den starsythe in reserve" - Commander in Coldstar
-    # Battlesuit and Crisis Starscythe Battlesuits both start in Strategic
-    # Reserves (rule 03.02) TOGETHER instead of the Coldstar deploying on the
-    # board - same "arrives from reserves alongside them" reading of
-    # "joins them", built further below, after the main on-board roster.
+    # Nothing else in this function knows which army is which: the units carry
+    # their own faction keyword, and every army rule in this engine derives its
+    # owner from that (game/battle_focus.py's and game/waaagh.py's
+    # qualifying_players()). The two things that genuinely cannot be derived -
+    # who is running Seer Council and who Awakened Dynasty, because a
+    # detachment is a list-building declaration - were written into config by
+    # army_lists.apply_to_config() at startup.
     #
-    # Player 2 remains the full Ork army list (unaffected by this change,
-    # see its own build further down) - a slow-shooting T'au gunline
-    # (Player 1) facing a pure fast-melee Ork army (Player 2) exercises the
-    # charge/pile-in/consolidate paths this scene is meant to stress.
-    #
-    # Deployment: every position, on either map, is verified clear of the
-    # board edge at the model's own base radius, of every Dense terrain
-    # feature, of every other deployed model, and of rule 09.02's coherency
-    # and 9" spread - see game/maps.py, which is where the positions live and
-    # where each one's provenance is recorded.
-    GUARDIAN_SHIELD_GEAR = ["Guardian Drone", "Shield Drone"]
-    # Real datasheet default (official app screenshot) for Ghostkeel
-    # Battlesuit is Fusion Collider + Twin T'au Flamer (see
-    # game/factions/tau_empire.py's _GHOSTKEEL_LOADOUT) - this squad's own
-    # build ("Battlesuit support system, Ghostkeel fists, Cyclic ion raker,
-    # Twin fusion blaster", user-supplied separately from the datasheet
-    # itself) is reproduced explicitly via these two wargear choices instead
-    # of relying on the coded default to match it. Note: as this army's only
-    # Ghostkeel (unit_index=1), the real list prices this build at 165 pts
-    # (150 base + 15 for the Cyclic Ion Raker) - the list's own stated
-    # "160 pts" doesn't match that arithmetic (same kind of stale/
-    # differently-sequenced number as the Devilfish's own "85 pts" below),
-    # so it's left as an informational mismatch rather than forced to match.
-    GHOSTKEEL_CHOICES = {"Ghostkeel Battlesuit": {GHOSTKEEL_FUSION_TO_ION_RAKER: 1, GHOSTKEEL_FLAMER_TO_FUSION_BLASTER: 1}}
-    # Pathfinder Team (user-supplied list): Shas'ui with 2x Shield Drone +
-    # Grav-inhibitor Drone and a Semi-automatic grenade launcher in place of
-    # his Pulse carbine, plus 3 rank-and-file on Rail rifles - each of those
-    # swaps out that model's own Pulse carbine, exactly as the list has it
-    # ("3 with Close combat weapon, Pulse pistol, Rail rifle"). The Rail
-    # rifle's stat line arrived after the datasheet itself, which is why
-    # these three were briefly built on carbines instead.
-    PATHFINDER_GEAR = ["Shield Drone", "Shield Drone", "Grav-inhibitor Drone"]
-    PATHFINDER_CHOICES = {
-        "Pathfinder Shas'ui": {PATHFINDER_CARBINE_TO_GRENADE_LAUNCHER: 1},
-        "Pathfinder": {PATHFINDER_CARBINE_TO_RAIL_RIFLE: 3},
-    }
-    # Riptide (user-supplied list): "Ion accelerator, 2x Missile pod, Twin
-    # fusion blaster" - the Ion accelerator replaces the Heavy burst cannon,
-    # the Twin fusion blaster the Twin plasma rifle, and the two Missile pods
-    # are the datasheet's own baseline Missile Drones.
-    RIPTIDE_CHOICES = {
-        "Riptide Battlesuit": {RIPTIDE_BURST_TO_ION_ACCELERATOR: 1, RIPTIDE_PLASMA_TO_TWIN_FUSION: 1},
-    }
-    ARMY = [
-        # (datasheet, gear-slot model line name (or None), gear list, color, wargear choices (or None))
-        (BREACHER_TEAM, "Breacher Fire Warrior Shas'ui", GUARDIAN_SHIELD_GEAR, (220, 150, 70), None),
-        (STRIKE_TEAM, "Fire Warrior Shas'ui", GUARDIAN_SHIELD_GEAR, (60, 140, 200), None),
-        (KROOT_CARNIVORES, None, None, (120, 90, 40), None),
-        (PATHFINDER_TEAM, "Pathfinder Shas'ui", PATHFINDER_GEAR, (90, 180, 140), PATHFINDER_CHOICES),
-        (STEALTH_BATTLESUITS, None, None, (100, 100, 150), None),
-        (GHOSTKEEL_BATTLESUIT, None, None, (130, 130, 170), GHOSTKEEL_CHOICES),
-        (RIPTIDE_BATTLESUIT, None, None, (150, 150, 195), RIPTIDE_CHOICES),
-        (THE_TWIN_LANCE, None, None, (210, 190, 120), None),
-    ]
-    # Hand-placed starting positions, one per-model list per ARMY entry, in
-    # the same order - a property of the MAP rather than of the army list
-    # (the two maps have differently shaped zones on different board edges,
-    # so a position from one would be off-board on the other), which is why
-    # both tables live in game/maps.py.
-    #
-    # ONLY used by the legacy --no-deployment mode. With the Pre-game
-    # Sequence (03.01) on - the default - the player deploys this army
-    # himself and these are never read, which is why the roster above was
-    # changed without re-searching them (user: "nicht aufstellen, wir haben
-    # ja jetzt die spieler aufstellung drin").
-    #
-    # They no longer cover the current roster, and that is checked rather
-    # than left to zip() - zip() would silently truncate the army to the
-    # table's length and quietly drop whichever units fell off the end.
-    PLAYER1_MODEL_POSITIONS = battle_map.player1.squads
-    if not config.PREGAME_DEPLOYMENT and len(PLAYER1_MODEL_POSITIONS) != len(ARMY):
-        raise SystemExit(
-            "--no-deployment needs one hand-placed position list per unit, and neither army "
-            f"has them any more: {battle_map.key} carries {len(PLAYER1_MODEL_POSITIONS)} Player 1 "
-            f"lists for {len(ARMY)} units, and Player 2's roster was replaced without positions "
-            "at all. Both army lists were changed on the understanding that the Pre-game Sequence "
-            "(rule 03.01) places them - user: \"deployment kannst du ueberspringen, dafuer haben "
-            "wir jetzt die player aufstellung am anfang\". Run without --no-deployment, or add "
-            "the missing entries to game/maps.py."
+    # `model_positions` is the legacy --no-deployment path's hand-placed table
+    # and is passed only for Player 1, exactly as before; in the normal
+    # Pre-game (03.01) path both get None and nothing is hand-placed. The
+    # tables in game/maps.py have not covered a full roster for two list
+    # revisions, so the builder refuses loudly rather than leaving units piled
+    # on (0, 0) - see army_lists._check_positions().
+    for owner in ("Player 1", "Player 2"):
+        army_lists.get(armies[owner]).build(
+            owner, register_unit, state=state,
+            model_positions=(
+                None if config.PREGAME_DEPLOYMENT or owner != "Player 1"
+                else battle_map.player1.squads
+            ),
         )
-
-    # Player 1's Devilfish (user instruction, from back when both players
-    # still fielded T'au: "gib jedem spieler einen devilfish und packe einen
-    # der breacher squads da rein" - Player 2's own copy is gone now along
-    # with the rest of its T'au roster, see the Boyz build below), carrying
-    # Breacher Team embarked inside it instead of deploying it on the board
-    # directly - and now Cadre Fireblade alongside it (see above).
-    # User-supplied build: "1x Devilfish (85 pts): Accelerator burst cannon,
-    # Armoured hull, 2x Seeker missile, 2x Twin pulse carbine" -
-    # DEVILFISH_SEEKER_MISSILE_OPTION on top of _DEVILFISH_LOADOUT's own
-    # baseline (see game/factions/tau_empire.py). As this army's only
-    # Devilfish (unit_index=1) the real list prices this build at 75 pts,
-    # not the list's own stated "85 pts" (that's the 4th+ unit price) - same
-    # kind of informational mismatch as the Ghostkeel's own note above.
-    #
-    # Placement is per-map (see game/maps.py), like every other position here.
-    DEVILFISH_X, DEVILFISH_Y = battle_map.player1.devilfish
-    DEVILFISH_CHOICES = {"Devilfish": {DEVILFISH_SEEKER_MISSILE_OPTION: 1}}
-    CADRE_FIREBLADE_GEAR = ["Gun Drone", "Gun Drone"]
-
-    # (This used to be wrapped in `for owner, mirror in (("Player 1", False),)`
-    # - a one-element loop with `mirror` hardwired False, left over from the
-    # original T'au-vs-T'au scene where Player 2's army was Player 1's mirrored
-    # across the board. Player 2 has been Orks with its own position tables for
-    # a long time, so both the loop and the flag were dead.)
-    owner = "Player 1"
-    unit_counts = {}
-    for index, (datasheet, leader_line_name, gear_list, color, choices) in enumerate(ARMY):
-        # Empty in Pre-game mode (nothing is hand-placed) - see the guard above.
-        model_positions = PLAYER1_MODEL_POSITIONS[index] if index < len(PLAYER1_MODEL_POSITIONS) else []
-        unit_counts[datasheet.name] = unit_counts.get(datasheet.name, 0) + 1
-        gear = {leader_line_name: gear_list} if leader_line_name is not None else None
-        first_x, first_y = model_positions[0] if model_positions else (0.0, 0.0)
-        squad = build_squad(
-            datasheet, owner=owner, gear=gear, choices=choices,
-            name=f"{owner[-1]} {datasheet.name} {unit_counts[datasheet.name]}",
-            x_in=first_x, y_in=first_y, color=color,
-            # Which copy of this datasheet the list is buying - the same
-            # running count that already names the squad. The official
-            # points list charges more for later copies of some units
-            # (see game/factions/points.py), so this is what makes
-            # Squad.points come out right rather than always quoting the
-            # 1st-unit price.
-            unit_index=unit_counts[datasheet.name],
-        )
-        for model, (x_in, y_in) in zip(squad.models, model_positions):
-            model.x_in, model.y_in = x_in, y_in
-
-        if datasheet is BREACHER_TEAM:
-            # This squad rides in the Devilfish instead - its models
-            # above still got real x_in/y_in (harmless, never read once
-            # embarked - same "inert" note as the Crisis Starscythe/
-            # Commander in Coldstar Battlesuit reserve squads below) but
-            # never reach state.tokens; they live only in
-            # state.embarked_squads, exactly like the old hand-built
-            # Space-Marine demo scene's "Embarked Squad" did, just
-            # reached through a real embark-shaped assignment instead of
-            # constructing it by hand.
-            devilfish_x, devilfish_y = DEVILFISH_X, DEVILFISH_Y
-            devilfish_squad = build_squad(
-                DEVILFISH, owner=owner, choices=DEVILFISH_CHOICES,
-                name=f"{owner[-1]} Devilfish", x_in=devilfish_x, y_in=devilfish_y, color=color,
-            )
-            devilfish_token = devilfish_squad.models[0]
-            register_unit(devilfish_squad)
-
-            # Cadre Fireblade JOINS the Breacher Team as an attached unit
-            # (19.01) - "den fireblade zu den breachern im devilfish".
-            # This used to be approximated as "embarked in the same
-            # TRANSPORT", because attaching wasn't implemented; now it is,
-            # so the Fireblade's Leader ability (24.22) is used for what it
-            # actually says. Attached BEFORE embarking, so the transport
-            # sees one 11-model unit and checks its capacity once against
-            # the real number (12 capacity, so it fits) rather than
-            # admitting two units and being over capacity afterwards.
-            fireblade_squad = build_squad(
-                CADRE_FIREBLADE, owner=owner, gear={"Cadre Fireblade": CADRE_FIREBLADE_GEAR},
-                name=f"{owner[-1]} Cadre Fireblade", x_in=devilfish_x, y_in=devilfish_y, color=color,
-            )
-            squad = attached_units.attach(fireblade_squad, squad, game_state=state)
-
-            register_unit(squad, pregame.EMBARK, transport=devilfish_token)
-        else:
-            register_unit(squad)
-
-    # Commander in Coldstar Battlesuit + Crisis Starscythe Battlesuits: both
-    # in Strategic Reserves (rule 03.02) TOGETHER (user instruction: "den
-    # coldstar zu den starsythe in reserve" - Attached Units isn't live here
-    # either, so "joins them" means "arrives from reserves alongside them",
-    # same reading as Cadre Fireblade/Breacher Team above). Reserve squads
-    # skip the x_in/y_in/lay-out dance every on-board squad above needs -
-    # their models never enter state.tokens until SetupController actually
-    # sets them up (see GameState.add_reserve_squad's own docstring), so
-    # where they're "stacked" beforehand is inert.
-    #
-    # Coldstar Commander's own build ("2x Shield Drone, 2x Burst cannon,
-    # Cyclic ion blaster, High-output burst cannon, Battlesuit fists") -
-    # user clarification: a Coldstar Battlesuit freely fills 4 slots with
-    # weapons or support systems, unlike the single-hardpoint-with-swap
-    # model this engine's other T'au Battlesuit datasheets have - modeled as
-    # the printed default (High-output Burst Cannon + Battlesuit Fists) plus
-    # two pure wargear ADDITIONS (COLDSTAR_ADD_2X_BURST_CANNON,
-    # COLDSTAR_ADD_CYCLIC_ION_BLASTER - see game/factions/tau_empire.py's own
-    # note on both) rather than a real generic N-slot system.
-    COLDSTAR_GEAR = ["Shield Drone", "Shield Drone"]
-    COLDSTAR_CHOICES = {
-        "Commander in Coldstar Battlesuit": {COLDSTAR_ADD_2X_BURST_CANNON: 1, COLDSTAR_ADD_CYCLIC_ION_BLASTER: 1},
-    }
-    coldstar_squad = build_squad(
-        COMMANDER_IN_COLDSTAR_BATTLESUIT, owner="Player 1", gear={"Commander in Coldstar Battlesuit": COLDSTAR_GEAR},
-        choices=COLDSTAR_CHOICES, name="1 Commander in Coldstar Battlesuit 1", color=(200, 170, 90),
-    )
-    # Starflare Ignition System Enhancement (user-supplied, 20 pts,
-    # game/starflare_ignition.py). This army's only BATTLESUIT CHARACTER that
-    # is not an EPIC HERO, so the only legal bearer it has - grant() refuses
-    # anything else.
-    #
-    # The rebuilt army list ("ersetzt die aktuelle") prices this Commander at
-    # a bare 95 pts with no Enhancement, so it was dropped when the roster was
-    # replaced and then explicitly asked back ("gib bitte dem coldstar noch
-    # starflare ignition system") - the army therefore comes to 20 pts more
-    # than the list's own total, on purpose.
-    #
-    # Granted BEFORE the attach() below: attach() re-derives the attached
-    # unit's points from its components' own (game/attached_units.py), so the
-    # 20 pts only reach the army total if they are already on this squad when
-    # the component record is taken.
-    # (No game_log yet - it is created long after the scene is built, so this
-    # is reported alongside the army points total instead, the same way an
-    # attached unit is - see _enhancement_lines().)
-    starflare_ignition.grant(coldstar_squad)
-    # Not added to Reserves on its own: it is attached to the Crisis
-    # Starscythe Battlesuits below (19.01), and only the resulting single
-    # attached unit goes into Reserves - which is what "den coldstar zu den
-    # starsythe in reserve" asks for, and now literally rather than as the
-    # old "two separate units that happen to arrive the same turn"
-    # approximation. Arriving together is no longer a coincidence to
-    # maintain; it is one unit.
-
-    # Crisis Starscythe Battlesuits: user-supplied build - 2x Shas'ui each
-    # with Gun Drone + Shield Drone, 1x Shas'vre with Marker Drone + Shield
-    # Drone, all three with 2x Burst Cannon (Battlesuit fists is the fixed
-    # baseline melee weapon, never swapped). The datasheet's own real
-    # default (official app screenshot) is 1 Burst Cannon + 1 T'au Flamer
-    # per model (see game/factions/tau_empire.py's _STARSCYTHE_LOADOUT) -
-    # this squad's own "2x Burst Cannon" build is reproduced explicitly via
-    # STARSCYTHE_FLAMER_TO_BURST on every model instead of relying on the
-    # coded default to match it (same pattern as GHOSTKEEL_CHOICES above).
-    # gear is keyed by the datasheet's own internal line names (the 2
-    # Shas'ui are modeled as two separate count=1 ModelLines so each can
-    # take its own independent pair of drones - see CRISIS_STARSCYTHE's own
-    # definition for why). Note: as this army's only Crisis Starscythe unit
-    # (unit_index=1), the real list prices this build at 90 pts (all flamer
-    # swaps are free) - the list's own stated "110 pts" doesn't match that
-    # arithmetic, same kind of informational mismatch as the Ghostkeel's own
-    # note above.
-    STARSCYTHE_SHAS_VRE_GEAR = ["Marker Drone", "Shield Drone"]
-    STARSCYTHE_SHAS_UI_GEAR = ["Gun Drone", "Shield Drone"]
-    STARSCYTHE_LINES = ("Crisis Starscythe Shas'vre", "Crisis Starscythe Shas'ui (1)", "Crisis Starscythe Shas'ui (2)")
-    STARSCYTHE_GEAR = {
-        "Crisis Starscythe Shas'vre": STARSCYTHE_SHAS_VRE_GEAR,
-        "Crisis Starscythe Shas'ui (1)": STARSCYTHE_SHAS_UI_GEAR,
-        "Crisis Starscythe Shas'ui (2)": STARSCYTHE_SHAS_UI_GEAR,
-    }
-    STARSCYTHE_CHOICES = {line: {STARSCYTHE_FLAMER_TO_BURST: 1} for line in STARSCYTHE_LINES}
-    starscythe_squad = build_squad(
-        CRISIS_STARSCYTHE, owner="Player 1", gear=STARSCYTHE_GEAR, choices=STARSCYTHE_CHOICES,
-        name="1 Crisis Starscythe Battlesuits 1", color=(170, 130, 200),
-    )
-    # The Commander in Coldstar Battlesuit built above leads this unit
-    # (19.01) - the points list's own "LEADER: ... Crisis Starscythe
-    # Battlesuits" line makes the pairing legal, which attach() checks.
-    starscythe_squad = attached_units.attach(coldstar_squad, starscythe_squad, game_state=state)
-    register_unit(starscythe_squad, pregame.RESERVES)
-
-    # Crisis Sunforge Battlesuits + Commander Farsight (user instruction:
-    # "farsight in die sunforge"). Built here rather than in ARMY above for
-    # the same reason Crisis Starscythe is: its drones are per MODEL LINE
-    # (the two Shas'ui are separate count=1 ModelLines so each can take its
-    # own pair), which the single gear-slot name an ARMY entry carries
-    # cannot express.
-    #
-    # User-supplied build: both Shas'ui with Gun Drone + Shield Drone, the
-    # Shas'vre with Marker Drone + Shield Drone; every model keeps the
-    # printed 2x Fusion blaster + Battlesuit fists, so there are no wargear
-    # choices to make.
-    SUNFORGE_GEAR = {
-        "Crisis Sunforge Shas'vre": ["Marker Drone", "Shield Drone"],
-        "Crisis Sunforge Shas'ui (1)": ["Gun Drone", "Shield Drone"],
-        "Crisis Sunforge Shas'ui (2)": ["Gun Drone", "Shield Drone"],
-    }
-    sunforge_squad = build_squad(
-        CRISIS_SUNFORGE, owner="Player 1", gear=SUNFORGE_GEAR,
-        name="1 Crisis Sunforge Battlesuits 1", color=(200, 120, 90),
-    )
-    farsight_squad = build_squad(
-        COMMANDER_FARSIGHT, owner="Player 1", name="1 Commander Farsight 1", color=(220, 140, 80),
-    )
-    # The points list's own "LEADER: ... Crisis Sunforge Battlesuits" line
-    # makes this pairing legal, which attach() checks.
-    sunforge_squad = attached_units.attach(farsight_squad, sunforge_squad, game_state=state)
-    register_unit(sunforge_squad)
-
-    # Player 2 fields the Ork army list the user supplied (replacing the
-    # previous roster wholesale, the same way Player 1's was replaced):
-    #
-    #   Char1 Beastboss              -> attached to Beast Snagga Boyz
-    #   Char2 Warboss                -> attached to Boyz 1
-    #   Char3 Warboss in Mega Armour -> attached to Meganobz
-    #   1x Beast Snagga Boyz (10), 2x Boyz (10, Boss Nob w/ Power Klaw),
-    #   1x Battlewagon ('Ard Case + 4x Big Shoota), 1x Deff Dread,
-    #   6x Deffkoptas, 1x Flash Gitz (10), 2x Gretchin (11), 1x Kill Rig,
-    #   6x Meganobz, 1x Stormboyz (10, Boss Nob w/ Power Klaw),
-    #   6x Tankbustas, 2x Trukk, 2x Warbikers (3 each, + Power Klaw)
-    #
-    # Every item on that list is now modeled. The three that were missing -
-    # the Warboss's Attack squig, the Battlewagon's Zzap gun and the Flash
-    # Gitz' Ammo Runt - had their stat lines/rules text supplied afterwards
-    # and are built here. The Zzap gun in particular is the first weapon in
-    # this engine with a dice-rolled Strength ("S D6+6"), see
-    # WeaponProfile.strength_notation.
-    #
-    # Points: the list's own per-unit numbers run consistently above this
-    # project's transcribed published list (e.g. Trukk 70 vs 55, Tankbustas
-    # 140 vs 125, Kill Rig 155 vs 145, Deffkoptas 160 vs 140) - a newer
-    # revision. Same treatment as Player 1's own list: named as an
-    # informative mismatch, with the transcribed data left as the single
-    # source of truth (see game/factions/orks_points.py).
-    #
-    # Transports (user instruction): "die ki soll die beast boyz + beast boss
-    # bevorzugt in den kill rig packen und die meganobs + megaboss in
-    # megaarmor in den battle wagon" - declared below as EMBARK hints, which
-    # ai/deployment_ai.py's own _transport_affinity() honours as the scene's
-    # answer AND, since this instruction, treats as exclusive (a hinted unit
-    # is never loaded into some other transport that happens to be processed
-    # first). Both fit: Beast Snagga Boyz + Beastboss = 11 models against the
-    # Kill Rig's capacity 11, all BEAST SNAGGA INFANTRY as that datasheet
-    # requires; Meganobz + Warboss in Mega Armour = 7 MEGA ARMOUR models = 14
-    # capacity against the Battlewagon's 22.
-    #
-    # The two Trukks carry nobody by declaration - the AI fills them from
-    # whatever short-ranged infantry is left, which is what its own
-    # _transport_affinity() is for.
-    #
-    # No hand-placed positions: with the Pre-game Sequence (rule 03.01) the
-    # AI deploys this army itself, exactly as Player 1's roster is handled.
-    GRETCHIN_COLOR = (140, 110, 70)
-    STORMBOYZ_COLOR = (110, 150, 70)
-    WARBIKERS_COLOR = (150, 130, 60)
-    BOYZ_COLOR = (70, 140, 60)
-    PAINBOY_COLOR = (150, 65, 105)
-    WARBOSS_COLOR = (170, 60, 60)
-    MEGANOBZ_COLOR = (120, 100, 130)
-    DEFF_DREAD_COLOR = (80, 80, 90)
-    DEFFKOPTAS_COLOR = (130, 145, 165)
-    TANKBUSTAS_COLOR = (160, 110, 40)
-    BEAST_SNAGGA_COLOR = (120, 145, 55)
-    BEASTBOSS_COLOR = (185, 80, 45)
-    KILL_RIG_COLOR = (100, 85, 65)
-    BATTLEWAGON_COLOR = (75, 95, 55)
-    FLASH_GITZ_COLOR = (170, 150, 55)
-
-    # --- Kill Rig, and the Beast Snagga Boyz + Beastboss that ride in it ---
-    kill_rig_squad = build_squad(
-        KILL_RIG, owner="Player 2", name="2 Kill Rig 1", color=KILL_RIG_COLOR,
-    )
-    kill_rig_token = kill_rig_squad.models[0]
-    register_unit(kill_rig_squad)
-
-    beast_snagga_squad = build_squad(
-        BEAST_SNAGGA_BOYZ, owner="Player 2", name="2 Beast Snagga Boyz 1", color=BEAST_SNAGGA_COLOR,
-    )
-    beastboss_squad = build_squad(
-        BEASTBOSS, owner="Player 2", name="2 Beastboss 1", color=BEASTBOSS_COLOR,
-    )
-    # The Beastboss's own Leader ability (24.22) lists Beast Snagga Boyz, so
-    # attach() accepts the pairing. Attached BEFORE the transport hint so the
-    # capacity check sees the finished 11-model unit.
-    beast_snagga_squad = attached_units.attach(beastboss_squad, beast_snagga_squad, game_state=state)
-    register_unit(beast_snagga_squad, pregame.EMBARK, transport=kill_rig_token)
-
-    # --- Battlewagon, and the Meganobz + Warboss in Mega Armour inside ---
-    battlewagon_squad = build_squad(
-        BATTLEWAGON, owner="Player 2", name="2 Battlewagon 1", color=BATTLEWAGON_COLOR,
-        gear={"Battlewagon": [BATTLEWAGON_ARD_CASE]},
-        choices={"Battlewagon": {BATTLEWAGON_ADD_BIG_SHOOTAS: 1, BATTLEWAGON_ADD_ZZAP_GUN: 1}},
-    )
-    battlewagon_token = battlewagon_squad.models[0]
-    register_unit(battlewagon_squad)
-
-    meganobz_squad = build_squad(
-        MEGANOBZ, owner="Player 2", composition_index=1, name="2 Meganobz 1", color=MEGANOBZ_COLOR,
-    )
-    warboss_mega_squad = build_squad(
-        WARBOSS_MEGA_ARMOUR, owner="Player 2", name="2 Warboss in Mega Armour 1", color=WARBOSS_COLOR,
-    )
-    # Its Leader ability lists Meganobz. Unlike the old Trukk arrangement -
-    # where 6 MEGA ARMOUR Meganobz alone already filled a Trukk's capacity 12
-    # and the leader had to be left out entirely - the Battlewagon's 22 has
-    # room for all 14 capacity this attached unit costs.
-    meganobz_squad = attached_units.attach(warboss_mega_squad, meganobz_squad, game_state=state)
-    register_unit(meganobz_squad, pregame.EMBARK, transport=battlewagon_token)
-
-    # --- One 20-strong Boyz mob, led by BOTH the Warboss and the Painboy ---
-    # composition_index=1 is the 20-model build, and it is load-bearing here
-    # rather than just bigger: Boyz' own "Bodyguard" ability only allows a
-    # SECOND Leader on a unit with a Starting Strength of 20, and only if one
-    # of the two is a WARBOSS. Both conditions are checked for real - see
-    # game/attached_units.py's _bodyguard_allows_second_leader().
-    boyz_squad = build_squad(
-        BOYZ, owner="Player 2", composition_index=1,
-        choices={"Boss Nob": {BOYZ_BIG_CHOPPA_TO_POWER_KLAW: 1}},
-        name="2 Boyz 1", color=BOYZ_COLOR, unit_index=1,
-    )
-    warboss_squad = build_squad(
-        WARBOSS, owner="Player 2", name="2 Warboss 1", color=WARBOSS_COLOR,
-        choices={"Warboss": {WARBOSS_ADD_ATTACK_SQUIG: 1}},
-    )
-    painboy_squad = build_squad(
-        PAINBOY, owner="Player 2", name="2 Painboy 1", color=PAINBOY_COLOR,
-        gear={"Painboy": [PAINBOY_GROT_ORDERLY]},
-    )
-    # Warboss FIRST: the exception needs a WARBOSS among the two, and
-    # attaching him first means the Painboy's own check finds one already
-    # there rather than depending on the order the pair happens to arrive in
-    # (it accepts either, but this is the order the rule text reads in).
-    boyz_squad = attached_units.attach(warboss_squad, boyz_squad, game_state=state)
-    boyz_squad = attached_units.attach(painboy_squad, boyz_squad, game_state=state)
-    register_unit(boyz_squad)
-
-    # --- The rest of the roster ---
-    for index in (1, 2):
-        register_unit(build_squad(
-            GRETCHIN, owner="Player 2", name=f"2 Gretchin {index}", color=GRETCHIN_COLOR, unit_index=index,
-        ))
-
-    # composition_index=0 is the 3-model composition (1 Boss Nob on Warbike +
-    # 2 Warbikers), which is what this list fields twice.
-    for index in (1, 2):
-        register_unit(build_squad(
-            WARBIKERS, owner="Player 2", composition_index=0,
-            choices={"Boss Nob on Warbike": {WARBIKERS_ADD_POWER_KLAW: 1}},
-            name=f"2 Warbikers {index}", color=WARBIKERS_COLOR, unit_index=index,
-        ))
-
-    register_unit(build_squad(
-        STORMBOYZ, owner="Player 2", composition_index=1,
-        choices={"Boss Nob": {STORMBOYZ_CHOPPA_TO_POWER_KLAW: 1}},
-        name="2 Stormboyz 1", color=STORMBOYZ_COLOR,
-    ))
-
-    register_unit(build_squad(
-        DEFF_DREAD, owner="Player 2", name="2 Deff Dread 1", color=DEFF_DREAD_COLOR,
-    ))
-
-    # composition_index=1 is the 6-model build this list fields; every model
-    # keeps the printed Kopta rokkits + Slugga + Spinnin' blades, so there
-    # are no wargear choices to make. DEEP STRIKE (24.09), so the deployment
-    # AI is free to hold it in Strategic Reserves.
-    register_unit(build_squad(
-        DEFFKOPTAS, owner="Player 2", composition_index=1,
-        name="2 Deffkoptas 1", color=DEFFKOPTAS_COLOR,
-    ))
-
-    # composition_index=1 is the 10-model build this list fields.
-    register_unit(build_squad(
-        FLASH_GITZ, owner="Player 2", composition_index=1, name="2 Flash Gitz 1", color=FLASH_GITZ_COLOR,
-        gear={"Kaptin": [FLASH_GITZ_AMMO_RUNT]},
-    ))
-
-    # This list's own custom Tankbusta loadout - Boss Nob w/ Smash Hammer
-    # instead of a 2nd Rokkit Pistol, one Tankbusta w/ an extra Rokkit
-    # Launcha (see TANKBUSTAS_BOSS_NOB_ADD_SMASH_HAMMER/
-    # TANKBUSTAS_ADD_ROKKIT_LAUNCHA's own notes).
-    register_unit(build_squad(
-        TANKBUSTAS, owner="Player 2", name="2 Tankbustas 1", color=TANKBUSTAS_COLOR,
-        choices={
-            "Boss Nob": {TANKBUSTAS_BOSS_NOB_ADD_SMASH_HAMMER: 1},
-            "Tankbusta": {TANKBUSTAS_ADD_ROKKIT_LAUNCHA: 1},
-        },
-    ))
 
     # A partial roster (BattleMap.roster) has to be self-consistent, and the
     # two ways it can fail are both silent otherwise: a name that matches no
@@ -824,9 +456,10 @@ def main(map_key=None):
     # the game. Refused loudly instead - the same lesson as the
     # --no-deployment guard below, where a zip() over mismatched lists used to
     # drop a unit without a word.
-    if battle_map.roster is not None:
+    map_roster = battle_map.roster_for(armies)
+    if map_roster is not None:
         fielded = {entry["squad"].name for entry in scene_units}
-        unknown = sorted(battle_map.roster - fielded)
+        unknown = sorted(map_roster - fielded)
         if unknown:
             raise SystemExit(
                 f"{battle_map.key}'s roster names {len(unknown)} unit(s) this scene does not "
@@ -859,6 +492,46 @@ def main(map_key=None):
     turn_tracker = TurnTracker(game_log=game_log, deferred_start=config.PREGAME_DEPLOYMENT)
     command_points = CommandPointManager(game_log=game_log)
     mission_controller = MissionController(game_log=game_log)
+    # The human's Tactical Secondary Mission deck (user-supplied - the AI
+    # keeps its standard Secondary; see game/secondary_missions.py). Built
+    # here, next to the ledger it credits, so both battle-start paths below
+    # can already draw round 1's two cards. Its draw_overlay is attached
+    # later, once the UI exists - the same deferred-field pattern
+    # neocapacitor_controller.battle_shock uses further down.
+    secondary_mission_controller = SecondaryMissionController(
+        player=(config.SECONDARY_MISSION_CARD_PLAYERS[0]
+                if config.SECONDARY_MISSION_CARD_PLAYERS else "Player 1"),
+        mission_controller=mission_controller, command_points=command_points,
+        decision_manager=decision_manager, turn_tracker=turn_tracker,
+        game_log=game_log,
+    )
+    # A CALLABLE, not a snapshot: state.tokens is rebuilt as models die, and
+    # a card measured against a stale list would score off a board that no
+    # longer exists (same reasoning as path_of_the_outcast's all_squads).
+    secondary_mission_controller.set_tokens_source(lambda: state.tokens)
+    # Board + Strategic Reserves + embarked. "Assassination" asks whether any
+    # enemy CHARACTER is left ANYWHERE, and state.tokens is the board only -
+    # a character waiting in reserves is off the board and very much alive.
+    secondary_mission_controller.set_squads_source(state.all_squads)
+    # Board furniture, for cards that name a place. "A Tempting Target" reads
+    # objective control (14.02) and needs the deployment zones to tell No
+    # Man's Land from a home objective.
+    secondary_mission_controller.set_objectives_source(lambda: state.objectives)
+    secondary_mission_controller.set_zones_source(lambda: state.deployment_zones)
+    # Units inside a transport (18.02): Beacon's setup offers them alongside
+    # the board units, and neither the token nor the all-squads source can
+    # tell an embarked squad from one in Strategic Reserves.
+    secondary_mission_controller.set_embarked_source(lambda: state.embarked_squads)
+    # Terrain areas (13.01) - the Plunder action's targets.
+    secondary_mission_controller.set_terrain_source(lambda: state.terrain_areas)
+    # Rule 16.01's Actions (game/actions.py). One controller for every action
+    # there will ever be: its eligibility, its two locks and its
+    # move-cancellation are shared, and "started another action this turn" is a
+    # question across all of them at once.
+    action_controller = ActionController(
+        tokens_source=lambda: state.tokens, game_log=game_log,
+    )
+    secondary_mission_controller.set_action_controller(action_controller)
     if turn_tracker.started:
         # The legacy instant scene starts mid-Command-phase; the pre-game path
         # does all of this in begin_battle() instead, once there is actually an
@@ -879,6 +552,12 @@ def main(map_key=None):
         for objective in state.objectives:
             objective.update_control(state.tokens)
         mission_controller.score_primary(state.objectives, turn_tracker.active_player)
+        # Round 1's two Secondary Mission cards. Idempotent by battle
+        # round, so the Command-phase hook in advance_turn_phase() cannot
+        # draw a second pair for the same round.
+        secondary_mission_controller.sync_battle_round(turn_tracker.battle_round)
+        secondary_mission_controller.draw_at_command_phase(
+            turn_tracker.turn_owner, turn_tracker.battle_round)
     stratagem_controller = StratagemController(game_log=game_log, command_points=command_points)
     thievin_scavengers_controller = ThievinScavengersController(
         dice_manager=dice_manager, command_points=command_points, all_tokens=state.tokens,
@@ -898,6 +577,13 @@ def main(map_key=None):
         obstacles=state.obstacles, game_log=game_log, dice_manager=dice_manager, turn_tracker=turn_tracker,
         all_tokens=state.tokens, board_width_in=board.width_in, board_height_in=board.height_in,
     )
+    # Rule 16.01's two ends, now that both objects exist: the ActionController
+    # needs the movement controller for "Advanced this turn", and the movement
+    # controller reports every confirmed move back so a move cancels an action
+    # in progress. Same deferred-field pattern as
+    # neocapacitor_controller.battle_shock further down.
+    action_controller.movement_controller = movement_controller
+    movement_controller.action_controller = action_controller
     fall_back_controller = FallBackController(
         movement_controller, battle_shock_controller, dice_manager=dice_manager, game_log=game_log,
     )
@@ -939,6 +625,17 @@ def main(map_key=None):
     # same pattern as fight_controller.on_unit_finished_fighting below.
     movement_controller.on_remain_stationary = support_turret_controller.on_remain_stationary
     waaagh_controller = WaaaghController(game_log=game_log)
+    # WHOSE army rule this is, derived from the built armies exactly the way
+    # Battle Focus derives its own. Set once, here, because the armies are
+    # complete by this point and an army's faction does not change mid-battle.
+    #
+    # Without it the AI called a Waaagh! for whatever army it happened to be
+    # playing (user: "die necrons haben soeben einen waagh ausgerufen. das
+    # koennen nur orks") - can_call() checked the phase and once-per-battle and
+    # nothing about the army, which was invisible while Player 2 was always
+    # Orks.
+    waaagh_controller.orks_players = waaagh_module.qualifying_players(
+        entry["squad"] for entry in scene_units)
     # Retaliation Cadre's Stim Injectors (1 CP): a reactive Stratagem offered
     # at rule 10.02's "select targets" step, so it's shared by
     # shooting_controller and fight_controller below the same way
@@ -986,6 +683,18 @@ def main(map_key=None):
     # It is handed SetupController's own position_valid() so "somewhere legal
     # to put the returning models" means exactly what it means for a
     # disembark or an ingress, rather than a second opinion that could drift.
+    # Fuegan's Unquenchable Resolve - the second ability in this engine that puts
+    # a destroyed model back (Grot Orderly below is the first), and it borrows
+    # that one's position_valid wiring for the same reason: the placement has to
+    # judge real ground. Its own Engagement Range clause is NOT in there and is
+    # checked inside the module - position_valid() says outright that it does not
+    # cover engagement.
+    unquenchable_resolve_controller = UnquenchableResolveController(
+        dice_manager=dice_manager, game_state=state, game_log=game_log,
+        position_valid=lambda model, x, y: setup_controller.position_valid(
+            model, x, y, squad=model.squad,
+        ),
+    )
     grot_orderly_controller = GrotOrderlyController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
         game_state=state, auto_players=("Player 2",),
@@ -993,6 +702,67 @@ def main(map_key=None):
             model, x, y, squad=model.squad,
         ),
     )
+    # --- Necrons -----------------------------------------------------------
+    # All of these are built unconditionally rather than only when the Necrons
+    # are fielded: every one of them is inert without a Necron unit on the
+    # board (their can_use()/has_*() tests read the models), and building them
+    # conditionally would mean every call site needed a None check as well.
+    # The same reasoning the Ork and T'au controllers already follow.
+    def _necron_position_valid(model, x, y):
+        return setup_controller.position_valid(model, x, y, squad=model.squad)
+
+    def _best_damage_target(attacker, candidates):
+        """The AI's shared deterministic target pick for the Necron mortal-wound
+        abilities: the unit worth the most to remove, by the SAME
+        game/damage_estimate.py measure every other deterministic choice in
+        this engine uses rather than a second opinion about what a good target
+        is.
+
+        Sorted by name first so ties resolve identically on a replay."""
+        if not candidates:
+            return None
+        return max(sorted(candidates, key=lambda s: s.name),
+                   key=lambda s: ai_observation.damage_value(attacker, s) or 0.0)
+
+    reanimation_controller = ReanimationProtocolsController(
+        dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
+        game_state=state, auto_players=("Player 2",),
+        position_valid=_necron_position_valid,
+    )
+    technomancer_controller = TechnomancerController(
+        dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
+        game_state=state, auto_players=("Player 2",),
+    )
+    resurrection_orb_controller = ResurrectionOrbController(
+        dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
+        game_state=state, auto_players=("Player 2",),
+        position_valid=_necron_position_valid,
+    )
+    living_lightning_controller = LivingLightningController(
+        dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
+        game_state=state, auto_players=("Player 2",),
+        target_pick=_best_damage_target,
+        # The real line-of-sight test, so "visible to this model" means what it
+        # means everywhere else rather than a second approximation of it.
+        visible=lambda model, squad: any(
+            line_of_sight.has_line_of_sight(
+                model, t, state.obstacles, state.tokens, state.terrain_areas)
+            for t in squad.models if not t.is_dead()
+        ),
+    )
+    matter_absorption_controller = MatterAbsorptionController(
+        dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
+        game_state=state, auto_players=("Player 2",), target_pick=_best_damage_target,
+    )
+    wraith_form_controller = WraithFormController(
+        dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
+        game_state=state, movement_controller=movement_controller,
+        auto_players=("Player 2",), target_pick=_best_damage_target,
+    )
+    atomic_energy_controller = AtomicEnergyManipulatorController(game_log=game_log)
+    # The third cost_discounts collaborator, after Puretide and Strands of Fate.
+    stratagem_controller.cost_discounts.append(
+        MyWillBeDoneDiscount(turn_tracker=turn_tracker, game_log=game_log))
     # Both reactive stratagems above fire at the same moment in the sequence,
     # so both controllers go into the one target_reactions list that
     # ShootingController/FightController iterate at that point.
@@ -1066,9 +836,58 @@ def main(map_key=None):
         decision_manager=decision_manager, game_log=game_log, all_tokens=state.tokens,
         obstacles=state.obstacles, terrain_areas=state.terrain_areas,
     )
+    # Seer Council's Unshrouded Truth - board -> Strategic Reserves and straight
+    # back on, so it needs the GameState (whose tokens/reserves lists it moves
+    # the unit between) and the MovementController (for "has not been selected
+    # to move this phase"). Second consumer of the board->reserves move that
+    # game/starflare_ignition.py had already built - see
+    # game/strategic_reserves.py.
+    unshrouded_truth_controller = UnshroudedTruthController(
+        stratagem_controller, game_state=state, movement_controller=movement_controller,
+        turn_tracker=turn_tracker, game_log=game_log, all_tokens=state.tokens,
+    )
     # Seer Council's Isha's Fury - six D6 at 3+ after an enemy Normal, Advance
     # or Fall Back move. The roll and the mortal-wound allocation are Explosives'
     # shape; the trigger is movement_controller.on_move_finished, wired below.
+    # Swooping Hawks' Grenade Pack Flyover - the THIRD consumer of
+    # on_move_finished and the SECOND of on_ingress_resolved, which is why both
+    # of those hooks are lists now.
+    movement_controller.on_move_finished.append(wraith_form_controller.on_move_finished)
+    # Overwhelming Obliteration is not a decision - it simply follows the move
+    # type the unit already chose, so it hangs off the Remain Stationary hook
+    # rather than prompting anything.
+    _previous_remain_stationary = movement_controller.on_remain_stationary
+    def _on_remain_stationary(squad):
+        overwhelming_obliteration.on_remain_stationary(squad, game_log)
+        if _previous_remain_stationary is not None:
+            _previous_remain_stationary(squad)
+    movement_controller.on_remain_stationary = _on_remain_stationary
+
+    grenade_pack_controller = GrenadePackFlyoverController(
+        game_state=state, decision_manager=decision_manager, dice_manager=dice_manager,
+        turn_tracker=turn_tracker, game_log=game_log,
+        line_of_sight=lambda squad, target: any(
+            line_of_sight.has_line_of_sight(
+                m, t, state.obstacles, state.tokens, state.terrain_areas)
+            for m in squad.models if not m.is_dead()
+            for t in target.models if not t.is_dead()
+        ),
+    )
+    def _note_set_up_on_battlefield(squad):
+        """Baharroth's Cry of the Wind: "each time this model is SET UP on the
+        battlefield, until the end of the turn...". Per MODEL, because the
+        printed text says "this model" and he may be leading a unit."""
+        for model in getattr(squad, "models", ()):
+            if getattr(model.profile, "cry_of_the_wind", False):
+                model.cry_of_the_wind_active = True
+
+    # Rangers' Path of the Outcast - the second consumer of
+    # MovementController.on_move_finished, which is why that became a list.
+    path_of_the_outcast_controller = PathOfTheOutcastController(
+        movement_controller=movement_controller, decision_manager=decision_manager,
+        dice_manager=dice_manager, turn_tracker=turn_tracker, game_log=game_log,
+        all_squads=lambda: _player_squads(state, "Player 1") + _player_squads(state, "Player 2"),
+    )
     ishas_fury_controller = IshasFuryController(
         stratagem_controller, dice_manager=dice_manager, decision_manager=decision_manager,
         turn_tracker=turn_tracker, game_log=game_log, all_tokens=state.tokens,
@@ -1113,6 +932,30 @@ def main(map_key=None):
         stratagem_controller, shooting_controller=shooting_controller,
         turn_tracker=turn_tracker, game_log=game_log, all_tokens=state.tokens,
     )
+    # Shroud Runners' Target Acquisition - the sixth listener on
+    # on_squad_finished_shooting, and the only one whose effect is a mark on
+    # the TARGET rather than a grant on the shooter, which is why
+    # shooting_controller reads it back (see _cover_ignored_for_group()).
+    target_acquisition_controller = TargetAcquisitionController(
+        decision_manager=decision_manager, game_log=game_log,
+    )
+    shooting_controller.target_acquisition = target_acquisition_controller
+    shooting_controller.on_squad_finished_shooting.append(
+        lambda squad, hit_squads: target_acquisition_controller.offer_after_shooting(
+            squad, hit_squads,
+            shooting_controller.squads_hit_by_weapon(target_acquisition.LONG_RIFLE_NAME),
+        )
+    )
+    # War Walkers' Crystalline Targeting - the seventh listener, and the
+    # second whose effect is a mark on the TARGET (Target Acquisition above
+    # is the first), so shooting_controller reads this one back too - in
+    # the AP adjuster chain rather than in the cover test.
+    crystalline_targeting_controller = CrystallineTargetingController(
+        decision_manager=decision_manager, game_log=game_log,
+    )
+    shooting_controller.crystalline_targeting = crystalline_targeting_controller
+    shooting_controller.on_squad_finished_shooting.append(
+        crystalline_targeting_controller.offer_after_shooting)
     shooting_controller.on_squad_finished_shooting.append(suppression_controller.offer_after_shooting)
     # The Falcon's Fire Support marks one unit it just hit - the same
     # "after this model has shot" moment Suppression Volley uses.
@@ -1177,6 +1020,15 @@ def main(map_key=None):
         turn_tracker=turn_tracker, game_log=game_log,
         on_battle_start=lambda first_player: begin_battle(first_player),
     )
+    # Which faction each player fields, for the Game Status panel's badges.
+    # Derived from the units themselves rather than configured (see
+    # faction.player_factions) and re-derived while still incomplete, for the
+    # same reason BattleFocusPool takes a squads_provider: the pre-game
+    # sequence's own units only become reachable once it has been handed the
+    # armies, so an empty first look is not final. Settles on the first frame
+    # that can see both armies and is never recomputed after that.
+    player_factions = {}
+
     ingress_controller = IngressController(
         setup_controller, state, state.tokens, game_log=game_log, turn_tracker=turn_tracker,
         board_width_in=board.width_in, board_height_in=board.height_in,
@@ -1196,7 +1048,18 @@ def main(map_key=None):
     # docstrings: without this, a Rapid-Ingress-chained Fire Overwatch offer
     # fired the instant a human dropped the reserves card, hijacking every
     # further click before the models could even be dragged apart.
-    ingress_controller.on_ingress_resolved = rapid_ingress_controller.notify_placement_resolved
+    ingress_controller.on_ingress_resolved = [rapid_ingress_controller.notify_placement_resolved]
+    # Baharroth's Cloudstrider - both halves are mechanisms that already
+    # existed; see game/cloudstrider.py.
+    cloudstrider_controller = CloudstriderController(
+        game_state=state, decision_manager=decision_manager,
+        ingress_controller=ingress_controller, game_log=game_log,
+    )
+    # "when this unit is SET UP on the battlefield" - the second trigger of
+    # Swooping Hawks' Grenade Pack Flyover, and where Baharroth's Cry of the
+    # Wind switches on.
+    ingress_controller.on_ingress_resolved.append(grenade_pack_controller.offer_after_setup)
+    ingress_controller.on_ingress_resolved.append(_note_set_up_on_battlefield)
     homing_beacon_controller = HomingBeaconController(all_tokens=state.tokens, game_log=game_log)
     fire_overwatch_controller = FireOverwatchController(
         stratagem_controller, shooting_controller, all_tokens=state.tokens, turn_tracker=turn_tracker, game_log=game_log,
@@ -1211,6 +1074,12 @@ def main(map_key=None):
         game_log=game_log, dice_manager=dice_manager, turn_tracker=turn_tracker,
         all_tokens=state.tokens, movement_controller=movement_controller, waaagh=waaagh_controller,
     )
+    # Rule 16.01's two locks: a unit that started an action this turn is not
+    # eligible to shoot (excluding TITANIC) and not eligible to declare a
+    # charge. Asked of the one ActionController rather than mirrored into
+    # per-squad flags, so there is a single record of who is performing what.
+    shooting_controller.action_controller = action_controller
+    charge_controller.action_controller = action_controller
     # Retaliation Cadre's fifth stratagem, Grav-Inhibitor Field - reactive, in
     # the OPPONENT's Charge phase, so it is offered through decision_manager
     # (which is also what makes it AI-resolvable with no extra wiring) and
@@ -1240,6 +1109,11 @@ def main(map_key=None):
         pile_in_controller=pile_in_controller, charge_controller=charge_controller, decision_manager=decision_manager,
         suppression=suppression_controller, stealth_drones=stealth_drones_controller, waaagh=waaagh_controller,
         target_reactions=fight_target_reactions,
+        # Immortals' Implacable Eradication upgrades its re-roll when the target
+        # is within range of an objective marker, and its text says "makes an
+        # attack" - so the melee side needs the markers too. ShootingController
+        # has carried them since Breach and Clear.
+        objectives=state.objectives,
         # Both psychic marks say "makes an attack", not "makes a ranged attack",
         # so they are read here as well as in the Shooting phase. Guide was
         # wired into fight.py's _hit_modifiers() when the Farseer was added but
@@ -1248,6 +1122,76 @@ def main(map_key=None):
         guide=guide_controller, doom=doom_controller,
         whispering_web=whispering_web_controller,
     )
+
+    # --- Awakened Dynasty, the six protocols ------------------------------
+    # Built unconditionally, like the Necron datasheet controllers above:
+    # every gate also checks awakened_dynasty.stratagem_target_ok(), which is
+    # False for a non-Necron unit and for a player without the detachment, so
+    # they are inert for an Ork game rather than needing a None check at each
+    # call site.
+    hungry_void_controller = HungryVoidController(
+        stratagem_controller, turn_tracker=turn_tracker,
+        fight_controller=fight_controller, game_log=game_log,
+    )
+    sudden_storm_controller = SuddenStormController(
+        stratagem_controller, turn_tracker=turn_tracker, game_log=game_log,
+        dice_manager=dice_manager, decision_manager=decision_manager,
+        auto_players=("Player 2",),
+    )
+    conquering_tyrant_controller = ConqueringTyrantController(
+        stratagem_controller, turn_tracker=turn_tracker,
+        shooting_controller=shooting_controller, game_log=game_log,
+    )
+    undying_legions_controller = UndyingLegionsController(
+        stratagem_controller, dice_manager=dice_manager,
+        decision_manager=decision_manager, game_log=game_log, game_state=state,
+        position_valid=_necron_position_valid, auto_players=("Player 2",),
+    )
+    eternal_revenant_controller = EternalRevenantController(
+        stratagem_controller, decision_manager=decision_manager, game_log=game_log,
+        game_state=state, position_valid=_necron_position_valid,
+        auto_players=("Player 2",),
+    )
+
+    def _vengeful_stars_worth_it(avenger, killer):
+        """2 CP is the most expensive protocol, so the AI only takes the shot
+        when it is worth something - measured with the SAME
+        game/damage_estimate.py value every other deterministic CP decision
+        here uses, rather than a second opinion."""
+        return (ai_observation.damage_value(avenger, killer) or 0.0) > 0.0
+
+    vengeful_stars_controller = VengefulStarsController(
+        stratagem_controller, decision_manager=decision_manager, game_log=game_log,
+        game_state=state, shooting_controller=shooting_controller,
+        turn_tracker=turn_tracker, auto_players=("Player 2",),
+        worth_using=_vengeful_stars_worth_it,
+    )
+
+    # Undying Legions' WHEN is "just after an enemy unit has RESOLVED its
+    # attacks", which is a different instant from the target_reactions list
+    # ('Ard as Nails et al. fire at "just after it has SELECTED its targets").
+    # So it hangs off the after-resolution hooks instead.
+    def _necron_after_enemy_shooting(shooter_squad, target_squads=()):
+        for target in target_squads or ():
+            if undying_legions_controller.maybe_offer(target):
+                break
+        vengeful_stars_controller.maybe_offer()
+
+    shooting_controller.on_squad_finished_shooting.append(_necron_after_enemy_shooting)
+
+    _previous_finished_fighting = fight_controller.on_unit_finished_fighting
+
+    def _necron_after_enemy_fight(*args):
+        # Vengeful Stars is Shooting-phase only ("your opponent's SHOOTING
+        # phase"), so only Undying Legions is offered here.
+        for squad in {t.squad for t in state.tokens if t.squad is not None}:
+            if undying_legions_controller.maybe_offer(squad):
+                break
+        if _previous_finished_fighting is not None:
+            _previous_finished_fighting(*args)
+
+    fight_controller.on_unit_finished_fighting = _necron_after_enemy_fight
+
     # War Horde's 'Ere We Go - proactive (start of your own Movement phase),
     # so like Unbridled Carnage it needs no DecisionManager hook: an
     # ActionPanel button for a human, and a deterministic call for the AI (see
@@ -1295,7 +1239,11 @@ def main(map_key=None):
     # Seer Council's Isha's Fury: "just after an enemy unit ends a Normal,
     # Advance or Fall Back move" - broader than the Fall-Back-only hook above,
     # and fired at the same point for the same reason.
-    movement_controller.on_move_finished = ishas_fury_controller.offer_after_move
+    movement_controller.on_move_finished = [
+        ishas_fury_controller.offer_after_move,
+        path_of_the_outcast_controller.offer_after_move,
+        grenade_pack_controller.offer_after_move,
+    ]
     # Aeldari Seer Council detachment rule Strands of Fate: a Fate dice pool
     # rolled ONCE for the whole battle, where each die's FACE decides which one
     # stratagem it can discount. Plugged into the same cost-discount hook
@@ -1335,10 +1283,16 @@ def main(map_key=None):
         movement_controller=movement_controller, fight_controller=fight_controller, objectives=state.objectives,
     )
     coherency_enforcer = CoherencyEnforcer(all_tokens=state.tokens, game_log=game_log)
-    renderer = Renderer(render_scale=config.RENDER_SUPERSAMPLE)
+    renderer = Renderer(render_scale=render_ppi / config.PIXELS_PER_INCH)
     action_panel = ActionPanel()
     game_status_panel = GameStatusPanel()
     mission_cards_overlay = MissionCardsOverlay()
+    # The click-away "you drew these" notice. Attached to the deck now that
+    # the UI exists - the deck itself was built ~700 lines up, next to the
+    # ledger it credits.
+    mission_draw_overlay = MissionDrawOverlay()
+    secondary_mission_controller.draw_overlay = mission_draw_overlay
+    secondary_mission_controller.flush_announcements()
     log_panel = LogPanel()
     dice_panel = DicePanel()
     decision_overlay = DecisionOverlay()
@@ -1366,8 +1320,17 @@ def main(map_key=None):
     agent = ClaudeAgent(model=config.AI_MODEL, planning_model=config.AI_PLANNING_MODEL)  # swap for MockAgent() for a free/offline smoke test
     ai_memory = AIMemory()
     last_shown_turn_plan = None  # object identity of the AIMemory.turn_plan last shown via turn_plan_overlay - see run_ai_action()
-    thinking_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE + 10, bold=True)
-    auto_play_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE, bold=True)
+    loading_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE + 10, bold=True)
+    # Every "Player 2 is busy" corner badge - the flashed pause before a
+    # blocking Claude call, the threaded planning wait, the AUTO-PLAY
+    # reminder - goes through this one object, so the three read as the same
+    # HUD element instead of three hand-drawn rects that drift apart.
+    ai_busy_badge = AiBusyBadge()
+    # The side panels are the only things covered while the AI is busy (User:
+    # "damit man nicht in die Versuchung kommt, irgendwelche Knoepfe druecken
+    # zu wollen") - the board itself stays fully legible, which was the whole
+    # point of dropping the old full-window dim.
+    ai_busy_dim_rects = (left_panel_rect, right_panel_rect)
     clock = pygame.time.Clock()
 
     # Cache for the "visible to the selected model" highlight: has_line_of_sight
@@ -1535,6 +1498,26 @@ def main(map_key=None):
         for objective in state.objectives:
             objective.update_control(state.tokens)
         mission_controller.score_primary(state.objectives, turn_tracker.active_player)
+        # Round 1's two Secondary Mission cards, for the same reason the three
+        # lines above run here: advance_turn_phase() never runs for the battle's
+        # very first Command phase, so the draw would otherwise be a round late.
+        # Idempotent by battle round.
+        secondary_mission_controller.sync_battle_round(turn_tracker.battle_round)
+        secondary_mission_controller.draw_at_command_phase(
+            turn_tracker.turn_owner, turn_tracker.battle_round)
+
+    # The must-click-away modal notices, in the SAME priority order the event
+    # chain below dispatches them in. One definition, read by both the chain's
+    # own ordering (which it mirrors by hand, being an if/elif) and by the
+    # renderer, which draws only the front-most - see the draw block near the
+    # bottom of the frame. A new notice belongs in this tuple AND in the chain.
+    def _front_notice():
+        """The one notice that currently owns the screen, or None."""
+        for overlay in (turn_start_overlay, turn_plan_overlay, mission_draw_overlay,
+                        stratagem_notice_overlay, waaagh_notice_overlay):
+            if overlay.is_pending:
+                return overlay
+        return None
 
     def advance_turn_phase():
         # Rule 15.07 (Rapid Ingress): any pending offer from a PREVIOUS
@@ -1603,6 +1586,22 @@ def main(map_key=None):
         forewarned_mod.reset_phase(_seer_squads)
         psychic_shield_mod.reset_phase(_seer_squads)
         fate_inescapable_mod.reset_phase(_seer_squads)
+        # Also the squads that are OFF the board right now: a unit that used
+        # Unshrouded Truth and has not arrived yet is in reserves, so it is not
+        # in _seer_squads at all, and its grant has to expire too.
+        unshrouded_truth_mod.reset_phase(list(_seer_squads) + list(state.reserves))
+        # Fuegan's Unquenchable Resolve: "at the end of the phase, roll one
+        # D6". Resolved before the expiries below rather than after, so that a
+        # returning model is on the battlefield for anything that reads the
+        # board at this boundary.
+        unquenchable_resolve_controller.resolve_end_of_phase()
+        # Shroud Runners' Target Acquisition: "until the end of the phase".
+        target_acquisition_controller.reset_phase()
+        # War Walkers' Crystalline Targeting: its AP effect is "until the end
+        # of the phase" as well. Its "once per turn" selection limit is a
+        # SEPARATE, longer lifetime and is cleared at the end of the turn -
+        # the two are deliberately not the same clock.
+        crystalline_targeting_controller.reset_phase()
         forewarned_controller.reset_phase()
         psychic_shield_controller.reset_phase()
         # Fail-Safe Detonator's "already asked about this unit" memo is scoped
@@ -1645,6 +1644,10 @@ def main(map_key=None):
         # reset_phase() counterpart for the same reason: the dice are the whole
         # state, and they last the battle.
         fate_dice_pool.sync_battle_round(turn_tracker.battle_round)
+        # The Secondary Mission deck's 15 VP-per-battle-round ledger, reset on
+        # the same idempotent every-phase-change schedule and for the same
+        # reason: the reset must not depend on catching one exact moment.
+        secondary_mission_controller.sync_battle_round(turn_tracker.battle_round)
         # War Horde's Unbridled Carnage: likewise "until the end of the phase",
         # and expired in the same place for the same reason.
         unbridled_carnage_controller.reset_phase({t.squad for t in state.tokens if t.squad is not None})
@@ -1658,6 +1661,28 @@ def main(map_key=None):
         # Flash Gitz' Ammo Runt: same "until the end of the phase" grant. Its
         # once-per-BATTLE record is deliberately not touched here.
         ammo_runt_controller.reset_phase({t.squad for t in state.tokens if t.squad is not None})
+        # Skorpekh Destroyers' Plasmacyte: "until the end of the phase". Its
+        # once-per-battle-per-Plasmacyte spend count deliberately survives.
+        plasmacyte.reset_phase({t.squad for t in state.tokens if t.squad is not None})
+        # Awakened Dynasty's three phase-scoped protocols. Sudden Storm's
+        # reset_phase() clears only its ADVANCE re-roll half - its [ASSAULT]
+        # grant lasts until the end of the TURN and expires further down.
+        hungry_void_controller.reset_phase({t.squad for t in state.tokens if t.squad is not None})
+        conquering_tyrant_controller.reset_phase({t.squad for t in state.tokens if t.squad is not None})
+        sudden_storm_controller.reset_phase({t.squad for t in state.tokens if t.squad is not None})
+        vengeful_stars_controller.reset_phase()
+        # "At the end of the phase, set up the destroyed model" - ANY phase,
+        # so this is resolved at every boundary, exactly like Fuegan's.
+        eternal_revenant_controller.resolve_end_of_phase()
+        # Illuminor Szeras's Atomic Energy Manipulator is credited per PHASE,
+        # so the credit clears even when nothing grew - the growth itself is
+        # resolved at the end of the Fight phase below and is permanent.
+        # The Overlord's Resurrection Orb is "at the end of ANY phase", which
+        # is why it is offered here rather than in one phase's own branch.
+        if mover_before is not None:
+            resurrection_orb_controller.offer_at_end_of_phase({t.squad for t in state.tokens if t.squad is not None}, mover_before)
+        if phase_before == PHASE_FIGHT:
+            atomic_energy_controller.resolve_end_of_fight_phase({t.squad for t in state.tokens if t.squad is not None})
         if ending_player is not None:
             # Rule 11.04: "Until the end of the turn" - Fights First from a
             # charge made this turn expires once the turn actually ends.
@@ -1668,6 +1693,17 @@ def main(map_key=None):
             # War Horde's 'Ere We Go: "until the end of the turn", the same
             # lifetime as the three flags cleared in the loop right below.
             ere_we_go_controller.expire_for_turn(ending_squads)
+            # Doomsday Ark's Overwhelming Obliteration: "until the end of the
+            # turn", so it expires with the other one-turn grants rather than
+            # at the phase boundary above.
+            overwhelming_obliteration.expire_for_turn(ending_squads)
+            # Sudden Storm's [ASSAULT] grant - "until the end of the turn".
+            sudden_storm_controller.expire_for_turn(ending_squads)
+            # "Each model can only be selected for this ability once per turn"
+            # (Technomancer) and "you cannot resurrect more than one unit per
+            # turn" (Resurrection Orb) - both per-TURN ledgers, cleared here.
+            technomancer_controller.reset_turn()
+            resurrection_orb_controller.reset_turn()
             # Warp Spiders' Flickerjump grants its 24" Move "until the end of
             # the turn" too. Its other half (no charge) rides on
             # charge_locked_until_end_of_turn, cleared in the loop right below.
@@ -1680,6 +1716,11 @@ def main(map_key=None):
             # likewise not per-squad: it is held per player, because every
             # friendly AELDARI unit reads it.
             whispering_web_controller.reset_turn()
+            # Crystalline Targeting's "each unit can only be selected for this
+            # ability once per turn" - a limit on the TARGET, so likewise not
+            # per-squad and not tied to ending_squads. Its AP effect expired a
+            # phase boundary ago; only the selection ledger lives this long.
+            crystalline_targeting_controller.reset_turn()
             # The Twin Lance's Neocapacitor Shields: likewise "until the end
             # of the turn", and on the turn-taker's own units (the ones that
             # would have been charging), so ending_squads is exactly right.
@@ -1689,11 +1730,22 @@ def main(map_key=None):
             # reason - only the turn-taker can trigger either of them, both
             # being their own Movement phase manoeuvres.
             battle_focus_pool.expire_for_turn(ending_squads)
+            # Rangers' Path of the Outcast is "once per turn" (user-supplied
+            # wording). Cleared wholesale rather than per ending_squad: the
+            # ability fires in the OPPONENT's Movement phase, so the unit that
+            # used it is never the one whose turn is ending.
+            path_of_the_outcast_controller.reset_for_new_turn()
             for squad in ending_squads:
                 squad.fights_first = False
                 squad.charged_this_turn = False  # rule 11.04's own marker, see Squad.charged_this_turn
                 squad.set_up_this_turn = False
                 squad.charge_locked_until_end_of_turn = False
+                # Swooping Hawks' Grenade Pack Flyover locks the unit out of
+                # the Explosives Stratagem "until the end of the turn".
+                squad.explosives_locked_until_end_of_turn = False
+                # Baharroth's Cry of the Wind: "until the end of the turn".
+                for _m in squad.models:
+                    _m.cry_of_the_wind_active = False
                 squad.fell_back_this_turn = False  # rule 09.07: "until the end of the turn"
             # Secondary mission ("No Mercy", user-supplied): 1 point per
             # enemy unit destroyed, scored at the end of the destroying
@@ -1701,6 +1753,26 @@ def main(map_key=None):
             # for when a kill actually gets queued (the dead-model-removal
             # loop below).
             mission_controller.score_secondary_end_of_turn(ending_player)
+            # The human's Tactical Secondary cards. Their scoring instants are
+            # "end of your turn" (Centre Ground) and "end of A turn" (Bring It
+            # Down), so this runs for BOTH players' turn ends and the cards
+            # themselves decide which of them applies. Nothing is scored
+            # automatically - each achieved card opens a prompt asking whether to
+            # cash it in now or keep it, and the discard-for-CP offer follows once
+            # those are answered. Resolves asynchronously, exactly like
+            # starflare_controller.offer() a few lines down.
+            # battle_round_before, NOT turn_tracker.battle_round: advance_phase()
+            # has already run, and when the SECOND player's turn ends it has
+            # incremented the counter. A card asking "is this round 5" (Beacon)
+            # would otherwise see 6 at exactly the instant it should fire.
+            secondary_mission_controller.begin_end_of_turn(
+                ending_player, battle_round=battle_round_before)
+            # Rule 16.01's bookkeeping is per TURN ("it started another action
+            # this turn", and both locks last "until the end of the turn").
+            # AFTER begin_end_of_turn(), which is what completes this turn's
+            # actions and reads the result - clearing first would throw them
+            # away unresolved.
+            action_controller.reset_for_turn()
             # Starflare Ignition System Enhancement (user-supplied, 20 pts):
             # WHEN is "at the end of your opponent's turn" - this IS that
             # instant, and offer() sends the prompt to whoever is NOT
@@ -1718,6 +1790,24 @@ def main(map_key=None):
             # objective.controlled_by was already recomputed for this exact
             # boundary a few lines up.
             mission_controller.score_primary(state.objectives, turn_tracker.active_player)
+            # "Am Anfang jeder Runde zieht man zwei neue Missionen" - resolved as
+            # the start of the card player's OWN Command phase, which happens
+            # exactly once per battle round. turn_owner, not active_player: this
+            # is about whose turn it is, not whose decision is open right now.
+            # Idempotent by battle round, so the battle-start paths that already
+            # drew round 1's pair cannot be doubled up here.
+            # Overwhelming Force asks about enemy units that "started the turn"
+            # within range of an objective - a fact that cannot be recovered
+            # once they are dead. Snapshotted at the top of EVERY turn, either
+            # player's, because that card scores at the end of a turn.
+            secondary_mission_controller.snapshot_turn_start()
+            # "Burden of Trust" offers its guards both WHEN DRAWN and at the
+            # start of each of your turns. Run BEFORE the draw deliberately: on
+            # the turn the card is drawn this finds it not yet in hand and does
+            # nothing, so only the draw window fires instead of both.
+            secondary_mission_controller.start_of_turn(turn_tracker.turn_owner)
+            secondary_mission_controller.draw_at_command_phase(
+                turn_tracker.turn_owner, turn_tracker.battle_round)
             # Strike Team's DS8 Support Turret ability (user-supplied):
             # "until the start of your next turn" - this IS that instant,
             # for the player whose turn is beginning.
@@ -1749,6 +1839,9 @@ def main(map_key=None):
             # Painboy's Grot Orderly (user-supplied): "once per battle, in
             # your Command phase". Offered to the phase's own turn owner
             # only, like every other start-of-phase effect here.
+            # The NECRONS army rule. At the END of the Command phase, so it is
+            # driven from the phase_before branch further down - this comment
+            # sits here only because it is the sibling of the offer below.
             grot_orderly_controller.offer_at_command_phase(
                 [
                     sq for sq in {t.squad for t in state.tokens if t.squad is not None}
@@ -1767,6 +1860,10 @@ def main(map_key=None):
             thievin_scavengers_controller.start_check(turn_tracker.active_player)
         if turn_tracker.phase == PHASE_SHOOTING:
             shooting_controller.reset_shooting_phase()
+            # Rule 16.01 "STARTS: Your Shooting phase" - the Cleanse action's
+            # window. turn_owner, not active_player: this is about whose turn
+            # it is, not whose decision happens to be open.
+            secondary_mission_controller.offer_actions_at_shooting_phase(turn_tracker.turn_owner)
         if turn_tracker.phase == PHASE_CHARGE:
             charge_controller.reset_charge_phase()
             # The Twin Lance's Neocapacitor Shields: "at the start of your
@@ -1808,6 +1905,23 @@ def main(map_key=None):
         # the marking player's own next Shooting phase finally rolled
         # around, a full round later, instead of clearing the instant the
         # Shooting phase that created it actually ended.
+        if phase_before == PHASE_COMMAND:
+            # Reanimation Protocols: "at the end of your Command phase, each
+            # friendly unit with this ability that is on the battlefield
+            # activates". A QUEUE - every eligible unit gets its own labelled
+            # roll, one at a time; see game/reanimation_protocols.py.
+            reanimation_controller.begin_command_phase({t.squad for t in state.tokens if t.squad is not None}, mover_before)
+        if turn_tracker.phase == PHASE_SHOOTING:
+            # The Void Dragon's Matter Absorption is "at the START of your
+            # Shooting phase"; the Plasmancer's Living Lightning is "in your
+            # Shooting phase", which this instant also satisfies. Both reset
+            # their once-per-phase ledgers first.
+            living_lightning_controller.reset_phase()
+            matter_absorption_controller.reset_phase()
+            matter_absorption_controller.offer_at_shooting_phase(
+                {t.squad for t in state.tokens if t.squad is not None}, turn_tracker.turn_owner)
+            living_lightning_controller.offer_at_shooting_phase(
+                {t.squad for t in state.tokens if t.squad is not None}, turn_tracker.turn_owner)
         if phase_before == PHASE_SHOOTING:
             greater_good_controller.reset_shooting_phase()
         # Rules 15.07/15.08 (Rapid Ingress / Fire Overwatch): WHEN is "end
@@ -1831,6 +1945,10 @@ def main(map_key=None):
             guide_controller.offer_at_end_of_movement(
                 mover_before, {t.squad for t in state.tokens if t.squad is not None},
             )
+            # The Technomancer's own ability: "at the end of your Movement
+            # phase". Same instant as Guide above, and likewise offered to the
+            # player whose Movement phase just ended.
+            technomancer_controller.offer_at_end_of_movement({t.squad for t in state.tokens if t.squad is not None}, mover_before)
             # Eldrad Ulthran's Doom: same trigger, same instant. Two separate
             # offers rather than one combined prompt - they are two abilities
             # with two independent marks, and a player owning both should be
@@ -1859,17 +1977,24 @@ def main(map_key=None):
     dragging_reserve_squad = None  # rule 03.02: squad being dragged from the Reserves panel onto the board
 
     def show_loading_overlay(message):
-        """Same look as show_thinking_overlay()'s full-window branch below,
-        but for a synchronous ENGINE computation (line-of-sight/valid-target
-        sweeps) rather than a Claude API call - flashed right before a cache
-        miss is about to run one of those expensive sweeps (see
-        get_shoot_targets()/get_greater_good_eligible_squads() above), so the
-        window shows *something* instead of just sitting there for the
-        fraction of a second to ~1s the sweep can take on a full board."""
+        """Full-window dim + centered message, for a synchronous ENGINE
+        computation (line-of-sight/valid-target sweeps) rather than a Claude
+        API call - flashed right before a cache miss is about to run one of
+        those expensive sweeps (see get_shoot_targets()/
+        get_greater_good_eligible_squads() above), so the window shows
+        *something* instead of just sitting there for the fraction of a
+        second to ~1s the sweep can take on a full board.
+
+        This one KEEPS the full-window look that show_thinking_overlay()
+        below has dropped, and the difference is the point: these sweeps are
+        the direct answer to a click the human just made and last a moment,
+        so there is nothing to watch and nothing to be locked out of. The
+        AI's waits are the opposite - they are someone else's turn playing
+        out on the board, which is exactly what you want to keep watching."""
         overlay = pygame.Surface((window_width, window_height), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 160))
         screen.blit(overlay, (0, 0))
-        text_surf = thinking_font.render(message, True, (255, 255, 255))
+        text_surf = loading_font.render(message, True, (255, 255, 255))
         text_rect = text_surf.get_rect(center=(window_width // 2, window_height // 2))
         screen.blit(text_surf, text_rect)
         pygame.display.flip()
@@ -1880,30 +2005,39 @@ def main(map_key=None):
         whole loop is blocked (it's a synchronous network call), so without
         this the window would just look frozen.
 
-        User report + screenshot: the full-window dark overlay (designed for
-        "picking a squad action", where nothing else is on screen yet) reads
-        as confusing/overlapping when ai/agent_driver.py's
-        _maybe_command_reroll() is what's asking - that one deliberately
-        fires WHILE a dice roll is already visible and awaiting
-        acknowledgement (rule 15.02 has to react to the roll before it's
-        confirmed), so dimming/covering that roll while also displaying a
-        generic "thinking" message reads as two unrelated, conflicting
-        prompts at once instead of one coherent "Claude is looking at this
-        roll" moment. When a roll is pending, use the same small corner
-        badge as the "AUTO-PLAY" indicator instead - leaves the roll fully
-        legible and names what's actually being decided."""
-        if dice_manager.is_pending:
-            badge_surf = auto_play_font.render("Claude is considering a Command Re-roll...", True, (20, 20, 20))
-            badge_rect = badge_surf.get_rect(topleft=(config.LEFT_PANEL_WIDTH + 12, 12))
-            pygame.draw.rect(screen, (255, 210, 90), badge_rect.inflate(16, 10), border_radius=6)
-            screen.blit(badge_surf, badge_rect)
-        else:
-            overlay = pygame.Surface((window_width, window_height), pygame.SRCALPHA)
-            overlay.fill((0, 0, 0, 160))
-            screen.blit(overlay, (0, 0))
-            text_surf = thinking_font.render("Claude is thinking...", True, (255, 255, 255))
-            text_rect = text_surf.get_rect(center=(window_width // 2, window_height // 2))
-            screen.blit(text_surf, text_rect)
+        No full-window dim any more (User: "das nervt ein bisschen, weil man
+        dann nicht so gut verfolgen kann, was grade passiert"). The board -
+        the thing you actually want to watch while the AI acts - stays fully
+        legible, and what gets covered instead is the two side panels, i.e.
+        exactly the buttons you must not press during someone else's turn.
+        The message carries the signal on its own from the corner, in the
+        same badge the planning wait uses.
+
+        That also folds in an older report that the dim used to fight with a
+        VISIBLE dice roll: ai/agent_driver.py's _maybe_command_reroll()
+        deliberately fires while a roll awaits acknowledgement (rule 15.02
+        has to react before it is confirmed), and covering that roll read as
+        two conflicting prompts at once. Only the wording still branches on
+        it now - the roll stays untouched either way, so naming what is
+        being decided is all that is left to do.
+
+        A single flashed frame, so no pulse: the badge would freeze at
+        whatever phase it happened to catch and sit there for the whole
+        call.
+
+        Skipped entirely while the planning badge is up: that one occupies
+        this very corner and is already saying "the AI is busy", and this
+        flash draws on top of a finished frame - a narrower badge over a wider
+        one leaves the wider one's tail sticking out, which is the overlap the
+        AUTO-PLAY dot below was reported for."""
+        if ai_memory.is_planning:
+            return
+        ai_busy_badge.draw(
+            screen,
+            "Claude is considering a Command Re-roll..." if dice_manager.is_pending else "Claude is thinking...",
+            board_rect_screen, dim_rects=ai_busy_dim_rects, pulse=False,
+            avoid_rects=(dice_panel.last_backdrop_rect,),
+        )
         pygame.display.flip()
 
     def _any_pending_damage_choice():
@@ -2026,8 +2160,18 @@ def main(map_key=None):
             or fall_back_controller.pending_damage_choice is not None
             or explosives_controller.state != explosives.IDLE
             or explosives_controller.pending_damage_choice is not None
-        or ishas_fury_controller.is_busy
             or ishas_fury_controller.is_busy
+            or grenade_pack_controller.is_busy
+            # Rangers' Path of the Outcast: its D6 or its open reactive move
+            # belongs to the OTHER player, mid-phase - advancing the phase out
+            # from under it would strand turn_tracker.active_player on the
+            # reacting player (only _finish() hands it back).
+            or path_of_the_outcast_controller.is_busy
+            # The Secondary Mission deck still owes the human a prompt (cash a
+            # completed card in, or discard one for CP). Opened at the end of a
+            # turn, so without this the next phase could roll over the top of a
+            # decision that is still on screen.
+            or secondary_mission_controller.is_busy
             or grav_inhibitor_controller.is_busy
             or flickerjump_controller.is_busy
             or epic_challenge_controller.state != epic_challenge.IDLE
@@ -2075,6 +2219,13 @@ def main(map_key=None):
             unbridled_carnage_controller=unbridled_carnage_controller,
             ere_we_go_controller=ere_we_go_controller,
             retro_thrusters_controller=retro_thrusters_controller,
+            # Awakened Dynasty's three proactive protocols. The reactive three
+            # (Undying Legions, Eternal Revenant, Vengeful Stars) are NOT here
+            # on purpose: they answer inside their own controllers through
+            # auto_players, so the AI needs no ai/ path for them at all.
+            hungry_void_controller=hungry_void_controller,
+            conquering_tyrant_controller=conquering_tyrant_controller,
+            sudden_storm_controller=sudden_storm_controller,
         )
         # User: "ich würde den plan gerne ausführlicher in einem großen text
         # prompt sehen am anfang des gegnerischen zuges nachdem er erstellt
@@ -2086,7 +2237,7 @@ def main(map_key=None):
         # (empty turn_intent AND no unit_plans).
         plan = ai_memory.turn_plan
         if plan is not None and plan is not last_shown_turn_plan and (plan["turn_intent"] or plan["unit_plans"]):
-            turn_plan_overlay.show(plan)
+            turn_plan_overlay.show(plan, state.all_squads())
             last_shown_turn_plan = plan
 
     def ai_advance_phase():
@@ -2215,7 +2366,20 @@ def main(map_key=None):
                 board_w_in=board.width_in, board_h_in=board.height_in,
                 objectives=state.objectives, game_log=game_log,
             ),
+            # The human's half. resolve_scouts() above returns False for a unit
+            # it does not own, and until now that was read as "declined" and
+            # the unit was popped - so a human's Scouts move was never offered
+            # at all (user report). These two lines are what actually open it.
+            decision_manager=decision_manager,
+            # Player 1 is the human throughout this engine - the AI is the
+            # literal string "Player 2" everywhere in ai/, so this is the same
+            # single fact, not a second list to keep in sync.
+            human_players=("Player 1",),
         )
+        # A confirmed OR cancelled scout move resumes the SCOUTS queue; without
+        # the cancel half a declined drag would strand the pre-game.
+        movement_controller.on_scout_move_finished = (
+            pregame_controller.scouts_step.on_scout_move_finished)
 
     running = True
     while running:
@@ -2242,6 +2406,23 @@ def main(map_key=None):
         # before resuming.
         ai_action_paused_this_frame = _any_pending_damage_choice()
         for event in pygame.event.get():
+            # Where the cursor is and what it hovers is a VIEW fact, never a
+            # decision - so it is tracked here, before the state-gated chain
+            # below, rather than in its very LAST branch (same argument the
+            # "A" key, the mouse wheel and ESC already make further down).
+            #
+            # User report: "ich kann oft keine entfernungen messen. zb bei
+            # overwatch". InputManager.handle_event() is that last branch, so
+            # any pending Fire Overwatch offer / damage choice / decision
+            # prompt matched earlier and swallowed the motion - mouse_pos_in
+            # and hovered_token then froze, and the ALT ruler is drawn from
+            # exactly those two. Deliberately a plain `if` ahead of the chain,
+            # not a branch inside it: consuming the motion here would freeze
+            # dragging in every state where the chain DOES want it.
+            # track_pointer() is idempotent, so the later call is harmless.
+            if event.type == pygame.MOUSEMOTION:
+                input_manager.track_pointer(event.pos, state.tokens, board)
+
             if event.type == pygame.QUIT:
                 running = False
             elif fullscreen and event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
@@ -2265,7 +2446,8 @@ def main(map_key=None):
                 # still works so the habit is not broken.
                 stamp = time.strftime("%Y%m%d_%H%M%S")
                 path = scene_io.write(
-                    scene_io.capture(state, battle_map.key, turn_tracker, command_points),
+                    scene_io.capture(state, battle_map.key, turn_tracker, command_points,
+                                     armies=armies),
                     os.path.join("scenes", f"scene_{stamp}.json"),
                 )
                 game_log.add(f"Board position saved to {path} (reload it with --load {path})")
@@ -2296,7 +2478,7 @@ def main(map_key=None):
                     ai_auto_play = not ai_auto_play
                     game_log.add(f"Player 2: auto-play {'ON' if ai_auto_play else 'OFF'} (Shift+A).")
                 elif (
-                    not dice_panel.is_busy and not stratagem_notice_overlay.is_pending
+                    not dice_panel.is_busy and not stratagem_notice_overlay.is_pending and not mission_draw_overlay.is_pending
                     and not waaagh_notice_overlay.is_pending
                     and not turn_start_overlay.is_pending and not turn_plan_overlay.is_pending
                     and not ai_action_paused_this_frame
@@ -2361,6 +2543,18 @@ def main(map_key=None):
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     turn_plan_overlay.dismiss()
                     ai_action_paused_this_frame = True
+            elif mission_draw_overlay.is_pending:
+                # User: "Ich moechte, dass diese Missionen einmal in einem
+                # Overlay angezeigt werden, zum Wegklicken, und dann der Link
+                # zur linken Leiste hinzugefuegt werden." Same
+                # "must-click-away, nothing to choose" priority as the
+                # Stratagem notice below it, and above it in the chain because
+                # the draw happens first: the cards are in hand from the
+                # instant they are drawn, so the player should see WHAT they
+                # drew before anything those cards make them decide.
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    mission_draw_overlay.dismiss()
+                    ai_action_paused_this_frame = True
             elif stratagem_notice_overlay.is_pending:
                 # User: a "Player 2 uses X" notice takes priority over
                 # everything else - even a pending decision/dice roll from
@@ -2413,6 +2607,20 @@ def main(map_key=None):
                         flickerjump_controller.on_dice_acknowledged()
                         explosives_controller.on_dice_acknowledged()
                         ishas_fury_controller.on_dice_acknowledged()
+                        # Rangers' Path of the Outcast. THIS LINE WAS MISSING,
+                        # and it is the whole of the user's report ("die KI
+                        # laesst mich mit den Rangern immer noch nicht
+                        # bewegen"): the offer appeared, the D6 was rolled and
+                        # acknowledged, and nobody told the controller - so
+                        # _start_move() was never reached and the unit never
+                        # became movable. A controller that is constructed and
+                        # never FED is invisible to every test that drives it
+                        # directly, which is exactly how test_rangers.py stayed
+                        # green (it calls ctrl.on_dice_acknowledged() itself).
+                        # Third time this project has hit that class; hence the
+                        # source-level wiring guard in test_rangers.py.
+                        path_of_the_outcast_controller.on_dice_acknowledged()
+                        grenade_pack_controller.on_dice_acknowledged()
                         deadly_demise_controller.on_dice_acknowledged()
                         transport_controller.on_dice_acknowledged()
                         crushing_impact_controller.on_dice_acknowledged()
@@ -2420,6 +2628,13 @@ def main(map_key=None):
                         thievin_scavengers_controller.on_dice_acknowledged()
                         spirit_of_gork_controller.on_dice_acknowledged()
                         grot_orderly_controller.on_dice_acknowledged()
+                        reanimation_controller.on_dice_acknowledged()
+                        undying_legions_controller.on_dice_acknowledged()
+                        technomancer_controller.on_dice_acknowledged()
+                        resurrection_orb_controller.on_dice_acknowledged()
+                        living_lightning_controller.on_dice_acknowledged()
+                        matter_absorption_controller.on_dice_acknowledged()
+                        wraith_form_controller.on_dice_acknowledged()
                         pregame_controller.on_dice_acknowledged()  # rule 03.01 roll-offs
             elif crushing_impact_controller.pending_damage_choice is not None:
                 if (
@@ -2429,6 +2644,29 @@ def main(map_key=None):
                     clicked = input_manager.token_at_event(state.tokens, board, event.pos)
                     if clicked is not None and clicked in crushing_impact_controller.pending_damage_choice:
                         crushing_impact_controller.choose_damage_model(clicked)
+            elif secondary_mission_controller.pending_pick:
+                # A Secondary Mission asking the human to CLICK ONE OF THEIR
+                # UNITS on the board (Burden of Trust's guards). Placed here -
+                # after the notices, the decision overlay and a pending dice
+                # roll, but ahead of every controller-state branch and so ahead
+                # of the generic board branch - because a click on the board
+                # would otherwise fall through to the camera/selection handler
+                # and be swallowed. That is error class 15 in CLAUDE.md, and it
+                # is the reason this branch exists at all rather than the
+                # picking living inside InputManager.
+                #
+                # Same shape as crushing_impact's CHOOSING_ENEMY below: left
+                # panel clicks go to the panel (that is where the "No guard
+                # here" button lives), board clicks resolve to a squad. A click
+                # on an ineligible unit is IGNORED rather than guessed at -
+                # choose_picked_unit() checks eligibility itself.
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    if left_panel_rect.collidepoint(event.pos):
+                        action_panel.handle_click(event.pos)
+                    elif board_rect_screen.collidepoint(event.pos):
+                        clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                        if clicked is not None and clicked.squad is not None:
+                            secondary_mission_controller.choose_picked_unit(clicked.squad)
             elif crushing_impact_controller.state == crushing_impact.CHOOSING_ENEMY:
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     if left_panel_rect.collidepoint(event.pos):
@@ -2637,6 +2875,10 @@ def main(map_key=None):
                     clicked = input_manager.token_at_event(state.tokens, board, event.pos)
                     if clicked is not None and clicked in grav_inhibitor_controller.pending_damage_choice:
                         grav_inhibitor_controller.choose_damage_model(clicked)
+            elif grenade_pack_controller.pending_damage_choice is not None:
+                clicked = input_manager.token_at_event(state.tokens, event, camera)
+                if clicked is not None and clicked in grenade_pack_controller.pending_damage_choice:
+                    grenade_pack_controller.choose_damage_model(clicked)
             elif ishas_fury_controller.pending_damage_choice is not None:
                 # Rule 06.02 again: the moving player picks which of their own
                 # models takes each mortal wound.
@@ -2753,10 +2995,6 @@ def main(map_key=None):
                         if clicked is not None and clicked.squad in get_fire_overwatch_eligible_squads():
                             fire_overwatch_controller.choose_unit(clicked.squad)
                             ai_action_paused_this_frame = True
-            elif event.type == pygame.KEYDOWN and event.key in (pygame.K_LALT, pygame.K_RALT):
-                input_manager.start_measuring()
-            elif event.type == pygame.KEYUP and event.key in (pygame.K_LALT, pygame.K_RALT):
-                input_manager.stop_measuring()
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if reserves_panel_rect.collidepoint(event.pos):
                     # The Player 1/Player 2 tabs and the pagination arrows live
@@ -2852,6 +3090,30 @@ def main(map_key=None):
                 if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                     camera.end_pan()
 
+        # The ALT ruler (User: "sorge bitte dafür, dass ich immer entfernungen
+        # messen kann. mit alt"). Polled from the modifier's live state instead
+        # of the KEYDOWN/KEYUP pair this used to be, because that pair lived
+        # inside the state-gated chain above and was swallowed by whichever
+        # branch happened to be active - see InputManager.update_measuring().
+        # Once per frame and AFTER the events, so this frame's own motion is
+        # already tracked and the origin snaps to whatever the cursor really
+        # sits on.
+        input_manager.update_measuring(bool(pygame.key.get_mods() & pygame.KMOD_ALT))
+
+        # Seer Council's Unshrouded Truth ends with "your unit must make an
+        # ingress move this phase", and the user read that as immediate ("der
+        # unterschied ist nur, dass ich sie sofort wieder platzieren muss"). So
+        # rather than leaving a card to pick up later, the owed arrival arms the
+        # very drag a reserves card would - the next board click sets the unit
+        # down. Polled once per frame, after the events, because the stratagem
+        # is bought from an ActionPanel callback and there are several of those
+        # dispatch sites; taking it (rather than reading it) means a second frame
+        # cannot re-arm a placement already in progress.
+        _owed_arrival = unshrouded_truth_controller.take_pending_placement()
+        if _owed_arrival is not None:
+            dragging_reserve_squad = _owed_arrival
+            ingress_controller.homing_beacon_bearer = None
+
         # `turn_tracker.started` gates the whole block: during the pre-game
         # sequence (rule 03.01) nobody has a turn yet, and without this the
         # "Player 1 Turn 1" banner would greet frame 1, before deployment.
@@ -2895,7 +3157,7 @@ def main(map_key=None):
             previous_turn_owner = turn_tracker.turn_owner
 
         if (
-            ai_auto_play and not dice_panel.is_busy and not stratagem_notice_overlay.is_pending
+            ai_auto_play and not dice_panel.is_busy and not stratagem_notice_overlay.is_pending and not mission_draw_overlay.is_pending
             and not waaagh_notice_overlay.is_pending
             and not turn_start_overlay.is_pending and not turn_plan_overlay.is_pending
             and not ai_action_paused_this_frame
@@ -2939,9 +3201,34 @@ def main(map_key=None):
         # recomputed afterwards (see game/retro_thrusters.py).
         if turn_tracker.phase == PHASE_FIGHT:
             retro_thrusters_controller.note_eligibility()
-        for dead in state.remove_dead_models():
+        _swept = state.remove_dead_models()
+        # Protocol of the Vengeful Stars reacts to a whole UNIT dying, not to
+        # individual models, and its 6" is measured from where that unit stood
+        # - so it is fed once per wiped-out squad, here, with whoever was
+        # shooting at the time. Done BEFORE the per-model loop below so the
+        # capture happens exactly once per squad rather than once per corpse.
+        for _wiped in {t.squad for t in _swept
+                       if t.squad is not None and not any(not m.is_dead() for m in t.squad.models)}:
+            vengeful_stars_controller.notify_unit_destroyed(
+                _wiped, getattr(shooting_controller, "active_squad", None))
+        for dead in _swept:
             game_log.add(f"{dead.profile.name} was destroyed.")
-            state.add_blood_decal(dead.x_in, dead.y_in, dead.radius_in)
+            # Fuegan's Unquenchable Resolve only NOTES the death here; the roll
+            # is "at the end of the phase" and happens at the phase boundary.
+            # Noting it here rather than there is what keeps "the first time this
+            # model is destroyed" honest about which phase the death was in.
+            unquenchable_resolve_controller.notify_destroyed([dead])
+            # Atomic Energy Manipulator: "if this model destroyed one or more
+            # models this phase". Credited to the unit that was fighting, which
+            # is exact for Szeras - he has no LEADER line, so his unit is always
+            # just him. See game/mechanical_augmentation.py.
+            atomic_energy_controller.notify_destroyed(
+                [dead], getattr(fight_controller, "fighting_squad", None))
+            # Protocol of the Eternal Revenant: noted as the model is swept, so
+            # "was JUST destroyed" stays honest about which phase it died in;
+            # bought and resolved at the phase boundary. Fuegan's arrangement.
+            eternal_revenant_controller.notify_destroyed([dead])
+            state.add_blood_decal(dead.x_in, dead.y_in)
             if movement_controller.selected_model is dead:
                 movement_controller.select(None)
             if input_manager.hovered_token is dead:
@@ -2977,6 +3264,18 @@ def main(map_key=None):
             # leaving it as a coincidence of the representation.
             if dead.squad is not None and attached_units.unit_is_destroyed(dead.squad):
                 mission_controller.record_destroyed_squad(dead.squad)
+                # Same instant, second consumer: the Secondary Mission card
+                # "A Grievous Blow" counts destroyed UNITS (Starting Strength
+                # 13+) where "Bring It Down" counts destroyed MODELS, so it
+                # hangs off this branch's own unit_is_destroyed() judgement
+                # rather than re-deriving one.
+                secondary_mission_controller.record_destroyed_squad(dead.squad)
+            # Per MODEL, not per unit, and unconditionally: the Secondary
+            # Mission card "Bring It Down" counts enemy MODELS with a Wounds
+            # characteristic of 10+ destroyed this turn, so a squadron losing
+            # two hulls out of three scores twice while its unit lives on and
+            # record_destroyed_squad() above never fires at all.
+            secondary_mission_controller.record_destroyed_model(dead)
 
         # Only start a new Deadly Demise roll or Emergency Disembark once
         # nothing else is already waiting on the player (another dice
@@ -3090,6 +3389,20 @@ def main(map_key=None):
         # holding exactly (e.g. across integer rounding) instead.
         screen.fill(config.BACKGROUND_COLOR)
 
+        # Everything below draws onto board_surface in full-board
+        # coordinates, unaware of zoom/pan - but only the camera's visible
+        # rect is ever shown, so clip to it. This is what pays for the
+        # derived render resolution (game/render_resolution.py): the
+        # per-frame cost then follows the SCREEN area instead of the board's
+        # full pixel count, which is why rendering ~3x as many pixels per
+        # inch came out FASTER than the old fixed resolution did (measured
+        # on the real army: map1 9.2ms -> 7.3ms, map2 9.9ms -> 6.3ms).
+        # Nothing outside the clip can go stale: the static terrain layer is
+        # re-blitted over the whole visible rect every frame, so a region
+        # that a pan brings into view is drawn fresh that same frame.
+        board_clip = camera.visible_rect()
+        board_surface.set_clip(board_clip)
+
         renderer.draw(
             board_surface, board, state.tokens, state.obstacles, turn_tracker.active_player,
             deployment_zones=state.deployment_zones, blood_decals=state.blood_decals,
@@ -3117,10 +3430,21 @@ def main(map_key=None):
         )
         if placement_squad is not None:
             if placement_squad is pregame_controller.selected_unit and pregame_controller.awaiting_drop:
-                position_valid_fn = lambda token, x_in, y_in: pregame_controller.position_valid(
+                position_valid_fn = lambda token, x_in, y_in: pregame_controller.overlay_position_valid(
                     placement_squad, token, x_in, y_in,
                 )
                 session_key = ("pregame-select", id(placement_squad))
+            elif pregame_controller.is_deploying(placement_squad):
+                # Rule 03.01's own placement. Same predicate the drag is held
+                # inside EXCEPT the other-models term, which the deployment
+                # overlay deliberately does not paint - see
+                # PregameController.overlay_position_valid(). Must be tested
+                # before the generic PLACING branch below, which this one is a
+                # special case of.
+                position_valid_fn = lambda token, x_in, y_in: pregame_controller.overlay_position_valid(
+                    placement_squad, token, x_in, y_in,
+                )
+                session_key = ("pregame-place", setup_controller.placement_generation)
             elif placement_squad is setup_controller.setting_up_squad:
                 # Once PLACING has begun, the overlay paints the exact same
                 # predicate SetupController.clamp_position() holds the drag
@@ -3190,6 +3514,7 @@ def main(map_key=None):
         renderer.draw_damage_choice_highlight(board_surface, board, fight_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, explosives_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, ishas_fury_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, grenade_pack_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, grav_inhibitor_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, flickerjump_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, deadly_demise_controller.pending_damage_choice)
@@ -3212,11 +3537,14 @@ def main(map_key=None):
         # whichever native sub-rect it currently selects into the screen's
         # board area. smoothscale() (not the faster nearest-neighbor
         # scale()) is deliberate - User report ("alles ist total verpixelt,
-        # wenn ich reinzoome"): once zoom pushes past what RENDER_SUPERSAMPLE
-        # actually has real detail for, this turns the remainder into a soft
-        # blur instead of hard blocky squares - profiled as costing no more
-        # than scale() would here, so there's no performance tradeoff in
-        # preferring it.
+        # wenn ich reinzoome"): if zoom ever pushes past what the render
+        # resolution actually has real detail for, this turns the remainder
+        # into a soft blur instead of hard blocky squares - profiled as
+        # costing no more than scale() would here, so there's no performance
+        # tradeoff in preferring it. Since the resolution became derived
+        # (game/render_resolution.py) that case no longer arises within the
+        # camera's own zoom range at all; this only still runs when zooming
+        # OUT, where it is a downscale.
         #
         # camera.dest_rect() (not board_rect_screen's own full size) is the
         # actual destination - User follow-up ("ich würde gerne noch weiter
@@ -3227,10 +3555,18 @@ def main(map_key=None):
         # non-uniformly stretched to fill it, exactly as camera.py's
         # dest_rect() docstring lays out; at DEFAULT_ZOOM and above it's
         # simply the full board_rect_screen, unchanged from before.
-        camera_view = board_surface.subsurface(camera.visible_rect())
+        board_surface.set_clip(None)
+        camera_view = board_surface.subsurface(board_clip)
         dest = camera.dest_rect()
-        scaled = pygame.transform.smoothscale(camera_view, (dest.width, dest.height))
-        screen.blit(scaled, (board_rect_screen.x + dest.x, board_rect_screen.y + dest.y))
+        if camera_view.get_size() == (dest.width, dest.height):
+            # Exactly 1:1 - the normal case at MAX_ZOOM now that the render
+            # resolution is derived for it. smoothscale() at 1:1 is not free
+            # (~1.8ms on a full-screen board area), and it is pure cost:
+            # there is nothing to resample.
+            screen.blit(camera_view, (board_rect_screen.x + dest.x, board_rect_screen.y + dest.y))
+        else:
+            scaled = pygame.transform.smoothscale(camera_view, (dest.width, dest.height))
+            screen.blit(scaled, (board_rect_screen.x + dest.x, board_rect_screen.y + dest.y))
 
         action_panel.draw(
             screen, left_panel_rect, movement_controller, shooting_controller, coherency_enforcer,
@@ -3250,13 +3586,34 @@ def main(map_key=None):
             # call site has already caused once (see CLAUDE.md).
             presentiment_controller=presentiment_controller,
             fate_inescapable_controller=fate_inescapable_controller,
+            unshrouded_truth_controller=unshrouded_truth_controller,
+            # Appended BY KEYWORD: this call is POSITIONAL up to
+            # battle_focus_pool, and inserting a parameter mid-signature
+            # has silently shifted every argument after it before.
+            sudden_storm_controller=sudden_storm_controller,
+            conquering_tyrant_controller=conquering_tyrant_controller,
+            hungry_void_controller=hungry_void_controller,
+            # Rangers' Path of the Outcast: its reactive move needs its OWN
+            # Confirm/Cancel, or the generic ones leave turn_tracker.
+            # active_player stranded on the reacting player - see the branch in
+            # _draw_movement_ui().
+            path_of_the_outcast_controller=path_of_the_outcast_controller,
+            # An open "click a unit on the board" request from a Secondary
+            # Mission owns the panel while it lasts - it is the only place that
+            # can name WHICH objective is being decided.
+            secondary_mission_controller=secondary_mission_controller,
         )
         # Drawn after the left panel itself (so their expanded/slid-out
         # state renders on top of the board, not underneath the panel) but
         # anchored off left_panel_rect - see MissionCardsOverlay's docstring.
-        mission_cards_overlay.draw(screen, left_panel_rect, mission_controller)
+        mission_cards_overlay.draw(screen, left_panel_rect, mission_controller,
+                                   secondary_mission_controller)
+        if len(player_factions) < 2:
+            player_factions = derive_player_factions(_all_squads(state, pregame_controller))
+        # Appended and passed by keyword: this call site is positional up to
+        # fate_dice_pool, and the tests that drive this panel are too.
         game_status_panel.draw(screen, right_panel_rect, turn_tracker, command_points, mission_controller,
-                               battle_focus_pool, fate_dice_pool)
+                               battle_focus_pool, fate_dice_pool, player_factions=player_factions)
         # config.LOG_HEIGHT is what the log wants; the Game Status panel above
         # it gets the room it needs first. Clamped against that panel's real
         # button rect (drawn one line above, so it is this frame's) rather than
@@ -3336,23 +3693,29 @@ def main(map_key=None):
         dice_panel.draw(
             screen, dice_manager, selecting_die=command_reroll_controller.selecting_die,
             bounds_rect=board_rect_screen,
-            suppressed=(
-                stratagem_notice_overlay.is_pending or waaagh_notice_overlay.is_pending
-                or turn_start_overlay.is_pending or turn_plan_overlay.is_pending
-            ),
+            suppressed=bool(_front_notice()),
         )
-        decision_overlay.draw(screen, decision_manager)
-        # Drawn last (on top of everything else, including the decision
-        # overlay) - matches its own top input priority above.
-        stratagem_notice_overlay.draw(screen)
-        waaagh_notice_overlay.draw(screen)
-        turn_plan_overlay.draw(screen)
-        turn_start_overlay.draw(screen)
+        # ONE modal at a time. User: "momentan kommt das Overlay, dass ich jetzt
+        # am Zug bin, und das Overlay mit den Missionen gleichzeitig. Ich
+        # moechte keine gleichzeitigen Overlays. Das soll wieder nacheinander
+        # kommen." Every one of these is a full-screen dimmed, must-click-away
+        # box, and the event chain above already hands clicks to exactly one of
+        # them (the first pending branch wins) - so drawing the others behind
+        # it only ever showed boxes nobody could answer yet, peeking out from
+        # behind the one that had focus. Drawing just the front-most makes the
+        # picture match the input priority: dismiss it, and the next appears.
+        _notice = _front_notice()
+        if _notice is not None:
+            _notice.draw(screen)
+        else:
+            # Same reasoning one tier down: a decision is only clickable once
+            # every notice is gone, so it waits its turn too.
+            decision_overlay.draw(screen, decision_manager, state.all_squads())
 
         ctrl_held = pygame.key.get_mods() & (pygame.KMOD_LCTRL | pygame.KMOD_RCTRL)
         if (
             ctrl_held and input_manager.hovered_token is not None
-            and not decision_manager.is_pending and not stratagem_notice_overlay.is_pending
+            and not decision_manager.is_pending and not stratagem_notice_overlay.is_pending and not mission_draw_overlay.is_pending
             and not waaagh_notice_overlay.is_pending
             and not turn_start_overlay.is_pending and not turn_plan_overlay.is_pending
         ):
@@ -3373,22 +3736,40 @@ def main(map_key=None):
             # py's _maybe_generate_turn_plan()), so this frame is still being
             # drawn while it's in flight - which is exactly why it needs an
             # indicator that visibly moves. A static badge during a 30-second
-            # wait is what a hung game looks like; animated dots are the signal
-            # that the window is alive and something is still happening.
+            # wait is what a hung game looks like; animated dots (plus the
+            # badge's own pulse) are the signal that the window is alive and
+            # something is still happening.
+            #
+            # Panels dimmed for the same reason as the thinking flash above:
+            # this is the AI's turn starting, and nothing in either column is
+            # yours to press until the plan lands.
             dots = "." * (1 + int(time.monotonic() * 2) % 3)
-            badge_surf = auto_play_font.render(f"Player 2 is planning its turn{dots}", True, (20, 20, 20))
-            badge_rect = badge_surf.get_rect(topleft=(config.LEFT_PANEL_WIDTH + 12, 12))
-            pygame.draw.rect(screen, (255, 210, 90), badge_rect.inflate(16, 10), border_radius=6)
-            screen.blit(badge_surf, badge_rect)
+            ai_busy_badge.draw(
+                screen, f"Player 2 is planning its turn{dots}",
+                board_rect_screen, dim_rects=ai_busy_dim_rects, pulse=True,
+                avoid_rects=(dice_panel.last_backdrop_rect,),
+            )
         elif ai_auto_play:
             # Persistent reminder that Player 2 is driving itself right now
             # (Shift+A toggles it) - easy to lose track of otherwise, since
-            # unlike the "Claude is thinking..." overlay this has no single
+            # unlike the "Claude is thinking..." badge this has no single
             # moment it flashes at.
-            badge_surf = auto_play_font.render("Player 2: AUTO-PLAY (Shift+A to stop)", True, (20, 20, 20))
-            badge_rect = badge_surf.get_rect(topleft=(config.LEFT_PANEL_WIDTH + 12, 12))
-            pygame.draw.rect(screen, (255, 210, 90), badge_rect.inflate(16, 10), border_radius=6)
-            screen.blit(badge_surf, badge_rect)
+            #
+            # A DOT, not a badge, and in the OPPOSITE corner (User: "dieses
+            # AutoPlay-enabled Label kannst du eigentlich weglassen. Ersatz:
+            # ein kleiner roter Punkt... Als Riesenlabel brauchen wir nur das
+            # Claude is thinking"). It shared the top-left corner with the busy
+            # badge, and the busy badge is flashed ON TOP of an already-drawn
+            # frame - so the wider AUTO-PLAY label stuck out from behind the
+            # narrower "Claude is thinking...". Opposite corners cannot
+            # overlap; a smaller badge in the same corner still could.
+            #
+            # This is also a MODE, not a wait, which is why it never dims the
+            # panels: several windows inside the AI's turn are genuinely the
+            # human's (reactive stratagems, Fire Overwatch, wound allocation -
+            # see CLAUDE.md), and locking the panels would lock the player out
+            # of their own decisions.
+            draw_auto_play_dot(screen, board_rect_screen)
 
         pygame.display.flip()
         clock.tick(config.FPS)
@@ -3397,13 +3778,42 @@ def main(map_key=None):
     pygame.quit()
 
 
+ORKS_ARMY = army_lists.ORKS_ARMY
+NECRONS_ARMY = army_lists.NECRONS_ARMY
+ARMY_KEYS = sorted(army_lists.BY_KEY)
+
+
 def _parse_args(argv):
     parser = argparse.ArgumentParser(description="WH40k board")
     parser.add_argument(
         "--map", dest="map_key", default=None,
-        help='which battlefield to play on: "map1" (44"x60" portrait, the default) '
-             'or "map2" (60"x44" landscape). The bare number works too ("--map 2"). '
-             "Without this, config.MAP decides.",
+        help='which battlefield to play on: "map1" (44"x60" portrait), "map2" '
+             '(60"x44" landscape) or "map3" (a 30"x30" test board). The bare number '
+             'works too ("--map 2"). Naming one here SKIPS the map selection screen; '
+             "without it, that screen decides, falling back to config.MAP.",
+    )
+    parser.add_argument(
+        "--no-map-select", dest="map_select", action="store_false", default=None,
+        help="skip the map selection screen and play on config.MAP (or --map). "
+             "What the headless harnesses use.",
+    )
+    parser.add_argument(
+        "--army1", dest="player1_army", default=None, choices=ARMY_KEYS,
+        help="which army list Player 1 (the human) fields. Naming BOTH --army1 and "
+             "--army2 skips the army selection screen; naming one seeds it. Without "
+             "either, that screen decides, falling back to config.PLAYER1_ARMY.",
+    )
+    parser.add_argument(
+        "--army2", dest="player2_army", default=None, choices=ARMY_KEYS,
+        help="which army list Player 2 (the AI) fields. The human picks this on the "
+             "selection screen too - the AI never chooses its own list. Naming BOTH "
+             "--army1 and --army2 skips that screen; without them it decides, falling "
+             "back to config.PLAYER2_ARMY.",
+    )
+    parser.add_argument(
+        "--no-army-select", dest="army_select", action="store_false", default=None,
+        help="skip the army selection screen and field whatever config.PLAYER1_ARMY/"
+             "PLAYER2_ARMY (or --army1/--army2) say. What the headless harnesses use.",
     )
     parser.add_argument(
         "--no-deployment", dest="pregame", action="store_false", default=None,
@@ -3422,6 +3832,20 @@ def _parse_args(argv):
 
 if __name__ == "__main__":
     _args = _parse_args(sys.argv[1:])
+    if _args.map_select is not None:
+        config.MAP_SELECT = _args.map_select
+    if _args.player1_army is not None:
+        config.PLAYER1_ARMY = _args.player1_army
+    if _args.player2_army is not None:
+        config.PLAYER2_ARMY = _args.player2_army
+    if _args.army_select is not None:
+        config.ARMY_SELECT = _args.army_select
+    # Naming BOTH lists is an answer, not a preference, so it skips the screen
+    # that would ask the same question again - the same meaning --map has for
+    # the map screen. Naming only one still leaves a question to ask, so the
+    # screen runs and opens on what was named.
+    if _args.player1_army is not None and _args.player2_army is not None and _args.army_select is None:
+        config.ARMY_SELECT = False
     if _args.pregame is not None:
         config.PREGAME_DEPLOYMENT = _args.pregame
     _map_key = _args.map_key

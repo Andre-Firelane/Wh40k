@@ -23,19 +23,28 @@ one's deliberately not wired into the live Hit-roll pipeline yet)."""
 import random
 from collections import namedtuple
 
-DiceNotation = namedtuple("DiceNotation", ["sides", "bonus"])
+# `dice` is how many dice ONE instance of the characteristic rolls - 1 for
+# every printed "D3"/"D6"/"D6+2", and 2 for Dark Reapers' Tempest Launcher,
+# whose Attacks characteristic is printed "2D6". It was added when that weapon
+# arrived rather than approximating it as D6+3: the two have the same mean and
+# a different spread, and quietly restating a printed characteristic is exactly
+# what this module exists to stop.
+DiceNotation = namedtuple("DiceNotation", ["sides", "bonus", "dice"])
+DiceNotation.__new__.__defaults__ = (1,)   # `dice` defaults to 1
 
 
-def D3(bonus=0):
-    return DiceNotation(3, bonus)
+def D3(bonus=0, dice=1):
+    return DiceNotation(3, bonus, dice)
 
 
-def D6(bonus=0):
-    return DiceNotation(6, bonus)
+def D6(bonus=0, dice=1):
+    return DiceNotation(6, bonus, dice)
 
 
 def describe(notation):
     text = f"D{notation.sides}"
+    if notation.dice > 1:
+        text = f"{notation.dice}{text}"
     if notation.bonus:
         text += f"+{notation.bonus}"
     return text
@@ -57,7 +66,8 @@ class DiceNotationRoll:
     resolves immediately via a plain random roll - same convenience-wrapper
     convention those already use for Feel No Pain."""
 
-    def __init__(self, notation, count, dice_manager, label, roll_kind=None, log=None, is_reroll=False):
+    def __init__(self, notation, count, dice_manager, label, roll_kind=None, log=None, is_reroll=False,
+                 target_name=None, attacker_squad=None, target_squad=None):
         """`is_reroll` marks this as itself the re-roll of an earlier
         dice-notation roll (Crisis Sunforge Battlesuits' Sunforge ability
         re-rolling a Damage roll) - forwarded to DiceManager.roll() so its
@@ -72,9 +82,20 @@ class DiceNotationRoll:
         self.total = None
         if dice_manager is not None:
             self.is_pending = True
-            dice_manager.roll(count=count, sides=notation.sides, label=label, roll_kind=roll_kind, is_reroll=is_reroll)
+            # attacker_squad/target_squad carry no rule meaning at all -
+            # they only let DicePanel show the two units' art alongside the
+            # roll, so an Attacks/Damage step in the middle of an attack
+            # sequence keeps saying who is shooting at whom instead of
+            # dropping that line for one roll and bringing it back for the
+            # next. Either may be left out (a Deadly Demise X roll has no
+            # attacker in this sense).
+            dice_manager.roll(
+                count=count * notation.dice, sides=notation.sides, label=label, roll_kind=roll_kind,
+                is_reroll=is_reroll, target_name=target_name,
+                attacker_squad=attacker_squad, target_squad=target_squad,
+            )
         else:
-            rolls = [random.randint(1, notation.sides) for _ in range(count)]
+            rolls = [random.randint(1, notation.sides) for _ in range(count * notation.dice)]
             self.total = sum(rolls) + notation.bonus * count
 
     @property

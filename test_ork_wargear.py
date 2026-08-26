@@ -289,14 +289,23 @@ def shoot_gitz(active):
 
 with_runt = shoot_gitz(True)
 without = shoot_gitz(False)
-# The prompt names the keyword; its OPTIONS are phrased "Auto-wound N of M
-# critical hit(s)", which is rule 24.23's actual choice.
-c.true("with the Ammo Runt the critical hits raise the [LETHAL HITS] choice",
-       with_runt["decision"].is_pending
-       and "lethal hits" in with_runt["decision"].prompt.lower())
-c.true("...and it offers auto-wounding every critical hit",
-       any("auto-wound" in l.lower() for l in options_of(with_runt["decision"])))
-c.eq("A/B: without it, the same all-6 hit roll raises no choice at all",
+# Rule 24.23 is taken for every critical hit without asking (user: "das
+# koennen wir uns sparen") - so the tell is not a prompt any more, it is
+# that the critical hits skip the wound roll: with the Ammo Runt the wound
+# step gets strictly fewer dice than the hits that reached it.
+def wound_dice(scene):
+    """The wound roll is still pending at this point (the scene stops after
+    one acknowledgement), so it is read off the dice manager rather than out
+    of the log - the log line only appears once the roll resolves."""
+    return len(scene["dice"].pending_values or [])
+
+
+c.eq("no prompt interrupts the activation any more",
+     with_runt["decision"].is_pending, False)
+c.true("both runs reached the wound step", wound_dice(without) > 0)
+c.true("with the Ammo Runt the critical hits auto-wound instead of rolling",
+       wound_dice(with_runt) < wound_dice(without))
+c.eq("A/B: without it, the same all-6 hit roll rolls every hit to wound",
      without["decision"].is_pending, False)
 
 c.finish()

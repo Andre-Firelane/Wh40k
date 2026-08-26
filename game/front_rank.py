@@ -81,61 +81,17 @@ working formation for a better-looking one.
 """
 
 from game import attached_units
-from game.damage_estimate import expected_wounds
-
-
-class _ReferenceDefender:
-    """Neutral yardstick for the melee-vs-ranged comparison - see the module
-    docstring. Deliberately not a real datasheet: it exists to cancel out of a
-    ratio, not to predict an outcome."""
-
-    toughness = 4
-    armor_save = "4+"
-    invulnerable_save = None
-    wounds = 2
-
-
-REFERENCE_DEFENDER = _ReferenceDefender()
-
-# How much of a model's damage has to come from melee before it is worth
-# putting in harm's way. 1.0 = "more from fighting than from shooting".
-MELEE_LEAD_RATIO = 1.0
-
-
-def model_output(model, melee, defender=REFERENCE_DEFENDER):
-    """Roughly how many wounds one model's shooting (or fighting) is worth
-    against `defender`.
-
-    The per-model half of damage_estimate.expected_wounds_against(), including
-    rule 04.01 - a model attacking in melee picks ONE melee weapon, so only the
-    best of them counts, plus any [EXTRA ATTACKS] weapon (24.11), which swings
-    in addition to it."""
-    want = "melee" if melee else "ranged"
-    skill = model.profile.weapon_skill if melee else model.profile.ballistic_skill
-    total = 0.0
-    best_selectable = 0.0
-    for weapon in model.weapons:
-        if getattr(weapon, "weapon_type", None) != want:
-            continue
-        value = expected_wounds(weapon, weapon.attacks, skill, defender)
-        if melee and not weapon.extra_attacks:
-            best_selectable = max(best_selectable, value)
-        else:
-            total += value
-    return total + best_selectable
-
-
-def is_melee_focused(model):
-    """Whether this model's damage comes mainly from melee. Split out from
-    is_melee_character() so the two halves of the test stay separately
-    readable and separately testable."""
-    melee = model_output(model, melee=True)
-    if melee <= 0.0:
-        return False
-    ranged = model_output(model, melee=False)
-    if ranged <= 0.0:
-        return True  # nothing but melee weapons at all - the Painboy case
-    return melee / ranged >= MELEE_LEAD_RATIO
+# The melee-vs-ranged arithmetic and its reference defender moved to
+# game/combat_focus.py when the Charge phase and the deployment scorer became
+# its second and third consumers - see that module's docstring. Imported back
+# under their original names so every existing front_rank.model_output /
+# front_rank.is_melee_focused caller is unaffected.
+from game.combat_focus import (  # noqa: F401  (re-exported on purpose)
+    MELEE_LEAD_RATIO,
+    REFERENCE_DEFENDER,
+    is_melee_focused,
+    model_output,
+)
 
 
 def is_melee_character(model, squad):

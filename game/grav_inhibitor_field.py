@@ -216,6 +216,7 @@ class GravInhibitorFieldController:
         self.dice_manager.roll(
             count=count, sides=6, label="Grav-Inhibitor Field",
             success_threshold=GRAV_INHIBITOR_MORTAL_THRESHOLD, target_name=charging.name,
+            target_squad=charging,
         )
         self._step = AWAITING_MORTALS
 

@@ -1,6 +1,6 @@
 import pygame
 
-from game import charge, config, consolidate, crushing_impact, epic_challenge, explosives, fall_back, fight, firing_deck, formations, greater_good, loadout, movement, overwatch, pregame, setup, shooting, sprites
+from game import charge, config, consolidate, crushing_impact, epic_challenge, explosives, fall_back, fight, firing_deck, formations, greater_good, loadout, movement, overwatch, path_of_the_outcast, pregame, setup, shooting, sprites
 from game.ingress import SHORTENED_BLADE_MIN_ENEMY_DISTANCE_IN
 from game.squad import is_at_half_strength
 from game.turn import PHASE_MOVEMENT, PHASE_SHOOTING, PHASE_CHARGE, PHASE_FIGHT
@@ -53,6 +53,12 @@ class ActionPanel:
         # Appended rather than slotted in beside arrokon_controller: main.py's
         # draw() call passes everything above POSITIONALLY.
         presentiment_controller=None, fate_inescapable_controller=None,
+        unshrouded_truth_controller=None,
+        sudden_storm_controller=None,
+        conquering_tyrant_controller=None,
+        hungry_void_controller=None,
+        path_of_the_outcast_controller=None,
+        secondary_mission_controller=None,
     ):
         surface.fill(config.PANEL_BG_COLOR, rect)
         pygame.draw.rect(surface, config.PANEL_BORDER_COLOR, rect, width=2)
@@ -75,6 +81,12 @@ class ActionPanel:
             battle_focus_pool,
             presentiment_controller=presentiment_controller,
             fate_inescapable_controller=fate_inescapable_controller,
+            unshrouded_truth_controller=unshrouded_truth_controller,
+            sudden_storm_controller=sudden_storm_controller,
+            conquering_tyrant_controller=conquering_tyrant_controller,
+            hungry_void_controller=hungry_void_controller,
+            path_of_the_outcast_controller=path_of_the_outcast_controller,
+            secondary_mission_controller=secondary_mission_controller,
         )
         self._draw_global_toolbar(surface, rect, movement_controller, setup_controller)
 
@@ -93,6 +105,19 @@ class ActionPanel:
         battle_focus_pool=None,
         # Appended: draw() passes everything above positionally.
         presentiment_controller=None, fate_inescapable_controller=None,
+        unshrouded_truth_controller=None,
+        sudden_storm_controller=None,
+        conquering_tyrant_controller=None,
+        hungry_void_controller=None,
+        # Completed here by another session's edit: this parameter was added to
+        # draw() and _draw_movement_ui() and forwarded through both, but not to
+        # THIS signature - the three-stage chain half-wired, which crashes every
+        # frame. See main.py's own warning about this call chain.
+        path_of_the_outcast_controller=None,
+        # Appended BY KEYWORD like everything above it - this three-stage call
+        # chain is positional up to battle_focus_pool, and inserting a
+        # parameter mid-signature has silently shifted every later one before.
+        secondary_mission_controller=None,
     ):
         """The old draw() body, verbatim - one big state dispatch with an
         early return per screen (setup/firing-deck/damage-choice/dice-roll/
@@ -101,10 +126,50 @@ class ActionPanel:
         always-visible toolbar (see _draw_global_toolbar()) AFTER whichever
         one of these branches ran, instead of it needing to be duplicated
         into every single return point."""
+        # An open "click a unit on the board" request owns the panel. It is the
+        # only prompt in the game whose answer is a click on the BOARD, so the
+        # panel is the only place that can say what is being asked and - the
+        # whole point - about WHICH objective.
+        #
+        # User: "Bei Burden of Trust muss immer links in der Spalte das
+        # Objective genannt werden, um das es gerade geht, und ich muss auf der
+        # Map mein Einheit anklicken."
+        #
+        # First in the dispatch because it is modal in the same sense the
+        # damage-allocation screens are: any branch placed above it could hide
+        # it, and then the board would be waiting for a click the panel never
+        # explained.
+        if secondary_mission_controller is not None and secondary_mission_controller.pending_pick:
+            self._draw_mission_pick_ui(surface, rect, secondary_mission_controller)
+            return
+
         # Rule 03.01: the pre-game sequence owns the whole panel while it runs -
         # ahead of every other screen, since none of them can be reached before
         # the battle has even started.
-        if pregame_controller is not None and pregame_controller.is_active:
+        #
+        # ...EXCEPT while it has handed the human off to another controller's
+        # screen, which is not hypothetical: rule 24.31's SCOUTS step offers a
+        # Scout Move (24.32) and starts it on MovementController, whose Confirm
+        # and Cancel buttons live in _draw_movement_ui(), far below this return.
+        #
+        # User report: "nach meinem scout move kann ich nicht bestaetigen. es
+        # gibt keinen knopf." Exactly that, and only that - the move itself
+        # worked (dragging goes through InputManager, which this gate never
+        # sees, and main.py's event chain already routes left-panel clicks to
+        # handle_click()); the panel simply drew "Resolving pre-battle
+        # abilities..." and no buttons, so there was nothing to click and the
+        # pre-game could not be resumed at all.
+        #
+        # Written as "the pre-game yields while a move is in progress" rather
+        # than as a case inside _draw_pregame_ui()'s PREBATTLE_ABILITIES branch,
+        # so a future pre-game step that starts a move is covered by
+        # construction. The deploying step sets the same precedent from the
+        # other side: it delegates to _draw_setup_ui() instead of
+        # reimplementing placement.
+        if (
+            pregame_controller is not None and pregame_controller.is_active
+            and movement_controller.state != movement.MOVING
+        ):
             self._draw_pregame_ui(
                 surface, rect, pregame_controller, setup_controller,
                 ingress_controller, transport_controller,
@@ -258,6 +323,11 @@ class ActionPanel:
             battle_focus_pool,
             presentiment_controller=presentiment_controller,
             fate_inescapable_controller=fate_inescapable_controller,
+            unshrouded_truth_controller=unshrouded_truth_controller,
+            sudden_storm_controller=sudden_storm_controller,
+            conquering_tyrant_controller=conquering_tyrant_controller,
+            hungry_void_controller=hungry_void_controller,
+            path_of_the_outcast_controller=path_of_the_outcast_controller,
         )
 
     def _draw_global_toolbar(self, surface, rect, movement_controller, setup_controller=None):
@@ -413,6 +483,41 @@ class ActionPanel:
         surface.set_clip(previous_clip)
 
         return box_rect.bottom + 8
+
+    def _draw_mission_pick_ui(self, surface, rect, secondary_mission_controller):
+        """The "click a unit on the board" screen: which objective is being
+        decided, what to do, who is eligible, and a way out.
+
+        The eligible units are LISTED by name as well as being clickable on the
+        board - without that the player is hunting by trial and error, since
+        nothing on the board itself marks which units qualify."""
+        pick = secondary_mission_controller.pending_pick
+        text_y = self._draw_text(
+            surface, rect, "MISSION", rect.y + 10,
+            color=config.PANEL_HEADER_COLOR, font=self.header_font, gap=6,
+        )
+        # The objective, in the header font: it is the subject of the question,
+        # not a detail of it.
+        text_y = self._draw_text(
+            surface, rect, pick["subject"], text_y,
+            color=config.PANEL_HEADER_COLOR, font=self.header_font, gap=6,
+        )
+        text_y = self._draw_text(surface, rect, pick["prompt"], text_y, gap=6)
+        eligible = pick["eligible"]
+        if eligible:
+            text_y = self._draw_text(surface, rect, "Eligible units:", text_y, gap=2)
+            for squad in eligible:
+                text_y = self._draw_text(surface, rect, f"- {squad.name}", text_y, gap=2)
+        else:
+            text_y = self._draw_text(surface, rect, "No unit is in range.", text_y, gap=2)
+        text_y = self._draw_text(
+            surface, rect, "Click one of them on the battlefield.", text_y,
+            color=HINT_COLOR, gap=10,
+        )
+        r = pygame.Rect(rect.x + BUTTON_MARGIN, text_y,
+                        rect.width - 2 * BUTTON_MARGIN, BUTTON_HEIGHT)
+        r = self._draw_button(surface, r, pick["skip_label"], accent="danger")
+        self._buttons.append((r, secondary_mission_controller.skip_pick))
 
     def _draw_pregame_ui(self, surface, rect, pregame_controller, setup_controller=None,
                          ingress_controller=None, transport_controller=None):
@@ -734,7 +839,7 @@ class ActionPanel:
             )
             self._buttons.append((blade_rect, lambda: shortened_blade_controller.use(squad)))
             button_y += blade_rect.height + BUTTON_GAP
-        elif ingress_controller is not None and ingress_controller.shortened_blade_squad is squad:
+        elif ingress_controller is not None and ingress_controller.relaxed_arrival_squad is squad:
             text_y = self._draw_text(
                 surface, rect,
                 f'The Shortened Blade is active: set up more than {SHORTENED_BLADE_MIN_ENEMY_DISTANCE_IN:.0f}" '
@@ -1123,6 +1228,19 @@ class ActionPanel:
             surface, rect, button_width, text_y, fight_controller, epic_challenge_controller,
         )
 
+        # Same rule 04.01 basis as the shooting panel's pair above.
+        if current is not None:
+            skip_rect = pygame.Rect(rect.x + BUTTON_MARGIN, text_y, button_width, BUTTON_HEIGHT)
+            skip_rect = self._draw_button(surface, skip_rect, f"Don't attack with {current[1].name}")
+            self._buttons.append((skip_rect, fight_controller.skip_current))
+            text_y = skip_rect.bottom + BUTTON_GAP
+
+            if remaining > 1:
+                rest_rect = pygame.Rect(rect.x + BUTTON_MARGIN, text_y, button_width, BUTTON_HEIGHT)
+                rest_rect = self._draw_button(surface, rest_rect, f"Attack assigned, skip rest ({remaining})")
+                self._buttons.append((rest_rect, fight_controller.finish_assignment))
+                text_y = rest_rect.bottom + BUTTON_GAP
+
         cancel_rect = pygame.Rect(rect.x + BUTTON_MARGIN, text_y, button_width, BUTTON_HEIGHT)
         cancel_rect = self._draw_button(surface, cancel_rect, "Cancel", accent="danger")
         self._buttons.append((cancel_rect, fight_controller.cancel))
@@ -1252,6 +1370,23 @@ class ActionPanel:
             self._buttons.append((mode_rect, shooting_controller.toggle_assignment_overcharge))
             text_y = mode_rect.bottom + BUTTON_GAP
 
+        # Rule 04.01 allows firing "one or more" weapons, not all of them.
+        # The non-split flow has always had "Stop Shooting" for that; split
+        # fire had nothing, so every queued weapon had to be given a target
+        # and Cancel (which fires nothing at all) was the only way out.
+        if current is not None:
+            text_y += 6
+            skip_rect = pygame.Rect(rect.x + BUTTON_MARGIN, text_y, button_width, BUTTON_HEIGHT)
+            skip_rect = self._draw_button(surface, skip_rect, f"Don't fire {current[1].name}")
+            self._buttons.append((skip_rect, shooting_controller.skip_current))
+            text_y = skip_rect.bottom + BUTTON_GAP
+
+            if remaining > 1:
+                rest_rect = pygame.Rect(rect.x + BUTTON_MARGIN, text_y, button_width, BUTTON_HEIGHT)
+                rest_rect = self._draw_button(surface, rest_rect, f"Fire assigned, skip rest ({remaining})")
+                self._buttons.append((rest_rect, shooting_controller.finish_assignment))
+                text_y = rest_rect.bottom + BUTTON_GAP
+
         cancel_rect = pygame.Rect(rect.x + BUTTON_MARGIN, text_y + 10, button_width, BUTTON_HEIGHT)
         cancel_rect = self._draw_button(surface, cancel_rect, "Cancel", accent="danger")
         self._buttons.append((cancel_rect, shooting_controller.cancel))
@@ -1269,6 +1404,11 @@ class ActionPanel:
         battle_focus_pool=None,
         # Appended, not slotted in: draw() forwards everything above positionally.
         presentiment_controller=None, fate_inescapable_controller=None,
+        unshrouded_truth_controller=None,
+        sudden_storm_controller=None,
+        conquering_tyrant_controller=None,
+        hungry_void_controller=None,
+        path_of_the_outcast_controller=None,
     ):
         squad = movement_controller.selected_squad
         turn_tracker = movement_controller.turn_tracker
@@ -1314,6 +1454,16 @@ class ActionPanel:
             # conditional on the move actually being confirmed.
             is_tactical_acumen = movement_controller.move_mode == "tactical_acumen"
             is_battle_focus_move = movement_controller.move_mode == "battle_focus"  # Aeldari Opportunity Seized / Fade Back, granted in the opponent's turn
+            # Rangers' Path of the Outcast - the OTHER reactive move (see
+            # MovementController.REACTIVE_MOVE_MODES). It owns two consequences
+            # the bare movement controller knows nothing about: handing
+            # turn_tracker.active_player back to whoever's turn it actually is
+            # (the move happens in the opponent's), and clearing its own
+            # once-per-turn/busy state. Without this branch Confirm fell
+            # through to the generic movement_controller.confirm_move() and
+            # neither ever happened - the move looked confirmed and left the
+            # active player stranded on the reacting side.
+            is_path_of_the_outcast = movement_controller.move_mode == path_of_the_outcast.PATH_OF_THE_OUTCAST_MOVE_MODE
             confirm_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
             confirm_rect = self._draw_button(surface, confirm_rect, "Confirm", accent="confirm")
             if is_charge:
@@ -1326,6 +1476,8 @@ class ActionPanel:
                 confirm_callback = fall_back_controller.confirm
             elif is_battle_focus_move and battle_focus_pool is not None:
                 confirm_callback = battle_focus_pool.confirm_reactive_move
+            elif is_path_of_the_outcast and path_of_the_outcast_controller is not None:
+                confirm_callback = path_of_the_outcast_controller.confirm_move
             elif is_torchstar and torchstar_controller is not None:
                 confirm_callback = torchstar_controller.confirm_move
             elif is_tactical_acumen and tactical_acumen_controller is not None:
@@ -1335,11 +1487,13 @@ class ActionPanel:
             self._buttons.append((confirm_rect, confirm_callback))
             button_y += confirm_rect.height + BUTTON_GAP
 
-            if (
-                not is_charge and not is_pile_in and not is_consolidate and not is_surge and not is_fall_back
-                and not is_torchstar  # the stratagem grants a Normal move, not an Advance
-                and not movement_controller.run_used
-            ):
+            # One question, one answer - see MovementController.can_advance().
+            # This used to be a hand-maintained list of negated move modes, and
+            # a list that has to grow with every new mode grows wrong: "scout"
+            # was missing from it, so the moment the pre-game gate above stopped
+            # swallowing this screen, a Scout Move would have been offered an
+            # Advance that rule 24.32 does not grant.
+            if movement_controller.can_advance():
                 run_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
                 run_rect = self._draw_button(surface, run_rect, "Advance")
                 self._buttons.append((run_rect, movement_controller.start_run))
@@ -1377,6 +1531,8 @@ class ActionPanel:
                 cancel_callback = fall_back_controller.decline
             elif is_battle_focus_move and battle_focus_pool is not None:
                 cancel_callback = battle_focus_pool.cancel_reactive_move
+            elif is_path_of_the_outcast and path_of_the_outcast_controller is not None:
+                cancel_callback = path_of_the_outcast_controller.cancel_move
             elif is_torchstar and torchstar_controller is not None:
                 cancel_callback = torchstar_controller.cancel_move
             elif is_tactical_acumen and tactical_acumen_controller is not None:
@@ -1421,6 +1577,9 @@ class ActionPanel:
             can_fate_inescapable_now = (
                 fate_inescapable_controller is not None and fate_inescapable_controller.can_use(squad)
             )
+            can_unshrouded_truth_now = (
+                unshrouded_truth_controller is not None and unshrouded_truth_controller.can_use(squad)
+            )
             arrokon_tier = arrokon_controller.best_available_tier(squad) if can_arrokon_now else 0
             can_crushing_impact_now = crushing_impact_controller is not None and crushing_impact_controller.can_use(squad)
             # War Horde's Unbridled Carnage: can_use() already refuses for a
@@ -1433,6 +1592,19 @@ class ActionPanel:
             # Movement phase" itself (nothing of yours has moved yet), so the
             # button simply disappears once the phase is under way.
             can_ere_we_go_now = ere_we_go_controller is not None and ere_we_go_controller.can_use(squad)
+            # Awakened Dynasty's three proactive protocols. Each can_use()
+            # carries its own WHEN (the phase, whose it is, and whether the
+            # unit has already shot/fought), so a button appears exactly when
+            # the Stratagem is legal and vanishes otherwise.
+            can_sudden_storm_now = (
+                sudden_storm_controller is not None and sudden_storm_controller.can_use(squad)
+            )
+            can_conquering_tyrant_now = (
+                conquering_tyrant_controller is not None and conquering_tyrant_controller.can_use(squad)
+            )
+            can_hungry_void_now = (
+                hungry_void_controller is not None and hungry_void_controller.can_use(squad)
+            )
             # Warp Spiders' Flickerjump: same "has to be pressed before the
             # move" reason as 'Ere We Go above - MovementController reads the
             # Move characteristic once, when the move starts.
@@ -1491,6 +1663,30 @@ class ActionPanel:
                 )
                 self._buttons.append((ere_rect, lambda: ere_we_go_controller.use(squad)))
                 button_y += ere_rect.height + BUTTON_GAP
+
+            # Sudden Storm is bought in the Movement phase, so it belongs with
+            # the other before-you-move buttons: its [ASSAULT] grant is what
+            # makes Advancing and still shooting possible.
+            if can_sudden_storm_now:
+                storm_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
+                storm_rect = self._draw_button(
+                    surface, storm_rect,
+                    "Sudden Storm (1 CP) - ranged weapons gain [ASSAULT] this turn",
+                    accent="stratagem",
+                )
+                self._buttons.append((storm_rect, lambda: sudden_storm_controller.use(squad)))
+                button_y += storm_rect.height + BUTTON_GAP
+
+            # Conquering Tyrant is bought before shooting, for the same reason.
+            if can_conquering_tyrant_now:
+                tyrant_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
+                tyrant_rect = self._draw_button(
+                    surface, tyrant_rect,
+                    "Conquering Tyrant (1 CP) - re-roll Hit rolls of 1 within half range",
+                    accent="stratagem",
+                )
+                self._buttons.append((tyrant_rect, lambda: conquering_tyrant_controller.use(squad)))
+                button_y += tyrant_rect.height + BUTTON_GAP
 
             # Aeldari Battle Focus (army rule): the Agile Manoeuvres this unit
             # could perform right now, each costing one Battle Focus token
@@ -1610,6 +1806,18 @@ class ActionPanel:
                 self._buttons.append((fate_rect, lambda: fate_inescapable_controller.use(squad)))
                 button_y += fate_rect.height + BUTTON_GAP
 
+            if can_unshrouded_truth_now:
+                # The label says what happens next, because what happens next is
+                # a board click the player has to know is coming.
+                unshrouded_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
+                unshrouded_rect = self._draw_button(
+                    surface, unshrouded_rect,
+                    "Unshrouded Truth (1 CP) - into Reserves, then place it now",
+                    accent="stratagem",
+                )
+                self._buttons.append((unshrouded_rect, lambda: unshrouded_truth_controller.use(squad)))
+                button_y += unshrouded_rect.height + BUTTON_GAP
+
             if can_crushing_impact_now:
                 crushing_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
                 crushing_rect = self._draw_button(surface, crushing_rect, "Crushing Impact (1 CP)", accent="stratagem")
@@ -1649,6 +1857,18 @@ class ActionPanel:
             # its TARGET clause is "a unit that has NOT been selected to fight
             # this phase" - once Fight is clicked the window is shut, so the
             # two buttons are offered in the order they have to be used in.
+            # Hungry Void is bought before the unit fights, so it sits with
+            # Unbridled Carnage above the Fight button.
+            if can_hungry_void_now:
+                void_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
+                void_rect = self._draw_button(
+                    surface, void_rect,
+                    "Hungry Void (1 CP) - +1 Strength to melee weapons this phase",
+                    accent="stratagem",
+                )
+                self._buttons.append((void_rect, lambda: hungry_void_controller.use(squad)))
+                button_y += void_rect.height + BUTTON_GAP
+
             if can_unbridled_carnage_now:
                 carnage_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
                 carnage_rect = self._draw_button(
@@ -1719,6 +1939,8 @@ class ActionPanel:
                 and not can_mark_spotted_now and not can_arrokon_now and not can_torchstar_now
                 and not can_unbridled_carnage_now and not can_ere_we_go_now
                 and not can_flickerjump_now
+                and not can_sudden_storm_now and not can_conquering_tyrant_now
+                and not can_hungry_void_now
                 and turn_tracker is not None
             ):
                 if turn_tracker.phase == PHASE_MOVEMENT and squad in movement_controller.moved_squad_ids:

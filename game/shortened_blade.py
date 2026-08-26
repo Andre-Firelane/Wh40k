@@ -98,7 +98,7 @@ class ShortenedBladeController:
             return False
         if not self.ingress_controller.deep_striking(squad):
             return False
-        if self.ingress_controller.shortened_blade_squad is squad:
+        if self.ingress_controller.relaxed_arrival_squad is squad:
             return False  # already armed for this arrival
         if not is_battlesuit_unit(squad):
             return False
@@ -111,7 +111,7 @@ class ShortenedBladeController:
 
     def _apply(self, controller, player, targets):
         squad = targets[0]
-        self.ingress_controller.shortened_blade_squad = squad
+        self.ingress_controller.relaxed_arrival_squad = squad
         # RESTRICTIONS: "not eligible to declare a charge in the same turn".
         # The same field rules 18.04/18.05 already use for their own no-charge
         # lock, so ChargeController.can_declare_charge() needs no new case and

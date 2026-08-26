@@ -59,6 +59,51 @@ class InputManager:
         x_in, y_in = board.to_in(*self._local_pos(event_pos))
         return self._find_token_at(tokens, x_in, y_in)
 
+    def track_pointer(self, event_pos, tokens, board):
+        """Where the cursor is (in inches) and which model it is over.
+
+        Split out of handle_event() because main.py's event chain is a long
+        if/elif over CONTROLLER STATE and handle_event() sits at the very END
+        of it: whenever anything was pending (a Fire Overwatch offer, a damage
+        allocation, a decision prompt) motion events matched an earlier branch
+        and never reached it, so these two fields silently froze - and the ALT
+        ruler, which renderer.draw_measure_tool() draws from exactly these two,
+        froze with them. That is the user report "ich kann oft keine
+        entfernungen messen. zb bei overwatch".
+
+        main.py now calls this for every MOUSEMOTION BEFORE that chain runs, so
+        pointer tracking is never gated on game state. handle_event() still
+        calls it as well, so this class stays self-sufficient for anyone
+        driving it directly (test_block_placement.py does); it only reads and
+        assigns, so running twice for one event means the same thing as once.
+        """
+        x_in, y_in = board.to_in(*self._local_pos(event_pos))
+        self.mouse_pos_in = (x_in, y_in)
+        self.hovered_token = self._find_token_at(tokens, x_in, y_in)
+        return x_in, y_in
+
+    def update_measuring(self, alt_held):
+        """Drive the ALT ruler from the modifier's CURRENT state, once a frame.
+
+        This used to be a KEYDOWN/KEYUP pair inside main.py's state-gated event
+        chain, which is the other half of why ALT "oft" did nothing: the key
+        press was swallowed by whichever branch was active, i.e. at exactly the
+        moments a distance matters most. A poll cannot be swallowed by anyone.
+
+        It also closes the mirror-image bug the event pair had: ALT+TAB sends
+        the KEYUP to another window, so measuring stayed stuck on until the key
+        was tapped again. Here the ruler simply follows whether ALT is down.
+
+        Takes the flag rather than reading pygame.key.get_mods() itself so the
+        transition (and only the transition - start_measuring() snapshots an
+        origin, so it must not re-run every frame) is testable without real
+        keyboard state.
+        """
+        if alt_held and not self.measuring:
+            self.start_measuring()
+        elif not alt_held and self.measuring:
+            self.stop_measuring()
+
     def start_measuring(self):
         self.measuring = True
         self.measure_origin_token = self.hovered_token
@@ -131,8 +176,7 @@ class InputManager:
                     self._pending_move_down_px = event.pos
 
         elif event.type == pygame.MOUSEMOTION:
-            mx_in, my_in = board.to_in(*self._local_pos(event.pos))
-            self.mouse_pos_in = (mx_in, my_in)
+            mx_in, my_in = self.track_pointer(event.pos, tokens, board)
 
             if self.pending_move_token is not None and self.dragging_token is None:
                 dx_px = event.pos[0] - self._pending_move_down_px[0]
@@ -180,6 +224,10 @@ class InputManager:
                     self.dragging_token.x_in = target_x
                     self.dragging_token.y_in = target_y
 
+            # Re-read after the drag above, not before it: the token under the
+            # cursor is usually the one that was just moved there. track_pointer()
+            # already set this from the same coordinates - this is the settled
+            # answer, and the reason that call's cheapness is worth stating.
             self.hovered_token = self._find_token_at(tokens, mx_in, my_in)
 
         elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:

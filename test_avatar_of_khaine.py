@@ -61,11 +61,20 @@ checks.true("Molten Form", p.molten_form)
 checks.true("The Bloody-Handed", p.bloody_handed)
 for kw in ("MONSTER", "CHARACTER", "EPIC HERO", "DAEMON"):
     checks.true(f"keyword {kw}", kw in ae.AVATAR_OF_KHAINE.keywords)
-# The largest base and the most wounds of any single model here.
+# The largest INFANTRY-scale base here: the 80 mm base out-sizes every other
+# Aeldari model except the two grav-tanks. Those are excluded because their
+# radius is NOT their printed base - the Falcon's was matched to the Devilfish's
+# enlarged one on user request ("genau so gross machen wie devilfish"), and the
+# Wave Serpent then took the same value because it is the same hull. Both are
+# named rather than filtered by keyword: the War Walker is a VEHICLE too and
+# does keep its printed 60 mm, so it belongs in the comparison.
+_GRAV_TANKS = (ae.FALCON, ae.WAVE_SERPENT)
 biggest = max((tk.build(s, "Player 1", name=f"1 {s.name} 1").models[0].profile
-               for s in ae.AELDARI.datasheets.values() if s is not ae.AVATAR_OF_KHAINE),
+               for s in ae.AELDARI.datasheets.values()
+               if s is not ae.AVATAR_OF_KHAINE and s not in _GRAV_TANKS),
               key=lambda q: q.base_radius_in)
-checks.true("the largest base in the faction", p.base_radius_in > biggest.base_radius_in)
+checks.true("the largest base in the faction bar the two grav-tanks",
+            p.base_radius_in > biggest.base_radius_in)
 # No LEADER line at all - so nothing attaches in either direction.
 from game.attached_units import attachment_role, can_attach  # noqa: E402
 

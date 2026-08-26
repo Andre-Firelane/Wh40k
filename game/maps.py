@@ -33,7 +33,7 @@ class BattleMap:
     and where each army sets up on it."""
 
     def __init__(self, key, name, width_in, height_in, zones, terrain, player1, player2,
-                 roster=None):
+                 army_roster=None):
         self.key = key
         self.name = name
         self.width_in = width_in
@@ -42,19 +42,47 @@ class BattleMap:
         self._terrain = terrain     # callable(state) -> adds terrain areas + objectives
         self.player1 = player1      # Player1Deployment
         self.player2 = player2      # Player2Deployment
-        # Which units of main.py's rosters this map actually fields, by exact
-        # squad name - or None for "all of them", which is what the two full
-        # boards use and why they are unaffected by this existing.
+        # Which units of an army list this map actually fields, keyed by army
+        # list ("aeldari"/"orks"/"necrons") - or None for "all of them", which
+        # is what the two full boards use and why they are unaffected by this
+        # existing.
         #
         # A small map wants a small army: the point of map 3 is a turn that
         # takes seconds, and fourteen units against eleven does not. The army
-        # LISTS stay in main.py either way - this only says which of them turn
-        # up, so there is still exactly one place a unit is defined.
-        self.roster = set(roster) if roster is not None else None
+        # LISTS stay in game/army_lists.py either way - this only says which of
+        # them turn up, so there is still exactly one place a unit is defined.
+        #
+        # PER ARMY AND NOT PER PLAYER, with "{p}" standing in for the owner's
+        # digit. A roster has to name units by their exact squad name (see
+        # army_lists.unit_name()), and that name starts with the owner - so the
+        # moment EITHER player could field ANY of the three lists, a set of
+        # fixed names could only ever be right for one pairing. With the wrong
+        # one, no name would match and the map would silently field half a
+        # battle, which is exactly what the guard in main.py refuses loudly.
+        self.army_roster = {
+            key: set(names) for key, names in (army_roster or {}).items()
+        } or None
 
-    def fields(self, squad):
+    def roster_for(self, armies=None):
+        """The complete set of squad names this map fields for this pairing -
+        {player -> army key} in, one flat set of exact squad names out - or
+        None for a map that fields everything.
+
+        A list neither player picked simply contributes nothing; a list BOTH
+        picked contributes its names twice, once per owner, which is what makes
+        a mirror match work."""
+        if self.army_roster is None:
+            return None
+        names = set()
+        for owner, key in sorted((armies or {}).items()):
+            for name in self.army_roster.get(key, ()):
+                names.add(name.replace("{p}", str(owner)[-1]))
+        return names
+
+    def fields(self, squad, armies=None):
         """Whether this map's scene includes `squad`."""
-        return self.roster is None or squad.name in self.roster
+        roster = self.roster_for(armies)
+        return roster is None or squad.name in roster
 
     @property
     def center(self):
@@ -151,7 +179,7 @@ def _map1_terrain(state, battle_map):
     state.add_terrain_area(ruin_l(x_in=3.5, y_in=21.0, width_in=6.5, height_in=5.0, facing_x=cx, facing_y=cy))  # small ruin, gold corner braces
     state.add_terrain_area(ruin_l(x_in=8.0, y_in=27.0, width_in=4.0, height_in=6.0, facing_x=cx, facing_y=cy))  # small ruin, green machine/generator graphic
     no_mans_land_ne = state.add_terrain_area(ruin_l(x_in=37.5, y_in=22.2, width_in=11.5, height_in=7.0, facing_x=cx, facing_y=cy))  # large rectangle
-    state.add_objective(no_mans_land_ne, name="No Man's Land (NE)")
+    state.add_objective(no_mans_land_ne, name="Objective Northeast")
 
     central_area = state.add_terrain_area(ruin(x_in=22.0, y_in=30.0, width_in=11.0, height_in=9.5))
     state.add_objective(central_area, name="Central Objective")
@@ -166,7 +194,7 @@ def _map1_terrain(state, battle_map):
     state.add_terrain_area(ruin_l(x_in=40.5, y_in=39.0, width_in=6.5, height_in=5.0, facing_x=cx, facing_y=cy))  # small ruin, gold corner braces
     state.add_terrain_area(ruin_l(x_in=36.0, y_in=33.0, width_in=4.0, height_in=6.0, facing_x=cx, facing_y=cy))  # small ruin, green machine/generator graphic
     no_mans_land_sw = state.add_terrain_area(ruin_l(x_in=6.5, y_in=37.8, width_in=11.5, height_in=7.0, facing_x=cx, facing_y=cy))
-    state.add_objective(no_mans_land_sw, name="No Man's Land (SW)")
+    state.add_objective(no_mans_land_sw, name="Objective Southwest")
 
 
 MAP1 = BattleMap(
@@ -441,7 +469,7 @@ def _map2_terrain(state, battle_map):
     # they're given as 7"x11.5 - already straight, nothing to snap.
     west_objective_area = state.add_terrain_area(
         ruin_l(x_in=w_large[0], y_in=w_large[1], width_in=7.0, height_in=11.5, facing_x=cx, facing_y=cy))
-    state.add_objective(west_objective_area, name="No Man's Land (W)")
+    state.add_objective(west_objective_area, name="Objective West")
     # v_wall_fraction=0: the two medium ruins keep only their horizontal arm
     # (User marked the vertical ones for removal). The horizontal one is
     # deliberately the survivor - it is the arm that was run out to
@@ -478,7 +506,7 @@ def _map2_terrain(state, battle_map):
     state.add_terrain_area(barricade(*sw_shortline))
     east_objective_area = state.add_terrain_area(
         ruin_l(x_in=e_large[0], y_in=e_large[1], width_in=7.0, height_in=11.5, facing_x=cx, facing_y=cy))
-    state.add_objective(east_objective_area, name="No Man's Land (E)")
+    state.add_objective(east_objective_area, name="Objective East")
     state.add_terrain_area(rubble_ruin(*sw_medium, h_wall_fraction=1.0, v_wall_fraction=0.0))
 
 
@@ -657,17 +685,83 @@ MAP3 = BattleMap(
     # Four units a side, chosen as the ones that actually fail: the 22-model
     # mob and the Meganobz are the two worst units in the movement logs, the
     # Battlewagon is a 2.10" base that has to find the door or the flank, and
-    # the Warbikers cannot cross Dense terrain at all. Player 1 gets a mixed
-    # gunline to shoot back and give the AI something to hide from.
-    roster={
-        "1 Strike Team 1",
-        "1 Pathfinder Team 1",
-        "1 Riptide Battlesuit 1",
-        "1 Ghostkeel Battlesuit 1",
-        "2 Boyz 1 + Warboss + Painboy",
-        "2 Meganobz 1 + Warboss in Mega Armour",
-        "2 Battlewagon 1",
-        "2 Warbikers 1",
+    # the Warbikers cannot cross Dense terrain at all.
+    #
+    # Four units a side, and the four SLOTS are the same whichever list is
+    # picked, because they are what map 3 exists to stress (see the map's own
+    # docstring: a 3" corridor, a bay open only to its own edge, a 5" door, a
+    # 7.2" flank):
+    #
+    #   1. the big attached blob most likely to expose a movement problem
+    #   2. an elite melee or gunline unit to shoot back with
+    #   3. a VEHICLE, which cannot cross Dense terrain at all
+    #   4. a unit that needs open ground WITHOUT the VEHICLE keyword - the
+    #      shape _needs_open_ground() exists for
+    #
+    # "{p}" is the owner's digit, filled in by roster_for() - see BattleMap's
+    # own note on why these are keyed by ARMY and not by player.
+    army_roster={
+        # The Aeldari half was re-picked when the roster went from T'au to
+        # Aeldari, keeping the same intent: something to shoot back with, an
+        # anti-tank answer to a Battlewagon, a vehicle of its own, and the unit
+        # most likely to expose a movement problem - which is the 14-model
+        # attached blob rather than a 10-model gunline.
+        #
+        # The anti-tank slot was the Fire Dragons until the list revision
+        # dropped them; the Dark Reapers inherit it on the same grounds, their
+        # Reaper Launcher being the S10/AP-2 answer left in the roster to a T10
+        # Battlewagon. Picked by that measurement rather than by being the
+        # nearest name.
+        "aeldari": {
+            "{p} Guardian Defenders 1 + Farseer + Warlock Conclave",
+            "{p} Dark Reapers 1",
+            "{p} Falcon 1",
+            "{p} Wraithguard 1",
+        },
+        "orks": {
+            "{p} Boyz 1 + Warboss + Painboy",
+            "{p} Meganobz 1 + Warboss in Mega Armour",
+            "{p} Battlewagon 1",
+            "{p} Warbikers 1",
+        },
+        # The T'au slots, measured against the others rather than picked by
+        # eye - a slot is only a fair substitute if it poses the same geometry:
+        # the Devilfish is 4.20" across, exactly the Battlewagon's and the
+        # Doomsday Ark's (none of the three fits this map's 3" corridor), and
+        # the Crisis Sunforges are 1.96", exactly the Warbikers' (1.89" for the
+        # Lokhusts) and likewise unable to cross Dense terrain - which is what
+        # _needs_open_ground() actually asks, rather than the VEHICLE keyword.
+        #
+        # The blob slot is the weakest match and is named as such: the Breacher
+        # Team plus its Cadre Fireblade is 11 models, against 22 Boyz and 21
+        # Necron Warriors. It is simply the largest unit this list has. It also
+        # rides in the Devilfish, the way the Meganobz ride in the Battlewagon,
+        # so the transport is in the roster for two reasons.
+        "tau": {
+            "{p} Breacher Team 1 + Cadre Fireblade",
+            "{p} Strike Team 1",
+            "{p} Devilfish 1",
+            "{p} Crisis Sunforge Battlesuits 1 + Commander Farsight",
+        },
+        "necrons": {
+            # 21 models, the largest blob in any of the three lists - a harder
+            # version of the Boyz slot rather than a like-for-like one.
+            "{p} Necron Warriors 1 + Technomancer",
+            "{p} Lychguard 1 + Overlord",
+            "{p} Doomsday Ark 1",
+            # Six MOUNTED bases: all the movement problems of a vehicle and
+            # none of its keywords, which is exactly what the Warbikers were
+            # picked for.
+            "{p} Lokhust Destroyers 1",
+            #
+            # MEASURED after the base-size pass, because a slot is only a fair
+            # substitute if it poses the same geometry: the Doomsday Ark is now
+            # 4.20" across and so is the Battlewagon (neither fits this map's
+            # 3" corridor), and the Lokhust Destroyers are 1.89" against the
+            # Warbikers' 1.96". The lists stress this board the same way,
+            # which is what makes a movement result on one comparable to the
+            # other.
+        },
     },
 )
 

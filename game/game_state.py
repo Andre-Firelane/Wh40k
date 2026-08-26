@@ -12,7 +12,7 @@ class GameState:
         self.reserves = []  # Squads not yet set up on the battlefield (rule 03.02) - their models aren't in self.tokens
         self.embarked_squads = []  # Squads embarked within a TRANSPORT (rule 18.02) - their models aren't in self.tokens either
         self.deployment_zones = []
-        self.blood_decals = []  # (x_in, y_in, radius_in) left behind wherever a model died - purely cosmetic, see Renderer.draw_blood_decals
+        self.blood_decals = []  # (x_in, y_in) left behind wherever a model died - purely cosmetic, see Renderer.draw_blood_decals. No size stored: every stain is the same one (sprites.BLOOD_DECAL_DIAMETER_IN)
 
     def add_token(self, token):
         self.tokens.append(token)
@@ -43,12 +43,17 @@ class GameState:
         self.obstacles.extend(features)
         return area
 
-    def add_blood_decal(self, x_in, y_in, radius_in):
+    def add_blood_decal(self, x_in, y_in):
         """Purely cosmetic (no rule attached) - a stain left at a model's
         last position once it dies, drawn by Renderer.draw_blood_decals.
         Kept here rather than discarded along with the dead token itself
-        (see remove_dead_models) since the decal must outlive it."""
-        self.blood_decals.append((x_in, y_in, radius_in))
+        (see remove_dead_models) since the decal must outlive it.
+
+        Position only: every stain is the same size
+        (sprites.BLOOD_DECAL_DIAMETER_IN), so there is nothing per-decal to
+        record. It used to take the dead model's base radius and scale to
+        it - see that constant for why that stopped."""
+        self.blood_decals.append((x_in, y_in))
 
     def add_objective(self, terrain_area, name="Objective"):
         """Rule 14.01: a terrain objective - the terrain area IS the
@@ -56,6 +61,29 @@ class GameState:
         objective = Objective(terrain_area, name=name)
         self.objectives.append(objective)
         return objective
+
+    def all_squads(self):
+        """Every unit in the game, wherever it currently is - on the board,
+        in Strategic Reserves (03.02/20.04) or embarked in a TRANSPORT
+        (18.02). Deduped by identity and in a stable order (board first, in
+        token order), so a caller listing units gets the same order twice.
+
+        Exists for the UI: an overlay that wants to show a unit's own art
+        next to its name has to resolve that name to a Squad, and the two
+        off-board lists are exactly the ones a naive scan of self.tokens
+        would miss - a Rapid Ingress offer or a disembark prompt names a
+        unit that is, by definition, not on the board yet."""
+        squads, seen = [], set()
+        for token in self.tokens:
+            squad = getattr(token, "squad", None)
+            if squad is not None and id(squad) not in seen:
+                seen.add(id(squad))
+                squads.append(squad)
+        for squad in list(self.reserves) + list(self.embarked_squads):
+            if id(squad) not in seen:
+                seen.add(id(squad))
+                squads.append(squad)
+        return squads
 
     def find_token(self, token_id):
         for token in self.tokens:

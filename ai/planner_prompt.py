@@ -68,7 +68,11 @@ PLANNER_SYSTEM_PROMPT = (
     "behind, work out what you actually need and take the risk that gets it - a cautious plan that "
     "loses by two is no better than one that loses by ten.\n"
     "  An objective's name is only a label for where it sits; read \"controlled_by\" for whose it "
-    "is. Every objective is worth the same 3 VP to whoever holds it.\n\n"
+    "is. Every objective is worth the same 3 VP to whoever holds it.\n"
+    "  Your own Secondary is the one described above. Your opponent's is NOT - they draw "
+    "Secondary missions from a deck each round, so what pays them varies from round to round "
+    "and cannot be read off the board. Play the objectives and the trades; do not assume "
+    "their scoring mirrors yours.\n\n"
 
     # ---------------------------------------------------------- what you see
     "== WHAT YOU ARE GIVEN ==\n"
