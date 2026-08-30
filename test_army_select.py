@@ -55,18 +55,26 @@ def _read(path):
 print("\n=== 1. the list registry ===")
 
 keys = [entry.key for entry in army_lists.ARMY_LISTS]
-c.eq("four lists on offer", keys, ["aeldari", "orks", "necrons", "tau"])
+c.eq("five lists on offer", keys, ["aeldari", "orks", "necrons", "tau", "death_guard"])
 c.eq("every list is reachable by key", sorted(army_lists.BY_KEY), sorted(keys))
 
 # The tile's own text: name / logo / detachment, per the user's description of
 # what a tile should carry. The logo is checked against the DISK, not against
 # the table - a key that resolves to no file is exactly the failure a glance at
 # the mapping cannot see.
+# Death Guard has NO art yet - no model sprites and no faction badge. That is
+# recorded as a PIN rather than skipped, so dropping the files in later is a
+# visible one-line change here instead of a silent one, exactly as the Necron
+# and Aeldari "no sprite" pins were before their art arrived.
+LISTS_WITHOUT_ART = {"DEATH GUARD"}
 for entry in army_lists.ARMY_LISTS:
     c.true(f"{entry.name} names a detachment", bool(entry.detachment))
     c.true(f"{entry.name} names its army rule", bool(entry.army_rule))
-    c.true(f"{entry.name}'s badge resolves to a file on disk",
-           sprites.faction_logo_path(entry.faction_keyword) is not None)
+    has_badge = sprites.faction_logo_path(entry.faction_keyword) is not None
+    if entry.faction_keyword in LISTS_WITHOUT_ART:
+        c.true(f"{entry.name} has NO badge yet - art not uploaded", not has_badge)
+    else:
+        c.true(f"{entry.name}'s badge resolves to a file on disk", has_badge)
 
 # An unknown key is refused loudly rather than falling through to a default -
 # the failure mode that guard exists for is "the game silently fielded a
@@ -90,14 +98,23 @@ print("\n=== 2. any list, any player ===")
 # class 17, which test_player1_army.py has now been bitten by twice.
 EXPECTED = {
     # key: (units after 19.01 merging, models, points)
-    "aeldari": (13, 74, 1900),   # 20 list entries, five attachments merged
+    # Still 20 list entries after the Shroud Runners -> Windriders swap (one
+    # datasheet out, one in), but a unit FEWER: the Warlock Skyrunner used to
+    # stand alone because its JOIN names WINDRIDERS and the list fielded none,
+    # and now it merges into them. Models are unchanged (3 out, 3 in); the
+    # points drop is only the transcription's own Shroud Runners 90 -> Windriders 80.
+    "aeldari": (12, 74, 1890),   # 20 list entries, SIX attachments merged
     "orks": (14, 103, 1935),     # 17 list entries, three attachments merged
-    "necrons": (10, 59, 2000),   # 13 list entries, three attachments merged
-    # Restored from the initial commit when the user asked where it had gone -
-    # the same numbers config.BATTLE_SIZE's own note still quotes for it
-    # ("Player 1 is 1535 pts"), which is what makes this a recovery rather
-    # than a rebuild.
-    "tau": (11, 59, 1535),       # 14 list entries, three attachments merged
+    "necrons": (9, 68, 2020),    # 15 list entries, SIX attachments merged
+    # Replaced wholesale on 2026-08-30 by the list the user supplied: out go
+    # the Ghostkeel, the Strike Team, the Coldstar + Starscythes and Farsight +
+    # Sunforges, in come Shadowsun, an Ethereal, a second Fireblade and
+    # Breacher Team, the Broadsides, Kroot Hounds, a second Pathfinder Team,
+    # two Piranhas, a second Stealth team and the Vespid. It is also the only
+    # list here fielding TWO detachments (Kauyon + Advanced Acquisition Cadre)
+    # and the only one that buys no Enhancement - the supplied list names none,
+    # so 2030 is its units and nothing else.
+    "tau": (19, 94, 2030),       # 21 list entries, TWO attachments merged
 }
 for key, (units, models, points) in EXPECTED.items():
     for owner in ("Player 1", "Player 2"):
@@ -267,9 +284,12 @@ c.true("a bodyguard is never filed as a character",
 # was never attached to anything - which is what the keyword is read for.
 necron_tile = next(t for t in tiles if t.entry.key == "necrons")
 necron_characters = [e.label for e in necron_tile.characters]
+# The C'tan Shard is the ONLY one left after the list revision - it is the
+# one Necron character with no printed LEADER line, so it can never merge.
 c.true("a lone character unit is filed as a character",
-       "Illuminor Szeras" in necron_characters
-       and "C'tan Shard of the Void Dragon" in necron_characters)
+       "C'tan Shard of the Void Dragon" in necron_characters)
+c.eq("...and it is the only lone one this list has now that six of the seven "
+     "characters lead something", len(necron_characters), 7)
 c.true("...and a lone non-character unit is not",
        "Doomsday Ark" in [e.label for e in necron_tile.units])
 
@@ -551,8 +571,12 @@ c.eq("...and turning the page does nothing", single.turn_page(1), False)
 # waste a wide screen or cramp a narrow one, and both were measured.
 wide = ArmySelectScreen()
 wide_tiles = wide.layout(pygame.Rect(0, 0, 1920, 1080))
-c.eq("a 1920-wide screen fits all four lists on one page", wide.tiles_per_page, 4)
-c.eq("...so there is nothing to page", wide.page_count, 1)
+c.eq("a 1920-wide screen fits four tiles per page", wide.tiles_per_page, 4)
+# The FIFTH list is what finally makes the pager real in an actual game. The
+# machinery has been here since the army-select screen was built, but until now
+# it could only be exercised against an artificial registry - so this line
+# changing from 1 to 2 is the moment it went live, not a regression.
+c.eq("...and five lists need a second page", wide.page_count, 2)
 c.true("...and the tiles are still large", wide_tiles[0].rect.width >= 400)
 
 narrow = ArmySelectScreen()
@@ -628,7 +652,8 @@ c.true("--load rebuilds those lists", "scene_io.armies_in(config.LOAD_SCENE)" in
 # The headless harnesses cannot answer a click, so they must all opt out. A new
 # one that forgets this hangs, which is the failure this check exists to make
 # impossible to ship.
-for harness in ("selfplay.py", "smoke_pregame.py", "smoke_log_input.py", "smoke_measure_tool.py"):
+for harness in ("selfplay.py", "smoke_pregame.py", "smoke_log_input.py", "smoke_measure_tool.py",
+                "smoke_end_turn_warning.py"):
     src = _read(harness)
     c.true(f"{harness} turns the selection screen off", "config.ARMY_SELECT = False" in src)
     c.true(f"{harness} does so before importing main",
@@ -640,44 +665,59 @@ for harness in ("selfplay.py", "smoke_pregame.py", "smoke_log_input.py", "smoke_
 # --------------------------------------------------------------------------
 print("\n=== 9. per-army map rosters ===")
 
-map3 = maps.get("map3")
-c.eq("a full board fields everything", maps.get("map2").roster_for({"Player 1": "orks"}), None)
+# EVERY shipped map now fields the whole army: the 30"x30" test board that
+# carried a four-units-a-side roster has been replaced by a full 60"x44" one.
+for key in ("map1", "map2", "map3"):
+    c.eq(f"{key} fields everything", maps.get(key).roster_for({"Player 1": "orks"}), None)
+c.true("so no shipped map carries a partial roster at all",
+       all(maps.get(k).army_roster is None for k in ("map1", "map2", "map3")))
 
-# EVERY pairing, not a hand-picked few: a roster name that matches nothing
-# fields one unit fewer in silence, and with four lists there are sixteen ways
-# to get that wrong.
-all_keys = [e.key for e in army_lists.ARMY_LISTS]
-bad_size, bad_names = [], []
-for first in all_keys:
-    for second in all_keys:
-        pairing = {"Player 1": first, "Player 2": second}
-        roster = map3.roster_for(pairing)
-        built = set()
-        for owner, key in pairing.items():
-            built |= {s.name for s in army_lists.preview_squads(key, owner)}
-        label = f"{first}/{second}"
-        if len(roster) != 8:
-            bad_size.append(f"{label}={len(roster)}")
-        if roster - built:
-            bad_names.append(f"{label}: {sorted(roster - built)}")
-c.eq(f"map3 fields four a side in all {len(all_keys) ** 2} pairings", bad_size, [])
-c.eq("map3's roster never names a unit nobody builds", bad_names, [])
+# The MECHANISM still has to work, because a future small map will want it -
+# and the guard that used to ride on map 3's own table is exercised here
+# instead, on a map built for the purpose. Two halves, and only the second one
+# needed a shipped map to have a roster:
+#   - the DATA half ("does this hand-written name still match a unit?") has no
+#     subject any more; nothing hand-writes a roster.
+#   - the MECHANISM half ("{p} resolves to the owner, an unpicked list
+#     contributes nothing, a list BOTH players picked contributes twice") is
+#     what a future map depends on, so it is pinned.
+_keys = [e.key for e in army_lists.ARMY_LISTS]
+_first, _second = _keys[0], _keys[1]
+_p1 = sorted(s.name for s in army_lists.preview_squads(_first, "Player 1"))[:2]
+_p2 = sorted(s.name for s in army_lists.preview_squads(_second, "Player 1"))[:2]
 
-# The transport half of the same guard: a passenger whose transport is not in
-# the roster would be declared into a vehicle that is not in the game.
-for key in all_keys:
-    names = {n.replace("{p}", "1") for n in map3.army_roster.get(key, ())}
-    squads = {s.name: s for s in army_lists.preview_squads(key, "Player 1")}
-    riders = [n for n in names if getattr(squads.get(n), "embarked_in", None) is not None]
-    carriers = {getattr(getattr(squads[n].embarked_in, "squad", None), "name", None)
-                for n in riders}
-    c.eq(f"map3's {key} roster carries its own transports", sorted(carriers - names - {None}), [])
 
-c.true("the placeholder is resolved away, never left in a name",
-       all("{p}" not in name
-           for name in map3.roster_for({"Player 1": "aeldari", "Player 2": "orks"})))
-c.true("...and it IS a placeholder in the table itself",
-       all("{p}" in name for names in map3.army_roster.values() for name in names))
+def _templated(names):
+    return {("{p}" + n[1:]) if n[:1].isdigit() else n for n in names}
+
+
+_probe = maps.BattleMap(
+    key="probe", name="probe", width_in=30.0, height_in=30.0,
+    zones=[("Player 1", [(15.0, 26.0, 30.0, 8.0)]), ("Player 2", [(15.0, 4.0, 30.0, 8.0)])],
+    terrain=lambda state, battle_map: None,
+    player1=maps.Player1Deployment(squads=[], devilfish=(0.0, 0.0)),
+    player2=maps.Player2Deployment(gretchin=[], stormboyz=[], warbikers=[],
+                                   boyz1=[], trukks=[], deff_dread=[]),
+    army_roster={_first: _templated(_p1), _second: _templated(_p2)},
+)
+c.true("a roster table stores the owner as a placeholder, never a digit",
+       all("{p}" in n for names in _probe.army_roster.values() for n in names))
+_mixed = _probe.roster_for({"Player 1": _first, "Player 2": _second})
+c.true("...and roster_for resolves it away", all("{p}" not in n for n in _mixed))
+c.eq("each side contributes its own two units", len(_mixed), 4)
+c.true("Player 1's names start with 1 and Player 2's with 2",
+       all(n.startswith("1 ") for n in _mixed if n[2:] in {x[2:] for x in _p1})
+       and all(n.startswith("2 ") for n in _mixed if n[2:] in {x[2:] for x in _p2}))
+_mirror = _probe.roster_for({"Player 1": _first, "Player 2": _first})
+c.eq("a list BOTH players picked contributes twice, once per owner", len(_mirror), 4)
+c.eq("a list nobody picked contributes nothing",
+     len(_probe.roster_for({"Player 1": _first})), 2)
+_squads = {s.name: s for s in army_lists.preview_squads(_first, "Player 1")}
+_named = next(iter(_mixed))
+c.true("fields() matches by EXACT name, so a rename cannot pass silently",
+       _probe.fields(_squads[_p1[0]], {"Player 1": _first, "Player 2": _second})
+       and not _probe.fields(type("S", (), {"name": "1 No Such Unit 1"})(),
+                             {"Player 1": _first, "Player 2": _second}))
 
 
 # --------------------------------------------------------------------------

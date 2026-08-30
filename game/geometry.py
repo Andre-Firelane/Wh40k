@@ -43,14 +43,17 @@ def segment_intersects_rect(p1, p2, min_x, min_y, max_x, max_y):
 
 def max_unblocked_fraction(p1, p2, obstacles, inflate_radius=0.0):
     """How far (as a 0..1 fraction of the segment) p1->p2 can be traveled
-    before entering an obstacle, inflated by inflate_radius on every side."""
+    before entering an obstacle, inflated by inflate_radius on every side.
+
+    The inflation is SQUARE-cornered (a rectangle grown on each side), not a
+    swept circle - game/pathfinding.py's cell test grows the same way on
+    purpose, because the two have to agree about corners."""
     min_t = 1.0
     for obstacle in obstacles:
-        blocked, entry_t = segment_rect_clip(
-            p1, p2,
-            obstacle.min_x - inflate_radius, obstacle.min_y - inflate_radius,
-            obstacle.max_x + inflate_radius, obstacle.max_y + inflate_radius,
-        )
+        # Asked of the obstacle rather than clipped against its bounding box
+        # here: a rotated piece answers in its own frame, and this stays the
+        # one arithmetic every consumer of "does that block this line" shares.
+        blocked, entry_t = obstacle.segment_clip(p1, p2, inflate_radius)
         if blocked and entry_t < min_t:
             min_t = entry_t
     return max(0.0, min_t)

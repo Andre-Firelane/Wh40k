@@ -12,15 +12,29 @@ The tile is the map's own picture, rendered from the map rather than
 screenshotted (see game/ui/map_preview.py for why), plus its name, its
 dimensions and what is actually on it.
 
+AND THE BIOME, on three buttons across the top (User: "es gibt jetzt 3 biome.
+kannst du bei der map auswahl bitte ganz oben noch 3 knoepfe reinpacken, ueber
+die man sein biom waehlen kann?"). They belong on THIS screen and not on one
+of their own because the tiles below them are pictures of the board: clicking
+a biome repaints all of them, so the choice is made by looking at it rather
+than by reading three words. Purely cosmetic - see game/biomes.py; the map
+buttons decide the game, these decide what it is painted in.
+
+They sit INSIDE the header bar rather than in a strip of their own so the
+tiles keep their full height - the previews size their box from whatever is
+left over, and a row above them would shrink every board picture on the
+screen. Drawn here rather than in tile_screen.py because the army picker has
+no use for them, and this repo extracts at the SECOND consumer, not the first.
+
 Frame, paging and loop are shared with the army picker - see
 game/ui/tile_screen.py. Only the tile content lives here.
 """
 
 import pygame
 
-from game import maps
+from game import biomes, config, maps
 from game.game_state import GameState
-from game.ui import map_preview, tile_screen as ts
+from game.ui import button_style, map_preview, tile_screen as ts
 from game.ui.text_utils import wrap_text
 
 TITLE_COLOR = ts.TITLE_COLOR
@@ -31,6 +45,16 @@ ACCENT_COLOR = (120, 190, 150)   # a colour of its own, so the map step is not m
 TILE_PAD = ts.TILE_PAD
 PREVIEW_BORDER_COLOR = (70, 100, 130)
 PREVIEW_BG_COLOR = (6, 10, 16)
+
+# The biome row, right-aligned inside the header bar. Measured rather than
+# guessed: the heading and its hint line end 382 px in at every window size
+# (they are fixed strings), and the row below is 3*150 + 2*10 + a label, so it
+# clears them by ~380 px even on a 1280-wide window - the narrowest this game
+# is run at. The buttons are vertically centred in the bar.
+BIOME_BUTTON_WIDTH = 150
+BIOME_BUTTON_HEIGHT = 38
+BIOME_BUTTON_GAP = 10
+BIOME_LABEL_GAP = 16
 
 
 class _Tile:
@@ -54,14 +78,50 @@ def map_facts(battle_map):
     battle_map.build(state)
     blocking = sum(1 for o in state.obstacles if getattr(o, "blocks_line_of_sight", False))
 
+    # Both numbers are measured off the built zones rather than read out of a
+    # rectangle, because a zone need not BE a rectangle - map 3 deploys in
+    # opposite corners with the middle bitten out. Written as one definition
+    # each rather than a rectangle case plus a shape case: for the two band
+    # maps these reproduce exactly the numbers the rectangle arithmetic gave
+    # (18"/24" and 12"/20"), and they keep meaning something for any shape.
+    #
+    #   depth         - how far from the nearest board edge a zone reaches.
+    #                   For a band across the table that IS its depth.
+    #   no man's land - the shortest distance between the two zones, i.e. the
+    #                   ground the armies have to cross to meet.
+    step = 0.5
+    xs = [i * step for i in range(int(battle_map.width_in / step) + 1)]
+    ys = [j * step for j in range(int(battle_map.height_in / step) + 1)]
     depth = 0.0
-    across_y = True
+    points = {}
     for zone in state.deployment_zones:
-        for x_in, y_in, w_in, h_in in getattr(zone, "rects", ()) or ():
-            depth = max(depth, min(w_in, h_in))
-            across_y = h_in <= w_in
-    board = battle_map.height_in if across_y else battle_map.width_in
-    no_mans_land = max(0.0, board - 2 * depth)
+        inside = [(x, y) for x in xs for y in ys if zone.contains_point(x, y)]
+        points[zone.owner] = inside
+        for x, y in inside:
+            depth = max(depth, min(x, battle_map.width_in - x, y, battle_map.height_in - y))
+    no_mans_land = 0.0
+    zones = list(state.deployment_zones)
+    if len(zones) >= 2 and all(points.get(z.owner) for z in zones[:2]):
+        # The TRUE closest approach, as a nearest-point search between the two
+        # sampled zones - deliberately not zone.distance_to_point(), which for
+        # a shape built as an intersection measures to the nearest constraint
+        # LINE and so understates the gap outside a corner (see game/shapes.py).
+        # On map 3 that difference is 6.5" against the real 16.6".
+        # Sampled at 1" rather than the 0.5" the depth uses: this is a product
+        # of two point sets, and the band maps' zone edges land on whole
+        # inches anyway, so their numbers stay exact.
+        coarse = {owner: [(x, y) for (x, y) in pts
+                          if x == int(x) and y == int(y)]
+                  for owner, pts in points.items()}
+        a_pts = coarse[zones[0].owner] or points[zones[0].owner]
+        b_pts = coarse[zones[1].owner] or points[zones[1].owner]
+        best = None
+        for ax, ay in a_pts:
+            for bx, by in b_pts:
+                d2 = (ax - bx) ** 2 + (ay - by) ** 2
+                if best is None or d2 < best:
+                    best = d2
+        no_mans_land = round(best ** 0.5, 1)
     deployment = f'zones {depth:g}" deep  |  {no_mans_land:g}" of no man\'s land'
     contents = (f"{len(state.obstacles)} terrain features "
                 f"({blocking} block line of sight)  |  {len(state.objectives)} objectives")
@@ -82,6 +142,7 @@ class MapSelectScreen(ts.Paged):
         self.tiles = []
         self.prev_rect = None
         self.next_rect = None
+        self.biome_rects = {}   # biome key -> its button rect, set by layout()
         self.fonts = ts.make_fonts()
         self._facts = {}
 
@@ -94,6 +155,35 @@ class MapSelectScreen(ts.Paged):
         if battle_map.key not in self._facts:
             self._facts[battle_map.key] = map_facts(battle_map)
         return self._facts[battle_map.key]
+
+    @property
+    def biome(self):
+        """The biome currently painted on the tiles - read straight off the
+        live setting rather than mirrored into a field of its own, so the
+        picker cannot come to disagree with what the renderer will use."""
+        return biomes.current().key
+
+    def choose_biome(self, biome_key):
+        """Repaint the battlefields in this biome. Returns False for a key
+        that changes nothing, so a caller can tell a real click from a
+        repeated one.
+
+        THIS WRITES config.BIOME, and that is deliberate rather than sloppy -
+        it is the same thing the army picker does to PLAYER1_ARMY/
+        PLAYER2_ARMY, and this screen is the picker for this setting. Note it
+        is NOT the rule game/ui/map_preview.py's docstring lays down: what
+        that forbids is a PREVIEW writing the board's dimensions, i.e.
+        deciding the battlefield merely by having been looked at. Nothing is
+        decided here by looking - only by clicking - and a biome decides
+        nothing about the game in any case; it is the paint.
+
+        Writing it live is also what makes the tiles answer: the previews and
+        the renderer both read the setting, so there is one answer to "which
+        biome", not a chosen one and a drawn one."""
+        if biome_key not in biomes.BIOMES_BY_KEY or biome_key == self.biome:
+            return False
+        config.BIOME = biome_key
+        return True
 
     def choose(self, battle_map):
         self.chosen = battle_map
@@ -113,7 +203,25 @@ class MapSelectScreen(ts.Paged):
                 + self.fonts["body"].get_height()
                 + self.fonts["small"].get_height() + 22)
 
+    def biome_layout(self, screen_rect):
+        """Rect per biome button, right-aligned inside the header bar, in
+        BIOMES order. Laid out here rather than while drawing so a click can
+        be hit-tested before the first frame is on screen - the event handler
+        calls layout() and then asks, exactly like it does for the tiles."""
+        bar = ts.header_bar(screen_rect)
+        y = bar.y + (bar.height - BIOME_BUTTON_HEIGHT) // 2
+        total = (len(biomes.BIOMES) * BIOME_BUTTON_WIDTH
+                 + (len(biomes.BIOMES) - 1) * BIOME_BUTTON_GAP)
+        x = bar.right - ts.MARGIN - total
+        rects = {}
+        for biome in biomes.BIOMES:
+            rects[biome.key] = pygame.Rect(x, y, BIOME_BUTTON_WIDTH, BIOME_BUTTON_HEIGHT)
+            x += BIOME_BUTTON_WIDTH + BIOME_BUTTON_GAP
+        self.biome_rects = rects
+        return rects
+
     def layout(self, screen_rect):
+        self.biome_layout(screen_rect)
         area = ts.tile_area(screen_rect)
         per_page = self.fit_page(area.width)
         page = self.page_items
@@ -143,6 +251,12 @@ class MapSelectScreen(ts.Paged):
                 return index
         return None
 
+    def biome_at(self, pos):
+        for key, rect in self.biome_rects.items():
+            if rect.collidepoint(pos):
+                return key
+        return None
+
     def track_pointer(self, pos):
         self.hovered_tile = self.tile_at(pos)
 
@@ -165,6 +279,17 @@ class MapSelectScreen(ts.Paged):
             return True
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             self.layout(screen_rect)
+            # The biome row is asked FIRST. It does not overlap the tiles
+            # geometrically - it is up in the header and they are below it -
+            # but ordering it explicitly is the cheap half of CLAUDE.md error
+            # class 15, which this repo has paid for five times: a control
+            # that only answers when nothing above it happened to match is one
+            # refactor away from never answering. Picking a biome is NOT
+            # picking a map, so this returns instead of falling through.
+            biome_key = self.biome_at(event.pos)
+            if biome_key is not None:
+                self.choose_biome(biome_key)
+                return True
             for rect, delta in ((self.prev_rect, -1), (self.next_rect, 1)):
                 if rect is not None and rect.collidepoint(event.pos):
                     self.turn_page(delta)
@@ -186,10 +311,39 @@ class MapSelectScreen(ts.Paged):
             surface, screen_rect, self.fonts, "CHOOSE THE BATTLEFIELD",
             "Click a map to play on it. The armies come next.", ACCENT_COLOR,
         )
+        self._draw_biome_row(surface, screen_rect, mouse_pos)
         for index, tile in enumerate(self.tiles):
             self._draw_tile(surface, tile, hovered=(index == self.hovered_tile))
         self.prev_rect, self.next_rect = ts.draw_footer(
             surface, screen_rect, self.fonts, self.page, self.page_count)[1:]
+
+    def _draw_biome_row(self, surface, screen_rect, mouse_pos=None):
+        """The three biome buttons, plus the word BIOME so a first-time player
+        knows what they are - unlabelled, "CITY / DESERT / FOREST" beside a map
+        list reads as three more maps.
+
+        The selected one is drawn PRESSED (button_style's active palette), not
+        merely differently coloured: this is a three-way toggle where one is
+        always on, and "pressed" is the state the shared button already has for
+        exactly that. Nothing else on this screen has a persistent state, so it
+        cannot be confused with a hover."""
+        rects = self.biome_layout(screen_rect)
+        mouse = mouse_pos if mouse_pos is not None else pygame.mouse.get_pos()
+        selected = self.biome
+
+        first = rects[biomes.BIOMES[0].key]
+        label = self.fonts["label"].render("BIOME", True, ACCENT_COLOR)
+        surface.blit(label, label.get_rect(
+            right=first.left - BIOME_LABEL_GAP, centery=first.centery))
+
+        for biome in biomes.BIOMES:
+            rect = rects[biome.key]
+            button_style.draw_button(
+                surface, rect, biome.name, self.fonts["label"],
+                hovered=rect.collidepoint(mouse),
+                pressed=(biome.key == selected),
+            )
+        return rects
 
     def _draw_tile(self, surface, tile, hovered=False):
         ts.draw_tile_frame(surface, tile.rect, hovered=hovered)

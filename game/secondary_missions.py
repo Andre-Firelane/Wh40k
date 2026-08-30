@@ -194,22 +194,27 @@ def objective_centre(objective):
 
 def zone_distance(zone, x_in, y_in):
     """Distance from a point to the nearest edge of a deployment zone, 0 if
-    inside it. The zone is one or more axis-aligned rects, so this is the
-    smallest per-rect clamp distance."""
-    best = None
-    for x, y, w, h in zone.rects:
-        dx = max(abs(x_in - x) - w / 2.0, 0.0)
-        dy = max(abs(y_in - y) - h / 2.0, 0.0)
-        dist = (dx * dx + dy * dy) ** 0.5
-        if best is None or dist < best:
-            best = dist
-    return best if best is not None else float("inf")
+    inside it.
+
+    This WAS a second, hand-written copy of DeploymentZone.distance_to_point()
+    - identical arithmetic, and the two disagreed only on the empty-zone
+    fallback (0.0 there, inf here; see shapes.Union.signed_distance for which
+    one won and why). Kept as a name because six call sites read it, but it is
+    now the one definition asked once, so a zone that is not a rectangle list
+    answers here too."""
+    return zone.distance_to_point(x_in, y_in)
+
+
+def _board_box():
+    return (0.0, 0.0, config.BOARD_WIDTH_IN, config.BOARD_HEIGHT_IN)
 
 
 def _zone_centre(zone):
-    xs = [x for x, y, w, h in zone.rects]
-    ys = [y for x, y, w, h in zone.rects]
-    return (sum(xs) / len(xs), sum(ys) / len(ys))
+    """A representative point inside the zone. Sampled from the shape rather
+    than averaged over rectangle centres, so it is still inside for a diagonal
+    or holed zone - a rectangle-centre average is only meaningful while the
+    zone IS rectangles."""
+    return zone.centroid(board_box=_board_box())
 
 
 def in_own_territory(ctx, x_in, y_in):
@@ -221,21 +226,34 @@ def in_own_territory(ctx, x_in, y_in):
     for leaving it and only 3 for leaving the zone.
 
     Which half is whose is DERIVED from where the two deployment zones sit
-    rather than assumed: the split axis is whichever one separates them (all
-    three shipped maps band the zones across the full width and split on y, but
-    a future map could do the opposite), and your half is the side yours is
-    on. Falls back to "everything is your territory" when the zones are unknown
-    - that scores 0 rather than inventing a free 5 VP."""
+    rather than assumed, and the derivation is the PERPENDICULAR BISECTOR of
+    the line between the two zone centres: your territory is every point
+    closer to your own zone than to your opponent's. That is the split for a
+    diagonal or corner deployment as much as for a banded one - the dividing
+    line simply turns with the zones instead of being picked from two board
+    axes.
+
+    It replaces exactly that axis pick ("whichever of x/y separates them,
+    split the board in half there"), which could only ever produce a
+    horizontal or a vertical line. Behaviour-neutral where the old form
+    applied: measured over a 201x201 grid on all three shipped maps for both
+    players, 0 of 40401 points change hands on each - the shipped zones are
+    symmetric about the board centre, so their bisector IS the old centre
+    line.
+
+    Falls back to "everything is your territory" when the zones are unknown -
+    that scores 0 rather than inventing a free 5 VP."""
     mine = [z for z in ctx.deployment_zones if z.owner == ctx.player]
     theirs = [z for z in ctx.deployment_zones if z.owner == ctx.opponent]
     if not mine or not theirs:
         return True
     my_cx, my_cy = _zone_centre(mine[0])
     their_cx, their_cy = _zone_centre(theirs[0])
-    centre_x, centre_y = board_centre()
-    if abs(my_cy - their_cy) >= abs(my_cx - their_cx):
-        return (y_in >= centre_y) if my_cy >= centre_y else (y_in <= centre_y)
-    return (x_in >= centre_x) if my_cx >= centre_x else (x_in <= centre_x)
+    # Squared distances: same comparison, no sqrt - this is read once per model
+    # per scoring card.
+    to_mine = (x_in - my_cx) ** 2 + (y_in - my_cy) ** 2
+    to_theirs = (x_in - their_cx) ** 2 + (y_in - their_cy) ** 2
+    return to_mine <= to_theirs
 
 
 def no_mans_land_objectives(ctx):
@@ -468,6 +486,35 @@ class SecondaryMissionCard:
 
     def detail(self, ctx):
         return self._detail(ctx) if self._detail is not None else None
+
+    def info_lines(self):
+        """The facts about this card that its printed prose does NOT carry,
+        as short "LABEL  value" rows for the strip to show above the text.
+
+        User: "der info text fuer die missionen soll vollstaendiger sein. da
+        fehlt zum beispiel das timing. da kann ruhig ein bisschen mehr stehen."
+
+        The timing is the one that was actually missing: it lives on the
+        collapsed bar, so opening a card USED to hide it. Everything else here
+        is a clause a player has to know about in advance - that the card needs
+        an action and when that action can be started, and that it may offer to
+        be swapped out the moment it is drawn."""
+        lines = [f"WHEN     {self.timing_label}"]
+        if self.min_battle_round:
+            lines.append(f"FROM     battle round {self.min_battle_round}")
+        if self.action is not None:
+            lines.append(f"ACTION   {self.action.name}, started in your "
+                         f"{self.action.starts} phase")
+            lines.append("         "
+                         + ("completes immediately"
+                            if self.action.completes_immediately
+                            else "completes at the end of your turn")
+                         + "; the unit cannot shoot or charge this turn")
+        if self._when_drawn is not None:
+            how = "shuffled back into the deck" if self.when_drawn_shuffles_back else "discarded"
+            when = "is" if self.when_drawn_is_mandatory else "may be"
+            lines.append(f"ON DRAW  {when} {how} and replaced, if its clause applies")
+        return lines
 
 
 # ------------------------------------------------------------- the two cards
@@ -994,11 +1041,18 @@ def expansion_objective_for(ctx, player):
     if not zones or not candidates:
         return None
 
+    # RANKS rather than gates, so it needs the true distance and not the
+    # conservative one every rule reads - see
+    # DeploymentZone.true_distance_to_point(). On a corner-deployment board the
+    # conservative answer ties two objectives that are 4.5" and 10.6" away and
+    # then breaks the tie on the name, which picks the wrong one.
+    box = (0.0, 0.0, config.BOARD_WIDTH_IN, config.BOARD_HEIGHT_IN)
+
     def distance(objective):
         cx, cy = objective_centre(objective)
-        return min(zone_distance(z, cx, cy) for z in zones)
+        return min(z.true_distance_to_point(cx, cy, box) for z in zones)
 
-    return sorted(candidates, key=lambda o: (distance(o), o.name))[0]
+    return sorted(candidates, key=lambda o: (round(distance(o), 6), o.name))[0]
 
 
 def expansion_objectives(ctx):
@@ -1007,9 +1061,9 @@ def expansion_objectives(ctx):
     Forward Position says "EACH expansion objective", so it needs the whole
     set, not just the card player's own. On the two full-size boards that is a
     symmetric pair (map1 Southwest/Northeast, map2 East/West - each the nearest
-    to its own owner's zone); on map3, whose only non-home objective is the
-    central one, both players' nearest is the SAME objective and the set has
-    one member."""
+    to its own owner's zone). It CAN collapse to one member: if both players'
+    nearest is the same objective the set deduplicates, or "each expansion
+    objective" would demand the same one twice."""
     out = []
     for player in (ctx.player, ctx.opponent):
         objective = expansion_objective_for(ctx, player)
@@ -2009,83 +2063,53 @@ class SecondaryMissionController:
 
     # ------------------------------------------------- rule 16.01 actions
 
-    def offer_actions_at_shooting_phase(self, turn_owner):
-        """"STARTS: Your Shooting phase." Offer every action a held card brings,
-        to every unit 16.01 lets start it.
+    def available_actions_for(self, squad):
+        """[(label, action, target), ...] - the actions THIS unit could start
+        right now, one entry per legal target.
 
-        Behind one yes/no gate, like Burden of Trust's guards and for the same
-        reason: starting an action costs the unit its shooting AND its charge
-        this turn, so it is a real decision, but being asked about every
-        eligible unit every Shooting phase when you did not want to would be
-        worse than the card is worth."""
-        if not self.plays_cards or turn_owner != self.player:
-            return
-        if self.decision_manager is None or self.action_controller is None:
-            return
-        for card in self.hand:
-            if card.action is None or card.action.starts != PHASE_SHOOTING:
-                continue
-            ctx = self._context(card=card)
-            if not self._action_candidates(card.action, ctx):
-                continue
-            self.decision_manager.request(
-                self.player,
-                f"{card.name}: start the {card.action.name} action this Shooting phase? "
-                "(a unit that does loses its shooting and its charge this turn)",
-                [
-                    ("Start the action", lambda a=card.action: self._offer_action_next(a, 0)),
-                    ("Not this turn", lambda: None),
-                ],
-            )
-            return
+        Read by the left panel, which turns each into a button next to the
+        unit's other options.
 
-    def _action_candidates(self, action, ctx):
-        squads = sorted((sq for sq in _live_squads(ctx.tokens) if sq.owner == self.player),
-                        key=lambda sq: sq.name)
+        This used to be a DecisionManager chain opened at the start of the
+        Shooting phase, and it was wrong twice over (user: "plunder war komisch.
+        ich konnte waehlen, ob ich die action machen will, aber nicht mit wem.
+        eigentlich sollte das kein prompt sein. actions sollten einfach links
+        bei den aktionen auftauchen"):
+
+          - it marched you through the eligible units in name order instead of
+            letting you pick one, so with Plunder's "once per turn" limit the
+            FIRST unit alphabetically got the action and no other was ever
+            offered;
+          - and an action is not an interruption. It is something a unit does
+            on its turn, like shooting or charging, so it belongs where those
+            live - on the panel, for the unit you have selected.
+        """
+        if not self.plays_cards or squad is None or self.action_controller is None:
+            return []
+        turn_tracker = self.turn_tracker
+        if turn_tracker is not None and turn_tracker.turn_owner != self.player:
+            return []
         out = []
-        for squad in squads:
+        for card in self.hand:
+            action = card.action
+            if action is None:
+                continue
+            if turn_tracker is not None and turn_tracker.phase != action.starts:
+                continue  # the action's own STARTS line
+            ctx = self._context(card=card)
             ok, _reason = self.action_controller.can_start(action, squad, ctx)
-            if ok and action.target_options(squad, ctx):
-                out.append(squad)
+            if not ok:
+                continue
+            for label, target in action.target_options(squad, ctx):
+                if action.use_limit_allows(self.action_controller.states, squad, target, ctx):
+                    out.append((f"{action.name}: {label}", action, target))
         return out
 
-    def _offer_action_next(self, action, index):
-        """One prompt per eligible unit, chained. Re-derived each time rather
-        than snapshotted: starting an action changes who is still eligible
-        (USE LIMIT: "each unit must be within range of a DIFFERENT
-        objective"), so a list built up front would offer a target that has
-        just been taken."""
-        card = next((c for c in self.hand if c.action is action), None)
-        if card is None or self.decision_manager is None:
-            return
-        ctx = self._context(card=card)
-        candidates = self._action_candidates(action, ctx)
-        if index >= len(candidates):
-            return
-        squad = candidates[index]
-        targets = [(label, target) for label, target in action.target_options(squad, ctx)
-                   if action.use_limit_allows(self.action_controller.states, squad, target, ctx)]
-        if not targets:
-            self._offer_action_next(action, index + 1)
-            return
-        self.decision_manager.request(
-            self.player,
-            # The action names itself - hard-coding one action's verb here made
-            # Plunder ask which objective a unit "cleanses".
-            f"{action.name}: which target does {squad.name} use for {action.name}?",
-            [
-                (label, lambda a=action, sq=squad, t=target, i=index:
-                    self._take_action_target(a, sq, t, i))
-                for label, target in targets
-            ] + [(f"{squad.name} does not act",
-                  lambda a=action, i=index: self._offer_action_next(a, i + 1))],
-        )
-
-    def _take_action_target(self, action, squad, target, index):
-        self.action_controller.start(action, squad, target, self._context())
-        # index, not index + 1: starting an action removes this unit from the
-        # candidate list, so the next eligible one has slid down into its slot.
-        self._offer_action_next(action, index)
+    def start_action(self, action, squad, target):
+        """Begin one action - the panel button's callback."""
+        if self.action_controller is None:
+            return None
+        return self.action_controller.start(action, squad, target, self._context())
 
     def _resolve_actions(self, ending_player):
         """Complete this turn's actions and hand each card what it needs.

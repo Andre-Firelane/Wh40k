@@ -1,6 +1,6 @@
 import pygame
 
-from game import attached_units, config, starflare_ignition
+from game import attached_units, config, enhancements, starflare_ignition
 from game.fight import effective_weapon_skill
 from game.shooting import effective_ballistic_skill
 from game.ui.text_utils import draw_wrapped_text, wrap_text, wrapped_text_height
@@ -176,13 +176,16 @@ class UnitDatacardOverlay:
         which of the merged models is which - listing it on all of them would
         say the opposite of what is true. Its points are shown because that is
         the other half of what an Enhancement is."""
-        if token.profile is None or not getattr(token.profile, "starflare_ignition_system", False):
+        if token.profile is None:
             return []
-        return [
-            "Enhancement:",
-            f"  {starflare_ignition.STARFLARE_IGNITION_SYSTEM_NAME} "
-            f"({starflare_ignition.STARFLARE_IGNITION_SYSTEM_POINTS} pts)",
-        ]
+        # Read off game/enhancements.py's registry rather than one named flag:
+        # nineteen are wired, and a card that could only ever show the first
+        # would be silently wrong for the other eighteen.
+        carried = [spec for spec in enhancements.ENHANCEMENTS.values()
+                   if getattr(token.profile, spec.flag, False)]
+        if not carried:
+            return []
+        return ["Enhancement:"] + [f"  {spec.name} ({spec.points} pts)" for spec in carried]
 
     def _content_height(self, token, stat_rows, ranged_weapons, melee_weapons, cargo_lines=(),
                         attached_lines=(), enhancement_lines=()):

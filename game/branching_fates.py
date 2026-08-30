@@ -79,16 +79,16 @@ def _usable(squad, model):
     return squad is not None and available(squad) and not _excluded(model)
 
 
-def hit_change(squad, model, weapon, hits, crits, misses):
-    if not _usable(squad, model):
-        return None
-    return unmodified_six.hit_change(weapon, hits, crits, misses)
+def usable(squad, model):
+    """Public: is the ability live for a roll made by `model`? See
+    aspect_shrine.usable() - same contract, different resource."""
+    return _usable(squad, model)
 
 
-def wound_change(squad, model, weapon, wounds, crits, no_effect):
-    if not _usable(squad, model):
-        return None
-    return unmodified_six.wound_change(weapon, wounds, crits, no_effect)
+def button_label(squad):
+    """The left-panel button. No count to show - it is once per phase, so it
+    is either there or it is not."""
+    return "Branching Fates (once per phase)"
 
 
 def damage_change(squad, model, amount):
@@ -103,55 +103,3 @@ def damage_change(squad, model, amount):
 
 ACCEPT_LABEL = "Use Branching Fates"
 
-
-def prompt_for(squad, weapon_label, what, step):
-    return (
-        f"{squad.name}: use Branching Fates on the {weapon_label} {step} roll? "
-        f"{unmodified_six.describes(what, step).capitalize()}. Once per phase."
-    )
-
-
-class BranchingFatesDamageOffer:
-    """The Damage-roll half, shaped as a DamageAllocationSession collaborator -
-    the same maybe_offer/on_resolved contract game/damage_reroll.py and
-    StealthDronesController already satisfy there, so the session needs to know
-    nothing about this ability.
-
-    Built per weapon group by game/shooting.py and game/fight.py, and only when
-    the ability is actually live for that unit."""
-
-    def __init__(self, squad=None, decision_manager=None, game_log=None, owner=None, weapon_name=""):
-        self.squad = squad
-        self.decision_manager = decision_manager
-        self.game_log = game_log
-        self.owner = owner
-        self.weapon_name = weapon_name
-
-    def maybe_offer(self, model, amount, on_resolved):
-        """Returns True when a choice was raised, in which case the caller must
-        stop - the answer arrives through on_resolved(new_amount_or_None)."""
-        if self.decision_manager is None:
-            return False
-        new_amount = damage_change(self.squad, model, amount)
-        if new_amount is None:
-            return False
-        self.decision_manager.request(
-            self.owner,
-            f"{self.weapon_name}: use Branching Fates on this Damage roll? "
-            f"It becomes {new_amount} instead of {amount}. Once per phase.",
-            [
-                (f"Branching Fates: make it {new_amount}", lambda: self._chose(on_resolved, new_amount)),
-                (f"Keep the Damage roll ({amount})", lambda: self._chose(on_resolved, None)),
-            ],
-        )
-        return True
-
-    def _chose(self, on_resolved, new_amount):
-        if new_amount is not None:
-            spend(self.squad)
-            if self.game_log is not None:
-                self.game_log.add(
-                    f"Branching Fates: {self.weapon_name}'s Damage roll counts as an "
-                    f"unmodified {new_amount}."
-                )
-        on_resolved(new_amount)

@@ -184,6 +184,30 @@ class DiceManager:
         self.rerolled_at = time.monotonic()
         return True
 
+    def set_die(self, index, value):
+        """Change one die of the pending roll to a fixed result - the
+        "change the result of one Hit roll ... to an unmodified 6" abilities
+        (game/unmodified_six.py's two consumers).
+
+        NOT a re-roll, and deliberately not booked as one: rule 05.03's "a
+        dice can never be re-rolled more than once" is about throwing it
+        again, and these abilities throw nothing. So `already_rerolled` is
+        left alone and a die changed this way can still be re-rolled
+        afterwards (and vice versa) - which is the player's business, not
+        this class's.
+
+        Marked in `rerolled_indices` all the same, because that is what the
+        panel highlights: the point of picking a die by hand is seeing which
+        one changed. Returns whether it applied."""
+        if self.pending_values is None or not (0 <= index < len(self.pending_values)):
+            return False
+        if self.pending_values[index] == value:
+            return False
+        self.pending_values[index] = value
+        self.rerolled_indices = {index}
+        self.rerolled_at = time.monotonic()
+        return True
+
     def reroll_all(self):
         """Rule 15.02: charge rolls "must" be re-rolled in full, not just
         one die. All-or-nothing: if any die of this roll has already been

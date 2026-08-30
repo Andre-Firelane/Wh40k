@@ -282,8 +282,7 @@ class _Grid:
             # would let an "individually unblocked" cell produce a segment the
             # continuous check rejects.
             or any(
-                o.min_x - self.mover_radius_in <= x <= o.max_x + self.mover_radius_in
-                and o.min_y - self.mover_radius_in <= y <= o.max_y + self.mover_radius_in
+                o.contains_point(x, y, inflate=self.mover_radius_in)
                 for o in self.hard_obstacles
             )
             or any(

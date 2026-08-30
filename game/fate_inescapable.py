@@ -35,6 +35,7 @@ not a DecisionManager break point, the same shape as The Arro'kon Protocol.
 
 import copy
 from game.stratagems import Stratagem
+from game import strands_of_fate
 
 FATE_INESCAPABLE_CP = 1
 FATE_INESCAPABLE_NAME = "Fate Inescapable"
@@ -75,10 +76,19 @@ class FateInescapableController:
             name=FATE_INESCAPABLE_NAME, cp_cost=FATE_INESCAPABLE_CP, effect=self._effect,
         )
 
+    def panel_label(self, squad):
+        """Both halves on the label, so the trade is readable without opening
+        the rules - the wording the panel used to hold as a literal."""
+        return ("%s (%d CP) - [IGNORES COVER], crit wounds AP+1"
+                % (FATE_INESCAPABLE_NAME, FATE_INESCAPABLE_CP))
+
     def can_use(self, squad):
         from game.forewarned import eligible_unit, near_friendly_psyker
         from game.turn import PHASE_SHOOTING
         if squad is None or self.stratagem_controller is None:
+            return False
+        # Seer Council only - see game/strands_of_fate.py's has_detachment().
+        if not strands_of_fate.has_detachment(squad.owner):
             return False
         if applies(squad):
             return False

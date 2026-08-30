@@ -56,11 +56,19 @@ DIRECTION of the gate's error - it can only suppress offers, never invent
 them, so a mis-set threshold costs a marginal option, never a legal one that
 mattered.
 
-SIMPLIFICATION (documented, matching game/retaliation_cadre.py's own note):
-this engine has no army-building/detachment-selection flow yet, and
-Retaliation Cadre is currently the only detachment that exists - the T'AU
-EMPIRE half of the TARGET clause is therefore not checked, exactly as Bonded
-Heroes applies unconditionally to any BATTLESUIT model. The BATTLESUIT half
+DETACHMENT GATE
+---------------
+The T'AU EMPIRE half of the TARGET clause, and "from your army", are checked
+through game/retaliation_cadre.py's stratagem_target_ok() - the shared
+predicate all six of this detachment's Stratagems use, in the same shape as
+game/awakened_dynasty.py's and game/death_lords_chosen.py's.
+
+This module used to say the opposite: that the check was skipped because
+"Retaliation Cadre is currently the only detachment that exists". That
+assumption expired the moment a T'au army could be a Kauyon or Mont'ka one
+instead, and in a T'au mirror match it was wrong for both players at once.
+
+The BATTLESUIT half
 IS checked, and via rule 19.03's keyword pooling, so an attached unit (19.01)
 of Crisis Battlesuits plus a Commander qualifies as one unit.
 """
@@ -69,7 +77,7 @@ from game.damage_estimate import expected_wounds_against
 # Shared with this detachment's other stratagem (The Arro'kon Protocol), so
 # it lives in the detachment module both belong to - re-exported here under
 # its original name, which is where every existing caller imports it from.
-from game.retaliation_cadre import is_battlesuit_unit
+from game.retaliation_cadre import is_battlesuit_unit, stratagem_target_ok
 from game.stratagems import Stratagem
 from game.thresholds import parse_threshold
 from game.turn import PHASE_FIGHT, PHASE_SHOOTING
@@ -200,6 +208,8 @@ class StimInjectorsController:
         if target.owner == attacker.owner:
             return False  # "an ENEMY unit has selected its targets"
         if not target.models or all(m.is_dead() for m in target.models):
+            return False
+        if not stratagem_target_ok(target):
             return False
         if not is_battlesuit_unit(target):
             return False

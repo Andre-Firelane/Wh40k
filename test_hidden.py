@@ -24,11 +24,14 @@ label, and stayed unshootable from beyond its detection range.
 Section 5 reproduces exactly that, with an A/B against the pre-fix behaviour.
 """
 
+import io
+
 import testkit as tk
-from game import status_effects
+from game import line_of_sight, status_effects
 from game.factions.orks import BOYZ, TANKBUSTAS, TRUKK
 from game.factions.tau_empire import STRIKE_TEAM
 from game.terrain import DENSE, LIGHT, Obstacle, TerrainArea
+from game.weapons import RANGED
 
 c = tk.Checks("rule 13.09 Hidden")
 
@@ -243,5 +246,135 @@ c.eq("firing every group ends the activation on its own", sc.state, "idle")
 c.eq("and records the shot, as it always did",
      sc.last_ranged_attack_turn.get(unit), tt.turn_number_for(unit.owner))
 c.eq("that unit is not Hidden either", all_hidden(unit, s), False)
+
+
+# --------------------------------------------------------------------------
+# 6. The two halves of targeting must be satisfied by the SAME model.
+#
+# User report, with the diagnosis attached: "warum koennen meine pathfinder
+# beschossen werden hier? die sind doch hidden ... die schiessende einheit kann
+# die modelle aber nicht sehen, die nicht in der dense area stehen ... in dem
+# moment hatten die doch nur line of sight zu modelle die hidden waren", and
+# then the principle by analogy: "das ist das gleiche prinzip, wie wenn es um
+# die ermittlung von benefit of cover geht" - which is decided per shooter
+# against the target it can actually see (_compute_benefit_of_cover).
+#
+# Cause: Hidden was asked ONCE, at unit level, in _is_valid_target_squad ("is
+# ANY model of the target detectable"), while range and line of sight were
+# asked in _model_can_reach over target_squad.models - never intersected. So a
+# unit could be TARGETED through models the shooter had no line of sight to and
+# then SHOT through models it was not allowed to see.
+#
+# The board below is the reported one, reduced to its two facts: some models
+# hidden and reachable, the rest visible but behind a sight-blocker.
+# --------------------------------------------------------------------------
+print("\n6. targeted through one model, shot through another")
+
+import game.shooting as shooting_mod
+from game.squad import edge_distance
+
+# The board below is the reported one, reduced to its two facts: some models
+# hidden and in weapon range, the rest visible but behind a sight-blocker.
+#
+# The shooter needs a weapon LONGER than the 15" detection range, or the scene
+# proves nothing - the first version of this used Tankbustas (12" Rokkit
+# Pistol) and two of its checks passed because everything was out of range
+# rather than out of sight. The A/B probe caught that, which is the whole
+# reason it is run: a probe that does not bite is a finding about the TEST.
+ruin = TerrainArea([Obstacle(20.0, 28.0, 10.0, 6.0, category=DENSE)])
+screen = Obstacle(28.5, 18.0, 11.0, 2.0)          # blocks line of sight only
+
+shooter = tk.build(STRIKE_TEAM, "Player 2", name="2 Strike Team 1")
+target = tk.build(BOYZ, "Player 1", name="1 Boyz 1")
+# Packed into two short rows so the whole unit shoots from behind `screen`;
+# spread out, one flank model would see past its end.
+for i, m in enumerate(shooter.models):
+    m.x_in, m.y_in, m.squad = 17.0 + (i % 5) * 1.3, 8.0 + (i // 5) * 1.3, shooter
+# Five models inside the ruin: Hidden, and 20" away - inside the 30" pulse
+# rifle, outside the 15" detection range. The rest stand to the right of it:
+# not Hidden at all, in range, and behind `screen` from the shooter.
+for i, m in enumerate(target.models):
+    if i < 5:
+        m.x_in, m.y_in = 17.0 + i * 1.4, 28.0
+    else:
+        m.x_in, m.y_in = 34.0 + (i - 5) * 1.4, 28.0
+    m.squad = target
+
+from game.turn import TurnTracker, PHASES, PHASE_SHOOTING
+tt = TurnTracker(first_player="Player 2")
+tt.phase_index = PHASES.index(PHASE_SHOOTING)
+tt.turn_owner = tt.active_player = "Player 2"
+
+tokens = list(shooter.models) + list(target.models)
+sc = shooting_mod.ShootingController(obstacles=[screen], terrain_areas=[ruin],
+                                     turn_tracker=tt)
+sc.all_tokens = tokens
+sc.active_squad = shooter
+sc.shooting_type = shooting_mod.NORMAL_SHOOTING
+sc.state = shooting_mod.CHOOSING_TARGET      # what valid_target_models() answers in
+
+# The LONGEST ranged weapon, not the first one listed - the Shas'ui's pulse
+# pistol is 12", which would make the scene turn on range again.
+weapon = max((w for m in shooter.models for w in m.weapons if w.weapon_type == RANGED),
+             key=lambda w: w.range_in)
+c.true("the shooter's weapon outranges the 15\" detection range, so the scene "
+       "turns on SIGHT and not on distance", weapon.range_in > 15)
+c.true("...and every target model really is inside that range",
+       all(min(edge_distance(s, d) for s in shooter.models) <= weapon.range_in
+           for d in target.models))
+
+hidden_models = [i for i, m in enumerate(target.models)
+                 if status_effects.is_hidden(m, [ruin], tt, sc.last_ranged_attack_turn)]
+c.eq("five models stand in the ruin and are Hidden", hidden_models, [0, 1, 2, 3, 4])
+
+detectable = sc._detectable_models(target, shooter)
+c.eq("...so the ones the Hidden rule lets the shooter see are the OTHER five",
+     [target.models.index(m) for m in detectable], [5, 6, 7, 8, 9])
+
+seen = [i for i, m in enumerate(target.models)
+        if any(line_of_sight.has_line_of_sight(s, m, [screen], tokens, [ruin])
+               for s in shooter.models)]
+c.eq("...but line of sight reaches only the ones inside the ruin", seen, [0, 1, 2, 3, 4])
+c.eq("nothing is both allowed-to-be-seen and actually visible",
+     sorted(set(seen) & {target.models.index(m) for m in detectable}), [])
+
+c.true("...so no model of the shooting unit can reach this target",
+       not any(shooting_mod._model_can_reach(
+           s, weapon, target, [screen], detectable, tokens,
+           shooting_mod.NORMAL_SHOOTING, [ruin]) for s in shooter.models))
+c.eq("...and the board offers none of its tokens as a target",
+     sc.valid_target_models(tokens) & set(target.models), set())
+c.true("...and the eligibility probe agrees the unit has nothing to shoot",
+       not sc.has_valid_target(shooter, shooting_mod.NORMAL_SHOOTING, tokens))
+
+# The control: take the sight-blocker away and the unhidden five become
+# shootable - the fix withholds the shot for the RIGHT reason, not by breaking
+# targeting generally.
+sc_open = shooting_mod.ShootingController(obstacles=[], terrain_areas=[ruin], turn_tracker=tt)
+sc_open.all_tokens = tokens
+sc_open.active_squad = shooter
+sc_open.shooting_type = shooting_mod.NORMAL_SHOOTING
+c.true("with nothing blocking line of sight the unhidden models can be shot",
+       sc_open.has_valid_target(shooter, shooting_mod.NORMAL_SHOOTING, tokens))
+c.true("...and the Hidden five are still not among what may be seen",
+       all(m not in sc_open._detectable_models(target, shooter)
+           for m in target.models[:5]))
+
+# ONE definition: the unit-level gate and the per-model one ask the same
+# function, so they cannot drift apart again.
+shooting_src = io.open("game/shooting.py", encoding="utf-8").read()
+c.true("_is_valid_target_squad asks _detectable_models()",
+       "return bool(self._detectable_models(target_squad, attacking_squad))" in shooting_src)
+c.true("...and _model_can_reach REQUIRES the same list rather than defaulting to all",
+       "def _model_can_reach(model, weapon, target_squad, obstacles, visible_models,"
+       in shooting_src)
+c.eq("...and it iterates that list, not the whole squad",
+     shooting_src.count("for defender in visible_models"), 1)
+# Counted as the CALL expression, not as the name - a docstring mention used to
+# make a guard like this pass on its own (error class 24 in CLAUDE.md).
+c.eq("six real calls: the unit-level gate plus all five reach sites",
+     shooting_src.count("self._detectable_models("), 6)
+c.eq("...and no call site was left on the old signature",
+     shooting_src.count("_model_can_reach(model, weapon, target_squad, self.obstacles, all_tokens"), 0)
 
 c.finish()

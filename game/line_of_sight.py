@@ -1,6 +1,6 @@
 import math
 
-from game.geometry import segment_circle_entry_fraction, segment_intersects_rect
+from game.geometry import segment_circle_entry_fraction
 
 SAMPLE_POINTS = 24
 
@@ -18,7 +18,7 @@ def _circle_points(cx, cy, radius, num_points=SAMPLE_POINTS):
 def _blocked_by_obstacle(p1, p2, obstacle):
     if not obstacle.blocks_line_of_sight:
         return False  # rule 13.03/13.04: Exposed/Light terrain doesn't block sight
-    return segment_intersects_rect(p1, p2, obstacle.min_x, obstacle.min_y, obstacle.max_x, obstacle.max_y)
+    return obstacle.blocks_segment(p1, p2)
 
 
 def _blocked_by_model(p1, p2, model):
@@ -39,6 +39,11 @@ def _bounding_box(token_a, token_b):
 
 
 def _obstacle_relevant(obstacle, box):
+    """A conservative PREFILTER, and it stays correct for a rotated obstacle
+    without changing: min_x..max_y is that piece's axis-aligned bounding box
+    (see game/terrain.py's Obstacle), so anything this rejects cannot touch
+    the rectangle inside it either. It may keep a piece the exact test then
+    discards, which costs a little time and no correctness."""
     min_x, min_y, max_x, max_y = box
     return not (obstacle.max_x < min_x or obstacle.min_x > max_x or obstacle.max_y < min_y or obstacle.min_y > max_y)
 

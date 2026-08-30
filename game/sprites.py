@@ -36,25 +36,20 @@ Team" datasheet), so add one entry here whenever a new sprite is dropped
 into Sprites/. A squad whose name doesn't contain any mapped key simply has
 no sprite (falls back to letters), same as any other unmapped squad.
 
-Separately, GROUND_TEXTURE_NAME (a single file, no per-squad mapping
-needed - there's only ever one battlefield floor) is the board's
-background. Unlike the two cover textures below it is NOT a repeatable
-tile (User: "wueste-boden ist keine wiederholbare kachel. das sprite soll
-die gesamte map ausfuellen") - it's one picture of a whole desert
-battlefield, so Renderer's static layer scales that single copy to cover
-the ENTIRE board instead of tiling it. Falls back to the plain flat
-BACKGROUND_COLOR fill (as before) if that file isn't present.
-DENSE_COVER_TEXTURE_NAME
-("Sprites/Dense_Cover.<ext>") and NORMAL_COVER_TEXTURE_NAME
-("Sprites/Normal_Cover.<ext>") are the same idea, tiled within each
-non-Dense terrain footprint (a TerrainArea's Light/Exposed features - see
-game/terrain.py) instead of the whole board - which one is picked depends
-on whether that footprint's own TerrainArea also has a Dense feature (a
-wall) standing on it (TerrainArea.has_dense_feature): Dense_Cover for a
-ruin's floor with walls rising out of it, Normal_Cover for open terrain
-with no walls (a standalone barricade/crater/rubble patch). Falls back to
-the old translucent color tint for that terrain if the relevant file isn't
-present.
+Separately, the THREE MAP TEXTURES (a single file each, no per-squad
+mapping needed - there is only ever one battlefield) come from the selected
+BIOME rather than from fixed names here: see game/biomes.py and
+_biome_texture_path() below. ground_texture_path() is the board's
+background and is NOT a repeatable tile (User: "das sprite soll die gesamte
+map ausfuellen") - Renderer's static layer scales that single copy to cover
+the ENTIRE board. dense_cover_texture_path() and
+normal_cover_texture_path() are the same idea, tiled within each non-Dense
+terrain footprint (a TerrainArea's Light/Exposed features - see
+game/terrain.py) instead of the whole board; which one is picked depends on
+whether that footprint's own TerrainArea also has a Dense feature (a wall)
+standing on it (TerrainArea.has_dense_feature). All three fall back to a
+flat colour when the art is missing, same convention as the rest of this
+module.
 
 Separately again, BLOOD_DECAL_NAME (a single "Sprites/Blood.<ext>" file) is
 drawn at BLOOD_DECAL_ALPHA opacity, at the spot each model died - one decal per
@@ -68,7 +63,7 @@ from collections import Counter
 
 import pygame
 
-from game import attached_units
+from game import attached_units, biomes
 
 SPRITES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Sprites")
 
@@ -93,11 +88,24 @@ SQUAD_SPRITE_KEYS = {
     "Fire Dragons": "Fire Dragons",
     "Falcon": "Falcon Tank",
     "Wraithguard": "Wraithguard",
+    # Wraithlord.png had been sitting in the folder unused since an earlier
+    # batch - there was no datasheet for it until now. Wraithblades still have
+    # no art, and that absence is pinned in test_wraith_constructs.py so that
+    # adding a file later is a visible change.
+    "Wraithlord": "Wraithlord",
     "Asurmen": "Asurmen",
     # The user's file is "JainZar" (one word); the datasheet is Jain Zar.
     "Jain Zar": "JainZar",
     # The user's file is "Warlock Conclaive" (their spelling).
     "Warlock Conclave": "Warlock Conclaive",
+    # BEFORE the plain "Farseer" below, and that ordering is the whole point:
+    # _key_for_name() matches a datasheet name as a SUBSTRING of the squad name
+    # and returns the FIRST hit, so "1 Farseer Skyrunner 1" would otherwise land
+    # on the foot Farseer's art by accident. It lands there on purpose instead -
+    # there is no Farseer Skyrunner file, and the same character on a jetbike is
+    # the closest thing in the folder. An explicit entry says so, and survives a
+    # future rename of either file; the accident would not.
+    "Farseer Skyrunner": "Farseer",
     "Farseer": "Farseer",
     # The user's file is "Eldrad Ultran.png" - spelled without the h. The
     # folder's filenames are the source of truth here, as everywhere in this
@@ -127,6 +135,13 @@ SQUAD_SPRITE_KEYS = {
     "Strike Team": "Fire Warrior Strike Squad",
     "Breacher Team": "Breacher",
     "Kroot Carnivores": "Kroot Carnivores",
+    # The file has been sitting unused in Sprites/ since before this
+    # datasheet existed - the folder wins on spelling, as everywhere in
+    # this table ("Vespid", not "Vespid Stingwings").
+    "Vespid Stingwings": "Vespid",
+    # Also already in Sprites/ and unused until this datasheet existed;
+    # the folder wins on spelling ("Skyray", not "Sky Ray Gunship").
+    "Sky Ray Gunship": "Skyray",
     "Stealth Battlesuits": "Stealth Suites",
     # Filename typo ("Starsythe") is the actual file dropped in Sprites/ -
     # kept verbatim, since _resolve_path() matches the base filename exactly.
@@ -157,6 +172,37 @@ SQUAD_SPRITE_KEYS = {
     # candidates() builds "<mapped key> - <weapon name>", and the mapped key
     # here is the standard image's own name, not the datasheet's.
     "Pathfinder Team": "Pathfinder Pulse Carbon",
+    # The seventeen datasheets added by the T'au catch-up, all with art dropped
+    # in Sprites/ afterwards. The FOLDER wins on spelling wherever the two
+    # disagree - the same decision "Ghostkheel", "Skyray" and "Vespid" already
+    # record: this module bends to the folder rather than asking for renames.
+    # Four disagree here: "Battlesuites" (a typo kept verbatim), "Dark Strider"
+    # as two words, "Piranha" singular where the datasheet is plural, and the
+    # two files prefixed "Tau ".
+    "Broadside Battlesuits": "Broadside Battlesuites",
+    "Commander Shadowsun": "Commander Shadowsun",
+    "Commander in Enforcer Battlesuit": "Commander in Enforcer Battlesuit",
+    "Crisis Fireknife Battlesuits": "Tau Crisis Fireknife",
+    "Darkstrider": "Dark Strider",
+    "Ethereal": "Ethereal",
+    "Firesight Team": "Tau Firesight Team",
+    "Hammerhead Gunship": "Hammerhead Gunship",
+    "Kroot Hounds": "Kroot Hounds",
+    "Kroot Lone-Spear": "Kroot Lone-Spear",
+    "Krootox Rampagers": "Krootox Rampagers",
+    "Krootox Riders": "Krootox Riders",
+    "Piranhas": "Piranha",
+    # User instruction: "fuer Farstalkers die normalen Kroot Sprites". So the
+    # Kill-broker and his nine Farstalkers borrow the Kroot Carnivores art;
+    # the two Kroot Hounds inside the unit are handled per MODEL below, since
+    # a squad-level key cannot reach one line of a three-line datasheet.
+    "Kroot Farstalkers": "Kroot Carnivores",
+    # User instruction: "fuer alle Kroot characters Kroot Flesh Shaper.png".
+    # That is the three Shapers - the Kroot Lone-Spear is a CHARACTER too but
+    # has art of its own, so it keeps it.
+    "Kroot Flesh Shaper": "Kroot Flesh Shaper",
+    "Kroot Trail Shaper": "Kroot Flesh Shaper",
+    "Kroot War Shaper": "Kroot Flesh Shaper",
     # No separate Boss Nob art dropped yet - falls back to this same
     # standard image for the whole squad, Boss Nob included (see this
     # module's docstring: "a variant with no image of its own falls back to
@@ -225,10 +271,55 @@ SQUAD_SPRITE_KEYS = {
     "Illuminor Szeras": "Necron IlluminorSzeras",   # the file has no space
     "Canoptek Wraiths": "Necron Wraith",
     "Skorpekh Destroyers": "Necron Skorpekh Destroyers",
+    # The only Necron file WITHOUT the "Necron " prefix the other twelve
+    # carry. The folder wins, as everywhere else in this table. No ordering
+    # hazard against its own bodyguards either: "Skorpekh Lord" does not
+    # contain "Skorpekh Destroyers" nor the reverse, and "Overlord" is not a
+    # substring of it (the pair that would actually be easy to get wrong).
+    "Skorpekh Lord": "Skorpekh Lord",
+    # The second file without the "Necron " prefix, and the second pair that
+    # could in principle shadow: "Lokhust Lord" contains neither "Lokhust
+    # Destroyers" nor "Lokhust Heavy Destroyers", so no ordering matters here
+    # either.
+    "Lokhust Lord": "Lokhust Lord",
     "Lokhust Destroyers": "Necron Destroyer",
     "Lokhust Heavy Destroyers": "Necron Heavy Destroyer",
     "Doomsday Ark": "Necron Doomsday Ark",
     "C'tan Shard of the Void Dragon": "Necron Shard of the Void Dragon",
+
+    # --- Death Guard ---
+    # EIGHT of these eleven files disagree with the datasheet name, and the
+    # folder wins in every one - the same decision "Warpspider", "JainZar",
+    # "Eldrad Ultran", "Flash GItz", "Ghostkheel" and "Necron IlluminorSzeras"
+    # already record. Four kinds of disagreement, all deliberate:
+    #   * a space the datasheet does not have: "Death Shroud Terminators",
+    #     "Malignant Plague Caster", "Pox Walkers", "Blight Hauler",
+    #     "Bloat Drone";
+    #   * a faction prefix the datasheet does not carry: "Deathguard Defiler";
+    #   * words the datasheet does not use: "Blight Hauler" and "Bloat Drone"
+    #     drop the printed "Myphitic" and "Foetid";
+    #   * two misspellings in one filename: "Demon Price of Nurgle" for the
+    #     Daemon Prince. Kept verbatim - _resolve_path() matches the base
+    #     filename exactly, so "correcting" it here would lose the art.
+    #
+    # ORDERING HAZARD, checked rather than assumed, because _key_for_name()
+    # returns on the FIRST substring match and this faction has three keys
+    # beginning "Plague": "Plague Marines", "Plagueburst Crawler" and
+    # "Malignant Plaguecaster". None contains another ("Plague Marines" is not
+    # inside "Plagueburst Crawler", and neither is inside "Malignant
+    # Plaguecaster"), so no ordering between them matters. The suite pins that
+    # by asserting the three resolve to three DIFFERENT files.
+    "Plague Marines": "Plague Marines",
+    "Poxwalkers": "Pox Walkers",
+    "Typhus": "Typhus",
+    "Malignant Plaguecaster": "Malignant Plague Caster",
+    "Daemon Prince of Nurgle": "Demon Price of Nurgle",
+    "Chaos Spawn": "Chaos Spawn",
+    "Deathshroud Terminators": "Death Shroud Terminators",
+    "Defiler": "Deathguard Defiler",
+    "Foetid Bloat-drone": "Bloat Drone",
+    "Myphitic Blight-hauler": "Blight Hauler",
+    "Plagueburst Crawler": "Plagueburst Crawler",
 }
 
 # Maps a MODEL's own profile name -> base filename, for a unit whose
@@ -259,6 +350,14 @@ MODEL_SPRITE_KEYS = {
     # ever gains its alternative guns, the variant mechanism below is where
     # their art belongs.
     "Heavy Weapon Platform": "Bright Lance Weapon Platform",
+    # The two Kroot Hounds printed INSIDE a Kroot Farstalkers unit. Fourth
+    # instance of the one-datasheet-several-lines case, and the first with
+    # THREE lines: the Kill-broker and the Farstalkers take the squad-level
+    # "Kroot Farstalkers" -> Kroot Carnivores art, and these take the Kroot
+    # Hounds datasheet's own. A squad-level key cannot reach them - the squad
+    # is named "1 Kroot Farstalkers 1", so the "Kroot Hounds" key never
+    # matches - which is exactly what this table is for.
+    "Kroot Hound (Farstalker)": "Kroot Hounds",
     # Storm Guardians' Serpent's Scale Platform. Same one-datasheet-two-lines
     # case again, and it used to be the documented EXCEPTION to it: there is no
     # art of its own, so it fell through to SQUAD_SPRITE_KEYS' "Assault
@@ -321,6 +420,14 @@ SPRITE_SCALE_OVERRIDES = {
     "Breacher": 1.45,
     "Tau Fireblade": 1.8,
     "Ork Deffdread": 1.8,  # User: "ork deffdread etwas größer"
+    # User: "defiler bitte verkleinern. genau so groß wie devilfish, falcon".
+    # Its BASE was already identical to theirs (2.1", see UnitProfile) - what
+    # made it look bigger is the art: measured, the Defiler's opaque content
+    # fills 0.93 x 0.88 of its image where the Devilfish fills 0.94 x 0.70 and
+    # the Falcon 0.74 x 0.88, i.e. ~25% more area inside the same box. The art
+    # box is therefore shrunk by sqrt(0.655 / 0.82) = 0.89, which is what makes
+    # the three read as the same size on the table.
+    "Deathguard Defiler": 1.43,
 }
 
 
@@ -329,9 +436,60 @@ def sprite_scale(base_name):
     if it has one, otherwise the shared SPRITE_SCALE."""
     return SPRITE_SCALE_OVERRIDES.get(base_name, SPRITE_SCALE)
 
-GROUND_TEXTURE_NAME = "wüste-boden"  # Sprites/wüste-boden.<ext> - the battlefield floor. NOT a tile: this one image is scaled to cover the whole board (see Renderer._draw_ground). The old seamless Sprites/Ground.jpg is left in the folder unused - switching back to it means putting its base name here AND restoring the tiling call in _draw_ground, since the two are drawn differently
-DENSE_COVER_TEXTURE_NAME = "Dense_Cover-Desert"  # Sprites/Dense_Cover-Desert.<ext> - tiled within a non-Dense footprint whose TerrainArea also has a Dense (wall) feature, see Renderer. Swapped to the desert version to go with the desert floor (see GROUND_TEXTURE_NAME); the older Sprites/Dense_Cover.jpg stays in the folder unused
-NORMAL_COVER_TEXTURE_NAME = "Light_Cover-Desert"  # Sprites/Light_Cover-Desert.<ext> - tiled within a non-Dense footprint whose TerrainArea has no Dense (wall) feature, see Renderer. Swapped to the desert version alongside the other two (User: "und light cover durch Light_Cover-Desert" - "light cover" is this one, the wall-less footprint; the constant keeps its NORMAL_ name because that is the distinction the renderer draws, not the terrain CATEGORY). The older Sprites/Normal_Cover.jpg stays in the folder unused
+# THE THREE MAP TEXTURES COME FROM THE SELECTED BIOME (game/biomes.py), not
+# from three fixed names here any more. They used to sit loose in Sprites/ as
+# wüste-boden.jpg / Dense_Cover-Desert.jpg / Light_Cover-Desert.jpg; the user
+# sorted them into Sprites/Map Textures/<biome>/ and added a city and a forest
+# set beside them ("ich habe die texturen für die maps in ordner geordnet. es
+# gibt jetzt 3 biome"), which broke all three of the old lookups at once -
+# measured, every one of them resolved to None and the renderer had quietly
+# fallen back to flat colours.
+#
+# WHAT EACH IS FOR is unchanged, and stays described here because this is
+# where the renderer asks:
+#
+#   ground       one picture of a whole battlefield, NOT a repeatable tile
+#                (User: "das sprite soll die gesamte map ausfuellen") - the
+#                static layer scales a single copy to cover the ENTIRE board.
+#                Falls back to the flat BACKGROUND_COLOR fill when missing.
+#   dense cover  tiled inside a non-Dense terrain footprint whose TerrainArea
+#                ALSO has a Dense feature (a wall) standing on it - a ruin's
+#                floor with walls rising out of it.
+#   light cover  tiled inside a non-Dense footprint with no wall at all - a
+#                standalone barricade, crater or rubble patch.
+#
+# The split between the last two is "does this footprint have a wall on it",
+# NOT the terrain CATEGORY - which is why normal_cover_texture_path() keeps
+# its NORMAL_ name even though the file it now resolves to says "Light".
+# Both fall back to the old translucent colour tint when missing.
+def _biome_texture_path(role):
+    """Resolved path to the current biome's picture for `role`
+    (biomes.GROUND / DENSE_COVER / LIGHT_COVER), or None if that folder has
+    no file for it - same "missing art is fine" convention as sprite_for().
+
+    The file is found by PREFIX inside the biome's folder rather than by a
+    transcribed name (see game/biomes.py for why: the shipped folders spell
+    the same role three different ways). Sorted before picking, so a folder
+    that somehow holds two candidates answers the same way every run instead
+    of following whatever order the filesystem happened to hand back."""
+    biome = biomes.current()
+    prefix = biomes.ROLE_PREFIXES[role].lower()
+    folder = os.path.join(SPRITES_DIR, biomes.TEXTURE_SUBDIR, biome.folder)
+    cache_key = (folder, role)
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    resolved = None
+    try:
+        entries = sorted(os.listdir(folder))
+    except OSError:
+        entries = []
+    for entry in entries:
+        base, ext = os.path.splitext(entry)
+        if ext.lower() in _EXTENSIONS and base.lower().startswith(prefix):
+            resolved = os.path.join(folder, entry)
+            break
+    _texture_cache[cache_key] = resolved
+    return resolved
 
 FACTION_LOGO_KEYS = {
     # Sprites/<value>.<ext> - one faction badge each, keyed by the faction
@@ -361,9 +519,11 @@ BLOOD_DECAL_NAME = "Blood"  # Sprites/Blood.<ext> - a small stain left where a m
 BLOOD_DECAL_DIAMETER_IN = 1.3
 BLOOD_DECAL_ALPHA = 255  # full opacity (User: first asked for ~50%, then "können wieder etwas auffälliger sein... also 100% opacity") - baked into the cached surface below via BLEND_RGBA_MULT (a no-op multiply at 255, i.e. the PNG's own per-pixel alpha is used as-is), not re-applied every frame
 
+_texture_cache = {}  # (biome folder, role) -> resolved path or None, so switching biome on the map screen re-lists a folder once rather than once per frame; keyed by FOLDER so each biome keeps its own answer
 _file_cache = {}  # base filename (no ext) -> resolved path or None, so a repeated miss doesn't re-stat the disk every frame
 _surface_cache = {}  # (path, target_px) -> pygame.Surface, so scaling only happens once per size actually needed, not every frame
 _blood_surface_cache = {}  # target_px -> pygame.Surface, alpha already baked in - separate from _surface_cache since that one's shared with full-opacity unit portraits
+_printed_loadout_cache = {}  # (datasheet, profile class) -> frozenset of printed weapon names or None, so _printed_weapon_names() doesn't walk a datasheet's compositions once per token per frame
 
 
 def _resolve_path(base_name):
@@ -388,24 +548,26 @@ def faction_logo_path(faction_keyword):
 
 
 def ground_texture_path():
-    """Resolved path to Sprites/Ground.<ext>, or None if it isn't there -
-    caller falls back to a flat color fill in that case, same "missing art
-    is fine" convention as sprite_for()."""
-    return _resolve_path(GROUND_TEXTURE_NAME)
+    """The current biome's battlefield floor, or None if it isn't there -
+    caller falls back to a flat colour fill in that case."""
+    return _biome_texture_path(biomes.GROUND)
 
 
 def dense_cover_texture_path():
-    """Resolved path to Sprites/Dense_Cover.<ext>, or None if it isn't
-    there - caller falls back to the old translucent color tint for that
-    footprint in that case, same "missing art is fine" convention as
-    sprite_for()/ground_texture_path()."""
-    return _resolve_path(DENSE_COVER_TEXTURE_NAME)
+    """The current biome's cover texture for a footprint that HAS a wall
+    standing on it, or None - caller falls back to the old translucent colour
+    tint for that footprint."""
+    return _biome_texture_path(biomes.DENSE_COVER)
 
 
 def normal_cover_texture_path():
-    """Resolved path to Sprites/Normal_Cover.<ext>, or None if it isn't
-    there - same fallback convention as dense_cover_texture_path()."""
-    return _resolve_path(NORMAL_COVER_TEXTURE_NAME)
+    """The current biome's cover texture for a footprint with NO wall on it,
+    or None - same fallback as dense_cover_texture_path().
+
+    Named NORMAL_ rather than LIGHT_ because the renderer's split is
+    wall/no-wall, not the terrain CATEGORY - the file it resolves to is the
+    biome's Light_Cover one."""
+    return _biome_texture_path(biomes.LIGHT_COVER)
 
 
 def blood_decal_path():
@@ -498,23 +660,81 @@ def _squad_key(token):
     return _key_for_name(token.squad.name) if token.squad is not None else None
 
 
-def _unusual_weapon_names(model):
-    """Which of this model's own weapon names aren't part of its squad's
-    majority loadout - reuses the same "unusual loadout" notion as
-    Squad.unusual_loadout_models(), so a variant sprite lines up with the
-    same tint highlight, but returns the actual differing weapon name(s)
-    instead of just a yes/no.
+def _printed_weapon_names(model):
+    """The weapon names this model's own datasheet LINE prints as its
+    default loadout, or None when they can't be determined - a hand-built
+    Squad (every testkit scene) has no datasheet, and neither does a model
+    whose profile matches no line on the one it has.
 
-    "Majority" is taken within the model's own COMPONENT for an attached
-    unit (19.01): the variant sprites this feeds are per datasheet ("Boyz -
-    Power Klaw"), so the comparison has to be against the datasheet's own
-    rank and file. Measured against the merged unit instead, an attached
-    Character - whose loadout differs from the bodyguards by definition -
-    would always look "unusual" and go looking for variant art of a squad it
-    isn't part of."""
+    Looked up on the model's own COMPONENT for an attached unit (19.01),
+    falling back to the squad's datasheet for an ordinary one: the variant
+    sprites this feeds are per datasheet ("Boyz - Power Klaw"), so an
+    attached Character has to be measured against HIS sheet, not against the
+    bodyguards' one.
+
+    Keyed by profile CLASS rather than by line name, because a ModelLine's
+    name is free text an army list may override while the profile class is
+    the model's identity. Checked across all 71 datasheets rather than
+    assumed: no sheet has two lines that share a profile class and print
+    different weapons, so the answer is unambiguous. Cached because
+    sprite_for() runs per token per frame - and read off the weapon CLASSES
+    (their `name` is a class attribute) so nothing is instantiated here."""
+    if model.profile is None:
+        return None
+    component = _component_of(model)
+    datasheet = component.datasheet if component is not None else None
+    if datasheet is None and model.squad is not None:
+        datasheet = model.squad.datasheet
+    if datasheet is None:
+        return None
+    profile_cls = type(model.profile)
+    cache_key = (datasheet, profile_cls)
+    if cache_key in _printed_loadout_cache:
+        return _printed_loadout_cache[cache_key]
+    printed = None
+    for composition in datasheet.compositions():
+        for line in composition:
+            if line.profile_cls is profile_cls:
+                printed = frozenset(w.name for w in line.default_weapons)
+                break
+        if printed is not None:
+            break
+    _printed_loadout_cache[cache_key] = printed
+    return printed
+
+
+def _unusual_weapon_names(model):
+    """Which of this model's own weapon names its datasheet line does NOT
+    print - i.e. what it picked up from a Wargear Option, which is exactly
+    what a "<key> - <weapon>.png" file depicts.
+
+    THIS IS A STATIC FACT ABOUT THE MODEL, and it has to be: the art shows
+    the gun in the model's hands, so casualties elsewhere in the unit cannot
+    change which picture is right. An earlier version asked instead whether
+    the loadout differed from the squad's live MAJORITY, reusing
+    Squad.unusual_loadout_models()' notion so a variant sprite lined up with
+    the same tint highlight. That drifted, and was reported: once losses left
+    the plain rank and file merely TIED with a special-weapon group,
+    Counter.most_common() broke the tie by model order and crowned the
+    special weapon "the majority" - so Storm Guardians' two fusion gunners
+    stopped counting as unusual and fell back to the plain Assault Guardian
+    art mid-battle (measured: 2 plain and 1 flamer dead is enough).
+
+    The two notions are deliberately no longer the same question. The tint
+    says "this model stands out from the squadmates around it", which is a
+    live, relative statement and right for a highlight; this says "this model
+    carries a weapon its datasheet doesn't print", which is what the file
+    name means. Squad.unusual_loadout_models() is left alone.
+
+    Falls back to the old majority vote when the printed loadout can't be
+    read at all (a hand-built Squad has no datasheet), so every testkit scene
+    keeps working exactly as before."""
     squad = model.squad
     if squad is None:
         return []
+    printed = _printed_weapon_names(model)
+    if printed is not None:
+        return [w.name for w in model.weapons if w.name not in printed]
     component = _component_of(model)
     peers = component.starting_models if component is not None else squad.models
     peers = [m for m in peers if not m.is_dead()] or list(peers)

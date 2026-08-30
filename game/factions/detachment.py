@@ -39,11 +39,47 @@ class Detachment:
     """A faction's detachment: its detachment rule (descriptive text - see
     Enhancement's note on why nothing here "applies" it automatically),
     its enhancements, and its detachment stratagems. `faction` is set by
-    Faction.add_detachment(), not passed in directly."""
+    Faction.add_detachment(), not passed in directly.
 
-    def __init__(self, name, rule_text="", enhancements=(), stratagems=()):
+    `setting` names the game/config.py constant that says WHO is fielding
+    this detachment (e.g. "AWAKENED_DYNASTY_PLAYERS"), written by
+    game/detachments.py's apply_to_config() from the player's choice. It is
+    the one link between this descriptive record and the engine-wired rule,
+    and the reason it exists rather than being derived: a detachment is a
+    list-building declaration and CANNOT be read off the units - a Necron
+    unit looks identical in every detachment.
+
+    None means "this detachment's rule needs no such flag", which is only
+    honest while it is the only detachment its faction models (War Horde is
+    the remaining case; its rule and stratagems gate on the ORKS keyword and
+    there is nothing to distinguish). Retaliation Cadre was in that position
+    until the other T'au detachments were added, and both it and
+    game/army_lists.py said so in as many words.
+
+    `rule_name` is the printed name of the detachment rule itself ("Bonded
+    Heroes", "Patient Hunter"), which is not derivable from `name`.
+
+    `points` is the detachment's printed cost in DETACHMENT POINTS - the "2DP"
+    glued onto its heading on Wahapedia. An army may field SEVERAL detachments
+    at once and pays for each, so this is a real number and not decoration:
+    Kauyon (2) plus Advanced Acquisition Cadre (1) is a legal pair, Mont'ka (3)
+    plus Kauyon (2) is not. See game/detachments.py for the budget.
+
+    `tag` is the printed exclusion group ("BATTLESUIT", "AUXILIARIES"): a
+    detachment "cannot be taken with another <TAG> detachment". Two detachments
+    sharing a tag are mutually exclusive however cheap they are, so this is a
+    second, independent restriction on top of the points.
+    """
+
+    def __init__(self, name, rule_text="", enhancements=(), stratagems=(),
+                 setting=None, rule_name="", description="", points=0, tag=None):
         self.name = name
         self.faction = None
         self.rule_text = rule_text
+        self.rule_name = rule_name
+        self.description = description
         self.enhancements = list(enhancements)
         self.stratagems = list(stratagems)
+        self.setting = setting
+        self.points = points
+        self.tag = tag

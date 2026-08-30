@@ -1,3 +1,5 @@
+from game import icon_of_despair  # imports nothing itself
+from game import plagues  # imports only game/modifiers.py, so this cannot cycle
 from game import psychic_guidance
 from game.thresholds import parse_threshold
 
@@ -18,14 +20,36 @@ def leadership_threshold(squad, all_tokens=None):
     cannot see the board cannot answer the proximity question either."""
     thresholds = [parse_threshold(model.profile.leadership) for model in squad.models]
     thresholds = [t for t in thresholds if t is not None]
-    if all_tokens is not None and psychic_guidance.applies(squad, all_tokens):
+    if all_tokens is not None and psychic_guidance.applies_any(squad, all_tokens):
         granted = parse_threshold(psychic_guidance.PSYCHIC_GUIDANCE_LEADERSHIP)
         if granted is not None:
             # min() rather than a replacement: the rule reads as a flat value,
             # but taking the better of the two means a unit whose printed Ld is
             # already better can never be made worse by it.
             thresholds.append(granted)
-    return min(thresholds) if thresholds else None
+    if not thresholds:
+        return None
+    # The Death Guard Plague Scabrous Soulrot ("worsen the ... Leadership ...
+    # by 1"). Ld is a threshold, so worsening it means a HIGHER number, and it
+    # is applied AFTER the min() rather than to each model: the rule worsens
+    # the characteristic of every model in the unit, so the easiest threshold
+    # present moves by 1 either way, and doing it here keeps Psychic
+    # Guidance's "never make it worse than printed" min() meaning what it says.
+    # The Death Guard wargear "icon of despair" is a second -1 Ld from an
+    # enemy, and it stacks with the Plague above: two different sources, both
+    # worsening the same characteristic, and the printed text of neither
+    # excludes the other.
+    # Auxiliary Cadre's Admired Leader Enhancement is the only IMPROVEMENT in
+    # this sum: "+1 Ld" is a better characteristic, and Ld is an N+ threshold
+    # here, so it SUBTRACTS. Applied alongside the two penalties rather than
+    # before the min(), for the same reason they are: the rule changes the
+    # characteristic of every model in the unit, so the easiest threshold
+    # present moves by 1 either way.
+    from game import enh_admired_leader
+    return (min(thresholds)
+            + plagues.leadership_penalty(squad)
+            + icon_of_despair.leadership_penalty(squad, all_tokens or ())
+            + enh_admired_leader.leadership_bonus(squad))
 
 
 def leadership_success(rolls, squad, all_tokens=None, penalty=0):

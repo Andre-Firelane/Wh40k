@@ -1,3 +1,5 @@
+from game.missions import BATTLE_ROUNDS
+
 # Rule 07.02: the 5 phases of a player turn, in order.
 PHASE_COMMAND = "Command"
 PHASE_MOVEMENT = "Movement"
@@ -15,9 +17,12 @@ class TurnTracker:
     have missions yet). Each player's turn is the Start of Turn step, then
     PHASES in order, then the End of Turn step.
 
-    Missions also decide how many battle rounds a game lasts, so - without
-    missions - battle_round simply keeps incrementing; nothing ends the
-    battle automatically yet.
+    Missions decide how many battle rounds a game lasts (rule 07.01), and this
+    one lasts game.missions.BATTLE_ROUNDS of them. Once the second player's
+    turn of the last round ends, `battle_over` goes True and advance_phase()
+    stops - user: "das spiel soll nach runde 5 enden". Before that it was
+    documented here that nothing ended the battle at all; the counter simply
+    kept climbing.
 
     This still doubles as the "whose decision is this" bookkeeping used
     during shooting (set_active/active_player) - that's independent of phase
@@ -38,6 +43,9 @@ class TurnTracker:
         # (INGRESS_MIN_BATTLE_ROUND), so reserves can't arrive during the
         # pre-game without a single extra check anywhere.
         self.started = not deferred_start
+        # Rule 07.01: True once the last battle round has been played out.
+        # Nothing advances afterwards - see advance_phase().
+        self.battle_over = False
         self.battle_round = 0 if deferred_start else 1
         self.turn_index_in_round = 0  # 0 = first_player's turn, 1 = the other player's turn
         self.active_player = first_player
@@ -80,6 +88,7 @@ class TurnTracker:
         self.battle_round = 1
         self.player_turn_count = {first_player: 1, self._other_player(first_player): 0}
         self.started = True
+        self.battle_over = False
         self._announce_battle_start()
 
     def _announce_battle_start(self):
@@ -110,6 +119,8 @@ class TurnTracker:
         the next battle round (rule 07.03) once both players have gone.
         Purely mechanical: any end-of-turn rule that can block this (e.g.
         Regaining Coherency) must be resolved by the caller first."""
+        if self.battle_over:
+            return  # rule 07.01: nothing happens after the last battle round
         if not self.is_last_phase:
             self.phase_index += 1
             self._log(f"{self.active_player}: {self.phase} phase begins.")
@@ -133,6 +144,15 @@ class TurnTracker:
             self._log(f"{self.active_player}'s turn begins.")
         else:
             self._log(f"Battle Round {self.battle_round} ends.")
+            if self.battle_round >= BATTLE_ROUNDS:
+                # Rule 07.01: the battle is over. Deliberately left standing on
+                # the last round rather than rolling into a phantom round 6 -
+                # every "which round is it" reader (Beacon's timing, the AI's
+                # scoring-turns-left, the status panel) then keeps showing the
+                # round that was actually played.
+                self.battle_over = True
+                self._log(f"The battle ends after Battle Round {self.battle_round}.")
+                return
             self.battle_round += 1
             self.turn_index_in_round = 0
             self.active_player = self.first_player

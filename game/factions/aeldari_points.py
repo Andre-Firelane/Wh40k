@@ -105,4 +105,105 @@ AELDARI_POINTS = {
     "Eldrad Ulthran": UnitPoints(
         [PointsTier({1: 130})], leads=("Guardian Defenders", "Storm Guardians"),
     ),
+    # --- Wraith constructs ----------------------------------------------
+    # Both are LED BY the Bonesinger, which is a Legends datasheet and so is
+    # deliberately not built. That direction of the pairing lives on the
+    # LEADER's own entry, so there is nothing to leave out here - it is
+    # recorded in each datasheet's abilities_text instead, and pinned.
+    # Flat, no copy tiers; the one wargear option is free on the list.
+    "Wraithblades": flat_points({5: 140}),
+    "Wraithlord": flat_points({1: 125}),
+    # --- Support Weapon Platforms ---------------------------------------
+    # All three are SUPPORT models (24.34): "Support Artillery" lets one join a
+    # GUARDIAN DEFENDERS unit at Declare Battle Formations, which is exactly
+    # what UnitPoints.supports declares. No wargear options at all on any of
+    # the three, so nothing is priced.
+    #
+    # The D-cannon is the only one of the three tiered by copies fielded -
+    # transcribed as printed, and the reason its entry is spelled out rather
+    # than using flat_points() like its two siblings.
+    "D-cannon Platform": UnitPoints([
+        PointsTier({1: 110}, to_unit=1),
+        PointsTier({1: 125}),
+    ], supports=("Guardian Defenders",)),
+    "Shadow Weaver Platform": flat_points({1: 60}, supports=("Guardian Defenders",)),
+    "Vibro Cannon Platform": flat_points({1: 60}, supports=("Guardian Defenders",)),
+    # --- Grav-tanks and Vypers ------------------------------------------
+    # The one wargear option on each grav-tank (twin shuriken catapult ->
+    # shuriken cannon) is free, as are both of the Vypers'.
+    "Fire Prism": flat_points({1: 150}),
+    # The Night Spinner is the tiered one of the pair - transcribed as printed,
+    # which is why it is spelled out rather than using flat_points().
+    "Night Spinner": UnitPoints([
+        PointsTier({1: 170}, to_unit=1),
+        PointsTier({1: 190}),
+    ]),
+    "Vypers": flat_points({1: 75, 2: 140}),
+    # --- the standalone Asuryani psykers ---------------------------------
+    # The Warlock's CORE line is SUPPORT, not LEADER, so its pairing goes in
+    # `supports` - the same field the Support Weapon Platforms use. Its one
+    # wargear option (witchblade -> singing spear) is free.
+    "Warlock": flat_points({1: 40}, supports=("Guardian Defenders", "Storm Guardians")),
+    # The Spiritseer has NO printed LEADER or SUPPORT line at all - it stands
+    # alone, and its three abilities reach WRAITH CONSTRUCT units by RANGE
+    # rather than by attachment. An empty pairing here is the statement.
+    "Spiritseer": flat_points({1: 50}),
+    "Farseer Skyrunner": flat_points({1: 60}, leads=("Windriders",)),
+    # --- Autarchs and Maugan Ra -----------------------------------------
+    # The widest LEADER line in the faction. "DARK REAPER" is printed in the
+    # SINGULAR on the datasheet and the built datasheet is "Dark Reapers" -
+    # `leads` takes DATASHEET names, so the plural is what goes here.
+    "Autarch": flat_points({1: 75}, leads=(
+        "Dark Reapers", "Dire Avengers", "Fire Dragons", "Guardian Defenders",
+        "Howling Banshees", "Storm Guardians", "Striking Scorpions",
+    )),
+    "Autarch Wayleaper": flat_points({1: 70}, leads=("Swooping Hawks", "Warp Spiders")),
+    # EPIC HERO, PHOENIX LORD. Leads one datasheet only, like the other five.
+    "Maugan Ra": flat_points({1: 100}, leads=("Dark Reapers",)),
+    # --- Exodites --------------------------------------------------------
+    # 1 Dragon Knight Leader + 2-5 Dragon Knights, priced at 3 and 6 models.
+    # Their Drakolithe option is free ("for every 3 models, 2 Drakolithe").
+    "Dragon Knights": flat_points({3: 90, 6: 180}),
+    # The Clanblade LEADS the Dragon Knights; the Stonesinger SUPPORTS them -
+    # two different core abilities pointing at the same unit, which is why one
+    # uses `leads` and the other `supports`.
+    "Clanblade": flat_points({1: 70}, leads=("Dragon Knights",)),
+    "Stonesinger": flat_points({1: 60}, supports=("Dragon Knights",)),
+    # The Leystalker has NO leader or support line - a LONE OPERATIVE sniper
+    # that stands alone, and the empty pairing is the statement.
+    "Leystalker": flat_points({1: 80}),
+    # --- Anhrathe (Corsairs) --------------------------------------------
+    # Every Corsair wargear option is free on the list.
+    "Corsair Voidreavers": flat_points({5: 65, 10: 110}),
+    "Corsair Voidscarred": flat_points({5: 70, 10: 140}),
+    "Corsair Skyreavers": flat_points({5: 75, 10: 140}),
+    "Starfangs": flat_points({1: 70, 2: 140}),
+    # Both EPIC HEROES lead the two Corsair foot squads. Their printed LEADER
+    # lines also name CORSAIR REAVER BAND, which is a LEGENDS datasheet and
+    # deliberately not built - so it is left out of `leads` and recorded in
+    # abilities_text instead, the same treatment the Bonesinger's pairing gets.
+    "Kharseth": flat_points({1: 85}, leads=(
+        "Corsair Voidreavers", "Corsair Voidscarred")),
+    "Prince Yriel": flat_points({1: 95}, leads=(
+        "Corsair Voidreavers", "Corsair Voidscarred")),
+    # --- The Ynnari triumvirate -----------------------------------------
+    # Yvraine's printed LEADER line names eight datasheets. Only four of them
+    # are built: CORSAIR REAVER BAND is Legends, and the three Ynnari-Drukhari
+    # entries (Incubi, Kabalite Warriors, Wyches) are deliberately out of
+    # scope. Those four are left out of `leads` and recorded in abilities_text
+    # instead - the same treatment Kharseth's line gets, and the same one that
+    # kept "Kroot Farstalkers is named by three LEADER lines and has no
+    # datasheet" honest until the datasheet arrived.
+    "Yvraine": flat_points({1: 100}, leads=(
+        "Corsair Voidreavers", "Corsair Voidscarred",
+        "Guardian Defenders", "Storm Guardians")),
+    # The Visarch SUPPORTS the same eight, so the same four survive the filter.
+    # Support rather than Leader is the whole reason he can join a unit Yvraine
+    # is already attached to - his printed line says so in as many words.
+    "The Visarch": flat_points({1: 80}, supports=(
+        "Corsair Voidreavers", "Corsair Voidscarred",
+        "Guardian Defenders", "Storm Guardians")),
+    # No leader or support line at all: a MONSTER that teleports to its own
+    # army's dead. The empty pairing is the statement.
+    "The Yncarne": flat_points({1: 245}),
 }

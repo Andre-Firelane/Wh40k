@@ -18,9 +18,35 @@ like every other hit-roll modifier already in this engine.
 Applies to BOTH ranged and melee attacks ("each time a model in that unit
 makes an attack" - no "ranged" qualifier, unlike e.g. Retaliation Cadre's
 Bonded Heroes) - see ShootingController/FightController's own
-_hit_modifiers() for where this is actually consumed."""
+_hit_modifiers() for where this is actually consumed.
+
+TWO ABILITIES APPLY THIS STATUS, and they differ in two printed clauses:
+
+  SUPPRESSION VOLLEY (T'au Strike Team)  "one enemy INFANTRY unit hit ...
+      while THIS UNIT IS ON THE BATTLEFIELD, that enemy unit is suppressed"
+  HARASSMENT FIRE (Aeldari Vypers)       "one enemy unit hit ... until the
+      start of your next turn, that enemy unit is suppressed"
+
+So Harassment Fire has no INFANTRY restriction and no "while the source
+survives" clause - a Vyper squadron that is wiped out leaves its suppression
+standing, where a dead Strike Team's lifts. Both are stored in the SAME ledger
+because "is this unit suppressed" must have one answer that the two
+_hit_modifiers() read once; what differs is recorded per ENTRY, not per
+controller. Adding a second controller would mean the hit step asking twice
+and the two disagreeing the first time one of them was forgotten."""
 
 from game.squad import squad_has_suppression_volley
+
+
+HARASSMENT_FIRE_LABEL = "Harassment Fire"
+
+
+def unit_has_harassment_fire(squad):
+    """The Vypers' flag, read live off the living models."""
+    if squad is None:
+        return False
+    return any(getattr(m.profile, "harassment_fire", False)
+               for m in getattr(squad, "models", ()) or () if not m.is_dead())
 
 
 def _is_infantry_unit(squad):
@@ -37,7 +63,10 @@ class SuppressionController:
         self.turn_tracker = turn_tracker
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.suppressed = {}  # enemy Squad -> (source Squad, applying player, turn_number_for(applying player) when applied)
+        # enemy Squad -> (source Squad, applying player, turn_number_for(applying
+        # player) when applied, requires_source_on_battlefield). The last field is
+        # the printed difference between the two abilities that write here.
+        self.suppressed = {}
 
     def _is_on_battlefield(self, squad):
         """"While this unit is on the battlefield" - the source unit's
@@ -51,8 +80,8 @@ class SuppressionController:
         entry = self.suppressed.get(squad)
         if entry is None:
             return False
-        source_squad, applying_player, applied_turn = entry
-        if not self._is_on_battlefield(source_squad):
+        source_squad, applying_player, applied_turn, requires_source = entry
+        if requires_source and not self._is_on_battlefield(source_squad):
             del self.suppressed[squad]
             return False
         if self.turn_tracker is not None and self.turn_tracker.turn_number_for(applying_player) > applied_turn:
@@ -82,10 +111,43 @@ class SuppressionController:
             squad.owner, f"{squad.name}: Suppression Volley - which enemy INFANTRY unit becomes suppressed?", options,
         )
 
-    def _suppress(self, source_squad, target_squad):
+    def _suppress(self, source_squad, target_squad, requires_source=True,
+                  label="Suppression Volley"):
         turn_number = self.turn_tracker.turn_number_for(source_squad.owner) if self.turn_tracker is not None else 0
-        self.suppressed[target_squad] = (source_squad, source_squad.owner, turn_number)
+        self.suppressed[target_squad] = (
+            source_squad, source_squad.owner, turn_number, requires_source)
         if self.game_log is not None:
             self.game_log.add(
-                f"{source_squad.owner}: {target_squad.name} is suppressed by {source_squad.name} (Suppression Volley)."
+                f"{source_squad.owner}: {target_squad.name} is suppressed by {source_squad.name} ({label})."
             )
+
+    # --- the Vypers' Harassment Fire -------------------------------------
+
+    def offer_harassment_fire(self, squad, hit_squads):
+        """The Vypers' own ability, writing the SAME status.
+
+        "In your Shooting phase, after this unit has shot, select one enemy
+        unit hit by one or more of those attacks. Until the start of your next
+        turn, that enemy unit is suppressed."
+
+        No INFANTRY filter (any hit unit is eligible) and no "while this unit
+        is on the battlefield" clause - so it is applied with
+        requires_source=False and outlives its Vypers."""
+        if not unit_has_harassment_fire(squad):
+            return
+        targets = sorted(hit_squads, key=lambda s: s.name)
+        if not targets:
+            return
+        if len(targets) == 1 or self.decision_manager is None:
+            self._suppress(squad, targets[0], requires_source=False,
+                           label=HARASSMENT_FIRE_LABEL)
+            return
+        options = [(f"Suppress {t.name}",
+                    lambda t=t: self._suppress(squad, t, requires_source=False,
+                                               label=HARASSMENT_FIRE_LABEL))
+                   for t in targets]
+        self.decision_manager.request(
+            squad.owner,
+            f"{squad.name}: {HARASSMENT_FIRE_LABEL} - which enemy unit becomes suppressed?",
+            options,
+        )

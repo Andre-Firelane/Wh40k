@@ -458,6 +458,114 @@ checks.eq("a sword-only model reaches the sword art",
           ["Assault Guardian - Power Sword.png"])
 
 
+# ------------------------------------------------- 7b. art survives casualties
+
+print("--- 7b. art survives casualties ---")
+
+# THE REPORTED BUG (user: "die fusion gun storm guardians haben gerade das
+# falsche sprite"). The art shows the gun in the model's hands, so no death
+# anywhere else in the unit can change which picture is right - but the old
+# lookup asked whether the loadout differed from the squad's LIVE majority.
+# Once losses left the plain rank and file merely TIED with a special-weapon
+# group, Counter.most_common() broke the tie by model order and crowned the
+# special weapon "the majority", so those models stopped counting as unusual
+# and dropped to the plain art mid-battle.
+#
+# Measured at every casualty level rather than at the one that was reported:
+# a tie can be reached from either side, and pinning only the reported count
+# would leave the neighbouring ones free to drift.
+def full_list_squad():
+    """Player 1's actual Storm Guardian build - 2 flamers, 2 fusion guns, 2
+    swords on OTHER models, 4 plain - since the tie needs all three variants
+    present to arise at all."""
+    return storm(name="1 Storm Guardians C", choices={"Storm Guardian": {
+        STORM_GUARDIAN_PISTOL_TO_FLAMER: 2,
+        STORM_GUARDIAN_PISTOL_TO_FUSION: 2,
+        STORM_GUARDIAN_CCW_TO_POWER_SWORD: [4, 5],
+    }})
+
+
+def gun_of(model):
+    for weapon in model.weapons:
+        if weapon.name in ("Flamer", "Fusion Gun", "Power Sword"):
+            return weapon.name
+    return "plain"
+
+
+EXPECTED_ART = {
+    "plain": "Assault Guardian.png",
+    "Flamer": "Assault Guardian - Flamer.png",
+    "Fusion Gun": "Assault Guardian - Fusion Gun.png",
+    "Power Sword": "Assault Guardian - Power Sword.png",
+}
+
+
+def kill(squad_c, gun, count):
+    """Kill `count` living Storm Guardians carrying `gun`, the way a real
+    casualty looks BEFORE GameState.remove_dead_models() sweeps: still in
+    squad.models, is_dead() True. That is the state the board is drawn in."""
+    victims = [m for m in squad_c.models
+               if m.profile.name == "Storm Guardian" and not m.is_dead()
+               and gun_of(m) == gun]
+    for m in victims[:count]:
+        m.current_wounds = 0
+
+
+def art_by_gun(squad_c):
+    out = {}
+    for m in squad_c.models:
+        if m.profile.name != "Storm Guardian" or m.is_dead():
+            continue
+        out.setdefault(gun_of(m), set()).add(art_of(squad_c, m))
+    return {k: sorted(v) for k, v in out.items()}
+
+
+# The exact reported state: two plain guardians and one flamer down leaves
+# fusion/sword/plain tied on 2 apiece, and model order hands the crown to the
+# fusion gunners - who then lost their own art.
+sq_reported = full_list_squad()
+kill(sq_reported, "plain", 2)
+kill(sq_reported, "Flamer", 1)
+checks.eq("with the majority tied, every survivor still shows its own weapon",
+          art_by_gun(sq_reported),
+          {"plain": [EXPECTED_ART["plain"]],
+           "Flamer": [EXPECTED_ART["Flamer"]],
+           "Fusion Gun": [EXPECTED_ART["Fusion Gun"]],
+           "Power Sword": [EXPECTED_ART["Power Sword"]]})
+
+# ...and at every other depth of losses, including the one where the plain
+# rank and file are gone entirely and the specialists are all that is left.
+for dead_plain in range(0, 5):
+    sq_c = full_list_squad()
+    kill(sq_c, "plain", dead_plain)
+    checks.eq(f"art is unchanged with {dead_plain} plain guardian(s) dead",
+              art_by_gun(sq_c),
+              {gun: [EXPECTED_ART[gun]]
+               for gun in ("plain", "Flamer", "Fusion Gun", "Power Sword")
+               if not (gun == "plain" and dead_plain == 4)})
+
+# The same must hold once the sweep has actually REMOVED the dead - a
+# non-attached squad's peers were read off squad.models, which the sweep
+# empties, so this is the other half of the same drift.
+sq_swept = full_list_squad()
+kill(sq_swept, "plain", 3)
+sq_swept.models = [m for m in sq_swept.models if not m.is_dead()]
+checks.eq("...and after the dead are removed from squad.models too",
+          art_by_gun(sq_swept)["Fusion Gun"], [EXPECTED_ART["Fusion Gun"]])
+
+# The notion is now a STATIC fact read off the datasheet, so pin that source
+# directly: a fusion gunner's unusual weapon is its fusion gun no matter who
+# else is alive, and a plain guardian never has one.
+sq_static = full_list_squad()
+kill(sq_static, "plain", 3)
+fusion_model = next(m for m in sq_static.models if gun_of(m) == "Fusion Gun")
+checks.eq("the unusual weapon comes from the printed line, not from peers",
+          sprites._unusual_weapon_names(fusion_model), ["Fusion Gun"])
+checks.eq("...and the printed loadout is the datasheet's own default",
+          sorted(sprites._printed_weapon_names(fusion_model)),
+          ["Close Combat Weapon", "Shuriken Pistol"])
+
+
 # ---------------------------------------------------------- 8. A/B probes
 
 print("--- 8. A/B probes ---")

@@ -28,7 +28,7 @@ from game import config, secondary_missions as sm  # noqa: E402
 from game.command_points import CommandPointManager  # noqa: E402
 from game.decision import DecisionManager  # noqa: E402
 from game.missions import MissionController  # noqa: E402
-from game.turn import TurnTracker  # noqa: E402
+from game.turn import PHASES, PHASE_SHOOTING, TurnTracker  # noqa: E402
 from game.factions import aeldari as ae  # noqa: E402
 from game.factions import orks as ork  # noqa: E402
 from game import army_lists  # noqa: E402
@@ -667,21 +667,38 @@ for ending, rnd, want in [
 # TurnTracker.advance_phase(), and when the SECOND player of a round finishes,
 # that call has already incremented the counter. Reading turn_tracker directly
 # at that instant would see round 6 and the card could never fire.
+# Measured on a MID-battle round, where the rollover is still real: the final
+# round no longer rolls over at all (rule 07.01 ends the battle there instead,
+# see test_battle_end.py), so the hazard has to be shown where it still exists.
 rollover = TurnTracker(first_player="Player 1", game_log=tk.Log())
-rollover.battle_round = BATTLE_ROUNDS
+rollover.battle_round = BATTLE_ROUNDS - 2
 rollover.turn_index_in_round = 1
 rollover.active_player = rollover.turn_owner = "Player 2"
 rollover.phase_index = len(PHASES) - 1
 round_before = rollover.battle_round
 rollover.advance_phase()
-checks.eq("advance_phase() really does roll the counter past the final round",
-          rollover.battle_round, BATTLE_ROUNDS + 1)
+checks.eq("advance_phase() really does roll the counter over at a turn's end",
+          rollover.battle_round, round_before + 1)
+checks.true("so the live counter and the ending turn's round disagree",
+            rollover.battle_round != round_before)
+
+# ...and at the FINAL round the counter now stays put, because the battle ends
+# there. Both readings agree at that instant - but the argument is still the
+# right one to pass, and the rounds above are why.
+final = TurnTracker(first_player="Player 1", game_log=tk.Log())
+final.battle_round = BATTLE_ROUNDS
+final.turn_index_in_round = 1
+final.active_player = final.turn_owner = "Player 2"
+final.phase_index = len(PHASES) - 1
+final.advance_phase()
+checks.true("the final round ends the battle", final.battle_over)
+checks.eq("...and leaves the counter on it", final.battle_round, BATTLE_ROUNDS)
 checks.eq("the round the ending turn belonged to is the one that scores",
           sm.BEACON.scores_at(sm.MissionContext("Player 1", ending_player="Player 2",
-                                                battle_round=round_before)), True)
-checks.eq("...and the post-advance value would NOT have",
+                                                battle_round=BATTLE_ROUNDS)), True)
+checks.eq("a round before the last does not",
           sm.BEACON.scores_at(sm.MissionContext("Player 1", ending_player="Player 2",
-                                                battle_round=rollover.battle_round)), False)
+                                                battle_round=BATTLE_ROUNDS - 1)), False)
 
 # The interactive WHEN DRAWN setup: the player picks, from board units plus
 # embarked ones, and NOT from Strategic Reserves.
@@ -1409,33 +1426,52 @@ checks.true("it shuffles back rather than discarding",
 checks.eq("and it is OPTIONAL - the card says 'you may'",
           sm.FORWARD_POSITION.when_drawn_is_mandatory, False)
 
-# map3 has no expansion objectives at all, so the card rests on the enemy home
-# objective alone - measured rather than assumed, because a card that silently
-# cannot score is the failure mode these clauses exist to prevent.
+# map3 deploys in opposite CORNERS, and that is where ranking by the
+# conservative zone distance goes wrong: it measures to the nearest constraint
+# LINE, which ties an objective 4.5" away with one 10.6" away and then breaks
+# the tie on the name. Each player must get the one on their own side.
 maps.apply_to_config(maps.MAPS["map3"])
-small = GameState()
-maps.MAPS["map3"].build(small)
-small_ctx = sm.MissionContext("Player 1", objectives=small.objectives,
-                              deployment_zones=small.deployment_zones)
-# map3 has exactly ONE non-home objective, so both players' nearest is the same
-# one and the set collapses to a single member - the definition has to
-# deduplicate, or "each expansion objective" would demand the same objective
-# twice.
-small_expansions = sm.expansion_objectives(small_ctx)
-checks.eq("map3's expansion set has one member", len(small_expansions), 1)
-checks.eq("...and it is the central objective", small_expansions[0].name, "Central Objective")
+corner = GameState()
+maps.MAPS["map3"].build(corner)
+corner_ctx = sm.MissionContext("Player 1", objectives=corner.objectives,
+                               deployment_zones=corner.deployment_zones)
+checks.eq("map3: Player 1's expansion objective is the one on their side",
+          sm.expansion_objective_for(corner_ctx, "Player 1").name, "Objective West")
+checks.eq("map3: Player 2's is the mirror of it",
+          sm.expansion_objective_for(corner_ctx, "Player 2").name, "Objective East")
+checks.eq("map3's expansion set therefore has two members",
+          len(sm.expansion_objectives(corner_ctx)), 2)
+
+# The set has to DEDUPLICATE when both players' nearest is the same objective,
+# or "each expansion objective" would demand the same one twice. That case used
+# to be supplied by the old 30"x30" board, whose only non-home objective was
+# the central one; that board is gone, so it is built here rather than borrowed
+# from whichever map happens to have it.
+_one = [o for o in corner.objectives if o.name in ("P1 Home Objective", "P2 Home Objective")]
+_one.append([o for o in corner.objectives if o.name == "Objective East"][0])
+_one_ctx = sm.MissionContext("Player 1", objectives=_one,
+                             deployment_zones=corner.deployment_zones)
+checks.eq("with one non-home objective, both players' nearest is the same",
+          sm.expansion_objective_for(_one_ctx, "Player 1").name,
+          sm.expansion_objective_for(_one_ctx, "Player 2").name)
+checks.eq("...and the set collapses to a single member",
+          len(sm.expansion_objectives(_one_ctx)), 1)
 checks.true("both players' nearest really is the same objective",
-            sm.expansion_objective_for(small_ctx, "Player 1")
-            is sm.expansion_objective_for(small_ctx, "Player 2"))
-small_enemy_home = sm.enemy_home_objective(small_ctx)
-checks.true("it also has an enemy home objective", small_enemy_home is not None)
-small_enemy_home.controlled_by = "Player 1"
+            sm.expansion_objective_for(_one_ctx, "Player 1")
+            is sm.expansion_objective_for(_one_ctx, "Player 2"))
+one_enemy_home = sm.enemy_home_objective(_one_ctx)
+checks.true("it also has an enemy home objective", one_enemy_home is not None)
+for o in _one:
+    o.controlled_by = None
+one_enemy_home.controlled_by = "Player 1"
 checks.eq("the card scores off their home objective there",
-          sm._forward_position(small_ctx), sm.FORWARD_POSITION_VP)
-small_enemy_home.controlled_by = None
-small_expansions[0].controlled_by = "Player 1"
+          sm._forward_position(_one_ctx), sm.FORWARD_POSITION_VP)
+one_enemy_home.controlled_by = None
+sm.expansion_objectives(_one_ctx)[0].controlled_by = "Player 1"
 checks.eq("...and off the lone expansion objective too",
-          sm._forward_position(small_ctx), sm.FORWARD_POSITION_VP)
+          sm._forward_position(_one_ctx), sm.FORWARD_POSITION_VP)
+for o in corner.objectives:
+    o.controlled_by = None
 maps.apply_to_config(_map)
 
 # End to end through the prompt chain.
@@ -1791,14 +1827,20 @@ pl_ctrl.set_terrain_source(lambda: board.terrain_areas)
 pl_actions = ActionController(tokens_source=lambda: list(in_theirs.models), game_log=tk.Log())
 pl_ctrl.set_action_controller(pl_actions)
 pl_ctrl.hand = [sm.PLUNDER]
-pl_ctrl.offer_actions_at_shooting_phase("Player 1")
-checks.true("the Shooting phase offers it", pl_dec.is_pending)
-tk.pick_option(pl_dec, "Start the action")
-# The prompt names the ACTION, not one hard-coded verb - Plunder asking which
-# objective a unit "cleanses" was a real bug in the first version.
-checks.true("the prompt names Plunder, not Cleanse",
-            "Plunder" in (pl_dec.prompt or "") and "cleanse" not in (pl_dec.prompt or ""))
-tk.pick_option(pl_dec, "Terrain area")
+_pl_turn = TurnTracker(game_log=tk.Log())
+_pl_turn.phase_index = PHASES.index(PHASE_SHOOTING)
+_pl_turn.turn_owner = "Player 1"
+pl_ctrl.turn_tracker = _pl_turn
+# Offered as PANEL BUTTONS for the selected unit, not as a prompt - so the
+# label names the action and the target, and no decision is opened.
+pl_offers = pl_ctrl.available_actions_for(in_theirs)
+checks.true("the unit is offered the action", bool(pl_offers))
+checks.true("every offer names Plunder, not Cleanse",
+            all("Plunder" in label and "leanse" not in label
+                for label, _a, _t in pl_offers))
+checks.eq("nothing is asked", pl_dec.is_pending, False)
+_label, _action, _target = pl_offers[0]
+pl_ctrl.start_action(_action, in_theirs, _target)
 state = pl_actions.states[0]
 checks.true("it is finished the moment it starts", state.completed)
 checks.true("its locks apply all the same", pl_actions.blocks_shooting(in_theirs))
@@ -1809,8 +1851,6 @@ checks.true("a later move marks it broken", state.broken)
 checks.true("...but it stays completed", state.completed)
 checks.eq("...and still counts at the end of the turn",
           len(pl_actions.resolve_end_of_turn("Player 1", pl_ctrl._context())), 1)
-while pl_dec.is_pending:
-    tk.pick_option(pl_dec, "does not act")
 pl_ctrl.begin_end_of_turn("Player 1", battle_round=2)
 checks.true("which opens the scoring prompt", scoring_prompt_open(pl_dec))
 tk.pick_option(pl_dec, "Score 5")
@@ -2178,10 +2218,10 @@ checks.eq("the AI is gated on it at every site the Stratagem notice gates",
           main_src.count("not mission_draw_overlay.is_pending"),
           main_src.count("not stratagem_notice_overlay.is_pending"))
 
-# The five headless harnesses must switch the deck off - they answer no prompt
+# The six headless harnesses must switch the deck off - they answer no prompt
 # belonging to the human outside the pre-game, so leaving it on stalls them.
 for harness in ("smoke_pregame.py", "smoke_log_input.py", "smoke_setup_screens.py",
-                "smoke_measure_tool.py", "selfplay.py"):
+                "smoke_measure_tool.py", "smoke_end_turn_warning.py", "selfplay.py"):
     src = io.open(harness, encoding="utf-8").read()
     checks.eq(f"{harness} turns the Secondary Mission deck off",
               src.count("config.SECONDARY_MISSION_CARD_PLAYERS = ()"), 1)

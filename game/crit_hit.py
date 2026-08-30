@@ -41,7 +41,7 @@ DEFAULT_CRIT_HIT_THRESHOLD = 6
 UNBRIDLED_CARNAGE_CRIT_HIT_THRESHOLD = 5
 MANDIBLASTERS_CRIT_HIT_THRESHOLD = 5
 WHISPERING_WEB_CRIT_HIT_THRESHOLD = 5
-HARBINGER_OF_DESTRUCTION_CRIT_HIT_THRESHOLD = 5
+LEADING_RANGED_CRIT_HIT_THRESHOLD = 5
 
 
 def _unbridled_carnage_applies(squad):
@@ -72,7 +72,7 @@ def _threshold_number(value):
 
 
 def crit_hit_threshold(model, target_squad=None, whispering_web=None, melee_only=False,
-                       hit_threshold=None):
+                       hit_threshold=None, weapon=None):
     """The unmodified hit roll this model needs for a Critical Hit.
 
     `hit_threshold` is the roll this attack actually needs to HIT, and is only
@@ -90,6 +90,14 @@ def crit_hit_threshold(model, target_squad=None, whispering_web=None, melee_only
     attack group belongs to one unit; Mandiblasters is read off the model's own
     profile, which is exact by construction.
 
+    `weapon` is the gun this attack is being made with, and is read by exactly
+    one source: Warhost's Blitzing Firepower, whose second clause is a
+    property of the WEAPON rather than of the model or its unit ("if such a
+    weapon already has that ability"). Two guns on one model can differ, which
+    is why the model alone cannot answer it. Optional, like the two below, so
+    every existing caller keeps its behaviour - the Fight-phase call sites do
+    not pass one, and Blitzing Firepower is ranged-only anyway.
+
     `target_squad` and `whispering_web` are only needed by that ability, which
     is target-specific; both default to None so every existing caller keeps its
     behaviour. `melee_only` says the caller is the Fight phase's hit step, which
@@ -103,6 +111,13 @@ def crit_hit_threshold(model, target_squad=None, whispering_web=None, melee_only
         return DEFAULT_CRIT_HIT_THRESHOLD
     squad = getattr(model, "squad", None)
     threshold = DEFAULT_CRIT_HIT_THRESHOLD
+    # Warhost's Blitzing Firepower - the only WEAPON-specific source here.
+    # Folded with min() like every other one: the best threshold wins.
+    if weapon is not None:
+        from game import warhost_blitzing_firepower
+        _bf = warhost_blitzing_firepower.crit_hit_threshold_for(model, weapon)
+        if _bf is not None:
+            threshold = min(threshold, _bf)
     if melee_only:
         if _unbridled_carnage_applies(squad):
             threshold = min(threshold, UNBRIDLED_CARNAGE_CRIT_HIT_THRESHOLD)
@@ -126,12 +141,20 @@ def crit_hit_threshold(model, target_squad=None, whispering_web=None, melee_only
             needed = _threshold_number(getattr(model.profile, "ballistic_skill", None))
         if needed is not None:
             threshold = min(threshold, needed)
-    # The Necron Plasmancer's Harbinger of Destruction: "while this model is
-    # leading a unit, each time a model in that unit makes a RANGED attack, a
-    # successful unmodified Hit roll of 5+ scores a Critical Hit." Ranged only,
-    # hence the same melee_only guard Cry of the Wind uses; and a LEADER
-    # ability, so it is read with leader_ability() rather than off the model -
-    # none of the bodyguards print it, which is the whole point of one.
-    if not melee_only and leader_ability(squad, "harbinger_of_destruction"):
-        threshold = min(threshold, HARBINGER_OF_DESTRUCTION_CRIT_HIT_THRESHOLD)
+    # TWO Necron characters print this ability under two different names, word
+    # for word the same text: the Plasmancer's "Harbinger of Destruction" and
+    # the Lokhust Lord's "Destroyer Cult" - "while this model is leading a
+    # unit, each time a model in that unit makes a RANGED attack, a successful
+    # unmodified Hit roll of 5+ scores a Critical Hit."
+    #
+    # So the FLAG is named for the mechanic and not for whichever datasheet
+    # arrived first: a `harbinger_of_destruction` attribute on a Lokhust Lord
+    # would be the lying name this repo renames rather than copies. Each
+    # datasheet still states its own printed name in abilities_text.
+    #
+    # Ranged only, hence the same melee_only guard Cry of the Wind uses; and a
+    # LEADER ability, so it is read with leader_ability() rather than off the
+    # model - none of the bodyguards print it, which is the whole point of one.
+    if not melee_only and leader_ability(squad, "leading_ranged_crit_on_5"):
+        threshold = min(threshold, LEADING_RANGED_CRIT_HIT_THRESHOLD)
     return threshold

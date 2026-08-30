@@ -4940,3 +4940,986 @@ Land; `no_mans_land_objectives()` schliesst es ohnehin geometrisch aus.
 `test_secondary_missions.py` **537/537**, `test_actions.py` **79/79**. Volle Regression **112
 Suiten, ~7426 Pruefungen, 111 gruen / 0 rot / 1 bekannt**, alle vier Smokes, `selfplay.py` auf map2
 und map3.
+
+### Nachtrag 14: Burden of Trust wieder ausgebaut
+
+Nach dem Hin und Her um die Zuweisungsdauer hat der User die Karte selbst in Frage gestellt: "Ich
+muss zugeben, ich verstehe Burden of Trust nicht. Wenn gezogen wird und am Start meines Zuges kann
+ich ein Objective guarden. Das Guarding haelt dann bis zu meinem naechsten Zug. Aber es wird ja erst
+ganz am Ende abgerechnet. Das macht irgendwie keinen Sinn." - und dann: "lass Burden of Trust
+erstmal weg bitte."
+
+Der Einwand ist berechtigt und beschreibt die Karte genau: man verpflichtet in JEDER Runde neu
+Einheiten, aber gewertet wird ausschliesslich der Stand am Ende des gegnerischen Zuges in Runde 5.
+Vier der fuenf Verpflichtungen sind damit fuer die Wertung unsichtbar - sie kosten Bewegung und
+Aufstellung, ohne je etwas zu zahlen.
+
+**Ausgebaut heisst hier: aus `ALL_CARDS` genommen, nicht geloescht.** Das Kartenobjekt, seine
+Praedikate, das Zuweisungsfenster und Abschnitt 3g der Suite stehen unveraendert da; das
+Zurueckholen ist EIN Name in der Liste. Im Test von beiden Seiten gepinnt ("nicht im Stapel" UND
+"das Kartenobjekt existiert noch"), damit ein spaeteres Wiedereinsetzen eine sichtbare
+Einzeiler-Aenderung ist statt einer stillen.
+
+**Was von der Karte bleibt und benutzt wird:** die Brett-Klick-Auswahl (`pending_pick`, der
+Panel-Screen, der Event-Zweig vor dem Board-Zweig) ist ihretwegen entstanden und ist ein
+allgemeiner Mechanismus - jede kuenftige Karte, die "waehle eine deiner Einheiten" sagt, bekommt sie
+geschenkt. Ebenso die sprechenden Objective-Namen.
+
+**Nebenbei zwei eigene Fehler in dieser Runde, beide derselben Sorte:** ich habe zweimal einen
+Textblock per `s[:start] + s[end:]` ersetzt, ohne zu pruefen, dass `end` hinter `start` liegt. Als
+der Anker beim zweiten Mal FRUEHER im File stand, wurde der Bereich dazwischen dupliziert statt
+entfernt - am Ende standen die Abschnitte 3f und 3g dreifach in der Suite (und liefen dreimal
+gruen, was den Fehler noch besser versteckte). Aufgefallen ist es nur an einer einzigen roten
+Zeile aus der Zwischenversion. Lehre: bei einem Slice-Ersatz gehoert `assert end > start` dazu,
+sonst ist ein negativer Slice eine stille Verdopplung.
+
+Stand: **17 Karten im Stapel**, `test_secondary_missions.py` **543/543**, volle Regression **112
+Suiten, ~7432 Pruefungen, 111 gruen / 0 rot / 1 bekannt**, alle vier Smokes, `selfplay.py` auf map2
+und map3.
+
+
+## Sitzung 2026-08-26 — "die fusion gun storm guardians haben gerade das falsche sprite"
+
+MELDUNG: die beiden Fusion-Gun-Storm-Guardians zeigen das falsche Sprite.
+
+ERSTE RUNDE — die naheliegenden Verdaechtigen, alle widerlegt:
+1. Mapping falsch? Nein. Sonde ueber die echte `build_aeldari()`-Liste: alle 10 Storm
+   Guardians loesen bei voller Staerke korrekt auf (2x Flamer, 2x Fusion Gun, 2x Power
+   Sword, 4x plain), plus Platform/Eldrad/Warlocks.
+2. Dateien fehlen oder sind Duplikate? Nein. Alle vier `Assault Guardian*.png` existieren
+   mit verschiedenen md5.
+3. Die Kunst selbst falsch? Nein. Alle vier Bilder angesehen: plain = Shuriken-Pistole +
+   Kettenschwert, Flamer = Flammenwerfer, Fusion = kurzlaeufige blau gluehende Kanone,
+   Power Sword = Pistole + blaue Energieklinge. In sich stimmig.
+4. Cache-Kollision im Renderer? Nein. `scaled_surface`/`fitted_surface` cachen an
+   (Pfad, Zielgroesse); `_resolve_path` an Basisnamen.
+5. Parallele Sitzung hat etwas kaputtgemacht? Nein. `game/sprites.py` steht nicht in den
+   frisch angefassten Dateien, `git status` zeigt nur die zwei Doku-Dateien.
+
+Damit war die Verdrahtung ausgeschlossen und der Fehler MUSS zustandsabhaengig sein.
+
+ZWEITE RUNDE — Verluste simuliert. Erster Versuch scheiterte still, weil ich `m.wounds = 0`
+setzte; `Token.is_dead()` liest `current_wounds`. Nach der Korrektur sofort sichtbar:
+
+    2 plain tot  -> die FLAMER-Modelle fallen auf `Assault Guardian.png`
+    2 plain + 1 Flamer tot -> die FUSION-Modelle fallen auf `Assault Guardian.png`
+
+URSACHE: `_unusual_weapon_names()` bildete `Counter(loadouts).most_common(1)[0][0]` ueber
+die LEBENDEN Peers. Sobald der Gleichstand eintritt, entscheidet die Einfuegereihenfolge —
+also die Modellreihenfolge — welche Ladung "die Mehrheit" ist. Ausdruck aus der Sonde:
+
+    Counter.most_common: [(('Close Combat Weapon','Fusion Gun'),2),
+                          (('Power Sword','Shuriken Pistol'),2),
+                          (('Close Combat Weapon','Shuriken Pistol'),2), ...]
+    -> chosen 'majority': ('Close Combat Weapon','Fusion Gun')
+
+Genau der gemeldete Zustand. Welche Gruppe es trifft, haengt davon ab, wer gerade tot ist —
+deshalb "gerade".
+
+FIX: die Frage austauschen, nicht den Gleichstand reparieren. Ein Dateiname
+`<key> - <Waffe>.png` behauptet "dieses Modell traegt eine Waffe, die sein Datenblatt nicht
+druckt". Neues `_printed_weapon_names()` liest genau das am Datenblatt (Komponente bei
+19.01, sonst `squad.datasheet`), gekeyt an der Profil-KLASSE. Vor dem Bauen geprueft, dass
+das eindeutig ist: Sweep ueber alle 71 Datenblaetter / 140 Modellzeilen, 0 Konflikte. Und
+geprueft, dass `w.name` ein Klassenattribut ist (0 Ausnahmen), damit der Cache-Miss-Pfad
+nichts instanziiert.
+
+BEWUSST NICHT MITGEAENDERT: `Squad.unusual_loadout_models()` (der Tint). Der frueherer
+Kommentar band Sprite und Tint ausdruecklich an dieselbe Notion; das ist jetzt getrennt,
+weil es zwei verschiedene Fragen sind — der Tint IST relativ zu den Squadmates gemeint. Er
+traegt den Gleichstands-Zufall damit weiter; benannt statt ungefragt umgebaut.
+
+BELEGE: `test_storm_guardians.py` 83 -> 92/92 (neuer Abschnitt 7b: der gemeldete Zustand,
+jede Verlusttiefe 0..4, der Zustand nach `remove_dead_models()`, und die Quelle selbst).
+A/B mit entferntem Datenblatt-Pfad: 88/92, die vier roten Zeilen nennen
+`Fusion Gun -> Assault Guardian.png`. Volle Regression 112 Suiten / 111 gruen / 0 rot /
+1 bekannt (33.8s). `smoke_pregame.py map2` (0 API-Calls), `smoke_log_input.py map2`,
+`selfplay.py map2` 2000 Frames.
+
+NEBENBEFUND: die Variant-Mechanik bedient heute genau ein Datenblatt — die drei
+`Assault Guardian - *.png` sind die einzigen Variant-Dateien, `- Leader` hat keine. Das
+erklaert, warum die Drift so lange unbemerkt blieb, und hielt das Umstellungsrisiko klein.
+
+## Sitzung 2026-08-26 — "eine warnung, die ich wegklicken muss, wenn ich auf end turn klicke"
+
+MELDUNG: "gib mal bitte ine warnung aus, die ich wegklicken muss, wenn ich auf end turn
+klicke, obwohl ich noch mit einheiten im nahkampf kaempfen koennte."
+
+REPRODUKTION VOR JEDER AENDERUNG: `tk.fight_scene(BOYZ, STORM_GUARDIANS)` — Player 1s Storm
+Guardians engaged mit den Boyz, `is_eligible_to_fight` True, `engaged_enemy_squads`
+`['Boyz A']`, und die Fight-Haelfte von `_has_unresolved_declaration()` gab False zurueck.
+Der Klick ging also durch, der Zug endete, die Angriffe waren weg.
+
+URSACHE, und sie ist eine Auslassung mit Absicht: `_has_unresolved_declaration()` deckt
+`CHOOSING_TARGET`/`CHOOSING_WEAPON`/`ASSIGNING` ab — eine halbfertige Aktivierung, die man
+nicht mitten im Wurf verwaisen lassen darf. `SELECTING` steht bewusst nicht darin: das ist
+kein kaputter Zustand, sondern der ganz gewoehnliche "es ist dein Fight, waehle eine
+Einheit". Genau deshalb war da nie eine Sperre, und genau deshalb gehoert dorthin auch
+jetzt keine — sondern eine Warnung.
+
+DREI TEILE:
+
+1. DIE FRAGE. `FightController.squads_that_could_still_fight(player)`, und sie ist
+   ABSICHTLICH strenger als `is_eligible_to_fight()`: 12.04s zweite Bedingung haelt eine
+   Einheit berechtigt, die beim Beginn des Fight-Steps engaged war — auch wenn ihr einziger
+   naher Feind seither gestorben ist. Die ist eligible und hat nichts zu schlagen; sie in
+   einer Warnung zu nennen waere Laerm. Dazu der Lebendigkeits-Filter auf der Feindseite
+   (dieselbe Begruendung, die `_is_eligible_to_fight()` schon ausschreibt:
+   `remove_dead_models()` laeuft einmal pro Frame, im Todesframe stehen die Leichen noch in
+   Engagement Range) und `DONE` als Kurzschluss. Nach Namen sortiert — `_all_squads()` ist
+   ein SET und die Warnung druckt Namen.
+
+2. DIE WARNUNG. `game/ui/fight_warning_overlay.py`, nach `WaaaghNoticeOverlay` gebaut, in
+   der "danger"-Palette statt Violett/Gruen: es ist das einzige Overlay dieser Familie, das
+   sagt, dass gleich etwas SCHIEFGEHT. Ein Slot statt einer Queue (sie kann nur durch einen
+   Klick entstehen, den der Mensch gerade gemacht hat). WARNUNG, KEINE SPERRE: diese Engine
+   zwingt niemanden zu kaempfen, also verbraucht `warn_once()` den Klick und laesst den
+   naechsten durch. Einmal pro PHASE, mit `reset()` in `advance_turn_phase()` — ohne diesen
+   Wiedervorlage-Punkt haette sie einmal pro SCHLACHT gewarnt und jede spaetere
+   Fight-Phase waere wieder still geendet (Fehlerklasse 14).
+
+3. DIE VERDRAHTUNG, und hier lag mehr als eine Stelle. Der Dismiss-Zweig steht UEBER dem
+   Button, der die Warnung ausloest — ein Klick darf nicht zugleich die Warnung wegklicken
+   und den Zug beenden, vor dem sie warnte (Fehlerklasse 15, fuenfmal in dieser Kette).
+   Dazu: `advance_turn_phase()` hat ZWEI Menschklick-Routen, und die zweite haette die
+   Warnung umgangen — ein wegen 09.02-Kohaerenz blockierter End-Turn-Klick setzt nach dem
+   Entfernen des Modells in denselben Aufruf fort. Deshalb
+   `_fight_warning_intercepts_end_turn()` als geteilte Frage (zweiter Konsument →
+   extrahieren), aus demselben Grund, aus dem `_has_unresolved_declaration()` eine ist.
+   `ai_advance_phase()` bleibt bewusst UNGEGATED: ein Overlay dort stallt die KI auf einer
+   Warnung, die niemand wegklickt.
+
+BELEGE. `test_fight_end_turn_warning.py` 44/44 in drei Abschnitten (die Frage an ihren
+Grenzen, das Overlay samt Zeichnen auf einer echten Surface, und der Quell-Waechter auf
+`main.py`). Sieben A/B-Sonden, jede stellt ein Stueck der Vor-Fix-Welt her, jede kippt die
+Suite: kein Guard am Button (42/43), die Kohaerenz-Route ungegated (42/43), Dismiss-Zweig
+unter den Button geschoben (43/44), aus `_front_notice()` entfernt (43/44), kein `reset()`
+(42/44), lockere Eligibility (43/44), unsortiert (42/44).
+
+Dazu `smoke_end_turn_warning.py`, weil ein Quell-Waechter nicht beweist, dass der Klick
+ankommt: die Drei-Klick-Folge durch die ECHTE `main()`-Schleife, 13/13
+(`('Player 1','Fight',1)` bleibt ueber Klick 1 und 2 stehen und wird bei Klick 3 zu
+`('Player 2','Command',1)`). Neutralisiert kippen 4 davon, und der erste Klick beendet den
+Zug sofort — exakt das gemeldete Verhalten.
+
+DREI EIGENE FEHLER, alle vom Werkzeug gefangen:
+  * Der Smoke las den Button-Klick als geschluckt: das "Player 1 Turn 1"-Banner stand noch,
+    und jeder der drei Klicks ging hinein. `_clear_blockers()` raeumt jetzt erst alles ab,
+    was in der Kette ueber dem Button steht. Ohne das haette der Smoke "die Warnung kommt
+    nicht" gemeldet, obwohl der Button nie erreicht wurde.
+  * `begin_fight_step()` blieb in `NOT_STARTED` haengen (12.04: kein Fight-Step, solange
+    ein Pile In offen ist), also mass der Smoke den falschen Zustand. Der GEMELDETE ist
+    `SELECTING` — jetzt per 12.03 uebersprungen und als eigene Zeile assertiert.
+  * Der Quell-Waechter fand `fight_warning_overlay` in seinem EIGENEN Kommentar innerhalb
+    `_front_notice()` und bestand mit aus dem Tupel entferntem Overlay. Die A/B-Sonde hat
+    genau das gezeigt — wofuer sie da ist. Kommentare werden jetzt vorher gestrippt.
+
+UND EINE UNEHRLICHE SONDE, benannt statt versteckt: die A/B fuer "unsortiert" bestand
+einmal, weil die Iterationsreihenfolge eines Sets zufaellig sortiert herauskam. Der
+Verhaltenstest bleibt, aber die deterministische Haelfte ist jetzt ein Quell-Check auf
+`key=lambda s: s.name`.
+
+ARBEITSHINWEIS, fuenfter Eintrag in Folge: parallel laeuft eine zweite Sitzung auf demselben
+Repo und baut gerade zwei Dinge — "das Spiel endet nach Runde 5" (`game/turn.py`s
+`advance_phase()` rollt nicht mehr auf Runde 6, `battle_end_overlay.py` ist neu) und
+Rule-16.01-Aktions-Buttons im Panel (`action_panel.py` bekam einen weiteren
+`secondary_mission_controller`-Parameter). Die zwei roten Suiten der Schlussregression
+(`test_secondary_missions.py` 543/545, `test_mission_unit_pick.py` 58/60) gehoeren
+ausschliesslich dorthin — per `git diff` an der jeweiligen Quelle belegt, keine der beiden
+Dateien wurde hier angefasst. Nebenbei hat dieselbe Sitzung mitten im Lauf
+`battle_end_overlay` in `_front_notice()` eingefuegt und die Tupelzeile neu umgebrochen,
+was meinen zu bruechigen Waechter kurz rot machte; er liest jetzt den FUNKTIONSBLOCK statt
+einer Zeilenform, was fuer den naechsten Overlay-Zuwachs gleich mitgilt.
+
+---
+
+## Sitzung 2026-08-26 — KI-Verhalten im letzten Spiel: zwei Meldungen, zwei verschiedene Ebenen
+
+**Meldung 1:** "die necron krieger sind hinten nicht rausgekommen. sie hatten enorme
+schwierigkeiten nach vorne zu laufen."
+**Meldung 2 (mitten im Lauf nachgereicht):** "die lych guard waren sehr passiv. die sollten eher
+weiter nach vorne pushen, warum waren sie so passiv?"
+
+Beide betreffen dasselbe Log, `logs/game_20260826_185516.log` (2107 Zeilen, 18:55–21:18, Aeldari
+gegen Necrons auf map2). Die Ursachen liegen auf VERSCHIEDENEN Ebenen, was erst die Messung
+gezeigt hat — die naheliegende gemeinsame Erklärung ("die KI bewegt sich eben schlecht") wäre für
+beide falsch gewesen.
+
+### Beziffert, bevor irgendetwas angefasst wurde
+
+Aus den `[move detail]`-Zeilen, gegen das Central Objective (30,22) gerechnet:
+
+    Necron Warriors + Technomancer   16.91" -> 15.28" -> 14.06" -> 12.87"
+                                     also +1.63" / +1.23" / +1.19" je Bewegungsphase, bei M5"
+    Lychguard + Overlord             nur ZWEI Bewegungsphasen im ganzen Spiel
+
+Die zwei Zahlenbilder sind verschieden, und das war der erste Hinweis: die Krieger BEWEGTEN sich
+und kamen nicht voran; die Lychguard bewegten sich gar nicht erst.
+
+### Meldung 1 — ein echter Codedefekt, gefunden über eine Logzeile, die nach Spam aussah
+
+Im Log stand 21× hintereinander "Player 2 has 2 Necron Warriors 1 + Technomancer take to the skies
+(rule 21.03)". Das ist der Retry-Aufstieg von `_advance_toward()` (jeder Versuch ruft `start_fn()`
+neu), also für sich harmlos — aber es warf die Frage auf, warum ein Trupp Necron-INFANTERIE
+überhaupt fliegt. `TechnomancerProfile.fly` ist True, `NecronWarriorProfile` nicht; 19.01 merged
+beide in EIN Squad, und `_handle_movement()` las
+`use_fly = any(m.profile.fly for m in squad.models)`.
+
+Direkt am Bewegungsbudget gemessen (kein Verhaltenstest, sondern `remaining_range` vor/nach):
+
+    models that PAID the 2" penalty:              21/21
+    models that GET the terrain/model bypass:      1/21
+    a Necron Warrior:  5.00" -> 3.00"
+
+`take_to_the_skies()` zieht den Preis in einer Schleife über `self.selected_squad.models` ab,
+`clamp_move()` gewährt den Nutzen unter `if self.flying_this_move and token.profile.fly`. Zwanzig
+Modelle zahlten 40% ihrer Bewegung und flogen über nichts — jede Bewegungsphase, das ganze Spiel.
+
+Der Kommentar an der Stelle begründete die Politik ausdrücklich: sie "can only ever help this
+squad's own mobility, at a fixed, small cost". Für die Einheit, für die sie geschrieben wurde
+(Crisis Battlesuits, jedes Modell fliegt), stimmt das. Die Prämisse war nie geprüft worden für den
+Fall, dass nur der LEADER fliegt. **Dieselbe Form wie der Fade-Back/Path-of-the-Outcast-Fehler: ein
+`any()` bzw. Einzelwert an einer Stelle, an der die beiden Hälften verschiedene MENGEN sind.**
+
+`measure_fly_penalty.py` baut das Brett aus den Log-Koordinaten nach (alle Einheiten, nicht nur die
+gemeldete) und misst dieselbe Einheit mit und ohne die Politik:
+
+    alone      21.03 ON  2.85"   OFF 3.56"    kostet 0.71"
+    crowded    21.03 ON  2.85"   OFF 3.78"    kostet 0.93"
+
+Auf dem leeren Brett kann der Bypass per Konstruktion nichts wert sein, dort ist die Differenz also
+rein der Preis; im Gedränge, wo er etwas wert sein KÖNNTE, ist der Verlust sogar größer.
+
+**Der Fix ist `game/movement.py`s `take_to_the_skies_pays(squad)`** — eine Definition, gelesen von
+`ai/agent_driver.py` UND `measure_crowded_movement.py`. Der Harness trug bisher eine eigene Kopie
+der Politik, und sein eigener Header zählt auf, dass genau solche Kopien ihn schon dreimal von dem
+Code haben abdriften lassen, den er misst; der zweite Konsument war also der Anlass zu extrahieren.
+Über alle vier Roster gemessen ändert sich **genau 1 von 20 fliegenden Einheiten**, und es ist die
+gemeldete. HOVER (24.17) hebt den Preis auf, also deklariert eine gemischte Einheit mit Hover
+weiter — sonst hätte der Fix eine Regel mitgenommen, die er nicht meint.
+
+**Bewusst NICHT gefixt, und im Test als solches markiert:** welche Hälfte der Engine falsch ist.
+Die Asymmetrie ist unter jeder Lesart ein Defekt, aber ob die ganze Einheit fliegt (dann ist
+`clamp_move()`s Pro-Modell-Gate falsch) oder nur die Flieger (dann die Preisschleife), entscheidet
+der gedruckte Wortlaut von 21.03 — und CLAUDE.md verlangt für eine user-gelieferte Regel den
+WORTLAUT statt zweier Lesarten zur Auswahl. `test_take_to_the_skies_policy.py`s Abschnitt 1 pinnt
+die Asymmetrie deshalb ausdrücklich als BESCHREIBUNG eines Defekts und sagt im Docstring, dass er
+beim Klären umzuschreiben und nicht zu löschen ist.
+
+### Meldung 2 — die gemeldete Einheit war nicht der stärkste Fall
+
+Rollen je KI-Zug, aus den `[turn plan]`-Zeilen gezählt:
+
+    2 Lychguard 1 + Overlord      advance, advance, hold, hold, hold          3/5 passiv
+    2 Skorpekh Destroyers 1       hold, hold, hold, hold, advance             4/5 passiv
+
+Die Lychguard-Holds kamen dreimal in Folge direkt aus dem Plan, auf dem UMKÄMPFTEN Objective West
+("stay near Objective West and threaten the Striking Scorpions if they charge in"). Der
+Over-Garrison-Backstop nimmt umkämpfte Objectives zu Recht aus, greift dort also nicht. Das ist
+Modell-Urteil, kein Codedefekt — und in CLAUDE.md als solches festgehalten, damit es nicht erneut
+als Defekt gesucht wird. (Nebenbefund derselben Zeilen: in der letzten Runde lehnte die Einheit
+einen Charge mit **83%** ab, bei 1 verbliebenem Modell; ebenfalls Modell-Urteil, über `_choose()`.)
+
+**Die Skorpekh Destroyers dagegen wurden vom CODE dorthin gestellt.** Log-Zeile 289: "role hold ->
+advance ... 2 Skorpekh Destroyers 1 is cheaper and can reach it this turn, so the garrison job goes
+to it instead". `_cheaper_garrison_candidates()` sortierte `(_garrison_cost_key, gap)`, also rein
+nach Punkten — und die Nahkämpfer einer Armee sind regelmäßig ihre billigsten. **Die Korrektur, die
+verhindern soll, dass gute Einheiten auf leerem Boden verschwendet werden, hat damit selbst
+ausgesucht, welche gute Einheit verschwendet wird:** 85 Punkte, 0.0x Fernkampf/Nahkampf, vier von
+fünf Zügen auf Boden, dem kein Feind auf 12" nahe kam.
+
+Sortierschlüssel jetzt `(is_assault_unit, cost, gap)`. Auf dem gemeldeten Brett gemessen:
+
+    vorher   -> 2 Skorpekh Destroyers 1   (85 pts, assault, 0.0x)
+    nachher  -> 2 Lokhust Destroyers 1    (170 pts, 6.7x Fernkampf)
+
+Also teurer, und das ist der Handel: Rolle schlägt Punkte, solange die Einheit immer noch billiger
+ist als der Halter (270). `combat_focus.is_assault_unit()` ist der DRITTE Konsument, keine zweite
+Meinung. **Sortierschlüssel und kein Filter**, weil eine Garnison, die nicht stattfindet, das
+Objective verliert — schlimmer als ein Nahkämpfer, der darauf steht; eigene Testzeile dafür.
+
+### Eigener Fehler, vom Werkzeug gefangen
+
+Der erste Entwurf von `test_over_garrison.py`s Abschnitt 10 baute seine Szene aus Datenblättern mit
+handgewählten `composition_index`-Werten und bekam eine 2-Modell-Lokhust-Einheit zu 55 Punkten, wo
+die echte Liste 6 Modelle zu 170 fieldet — **womit ausgerechnet der Vergleich still umgedreht war,
+den der Abschnitt behauptet** ("der Nahkämpfer ist der billigere"). Zwei Prüfungen wurden rot und
+haben es gezeigt. Fehlerklasse 17 im Kleinen; die Szene kommt jetzt aus
+`army_lists.build_necrons()`, und dass der Nahkämpfer wirklich der billigere ist, ist eine eigene
+assertierte Zeile statt einer Annahme im Kopf.
+
+Dazu **zum wiederholten Mal die Heredoc-Falle**: dieser Eintrag selbst zerlegte ein
+`cat <<'PYEOF'` an den Apostrophen im deutschen Fließtext. Solche Texte gehören über Write/Edit.
+
+### Belege
+
+- `test_take_to_the_skies_policy.py` **27/27** (neu). A/B: Vor-Fix-Politik wiederhergestellt →
+  **23/27**, und die vier roten Zeilen nennen die gemeldete Einheit beim Namen.
+- `test_over_garrison.py` 51 → **61/61**. A/B: Sortierschlüssel neutralisiert → **60/61**, mit
+  "got 2 Skorpekh Destroyers 1, want 2 Lokhust Destroyers 1".
+- Volle Regression **115 Suiten, ~7576 Prüfungen, 114 grün / 0 rot / 1 bekannt**.
+- `smoke_pregame.py map2`, `smoke_log_input.py map2`, `smoke_measure_tool.py map2`,
+  `selfplay.py map2` 2500 Frames — hier keine Formalie, weil `game/movement.py` und
+  `ai/agent_driver.py`s Bewegungspfad selbst der Gegenstand sind.
+- **Durch die ECHTE Schleife belegt, nicht nur im Test:** im Selbstspiel-Log nach dem Fix
+  deklarieren die Canoptek Wraiths (6/6 fliegen) weiter Take to the Skies, die Necron Warriors
+  **0×**.
+
+### Nachtrag derselben Sitzung — die Regelfrage beantwortet, und sie hatte zwei Hälften
+
+Auf die Rückfrage nach dem gedruckten 21.03 kamen ZWEI Entscheidungen, und die zweite war keine
+Antwort auf die gestellte Frage, sondern eine zusätzliche Regel:
+
+> "es fliegen nur fly modelle. aber einheiten, die ausschließlich aus infanterie modellen
+> bestehen sollten niemals take to the skies benutzen, weil sie ja eh durch wände laufen können."
+
+**Hälfte 1 (die gestellte Frage).** Damit war `clamp_move()`s Pro-Modell-Gate immer richtig und
+`take_to_the_skies()`s squad-weite Preisschleife der Defekt. Ein `if not model.profile.fly:
+continue` in der Schleife. Gemessen: aus 21/21 zahlenden Modellen wird 1/21, und der Necron
+Warrior behält seine vollen 5" — belegt durch `clamp_move()` und nicht nur am Budget, weil ein
+Budget von 5" bei einem Modell, das trotzdem nur 3" zurücklegt, derselbe Fehler eine Ebene tiefer
+wäre. HOVER (24.17) bleibt eine squad-weite Ausnahme: das ist die bestehende Lesart, kein
+Datenblatt der vier Roster druckt es, und das Verengen war nicht Teil der Entscheidung — als
+Kommentar ausgeschrieben, damit es eine sichtbare Entscheidung ist und kein Übersehen.
+
+**Hälfte 2 (die zusätzliche Regel), und sie trifft mehr als die gemeldete Einheit.** Vor dem
+Einbau gemessen, welche Einheiten reine Infanterie sind und fliegen: **vier** über alle vier
+Roster — Necron Warriors + Technomancer, **Stormboyz**, Warp Spiders + Lhykhis, Stealth
+Battlesuits. Die Stormboyz sind dabei kein beliebiger Treffer: `measure_crowded_movement.py`s
+eigener Header führt sie als einen seiner zwei schlimmsten Fälle und nennt sie als den Grund,
+warum Take to the Skies überhaupt in den Harness gespiegelt wurde. Eine Regel, die sie erdet,
+konnte also nicht ungemessen bleiben.
+
+Die A/B fiel eindeutig FÜR die Regel aus — sie kostet nichts, sie bringt:
+
+    erreichter Fortschritt (Gedränge)   60%  ->  65%
+    Gesamtboden                       202.1" -> 209.1"
+    Einheiten unter 60%                50.0% -> 42.9%
+
+Die dokumentierte Baseline in CLAUDE.md (~64% / ~206") wird damit übertroffen statt verletzt, und
+die Stormboyz stehen danach nicht mehr unter den fünf schlechtesten Einheiten. Der Harness-Header
+ist nachgezogen, weil seine Stormboyz-Aussage sonst still veraltet wäre.
+
+**Die Reihenfolge der zwei Prüfungen ist die Stolperstelle.** "Niemals" ist emphatisch, also steht
+die INFANTERIE-Prüfung VOR dem HOVER-Zweig — sonst deklarierte eine reine Infanterie-Einheit mit
+HOVER doch. Die zwei Reihenfolgen unterscheiden sich nur in genau diesem Fall, also ist er als
+eigene Testzeile gepinnt; ein späterer Leser könnte sie sonst gutgläubig tauschen.
+
+**Bewusst das INFANTRY-Keyword und nicht `can_move_through_dense_terrain()`**, obwohl 13.06 vier
+Keywords abdeckt: die Entscheidung nennt Infanterie, und BEASTS sind ein anderer Fall — die
+Canoptek Wraiths queren Wände per 13.06 UND fliegen, und niemand hat verlangt, sie zu erden. Als
+Kommentar ausgeschrieben, samt dem Hinweis, dass eine gemeldete fliegende BEASTS/SWARM-Einheit der
+Moment zum Erweitern wäre, nicht jetzt auf Verdacht.
+
+**Belege des Nachtrags:** `test_take_to_the_skies_policy.py` auf **33/33** umgeschrieben (Abschnitt
+1 ist jetzt die Beschreibung des KORREKTEN Verhaltens statt eines Defekts, wie sein alter Docstring
+es angekündigt hatte). Die zwei Hälften sind EINZELN neutralisiert worden, damit keine die andere
+deckt: Engine-Hälfte zurückgebaut → **27/33** (u.a. "a Necron Warrior keeps its full 5" move: got
+3.0"), INFANTERIE-Regel zurückgebaut → **28/33** (u.a. "got ['2 Necron Warriors 1 + Technomancer']"
+statt aller vier). Volle Regression **115 Suiten, ~7582 Prüfungen, 114 grün / 0 rot / 1 bekannt**,
+alle drei Smokes, `selfplay.py map2` 2500 und `map3` 400 Frames. Im echten Selbstspiel-Log
+deklariert danach nur noch die Doomsday Ark (VEHICLE), die Necron Warriors **0×**.
+
+## Sitzung 2026-08-26 (Fortsetzung) — drei UI-Meldungen aus einer Partie
+
+Drei Meldungen nacheinander, alle aus derselben Sitzung am Brett, alle "die Engine kann es,
+aber die Oberflaeche sagt es mir nicht bzw. nimmt mir die Wahl ab".
+
+### 1. "kann das in der linken spalte stehen, dass ich noch pile ins machen muss?"
+
+GEMESSEN VORHER: das Panel druckte an dieser Stelle GENAU EINEN Satz — "Both players must
+resolve Pile In (move or skip) for every eligible unit before the Fight step can begin."
+Wahr, und unbrauchbar: keine Einheit, keine Seite, kein naechster Schritt. Ein Spiel, das
+auf den MENSCHEN wartet, liest sich damit identisch zu einem, das auf die KI wartet — und
+genau das war die Meldung.
+
+`PileInController.squads_pending_pile_in(player=None)` ist die neue eine Definition;
+`has_pending_squads()` liest denselben Generator und behaelt seinen Kurzschluss (ein
+Filter, zwei Fragen, statt zweier Kopien).
+
+ENTSCHEIDUNG, die ich anders getroffen habe als naheliegend: NACH OWNER GRUPPIERT statt auf
+"meine Einheiten" gefiltert. Das Panel hat keinen Begriff davon, wer der Mensch ist, und
+einen einzufuehren waere eine zweite Kopie einer Tatsache, die `main.py` schon besitzt
+(seine `human_players`-Verdrahtung). Ein Squad-NAME beginnt mit der Spielerziffer — derselbe
+Identifier, den Zug-Banner, Turn-Plan und jede Logzeile benutzen —, also beantwortet
+"Player 1: 1 Storm Guardians 1" die Frage "bin ich das?" ohne dass diese Datei irgendetwas
+annehmen muss. Und es bleibt richtig, falls der Mensch je Player 2 spielt.
+
+BELEGE: `test_pile_in_panel.py` 35/35, sieben A/B-Sonden (jede kippt die Suite), inkl. einer
+Pixelpruefung, dass der Kasten wirklich gemalt wird.
+
+EIGENER FEHLER, von der A/B gefangen: meine erste Cap-Pruefung bestand mit ENTFERNTEM Cap,
+weil das "+2 more"-Suffix stehenblieb und der Test nur darauf sah. Jetzt wird gezaehlt, wie
+viele Namen wirklich in der Zeile stehen.
+
+### 2. "aspect shrine ... nach jedem wurf. kann das eine option im linken panel sein?"
+
+GEMESSEN VORHER, und die Messung war der ganze Punkt: der Prompt ging in EXAKT dem Frame
+auf, in dem der Wurf weggeklickt wurde (dice pending -> acknowledge -> decision pending, in
+EINEM Schritt). Zwei Klicks pro Wurf, die ganze Schlacht lang, solange ein Token unverbraucht
+war.
+
+`game/unmodified_six_controller.py`: EIN Controller fuer ALLE solchen Faehigkeiten, nicht
+einer je Faehigkeit — Eignung, Wuerfelauswahl und Panel-Verdrahtung sind identisch, nur die
+RESSOURCE unterscheidet sich, und die besitzt jedes Faehigkeitsmodul schon. Form exakt nach
+`game/command_reroll.py`, weil der User sie beim Namen genannt hat.
+
+DER EFFEKT IST JETZT DER WUERFEL, NICHT EIN ZAEHLER, und das ist strikt korrekter als das,
+was es ersetzt: vorher wurden Treffer-/Krit-ZAEHLER nachtraeglich justiert, jetzt wird der
+gewaehlte Wuerfel eine 6 und die gewoehnliche Aufloesung liest ihn. Damit sehen
+[SUSTAINED HITS], [LETHAL HITS], [DEVASTATING WOUNDS] und [ANTI-X]s gesenkte Krit-Schwelle
+ihn automatisch. Modifikatoren justieren hier die SCHWELLE, nie den Wuerfel — ein auf 6
+gesetzter Wuerfel IST eine unmodifizierte 6. Ersatzlos entfallen sind dadurch
+`hit_change`/`wound_change`/`prompt_for`/`describes` in drei Modulen.
+
+DAS GATE BLEIBT, obwohl sein gedruckter Grund entfaellt. `game/unmodified_six.py` begruendet
+es mit "sonst wuerde die Faehigkeit sich auf praktisch jedem Wurf anbieten" — das ist ein
+Unterbrechungs-Argument, und ein Knopf unterbricht nicht. Es hat aber einen ZWEITEN,
+unabhaengigen Grund: niemals anbieten, was nichts kauft (Fehlerklasse 5). Ein Knopf, der eine
+5 auf eine 6 dreht, wo ein Krit nichts tut, luegt ueber seinen Zweck. Gerechnet wird es jetzt
+an den Wuerfeln AUF DEM TISCH ueber `is_success()`/`is_critical()` — dieselben zwei
+Funktionen, mit denen das Panel sie faerbt.
+
+EIGENER FEHLER, von der Dire-Avengers-Suite gefangen: der Kontext-Hook gab zuerst
+`pairs[0][1]` zurueck, also die GEDRUCKTE Waffe. Bladestorm gewaehrt [SUSTAINED HITS] nur in
+Halbdistanz, ist also ein bedingter Grant — der Knopf fehlte damit genau dort, wo der Token
+sich lohnt. Jetzt `_adjusted_weapon()`, die eine Stelle, an der solche Grants angewandt
+werden.
+
+BEWUSST OFFEN, und benannt statt still gelassen: der DAMAGE-Zweig von Branching Fates bleibt
+ein eigener Offer. "Change the result of one Damage roll to an unmodified 6" meint das
+ERGEBNIS, und neun Waffen im Repo drucken einen Bonus (D6+1, D6+2) — den Wuerfel auf 6 zu
+setzen ergaebe 7 oder 8. Das ist eine andere Regellesart als die, auf die sich
+`game/branching_fates.py` ausdruecklich festgelegt hat, und eine Regellesart zu aendern ist
+nicht Teil einer UI-Aenderung.
+
+NEBENBEFUND, vorbestehend: `BranchingFatesDamageOffer`s Docstring sagt, es werde "by
+game/shooting.py and game/fight.py" gebaut. `fight.py` baut es nicht — die Damage-Haelfte
+wirkt also nur im Fernkampf.
+
+BELEGE: neues `test_unmodified_six_ui.py` 51/51, `test_aspect_shrine.py` 72/72 und
+`test_farseer.py` 94/94 auf den neuen Weg umgeschrieben, sieben A/B-Sonden.
+
+### 3. "warpspider ... danach nicht mehr mit dem powerblade array zuschlagen"
+
+REPRODUZIERT: der Exarch teilte die "Close Combat Weapon"-Gruppe des Trupps (identische
+WS/S/AP/D), der Klick auf den Trupp-Button schwang also auch seine Waffe, und 04.01 sperrte
+danach sein Array. Die Wahl wurde ihm von einem Knopf ueber eine FREMDE Waffe abgenommen.
+
+Der User bot zwei Fixes an; der ZWEITE ist der richtige, und der erste haette diesen Fall
+verfehlt: ein Aspekt-Exarch ist in dieser Engine bewusst KEIN CHARACTER und auch nicht
+`squad_leader`. `_melee_choice_owner()` haengt deshalb am Gruppierungsschluessel und gibt
+einem Modell mit mehr als einer waehlbaren Nahkampfwaffe eigene Gruppen.
+
+BLAST RADIUS GEMESSEN, wie es dieses Repo vor jeder Scaffold-Aenderung tut: ueber alle 72
+Datenblaetter tragen 14 Modell-Loadouts mehr als eine waehlbare Nahkampfwaffe, in ALLEN vier
+Fraktionen (jeder Exarch mit Melee-Upgrade, die Ork-Boss-Nobs, Beastboss, Skorpekh Lord, Deff
+Dread). Also kein Warp-Spider-Sonderfall.
+
+DAS LABEL IST TEIL DES FIXES, nicht Kosmetik: ohne es staenden zwei Knoepfe "Close Combat
+Weapon" nebeneinander, was schlimmer waere als der Fehler.
+
+ZWEITER, KLEINERER FEHLER AUS DEMSELBEN BERICHT: war jedes Modell einer Gruppe gesperrt,
+wurde sie WEITER angeboten — mit `_group_label()`s Leerlisten-Platzhalter, also als Knopf mit
+der Aufschrift "Weapon", der nichts tat. Das ist genau das, was in der Reproduktion als
+`groups still offered: ['Weapon']` auftauchte.
+
+BELEGE: neues `test_melee_weapon_groups.py` 31/31, vier A/B-Sonden. Eigener Fehler dabei: die
+erste Fassung matchte Labels per Substring, und "Close Combat Weapon" ist ein PRAEFIX von
+"Close Combat Weapon (Warp Spider Exarch)" — der Test schwang mit der falschen Gruppe. Exakt
+matchen; und `swing()` meldet jetzt laut, statt auf `next()` zu krachen.
+
+### Gesamtstand und Arbeitshinweis
+
+Volle Regression **119 Suiten, ~7805 Pruefungen, 118 gruen / 0 rot / 1 bekannt**, dazu alle
+vier Smokes und `selfplay.py map2` 2000 Frames.
+
+ARBEITSHINWEIS, sechster Eintrag in Folge: die parallele zweite Sitzung hat waehrend dieser
+Arbeit drei Dinge gebaut — "das Spiel endet nach Runde 5" (`game/turn.py`,
+`battle_end_overlay.py`), Rule-16.01-Aktions-Buttons im Panel (`action_panel.py` bekam einen
+weiteren Parameter) und ein 14. Necron-Datenblatt (Skorpekh Lord). Alle drei haben
+zwischendurch fremde Suiten rot gemacht (`test_secondary_missions.py`,
+`test_mission_unit_pick.py`, `test_necron_datasheets.py`), jeweils per `git diff` an der
+Quelle als NICHT dieser Arbeit zugehoerig belegt. Sie hat ausserdem mitten im Lauf
+`battle_end_overlay` in `_front_notice()` eingefuegt und die Tupelzeile neu umgebrochen, was
+meinen zu bruechigen Waechter kurz rot machte; er liest jetzt den FUNKTIONSBLOCK statt einer
+Zeilenform.
+
+
+---
+
+## Sitzung 2026-08-27 — Home-Objective-Garnison: Fernkampf statt "am billigsten"
+
+MELDUNG: "die ki soll fernkampfeinheiten stark bevorzugen, wenn es darum geht das home objective
+zu halten. sie ht im letztne spiel dafuer die lychguard bentuzt, was voelliger quatsch ist. die
+immortals waeren perfekt. starke fernkaempfer mit hoher reichweite."
+
+### Reproduziert, bevor irgendetwas angefasst wurde
+
+`logs/game_20260826_234856.log` traegt den Fall zweimal:
+
+    Zeile  19  [deploy] Player 2: 2 Lychguard 1 + Overlord (assault) deployed at (30.0,8.1)
+    Zeile 124  [plan problem] 2 Necron Warriors ... (270 pts) is left holding P2 Home Objective
+               ... so 2 Lychguard 1 + Overlord (170 pts) holds it exactly as well
+    Zeile 125  turn plan corrected - Necron Warriors: role 'hold' -> 'advance' ... 2 Lychguard 1
+               + Overlord is cheaper and can reach it this turn
+
+Also ZWEI Stellen, eine Phase auseinander, und beide entschieden auf Punkte allein.
+
+### Die Ursache lag nicht dort, wo die Meldung hinzeigt
+
+Die naheliegende Diagnose war der Turn-Plan-Pass, weil er in der Logzeile steht. Gemessen ist die
+Aufstellung der eigentliche Taeter: `deployment_ai.home_garrison_squad()` nimmt die billigste
+nicht-heavy Einheit mit OC>0, und in der Necron-Liste ist das mit **170 Punkten die Lychguard** —
+die billigste Einheit der ganzen Armee ist ihr Nahkampf-Amboss. Sie stand also schon beim
+Aufstellen auf dem Objective, und der Turn-Plan-Pass hat das nur bestaetigt.
+
+Und das erklaert die zweite Haelfte: die Immortals standen im gemeldeten Spiel bei (13.8,10.4)
+und (50.3,10.4), also **12.2" und 20.1"** vom Objective bei 5" Bewegung — fuer den Turn-Plan-Pass
+unerreichbar. Eine Sonde, die eine Immortals-Einheit neben das Objective gestellt haette, haette
+einen Fix gemeldet, den das echte Spiel nicht haette nutzen koennen. `measure_home_garrison.py`
+baut deshalb das Brett aus den Log-Koordinaten nach und druckt die Reach-Spalte mit.
+
+### Die zwei Haelften der User-Aussage sind zwei Terme
+
+Ueber alle drei Listen gemessen laufen "Fernkaempfer" und "hohe Reichweite" NICHT parallel:
+
+    Aeldari Wraithguard   ratio 2.00 (Fernkampfspezialist)   Reichweite 12"
+    Necron Immortals 1    ratio 1.70                          Reichweite 24"
+    Ork Gretchin          ratio 0.97 (neutral)                Reichweite 12"
+
+Vom Home Objective aus liegt der naechste umkaempfte Boden 11.6-17.1" entfernt, je nach Karte und
+Spieler. Ein 12"-Fernkaempfer traegt dort also exakt so wenig bei wie die Lychguard. Also zwei
+Terme, nicht einer.
+
+### Warum drei Baender und kein Score
+
+Erste Ueberlegung war, direkt nach der Ratio zu sortieren. Gemessen und verworfen: das haette den
+Punkte-Term ueberall ueberstimmt und bei den Orks den Job von den 45-Punkte-Gretchin auf den
+160-Punkte-Battlewagon geschoben — also genau die Art von Regression, die die frueheren
+Garnisons-Meldungen behoben hatten. Drei Baender (SHOOTER / neutral / ASSAULT) mit Punkten
+INNERHALB des Bandes trifft genau die gemeldete Liste und laesst die anderen zwei unveraendert:
+
+    Aufstellung, alle drei Karten
+      necrons   2 Lychguard 1 + Overlord   ->  2 Immortals 1 + Plasmancer
+      orks      2 Gretchin 1               ->  2 Gretchin 1            (unveraendert)
+      aeldari   2 Warlock Skyrunners 1     ->  2 Warlock Skyrunners 1  (unveraendert)
+
+### Die Reichweiten-Schranke ist gemessen, nicht gesetzt
+
+`observation.garrison_reach_needed_in()` = Abstand zum naechsten ANDEREN Objective:
+
+    map1  P1 17.1"   P2 17.1"
+    map2  P1 14.8"   P2 14.8"
+    map3  P1 11.6"   P2 13.8"     <- als einzige Karte pro Spieler VERSCHIEDEN
+
+Eine feste Schwelle (etwa 18") haette auf allen drei Karten zufaellig gestimmt und map3s P1-Fall
+still verfehlt. Bewusst NICHT der Abstand zum Niemandsland — der ist vom Home Objective aus nur
+3.8-5.2" und haette jede 12"-Waffe durchgelassen.
+
+### Der Sortierschluessel war die halbe Antwort
+
+Der Garnisons-Tausch hatte seit einer frueheren Meldung schon `(is_assault_unit, cost, gap)` als
+ORDNUNG — aber sein FILTER war weiter "strictly cheaper than the holder". Damit konnte der Pass
+eine Garnison nur die Punkteliste ABWAERTS bewegen, und die Immortals kamen als Kandidat gar nicht
+in Betracht. Das Tor liest jetzt dasselbe `(Band, Punkte)`-Paar wie die Ordnung.
+
+Die damalige Begruendung dagegen — "Deliberately a SORT KEY and not a filter: eine Garnison, die
+nicht stattfindet, verliert das Objective" — gilt hier nachweislich nicht: `_lone_garrison_swaps()`
+ist der EIN-Holder-Fall, ein abgelehnter Tausch laesst den Holder stehen. Als Invariante gepinnt
+("jeder vorgeschlagene Tausch verbessert die Fitness strikt"), statt den Einzelfall zu behaupten.
+
+### Fuenfzehnte Extraktion, weil es DREI Leser sind
+
+`_garrison_fitness()` — der Over-Garrison-Pass (Keeper aus zwei oder drei), sein planner-seitiger
+Zwilling und der Lone-Swap-Pass. Die ersten beiden sortierten weiter auf `_garrison_cost_key`
+allein, waeren also bei genau der Einheit geblieben, die der dritte nicht mehr waehlen soll.
+Quell-Waechter: genau eine Definition, drei Leser, und `key=_garrison_cost_key` kommt nirgends
+mehr vor.
+
+### Drei fremde Testabschnitte gebrochen, alle drei zu Recht
+
+**`test_over_garrison.py` Abschnitt 9** ("unbekannte Punkte werden freigestellt, nicht geparkt"):
+die Gretchin mit `points=None` behalten das Objective jetzt, weil ihr BAND besser ist. Das ist
+woertlich die aeltere Meldung derselben Datei ("die boyz sollen nach vorne und gretchins das
+homeobjective halten"), also das gewuenschte Ergebnis. Das Prinzip selbst gilt weiter, nur eine
+Ebene tiefer — gemessen jetzt zwischen zwei Einheiten DESSELBEN Bandes, und zwar so herum, dass
+der Einheit der Preis genommen wird, die sonst GEWONNEN haette. Andersherum bestuende der Test
+auch dann, wenn "unbekannt" zuerst sortierte.
+
+**`test_over_garrison.py` Abschnitt 10**: die A/B-Sonde sortierte die NEUE Kandidatenliste um und
+behauptete, damit die Vor-Fix-Welt zu zeigen — eine Liste, in der die Skorpekh gar nicht mehr
+stehen. Halbe Sonde, Fehlerklasse 16. Sie neutralisiert jetzt `home_garrison_rank` an der Quelle
+und faehrt `_cheaper_garrison_candidates()` echt.
+
+**`test_report_20260824.py` Abschnitt 4** — der lehrreichste. Er meldete, die Skorpekh stuenden in
+der VOR-FIX-Welt nicht mehr hinten. Ursache: seine Sonde stellt `_deployment_role` und
+`deployment_order_key` zurueck und behauptet im eigenen Kommentar "the whole pre-fix world" — die
+Home-Garnisons-Wahl war darin nie enthalten, weil sie zur Bauzeit noch keine Rolle kannte. Im
+Test-Roster (der ALTEN Necron-Liste) sind die Skorpekh mit **85 Punkten die billigste Einheit**,
+waren also die Home-Garnison, und `deployment_score()` stellt eine solche ueber alles andere aufs
+Objective. Sonde erweitert; zwei der drei Zeilen wurden dadurch wieder gruen.
+
+Die dritte war ein ECHTER Effekt und ist gemessen worden, statt sie anzupassen — drei Welten
+nebeneinander:
+
+                                    vorwaerts   hidden
+      Skorpekh   nur Rollen-Fix       +0.97"     3/3
+                 beide Fixes          +2.98"     0/3
+      Immortals  nur Rollen-Fix       +3.35"     0/11
+                 beide Fixes          +0.48"    11/11
+      ARMEE      pre-fix 24/59 | nur Rollen-Fix 15/59 | beide Fixes 25/59
+
+Die Deckung der Skorpekh WAR die Dense-Flaeche auf dem Home Objective, nicht das Versteck eines
+Nahkaempfers an der Front. Freigestellt tauschen sie sie gegen 2" Boden, und die Armee gewinnt
+netto Deckung. "Vorwaerts zuerst" ist die vom User selbst gesetzte Reihenfolge der zwei Klauseln.
+Die Zeile pinnt jetzt den Handel mit seinen Zahlen — sie sagt MEHR als vorher, nicht weniger.
+
+### Eigene Fehler in dieser Sitzung
+
+* Die Extraktion zuerst als "dreizehnte" gezaehlt; CLAUDE.md steht bei 14. Korrigiert.
+* `wounds_remaining = 0` erfunden — `Token.is_dead()` liest `current_wounds`.
+* Zwei Testzeilen zu pauschal formuliert ("ein 12-Zoll-Gewehr reicht nie", "der Kill Rig ist der
+  billigere") und von der Messung widerlegt; beide tragen jetzt die echten Zahlen.
+* **Zum wiederholten Mal die Heredoc-Falle**: sowohl `measure_home_garrison.py` als auch dieser
+  Historieneintrag liessen sich per `cat <<PYEOF` nicht schreiben. Ueber Write geschrieben, wie
+  CLAUDE.md es seit Langem sagt.
+
+### Belege
+
+Volle Regression **122 Suiten, ~8020 Pruefungen, 121 gruen / 0 rot / 1 bekannt**. Neu
+`test_home_garrison.py` **79/79** mit drei A/B-Sonden (Reichweiten-Term entfernt 77/79,
+Aufstellung auf Punkte allein 76/79, Tausch-Tor auf Punkte allein 78/79).
+`measure_deployment_safety.py` auf beiden Karten PASS. Alle fuenf Smokes gruen, `selfplay.py` auf
+map1/map2/map3. Im echten Lauf: `2 Immortals 1 + Plasmancer (shooter) deployed at (30.0,6.0)
+(fully hidden, rule 13.09) ... 11/11 models`, waehrend die Lychguard bei (9.8,10.2) an der Flanke
+stehen.
+
+## Sitzung 2026-08-26 (Nachtrag) — "branching fate fuer den damage roll war gerade noch ein overlay"
+
+Der User hatte recht: ich hatte den Damage-Zweig BEWUSST ausgelassen und im Bericht benannt,
+aber die Bitte war "keine Overlays mehr", nicht "keine Overlays ausser einem".
+
+WARUM ER NICHT DEN GLEICHEN WEG GEHEN KANN wie Hit und Wound: dort ist jeder Wuerfel ein
+eigener "Hit roll", und "change the result to an unmodified 6" heisst schlicht: dieser
+Wuerfel wird eine 6. Beim Damage ist "the result" der GESAMTBETRAG, und neun Waffen im Repo
+drucken einen Bonus (D6+1, D6+2) — den Wuerfel auf 6 zu setzen ergaebe 7 oder 8.
+`game/branching_fates.py` hat sich ausdruecklich auf "the sentence says what the result
+becomes, not what the die shows" festgelegt.
+
+LOESUNG: `DiceNotationRoll.face_for_total(wanted)` rechnet das Wuerfelgesicht aus, das den
+gewuenschten BETRAG erzeugt (D6+2 -> eine 4). Damit bleibt die Regellesart exakt dieselbe,
+und der Knopf haengt trotzdem am stehenden Wurf. Dazu `projected_total` als die eine Formel
+fuer "was waere der Betrag, wenn jetzt bestaetigt wuerde" — dieselbe Rechnung, die
+`on_dice_acknowledged()` macht, und bewusst nicht ein zweites Mal hingeschrieben.
+
+KEIN AUSWAHLSCHRITT: ein Damage-Wurf ist EIN Wuerfel (gemessen ueber jede Damage-Notation im
+Repo), also gibt es nichts zu waehlen — dieselbe Abkuerzung, die Command Re-roll bei einem
+einzigen rerollbaren Wuerfel nimmt. Ein mehrwuerfeliger Wurf wird LAUT abgelehnt statt
+geraten; heute unerreichbar, aber ein kuenftiges 2D6 faellt damit auf statt still etwas
+Willkuerliches zu tun.
+
+NEBENBEI GESCHLOSSEN: `BranchingFatesDamageOffer` sagte in seinem eigenen Docstring, es werde
+"by game/shooting.py and game/fight.py" gebaut. `fight.py` baute es nie — die Damage-Haelfte
+wirkte also nur im Fernkampf. Ueber den DiceManager gilt sie jetzt in beiden Phasen, ohne
+Zusatzcode. Ersatzlos entfallen: die Klasse, `damage_override`, `_after_damage_override()`.
+`damage_change()` bleibt, weil dort die Regellesart wohnt.
+
+### Ein grober eigener Fehler, und wie er gefangen wurde
+
+Mein Ausbau-Skript suchte das Ende des zu loeschenden Blocks mit
+`lines[j].strip().startswith("damage_session = DamageAllocationSession(")` — die Zeile heisst
+aber `self.damage_session = ...`. Der Treffer blieb aus, `j` lief bis ans Dateiende, und
+**356 Zeilen aus `game/shooting.py` waren weg**: `_check_allocation_done`, `_finish_group`,
+`_finish_squad`, `choose_damage_model`, `_begin_devastating_wounds`, `_actually_finish_squad`,
+`_make_damage_resume_hook`. Die Datei IMPORTIERTE danach noch fehlerfrei — ein Syntaxcheck
+haette nichts gemeldet.
+
+Gefangen wurde es dadurch, dass das Skript die geloeschten Zeilen ausdruckte (sie zur
+Kontrolle zu drucken war der einzige Grund, warum der Schaden im selben Moment sichtbar war
+statt eine Regression spaeter). Wiederhergestellt aus dem Backup, das vor dem Ausbau angelegt
+wurde, und alle sechs Aenderungen ueber ein Skript neu angewandt, das jeden Schritt
+assertiert UND am Ende die METHODENMENGE der Datei vorher/nachher vergleicht (entfernt genau
+zwei, hinzugefuegt genau zwei).
+
+DABEI EINE FREMDE AENDERUNG VERLOREN UND GEZIELT ZURUECKGEHOLT: das Backup war ~zwei Stunden
+alt, und die parallele Sitzung hatte seither die "Driven by Hatred"-Verdrahtung des Lokhust
+Lord in `shooting.py` eingebaut (`test_lokhust_lord.py` wurde rot und hat es gemeldet). Statt
+zu raten: Zeilenmengen-Diff zwischen der kaputten und der wiederhergestellten Datei — 17
+Zeilen fehlten, 16 davon Driven by Hatred, eine ein Import, den ich absichtlich entfernt
+hatte. Die 16 wortgleich zurueckgesetzt, danach der Diff wieder auf genau diese eine Zeile.
+
+LEHRE, und sie ist die alte: ein Suchmuster, das NICHTS trifft, ist gefaehrlicher als eines,
+das falsch trifft — `startswith` ohne `self.` hat still bis ans Dateiende gelesen. Ein
+Loeschskript gehoert an eine Assertion, dass es genau so viel entfernt hat, wie es sollte.
+
+### Belege
+
+`test_farseer.py` 94 -> **106/106** (Abschnitt 5 komplett neu: der Damage-Wurf durch den
+ECHTEN `ShootingController` bis zum stehenden Wurf getrieben, "kein Overlay in diesem Moment",
+der Knopf, die Wirkung an den verlorenen Wunden des Devilfish gemessen, und
+`face_for_total()` an D6 / D6+2 / D3 / 2D6). `test_unmodified_six_ui.py` 51 -> **58/58**.
+Vier A/B-Sonden, jede kippt ihre Suite.
+
+Volle Regression **123 Suiten, ~8050 Pruefungen, 122 gruen / 0 rot / 1 bekannt**, alle vier
+Smokes, `selfplay.py map2` 2000 Frames.
+
+EIGENER TESTFEHLER, benannt: mein erster "ein Damage-Wurf von 6 bietet nichts an"-Fall war
+unmoeglich zu stellen — der Eldritch Storm wuerfelt D3, und ein D3 kann nie 6 zeigen (genau
+der Fall, den `branching_fates.py`s Docstring als bewusste Lesart nennt). Ersetzt durch das,
+was mit dieser Waffe messbar IST (nach dem Verbrauch ist der Knopf weg); die 6er-Schranke
+wird weiter direkt an `damage_change()` geprueft.
+
+---
+
+## Drei Biome, drei Knoepfe ueber der Kartenauswahl (2026-08-30)
+
+User: "ich habe die texturen fuer die maps in ordner geordnet. es gibt jetzt 3 biome. kannst du
+bei der map auswahl bitte ganz oben noch 3 knoepfe reinpacken, ueber die man sein biom waehlen
+kann?"
+
+### Was der Ordner-Umzug still kaputt gemacht hatte
+
+Erster Griff war nicht die UI, sondern die Frage, was die Verschiebung mit der bestehenden
+Verdrahtung gemacht hat. Gemessen, bevor irgendetwas angefasst wurde:
+
+    ground: None
+    dense : None
+    light : None
+
+`sprites.py` hielt drei feste Namen (`wüste-boden`, `Dense_Cover-Desert`, `Light_Cover-Desert`)
+und loeste sie gegen `Sprites/` auf. Die Dateien liegen jetzt in
+`Sprites/Map Textures/<Biom>/`, also fiel der Renderer seit dem Umzug still auf seine
+Flat-Color-Fallbacks zurueck — sichtbar im Spiel, aber von KEINER Suite gefangen, weil
+`test_ground_texture.py` erst beim naechsten Lauf rot geworden waere. Die Wiederherstellung war
+damit die HAELFTE der Aufgabe und nicht ein Nebenprodukt der Knoepfe.
+
+### Der Fund, der die Default-Entscheidung getragen hat
+
+Per sha1 gegen `git show HEAD:` verglichen: die drei Dateien im Ordner `Dessert` sind
+**byte-identisch** mit den drei geloeschten. `Ground_Desert.jpg` IST `wüste-boden.jpg`
+(d6ab761d…), `Dense_Cover_Desert.jpg` ist die alte `Dense_Cover-Desert.jpg` (df3a19fb…),
+`Light_Cover-Desert.jpg` ist unveraendert (12bbb773…).
+
+Daraus folgt der Default (`desert`) UND eine belegbare Regressionsgarantie statt eines
+Versprechens: die drei alten Dateien aus git in ein Scratch-Verzeichnis geholt, die drei
+Lookups darauf gezeigt, gerendert, und gegen den Biom-Pfad gehasht —
+**map1/map2/map3 alle drei pixelidentisch**. Die ganze Umstellung ist unsichtbar, bis ein Knopf
+gedrueckt wird. Genau das ist im Test als Abschnitt 4 festgehalten (mit Kopien der
+Desert-Dateien AUSSERHALB der Biom-Ordner, weil die Originale aus dem Working Tree weg sind).
+
+### Warum die Dateinamen GEFUNDEN und nicht transkribiert werden
+
+Die drei gelieferten Ordner widersprechen sich untereinander:
+
+    City/    Dense_Cover_City.jpg    Ground_City.jpg    Light_Cover_City.jpg
+    Dessert/ Dense_Cover_Desert.jpg  Ground_Desert.jpg  Light_Cover-Desert.jpg   <- Bindestrich
+    Forest/  Dense_Cover_Forest.jpg  Ground_Forest.jpg  Light_Cover_Forest.jpg
+
+Dazu heisst der Ordner **"Dessert"**, waehrend jede Datei darin "Desert" sagt. Stehende
+Repo-Regel ist, dass DER ORDNER GEWINNT (acht Necron-Sprites, vier T'au-Sprites) — also waeren
+neun Transkriptionen plus ein Tippfehler neun Gelegenheiten zu driften, und die erste
+Umbenennung durch den User haette eine Textur still verschwinden lassen. Deshalb: die ROLLE wird
+ueber ihren Dateinamen-PRAEFIX gematcht, der ANZEIGENAME steht in der Tabelle (sonst staende
+"DESSERT" auf dem Knopf). Ein viertes Biom kostet eine Zeile plus den Ordner.
+
+Getrennt gehalten, damit kein Zyklus entsteht: `biomes.py` kennt kein Dateisystem (Tabelle +
+"welches ist gewaehlt"), `sprites.py` kennt `SPRITES_DIR`/`_EXTENSIONS` ohnehin schon einmal.
+
+### Was an den Bildern nachgesehen statt angenommen wurde
+
+Ob die neuen Boeden Kacheln oder Vollbilder sind, entscheidet, wie sie gezeichnet werden —
+`_draw_ground()` skaliert EINE Kopie ueber das ganze Brett, weil `wüste-boden.jpg` kein
+wiederholbares Muster ist. Kantenkontinuitaet gemessen (linke gegen rechte Spalte, obere gegen
+untere Zeile): keine der neun Texturen ist nahtlos, und `Ground_City`/`Ground_Forest` liegen bei
+13-25 gegen `Ground_Desert`s 73. Dann beide angesehen: beides szenische Vollbilder derselben
+Klasse wie das Wuestenbild. Also bleibt die Zeichenregel unveraendert, und es wurde kein
+per-Biom-Zeichenmodus erfunden, nach dem niemand gefragt hat.
+
+### Die probabilistische Falle in der Vorschau
+
+`map_preview` hielt EINEN Modul-Renderer. Dessen statischer Cache ist nach
+`(id(board), width_px, height_px, …)` gekeyt, und `board` ist in `_render()` ein Local, das beim
+Verlassen Muell ist. Dieselbe Karte unter einem zweiten Biom kann also eine recycelte id
+bekommen, den Eintrag des VORIGEN Bioms treffen und den falschen Boden blitten — echte Kollision
+(gleiche Karte -> gleiche Pixelmasse), und zufaellig auftretend, also die schlimmste Sorte.
+Jetzt ein frischer `Renderer` pro Render; `__init__` sind ein paar leere Dicts, und `_rendered`
+memoisiert auf hoechstens 3 Karten x 3 Biome.
+
+### Wo die Knoepfe hingehoeren, und warum das eine Messung war
+
+"Ganz oben" liesse sich als eigene Zeile ueber den Kacheln lesen. Gemessen, was das kostet: die
+Vorschauboxen rechnen ihre Hoehe aus `area.height - _text_height()`, eine Zeile darueber
+schrumpft also JEDES Brettbild auf dem Schirm. Also in den Kopfzeilen-Balken hinein, rechts
+neben die Ueberschrift. Auch das gemessen statt geschaetzt: Titel und Hinweiszeile sind feste
+Strings und enden bei 382 px; der Block (3x150 + 2x10 + Label) haelt bei 1280 px Fensterbreite
+noch ~380 px Abstand, bei 2560 entsprechend mehr. Als Pruefung an vier Aufloesungen fixiert.
+
+`tile_screen.header_bar()` ist die dafuer noetige Extraktion (zweiter Konsument: `draw_header()`
+zeichnet den Balken, `layout()` muss ihn kennen, um darin zu treffen) — zwei Stellen, die
+dasselbe Rechteck ausrechnen, sind genau, wie ein Bedienelement ein paar Pixel neben dem Balken
+landet, in dem es zu sitzen scheint.
+
+Die Knoepfe stehen in `map_select.py` und NICHT in `tile_screen.py`: der Armee-Screen hat keine
+Verwendung dafuer, und dieses Repo extrahiert am ZWEITEN Konsumenten.
+
+### config.BIOME wird beim Klick geschrieben — und warum das kein Regelbruch ist
+
+`map_preview.py`s Docstring verbietet ausdruecklich, dass der Screen `config` anfasst. Der Satz
+meint aber etwas Engeres, als er beim Ueberfliegen klingt: verboten ist, dass eine VORSCHAU die
+BRETTMASSE schreibt, also das Schlachtfeld allein dadurch entscheidet, dass man es ANGESEHEN
+hat. Hier entscheidet nichts durchs Ansehen, nur durchs Klicken, und ein Biom entscheidet
+ohnehin nichts am Spiel. Live geschrieben ist ausserdem das, was die Kacheln antworten laesst:
+so gibt es EINE Antwort auf "welches Biom", keine gewaehlte und eine gezeichnete. Als eigener
+Absatz in `choose_biome()` ausgeschrieben, damit der naechste Leser nicht denselben Verdacht neu
+pruefen muss.
+
+### Zwei A/B-Sonden bissen nicht — beide ein Befund ueber den TEST
+
+Neun Sonden, jede neutralisiert eine Klausel an der QUELLE. Sieben kippten sofort. Zwei nicht:
+
+1. **"der gewaehlte Knopf ist heller"** bestand mit fest verdrahtetem `pressed=False`. Gemessen,
+   warum: die Pruefung mittelte ueber die ganze Knopfflaeche und mass damit die TEXTMENGE —
+   "DESERT" hat schlicht mehr weisse Tinte als "CITY" (Fuellwerte 105 / 265 / 134). Sie misst
+   jetzt einen textfreien HINTERGRUND-Punkt (`rect.left + 10, rect.centery`) gegen
+   `button_style`s Paletten-Konstanten: `BG_ACTIVE (28,74,100)` fuer den gewaehlten,
+   `BG_NORMAL (10,24,40)` fuer die anderen zwei. Damit prueft sie den ZUSTAND und nicht die
+   Beschriftung.
+2. **"BIOME steht da"** bestand mit geloeschtem Label. Ursache: `draw_header()` zieht eine
+   akzentfarbene Trennlinie ueber die volle Balkenbreite, in genau derselben Farbe wie das
+   Label — 72 Pixel davon lagen im gezaehlten y-Bereich, die Schwelle war 20. Der y-Bereich ist
+   jetzt das Band des Knopfes selbst (gemessen: 220 Label-Pixel mit, 0 ohne).
+
+Beides Fehlerklasse 24 in Reinform, und beide waeren ohne Sonde als "gruen" durchgegangen.
+
+### Eine dritte Sonden-Faelschung, die den Sondenlauf selbst betraf
+
+Der erste Sondenlauf raeumte den Bytecode-Cache per
+`subprocess.run("find . -name __pycache__ ...", shell=True)` — das laeuft unter Windows in
+cmd.exe und meldete zehnmal "Das System kann den angegebenen Pfad nicht finden", also wurde nie
+etwas geloescht. Die Sonden bissen trotzdem (Groessenaenderung invalidiert), aber der Lauf
+haette jederzeit Fehlerklasse 19 produzieren koennen. Durch ein `os.walk`+`shutil.rmtree`
+ersetzt.
+
+### Und die Heredoc-Falle, zum wiederholten Mal
+
+`cat > test_biomes.py <<'PYEOF'` mit deutschen Anfuehrungszeichen und Apostrophen im Docstring
+brach mit `unexpected EOF while looking for matching '`. Genau die Regel, die CLAUDE.md als
+Fehlerklasse 21 fuehrt: solche Texte gehoeren ueber Write/Edit. Neu geschrieben, danach sauber.
+
+### Belege
+
+Neu `test_biomes.py` (**87/87**, fuenf Abschnitte: die Tabelle samt "Dessert"-Tippfehler und dem
+Unterschied zwischen `get()` (wirft) und `current()` (faellt zurueck); alle neun Bilder am MODELL
+gepinnt, also gegen Dateien, die wirklich auf der Platte liegen; "rein kosmetisch" von beiden
+Seiten; die Pixelgleichheit mit dem Vor-Aenderungs-Stand; die Knoepfe samt Klick-Routing, ESC,
+Repaint der Vorschauen und dem Pressed-Zustand).
+
+`test_ground_texture.py` wurde zu Recht rot — seine Pins nannten `Sprites/Ground.jpg` und
+`Sprites/Normal_Cover` und stuerzten mit `TypeError: not a file object` ab, weil
+`_resolve_path()` jetzt None liefert. Genau die sichtbare Aenderung, fuer die diese Pins gesetzt
+waren. Nachgezogen: es fixiert jetzt selbst ein Biom (damit die Zahlen, die es misst, nicht mit
+einer fremden Einstellung wandern) und prueft weiter nur die ZEICHENregeln — plus die
+Quadrat-Kachel-Zeile, die vorher an einer ausgelieferten Datei haengte und jetzt wie ihre
+2:1-Nachbarin eine synthetische Sonde benutzt.
+
+Volle Regression **153 Suiten, ~12797 Pruefungen, 152 gruen / 0 rot / 1 bekannt**, alle sechs
+Smokes (Exit-Codes ohne `tail`-Pipe gemessen — die dokumentierte Falle hatte mich einmal
+`exit=0` fuer einen fehlgeschlagenen Lauf lesen lassen, was `tail`s Exit-Code war), die drei
+`--neutralize`-Gegenproben weiterhin rot, und `selfplay.py map2` unter JEDEM der drei Biome
+(je 1500 Frames, exit 0, und die `[setup]`-Zeile jedes Logs nennt das richtige).
+
+`smoke_setup_screens.py` 11/11 -> **13/13**: er klickt jetzt ZUERST einen Biom-Knopf und dann
+erst die Kartenkachel, durch `main()`s echte Schleife, mit `forest` gegen das per Default
+gesetzte `desert` — ein Bestehen kann also nicht von den Defaults kommen. Geprueft wird nicht
+nur die Einstellung, sondern **wo der Renderer sein Bodenbild wirklich herliest**, und dass der
+Biom-Klick den Screen NICHT beendet: das ist das eigentliche Risiko, zwei Arten von Knoepfen auf
+einen Screen zu legen. `--neutralize` weiterhin rot (0/13).
+
+### Nachtrag: "Light_Cover_City.jpg sieht man nicht" — zwei Ursachen, eine davon ein Renderer-Fehler
+
+Gemeldet direkt nach der Biom-Etappe. Reproduziert statt geraten, und die Messung hat die
+naheliegende Diagnose ("die Kunst ist halt kontrastarm") nur zur HAELFTE bestaetigt.
+
+**Erst geprueft, ob die Textur ueberhaupt gezeichnet wird.** Sie wird: auf map1/map2/map3
+benutzen 4 / 8 / 10 Footprints den Light-Cover-Pfad (Terrain-AREAS ohne Dense-Feature). Es war
+also keine Verdrahtungsluecke.
+
+**Dann die Quellhelligkeit aller neun Bilder gemessen:**
+
+    city    ground (58,57,60)   dense (78,78,73)    light (85,84,88)
+    desert  ground (231,181,115) dense (116,103,87) light (167,124,81)
+    forest  ground (82,64,37)   dense (66,79,80)    light (68,61,45)
+
+Die City-Kunst liegt in der QUELLE nur ~27 Punkte auseinander, wo Desert 64-115 hat. Das ist
+die eine Haelfte.
+
+**Die andere Haelfte war ein echter, vorbestehender Renderer-Fehler.** Am Brett gemessen kam
+das City-Light-Cover als (65,64,67) heraus, waehrend die einfache Rechnung
+`0.784*85 + 0.216*58 = 79` sagt. Also fehlte Helligkeit, die die Kunst hat.
+
+`_tile_texture()` hat ZWEI Pfade. Ein achsparalleles Footprint wird per `set_clip()`
+beschnitten; ein GEDREHTES kann das nicht (set_clip nimmt nur ein Rect), seine Kacheln laufen
+deshalb ueber eine SRCALPHA-Hilfsflaeche plus Polygonmaske. Auf diesem zweiten Pfad wurde
+`TERRAIN_TILE_ALPHA` ZWEIMAL angewandt: einmal beim Blitten der (per `set_alpha`) durchsichtigen
+Kachel auf die Hilfsflaeche — also gegen deren transparentes SCHWARZ, was abdunkelt — und
+gleich noch einmal beim Zurueckblitten des Patches.
+
+An einer Vollton-Kachel isoliert nachgemessen, damit die Arithmetik eindeutig ist (200-grau ueber
+60-grau, alpha 200):
+
+    masked path (was das Brett benutzt)   got 154   erwartet 170   -> 16 zu dunkel
+    clip path   (mask_points=None)        got 167   erwartet 170   -> Rundung
+
+Und `_render_static_layer()` reicht IMMER `mask_points`, seit Terrain sich drehen darf. Der
+Fehler traf also jedes Footprint auf jeder Karte — jahrelang unsichtbar, weil die einzige
+ausgelieferte Textur-Sammlung die kontraststarke Wueste war. Bei 110 Punkten Ausgangskontrast
+sind 16 nicht zu sehen; bei den 27 der City-Kunst ist es mehr als die Haelfte.
+
+Nicht dieser Sitzung zuzuordnen: meine Aenderungen an `renderer.py` waren an dem Tag
+ausschliesslich Docstrings (geprueft), die Blend-Zeilen sind unveraendert die alten.
+
+**Der Fix laesst `alpha` in der MASKE mitreiten** statt es auf die Kachel zu setzen: Kacheln
+deckend auf die Hilfsflaeche, Maskenpolygon in Weiss mit `alpha` als eigenem Alpha, dann
+`BLEND_RGBA_MULT`. RGB wird mit 255 multipliziert (unveraendert), das Patch-Alpha wird `alpha`
+innerhalb des Polygons und 0 ausserhalb, und der eine Ruecktransfer IST dann exakt die Rechnung
+des Clip-Pfades. `tile.set_alpha()` wird seither pro Pfad EXPLIZIT gesetzt bzw. auf None
+geloescht — die Kachel-Surface ist zwischen allen Aufrufen desselben Pfades geteilt, ein
+stehengebliebenes Alpha des Clip-Pfades waere sonst genau derselbe Doppel-Blend zurueck.
+
+**Gemessen am echten Brett (map2), Kontrast Footprint gegen Boden:**
+
+    city   light   8.1 -> 20.9        city   dense   3.5 -> 11.1
+    desert light  80.2 -> 43.3        desert dense  98.2 -> 62.7
+    forest light  14.5 ->  6.0        forest dense  19.1 -> 20.1
+
+**Der Desert-Wert faellt, und das ist die bewusste Nebenwirkung, keine Verschlechterung durch
+Unachtsamkeit:** das Wuesten-Cover ist DUNKLER als sein Boden, das Wegnehmen der
+Extra-Abdunklung schiebt es also zum Boden hin. 43 ist weiterhin voellig eindeutig — im Bild
+geprueft, nicht nur gerechnet: graue Ruinenplatten auf hellem Sand. Damit gilt die frueher
+notierte Zusage "der Default ist pixelidentisch zum Vor-Aenderungs-Stand" nur noch fuer die
+AUFLOESUNG (Biom-Pfad gegen alten Pfad, beide durch denselben Renderer), nicht mehr absolut;
+CLAUDE.md und `test_biomes.py`s Abschnitt 4 sind entsprechend praezisiert statt stehen gelassen.
+
+**Ein Befund ueber die MESSMETHODE, der fast zu einem falschen Schluss gefuehrt haette:**
+Forest-Light-Cover faellt in dieser Tabelle auf 6.0 — und ist am Bildschirm trotzdem klar
+sichtbar (dunkle Holzbalken auf moosigem Boden). Mittlerer Farbabstand ist ein GROBER Proxy fuer
+"sieht man es": was die Forest-Barrikade traegt, ist das MUSTER, nicht die mittlere Helligkeit.
+Deshalb wurde jedes Biom zusaetzlich angesehen. Haette ich nur die Zahl gelesen, waere die
+naechste Aktion gewesen, an einer Textur herumzudrehen, die in Ordnung ist.
+
+### Belege
+
+`test_ground_texture.py` 31 -> **38/38**, neuer Abschnitt: beide Pfade gegen die HIER gerechnete
+Blend-Formel (nicht nur gegeneinander — zwei gleich falsche Implementierungen bestuenden das
+auch), dass sie uebereinstimmen, dass die Maske weiter maskiert (halbes Rechteck, damit "es
+clippt" nicht dadurch besteht, dass gar nichts gezeichnet wird), und dass ein Clip-Aufruf kein
+Alpha auf der geteilten Kachel hinterlaesst. Toleranz 4, weil pygames eigener Alpha-Blit beide
+Pfade 3 Punkte tief landen laesst — weit unter den 16, um die es geht.
+
+A/B mit der GANZEN Vor-Fix-Welt (beide Zeilen zurueck): **34 von 38**, und die erste rote Zeile
+meldet woertlich `got (154, 154, 154)` gegen `to (170, 170, 170)` — die gemeldete Zahl, nicht
+ein Stellvertreter dafuer.
+
+Volle Regression **153 Suiten, ~12805 Pruefungen, 152 gruen / 0 rot / 1 bekannt**, alle sechs
+Smokes, drei `--neutralize`-Gegenproben rot, `selfplay.py map2` unter allen drei Biomen.

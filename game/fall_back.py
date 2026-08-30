@@ -24,6 +24,8 @@ and charge.py's can_declare_charge()) and "cannot start an action" (a no-op
 - this engine has no Actions system yet, same as every other move type's
 identical clause)."""
 
+from game import cornered_prey
+
 from game.hazard import HazardRollStep
 
 IDLE = "idle"
@@ -45,6 +47,28 @@ class FallBackController:
         self.mode = None
         self._hazard_step = None  # HazardRollStep while Desperate Escape's post-move hazard roll is pending
 
+    # Set by main.py, like MovementController.action_controller - a class
+    # attribute so every existing FallBackController keeps working without
+    # a constructor change.
+    all_tokens = None
+
+    #: Listeners for "this unit has just Fallen Back" - see confirm(). A class
+    #: attribute for the same reason all_tokens above is one: every existing
+    #: FallBackController (tests, harnesses) keeps working without a
+    #: constructor change. main.py appends to it.
+    on_fall_back_finished = ()
+
+    #: Listeners for "this unit has just been SELECTED to Fall Back" - see
+    #: declare(). A separate list from the one above because the two are
+    #: separate instants, and two Stratagems read one each.
+    on_fall_back_declared = ()
+
+    def _all_tokens(self):
+        """Cornered Prey is the only thing here that needs the board, and it
+        degrades to "no bearer nearby" without one - which is what every
+        existing caller and harness gets."""
+        return self.all_tokens or ()
+
     def declare(self, squad):
         """Rule 09.07: begin declaring a Fall Back move for squad (must
         already be engaged - can_make_fall_back_move() gates the "Fall
@@ -57,7 +81,19 @@ class FallBackController:
         if self.state != IDLE or squad is None or not self.movement_controller.can_make_fall_back_move(squad):
             return
         self.acting_squad = squad
-        if squad.battle_shocked:
+        # "Just after an enemy unit IS SELECTED to Fall Back" - Aspect Host's
+        # Khaine's Vengeance, and a DIFFERENT instant from the one
+        # on_fall_back_finished publishes in confirm(): that one is "just after
+        # a unit FALLS BACK", after the move. One word apart on the two cards,
+        # two hooks here.
+        for listener in (self.on_fall_back_declared or ()):
+            listener(squad)
+        # The Clanblade's Cornered Prey forces the mode on a unit that is NOT
+        # battle-shocked and would otherwise have a real choice - which is
+        # what makes it a different clause from the battle-shock rule beside
+        # it rather than a restatement. See game/cornered_prey.py.
+        if squad.battle_shocked or cornered_prey.forces_desperate_escape(
+                squad, self._all_tokens()):
             self.choose_mode(DESPERATE_ESCAPE)
         else:
             self.state = CHOOSING_MODE
@@ -67,6 +103,9 @@ class FallBackController:
             return
         if mode == ORDERED_RETREAT and self.acting_squad.battle_shocked:
             return  # rule 09.07: Ordered Retreat isn't available to a battle-shocked unit
+        if mode == ORDERED_RETREAT and cornered_prey.forces_desperate_escape(
+                self.acting_squad, self._all_tokens()):
+            return  # Cornered Prey: "must use the desperate escape mode"
         self.mode = mode
         self.state = IDLE  # nothing more to show pre-move - the normal MOVING-state Confirm/Cancel UI takes over
         self.movement_controller.start_fall_back_move(mode)
@@ -91,8 +130,23 @@ class FallBackController:
         self.movement_controller.confirm_move()
         if self.movement_controller.errors:
             return  # failed (e.g. still engaged) - stays in MOVING for another attempt, same as Charge/Pile-In/Consolidate
+        # "Just after an ASURYANI unit from your army Falls Back" - Warhost's
+        # Feigned Retreat, and the first thing that ever wanted this moment.
+        # A LIST for the same reason on_ingress_resolved and
+        # on_squad_finished_shooting are lists rather than single slots.
+        #
+        # HERE, not after the Desperate Escape hazard roll below: the printed
+        # WHEN is "just after it Falls Back", and the roll is a consequence of
+        # one KIND of Fall Back. Ordering it later would also mean the offer
+        # never appears for a unit that roll wipes out, which the text does not
+        # say. And only on a move that actually SUCCEEDED - the early return
+        # above is what makes that true.
+        for listener in (self.on_fall_back_finished or ()):
+            listener(squad)
         if self.mode == DESPERATE_ESCAPE and self.dice_manager is not None and squad is not None and squad.models:
-            self._hazard_step = HazardRollStep(squad, len(squad.models), self.dice_manager, log=self._log)
+            self._hazard_step = HazardRollStep(
+                squad, len(squad.models), self.dice_manager, log=self._log,
+                penalty=cornered_prey.hazard_penalty_for(squad, self._all_tokens()))
         else:
             self.mode = None
             self.acting_squad = None

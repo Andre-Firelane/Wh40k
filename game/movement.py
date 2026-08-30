@@ -1,7 +1,10 @@
 from game import config, geometry
+from game import scuttling_walker
 from game.coherency import coherency_report
 from game import whirling_death
 from game.coldstar import effective_movement_in
+from game import guardian_time_to_strike
+from game import montka_aggressive_mobility, montka_pulse_onslaught
 from game.dice import ADVANCE_ROLL
 from game.roll_bonus import advance_and_charge_bonus
 from game.squad import model_engaged_with, model_terrain_violation, model_overlaps_any
@@ -25,7 +28,14 @@ def advance_total(squad, values, all_tokens=None):
     it to reconcile a Command Re-roll (15.02) against what was applied. Both
     are MovementController methods, so both pass self.all_tokens; the argument
     is optional so a caller without a board still gets the flag-based half."""
-    return sum(values) + advance_and_charge_bonus(squad, all_tokens)
+    # Mont'ka's Pulse Onslaught leaves a unit `shaken`: -2 on Advance rolls
+    # made for it. Folded here rather than at start_run() so
+    # on_dice_acknowledged()'s Command Re-roll reconciliation sees the same
+    # number - the whole reason this helper exists. Floored at 0: a negative
+    # Advance would move the unit backwards.
+    total = (sum(values) + advance_and_charge_bonus(squad, all_tokens)
+             - montka_pulse_onslaught.roll_penalty_for(squad))
+    return max(0, total)
 
 # Pull back slightly from an obstacle boundary when blocked, so the model doesn't
 # land exactly on the edge (which would falsely re-block any further slide along it).
@@ -33,6 +43,62 @@ OBSTACLE_PULLBACK_IN = 0.01
 
 TAKE_TO_THE_SKIES_DISTANCE_PENALTY_IN = 2.0  # rule 21.03
 RETRO_THRUSTER_MOVE_IN = 6.0  # The Twin Lance's Retro-thrusters: "a Normal move of up to 6\"" - the ability names the distance, so it is NOT the unit's own M characteristic (which is 10" and would be wrong in its favour); see start_retro_thruster_move()
+
+
+def take_to_the_skies_pays(squad):
+    """Would declaring 21.03 leave this unit BETTER off? Eligibility is
+    can_take_to_the_skies() (a MovementController method, because it is a
+    question about a move in progress); this is the separate question of
+    whether the declaration is worth making, and it is a pure function of who
+    in the squad flies.
+
+    WHERE IT CAME FROM. This started as a workaround for the two halves of
+    21.03 being applied to different sets of models: take_to_the_skies()
+    charged the penalty to the whole squad while clamp_move() granted the
+    bypass only to FLY models. Reported as "die necron krieger sind hinten
+    nicht rausgekommen. sie hatten enorme schwierigkeiten nach vorne zu
+    laufen"; measured on the logged unit, 21 of 21 models paid and 1 of 21
+    flew, cutting twenty Necron Warriors from a 5" move to a 3" one every
+    Movement phase. THAT DEFECT IS NOW FIXED AT SOURCE - the user ruled "es
+    fliegen nur fly modelle", so take_to_the_skies() charges only the flyers -
+    and this function is no longer compensating for it. What is left here is
+    the genuine question it was always named for.
+
+    HOVER (24.17) removes the penalty outright, and take_to_the_skies() reads
+    that off ANY model in the squad, so for those units the declaration is
+    free and there is nothing to weigh - take it whenever a model can.
+
+    AN ALL-INFANTRY UNIT NEVER DECLARES IT, whatever it has for keywords
+    otherwise. User ruling: "einheiten, die ausschliesslich aus infanterie
+    modellen bestehen sollten niemals take to the skies benutzen, weil sie ja
+    eh durch waende laufen koennen." Rule 13.06 already lets INFANTRY (and
+    BEASTS/SWARM/MOBILE) cross Dense terrain for free, so the terrain half of
+    21.03 - the half worth having - buys such a unit nothing it did not already
+    have. What is left is the pass-through-models half, and that is not worth
+    2" off every model. This is a "niemals", so it is checked BEFORE the HOVER
+    branch below rather than after it.
+
+    It is deliberately the INFANTRY keyword and not can_move_through_dense_
+    terrain(), even though 13.06 covers four keywords: the ruling names
+    infantry, and BEASTS in particular are a different case (the Canoptek
+    Wraiths cross walls by 13.06 AND fly, and nobody asked to ground them).
+    When a BEASTS/SWARM unit that flies is next reported, that is the moment to
+    widen this - not now, guessing.
+
+    NOT a judgement call handed to the agent, and deliberately so: this is
+    arithmetic over profile flags with no board state in it, the same reason
+    the policy it replaces was deterministic."""
+    flyers = [m for m in squad.models if m.profile.fly]
+    if not flyers:
+        return False
+    if all(m.profile.infantry for m in squad.models):
+        return False  # rule 13.06 already gives them the terrain half for free
+    if any(m.profile.hover for m in squad.models):
+        return True  # rule 24.17: no distance penalty, so nothing to trade off
+    # A partial declaration only handicaps the flyers relative to the squad
+    # they have to stay in coherency with (09.02), and the walkers still cannot
+    # cross what they could not cross before.
+    return len(flyers) == len(squad.models)
 
 
 class MovementController:
@@ -351,7 +417,8 @@ class MovementController:
     #: the move, it just carried on". First for Fade Back, when nothing looked at
     #: the open move at all; then for Rangers' Path of the Outcast, when the gate
     #: looked but compared against the string "battle_focus" only.
-    REACTIVE_MOVE_MODES = frozenset({"battle_focus", "path_of_the_outcast"})
+    REACTIVE_MOVE_MODES = frozenset({"battle_focus", "path_of_the_outcast",
+                                     "raid_and_run", "overflight"})
 
     def start_battle_focus_move(self, squad, max_distance, move_mode="battle_focus"):
         """A reactive Normal move of an already-rolled distance, taken in the
@@ -452,7 +519,7 @@ class MovementController:
         either not a move that can Advance (charge, pile_in, consolidate,
         surge, fall_back) or a move granted by something else whose printed
         text says "a Normal move" - scout (24.32), torchstar, tactical_acumen,
-        battle_focus, path_of_the_outcast, retro_thrusters.
+        fire_and_fade, battle_focus, path_of_the_outcast, retro_thrusters.
 
         The remaining three terms mirror start_run()'s own refusals, so the
         button appears exactly when clicking it would do something (this
@@ -477,8 +544,23 @@ class MovementController:
         # then nothing for rule 15.02's Command Re-roll to replace, and
         # _pending_advance (whose only job is to correct such a re-roll) is
         # correctly left unset.
+        # Mont'ka's Aggressive Mobility is the SECOND source of exactly this
+        # shape - "do not make an Advance roll for it. Instead ... add 6 inches"
+        # - so it takes the same no-die branch rather than a second one. The
+        # two can never both apply (one is Aeldari, one T'au); Whirling Death
+        # is asked first only because it was here first.
+        no_roll_bonus = None
         if whirling_death.unit_has_jain_zar(self.selected_squad):
-            bonus = whirling_death.begin_advance(self.selected_squad)
+            no_roll_bonus = (whirling_death.begin_advance(self.selected_squad),
+                             "Whirling Death")
+        elif montka_aggressive_mobility.skips_advance_roll(self.selected_squad):
+            no_roll_bonus = (montka_aggressive_mobility.AGGRESSIVE_MOBILITY_BONUS_IN,
+                             montka_aggressive_mobility.AGGRESSIVE_MOBILITY_NAME)
+        elif guardian_time_to_strike.skips_advance_roll(self.selected_squad):
+            no_roll_bonus = (guardian_time_to_strike.TIME_TO_STRIKE_BONUS_IN,
+                             guardian_time_to_strike.TIME_TO_STRIKE_NAME)
+        if no_roll_bonus is not None:
+            bonus, _label = no_roll_bonus
             for model in self.selected_squad.models:
                 self.remaining_range[model.id] = self.remaining_range.get(model.id, 0.0) + bonus
             self.run_used = True
@@ -486,7 +568,7 @@ class MovementController:
             if self.game_log is not None:
                 self.game_log.add(
                     f"{self._active_player_name()} has {self.selected_squad.name} advance "
-                    f'(Whirling Death: no roll, a flat {bonus}").'
+                    f'({no_roll_bonus[1]}: no roll, a flat {bonus}").'
                 )
             return
 
@@ -562,10 +644,27 @@ class MovementController:
         if not self.can_take_to_the_skies():
             return
         self.flying_this_move = True
+        # ONLY THE FLY MODELS PAY, because only they are moved this way. User
+        # ruling on the printed rule, asked for after the two halves were found
+        # to disagree: "es fliegen nur fly modelle." clamp_move()'s bypass has
+        # always been gated per model on token.profile.fly, so that side was
+        # already right; this loop charged the 2" to the whole squad, which is
+        # what made an attached unit (19.01) with a single flying leader pay
+        # twenty times over for one model's bypass - reported as "die necron
+        # krieger sind hinten nicht rausgekommen", measured at 21/21 models
+        # paying against 1/21 flying, i.e. a 5" move cut to 3" for twenty
+        # Necron Warriors every Movement phase.
+        #
         # Rule 24.17 (HOVER): "do not subtract 2" from the maximum distance"
-        # - the rest of Take to the Skies (ignoring terrain/models) still applies.
+        # - the rest of Take to the Skies (ignoring terrain/models) still
+        # applies. Left as a squad-wide exemption rather than being made
+        # per-model along with the penalty: that is the existing reading, no
+        # datasheet in any of the four rosters prints HOVER, and narrowing it
+        # was not part of the ruling above.
         if not any(m.profile.hover for m in self.selected_squad.models):
             for model in self.selected_squad.models:
+                if not model.profile.fly:
+                    continue
                 self.remaining_range[model.id] = max(
                     0.0, self.remaining_range.get(model.id, 0.0) - TAKE_TO_THE_SKIES_DISTANCE_PENALTY_IN,
                 )
@@ -664,6 +763,13 @@ class MovementController:
 
     # Set by main.py - rule 16.01's move-cancellation hook, see confirm_move().
     action_controller = None
+    # Set by main.py - the Shadow Weaver Platform's snare, read at the same
+    # seam and for the same reason. A class attribute like the one above, so
+    # every existing MovementController (tests, harnesses) keeps working
+    # without a constructor change.
+    monofilament_snare = None
+    # Set by main.py - the Exodites' Drakolithe, read at the same seam.
+    drakolithe = None
 
     def confirm_move(self):
         if self.selected_squad is None:
@@ -732,7 +838,8 @@ class MovementController:
             self.selected_squad.fights_first = True
             self.selected_squad.charged_this_turn = True
         elif self.move_mode not in ("pile_in", "consolidate", "scout", "torchstar",
-                                    "tactical_acumen", "battle_focus", "path_of_the_outcast"):
+                                    "tactical_acumen", "fire_and_fade",
+                                    "battle_focus", "path_of_the_outcast"):
             # The two post-shooting modes are excluded for a related reason
             # (see start_post_shooting_move()): they happen in the SHOOTING
             # phase and are
@@ -812,6 +919,19 @@ class MovementController:
         # recognised by name rather than guessed at.
         if self.action_controller is not None:
             self.action_controller.notify_move(self.selected_squad, self.move_mode)
+        # The Shadow Weaver Platform's Monofilament Snare: a snared unit rolls
+        # a D6 per model each time it makes a Normal, Advance or Fall Back move
+        # and bleeds a mortal wound for every 1. Reported from the SAME seam as
+        # rule 16.01 above - confirm_move() is the one place every confirmed
+        # move passes through, and the move's own mode is what tells the two
+        # rules apart from a Charge or a Pile-In.
+        if self.monofilament_snare is not None:
+            self.monofilament_snare.notify_move(self.selected_squad, self.move_mode)
+        # The Exodites' Drakolithe reacts to the same instant, but to ANY move:
+        # its printed text names no move types where the snare above names
+        # three. See game/drakolithe.py.
+        if self.drakolithe is not None:
+            self.drakolithe.notify_move(self.selected_squad, self.move_mode)
         # Captured before the clear below wipes it - see on_scout_move_finished.
         _finished_scout = self.selected_squad if self.move_mode == "scout" else None
         self._clear_move_state()
@@ -927,10 +1047,17 @@ class MovementController:
             obstacle_fraction = geometry.max_unblocked_fraction(
                 (ox, oy), (x_in, y_in), blocking_obstacles, inflate_radius=token.radius_in
             )
-            if self.desperate_escape_this_move:
+            if self.desperate_escape_this_move or scuttling_walker.can_cross_models(token):
                 # Rule 09.07 (Desperate Escape): models "may be moved across
                 # other models" - unlike Take to the Skies above, this bypass
                 # is models-only, terrain still blocks normally.
+                #
+                # The Defiler's Scuttling Walker joins it here rather than in
+                # the FLY branch above, and the difference matters: it moves
+                # THROUGH models and terrain but is still bound by rule 09.02's
+                # end-of-move checks, so it cannot FINISH inside a wall or in
+                # Engagement Range. Its terrain half is handled one level down,
+                # in Obstacle.blocks_movement_for().
                 model_fraction = 1.0
             else:
                 model_fraction = geometry.max_unblocked_fraction_models(

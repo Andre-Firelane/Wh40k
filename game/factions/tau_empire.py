@@ -26,10 +26,16 @@ no number is repeated. See game/factions/points.py for the structure."""
 
 from game.drones import (
     DRONE_GROUP, DRONE_SLOTS, SPECIAL_DRONE_GROUP, SPECIAL_DRONE_SLOTS,
+    HOVER_DRONE_GROUP, HOVER_DRONE_SLOTS, hover_drone_gear,
     drone_options, gun_drone_gear, marker_drone_gear, special_drone_options,
 )
+from game.battlesuit_wargear import (
+    BATTLESUIT_SUPPORT_GROUP, BATTLESUIT_SUPPORT_SLOTS, support_menu_gear,
+)
+from game.bounty_hunters import pechra_gear
+from game.oversight_drone import oversight_drone_gear
 from game.homing_beacon import homing_beacon_gear
-from game.factions import Datasheet, Detachment, Enhancement, Faction, ModelLine, WargearOption, register_faction
+from game.factions import Datasheet, Detachment, Enhancement, Faction, Gear, ModelLine, WargearOption, register_faction
 from game.factions.tau_empire_points import TAU_EMPIRE_POINTS
 from game.units import (
     BreacherFireWarriorProfile, BreacherFireWarriorShasUiProfile, CadreFirebladeProfile,
@@ -37,6 +43,15 @@ from game.units import (
     CrisisStarscytheShasUiProfile, CrisisStarscytheShasVreProfile,
     CrisisSunforgeShasUiProfile, CrisisSunforgeShasVreProfile, DevilfishProfile, FireWarriorProfile,
     FireWarriorShasUiProfile, GhostkeelProfile, KrootCarnivoreProfile, LongQuillProfile,
+    HammerheadGunshipProfile, PiranhaProfile, SkyRayGunshipProfile,
+    BroadsideShasUiProfile, BroadsideShasVreProfile,
+    CrisisFireknifeShasUiProfile, CrisisFireknifeShasVreProfile,
+    CommanderShadowsunProfile, DarkstriderProfile, EnforcerCommanderProfile, EtherealProfile,
+    FarstalkerHoundProfile, KrootFarstalkerProfile, KrootHoundProfile, KrootKillBrokerProfile,
+    KrootoxRampagerProfile, KrootoxRiderProfile,
+    VespidStingwingProfile, VespidStrainLeaderProfile,
+    FiresightMarksmanProfile,
+    KrootFleshShaperProfile, KrootLoneSpearProfile, KrootTrailShaperProfile, KrootWarShaperProfile,
     PathfinderProfile, PathfinderShasUiProfile, RiLantarProfile, RiLocaiProfile, RiptideProfile,
     StealthShasUiProfile, StealthShasVreProfile,
 )
@@ -46,6 +61,24 @@ from game.weapons import (
     CyclicIonRakerStandardProfile, DevilfishTwinPulseCarbineProfile, FirebladePulseRifleProfile,
     FusionBlasterProfile, FusionColliderProfile, GhostkeelFistsProfile, HeavyBurstCannonProfile,
     HighOutputBurstCannonProfile, IonAcceleratorStandardProfile,
+    HammerheadTwinPulseCarbineProfile, IonCannonStandardProfile, PiranhaArmouredHullProfile,
+    PiranhaBurstCannonProfile, PiranhaFusionBlasterProfile, RailgunProfile,
+    SeekerMissileRackProfile,
+    BroadsideTwinSmartMissileSystemProfile, CrushingBulkProfile, HeavyRailRifleProfile,
+    HighYieldMissilePodsProfile,
+    DvorgiteSkinnerProfile, FarstalkerFirearmProfile, KrootPistolAndHuntingJavelinsProfile,
+    KrootoxFistsProfile, LondaxiTribalestProfile, NeutronBlasterProfile,
+    NeutronGrenadeLauncherProfile, NeutronRailRifleProfile, RampagerCloseCombatWeaponProfile,
+    RampagerKrootoxFistsProfile, RepeaterCannonProfile, RippingFangsProfile, RitualBladeProfile,
+    StingwingClawsProfile, TanglecannonProfile, TauTechRifleProfile,
+    AirburstingFragmentationProjectorProfile, FlechetteLauncherProfile,
+    HighEnergyFusionBlasterProfile, LightMissilePodProfile, PlasmaRifleProfile,
+    BlastJavelinProfile, DarkstriderCloseCombatWeaponProfile, FiresightCloseCombatWeaponsProfile,
+    HonourStaveProfile, HuntingJavelinProfile, KalamandrasBiteProfile, KrootLongGunProfile,
+    LoneSpearCloseCombatWeaponProfile, LongshotPulseRiflesProfile, ShadeProfile,
+    BladestaveAndPreyHookProfile, DartBowAndTriBladeProfile, KrootScattergunProfile,
+    ShapersBladeProfile, TwinRitualisticBladesProfile,
+    DroneMissilePodProfile,
     KrootCloseCombatWeaponProfile, KrootPistolProfile, KrootRifleProfile, MissilePodProfile,
     PulseBlasterProfile,
     PulseCarbineProfile, PulsePistolProfile, PulseRifleProfile, RiptideFistsProfile,
@@ -64,20 +97,30 @@ TAU_EMPIRE = Faction("T'au Empire", "T'AU EMPIRE")
 
 RETALIATION_CADRE = TAU_EMPIRE.add_detachment(Detachment(
     "Retaliation Cadre",
+    rule_name="Bonded Heroes",
+    setting="RETALIATION_CADRE_PLAYERS",
+    points=3,
     rule_text=(
-        'Bonded Heroes: Each time a T\'au Empire Battlesuit model from your army makes a '
+        'Each time a T\'AU EMPIRE BATTLESUIT model from your army makes a '
         'ranged attack that targets a unit within 12", improve the Strength characteristic '
         'of that attack by 1. If that attack targets a unit within 9", improve the Armour '
         'Penetration characteristic of that attack by 1 as well.'
     ),
-    # Unlike `rule_text` and `stratagems` above, this Enhancement IS
+    # Unlike `rule_text` and `stratagems` above, Starflare Ignition System IS
     # engine-wired (game/starflare_ignition.py) - the record here is its
     # descriptive half, and game/starflare_ignition.py's grant() is what
-    # actually puts it on a model. Filed under this detachment because it is
-    # the only one that exists; the user supplied it as a T'au Empire
-    # Enhancement without naming a detachment, so that placement is an
-    # assumption, not something read off the source.
+    # actually puts it on a model.
+    #
+    # Its placement under this detachment used to be an ASSUMPTION (the user
+    # supplied it as a T'au Empire Enhancement without naming a detachment).
+    # rules/tau_empire/detachments/Retaliation Cadre.md now confirms it, and
+    # names the other three, which are recorded bare - the same descriptive
+    # shape game/factions/death_guard.py uses, with the printed text living in
+    # the corpus rather than being copied here.
     enhancements=[
+        Enhancement("Internal Grenade Racks", 20),
+        Enhancement("Prototype Weapon System", 15),
+        Enhancement("Puretide Engram Neurochip", 15),
         Enhancement(
             "Starflare Ignition System", 20,
             description=(
@@ -91,13 +134,125 @@ RETALIATION_CADRE = TAU_EMPIRE.add_detachment(Detachment(
             restricted_to="BATTLESUIT",
         ),
     ],
-    # `stratagems` is deliberately left empty: this detachment's two
-    # stratagems (Stim Injectors, The Arro'kon Protocol) are engine-wired
-    # in game/stim_injectors.py and game/arrokon_protocol.py, and a real
-    # game.stratagems.Stratagem needs a per-battle controller for its
-    # `effect` - so the objects are built in main.py, not stored as static
-    # faction data. Same relationship the Bonded Heroes rule_text above has
-    # to game/retaliation_cadre.py.
+    # `stratagems` is deliberately left empty: this detachment's six
+    # stratagems are engine-wired one module each (game/stim_injectors.py,
+    # game/arrokon_protocol.py, game/shortened_blade.py,
+    # game/torchstar_gambit.py, game/grav_inhibitor_field.py,
+    # game/fail_safe_detonator.py), and a real game.stratagems.Stratagem needs
+    # a per-battle controller for its `effect` - so the objects are built in
+    # main.py, not stored as static faction data. Same relationship the Bonded
+    # Heroes rule_text above has to game/retaliation_cadre.py.
+))
+
+# --- The other T'au detachments ------------------------------------------
+# Descriptive records only, exactly like the one above: `rule_text` is the
+# printed rule (verbatim from rules/tau_empire/detachments/*.md, which is the
+# transcription source), enhancements are recorded bare, and `stratagems` stays
+# empty because a live Stratagem needs a per-battle controller.
+#
+# What each one DOES carry that matters to the engine is `setting`: the
+# game/config.py constant naming who fields it. game/detachments.py writes
+# those from the player's choice, and each detachment rule's own module reads
+# only its own - which is what stops Bonded Heroes from applying to a Kauyon
+# army. Adding a record here therefore makes a detachment SELECTABLE; making
+# it DO something is a separate module, and until that exists the detachment
+# is honestly inert rather than silently borrowing another one's rule.
+
+KAUYON = TAU_EMPIRE.add_detachment(Detachment(
+    "Kauyon",
+    rule_name="Patient Hunter",
+    setting="KAUYON_PLAYERS",
+    points=2,
+    rule_text=(
+        "During the third, fourth and fifth battle rounds, ranged weapons equipped by "
+        "T'AU EMPIRE models from your army have the [SUSTAINED HITS 1] ability. During the "
+        "third, fourth and fifth battle rounds, while a unit is a Guided unit (see For the "
+        "Greater Good), each time a ranged attack is made by a model in that unit that "
+        "targets a Spotted unit, you can ignore any or all modifiers to that attack's "
+        "Ballistic Skill characteristic and/or all modifiers to the Hit roll."
+    ),
+    enhancements=[
+        Enhancement("Exemplar of the Kauyon", 20),
+        Enhancement("Precision of the Patient Hunter", 15),
+        Enhancement("Solid-image Projection Unit", 20),
+        Enhancement("Through Unity, Devastation", 30),
+    ],
+))
+
+MONTKA = TAU_EMPIRE.add_detachment(Detachment(
+    "Mont'ka",
+    rule_name="Killing Blow",
+    setting="MONTKA_PLAYERS",
+    points=3,
+    rule_text=(
+        "During the first, second and third battle rounds, ranged weapons equipped by "
+        "T'AU EMPIRE models from your army have the [ASSAULT] ability. During the first, "
+        "second and third battle rounds, while a unit is a Guided unit, its ranged weapons "
+        "have the [LETHAL HITS] ability."
+    ),
+    enhancements=[
+        Enhancement("Coordinated Exploitation", 30),
+        Enhancement("Exemplar of the Mont'ka", 10),
+        Enhancement("Strategic Conqueror", 15),
+        Enhancement("Strike Swiftly", 45),
+    ],
+))
+
+EXPERIMENTAL_PROTOTYPE_CADRE = TAU_EMPIRE.add_detachment(Detachment(
+    "Experimental Prototype Cadre",
+    rule_name="Superior Craftsmanship",
+    setting="EXPERIMENTAL_PROTOTYPE_CADRE_PLAYERS",
+    points=1, tag="BATTLESUIT",
+    rule_text=(
+        'Friendly BATTLESUIT CHARACTER units\' ranged attacks have +6" Range.\n'
+        "This detachment has the BATTLESUIT tag and cannot be taken with another "
+        "BATTLESUIT detachment."
+    ),
+    enhancements=[
+        Enhancement("Thermoneutronic Projector", 15),
+        Enhancement("Plasma Accelerator Rifle", 20),
+        Enhancement("Supernova Launcher", 15),
+    ],
+))
+
+ADVANCED_ACQUISITION_CADRE = TAU_EMPIRE.add_detachment(Detachment(
+    "Advanced Acquisition Cadre",
+    rule_name="Expert Fieldcraft",
+    setting="ADVANCED_ACQUISITION_CADRE_PLAYERS",
+    points=1,
+    rule_text=(
+        "In your Shooting phase, when a friendly PATHFINDER TEAM/STEALTH BATTLESUITS unit "
+        "is selected to shoot, those ranged attacks do not prevent your unit from being "
+        "hidden."
+    ),
+    enhancements=[
+        Enhancement("Negation Emitters", 15),
+        Enhancement("Unmasking Suite", 15),
+    ],
+))
+
+AUXILIARY_CADRE = TAU_EMPIRE.add_detachment(Detachment(
+    "Auxiliary Cadre",
+    rule_name="Integrated Command Structure",
+    setting="AUXILIARY_CADRE_PLAYERS",
+    points=1, tag="AUXILIARIES",
+    rule_text=(
+        "Friendly KROOT/VESPID STINGWINGS units have the following ability:\n"
+        'Harnessed Alien Instincts: In your Shooting phase, this unit can select one '
+        'visible enemy unit within 12". That enemy unit is prey-marked: while a unit is '
+        'prey-marked, that unit has +3" detection range.\n'
+        "Friendly GHOSTKEEL BATTLESUIT/STEALTH BATTLESUITS units have the following "
+        "ability:\n"
+        'Localised Stealth Projectors (Aura): When a friendly KROOT/VESPID STINGWINGS unit '
+        'within 6" of this unit has shot, those attacks do not prevent that unit from '
+        "being hidden.\n"
+        "This detachment has the AUXILIARIES tag and cannot be taken with another "
+        "AUXILIARIES detachment."
+    ),
+    enhancements=[
+        Enhancement("Student of Kauyon", 20),
+        Enhancement("Admired Leader", 20),
+    ],
 ))
 
 # Baseline loadout for both model lines - Close combat weapon, Pulse pistol,
@@ -230,6 +385,923 @@ KROOT_CARNIVORES = TAU_EMPIRE.add_datasheet(Datasheet(
 # `scouts`/`stealth` fields (Stealth is fully implemented, rule 24.33;
 # Scouts is stored but still deferred, see UnitProfile.scouts).
 
+# --- The three Kroot Shapers ---
+#
+# One datasheet each, but they share a stat line (KrootShaperProfile in
+# game/units.py), the same four core abilities and the same LEADER line, so
+# they are kept together here. None of them has a wargear option except the
+# War Shaper's single weapon swap, and none has drone gear - they are Kroot.
+
+_FLESH_SHAPER_LINE = "Kroot Flesh Shaper"
+_FLESH_SHAPER_LOADOUT = [KrootScattergunProfile, TwinRitualisticBladesProfile]
+
+KROOT_FLESH_SHAPER = TAU_EMPIRE.add_datasheet(Datasheet(
+    "Kroot Flesh Shaper",
+    keywords=("INFANTRY", "CHARACTER", "KROOT", "SHAPER", "FLESH SHAPER"),
+    model_lines=[
+        ModelLine(KrootFleshShaperProfile, 1, _FLESH_SHAPER_LOADOUT, name=_FLESH_SHAPER_LINE),
+    ],
+    points=TAU_EMPIRE_POINTS["Kroot Flesh Shaper"],
+    abilities_text=[
+        'Ritual Butchery: While this model is leading a unit, melee weapons equipped by models '
+        'in that unit have the [SUSTAINED HITS 1] ability.',
+        'Rites of Feasting: While this model is leading a unit, models in that unit have the '
+        'Feel No Pain 6+ ability. If that unit destroys one or more enemy units in the Fight '
+        'phase, until the end of the battle, models in that unit have the Feel No Pain 5+ '
+        'ability instead.',
+        'Core: Infiltrators, Leader, Scouts 7", Stealth.',
+        'Leader: This model can be attached to the following units: Kroot Carnivores, '
+        'Kroot Farstalkers.',
+    ],
+))
+# Both abilities are engine-wired: Ritual Butchery is a FightController.
+# _adjusted_weapon() chain entry (game/ritual_butchery.py), Rites of Feasting
+# is a fold in game/feel_no_pain.py's current_feel_no_pain()
+# (game/rites_of_feasting.py). Leader is enforced by game/attached_units.py's
+# can_attach(), which reads the pairing off this list's own `leads` table -
+# note that KROOT FARSTALKERS is named there but has no datasheet yet, the
+# same dangling half a pairing that Crisis Fireknife already has.
+
+_TRAIL_SHAPER_LINE = "Kroot Trail Shaper"
+_TRAIL_SHAPER_LOADOUT = [KrootRifleProfile, ShapersBladeProfile]
+
+KROOT_TRAIL_SHAPER = TAU_EMPIRE.add_datasheet(Datasheet(
+    "Kroot Trail Shaper",
+    keywords=("INFANTRY", "CHARACTER", "KROOT", "SHAPER", "TRAIL SHAPER"),
+    model_lines=[
+        ModelLine(KrootTrailShaperProfile, 1, _TRAIL_SHAPER_LOADOUT, name=_TRAIL_SHAPER_LINE),
+    ],
+    points=TAU_EMPIRE_POINTS["Kroot Trail Shaper"],
+    abilities_text=[
+        'Trail Finding: In your opponent\'s Movement phase, if an enemy unit ends a move within '
+        '8" of this unit, if this unit is not within Engagement Range of one or more enemy '
+        'units, this unit can make a Normal move of up to D6". '
+        'NOT ENGINE-WIRED - see the note below this datasheet.',
+        'Kroot Ambush: After both players have deployed their armies, you can redeploy this '
+        'model\'s unit and one other friendly KROOT unit. When doing so, any of those units can '
+        'be placed into Strategic Reserves, regardless of how many units are already in '
+        'Strategic Reserves. NOT ENGINE-WIRED - see the note below this datasheet.',
+        'Core: Infiltrators, Leader, Scouts 7", Stealth.',
+        'Leader: This model can be attached to the following units: Kroot Carnivores, '
+        'Kroot Farstalkers.',
+    ],
+))
+# NEITHER ability is engine-wired, and both are recorded above and asserted in
+# test_kroot_shapers.py so that adding either is a visible change:
+#
+# - Trail Finding is a reactive move, and this engine HAS the machinery for
+#   those (MovementController.REACTIVE_MOVE_MODES, which every reactive mover
+#   must register with). What it does not have is a trigger for "an enemy unit
+#   just ENDED a move" - every existing reactive move hangs off an attack or a
+#   charge, so the hook would be the new work, not the move.
+# - Kroot Ambush is a redeployment step in the Pre-game Sequence (03.01) that
+#   also overrides 20.01's Strategic Reserves cap. That is a new step in
+#   game/pregame.py, not an ability on a unit.
+#
+# Core abilities ARE wired, on the profile: Infiltrators (24.20), Scouts 7"
+# (24.31, read by game/scouts.py), Stealth (24.33) and Leader (19.01).
+
+_WAR_SHAPER_LINE = "Kroot War Shaper"
+_WAR_SHAPER_LOADOUT = [DartBowAndTriBladeProfile, KrootPistolProfile, ShapersBladeProfile]
+
+WAR_SHAPER_DART_BOW_TO_BLADESTAVE = "Dart-bow and Tri-blade -> Bladestave and Prey-hook"
+
+KROOT_WAR_SHAPER = TAU_EMPIRE.add_datasheet(Datasheet(
+    "Kroot War Shaper",
+    keywords=("INFANTRY", "CHARACTER", "KROOT", "SHAPER", "WAR SHAPER"),
+    model_lines=[
+        ModelLine(KrootWarShaperProfile, 1, _WAR_SHAPER_LOADOUT, name=_WAR_SHAPER_LINE),
+    ],
+    # "This model's dart-bow and tri-bade can be replaced with 1 bladestave and
+    # prey-hook" (the printed line has that typo). A RANGED weapon traded for a
+    # MELEE one, which is unusual but exactly what it says - the swap leaves him
+    # with only the Kroot pistol at range.
+    wargear_options=[
+        WargearOption(_WAR_SHAPER_LINE, DartBowAndTriBladeProfile,
+                      [BladestaveAndPreyHookProfile], max_models=1,
+                      name=WAR_SHAPER_DART_BOW_TO_BLADESTAVE),
+    ],
+    points=TAU_EMPIRE_POINTS["Kroot War Shaper"],
+    abilities_text=[
+        'War Leader: Once per battle round, one unit from your army with this ability can use '
+        'it when its unit is targeted with a Stratagem. If it does, reduce the CP cost of that '
+        'use of that Stratagem by 1CP.',
+        'Root of Honour: Once per battle, at the start of any phase, you can select one friendly '
+        'KROOT unit that is Battle-shocked and within 12" of this model. That unit is no longer '
+        'Battle-shocked.',
+        'Core: Infiltrators, Leader, Scouts 7", Stealth.',
+        'Leader: This model can be attached to the following units: Kroot Carnivores, '
+        'Kroot Farstalkers.',
+    ],
+))
+# Both abilities are engine-wired: War Leader is a StratagemController.
+# cost_discounts collaborator (game/war_leader.py - the fifth, and word for
+# word the Necron Overlord's My Will Be Done), Root of Honour is its own small
+# controller offered at every phase boundary (game/root_of_honour.py).
+
+# --- Ethereal ---
+
+_ETHEREAL_LINE = "Ethereal"
+
+ETHEREAL = TAU_EMPIRE.add_datasheet(Datasheet(
+    "Ethereal",
+    keywords=("INFANTRY", "CHARACTER", "ETHEREAL"),
+    model_lines=[
+        ModelLine(EtherealProfile, 1, [HonourStaveProfile], name=_ETHEREAL_LINE),
+    ],
+    # Two INDEPENDENT printed menus - "1 hover drone" on its own line, and "up
+    # to two of the following, and can take duplicates" for the drone trio. So
+    # two groups, the same arrangement Pathfinder Team's Shas'ui needs, rather
+    # than one cap of three that would let a hover drone eat a gun drone's slot.
+    gear_options=(drone_options(_ETHEREAL_LINE, include_guardian=False,
+                                allow_duplicates=True)
+                  + [hover_drone_gear(_ETHEREAL_LINE)]),
+    gear_slots={_ETHEREAL_LINE: {DRONE_GROUP: DRONE_SLOTS,
+                                 HOVER_DRONE_GROUP: HOVER_DRONE_SLOTS}},
+    points=TAU_EMPIRE_POINTS["Ethereal"],
+    abilities_text=[
+        'Failure Is Not an Option: While this model is leading a unit, models in that unit have '
+        'the Feel No Pain 5+ ability.',
+        'Coordinated Leadership: At the end of your Command phase, roll one D6: on a 4+, you '
+        'gain 1CP.',
+        'Hover Drone (wargear): The bearer can FLY and has a Move characteristic of 10".',
+        'Core: Leader.',
+        'Leader: This model can be attached to the following units: Breacher Team, Strike Team.',
+    ],
+))
+# All three are engine-wired: Failure Is Not an Option is a fold in
+# game/feel_no_pain.py (game/failure_is_not_an_option.py - the THIRD datasheet
+# to print that exact sentence, after Dok's Toolz and Rites of Reanimation),
+# Coordinated Leadership is its own end-of-Command-phase dice queue
+# (game/coordinated_leadership.py), the Hover Drone is a Gear effect
+# (game/drones.py). His printed 5+ invulnerable save is on the profile.
+
+# --- Darkstrider ---
+
+_DARKSTRIDER_LINE = "Darkstrider"
+
+DARKSTRIDER = TAU_EMPIRE.add_datasheet(Datasheet(
+    "Darkstrider",
+    keywords=("INFANTRY", "CHARACTER", "EPIC HERO", "MARKERLIGHT", "DARKSTRIDER"),
+    model_lines=[
+        ModelLine(DarkstriderProfile, 1,
+                  [ShadeProfile, DarkstriderCloseCombatWeaponProfile],
+                  name=_DARKSTRIDER_LINE),
+    ],
+    points=TAU_EMPIRE_POINTS["Darkstrider"],
+    abilities_text=[
+        'Structural Analyser: While this model is leading a unit, each time a model in that unit '
+        'makes a ranged attack, add 1 to the Wound roll.',
+        'Jammer Array: Enemy units that are set up on the battlefield from Reserves cannot be set '
+        'up within 12" of this model. NOT ENGINE-WIRED - see the note below this datasheet.',
+        'Core: Infiltrators, Leader, Scouts 7".',
+        'Leader: This model can be attached to the following unit: Pathfinder Team.',
+    ],
+))
+# Structural Analyser is engine-wired (a ShootingController._wound_modifiers()
+# entry, see game/structural_analyser.py). JAMMER ARRAY IS NOT, and it is the
+# only ability in this batch whose absence is not about missing machinery but
+# about direction: it constrains where the OPPONENT may arrive from Reserves
+# (20.04), and no ability in this engine has ever restricted the other
+# player's placement. Recorded above and asserted in test_tau_characters.py so
+# that adding it is a visible change.
+
+# --- Firesight Team ---
+
+_FIRESIGHT_LINE = "Firesight Marksman"
+
+FIRESIGHT_TEAM = TAU_EMPIRE.add_datasheet(Datasheet(
+    "Firesight Team",
+    keywords=("INFANTRY", "CHARACTER", "MARKERLIGHT", "FIRESIGHT TEAM"),
+    # ONE model, despite the plural datasheet name: the printed Designer's Note
+    # makes the Marksman and his two sniper drones a single model for all rules
+    # purposes, and says the drones "do not count as models for any rules
+    # purposes". That is also why the rifle profile's name is plural.
+    model_lines=[
+        ModelLine(FiresightMarksmanProfile, 1,
+                  [LongshotPulseRiflesProfile, PulsePistolProfile,
+                   FiresightCloseCombatWeaponsProfile],
+                  name=_FIRESIGHT_LINE),
+    ],
+    # The datasheet's own Wargear Options section reads "None" - the first one
+    # in this faction that says so explicitly rather than omitting the section.
+    points=TAU_EMPIRE_POINTS["Firesight Team"],
+    abilities_text=[
+        'Precise Targeting: Each time a model in this unit makes an attack that targets a Spotted '
+        'unit, you can re-roll the Hit roll.',
+        "Designer's Note: The Firesight Marksman model and sniper drone models are treated as a "
+        'single model for all rules purposes. All distances are measured to and from the Firesight '
+        'Marksman model. The sniper drone models do not count as models for any rules purposes.',
+        'Core: Infiltrators, Lone Operative, Stealth.',
+    ],
+))
+# Precise Targeting is engine-wired as a ShootingController._hit_reroll_reason()
+# entry (game/precise_targeting.py), reading the Spotted mark the T'au army rule
+# already sets (game/greater_good.py). Shooting only, and that is not a
+# simplification - Spotted expires at the end of the Shooting phase, so no melee
+# attack can ever target a Spotted unit.
+
+# --- Kroot Lone-Spear ---
+
+_LONE_SPEAR_LINE = "Kroot Lone-Spear"
+_LONE_SPEAR_LOADOUT = [KrootLongGunProfile, LoneSpearCloseCombatWeaponProfile,
+                       KalamandrasBiteProfile]
+
+LONE_SPEAR_LONG_GUN_TO_JAVELINS = "Kroot Long Gun -> Blast Javelin + Hunting Javelin"
+
+KROOT_LONE_SPEAR = TAU_EMPIRE.add_datasheet(Datasheet(
+    "Kroot Lone-Spear",
+    keywords=("MOUNTED", "CHARACTER", "KROOT", "LONE-SPEAR"),
+    model_lines=[
+        ModelLine(KrootLoneSpearProfile, 1, _LONE_SPEAR_LOADOUT, name=_LONE_SPEAR_LINE),
+    ],
+    # "This model's Kroot long gun can be replaced with 1 blast javelin and 1
+    # hunting javelin" - ONE weapon given up for TWO, one ranged and one melee.
+    wargear_options=[
+        WargearOption(_LONE_SPEAR_LINE, KrootLongGunProfile,
+                      [BlastJavelinProfile, HuntingJavelinProfile], max_models=1,
+                      name=LONE_SPEAR_LONG_GUN_TO_JAVELINS),
+    ],
+    points=TAU_EMPIRE_POINTS["Kroot Lone-spear"],
+    abilities_text=[
+        'Advanced Scouting: Each time this model makes a ranged attack that hits an enemy unit, '
+        'until the end of the turn, each time another KROOT model from your army makes an attack '
+        'that targets that enemy unit, you can re-roll the Hit roll.',
+        'Fire and Fade: In your Shooting phase, after this model has shot, if it is not within '
+        'Engagement Range of one or more enemy units, it can make a Normal move of up to 6". If '
+        'it does, until the end of the turn, this model is not eligible to declare a charge.',
+        'Core: Lone Operative, Scouts 7", Stealth.',
+    ],
+))
+# Both abilities are engine-wired: Advanced Scouting is a mark on the TARGET
+# placed by a hit and read by both attack steps (game/advanced_scouting.py),
+# Fire and Fade is a MovementController.start_post_shooting_move() consumer -
+# Asurmen's Tactical Acumen with the printed Engagement Range condition added
+# (game/fire_and_fade.py). His base is the equal-area circle of the printed
+# 90 x 52 mm oval, the same conversion the Ghostkeel and Riptide already use.
+
+# --- Commander in Enforcer Battlesuit ---
+
+_ENFORCER_LINE = "Commander in Enforcer Battlesuit"
+
+# The first printed menu: "this model's burst cannon can be replaced with one
+# of the following", nine items. Six are weapons and are modelled here - they
+# all give up the SAME weapon, so build_squad()'s shared cursor already makes
+# them mutually exclusive, which is exactly what "one of the following" means.
+#
+# The other three items in that menu (battlesuit support system, shield
+# generator, weapon support system) trade a WEAPON for a non-weapon, and
+# WargearOption has no way to express that - it swaps weapons for weapons. They
+# are NOT offered here; all three are available in the second menu below, which
+# is where a build would realistically take them. Recorded rather than silently
+# dropped, and asserted in test_tau_characters.py.
+ENFORCER_BURST_TO_AIRBURSTING = "Burst Cannon -> Airbursting Fragmentation Projector"
+ENFORCER_BURST_TO_CYCLIC_ION = "Burst Cannon -> Cyclic Ion Blaster"
+ENFORCER_BURST_TO_FUSION = "Burst Cannon -> Fusion Blaster"
+ENFORCER_BURST_TO_MISSILE_POD = "Burst Cannon -> Missile Pod"
+ENFORCER_BURST_TO_PLASMA = "Burst Cannon -> Plasma Rifle"
+ENFORCER_BURST_TO_FLAMER = "Burst Cannon -> T'au Flamer"
+
+_ENFORCER_BURST_SWAPS = [
+    (ENFORCER_BURST_TO_AIRBURSTING, AirburstingFragmentationProjectorProfile),
+    (ENFORCER_BURST_TO_CYCLIC_ION, CyclicIonBlasterStandardProfile),
+    (ENFORCER_BURST_TO_FUSION, FusionBlasterProfile),
+    (ENFORCER_BURST_TO_MISSILE_POD, MissilePodProfile),
+    (ENFORCER_BURST_TO_PLASMA, PlasmaRifleProfile),
+    (ENFORCER_BURST_TO_FLAMER, TauFlamerProfile),
+]
+
+COMMANDER_IN_ENFORCER_BATTLESUIT = TAU_EMPIRE.add_datasheet(Datasheet(
+    "Commander in Enforcer Battlesuit",
+    keywords=("VEHICLE", "WALKER", "FLY", "CHARACTER", "BATTLESUIT",
+              "COMMANDER IN ENFORCER BATTLESUIT"),
+    model_lines=[
+        ModelLine(EnforcerCommanderProfile, 1,
+                  [BurstCannonProfile, CrisisBattlesuitFistsProfile], name=_ENFORCER_LINE),
+    ],
+    wargear_options=[
+        WargearOption(_ENFORCER_LINE, BurstCannonProfile, [cls], max_models=1, name=label)
+        for label, cls in _ENFORCER_BURST_SWAPS
+    ],
+    # TWO independent printed menus again, like the Ethereal: "up to two of the
+    # following [drones], and can take duplicates" and "up to three of the
+    # following", the second mixing guns with the three support systems. Two
+    # groups, so a support system can never eat a drone slot.
+    gear_options=(drone_options(_ENFORCER_LINE, include_guardian=False, allow_duplicates=True)
+                  + support_menu_gear(_ENFORCER_LINE, [
+                      # The starred items cannot be duplicated; the rest can,
+                      # up to the menu's own cap of three.
+                      ("Airbursting Fragmentation Projector",
+                       AirburstingFragmentationProjectorProfile, 1),
+                      ("Burst Cannon", BurstCannonProfile, 3),
+                      ("Cyclic Ion Blaster", CyclicIonBlasterStandardProfile, 1),
+                      ("Fusion Blaster", FusionBlasterProfile, 3),
+                      ("Missile Pod", MissilePodProfile, 3),
+                      ("Plasma Rifle", PlasmaRifleProfile, 3),
+                      ("T'au Flamer", TauFlamerProfile, 3),
+                  ])),
+    gear_slots={_ENFORCER_LINE: {DRONE_GROUP: DRONE_SLOTS,
+                                 BATTLESUIT_SUPPORT_GROUP: BATTLESUIT_SUPPORT_SLOTS}},
+    points=TAU_EMPIRE_POINTS["Commander in Enforcer Battlesuit"],
+    abilities_text=[
+        'Enforcer Commander: While this model is leading a unit, each time a ranged attack targets '
+        'that unit, worsen the Armour Penetration characteristic of that attack by 1.',
+        'Battlesuit Support System (wargear): The bearer\'s unit is eligible to shoot in a turn in '
+        'which it Fell Back, but when doing so only models equipped with this wargear can make '
+        'ranged attacks. THE SECOND CLAUSE IS NOT ENFORCED - this engine has no per-model shooting '
+        'gate; see game/battlesuit_wargear.py.',
+        'Shield Generator (wargear): The bearer has a 4+ invulnerable save.',
+        'Weapon Support System (wargear): Each time the bearer makes a ranged attack, you can '
+        'ignore any or all modifiers to the Hit roll.',
+        'Core: Deep Strike, Leader.',
+        'Leader: This model can be attached to the following units: Crisis Battlesuits, Crisis '
+        'Fireknife Battlesuits, Crisis Starscythe Battlesuits, Crisis Sunforge Battlesuits.',
+    ],
+))
+# Enforcer Commander is engine-wired in game/damage_resolution.py's
+# save_thresholds() - the same slot as the Battlewagon's Ramshackle but Rugged,
+# because both are defender-side AP adjustments and that is the one place the
+# panel and the resolution agree about a save (see game/enforcer_commander.py).
+# All three support systems are wired to fields other datasheets already use.
+
+# --- Commander Shadowsun ---
+
+_SHADOWSUN_LINE = "Commander Shadowsun"
+
+COMMANDER_SHADOWSUN = TAU_EMPIRE.add_datasheet(Datasheet(
+    "Commander Shadowsun",
+    # INFANTRY, not VEHICLE, unlike every other Commander here - which is what
+    # lets her have Infiltrators and Stealth at all.
+    keywords=("INFANTRY", "FLY", "CHARACTER", "EPIC HERO", "BATTLESUIT",
+              "COMMANDER SHADOWSUN"),
+    model_lines=[
+        # "2 high-energy fusion blasters" - the same listing-a-class-twice
+        # technique the Devilfish's seeker missiles use.
+        ModelLine(CommanderShadowsunProfile, 1,
+                  [FlechetteLauncherProfile,
+                   HighEnergyFusionBlasterProfile, HighEnergyFusionBlasterProfile,
+                   LightMissilePodProfile, PulsePistolProfile,
+                   CrisisBattlesuitFistsProfile],
+                  name=_SHADOWSUN_LINE),
+    ],
+    # No wargear options and no drone MENU: her two drones are printed as part
+    # of her fixed equipment line, so their abilities are profile flags rather
+    # than Gear items a build could decline.
+    points=TAU_EMPIRE_POINTS["Commander Shadowsun"],
+    abilities_text=[
+        'Agile Combatant: This model is eligible to shoot in a turn in which it Fell Back.',
+        'Hero of the Empire (Aura): While a friendly T\'AU EMPIRE unit is within 6" of this model, '
+        'each time a model in that unit makes a ranged attack, re-roll a Hit roll of 1.',
+        'Advanced Guardian Drone (wargear): Each time a ranged attack targets the bearer, subtract '
+        '1 from the Wound roll.',
+        'Command-link Drone (wargear, Aura): While a friendly T\'AU EMPIRE unit is within 6" of the '
+        'bearer, each time you select that unit as the target of a Stratagem, roll one D6: on a '
+        '5+, you gain 1CP. NOT ENGINE-WIRED - see the note below this datasheet.',
+        'Supreme Commander: If this model is in your army, it must be your Warlord. A documented '
+        'NO-OP - this engine has no Warlord concept.',
+        'Core: Infiltrators, Lone Operative, Stealth.',
+    ],
+))
+# Three of the five are engine-wired: Agile Combatant at the same Fall Back
+# gate as Battlesuit Support System and War Construct (game/squad.py's
+# squad_has_agile_combatant()), Hero of the Empire as one more automatic-1s
+# source in the hit step - the only AURA among them - and the Advanced Guardian
+# Drone as a per-MODEL wound malus (game/drones.py), which is the bearer-only
+# form of the unit-wide Guardian Drone.
+#
+# THE COMMAND-LINK DRONE IS NOT WIRED: StratagemController has no per-use hook
+# a listener could hang a D6 on, and adding one changes the Stratagem flow
+# rather than this datasheet. SUPREME COMMANDER is a documented no-op - there
+# is no Warlord concept here at all, the same status as the Void Dragon's
+# Enslaved Star God. Both are recorded above and asserted in
+# test_tau_characters.py.
+
+# --- Kroot Hounds ---
+
+_KROOT_HOUNDS_LINE = "Kroot Hounds"
+
+KROOT_HOUNDS = TAU_EMPIRE.add_datasheet(Datasheet(
+    "Kroot Hounds",
+    keywords=("BEASTS", "KROOT", "HOUNDS"),
+    # 5-10 models, both sizes priced - so both are modelled, unlike Kroot
+    # Carnivores, whose 20-model build is priced but not built.
+    composition_options=[
+        [ModelLine(KrootHoundProfile, 5, [RippingFangsProfile], name=_KROOT_HOUNDS_LINE)],
+        [ModelLine(KrootHoundProfile, 10, [RippingFangsProfile], name=_KROOT_HOUNDS_LINE)],
+    ],
+    points=TAU_EMPIRE_POINTS["Kroot Hounds"],
+    abilities_text=[
+        'Loping Pounce: At the start of your Command phase, if this unit is within 6" of one or '
+        'more friendly KROOT INFANTRY units, then until the end of the turn, this unit is eligible '
+        'to declare a charge in a turn in which it Advanced.',
+        'Hunting Hounds: While this unit is within 12" of one or more friendly KROOT CHARACTER '
+        'models, the Objective Control characteristic of models in this unit is 1.',
+        'Core: Scouts 7", Stealth.',
+    ],
+))
+# Both are engine-wired, and their DURATIONS differ by one word - Loping Pounce
+# is latched at the start of the Command phase and holds all turn
+# (game/loping_pounce.py, read at game/charge.py's own advance gate next to
+# Waaagh! and Full Throttle), Hunting Hounds is a live "while" and is read
+# through game/objective_control.py, the sixteenth extraction.
+
+# --- Vespid Stingwings ---
+
+_VESPID_LEADER = "Vespid Strain Leader"
+_VESPID_LINE = "Vespid Stingwings"
+_VESPID_LOADOUT = [NeutronBlasterProfile, StingwingClawsProfile]
+
+VESPID_BLASTER_TO_FLAMER = "Neutron Blaster -> T'au Flamer"
+VESPID_BLASTER_TO_GRENADE_LAUNCHER = "Neutron Blaster -> Neutron Grenade Launcher"
+VESPID_BLASTER_TO_RAIL_RIFLE = "Neutron Blaster -> Neutron Rail Rifle"
+
+VESPID_STINGWINGS = TAU_EMPIRE.add_datasheet(Datasheet(
+    "Vespid Stingwings",
+    keywords=("INFANTRY", "FLY", "VESPID STINGWINGS"),
+    composition_options=[
+        [ModelLine(VespidStrainLeaderProfile, 1, _VESPID_LOADOUT, name=_VESPID_LEADER),
+         ModelLine(VespidStingwingProfile, 4, _VESPID_LOADOUT, name=_VESPID_LINE)],
+        [ModelLine(VespidStrainLeaderProfile, 1, _VESPID_LOADOUT, name=_VESPID_LEADER),
+         ModelLine(VespidStingwingProfile, 9, _VESPID_LOADOUT, name=_VESPID_LINE)],
+    ],
+    # Every option is printed under "If this unit contains 10 models" - which
+    # `per_models=10` expresses exactly, and better than a hand-written
+    # condition would: at 5 models the cap computes to 0 and the option simply
+    # is not available, at 10 it is 1. The Oversight Drone is Gear and carries
+    # the same ratio for the same reason.
+    wargear_options=[
+        WargearOption(_VESPID_LINE, NeutronBlasterProfile, [TauFlamerProfile],
+                      per_models=10, name=VESPID_BLASTER_TO_FLAMER),
+        WargearOption(_VESPID_LINE, NeutronBlasterProfile, [NeutronGrenadeLauncherProfile],
+                      per_models=10, name=VESPID_BLASTER_TO_GRENADE_LAUNCHER),
+        WargearOption(_VESPID_LINE, NeutronBlasterProfile, [NeutronRailRifleProfile],
+                      per_models=10, name=VESPID_BLASTER_TO_RAIL_RIFLE),
+    ],
+    gear_options=[oversight_drone_gear(_VESPID_LEADER)],
+    gear_slots={_VESPID_LEADER: 1},
+    points=TAU_EMPIRE_POINTS["Vespid Stingwings"],
+    abilities_text=[
+        'Airborne Agility: At the end of your opponent\'s turn, if this unit is not within '
+        'Engagement Range of one or more enemy units, you can remove it from the battlefield and '
+        'place it into Strategic Reserves.',
+        'Oversight Drone (wargear): Once per battle, when the bearer\'s unit is selected to shoot, '
+        'until the end of the phase, ranged weapons equipped by models in this unit have the '
+        '[IGNORES COVER] ability.',
+        'Core: Deep Strike.',
+    ],
+))
+# Both engine-wired: Airborne Agility through game/strategic_reserves.py's own
+# withdraw_to_reserves() (game/airborne_agility.py), the Oversight Drone as a
+# ShootingController collaborator offered from start_shooting() only - Nova
+# Charge's shape, and for the same reason (game/oversight_drone.py).
+
+# --- Krootox Riders ---
+
+_KROOTOX_RIDERS_LINE = "Krootox Riders"
+_KROOTOX_RIDERS_LOADOUT = [RepeaterCannonProfile, KrootCloseCombatWeaponProfile,
+                           KrootoxFistsProfile]
+
+KROOTOX_REPEATER_TO_TANGLECANNON = "Repeater Cannon -> Tanglecannon"
+
+KROOTOX_RIDERS = TAU_EMPIRE.add_datasheet(Datasheet(
+    "Krootox Riders",
+    keywords=("MOUNTED", "GRENADES", "KROOT", "KROOTOX RIDERS"),
+    composition_options=[
+        [ModelLine(KrootoxRiderProfile, n, _KROOTOX_RIDERS_LOADOUT, name=_KROOTOX_RIDERS_LINE)]
+        for n in (1, 2, 3)
+    ],
+    # "ANY NUMBER of models can each have..." - so no cap at all, which is what
+    # leaving both max_models and per_models unset means.
+    wargear_options=[
+        WargearOption(_KROOTOX_RIDERS_LINE, RepeaterCannonProfile, [TanglecannonProfile],
+                      name=KROOTOX_REPEATER_TO_TANGLECANNON),
+    ],
+    points=TAU_EMPIRE_POINTS["Krootox Riders"],
+    abilities_text=[
+        'Kroot Packmates: Once per turn, in your opponent\'s Shooting phase, when a friendly KROOT '
+        'INFANTRY unit within 6" of this unit is selected as the target of an attack, one unit '
+        'from your army with this ability can use it. If it does, after that enemy unit has '
+        'finished making its attacks, that unit with this ability can shoot as if it were your '
+        'Shooting phase, but when resolving those attacks it can only target that enemy unit (and '
+        'only if it is an eligible target).',
+        'Core: Scouts 7".',
+    ],
+))
+# Kroot Packmates is engine-wired: word for word Awakened Dynasty's Protocol of
+# the Vengeful Stars minus the CP, so it reuses
+# ShootingController.start_reactive_shooting(restrict_to=...) unchanged - see
+# game/kroot_packmates.py, where the four separate trigger conditions are set
+# out one by one.
+
+# --- Krootox Rampagers ---
+
+_KROOTOX_RAMPAGERS_LINE = "Krootox Rampagers"
+_KROOTOX_RAMPAGERS_LOADOUT = [KrootPistolAndHuntingJavelinsProfile,
+                              RampagerCloseCombatWeaponProfile,
+                              RampagerKrootoxFistsProfile]
+
+KROOTOX_RAMPAGERS = TAU_EMPIRE.add_datasheet(Datasheet(
+    "Krootox Rampagers",
+    keywords=("MOUNTED", "GRENADES", "KROOT", "KROOTOX RAMPAGERS"),
+    composition_options=[
+        [ModelLine(KrootoxRampagerProfile, n, _KROOTOX_RAMPAGERS_LOADOUT,
+                   name=_KROOTOX_RAMPAGERS_LINE)]
+        for n in (3, 6)
+    ],
+    # No wargear options printed at all.
+    points=TAU_EMPIRE_POINTS["Krootox Rampagers"],
+    abilities_text=[
+        'Kroot Linebreakers: Each time this unit ends a Charge move, select one enemy unit within '
+        'Engagement Range of it, then roll one D6 for each model in this unit that is within '
+        'Engagement Range of that enemy unit: for each 4+, that enemy unit suffers D3 mortal '
+        'wounds. If one or more enemy models are destroyed as a result of these mortal wounds, '
+        'that enemy unit must take a Battle-shock test.',
+        'Core: Scouts 7".',
+    ],
+))
+# Kroot Linebreakers is engine-wired as a fifth ability in
+# game/mortal_wound_abilities.py, on the same ChargeController.
+# on_charge_move_finished hook the Skorpekh Lord's Crimson Harvest uses. Its
+# Unit Composition line names "hunting blades" and "Rampager fists" where the
+# weapon TABLE says "Close combat weapon" and "Krootox fists" - the table
+# carries the numbers, so the table's names are used.
+
+# --- Kroot Farstalkers ---
+
+_KILL_BROKER_LINE = "Kroot Kill-broker"
+_FARSTALKER_LINE = "Kroot Farstalkers"
+_FARSTALKER_HOUND_LINE = "Kroot Hounds"
+
+KILL_BROKER_FIREARM_TO_TAU_TECH = "Farstalker Firearm -> T'au-tech Rifle"
+FARSTALKER_FIREARM_TO_SKINNER = "Farstalker Firearm -> Dvorgite Skinner"
+FARSTALKER_FIREARM_TO_TRIBALEST = "Farstalker Firearm -> Londaxi Tribalest"
+
+KROOT_FARSTALKERS = TAU_EMPIRE.add_datasheet(Datasheet(
+    "Kroot Farstalkers",
+    keywords=("INFANTRY", "KROOT", "GRENADES", "FARSTALKERS"),
+    # THREE model lines from TWO printed stat rows: the Kill-broker shares the
+    # Farstalkers' row (differing only in base size) and the two Kroot Hounds
+    # have their own - with Leadership 7+ rather than the 8+ their own
+    # datasheet prints, which is why FarstalkerHoundProfile exists.
+    model_lines=[
+        ModelLine(KrootKillBrokerProfile, 1,
+                  [FarstalkerFirearmProfile, KrootPistolProfile, RitualBladeProfile],
+                  name=_KILL_BROKER_LINE),
+        ModelLine(KrootFarstalkerProfile, 9,
+                  [FarstalkerFirearmProfile, KrootPistolProfile,
+                   KrootCloseCombatWeaponProfile],
+                  name=_FARSTALKER_LINE),
+        ModelLine(FarstalkerHoundProfile, 2, [RippingFangsProfile],
+                  name=_FARSTALKER_HOUND_LINE),
+    ],
+    wargear_options=[
+        WargearOption(_KILL_BROKER_LINE, FarstalkerFirearmProfile, [TauTechRifleProfile],
+                      max_models=1, name=KILL_BROKER_FIREARM_TO_TAU_TECH),
+        # "1 Kroot Farstalker's Farstalker firearm can be replaced with ONE OF
+        # the following" - one MODEL and one WEAPON between the two options.
+        #
+        # KNOWN LIMITATION, measured and pinned in test_tau_kroot_and_vespid.py
+        # rather than assumed away: two options that give up the same weapon
+        # share build_squad()'s cursor, which makes them NON-OVERLAPPING (they
+        # land on different models) rather than EXCLUSIVE - so a build can
+        # currently take both, on two models. On a single-model line the two
+        # readings coincide, which is why the Enforcer's six-way burst-cannon
+        # menu above needs nothing extra; this line has nine models and they
+        # come apart. Expressing it needs an allowance SHARED across options,
+        # which WargearOption does not have.
+        WargearOption(_FARSTALKER_LINE, FarstalkerFirearmProfile, [DvorgiteSkinnerProfile],
+                      max_models=1, name=FARSTALKER_FIREARM_TO_SKINNER),
+        WargearOption(_FARSTALKER_LINE, FarstalkerFirearmProfile, [LondaxiTribalestProfile],
+                      max_models=1, name=FARSTALKER_FIREARM_TO_TRIBALEST),
+    ],
+    gear_options=[pechra_gear(_FARSTALKER_LINE)],
+    gear_slots={_FARSTALKER_LINE: 1},
+    points=TAU_EMPIRE_POINTS["Kroot Farstalkers"],
+    abilities_text=[
+        'Bounty Hunters: At the start of the battle, select one unit from your opponent\'s army. '
+        'Each time a model in this unit makes an attack that targets that unit, that attack has '
+        'the [LETHAL HITS] and [PRECISION] abilities.',
+        "Pech'ra (wargear): Ranged weapons equipped by the bearer's unit have the [IGNORES COVER] "
+        'ability.',
+        'Core: Infiltrators, Stealth.',
+        'Led By: Aun\'shi, Kroot Flesh Shaper, Kroot Trail Shaper, Kroot War Shaper.',
+    ],
+))
+# Both engine-wired (game/bounty_hunters.py): the bounty is chosen once in the
+# pre-battle sequence and read by BOTH attack steps, because its text says "an
+# attack" rather than "a ranged attack"; the Pech'ra is ranged-only by its own
+# wording and is chained in game/shooting.py alone.
+#
+# THE LED BY LINE NAMES AUN'SHI, who is a Legends datasheet and is not built -
+# the three Shapers are, and their own LEADER lines name this unit, so the
+# pairing works in both directions for everything on the table.
+
+# --- Broadside Battlesuits ---
+
+
+def _broadside_seeker_effect(token):
+    token.weapons.append(SeekerMissileProfile())
+
+
+def _broadside_twin_plasma_effect(token):
+    token.weapons.append(TwinPlasmaRifleProfile())
+
+
+def _broadside_twin_sms_effect(token):
+    token.weapons.append(BroadsideTwinSmartMissileSystemProfile())
+
+
+def _broadside_weapon_support_effect(token):
+    """The same field the Riptide's identically-named wargear sets - named
+    after the EFFECT, not after either datasheet, which is why three printed
+    abilities under two names can share it."""
+    token.profile.ignores_hit_modifiers = True
+
+
+_BROADSIDE_LEADER = "Broadside Shas'vre"
+_BROADSIDE_LINE = "Broadside Shas'ui"
+_BROADSIDE_LOADOUT = [HeavyRailRifleProfile, CrushingBulkProfile]
+
+BROADSIDE_RAIL_TO_MISSILE_PODS = "Heavy Rail Rifle -> High-yield Missile Pods"
+_BROADSIDE_POINTS = TAU_EMPIRE_POINTS["Broadside Battlesuits"]
+
+# "Any number of models can each be equipped with up to two of the following,
+# but cannot take duplicates" - the support menu, and its own footnote adds
+# "no model can be equipped with BOTH a twin plasma rifle and twin smart
+# missile system". That last clause is NOT enforced: Gear has no way to say
+# "these two exclude each other", the same gap the Farstalkers' one-of-two
+# firearm swap runs into. Recorded and asserted rather than assumed away.
+_BROADSIDE_SUPPORT = "broadside_support"
+_BROADSIDE_SUPPORT_SLOTS = 2
+
+BROADSIDE_BATTLESUITS = TAU_EMPIRE.add_datasheet(Datasheet(
+    "Broadside Battlesuits",
+    # No FLY, unlike every other Battlesuit here - it is not printed on this
+    # datasheet's own Keywords line.
+    keywords=("VEHICLE", "WALKER", "BATTLESUIT", "BROADSIDE"),
+    composition_options=[
+        [ModelLine(BroadsideShasVreProfile, 1, _BROADSIDE_LOADOUT, name=_BROADSIDE_LEADER)],
+        [ModelLine(BroadsideShasVreProfile, 1, _BROADSIDE_LOADOUT, name=_BROADSIDE_LEADER),
+         ModelLine(BroadsideShasUiProfile, 1, _BROADSIDE_LOADOUT, name=_BROADSIDE_LINE)],
+        [ModelLine(BroadsideShasVreProfile, 1, _BROADSIDE_LOADOUT, name=_BROADSIDE_LEADER),
+         ModelLine(BroadsideShasUiProfile, 2, _BROADSIDE_LOADOUT, name=_BROADSIDE_LINE)],
+    ],
+    # "Any number of models" on both lines, so no cap - and the swap IS priced,
+    # which is what corroborates it as a real option rather than a guess.
+    wargear_options=[
+        WargearOption(line, HeavyRailRifleProfile, [HighYieldMissilePodsProfile],
+                      points=_BROADSIDE_POINTS.wargear["High-yield missile pods"],
+                      name=BROADSIDE_RAIL_TO_MISSILE_PODS)
+        for line in (_BROADSIDE_LEADER, _BROADSIDE_LINE)
+    ],
+    # TWO independent printed menus again, so two groups - a support system must
+    # not eat a drone slot. `all_models=True` on both, because this datasheet
+    # says "ANY NUMBER OF MODELS can each be equipped", where every earlier
+    # menu here was one character's.
+    gear_options=[
+        Gear(line, name, effect, max_count=1, group=group, all_models=True)
+        for line in (_BROADSIDE_LEADER, _BROADSIDE_LINE)
+        for name, effect, group in (
+            ("Seeker Missile", _broadside_seeker_effect, _BROADSIDE_SUPPORT),
+            ("Twin Plasma Rifle", _broadside_twin_plasma_effect, _BROADSIDE_SUPPORT),
+            ("Twin Smart Missile System", _broadside_twin_sms_effect, _BROADSIDE_SUPPORT),
+            ("Weapon Support System", _broadside_weapon_support_effect, _BROADSIDE_SUPPORT),
+        )
+    ] + [g for line in (_BROADSIDE_LEADER, _BROADSIDE_LINE)
+         for g in drone_options(line, include_guardian=False, include_missile=True,
+                                allow_duplicates=True, all_models=True)],
+    gear_slots={line: {_BROADSIDE_SUPPORT: _BROADSIDE_SUPPORT_SLOTS,
+                       DRONE_GROUP: DRONE_SLOTS}
+                for line in (_BROADSIDE_LEADER, _BROADSIDE_LINE)},
+    points=_BROADSIDE_POINTS,
+    abilities_text=[
+        'Advanced Armour: Models in this unit have the Feel No Pain 4+ ability against mortal '
+        'wounds.',
+        'Weapon Support System (wargear): Each time the bearer makes a ranged attack, you can '
+        'ignore any or all modifiers to the Hit roll.',
+        'Faction: For the Greater Good.',
+    ],
+))
+# Advanced Armour is engine-wired as the FIRST conditional Feel No Pain source
+# here - 4+ against MORTAL WOUNDS only, folded into current_feel_no_pain()
+# behind its new `mortal` flag, which MortalWoundAllocationSession alone sets
+# (game/advanced_armour.py). The Weapon Support System reuses
+# `ignores_hit_modifiers`, the same field the Riptide's identically-named
+# wargear and Dark Reapers' Inescapable Accuracy already use.
+
+# --- Crisis Fireknife Battlesuits ---
+
+_FIREKNIFE_LEADER = "Crisis Fireknife Shas'vre"
+_FIREKNIFE_LINE = "Crisis Fireknife Shas'ui"
+_FIREKNIFE_LOADOUT = [PlasmaRifleProfile, MissilePodProfile, CrisisBattlesuitFistsProfile]
+_FIREKNIFE_POINTS = TAU_EMPIRE_POINTS["Crisis Fireknife Battlesuits"]
+
+FIREKNIFE_PLASMA_TO_MISSILE_POD = "Plasma Rifle -> Missile Pod"
+FIREKNIFE_MISSILE_POD_TO_PLASMA = "Missile Pod -> Plasma Rifle"
+
+CRISIS_FIREKNIFE = TAU_EMPIRE.add_datasheet(Datasheet(
+    "Crisis Fireknife Battlesuits",
+    keywords=("VEHICLE", "WALKER", "FLY", "BATTLESUIT", "CRISIS", "FIREKNIFE"),
+    # Three separate count=1 lines, the same arrangement Starscythe and
+    # Sunforge use and for the same reason: each model has its own drone menu,
+    # and build_squad() applies Gear only to a line's first model.
+    model_lines=[
+        ModelLine(CrisisFireknifeShasVreProfile, 1, _FIREKNIFE_LOADOUT, name=_FIREKNIFE_LEADER),
+        ModelLine(CrisisFireknifeShasUiProfile, 1, _FIREKNIFE_LOADOUT, name=_FIREKNIFE_LINE + " (1)"),
+        ModelLine(CrisisFireknifeShasUiProfile, 1, _FIREKNIFE_LOADOUT, name=_FIREKNIFE_LINE + " (2)"),
+    ],
+    # The two swaps are MIRRORS - each turns one of the model's two guns into
+    # another copy of the other - so a model can end with two plasma rifles or
+    # two missile pods but never lose both. Only the missile pod is priced,
+    # which is why only that direction carries a cost.
+    wargear_options=[
+        WargearOption(line, PlasmaRifleProfile, [MissilePodProfile], max_models=1,
+                      points=_FIREKNIFE_POINTS.wargear["Missile pod"],
+                      name=FIREKNIFE_PLASMA_TO_MISSILE_POD)
+        for line in (_FIREKNIFE_LEADER, _FIREKNIFE_LINE + " (1)", _FIREKNIFE_LINE + " (2)")
+    ] + [
+        WargearOption(line, MissilePodProfile, [PlasmaRifleProfile], max_models=1,
+                      name=FIREKNIFE_MISSILE_POD_TO_PLASMA)
+        for line in (_FIREKNIFE_LEADER, _FIREKNIFE_LINE + " (1)", _FIREKNIFE_LINE + " (2)")
+    ],
+    gear_options=[g for line in (_FIREKNIFE_LEADER, _FIREKNIFE_LINE + " (1)",
+                                 _FIREKNIFE_LINE + " (2)")
+                  for g in drone_options(line, include_guardian=False)],
+    gear_slots={line: DRONE_SLOTS
+                for line in (_FIREKNIFE_LEADER, _FIREKNIFE_LINE + " (1)",
+                             _FIREKNIFE_LINE + " (2)")},
+    points=_FIREKNIFE_POINTS,
+    abilities_text=[
+        'Fireknife: Each time a model in this unit makes a ranged attack, re-roll a Hit roll of 1. '
+        'If that attack targets a unit that is at its Starting Strength, you can re-roll the Hit '
+        'roll instead.',
+        'Weapon Support System: Each time a model in this unit makes a ranged attack, you can '
+        'ignore any or all modifiers to the Hit roll.',
+        'Core: Deep Strike.',
+        'Faction: For the Greater Good.',
+        'Led By: Commander Farsight, Commander in Coldstar Battlesuit, Commander in Crisis '
+        'Battlesuit, Commander in Enforcer Battlesuit.',
+    ],
+))
+# THIS DATASHEET CLOSES A DANGLING REFERENCE that has been in the points list
+# since the T'au were built: THREE `leads` tables (Commander Farsight,
+# Commander in Coldstar, Commander in Enforcer) name Crisis Fireknife
+# Battlesuits, game/attached_units.py's can_attach() reads that table, and
+# until now it pointed at nothing.
+#
+# Both abilities are engine-wired. Fireknife is the SIXTH ones-or-whole source
+# (game/reroll_scope.py) - its two clauses are alternatives, so "failures only"
+# must not be offered; see game/fireknife.py. Weapon Support System is printed
+# as a UNIT ability here rather than as wargear, so it is the profile's own
+# `ignores_hit_modifiers` - the field named after the EFFECT precisely because
+# three datasheets now print it under two different names.
+
+# --- Hammerhead Gunship ---
+#
+# The seeker-missile addition is Gear rather than a WargearOption for the same
+# reason the Devilfish's is not: "up to 2 seeker missiles" is a COUNT of a
+# repeatable item, which Gear's max_count expresses and a weapon-for-weapon
+# swap does not.
+
+_HAMMERHEAD_LINE = "Hammerhead Gunship"
+_HAMMERHEAD_LOADOUT = [RailgunProfile, HammerheadTwinPulseCarbineProfile,
+                       HammerheadTwinPulseCarbineProfile, ArmouredHullProfile]
+
+HAMMERHEAD_RAILGUN_TO_ION_CANNON = "Railgun -> Ion Cannon"
+HAMMERHEAD_CARBINES_TO_BURST = "2x Twin Pulse Carbine -> 2x Accelerator Burst Cannon"
+HAMMERHEAD_CARBINES_TO_SMS = "2x Twin Pulse Carbine -> 2x Smart Missile System"
+_GUNSHIP_SEEKER_SLOTS = 2
+_GUNSHIP_SEEKER_GROUP = "seeker_missiles"
+
+
+def _seeker_missile_effect(token):
+    token.weapons.append(SeekerMissileProfile())
+
+
+HAMMERHEAD_GUNSHIP = TAU_EMPIRE.add_datasheet(Datasheet(
+    "Hammerhead Gunship",
+    keywords=("VEHICLE", "FLY", "FRAME", "HAMMERHEAD GUNSHIP"),
+    model_lines=[
+        ModelLine(HammerheadGunshipProfile, 1, _HAMMERHEAD_LOADOUT, name=_HAMMERHEAD_LINE),
+    ],
+    # The two carbine swaps give up the SAME pair, so build_squad()'s shared
+    # cursor makes them exclusive - "one of the following", and on a
+    # single-model line that reading is exact (see the Farstalkers' note for
+    # where it is not).
+    wargear_options=[
+        WargearOption(_HAMMERHEAD_LINE, RailgunProfile, [IonCannonStandardProfile],
+                      max_models=1, name=HAMMERHEAD_RAILGUN_TO_ION_CANNON),
+        WargearOption(_HAMMERHEAD_LINE, HammerheadTwinPulseCarbineProfile,
+                      [AcceleratorBurstCannonProfile, AcceleratorBurstCannonProfile],
+                      max_models=1, name=HAMMERHEAD_CARBINES_TO_BURST),
+        WargearOption(_HAMMERHEAD_LINE, HammerheadTwinPulseCarbineProfile,
+                      [SmartMissileSystemProfile, SmartMissileSystemProfile],
+                      max_models=1, name=HAMMERHEAD_CARBINES_TO_SMS),
+    ],
+    gear_options=[Gear(_HAMMERHEAD_LINE, "Seeker Missile", _seeker_missile_effect,
+                       max_count=_GUNSHIP_SEEKER_SLOTS, group=_GUNSHIP_SEEKER_GROUP)],
+    gear_slots={_HAMMERHEAD_LINE: {_GUNSHIP_SEEKER_GROUP: _GUNSHIP_SEEKER_SLOTS}},
+    points=TAU_EMPIRE_POINTS["Hammerhead Gunship"],
+    abilities_text=[
+        'Armour Hunter: Each time this model makes an attack that targets a MONSTER or VEHICLE, '
+        'add 1 to the Hit roll.',
+        'Targeting Array: Each time this model is selected to shoot, you can re-roll one Hit roll '
+        'or you can re-roll one Wound roll when resolving those attacks.',
+        'Core: Deadly Demise D3.',
+        'Faction: For the Greater Good.',
+        'Damaged: 1-5 wounds remaining - while this model has 1-5 wounds remaining, each time this '
+        'model makes an attack, subtract 1 from the Hit roll.',
+    ],
+))
+# Both abilities are engine-wired. Armour Hunter is Tank Hunters with the WOUND
+# half missing, so it is its own flag reading the same is_monster_or_vehicle_unit()
+# helper (game/armour_hunter.py). Targeting Array is a single-die re-roll with a
+# panel button - rule 15.02's Command Re-roll shape without the CP
+# (game/targeting_array.py).
+
+# --- Sky Ray Gunship ---
+
+_SKY_RAY_LINE = "Sky Ray Gunship"
+_SKY_RAY_LOADOUT = [SeekerMissileRackProfile, DevilfishTwinPulseCarbineProfile,
+                    DevilfishTwinPulseCarbineProfile, ArmouredHullProfile]
+
+SKY_RAY_CARBINES_TO_BURST = "2x Twin Pulse Carbine -> 2x Accelerator Burst Cannon"
+SKY_RAY_CARBINES_TO_SMS = "2x Twin Pulse Carbine -> 2x Smart Missile System"
+
+SKY_RAY_GUNSHIP = TAU_EMPIRE.add_datasheet(Datasheet(
+    "Sky Ray Gunship",
+    keywords=("VEHICLE", "FLY", "FRAME", "MARKERLIGHT", "SKY RAY GUNSHIP"),
+    model_lines=[
+        ModelLine(SkyRayGunshipProfile, 1, _SKY_RAY_LOADOUT, name=_SKY_RAY_LINE),
+    ],
+    # Its carbines DO print [ASSAULT], unlike the Hammerhead's - so it carries
+    # the Devilfish's class where its sibling needed one of its own.
+    wargear_options=[
+        WargearOption(_SKY_RAY_LINE, DevilfishTwinPulseCarbineProfile,
+                      [AcceleratorBurstCannonProfile, AcceleratorBurstCannonProfile],
+                      max_models=1, name=SKY_RAY_CARBINES_TO_BURST),
+        WargearOption(_SKY_RAY_LINE, DevilfishTwinPulseCarbineProfile,
+                      [SmartMissileSystemProfile, SmartMissileSystemProfile],
+                      max_models=1, name=SKY_RAY_CARBINES_TO_SMS),
+    ],
+    # No seeker-missile option: its whole armament IS a rack of them.
+    points=TAU_EMPIRE_POINTS["Sky Ray Gunship"],
+    abilities_text=[
+        'Velocity Tracker: Each time this model makes a ranged attack that targets a unit that can '
+        'FLY, you can re-roll the Hit roll.',
+        'Targeting Array: Each time this unit is selected to shoot, you can re-roll one Hit roll '
+        'or you can re-roll one Wound roll when resolving those attacks.',
+        'Core: Deadly Demise D3.',
+        'Faction: For the Greater Good.',
+        'Damaged: 1-5 wounds remaining - while this model has 1-5 wounds remaining, each time this '
+        'model makes an attack, subtract 1 from the Hit roll.',
+    ],
+))
+# Both engine-wired: Velocity Tracker is an ordinary failures-or-whole
+# _hit_reroll_reason() entry (game/velocity_tracker.py) and deliberately NOT a
+# reroll_scope source, Targeting Array is the same controller the Hammerhead
+# uses.
+
+# --- Piranhas ---
+
+_PIRANHA_LINE = "Piranhas"
+_PIRANHA_LOADOUT = [PiranhaBurstCannonProfile, DevilfishTwinPulseCarbineProfile,
+                    DevilfishTwinPulseCarbineProfile, PiranhaArmouredHullProfile]
+
+PIRANHA_BURST_TO_FUSION = "Piranha Burst Cannon -> Piranha Fusion Blaster"
+
+PIRANHAS = TAU_EMPIRE.add_datasheet(Datasheet(
+    "Piranhas",
+    keywords=("VEHICLE", "FLY", "FRAME", "PIRANHAS"),
+    composition_options=[
+        [ModelLine(PiranhaProfile, n, _PIRANHA_LOADOUT, name=_PIRANHA_LINE)]
+        for n in (1, 2, 3)
+    ],
+    # "Any number of models can each have..." - so no cap on either option.
+    wargear_options=[
+        WargearOption(_PIRANHA_LINE, PiranhaBurstCannonProfile,
+                      [PiranhaFusionBlasterProfile], name=PIRANHA_BURST_TO_FUSION),
+    ],
+    # "Any number of models can each be equipped with up to 2 seeker missiles",
+    # hence all_models=True - the same printed wording as the Broadsides'
+    # menus, and the second datasheet to need it.
+    gear_options=[Gear(_PIRANHA_LINE, "Seeker Missile", _seeker_missile_effect,
+                       max_count=_GUNSHIP_SEEKER_SLOTS, group=_GUNSHIP_SEEKER_GROUP,
+                       all_models=True)],
+    gear_slots={_PIRANHA_LINE: {_GUNSHIP_SEEKER_GROUP: _GUNSHIP_SEEKER_SLOTS}},
+    points=TAU_EMPIRE_POINTS["Piranhas"],
+    abilities_text=[
+        'Drone Harassment Tactics: At the end of your Movement phase, select one enemy unit '
+        'within 12" of this unit; that enemy unit must take a Battle-shock test.',
+        'Core: Deadly Demise 1, Scouts 9".',
+        'Faction: For the Greater Good.',
+    ],
+))
+# Drone Harassment Tactics is engine-wired through
+# BattleShockController.start_forced_roll() - the "a rule orders a test out of
+# turn" entry point that already exists (game/drone_harassment.py). Scouts 9"
+# is the longest Scout move in this engine; every other one is 7" or 8".
+
 _STEALTH_LOADOUT = [BattlesuitFistsProfile, BurstCannonProfile]
 _STEALTH_LEADER = "Stealth Shas'vre"
 _STEALTH_SHAS_UI = "Stealth Shas'ui"
@@ -265,13 +1337,21 @@ STEALTH_BATTLESUITS = TAU_EMPIRE.add_datasheet(Datasheet(
     ],
     gear_slots={_STEALTH_LEADER: 2, _STEALTH_SHAS_UI: 1},
     # "2 models can each have their burst cannon replaced with 1 fusion
-    # blaster" doesn't say WHICH 2 of the unit's 5 models - scoped here to
-    # the Shas'ui line only (max_models=2, capping at that line's own
-    # rank-and-file models rather than the one-model Shas'vre line), a
-    # judgment call flagged the same way as similar per-line splits
-    # elsewhere in this module.
+    # blaster" - MODELS, so any 2 of the unit's 5, the Shas'vre included.
+    # This was scoped to the Shas'ui line alone at first, flagged there as a
+    # judgment call; the T'au list the user supplied on 2026-08-30 gives the
+    # FUSION BLASTER TO THE SHAS'VRE, so that reading made a printed build
+    # unbuildable. The option now sits on both lines, which is what "2 models"
+    # says.
+    #
+    # KNOWN LIMITATION, measured rather than hidden: a WargearOption caps per
+    # LINE, so 1 (Shas'vre) + 2 (Shas'ui) is a reachable 3 against the printed
+    # 2. There is no cross-line cap to express it with - the same shape as the
+    # Kroot Farstalkers' "ONE OF the following" note above. The list itself
+    # takes exactly 1, so it cannot reach the gap; a test pins both facts.
     wargear_options=[
         WargearOption(_STEALTH_LEADER, replaces=None, with_weapons=[PulsePistolProfile], max_models=1, name=STEALTH_PULSE_PISTOL_OPTION),
+        WargearOption(_STEALTH_LEADER, replaces=BurstCannonProfile, with_weapons=[FusionBlasterProfile], max_models=1, name=STEALTH_BURST_TO_FUSION),
         WargearOption(_STEALTH_SHAS_UI, replaces=BurstCannonProfile, with_weapons=[FusionBlasterProfile], max_models=2, name=STEALTH_BURST_TO_FUSION),
     ],
     points=TAU_EMPIRE_POINTS["Stealth Battlesuits"],  # 5 models 100 pts (1st-2nd unit) / 110 (3rd+); this datasheet's own wargear options are all free on the list
@@ -656,14 +1736,14 @@ CADRE_FIREBLADE = TAU_EMPIRE.add_datasheet(Datasheet(
 # separate model with its own wounds (see game/drones.py - Gun Drone adds a
 # Twin pulse carbine to the bearer the same way).
 #
-# MissilePodProfile is reused as-is, and its hardcoded "5+" ballistic_skill
-# override is CORRECT here for the second time on this datasheet: the drone's
-# own printed BS is 5+ while the Riptide is BS4+, so the override is doing
-# real work rather than forcing a wrong value (same reasoning as the
-# datasheet's own "Unselected Profiles" Missile pod entry below).
+# DroneMissilePodProfile, not the plain MissilePodProfile: the drone's own
+# printed BS is 5+ while the Riptide is BS4+, so the override is doing real
+# work here. The two were one class until a battlesuit carried a missile pod
+# of its own (the Enforcer at BS3+, Crisis Fireknife at BS4+) and the drone's
+# 5+ started forcing a wrong value - see MissilePodProfile's own note.
 _RIPTIDE_LOADOUT = [
     RiptideFistsProfile, HeavyBurstCannonProfile, TwinPlasmaRifleProfile,
-    MissilePodProfile, MissilePodProfile,  # 2x Missile Drone
+    DroneMissilePodProfile, DroneMissilePodProfile,  # 2x Missile Drone
 ]
 _RIPTIDE_LINE = "Riptide Battlesuit"
 

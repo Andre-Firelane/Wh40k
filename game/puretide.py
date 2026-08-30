@@ -40,6 +40,8 @@ Farsights in one army would still get one between them ("ONE unit from your
 army with this ability can use it").
 """
 
+from game.cp_discount import OncePerRoundCpDiscount
+
 
 def unit_has_puretide(squad):
     """True while at least one live model with the ability is in the unit -
@@ -52,7 +54,7 @@ def unit_has_puretide(squad):
 PURETIDE_DISCOUNT_CP = 1
 
 
-class PuretideController:
+class PuretideController(OncePerRoundCpDiscount):
     """Plugged into StratagemController.cost_discounts (see its own note).
     Takes `stratagem` and ignores it - this ability keys off the TARGET, not
     off which stratagem is being used, unlike the Aeldari Seer Council's
@@ -62,33 +64,8 @@ class PuretideController:
     thing that spends the once-per-round use - so merely ASKING whether a
     Stratagem is affordable never burns the ability."""
 
-    def __init__(self, turn_tracker=None, game_log=None):
-        self.turn_tracker = turn_tracker
-        self.game_log = game_log
-        self._used_in_round = {}  # player -> battle round in which it was last used
-
-    def _round(self):
-        return self.turn_tracker.battle_round if self.turn_tracker is not None else 0
-
-    def available(self, player):
-        return self._used_in_round.get(player) != self._round()
-
-    def available_discount(self, player, stratagem=None, targets=()):
-        """How much to knock off this use's CP cost. Zero unless one of the
-        targeted units carries the ability and this army has not used it
-        this battle round."""
-        if not self.available(player):
-            return 0
-        if not any(unit_has_puretide(t) for t in targets):
-            return 0
-        return PURETIDE_DISCOUNT_CP
-
-    def consume(self, player, stratagem=None, targets=()):
-        """Called only once a discounted use has actually gone through."""
-        if self.available_discount(player, stratagem, targets) <= 0:
-            return
-        self._used_in_round[player] = self._round()
-        if self.game_log is not None:
-            self.game_log.add(
-                f"{player}: Puretide's Teachings - that Stratagem costs {PURETIDE_DISCOUNT_CP}CP less."
-            )
+    # Everything this ability does is the shared sentence in
+    # game/cp_discount.py; what is left here is only what differs.
+    flag = 'puretide_teachings'
+    discount_cp = PURETIDE_DISCOUNT_CP
+    label = "Puretide's Teachings"

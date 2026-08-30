@@ -162,7 +162,23 @@ class TransportController:
             if t.profile.transport and t.squad is not None and self.can_embark(squad, t)
         ]
 
-    def can_embark(self, squad, transport_token):
+    def can_embark(self, squad, transport_token, require_move=True, range_in=None):
+        """Rule 18.02's embark check.
+
+        `range_in` overrides the printed 3", for a rule that grants an embark
+        at a different distance - Skyborne Sanctuary says "wholly within 6"".
+        A named parameter beside `require_move` rather than a second function,
+        because it changes ONE number and leaves every other condition alone;
+        the default keeps every existing caller measuring exactly what it did.
+
+        `require_move=False` drops ONLY 18.02's "after a Normal, Advance or
+        Fall Back move this phase" clause, for a rule that grants an embark at
+        another moment - Kauyon's Combat Embarkation, which happens in the
+        opponent's Charge phase, where nothing of yours has moved. Every
+        PHYSICAL condition still applies: the 3", the capacity, the transport's
+        own keyword restrictions. A rule that changes WHEN you may embark does
+        not change WHETHER you fit.
+        """
         if squad is None or transport_token is None or transport_token.squad is None:
             return False
         if not transport_token.profile.transport:
@@ -171,11 +187,26 @@ class TransportController:
             return False
         if any(m.profile.transport for m in squad.models):
             return False  # simplification: a TRANSPORT can't itself embark within another one
+        if any(getattr(m.profile, "cannot_embark", False) for m in squad.models):
+            # Support Weapon Platforms: "This model, AND ANY UNIT IT IS JOINED
+            # TO, cannot embark within a TRANSPORT." Both halves fall out of
+            # one per-model test, because 19.01 merges a joined platform into
+            # the Guardians' own Squad.models - so the unit it joined carries
+            # the model that carries the ban, and asking per model answers the
+            # printed sentence exactly rather than approximating it.
+            return False
         if squad.embarked_in is not None:
             return False
         if squad.set_up_this_turn:
             return False
-        if squad not in self.movement_controller.moved_squad_ids:
+        if getattr(squad, "embark_locked_until_end_of_turn", False):
+            # The twin of Squad.charge_locked_until_end_of_turn, which has five
+            # users and no counterpart for embarking. Two Aeldari Stratagems
+            # print "not eligible to declare a charge OR EMBARK within a
+            # TRANSPORT" - the charge half was already covered, the embark half
+            # had nothing to set.
+            return False
+        if require_move and squad not in self.movement_controller.moved_squad_ids:
             return False  # rule 18.02: only after a normal, advance or fall-back move this phase
         if transport_token.profile.transport_requires_infantry and not all(m.profile.infantry for m in squad.models):
             return False  # e.g. Devilfish: "T'AU EMPIRE INFANTRY models" (INFANTRY half only, see class docstring)
@@ -187,12 +218,14 @@ class TransportController:
         excluded_keywords = transport_token.profile.transport_excludes
         if excluded_keywords and any(getattr(m.profile, kw, False) for m in squad.models for kw in excluded_keywords):
             return False  # e.g. Devilfish: "cannot transport BATTLESUIT, KROOT or VESPID STINGWINGS models"
-        if not all(edge_distance(m, transport_token) <= EMBARK_RANGE_IN for m in squad.models):
+        reach = EMBARK_RANGE_IN if range_in is None else range_in
+        if not all(edge_distance(m, transport_token) <= reach for m in squad.models):
             return False
         return sum(_model_capacity_cost(m) for m in squad.models) <= self.remaining_capacity(transport_token)
 
-    def embark(self, squad, transport_token):
-        if not self.can_embark(squad, transport_token):
+    def embark(self, squad, transport_token, require_move=True, range_in=None):
+        if not self.can_embark(squad, transport_token, require_move=require_move,
+                               range_in=range_in):
             return
         for model in squad.models:
             if model in self.game_state.tokens:

@@ -1001,6 +1001,47 @@ def squad_summary(squad, in_reserve=False, embarked_in=None, include_weapons=Fal
 GARRISON_THREAT_RANGE_IN = 12.0  # an enemy this close could reach an objective next turn
 
 
+def garrison_reach_needed_in(objective, objectives):
+    """How far a gun standing on `objective` has to reach before it is still
+    taking part in the game, in inches.
+
+    Measured off the board rather than set as a constant: it is the distance to
+    the NEAREST other objective, which is the closest ground anybody actually
+    fights over. On the three maps that comes out at 17.1" (map1), 14.8" (map2)
+    and 17.6" (map3), symmetrically for both players - so a 24" gun counts
+    everywhere, a 12" one nowhere, and an 18" one depends on the board. A fixed
+    number would have been right on all three by luck and silently wrong on the
+    fourth.
+
+    Deliberately NOT the distance to No Man's Land, which is only 3.8-5.2" from
+    a home objective on these maps: a weapon that can just barely put a shot
+    over the line is not a weapon that is contributing, and using that number
+    would have let every 12" gun through.
+
+    Read by game/combat_focus.py's home_garrison_rank() through its callers -
+    ai/deployment_ai.py (which unit is designated to hold home when deployment
+    ends) and ai/agent_driver.py (which unit the turn plan leaves there). Those
+    are two phases of one decision, so they take the number from here rather
+    than each measuring it."""
+    best = None
+    ax, ay = _objective_centre_point(objective)
+    for other in objectives or ():
+        if other is objective:
+            continue
+        bx, by = _objective_centre_point(other)
+        dist = math.dist((ax, ay), (bx, by))
+        if best is None or dist < best:
+            best = dist
+    return best
+
+
+def _objective_centre_point(objective):
+    """An objective's terrain area's bounding-box centre - the same point
+    objective_summary() reports to the planner as its position."""
+    min_x, min_y, max_x, max_y = objective.terrain_area.bounding_box
+    return ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
+
+
 def objective_threat_summary(objective, tokens, player):
     """How contested an objective actually is right now: how many of
     `player`'s own squads already stand on it, and how many enemy squads are

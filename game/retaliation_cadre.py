@@ -10,20 +10,32 @@ characteristic of that attack by 1. If that attack targets a unit within
 9", improve the Armour Penetration characteristic of that attack by 1 as
 well.
 
-Simplification (documented, matching game/greater_good.py's precedent):
-this engine has no army-building/detachment-selection flow yet (see
-CLAUDE.md's Später-Liste), and Retaliation Cadre is currently the only
-detachment that exists - bonded_heroes_adjusted_weapon() therefore applies
-unconditionally to any BATTLESUIT-keyword model's ranged attack, the same
-way game/greater_good.py's For The Greater Good applies unconditionally to
-any model with that ability, without an "is this army actually T'au Empire
-under this detachment" check. Revisit once a real detachment-selection
-system exists."""
+GATED ON THE DETACHMENT, AS OF THE OTHER T'AU DETACHMENTS
+---------------------------------------------------------
+This module used to say: "Retaliation Cadre is currently the only detachment
+that exists - bonded_heroes_adjusted_weapon() therefore applies
+unconditionally to any BATTLESUIT-keyword model's ranged attack ... Revisit
+once a real detachment-selection system exists."
+
+That system now exists (game/detachments.py), so the note is paid off rather
+than repeated. Without the gate below, a Kauyon or Mont'ka army would still be
+getting Bonded Heroes for free, and in a T'au mirror match BOTH players would
+- which is exactly the failure the old note was warning about.
+
+has_detachment() and stratagem_target_ok() are the shared predicates, in the
+same shape and for the same reason as game/awakened_dynasty.py's and
+game/death_lords_chosen.py's: all six of this detachment's Stratagems open
+with "One T'AU EMPIRE unit from your army", and six private copies of that
+test is precisely the drift this repo keeps consolidating."""
 
 import copy
 
+from game import config, tau_detachments
 from game.attached_units import unit_has_keyword
 from game.squad import edge_distance
+
+# Kept as a re-export: game/tau_detachments.py owns the value now.
+TAU_KEYWORD = tau_detachments.TAU_KEYWORD
 
 BONDED_HEROES_STRENGTH_RANGE_IN = 12.0
 BONDED_HEROES_AP_RANGE_IN = 9.0
@@ -39,6 +51,38 @@ def is_battlesuit_unit(squad):
     is the one thing they already have in common - importing it from one
     stratagem into the other would couple them for no reason."""
     return unit_has_keyword(squad, lambda model: model.profile.battlesuit)
+
+
+# "One T'AU EMPIRE unit from your army" is a FACTION question, not a
+# detachment one, so its definition lives in game/tau_detachments.py where
+# every T'au detachment rule can reach it. Re-exported here because this
+# module's own predicates read better with it in scope, and because the six
+# Stratagem modules already import from here.
+is_tau_unit = tau_detachments.is_tau_unit
+
+
+def has_detachment(player):
+    """Whether this player's army is a Retaliation Cadre one."""
+    return player in tuple(getattr(config, "RETALIATION_CADRE_PLAYERS", ()) or ())
+
+
+def bonded_heroes_applies(squad):
+    """The detachment rule's own condition, minus the ranges: a BATTLESUIT
+    unit belonging to a player who actually brought this detachment."""
+    if squad is None or not has_detachment(getattr(squad, "owner", None)):
+        return False
+    return is_battlesuit_unit(squad)
+
+
+def stratagem_target_ok(squad, player=None):
+    """The TARGET line all six Stratagems share: a T'AU EMPIRE unit from an
+    army that actually has this detachment, optionally checked as belonging to
+    a given player."""
+    if squad is None or not is_tau_unit(squad):
+        return False
+    if not has_detachment(getattr(squad, "owner", None)):
+        return False
+    return player is None or squad.owner == player
 
 
 def bonded_heroes_adjusted_weapon(weapon, pairs, target_squad):
@@ -63,6 +107,15 @@ def bonded_heroes_adjusted_weapon(weapon, pairs, target_squad):
     activation in this engine)."""
     shooter_model = pairs[0][0] if pairs else None
     if shooter_model is None or not shooter_model.profile.battlesuit:
+        return weapon
+    # The detachment gate. Taken from the shooting MODEL's own squad rather
+    # than passed in, so it uses the same representative-shooter simplification
+    # the rest of this function already documents, and so the one call site in
+    # game/shooting.py needs no new argument. A model built by build_squad()
+    # always has .squad (game/status_effects.py reads it the same way); a
+    # hand-built one without it degrades to "no detachment", which is the safe
+    # direction - it withholds a bonus rather than inventing one.
+    if not has_detachment(getattr(getattr(shooter_model, "squad", None), "owner", None)):
         return weapon
     if not any(
         edge_distance(shooter, defender) <= BONDED_HEROES_STRENGTH_RANGE_IN

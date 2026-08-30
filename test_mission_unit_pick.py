@@ -51,7 +51,12 @@ EXPECTED = {
              "P1 Home Objective", "Objective Southwest"],
     "map2": ["P2 Home Objective", "Objective West", "Central Objective",
              "P1 Home Objective", "Objective East"],
-    "map3": ["Central Objective", "P2 Home Objective", "P1 Home Objective"],
+    # Six, in three mirror pairs, and no central one: the middle of this board
+    # is the 9" circle both deployment zones give up, and the two objectives
+    # nearest the centre sit inside it - which is what makes them No Man's
+    # Land despite standing in a quadrant that is otherwise somebody's zone.
+    "map3": ["Objective Northwest", "Objective Southeast", "P2 Home Objective",
+             "P1 Home Objective", "Objective East", "Objective West"],
 }
 COMPASS = {"North": ("y", "<"), "South": ("y", ">"), "West": ("x", "<"), "East": ("x", ">")}
 
@@ -235,10 +240,12 @@ checks.true("and routes left-panel clicks to the panel",
 PANEL = io.open("game/ui/action_panel.py", encoding="utf-8").read()
 checks.eq("main.py hands the controller to the panel",
           MAIN.count("secondary_mission_controller=secondary_mission_controller"), 1)
-checks.eq("draw() forwards it to the dispatch",
-          PANEL.count("secondary_mission_controller=secondary_mission_controller"), 1)
-checks.eq("both stages of the panel declare it",
-          PANEL.count("secondary_mission_controller=None"), 2)
+# Three stages now, not two: draw() -> _draw_dispatch() -> _draw_movement_ui(),
+# because the ACTION buttons live on the per-unit movement screen.
+checks.eq("the panel forwards it down both stages of the chain",
+          PANEL.count("secondary_mission_controller=secondary_mission_controller"), 2)
+checks.eq("all three stages declare it",
+          PANEL.count("secondary_mission_controller=None"), 3)
 checks.true("the dispatch branches on it",
             "if secondary_mission_controller is not None and secondary_mission_controller.pending_pick:"
             in PANEL)

@@ -71,6 +71,13 @@ not against a tougher yardstick. Recorded rather than tuned away: the same
 honesty front_rank.py's "it is still a judgement call, not a constant that was
 discovered" applies to.
 
+A THIRD CONSUMER SHAPE arrived later and reads both thresholds at once:
+home_garrison_rank(), the "who should stand on the home objective" question.
+It lives here rather than in ai/ because it is the same measurement read a
+third way, and because putting it beside the two thresholds is what keeps the
+deployment step and the turn-plan step from answering it differently - they
+are two phases of one decision and used to disagree.
+
 APPROXIMATE in exactly the ways game/damage_estimate.py is (no re-rolls, no
 [SUSTAINED HITS]/[LETHAL HITS]/[DEVASTATING WOUNDS], no cover, no abilities) -
 and that matters less here than anywhere else it is used, because both halves
@@ -78,6 +85,7 @@ of a ratio are computed the same way and most of what is missing cancels.
 """
 
 from game.damage_estimate import expected_wounds
+from game import weapon_range
 
 
 class _ReferenceDefender:
@@ -187,6 +195,72 @@ def is_assault_unit(squad, defender=REFERENCE_DEFENDER):
     A unit with no ranged weapons at all (ratio 0.0) is included."""
     ratio = ranged_to_melee_ratio(squad, defender)
     return ratio is not None and ratio <= 1.0 / SHOOTING_SPECIALIST_RATIO
+
+
+# How good a unit is at STANDING ON THE HOME OBJECTIVE, best first. See
+# home_garrison_rank() - three bands, not a score, because a continuous one
+# would out-vote the points term that the garrison passes are otherwise built
+# on and hand the job to whatever gun is biggest.
+GARRISON_BAND_SHOOTER = 0   # its guns are the point, and they reach the fight
+GARRISON_BAND_NEUTRAL = 1   # neither decisively - it loses least by standing there
+GARRISON_BAND_ASSAULT = 2   # it has nothing to do until it reaches the enemy
+
+
+def best_ranged_reach_in(squad):
+    """The longest range any live model in this unit can shoot to, in inches.
+
+    Reads game/weapon_range.py rather than the printed characteristic, because
+    that is this repo's one definition of "how far does this weapon reach right
+    now" - two abilities extend it live, and a second reader of the printed
+    number is exactly the quietly diverging pair the extraction exists to
+    prevent. 0.0 for a unit with no ranged weapons at all."""
+    best = 0.0
+    for model in squad.models:
+        if model.is_dead():
+            continue
+        for weapon in model.weapons:
+            if getattr(weapon, "weapon_type", None) != "ranged":
+                continue
+            best = max(best, weapon_range.effective_range_in(model, weapon))
+    return best
+
+
+def home_garrison_rank(squad, reach_needed_in=None, defender=REFERENCE_DEFENDER):
+    """Which of the three GARRISON_BAND_* this unit belongs in for the job of
+    holding a HOME objective - the ground behind one's own lines that nobody is
+    contesting. Lower is better.
+
+    User: "die ki soll fernkampfeinheiten stark bevorzugen, wenn es darum geht
+    das home objective zu halten. sie hat im letzten spiel dafuer die lychguard
+    benutzt, was voelliger quatsch ist. die immortals waeren perfekt. starke
+    fernkaempfer mit hoher reichweite."
+
+    BOTH HALVES OF THAT SENTENCE ARE TERMS, and they are not the same term -
+    measured over all three lists, range and the shooting/melee ratio do not
+    run parallel. The Aeldari Wraithguard read as a shooting unit (ratio 2.00)
+    on a 12" gun: parked on a home objective it contributes exactly as little
+    as the Lychguard do, because the nearest ground anyone fights over is 15-17"
+    away (see ai/observation.py's garrison_reach_needed_in(), where that
+    distance is measured off the board rather than guessed). So a unit is in
+    the top band only if its damage comes from shooting AND that shooting can
+    still touch the game from back there.
+
+    `reach_needed_in=None` drops the range half, for a caller that has no board
+    to measure against.
+
+    THREE BANDS RATHER THAN A SCORE. The garrison passes that read this are
+    built on "cheapest unit that can do the job", and a continuous ranged-ness
+    score would out-vote the points term everywhere: on the Ork list it would
+    move the job from the 45-point Gretchin to the 160-point Battlewagon.
+    Banding keeps points deciding WITHIN a band, which is where that rule was
+    always right."""
+    if is_assault_unit(squad, defender):
+        return GARRISON_BAND_ASSAULT
+    if not is_shooting_specialist(squad, defender):
+        return GARRISON_BAND_NEUTRAL
+    if reach_needed_in is not None and best_ranged_reach_in(squad) < reach_needed_in:
+        return GARRISON_BAND_NEUTRAL
+    return GARRISON_BAND_SHOOTER
 
 
 def describe_ratio(squad, defender=REFERENCE_DEFENDER):

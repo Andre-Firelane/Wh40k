@@ -7,15 +7,22 @@ same attachment ORDER) rather than driving main() itself: that keeps the check
 about WHAT the army is, independent of deployment, which the Pre-game Sequence
 (03.01) now owns.
 
-REWRITTEN when the roster went from T'au Empire to Aeldari, and REVISED again
-when the Aeldari list itself changed (the Avatar of Khaine and the Fire Dragons
-out; Dark Reapers, Rangers, Shining Spears, Shroud Runners and a Warlock
-Skyrunner in). Both times the old file kept passing while it validated an army
-that no longer existed - the same stale-test trap test_player2_army.py hit when
-the Ork list was replaced. That is twice now for this one file, which is why the
-totals below are written as the LIST's own numbers rather than as whatever the
-engine happened to produce: a stale expectation that merely disagrees is caught,
-one that was copied from the previous run is not.
+REWRITTEN when the roster went from T'au Empire to Aeldari, and REVISED twice
+since (the Avatar of Khaine and the Fire Dragons out, Dark Reapers / Rangers /
+Shining Spears / Shroud Runners / a Warlock Skyrunner in; then the Shroud
+Runners out and Windriders in, with the Skyrunner joining them). EVERY ONE OF
+THOSE TIMES THIS FILE KEPT PASSING while it validated an army that no longer
+existed - the same stale-test trap test_player2_army.py hit when the Ork list
+was replaced. THREE TIMES NOW for this one file, and the previous countermeasure
+was not enough: writing the totals out as the LIST's own arithmetic catches a
+stale NUMBER, but it leaves the SHAPE of the army standing here as a second copy
+that has to be maintained by hand, and it is the shape that went stale each time.
+
+So section 5 now asks game/army_lists.py ITSELF what it built - the same fix
+test_player2_necron_army.py got for the same trap. The hand-built roster stays,
+because it is what checks the per-entry loadouts against the supplied list, but
+it is compared against the real builder on SHAPE (which datasheet leads which,
+how many models) rather than trusted on its own.
 """
 
 from game import attached_units, loadout
@@ -26,12 +33,13 @@ from game.factions.aeldari import (
     FALCON_CATAPULT_TO_SHURIKEN_CANNON, FALCON_SCATTER_TO_BRIGHT_LANCE, FARSEER,
     FARSEER_WITCHBLADE_TO_SPEAR, GUARDIAN_DEFENDERS, HOWLING_BANSHEES,
     JAIN_ZAR, LHYKHIS, RANGERS, SHINING_SPEARS, SHINING_SPEAR_SHIMMERSHIELD,
-    SHINING_SPEAR_TO_SHURIKEN_CANNON, SHINING_SPEAR_TO_STAR_LANCE, SHROUD_RUNNERS,
+    SHINING_SPEAR_TO_SHURIKEN_CANNON, SHINING_SPEAR_TO_STAR_LANCE,
     STORM_GUARDIANS, STORM_GUARDIAN_CCW_TO_POWER_SWORD,
     STORM_GUARDIAN_PISTOL_TO_FLAMER, STORM_GUARDIAN_PISTOL_TO_FUSION,
     STRIKING_SCORPIONS, WARLOCK_CONCLAVE, WARLOCK_SKYRUNNERS,
     WARLOCK_WITCHBLADE_TO_SPEAR, WARP_SPIDERS,
-    WARP_SPIDER_TO_POWERBLADE_ARRAY, WRAITHGUARD, WRAITHGUARD_TO_D_SCYTHE,
+    WARP_SPIDER_TO_POWERBLADE_ARRAY, WINDRIDERS, WINDRIDER_TO_SHURIKEN_CANNON,
+    WRAITHGUARD, WRAITHGUARD_TO_D_SCYTHE,
 )
 
 PASS = []
@@ -133,13 +141,26 @@ check("...2 Spears on Laser Lance + Twin Shuriken Catapult",
       *has_line(spears, "Shining Spear", 2, "Laser Lance", "Laser Lance",
                 "Twin Shuriken Catapult"))
 
-runners = build(SHROUD_RUNNERS)
-check("Shroud Runners: 3 models", len(runners.models) == 3)
-check("...all 3 on Long Rifle + Scatter Laser + Pistol + CCW",
-      *has_line(runners, "Shroud Runner", 3, "Close Combat Weapon", "Long Rifle",
-                "Scatter Laser", "Shuriken Pistol"))
-check("...and this datasheet has no options either",
-      len(SHROUD_RUNNERS.wargear_options) == 0)
+# "3x Windriders (80 pts): 3 with Close Combat Weapon, Shuriken Cannon". The
+# close combat weapon is printed; the shuriken cannon is one of the two swaps
+# off the twin shuriken catapult, and the count is 3 because the list is
+# describing the WHOLE unit, not a single model's upgrade.
+windriders = build(WINDRIDERS, choices={"Windrider": {WINDRIDER_TO_SHURIKEN_CANNON: 3}})
+check("Windriders: 3 models", len(windriders.models) == 3)
+check("...all 3 on Close Combat Weapon + Shuriken Cannon",
+      *has_line(windriders, "Windrider", 3, "Close Combat Weapon", "Shuriken Cannon"))
+check("...so no Twin Shuriken Catapult is left on any of them",
+      not any(w.name == "Twin Shuriken Catapult" for m in windriders.models
+              for w in m.weapons))
+# The other swap off the same weapon deliberately NOT taken - and it shares a
+# cursor with the one that was, so taking both would have split them across
+# models rather than stacking. Checked because "3" could otherwise have been
+# read as "3 of each".
+check("...and the scatter laser alternative was not taken",
+      not any(w.name == "Scatter Laser" for m in windriders.models for w in m.weapons))
+# This is the one entry in the whole list whose price the engine and the
+# supplied list AGREE on, which is why the mismatch count went 12 -> 11.
+check("...priced at 80, exactly what the list says", windriders.points == 80)
 
 scorpions = build(STRIKING_SCORPIONS)
 check("Striking Scorpions: 5 models", len(scorpions.models) == 5)
@@ -161,12 +182,25 @@ check("...on Destructor + Pistol + Twin Shuriken Catapult + Witchblade",
                 "Twin Shuriken Catapult", "Witchblade"))
 check("...so no Singing Spear was taken",
       not any(w.name == "Singing Spear" for m in skyrunner.models for w in m.weapons))
-# It stands ALONE in this list, and that is legal rather than an attachment that
-# failed: its LEADER line is a JOIN naming Windriders, which this roster does not
-# field. Checked at the pairing table so the reason is recorded, not assumed.
-check("...and it stands alone: its JOIN names Windriders, which this list has none of",
+# IT NO LONGER STANDS ALONE. Its LEADER line is a JOIN that names WINDRIDERS and
+# nothing else, so it was a standalone unit purely because the previous list
+# fielded none - and the swap that brought the Windriders in gave it the only
+# partner it can ever have. Both directions checked at the pairing table, so the
+# reason is recorded rather than assumed.
+check("Warlock Skyrunner may join the Windriders",
+      attached_units.can_attach(skyrunner, windriders) == [])
+check("...and may join nothing else in this army (its JOIN names WINDRIDERS only)",
       attached_units.can_attach(build(WARLOCK_SKYRUNNERS, name="Skyrunner R"),
                                 build(GUARDIAN_DEFENDERS, name="Guardians S")) != [])
+merged_windriders = attached_units.attach(skyrunner, windriders)
+check("...merged to 4 models", len(merged_windriders.models) == 4)
+# The JOIN states its own limit ("a unit cannot have more than one WARLOCK
+# SKYRUNNERS unit joined to it") instead of taking 19.01's single leader slot -
+# word for word the Warlock Conclave wording the two Guardian blocks rely on.
+# Pinned here because that is the only thing distinguishing this attachment from
+# an ordinary one, and it is invisible in the merged result.
+check("...and 19.02 pools the merged unit's points",
+      merged_windriders.points == 80 + 55)
 
 wraithguard = build(WRAITHGUARD, choices={"Wraithguard": {WRAITHGUARD_TO_D_SCYTHE: 5}})
 check("Wraithguard: all 5 on D-scythes",
@@ -336,19 +370,54 @@ check("...merged to 6 models", len(merged_spiders.models) == 6)
 
 print("\n5. Army rule and totals")
 
-units = [reapers, falcon, rangers, spears, runners, scorpions, skyrunner,
-         wraithguard, merged_guardians, merged_storm, merged_avengers,
+units = [reapers, falcon, rangers, spears, scorpions, wraithguard,
+         merged_guardians, merged_storm, merged_windriders, merged_avengers,
          merged_banshees, merged_spiders]
-check("13 units: 8 plain + 5 attached", len(units) == 13)
+check("12 units: 6 plain + 6 attached", len(units) == 12)
 check("every unit is priced (no None)", all(u.points is not None for u in units))
 total = sum(u.points for u in units)
-# Counted from the list rather than copied from a run, which is the whole
-# point of writing it out:
-#   plain    5 Reapers + 1 Falcon + 5 Rangers + 3 Spears + 3 Runners
-#            + 5 Scorpions + 1 Skyrunner + 5 Wraithguard          = 28
-#   attached (11 + 1 + 2) + (11 + 1 + 2) + (5 + 1) * 3            = 46
+# Counted from the list rather than copied from a run:
+#   plain    5 Reapers + 1 Falcon + 5 Rangers + 3 Spears
+#            + 5 Scorpions + 5 Wraithguard                        = 24
+#   attached (11 + 1 + 2) + (11 + 1 + 2) + (3 + 1) + (5 + 1) * 3  = 50
 models = sum(len(u.models) for u in units)
-check("74 models on the table", models == 28 + 46, str(models))
+check("74 models on the table", models == 24 + 50, str(models))
+
+# ---------------------------------------------------------------------------
+# ...AND THE SAME QUESTION PUT TO THE REAL BUILDER, which is the part that
+# would have caught all three times this file went stale. Everything above is
+# a hand-built second copy of the roster: it is the right tool for checking a
+# per-entry loadout against the supplied list, and the wrong one for checking
+# that the army still HAS that entry.
+# ---------------------------------------------------------------------------
+import re  # noqa: E402
+from game import army_lists  # noqa: E402
+
+built = []
+army_lists.get("aeldari").build("Player 1", built.append)
+
+
+def shape(squad):
+    """(datasheet-ish name with the copy number stripped, model count) - the
+    hand-built roster above has to use different copy numbers, so the two are
+    compared on what actually matters: which datasheet leads which, and how big
+    the result is."""
+    # Two normalisations, and they are not the same one twice: the leading
+    # digit is army_lists.unit_name()'s OWNER prefix ("1 Dark Reapers 1"),
+    # which the hand-built roster here has no reason to carry, and the trailing
+    # number is the copy count.
+    bare = re.sub(r"^\d+\s", "", squad.name)
+    return (re.sub(r"\s\d+(?=\s\+|$)", "", bare), len(squad.models))
+
+
+check("the real builder produces the same 12 units, leader for leader and "
+      "model for model",
+      sorted(shape(u) for u in built) == sorted(shape(u) for u in units),
+      f"{sorted(shape(u) for u in built)} vs {sorted(shape(u) for u in units)}")
+check("...the same 74 models", sum(len(u.models) for u in built) == models,
+      str(sum(len(u.models) for u in built)))
+check("...and the same total", sum(u.points for u in built) == total,
+      f"{sum(u.points for u in built)} vs {total}")
 
 # This is what makes the whole Aeldari army rule live: it is DERIVED from the
 # units rather than configured, so an army built from these datasheets turns
@@ -356,15 +425,26 @@ check("74 models on the table", models == 28 + 46, str(models))
 from game import battle_focus  # noqa: E402
 check("Battle Focus derives Player 1 as an ASURYANI army",
       "Player 1" in battle_focus.qualifying_players(units))
-check("...and every one of the 13 units carries the flag",
-      all(any(m.profile.battle_focus for m in u.models) for u in units))
+# NOT every unit: the Wraithguard print no FACTION line, so they have no
+# Battle Focus of their own - Spirit Conclave's Spirit Guides aura is the only
+# thing that ever grants it to them. The army rule still derives from the rest,
+# which is the point of the check above; this one names the exception so it
+# reads as the printed datasheet rather than as an oversight.
+_no_focus = sorted(u.name for u in units
+                   if not any(m.profile.battle_focus for m in u.models))
+check("...and every unit but the Wraithguard carries the flag",
+      _no_focus == ["Wraithguard"], str(_no_focus))
 
-# The supplied list totals 1930 pts. 12 of its 19 distinct entries disagree with
-# the transcribed official points list (see main.py's roster comment), so the
-# engine total is deliberately different and the check is a sanity bound, not an
-# equality - overwriting the transcribed data to force a match is exactly what
-# both other armies' notes say not to do. The revision's mismatches run BOTH
-# ways, so this is no longer a one-sided bound.
+# The supplied list totals 1930 pts. 11 of its 19 distinct entries disagree with
+# the transcribed official points list (see game/army_lists.py's roster
+# docstring), so the engine total is deliberately different and the check is a
+# sanity bound, not an equality - overwriting the transcribed data to force a
+# match is exactly what both other armies' notes say not to do. The mismatches
+# run BOTH ways, so this is not a one-sided bound.
+#
+# ELEVEN, down from twelve: the Windriders that replaced the Shroud Runners are
+# priced at 80 by the list AND by the transcription, so the swap retired one of
+# the mismatches rather than moving it.
 print(f"       engine total: {total} pts   |   the supplied list totals 1930 pts")
 check("the total is within 100 pts of the list's own", abs(total - 1930) <= 100,
       f"{total} vs 1930")

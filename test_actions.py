@@ -26,7 +26,7 @@ import testkit as tk  # noqa: E402
 from game import config, maps, secondary_missions as sm  # noqa: E402
 from game.actions import ActionController, start_eligibility  # noqa: E402
 from game.game_state import GameState  # noqa: E402
-from game.turn import PHASE_SHOOTING  # noqa: E402
+from game.turn import PHASES, PHASE_MOVEMENT, PHASE_SHOOTING  # noqa: E402
 from game.factions import aeldari as ae  # noqa: E402
 
 checks = tk.Checks("Actions (16.01)")
@@ -313,21 +313,51 @@ ctrl.set_zones_source(lambda: board.deployment_zones)
 ctrl.set_action_controller(actions)
 ctrl.hand = [sm.CLEANSE]
 
-ctrl.offer_actions_at_shooting_phase("Player 1")
-checks.true("the Shooting phase opens the gate", decision.is_pending)
-checks.true("the gate warns about the cost",
-            "shooting" in (decision.prompt or "") and "charge" in (decision.prompt or ""))
-tk.pick_option(decision, "Start the action")
-checks.true("the first unit is asked which objective", "1 Rangers A" in (decision.prompt or ""))
-tk.pick_option(decision, CENTRAL.name)
-# USE LIMIT in action: the second unit must not be offered the taken objective.
-checks.true("the second unit is asked next", "1 Rangers B" in (decision.prompt or ""))
-checks.eq("and is NOT offered the objective already being cleansed",
-          any(CENTRAL.name in lbl for lbl in tk.options_of(decision)), False)
-tk.pick_option(decision, WEST.name)
-while decision.is_pending:
-    tk.pick_option(decision, "does not act")
+# Actions are PANEL BUTTONS, not a prompt. You pick the unit by selecting it,
+# and the target by which button you press. User: "eigentlich sollte das kein
+# prompt sein. actions sollten einfach links bei den aktionen auftauchen."
+#
+# The first version opened a DecisionManager chain at the start of the Shooting
+# phase and marched the player through the eligible units in name order - so
+# you could say WHETHER to act but never WITH WHOM, and with a once-per-turn
+# action the first unit alphabetically simply took it.
+turn_tracker = TurnTracker(game_log=tk.Log())
+turn_tracker.phase_index = PHASES.index(PHASE_SHOOTING)
+turn_tracker.turn_owner = "Player 1"
+ctrl.turn_tracker = turn_tracker
+
+offers_a = ctrl.available_actions_for(a)
+offers_b = ctrl.available_actions_for(b)
+checks.true("the unit standing on the central objective is offered it",
+            any(CENTRAL.name in label for label, _a, _t in offers_a))
+checks.true("and the other unit is offered ITS objective",
+            any(WEST.name in label for label, _a, _t in offers_b))
+checks.eq("nothing is asked - no prompt is opened", decision.is_pending, False)
+checks.true("every offer names the action", all("Cleanse" in label for label, _a, _t in offers_a))
+
+# Starting one is a direct call, and it is the SELECTED unit that acts.
+label, action_def, target = next((o for o in offers_b if WEST.name in o[0]), (None, None, None))
+checks.true("the second unit's own offer can be started", action_def is not None)
+ctrl.start_action(action_def, b, target)
+checks.eq("one action is running", len(actions.states), 1)
+checks.eq("...started by the unit that was chosen", actions.states[0].squad.name, b.name)
+checks.true("...on the target that was chosen", actions.states[0].target is WEST)
+
+# USE LIMIT: Cleanse forbids the SAME objective twice, so the other unit is
+# still offered its own - unlike a once-per-turn action, which would now be
+# spent.
+offers_a_now = ctrl.available_actions_for(a)
+checks.true("the other unit can still act on a DIFFERENT objective",
+            any(CENTRAL.name in label for label, _a, _t in offers_a_now))
+checks.eq("...but not on the one already taken",
+          any(WEST.name in label for label, _a, _t in offers_a_now), False)
+label, action_def, target = next(o for o in offers_a_now if CENTRAL.name in o[0])
+ctrl.start_action(action_def, a, target)
 checks.eq("two actions are running", len(actions.states), 2)
+
+# A unit that has started one is not offered another this turn (16.01).
+checks.eq("a unit that already acted is offered nothing more",
+          ctrl.available_actions_for(a), [])
 
 ctrl.begin_end_of_turn("Player 1", battle_round=2)
 checks.eq("both completed", len(ctrl.card_state["cleanse"]["cleansed_this_turn"]), 2)
@@ -336,17 +366,23 @@ tk.pick_option(decision, "Score 5")
 checks.eq("paying the two-or-more tier",
           mission.secondary_points.get("Player 1", 0), sm.CLEANSE_MANY_VP)
 
-# The opponent's Shooting phase opens nothing.
-ctrl2 = sm.SecondaryMissionController(player="Player 1", decision_manager=DecisionManager(),
-                                      cards=[sm.CLEANSE])
-ctrl2.set_tokens_source(lambda: toks)
-ctrl2.set_objectives_source(lambda: board.objectives)
-ctrl2.set_zones_source(lambda: board.deployment_zones)
-ctrl2.set_action_controller(ActionController(tokens_source=lambda: toks))
-ctrl2.hand = [sm.CLEANSE]
-ctrl2.offer_actions_at_shooting_phase("Player 2")
-checks.eq("the enemy's Shooting phase offers nothing",
-          ctrl2.decision_manager.is_pending, False)
+# Nothing is offered outside the action's own STARTS phase, or on the
+# opponent's turn.
+ctrl3 = sm.SecondaryMissionController(player="Player 1", cards=[sm.CLEANSE],
+                                      turn_tracker=turn_tracker)
+ctrl3.set_tokens_source(lambda: toks)
+ctrl3.set_objectives_source(lambda: board.objectives)
+ctrl3.set_zones_source(lambda: board.deployment_zones)
+ctrl3.set_action_controller(ActionController(tokens_source=lambda: toks))
+ctrl3.hand = [sm.CLEANSE]
+checks.true("in your own Shooting phase there are offers",
+            bool(ctrl3.available_actions_for(a)))
+turn_tracker.turn_owner = "Player 2"
+checks.eq("on the opponent's turn there are none", ctrl3.available_actions_for(a), [])
+turn_tracker.turn_owner = "Player 1"
+turn_tracker.phase_index = PHASES.index(PHASE_MOVEMENT)
+checks.eq("in the wrong phase there are none", ctrl3.available_actions_for(a), [])
+turn_tracker.phase_index = PHASES.index(PHASE_SHOOTING)
 
 
 # --- 7. wiring: the locks and hooks really exist in main.py ---
@@ -365,8 +401,17 @@ checks.true("movement reports its moves",
             "movement_controller.action_controller = action_controller" in MAIN)
 checks.true("and it knows about Advance moves",
             "action_controller.movement_controller = movement_controller" in MAIN)
-checks.true("the Shooting phase opens the action window",
-            "offer_actions_at_shooting_phase(" in MAIN)
+# Actions are offered as PANEL BUTTONS for the selected unit, so what main.py
+# has to do is hand the panel the controller - there is no phase hook any more.
+checks.eq("main.py hands the mission controller to the panel",
+          MAIN.count("secondary_mission_controller=secondary_mission_controller"), 1)
+checks.eq("and no phase hook opens an action prompt",
+          "offer_actions_at_shooting_phase(" in MAIN, False)
+PANEL = io.open("game/ui/action_panel.py", encoding="utf-8").read()
+checks.true("the panel asks which actions the selected unit could start",
+            "secondary_mission_controller.available_actions_for(squad)" in PANEL)
+checks.true("and its buttons start them",
+            "secondary_mission_controller.start_action(a, sq, t)" in PANEL)
 checks.true("and the turn ends by clearing it",
             "action_controller.reset_for_turn()" in MAIN)
 

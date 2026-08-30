@@ -3,6 +3,7 @@ from collections import Counter
 from game import attached_units
 from game import coldstar
 from game import config  # imports nothing itself, so this cannot cycle
+from game import nurgles_gift  # imports nothing itself either - see its docstring on why
 from game.modifiers import Modifier
 from game.terrain import DENSE
 from game.thresholds import parse_threshold
@@ -88,7 +89,7 @@ def is_monster_or_vehicle_unit(squad):
     return all(m.profile.monster or m.profile.vehicle for m in squad.models)
 
 
-def tank_hunters_modifiers(attacking_model, target_squad):
+def tank_hunters_modifiers(attacking_model, target_squad, melee=False):
     """Tankbustas' own "Tank Hunters" ability (user-supplied, not a core
     rule): "each time a model in this unit makes an attack that targets a
     MONSTER or VEHICLE unit, add 1 to the Hit roll and add 1 to the Wound
@@ -97,10 +98,22 @@ def tank_hunters_modifiers(attacking_model, target_squad):
     Shared by game/shooting.py's and game/fight.py's own _hit_modifiers()/
     _wound_modifiers(), since the ability isn't restricted to ranged
     attacks - depends only on the attacking MODEL's own ability and the
-    TARGET unit's keywords, not on which phase the attack happens in."""
-    if not attacking_model.profile.tank_hunters or not is_monster_or_vehicle_unit(target_squad):
+    TARGET unit's keywords, not on which phase the attack happens in.
+
+    The Myphitic Blight-hauler prints an ability under the SAME NAME with the
+    same +1/+1, but its text opens "In your Shooting phase" where the Ork
+    version has no phase clause at all. That is why there are two flags rather
+    than one: `melee=True` (passed by game/fight.py) keeps the Ork bonus and
+    drops the Death Guard one. Reading them as the same ability would silently
+    hand a Blight-hauler the bonus with its Gnashing Maw as well - and the
+    narrower reading is the safe one, since it cannot grant more than either
+    printed text does."""
+    if not is_monster_or_vehicle_unit(target_squad):
         return []
-    return [Modifier(-1, "Tank Hunters (MONSTER/VEHICLE)")]
+    profile = attacking_model.profile
+    if profile.tank_hunters or (profile.tank_hunters_ranged_only and not melee):
+        return [Modifier(-1, "Tank Hunters (MONSTER/VEHICLE)")]
+    return []
 
 
 def allocation_target_profile(squad):
@@ -230,7 +243,14 @@ def squad_has_fights_first(squad):
     post-charge grant (Squad.fights_first, cleared at end of turn) or rule
     24.13's permanent datasheet ability, granted only "while every model in
     a unit has this ability" (UnitProfile.fights_first)."""
-    return squad.fights_first or unit_wide_ability(squad, "fights_first")
+    if squad.fights_first or unit_wide_ability(squad, "fights_first"):
+        return True
+    # The Visarch's Way of the Blade - the THIRD source, and the first that is
+    # neither of the two above: a LEADER grants it to the unit it is leading.
+    # It folds in here rather than at FightController's activation loop so the
+    # order of activations cannot get a second opinion about who goes first.
+    from game.ynnari_abilities import way_of_the_blade_applies
+    return way_of_the_blade_applies(squad)
 
 
 def squad_is_attached_unit(squad):
@@ -260,6 +280,11 @@ def squad_is_attached_unit(squad):
     return has_leader and has_bodyguard
 
 
+#: "this model has a Toughness characteristic of 3" - Support Weapon
+#: Platforms' printed value while they are part of a larger unit.
+SUPPORT_WEAPON_TOUGHNESS = 3
+
+
 def attached_unit_toughness(squad):
     """Rule 19.02: an attached unit (19.01 - formed by
     game.attached_units.attach(), which merges a Leader/Support unit's
@@ -286,20 +311,48 @@ def attached_unit_toughness(squad):
     this function already answers (and it needs to interact correctly with
     the SAME bodyguard/leader pooling logic above: once every Gretchin
     model is dead, `has_gretchin` goes False and a Runtherd's own real T
-    applies again, unprompted)."""
+    applies again, unprompted).
+
+    The DEATH GUARD army rule Nurgle's Gift lands here too: "while an enemy
+    unit is Afflicted, subtract 1 from the Toughness characteristic of models
+    in that unit". Applied to the POOLED result rather than per model, which
+    is the same number either way (max(t) - 1 == max(t - 1)) and keeps the
+    Gretchin override above meaning exactly what it did. Clamped at 1, and
+    read off Squad.afflicted rather than measured, for the reasons
+    game/nurgles_gift.py's docstring gives - this function has nine callers
+    and runs once per weapon group per attack.
+
+    Putting it HERE rather than at those nine callers is what makes the
+    penalty reach game/damage_estimate.py and ai/observation.py unprompted, so
+    the AI's target picks and the planner's observation see the Toughness the
+    attack will actually resolve against instead of the printed one."""
     alive = [m for m in squad.models if not m.is_dead()]
     if not alive:
         alive = squad.models
     bodyguards = [m for m in attached_units.bodyguard_models(squad) if m in alive]
     pool = bodyguards if bodyguards else alive
     has_gretchin = any(m.profile.gretchin for m in alive)
+    # Support Weapon Platforms' "Support Weapon": "each time an attack targets
+    # this model's unit, IF THAT UNIT CONTAINS ONE OR MORE OTHER MODELS, until
+    # that attack is resolved, this model has a Toughness characteristic of 3."
+    # The same question the Runtherd override answers, so the same place - and
+    # the same self-cancelling shape: a platform standing alone is not "in a
+    # unit with other models", so its printed T6 applies unprompted.
+    #
+    # Counted over ALIVE models, so a platform whose Guardians have all been
+    # killed goes back to T6 in the same frame - the mirror of has_gretchin.
+    has_other_models = len(alive) > 1
 
     def _effective_toughness(model):
         if has_gretchin and model.profile.runtherd_shares_gretchin_toughness:
             return 2
+        if has_other_models and model.profile.support_weapon_toughness:
+            return SUPPORT_WEAPON_TOUGHNESS
         return model.profile.toughness
 
-    return max(_effective_toughness(m) for m in pool)
+    pooled = max(_effective_toughness(m) for m in pool)
+    return max(nurgles_gift.MINIMUM_TOUGHNESS,
+               pooled - nurgles_gift.toughness_penalty(squad))
 
 
 def _current_and_starting_strength(squad):
@@ -414,6 +467,16 @@ class Squad:
         self.spirit_of_gork_lethal = False  # Kill Rig's Spirit of Gork, the "on a 6" half: those same weapons also gain [LETHAL HITS]
         self.ammo_runt_active = False  # Flash Gitz' Ammo Runt wargear: "until the end of the phase, ranged weapons equipped by models in this unit have the [LETHAL HITS] ability" - see game/ammo_runt.py. A unit-level flag for the same reason the ones above are, and cleared in the same place
         self.unbridled_carnage_active = False  # War Horde's Unbridled Carnage stratagem: "until the end of the phase", this unit's melee attacks score a Critical Hit on an unmodified hit roll of 5+ - see game/unbridled_carnage.py. A unit-level flag for the same reason the two above are, and cleared in the same place
+        # The DEATH GUARD army rule Nurgle's Gift (game/nurgles_gift.py). Two
+        # flags rather than a live geometric test, both stamped by the same
+        # once-per-frame NurglesGiftController.refresh(): "Afflicted" has a
+        # STICKY source as well as an aura one (Plague Marines' own ability
+        # and the Signal Pox stratagem both read "until the start of your next
+        # turn", with no Death Guard model anywhere near), and the -1 Toughness
+        # is read inside attached_unit_toughness(), which has nine callers and
+        # runs once per weapon group per attack.
+        self.afflicted = False  # rule: Nurgle's Gift - -1 Toughness (see attached_unit_toughness() below) plus the opponent's chosen Plague
+        self.afflicted_plague = None  # which of game/plagues.py's three Plagues is on this unit, or None - stamped alongside `afflicted` so all six Plague funnels can read the unit instead of growing a parameter
         self.ingress_locked = False  # rule 20.04: set on a successful Ingress move, cleared once the next Charge phase begins
         self.aspect_shrine_tokens = 0  # ASPECT WARRIORS wargear: how many Aspect Shrine tokens this unit was built with (starting strength // 5) - set by build_squad(), see game/aspect_shrine.py
         self.aspect_shrine_tokens_used = 0  # ...and how many of them have been spent. Once per battle each, so this only ever grows
@@ -787,7 +850,15 @@ def infiltrators_clear_of_enemies(x_in, y_in, radius_in, all_tokens, owner):
 def squad_has_stealth(squad):
     """Rule 24.33 (STEALTH): "if every model in a unit has this ability" -
     same all()-vs-any() distinction as squad_has_infiltrators()/
-    _has_deep_strike()."""
+    _has_deep_strike().
+
+    SECOND SOURCE: the Starfangs' Hallucinogen Grenades grant Stealth to a
+    friendly unit for one phase. That is the first TEMPORARY grant of it, so
+    it is asked here rather than written as a flag on the models - a granted
+    ability that has to be un-set on every model is exactly how one gets left
+    set. See game/hallucinogen_grenades.py, which owns the expiry.""" 
+    if getattr(squad, "granted_stealth_until_phase", False):
+        return True
     return unit_wide_ability(squad, "stealth")
 
 
@@ -862,6 +933,22 @@ def squad_has_guardian_drone(squad):
     return attached_units.unit_has_keyword(squad, lambda m: m.profile.guardian_drone)
 
 
+def squad_has_advanced_guardian_drone(squad):
+    """Commander Shadowsun's Advanced Guardian Drone: "each time a ranged
+    attack targets THE BEARER, subtract 1 from the Wound roll".
+
+    THE BEARER, not the bearer's unit - which is the one word that separates
+    it from squad_has_guardian_drone() above. It is nevertheless answered per
+    UNIT, and that is exact rather than a simplification: Shadowsun is a LONE
+    OPERATIVE with no Leader ability, so her unit is always exactly herself and
+    the two readings cannot come apart. Written out because a future model
+    printing "the bearer" inside a real squad would need a per-model wound
+    gate, which this engine does not have - the same note
+    squad_has_agile_combatant() carries."""
+    return attached_units.unit_has_keyword(
+        squad, lambda m: getattr(m.profile, "advanced_guardian_drone", False))
+
+
 def squad_has_fieldcraft(squad):
     """The sticky-objective ability (user-supplied, not a core rulebook
     rule - see game/fieldcraft.py and UnitProfile.fieldcraft's own note):
@@ -898,6 +985,24 @@ def squad_has_war_construct(squad):
     Two abilities, one effect, so two predicates rather than one shared flag:
     they are different printed rules and a datasheet has one or the other."""
     return unit_wide_ability(squad, "war_construct")
+
+
+def squad_has_agile_combatant(squad):
+    """Commander Shadowsun's "Agile Combatant": "This model is eligible to
+    shoot in a turn in which it Fell Back" - the THIRD printed wording of the
+    exception squad_has_battlesuit_support_system() and squad_has_war_construct()
+    above already grant, and read at the same place (game/shooting.py's
+    available_shooting_types()). Three abilities, one effect, three predicates,
+    for the reason War Construct's own note gives: they are different printed
+    rules and a datasheet has one of them, not a shared flag.
+
+    Note this one says "this MODEL" where the other two say "this unit", and
+    unit_wide_ability() is still the right test: she is a LONE OPERATIVE with
+    no Leader ability, so her unit is always exactly herself and the two
+    readings cannot come apart. Written out rather than left as a coincidence,
+    since a future model printing "this model" inside a real squad would need
+    a per-model gate that this engine does not have."""
+    return unit_wide_ability(squad, "agile_combatant")
 
 
 def squad_has_full_throttle(squad):

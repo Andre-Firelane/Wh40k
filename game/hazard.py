@@ -5,17 +5,26 @@ MORTAL_WOUNDS_ON_FAIL = 1
 MORTAL_WOUNDS_ON_FAIL_MONSTER_VEHICLE = 3
 
 
-def hazard_failures(rolls):
+HAZARD_FAILURE_THRESHOLD = 2   # rule 06.03: 1-2 fails
+
+
+def hazard_failures(rolls, penalty=0):
     """Rule 06.03: each roll of 1-2 (out of a batch made simultaneously) is
-    a failure."""
-    return sum(1 for roll in rolls if roll <= 2)
+    a failure.
+
+    `penalty` subtracts from each ROLL, which is how the Clanblade's Cornered
+    Prey prints it ("-1 from those hazard rolls") - not a raised threshold. The
+    two are the same arithmetic here, and the printed wording is what is
+    transcribed; the parameter defaults to 0, so every existing caller means
+    exactly what it did."""
+    return sum(1 for roll in rolls if roll - penalty <= HAZARD_FAILURE_THRESHOLD)
 
 
-def hazard_mortal_wounds(squad, rolls):
+def hazard_mortal_wounds(squad, rolls, penalty=0):
     """Rule 06.03: how many mortal wounds a batch of hazard rolls inflicts -
     1 per failure, or 3 instead if every model in the unit is a
     MONSTER/VEHICLE model."""
-    failures = hazard_failures(rolls)
+    failures = hazard_failures(rolls, penalty)
     if failures == 0:
         return 0
     per_failure = (
@@ -52,8 +61,11 @@ class HazardRollStep:
     callers that aren't themselves a hit/wound/save state machine (rules
     18.04's Combat Disembark and 18.05's Emergency Disembark)."""
 
-    def __init__(self, squad, count, dice_manager, log=None):
+    def __init__(self, squad, count, dice_manager, log=None, penalty=0):
         self.squad = squad
+        # "-1 from those hazard rolls" - the Clanblade's Cornered Prey. 0 for
+        # every other caller, so they are unchanged.
+        self.penalty = penalty
         self.dice_manager = dice_manager
         self.log = log
         self.mortal_wound_session = None
@@ -86,10 +98,10 @@ class HazardRollStep:
             return
         self._rolled = True
         rolls = self.dice_manager.last_values
-        total = hazard_mortal_wounds(self.squad, rolls)
+        total = hazard_mortal_wounds(self.squad, rolls, self.penalty)
         if self.log is not None:
             self.log(
-                f"Hazard Rolls {rolls}: {hazard_failures(rolls)}/{len(rolls)} failed -> {total} mortal wound(s)."
+                f"Hazard Rolls {rolls}: {hazard_failures(rolls, self.penalty)}/{len(rolls)} failed{' (-' + str(self.penalty) + ' Cornered Prey)' if self.penalty else ''} -> {total} mortal wound(s)."
             )
         if total > 0:
             self.mortal_wound_session = MortalWoundAllocationSession(

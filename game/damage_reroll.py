@@ -23,7 +23,8 @@ class DamageRerollOffer:
     re-roll is on offer for this group". It does not re-check the target."""
 
     def __init__(self, label, decision_manager=None, dice_manager=None, game_log=None,
-                 owner=None, weapon_name="", prompt_suffix=""):
+                 owner=None, weapon_name="", prompt_suffix="", automatic_faces=(),
+                 notation=None):
         self.label = label          # the ability's own name, for the prompt and the log
         self.decision_manager = decision_manager
         self.dice_manager = dice_manager
@@ -31,6 +32,15 @@ class DamageRerollOffer:
         self.owner = owner          # the ATTACKING player - "you can re-roll" is the attacker's choice
         self.weapon_name = weapon_name
         self.prompt_suffix = prompt_suffix  # e.g. "against this MONSTER/VEHICLE target"
+        # An ability whose text says "re-roll a Damage roll of 1" rather than
+        # "you can re-roll" is MANDATORY, so it is not an offer at all: the die
+        # faces listed here are re-rolled without asking. The D-cannon
+        # Platform's Structural Collapse is the first such source.
+        self.automatic_faces = set(automatic_faces)
+        # Needed only by automatic_faces, and only because "a Damage roll of 1"
+        # names the DIE, not the total - a D6+2 showing a 1 arrives here as a
+        # 3. Same distinction Branching Fates' face_for_total() had to make.
+        self.notation = notation
 
     def can_offer(self):
         """Whether this Damage die still has its one re-roll left.
@@ -48,6 +58,27 @@ class DamageRerollOffer:
         if self.dice_manager is None:
             return False
         return 0 not in self.dice_manager.already_rerolled
+
+    def face_of(self, total):
+        """The die face behind an acknowledged Damage `total`.
+
+        Only meaningful for a single-die notation, which every Damage roll in
+        this repo is; returns None otherwise rather than guessing, so a future
+        multi-die Damage characteristic cannot be silently mis-read."""
+        if self.notation is None or self.notation.dice != 1:
+            return None
+        return total - self.notation.bonus
+
+    def auto_reroll_for(self, total):
+        """Whether this Damage roll is re-rolled WITHOUT asking.
+
+        Checked before maybe_offer() by the session, and gated on the same
+        already_rerolled ledger, so a mandatory re-roll still cannot throw the
+        same die twice."""
+        if not self.automatic_faces or not self.can_offer():
+            return False
+        face = self.face_of(total)
+        return face is not None and face in self.automatic_faces
 
     def maybe_offer(self, total, on_resolved):
         """Called with the Damage roll's acknowledged `total`. Requests the

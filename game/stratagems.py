@@ -76,6 +76,21 @@ class StratagemController:
         # question - the same generalisation ShootingController.
         # target_reactions got when it grew a second consumer.
         self.cost_discounts = []
+        # Optional listeners notified after a use has actually been paid for,
+        # each called as listener(player, stratagem, targets). A LIST for the
+        # same reason cost_discounts above is one.
+        #
+        # Distinct from on_stratagem_used, which is the AI-notice callback and
+        # deliberately does NOT carry the targets: the one consumer here is
+        # Retaliation Cadre's Puretide Engram Neurochip Enhancement, whose
+        # printed trigger is "each time you TARGET THE BEARER'S UNIT with a
+        # Stratagem" - so which units were targeted is the whole question, and
+        # widening on_stratagem_used' signature would have touched a callback
+        # main.py wires to an overlay that has no use for them.
+        #
+        # Fired after stratagem.effect() rather than before, so a Neurochip CP
+        # can never be spent by the very use that granted it.
+        self.on_targets_chosen = []
 
     def reset_phase(self):
         self.used_this_phase = set()
@@ -138,4 +153,6 @@ class StratagemController:
             self.on_stratagem_used(player, stratagem)
 
         stratagem.effect(self, player, targets)
+        for listener in self.on_targets_chosen or ():
+            listener(player, stratagem, targets)
         return True

@@ -56,11 +56,19 @@ formality - it is how you protect your OWN units standing next to the wreck
 (24.08's detonation hits every unit within 6", friendly ones included), so both
 are offered up front, in one prompt.
 
-SIMPLIFICATION (documented, matching game/retaliation_cadre.py's own note):
-this engine has no army-building/detachment-selection flow yet, and
-Retaliation Cadre is currently the only detachment that exists - the T'AU
-EMPIRE half of the WHEN clause is therefore not checked, exactly as Bonded
-Heroes applies unconditionally to any BATTLESUIT model. The BATTLESUIT half
+DETACHMENT GATE
+---------------
+The T'AU EMPIRE half of the WHEN clause, and "from your army", are checked
+through game/retaliation_cadre.py's stratagem_target_ok() - the shared
+predicate all six of this detachment's Stratagems use, in the same shape as
+game/awakened_dynasty.py's and game/death_lords_chosen.py's.
+
+This module used to say the opposite: that the check was skipped because
+"Retaliation Cadre is currently the only detachment that exists". That
+assumption expired the moment a T'au army could be a Kauyon or Mont'ka one
+instead, and in a T'au mirror match it was wrong for both players at once.
+
+The BATTLESUIT half
 IS checked, and per MODEL rather than per unit: the WHEN clause is about the
 destroyed MODEL, so a drone dying out of an otherwise-Battlesuit unit does
 not trigger it. Deadly Demise is likewise checked per model, for the same
@@ -68,6 +76,7 @@ reason.
 """
 
 from game.deadly_demise import DEADLY_DEMISE_RANGE_IN
+from game.retaliation_cadre import stratagem_target_ok
 from game.stratagems import Stratagem
 
 FAIL_SAFE_CP_COST = 2
@@ -130,6 +139,8 @@ class FailSafeDetonatorController:
             return False
         squad = getattr(dead_model, "squad", None)
         if squad is None or squad in self._asked:
+            return False
+        if not stratagem_target_ok(squad):
             return False
         # The choice only exists while that ability's roll is still ahead of
         # us - once it has resolved there is nothing left to replace.

@@ -30,11 +30,13 @@ from game.units import (
     ImmortalProfile,
     LokhustDestroyerProfile,
     LokhustHeavyDestroyerProfile,
+    LokhustLordProfile,
     LychguardProfile,
     NecronWarriorProfile,
     OverlordProfile,
     PlasmancerProfile,
     SkorpekhDestroyerProfile,
+    SkorpekhLordProfile,
     TechnomancerProfile,
 )
 from game.weapons import (
@@ -43,19 +45,23 @@ from game.weapons import (
     DoomsdayCannonProfile,
     EldritchLanceMeleeProfile,
     EldritchLanceRangedProfile,
+    EnmiticAnnihilatorProfile,
     EnmiticExterminatorProfile,
     GaussBlasterProfile,
     GaussCannonProfile,
     GaussDestructorProfile,
     GaussFlayerArrayProfile,
     GaussFlayerProfile,
+    FlensingClawProfile,
     GaussReaperProfile,
+    HyperphaseHarvesterProfile,
     HyperphaseSwordProfile,
     ImpalingLegsProfile,
     NecronCloseCombatWeaponA1Profile,
     NecronCloseCombatWeaponA2Profile,
-    OverlordStaffOfLightMeleeProfile,
-    OverlordStaffOfLightRangedProfile,
+    LordStaffOfLightMeleeProfile,
+    LordsBladeProfile,
+    LordStaffOfLightRangedProfile,
     OverlordsBladeProfile,
     ParticleCasterProfile,
     PlasmicLanceMeleeProfile,
@@ -268,6 +274,15 @@ OVERLORD_TO_VOIDSCYTHE = "Tachyon Arrow + Blade -> Voidscythe"
 OVERLORD_RESURRECTION_ORB = "Resurrection Orb"
 
 
+def _equip_resurrection_orb_unconditional(token):
+    """The Lokhust Lord's orb. Same wargear, no condition attached: his
+    printed line is a plain "one of the following", where the Overlord's is
+    gated on having traded away his tachyon arrow. Two functions rather than
+    one with a flag, so neither datasheet can quietly acquire the other's
+    condition."""
+    token.resurrection_orb = True   # read by game/resurrection_orb.py
+
+
 def _equip_resurrection_orb(token):
     """"If this model is not equipped with a tachyon arrow, it can be equipped
     with 1 resurrection orb."
@@ -290,8 +305,8 @@ OVERLORD = NECRONS.add_datasheet(Datasheet(
         # which is what the printed "OR" means.
         WargearOption(_OVERLORD_LINE,
                       replaces=(TachyonArrowProfile, OverlordsBladeProfile),
-                      with_weapons=[OverlordStaffOfLightRangedProfile,
-                                    OverlordStaffOfLightMeleeProfile],
+                      with_weapons=[LordStaffOfLightRangedProfile,
+                                    LordStaffOfLightMeleeProfile],
                       max_models=1, name=OVERLORD_TO_STAFF_OF_LIGHT),
         WargearOption(_OVERLORD_LINE,
                       replaces=(TachyonArrowProfile, OverlordsBladeProfile),
@@ -319,6 +334,91 @@ OVERLORD = NECRONS.add_datasheet(Datasheet(
         "turn.\" - see game/resurrection_orb.py.",
     ],
 ))
+
+_LOKHUST_LORD_LINE = "Lokhust Lord"
+LOKHUST_LORD_TO_LORDS_BLADE = "Staff of Light -> Lord's Blade"
+LOKHUST_LORD_NANOSCARAB_AMULET = "Nanoscarab Amulet"
+LOKHUST_LORD_RESURRECTION_ORB = "Resurrection Orb"
+
+
+def _equip_nanoscarab_amulet(token):
+    """"The bearer has the Feel No Pain 5+ ability." - the BEARER, so this is
+    a per-token flag, read by game/nanoscarab_amulet.py."""
+    token.nanoscarab_amulet = True
+
+
+LOKHUST_LORD = NECRONS.add_datasheet(Datasheet(
+    "Lokhust Lord",
+    keywords=("MOUNTED", "CHARACTER", "FLY", "DESTROYER CULT", "LOKHUST LORD", "NECRONS"),
+    model_lines=[ModelLine(LokhustLordProfile, 1,
+                           [LordStaffOfLightRangedProfile, LordStaffOfLightMeleeProfile],
+                           name=_LOKHUST_LORD_LINE)],
+    wargear_options=[
+        # "This model's staff of light can be replaced with 1 Lord's blade."
+        # The staff is ONE printed weapon with a ranged AND a melee row, so
+        # replacing it gives up BOTH - which leaves this build with no ranged
+        # weapon at all. Same shape as the Overlord's Voidscythe swap.
+        WargearOption(_LOKHUST_LORD_LINE,
+                      replaces=(LordStaffOfLightRangedProfile, LordStaffOfLightMeleeProfile),
+                      with_weapons=[LordsBladeProfile],
+                      max_models=1, name=LOKHUST_LORD_TO_LORDS_BLADE),
+    ],
+    gear_options=[
+        Gear(_LOKHUST_LORD_LINE, LOKHUST_LORD_NANOSCARAB_AMULET, _equip_nanoscarab_amulet),
+        Gear(_LOKHUST_LORD_LINE, LOKHUST_LORD_RESURRECTION_ORB, _equip_resurrection_orb_unconditional),
+    ],
+    # "one of the following" - a flat cap of ONE across both items is what
+    # makes them mutually exclusive, rather than a condition inside either.
+    gear_slots={_LOKHUST_LORD_LINE: 1},
+    points=NECRONS_POINTS["Lokhust Lord"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Leader (Core).",
+        "Destroyer Cult: \"While this model is leading a unit, each time a model in that "
+        "unit makes a ranged attack, a successful unmodified Hit roll of 5+ scores a "
+        "Critical Hit.\" - word for word the Plasmancer's Harbinger of Destruction, which "
+        "is why both read one mechanic-named flag; see game/crit_hit.py.",
+        "Driven by Hatred: \"Each time this model makes an attack that targets an enemy "
+        "unit that is Below Half-strength, you can re-roll the Hit roll and you can "
+        "re-roll the Wound roll.\" - see game/destroyer_cult.py.",
+        "Nanoscarab Amulet (Wargear): \"The bearer has the Feel No Pain 5+ ability.\" - "
+        "see game/nanoscarab_amulet.py.",
+        "Resurrection Orb (Wargear): \"Once per battle, per unit. At the end of any "
+        "phase, you can use this ability. If you do, this unit resurrects: when a unit "
+        "resurrects, that unit's Reanimation Protocols activate, but that unit heals D6 "
+        "wounds (instead of D3 wounds). You cannot resurrect more than one unit per "
+        "turn.\" - see game/resurrection_orb.py.",
+    ],
+))
+
+
+_SKORPEKH_LORD_LINE = "Skorpekh Lord"
+
+SKORPEKH_LORD = NECRONS.add_datasheet(Datasheet(
+    "Skorpekh Lord",
+    keywords=("INFANTRY", "CHARACTER", "DESTROYER CULT", "SKORPEKH LORD", "NECRONS"),
+    model_lines=[ModelLine(SkorpekhLordProfile, 1,
+                           [EnmiticAnnihilatorProfile,
+                            FlensingClawProfile,
+                            HyperphaseHarvesterProfile],
+                           name=_SKORPEKH_LORD_LINE)],
+    # No wargear_options at all: the printed entry has none, so all three
+    # weapons are simply carried. Asserted in the test rather than left
+    # implicit, the same way Rangers and Shroud Runners are.
+    points=NECRONS_POINTS["Skorpekh Lord"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Leader (Core).",
+        "United In Destruction: \"While this model is leading a unit, melee weapons "
+        "equipped by models in that unit have the [LETHAL HITS] ability.\" - see "
+        "game/united_in_destruction.py.",
+        "Crimson Harvest: \"Each time this model ends a Charge move, select one enemy "
+        "unit within Engagement Range of this model and roll one D6: on a 2-5, that "
+        "unit suffers D3 mortal wounds; on a 6, that unit suffers D3+3 mortal wounds.\" "
+        "- see game/mortal_wound_abilities.py.",
+    ],
+))
+
 
 
 _PLASMANCER_LINE = "Plasmancer"
@@ -561,6 +661,9 @@ DOOMSDAY_ARK = NECRONS.add_datasheet(Datasheet(
 
 AWAKENED_DYNASTY = NECRONS.add_detachment(Detachment(
     "Awakened Dynasty",
+    rule_name="Command Protocols",
+    setting="AWAKENED_DYNASTY_PLAYERS",
+    points=3,
     rule_text=(
         "Command Protocols: While a NECRONS CHARACTER model is leading this unit, each "
         "time a model in this unit makes an attack, add 1 to the Hit roll."

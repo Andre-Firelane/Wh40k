@@ -35,12 +35,35 @@ class PileInController:
             if token.squad is not None and token.squad.owner != squad.owner
         }
 
+    def _pending(self, player=None):
+        """Every squad (of `player`, or of anyone) that still owes a pile-in.
+        A generator, so has_pending_squads() below keeps its short-circuit -
+        one filter, two questions, rather than two copies that could drift."""
+        return (
+            squad for squad in self._all_squads()
+            if (player is None or squad.owner == player) and self.can_pile_in(squad)
+        )
+
     def has_pending_squads(self):
         """Rule 12.04: the Fight step can't begin until every unit eligible
         to pile in has done so (or explicitly skipped it, see
         skip_pile_in()) - both players resolve Pile In first, before either
         one starts selecting units to fight."""
-        return any(self.can_pile_in(squad) for squad in self._all_squads())
+        return any(self._pending())
+
+    def squads_pending_pile_in(self, player=None):
+        """The same question as has_pending_squads(), answered with the
+        units themselves. Sorted by name, because _all_squads() is a SET and
+        the caller prints these: unsorted, the list would reorder itself
+        frame to frame.
+
+        Exists for game/ui/action_panel.py - user: "ich finde es manchmal
+        schwierig zu erkennen, dass ich noch mit allen einheiten pile in
+        machen muss, bevor die KI weitermacht". The panel used to print one
+        generic sentence ("Both players must resolve Pile In...") that named
+        no unit and no side, so a game waiting on the human looked exactly
+        like a game waiting on the AI."""
+        return sorted(self._pending(player), key=lambda s: s.name)
 
     def skip_pile_in(self, squad):
         """Rule 12.03: piling in is optional ('can pile in'), not

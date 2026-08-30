@@ -1,5 +1,5 @@
 from game import attached_units
-from game import awakened_dynasty, destroyer_cult, guardian_protocols, protocol_hungry_void, implacable_eradication, mechanical_augmentation, monster_hunters, plasmacyte, reroll_scope
+from game import aux_experimental_modifications, awakened_dynasty, montka_pinpoint_counter_offensive, destroyer_cult, destroyer_hive, dlc_grim_reapers, gift_of_contagion, guardian_protocols, protocol_hungry_void, implacable_eradication, mechanical_augmentation, monster_hunters, plagues, plasmacyte, reroll_scope
 from game import way_of_the_short_blade
 from game.ard_as_nails import ARD_AS_NAILS_WOUND_PENALTY, ard_as_nails_wound_modifier_applies
 from game.damage_resolution import DamageAllocationSession, DevastatingWoundAllocationSession, MortalWoundAllocationSession, displayed_save_threshold
@@ -17,34 +17,43 @@ from game.shooting import (
 from game.squad import allocation_target_model, allocation_target_profile, attached_unit_toughness, model_engaged_with, squad_has_fights_first, squad_has_might_is_right, tank_hunters_modifiers
 from game.thresholds import parse_threshold as _parse_threshold
 from game.turn import PHASE_FIGHT
-from game import aspect_shrine
-from game import branching_fates
 from game import forewarned
 from game import protect
 from game.doom import DOOM_WOUND_BONUS
 from game import psychic_guidance
 from game import storm_of_silence
 from game.crit_hit import crit_hit_threshold
+from game import advanced_scouting as advanced_scouting_module
+from game import fated_hero as fated_hero_module
+from game import defend_at_all_costs
+from game import guardian_shield_nodes
+from game import guardian_warding_salvoes
+from game import critical_wound_split
+from game import enh_aspect_of_murder
+from game import aspect_warrior_focus
+from game import conclave_blades_from_beyond
+from game import conclave_seers_eye
+from game import warhost_lightning_fast_reactions
+from game import windrider_death_from_on_high
+from game import shepherds_of_the_dead
+from game import path_of_the_warrior
+from game import ynnari_abilities
+from game import misfortune as misfortune_module
+from game import agile_reach
+from game import corsair_abilities
+from game import spiritseer
+from game import ritual_butchery
+from game import united_in_destruction
 from game.waaagh import waaagh_extra_attacks, waaagh_melee_adjusted_weapon
 from game.war_horde import get_stuck_in_adjusted_weapon
 from game.weapons import MELEE
 
-# The abilities that can turn one die of a roll into an unmodified 6. Both
-# expose the same four names, so the offer below is built from whichever one
-# actually applies rather than duplicated per ability - the same "second
-# consumer turns a field into a list" move made for target_reactions,
-# cost_discounts and on_squad_finished_shooting.
-_UNMODIFIED_SIX_SOURCES = (aspect_shrine, branching_fates)
-
-
-def _unmodified_six_source(method, squad, model, *args):
-    """The first source that would buy something here, and what it buys."""
-    for source in _UNMODIFIED_SIX_SOURCES:
-        change = getattr(source, method)(squad, model, *args)
-        if change is not None:
-            return source, change
-    return None, None
-
+# NOTE (reconstructed comment - see REBUILD.md): game/aspect_shrine.py and
+# game/branching_fates.py are deliberately NOT imported here. Their "change a
+# die to an unmodified 6" offer became a PANEL BUTTON
+# (game/unmodified_six_controller.py), so this controller only has to say what
+# roll is currently on the table - see unmodified_six_context() and
+# unmodified_six_damage_context() at the bottom of the class.
 
 NOT_STARTED = "not_started"          # Pile In is still available; the Fight step hasn't begun
 SELECTING = "selecting"              # alternating fight-selection is in progress
@@ -69,6 +78,37 @@ def effective_weapon_skill(model, weapon):
     return weapon.weapon_skill if weapon.weapon_skill is not None else model.profile.weapon_skill
 
 
+def _melee_choice_owner(model, weapon):
+    """The model's id when THIS model has a real rule-04.01 choice to make
+    between its melee weapons, otherwise None.
+
+    User report: "beispiel warpspider. alle close combat weapons des squads
+    werden gruppiert. wenn ich jetzt zuerst auf den knopf close combat weapon
+    klicke, handelt jede einheit die angriffe ab. auch der exarch, der aber
+    noch ein power blade array hat. da ich aber nur mit einer waffe zuschlagen
+    kann, kann ich danach nicht mehr mit dem powerblade array zuschlagen."
+
+    Reproduced exactly: a Warp Spider Exarch with the Powerblade Array shares
+    the squad's "Close Combat Weapon" group (identical WS/S/AP/D), so clicking
+    that group swung his close combat weapon too - and rule 04.01 then locked
+    his Array out for the rest of the activation. The choice was never
+    offered; it was made for him by a button about somebody else's weapon.
+
+    Measured across all 72 datasheets: 14 model loadouts carry more than one
+    selectable melee weapon, in all four factions (every Aspect Exarch with a
+    melee upgrade, the Ork Boss Nobs, the Beastboss, the Skorpekh Lord, the
+    Deff Dread). So this is not a Warp Spider quirk.
+
+    [EXTRA ATTACKS] weapons are excluded from the count AND never get an owner
+    of their own: rule 24.11 makes them unrestricted ("in addition to any
+    others"), so they take no choice away and splitting them off would only
+    fragment the list."""
+    if weapon.extra_attacks:
+        return None
+    selectable = [w for w in model.weapons if w.weapon_type == MELEE and not w.extra_attacks]
+    return model.id if len(selectable) > 1 else None
+
+
 def _melee_attack_key(model, weapon):
     """Rule 04.03 'identical attacks', adapted for melee: share WS, S, AP, D.
     [EXTRA ATTACKS] is also part of the key (rule 24.11): those weapons are
@@ -76,8 +116,40 @@ def _melee_attack_key(model, weapon):
     weapons are capped at one selected type per fight activation - keeping
     them in separate groups even if stats coincide lets that restriction be
     enforced per group (see _used_other_melee_weapon), mirroring the
-    [CLOSE-QUARTERS] fix to shooting.py's _attack_key."""
-    return (effective_weapon_skill(model, weapon), weapon.strength, weapon.ap, weapon.damage, weapon.extra_attacks)
+    [CLOSE-QUARTERS] fix to shooting.py's _attack_key.
+
+    And so is _melee_choice_owner(): a model that has a 04.01 choice to make
+    gets its OWN groups rather than being folded in with squadmates who have
+    no choice at all - see that function for the report this fixes. It is the
+    minimal form of the user's own second suggestion ("gruppen zu erstellen
+    mit waffen loadouts"); their first ("characters, leader und rest des
+    squads zu trennen") would not have covered this case, because an Aspect
+    Exarch is deliberately not a CHARACTER in this engine."""
+    return (effective_weapon_skill(model, weapon), weapon.strength, weapon.ap, weapon.damage,
+            weapon.extra_attacks, _melee_choice_owner(model, weapon),
+            # Aspect of Murder is per BEARER, and the one-representative
+            # shortcut would otherwise hand its +1 Damage and [PRECISION] to
+            # the whole group - the fourth time this exact term was needed.
+            enh_aspect_of_murder.attack_key(model))
+
+
+def _melee_group_label(pairs):
+    """_group_label(), plus the model's name when the group is one model that
+    has a rule-04.01 choice to make.
+
+    Without it a Warp Spider unit shows two buttons both reading "Close Combat
+    Weapon" - the squad's, and the Exarch's own - which is worse than the bug
+    this split fixes. With it they read "Close Combat Weapon" and "Close
+    Combat Weapon (Warp Spider Exarch)", and the Exarch's other button is
+    "Powerblade Array"."""
+    label = _group_label(pairs)
+    if len(pairs) == 1:
+        model, weapon = pairs[0]
+        if _melee_choice_owner(model, weapon) is not None:
+            name = getattr(getattr(model, "profile", None), "name", None)
+            if name and name not in label:
+                return f"{label} ({name})"
+    return label
 
 
 def _melee_locked_out(model, weapon, used_other_weapon):
@@ -132,7 +204,10 @@ class FightController:
     def __init__(
         self, game_log=None, dice_manager=None, turn_tracker=None, all_tokens=None,
         pile_in_controller=None, charge_controller=None, decision_manager=None, suppression=None, stealth_drones=None,
-        waaagh=None, target_reactions=(), guide=None, doom=None, whispering_web=None,
+        waaagh=None, target_reactions=(), lethal_ichor=None, guide=None, doom=None, whispering_web=None,
+        advanced_scouting=None, bounty_hunters=None, fated_hero=None, herald_of_ynnead=None,
+        path_of_the_warrior=None, shepherds_of_the_dead=None, misfortune=None, spirit_mark=None,
+        piratical_raiders=None, fury_of_the_void=None,
         objectives=None,
     ):
         self.game_log = game_log
@@ -151,6 +226,16 @@ class FightController:
         # Breach and Clear. Optional, so every existing caller is unchanged.
         self.objectives = objectives if objectives is not None else []
         self.doom = doom  # Eldrad Ulthran's Doom mark - optional; read by _wound_modifiers() (see game/doom.py)
+        self.bounty_hunters = bounty_hunters
+        self.advanced_scouting = advanced_scouting
+        self.fated_hero = fated_hero
+        self.shepherds_of_the_dead = shepherds_of_the_dead
+        self.path_of_the_warrior = path_of_the_warrior
+        self.herald_of_ynnead = herald_of_ynnead
+        self.misfortune = misfortune
+        self.spirit_mark = spirit_mark
+        self.piratical_raiders = piratical_raiders
+        self.fury_of_the_void = fury_of_the_void
         self.whispering_web = whispering_web  # Lhykhis' Whispering Web mark - optional; read by the hit step's crit threshold (see game/whispering_web.py)
         self.waaagh = waaagh  # Orks army rule "Waaagh!" - optional, like suppression/stealth_drones; see game/waaagh.py
         # Reactive stratagems whose WHEN is "just after an enemy unit has
@@ -159,6 +244,10 @@ class FightController:
         # opponent's Shooting phase, which is why this controller carries them
         # too: game/stim_injectors.py, game/ard_as_nails.py.
         self.target_reactions = [r for r in target_reactions if r is not None]
+        # Death Lord's Chosen's Lethal Ichor counts melee wound ALLOCATIONS,
+        # including ones that were then saved - a number nothing downstream
+        # can reconstruct, so it has to be told at the moment they happen.
+        self.lethal_ichor = lethal_ichor
 
         self.state = NOT_STARTED
         self.sub_step = None
@@ -178,6 +267,9 @@ class FightController:
         self.forced_next_fighter = {}
         self.on_unit_finished_fighting = None
 
+        # Mont'ka's Pinpoint Counter-Offensive, injected by main.py.
+        self.pinpoint_counter_offensive = None
+
         self.split_fire = False
 
         # current unit's fight resolution
@@ -189,6 +281,7 @@ class FightController:
         self.damage_session = None
         self.devastating_wound_session = None  # DevastatingWoundAllocationSession, rule 24.10
         self._devastating_crits = 0  # crits pulled out of the current wound roll for [DEVASTATING WOUNDS]
+        self._pending_crit_split = 0  # critical wounds pulled out of the current wound roll for their OWN Save roll - Spirit Conclave's Stave of Kurnous grants them [PRECISION]; see game/critical_wound_split.py and _begin_crit_split_save(). The MELEE twin of shooting.py's _pending_crit_ap_crits, added when the first source to say 'makes an attack' rather than 'a ranged attack' arrived.
         self._used_other_melee_weapon = set()  # rule 24.11: models locked out of further non-[EXTRA ATTACKS] weapons
         self._hazardous_count = 0  # distinct [HAZARDOUS] weapon groups used this activation, rule 24.15
         self._lethal_hits_auto_wounds = 0  # rule 24.23: hits chosen to auto-wound, folded into normal_wounds once the (possibly skipped) wound roll resolves
@@ -204,6 +297,9 @@ class FightController:
         self.mortal_wound_session = None  # MortalWoundAllocationSession while pending_step == "hazard_wounds"
         self.hold_still_session = None  # MortalWoundAllocationSession while pending_step == "hold_still_wounds" - Painboy's "Hold Still and Say 'Aargh!'", see game/hold_still.py
         self._hold_still_crits = 0  # critical WOUNDS of the current group that trigger that ability. Kept separate from _devastating_crits because they are NOT removed from the normal wound pool - see game/hold_still.py's own note on how the two differ.
+        # Rule 12.02 frozen for the current activation, per (model, target
+        # squad) - see _snapshot_engagement().
+        self._engagement_snapshot = {}
 
         # split-fire
         self.assignment_queue = []   # [(model, weapon), ...] still needing a target
@@ -228,7 +324,9 @@ class FightController:
         self.damage_session = None
         self.devastating_wound_session = None
         self._devastating_crits = 0
+        self._pending_crit_split = 0
         self._used_other_melee_weapon = set()
+        self._reset_engagement_snapshot()
         self._hazardous_count = 0
         self._lethal_hits_auto_wounds = 0
         self._pending_attacks_roll = None
@@ -332,6 +430,47 @@ class FightController:
         buffs, so offering it there would be offering to burn 1 CP for
         nothing."""
         return self._is_eligible_to_fight(squad)
+
+    def squads_that_could_still_fight(self, player):
+        """`player`'s units that still have melee attacks left this Fight
+        phase: eligible under rule 12.04 AND with a living engaged enemy to
+        actually swing at. Sorted by name, so a caller that prints them gets
+        a stable list (_all_squads() is a set).
+
+        Exists for main.py's "End Turn" warning - user: "gib mal bitte eine
+        warnung aus, die ich wegklicken muss, wenn ich auf end turn klicke,
+        obwohl ich noch mit einheiten im nahkampf kaempfen koennte". Ending
+        the turn forfeits those attacks and nothing on screen said so.
+
+        Deliberately STRICTER than is_eligible_to_fight() on its own. Rule
+        12.04's second condition keeps a unit eligible when it was engaged
+        as the Fight step began even if its only nearby enemy has since
+        died - correct for eligibility, but such a unit has nothing left to
+        attack, so naming it in a warning would be pure noise. The
+        living-model filter on the enemy side is the same one
+        _is_eligible_to_fight() spells out its reasons for: main.py's
+        remove_dead_models() runs once per frame, so within the very frame
+        an enemy unit is wiped out its models are all still on the board and
+        still inside engagement range.
+
+        DONE short-circuits: the Fight step is over for everyone by then
+        (both players passed, or nobody is eligible any more), whatever the
+        sticky engaged_at_start flags still say - nothing is owed."""
+        if self.state == DONE:
+            return []
+        return sorted(
+            (
+                squad
+                for squad in self._all_squads()
+                if squad.owner == player
+                and self._is_eligible_to_fight(squad)
+                and any(
+                    any(not m.is_dead() for m in enemy.models)
+                    for enemy in self.engaged_enemy_squads(squad)
+                )
+            ),
+            key=lambda s: s.name,
+        )
 
     def _eligible_fighters(self, player, fights_first_only):
         return [
@@ -492,7 +631,13 @@ class FightController:
         if self.forced_next_fighter.get(squad.owner) is squad:
             del self.forced_next_fighter[squad.owner]
         self.fighting_squad = squad
+        # Aspect Host's Path of the Warrior is a real choice between two
+        # exclusive options, so it is asked once per activation, here - the
+        # moment the unit is selected to fight and before any dice.
+        if self.path_of_the_warrior is not None:
+            self.path_of_the_warrior.offer(squad)
         self._used_other_melee_weapon = set()
+        self._reset_engagement_snapshot()
         self._hazardous_count = 0
         self._lethal_hits_auto_wounds = 0
         self._passed_in_a_row = 0  # a real selection breaks any "passes in a row" streak
@@ -510,6 +655,7 @@ class FightController:
             # a unit engaged with exactly one enemy - which is most of them -
             # never reached choose_target_squad() at all. Pre-existing, found
             # while adding the second entry to target_reactions.
+            self._snapshot_engagement(targets[0])
             self._offer_target_reactions(targets[0])
             self._enter_choosing_weapon()
         else:
@@ -526,6 +672,7 @@ class FightController:
         self.target_squad = None
         self.remaining_weapon_types = []
         self._used_other_melee_weapon = set()
+        self._reset_engagement_snapshot()
         self._hazardous_count = 0
         self._lethal_hits_auto_wounds = 0
         self.mortal_wound_session = None
@@ -548,12 +695,85 @@ class FightController:
         for reaction in self.target_reactions:
             reaction.maybe_offer(self.fighting_squad, target_squad, melee=True)
 
+    def _reset_engagement_snapshot(self):
+        self._engagement_snapshot = {}
+
+    def _snapshot_engagement(self, target_squad):
+        """Freeze rule 12.02's per-model Engagement Range check for the whole
+        fight activation, at the moment the target is selected.
+
+        User report: "im nahkampf. alle nahkampfwaffen schlagen gleichzeitig
+        zu. das heisst waffen eines squads koennen in einer aktivierung nicht
+        ausser reichweite geraten, wenn models vom gegner entfernt werden.
+        aehnlich wie beim schiessen."
+
+        This is game/shooting.py's _snapshot_target_state() (rule 10.02) in
+        its melee form, and the "aehnlich wie beim schiessen" is literal - the
+        Shooting phase had exactly this bug, reported and fixed the same way.
+        Reproduced here before changing anything, with a Warp Spider squad and
+        a target whose only close model was in front of the rest: the squad's
+        three groups offered 3/4, 1/1 and 1/1 eligible models, then 0/4, 0/1
+        and 0/1 the moment that one model was removed as a casualty. The rest
+        of the unit's melee weapons simply lost their attacks.
+
+        That is backwards for the same reason it was in shooting: removing
+        casualties is a CONSEQUENCE of the attack sequence, and it cannot
+        retroactively un-select a target the unit had already legally
+        selected. All of a unit's melee attacks are made in one activation;
+        splitting them across weapon groups is a resolution convenience, not
+        a sequence of separate strikes that each re-measure the board.
+
+        Snapshotted per (model, target squad), so Split Fire - which locks in
+        several different targets up front, in assign_current(), still before
+        any dice - freezes each of them independently. Keyed by model rather
+        than id(weapon) (shooting's key), because Engagement Range is purely
+        geometric: unlike range/line-of-sight it does not depend on which
+        weapon is swinging, so one entry per model answers for all of them."""
+        if self.fighting_squad is None or target_squad is None:
+            return
+        for model in self.fighting_squad.models:
+            key = (model, target_squad)
+            if key not in self._engagement_snapshot:
+                # Agile Reach widens 12.02 for its own carriers, so it has to
+                # be part of what gets frozen - snapshotting the bare
+                # Engagement Range test would quietly drop the wider reach for
+                # the rest of the activation.
+                self._engagement_snapshot[key] = (
+                    model_engaged_with(model, target_squad)
+                    or agile_reach.model_can_reach(
+                        model, self.fighting_squad, target_squad))
+
+    def _engaged_with(self, model, target_squad):
+        """model_engaged_with() as it was answered when this target was
+        selected (see _snapshot_engagement()). Falls back to a live
+        measurement for anything never snapshotted - e.g. eligibility probes
+        for a squad that is not the one currently fighting.
+
+        Casualties among the target's SURVIVING models deliberately change
+        nothing here - that is the whole point. A target wiped out ENTIRELY is
+        a different matter: there is nothing left to attack, so the unit's
+        remaining weapons cannot swing at it. Same treatment _can_reach() gives
+        it in shooting, and the same treatment _begin_next_split_group()
+        already gives an assigned group whose target died before its turn came.
+
+        The liveness test is `not m.is_dead()` rather than `not
+        target_squad.models`: remove_dead_models() runs once per frame, so
+        casualties linger in `models` until the sweep, and only this form is
+        correct at both moments."""
+        if not any(not m.is_dead() for m in target_squad.models):
+            return False
+        key = (model, target_squad)
+        if key in self._engagement_snapshot:
+            return self._engagement_snapshot[key]
+        return model_engaged_with(model, target_squad)
+
     def choose_target_squad(self, target_squad):
         if self.state != CHOOSING_TARGET or self.split_fire or self.fighting_squad is None:
             return
         if target_squad not in self.engaged_enemy_squads(self.fighting_squad):
             return
         self.target_squad = target_squad
+        self._snapshot_engagement(target_squad)
         self._offer_target_reactions(target_squad)
         self._enter_choosing_weapon()
 
@@ -578,8 +798,9 @@ class FightController:
     def assign_current(self, target_squad):
         if self.state != ASSIGNING or not self.assignment_queue or target_squad is None:
             return
+        self._snapshot_engagement(target_squad)
         model, weapon = self.assignment_queue.pop(0)
-        if not model_engaged_with(model, target_squad):
+        if not self._engaged_with(model, target_squad):
             self.assignment_queue.insert(0, (model, weapon))
             return
 
@@ -648,7 +869,7 @@ class FightController:
         dropped = []
         while self.assignment_queue:
             model, weapon = self.assignment_queue[0]
-            if any(model_engaged_with(model, squad) for squad in targets):
+            if any(self._engaged_with(model, squad) for squad in targets):
                 break
             self.assignment_queue.pop(0)
             dropped.append(weapon.name)
@@ -726,7 +947,7 @@ class FightController:
             return {
                 token for token in self.all_tokens
                 if token.squad is not None and token.squad.owner != self.fighting_squad.owner
-                and model_engaged_with(model, token.squad)
+                and self._engaged_with(model, token.squad)
             }
 
         return set()
@@ -735,15 +956,21 @@ class FightController:
         """[(attack_key, label, eligible_count, total_count), ...] against
         the chosen target - eligible counts only models within Engagement
         Range of that specific target (rule 12.02), mirroring shooting.py's
-        range/LoS eligibility split."""
+        range/LoS eligibility split.
+
+        "Within Engagement Range" is read from the activation's snapshot, not
+        re-measured: casualties from an earlier weapon group must not shrink
+        the count for a later one - see _snapshot_engagement()."""
         if self.fighting_squad is None or self.target_squad is None:
             return []
         groups = _melee_attack_groups(self.fighting_squad, self._used_other_melee_weapon, self.one_shot_used)
         result = []
         for key in self.remaining_weapon_types:
             pairs = groups.get(key, [])
-            eligible = sum(1 for m, w in pairs if model_engaged_with(m, self.target_squad))
-            result.append((key, _group_label(pairs), eligible, len(pairs)))
+            if not pairs:
+                continue
+            eligible = sum(1 for m, w in pairs if self._engaged_with(m, self.target_squad))
+            result.append((key, _melee_group_label(pairs), eligible, len(pairs)))
         return result
 
     def stop_fighting(self):
@@ -759,11 +986,11 @@ class FightController:
         groups = _melee_attack_groups(self.fighting_squad, self._used_other_melee_weapon, self.one_shot_used)
         pairs = [
             (m, w) for m, w in groups.get(weapon_key, [])
-            if model_engaged_with(m, self.target_squad)
+            if self._engaged_with(m, self.target_squad)
         ]
         for model, weapon in pairs:
             self._lock_other_melee_weapon(model, weapon)
-        self._begin_resolution(weapon_key, _group_label(pairs), pairs, self.target_squad)
+        self._begin_resolution(weapon_key, _melee_group_label(pairs), pairs, self.target_squad)
 
     def _lock_other_melee_weapon(self, model, weapon):
         if not weapon.extra_attacks:
@@ -785,12 +1012,6 @@ class FightController:
             "target_squad": target_squad,
         }
         self._twin_linked_used = False  # rule 24.38: fresh chance to re-roll for each new weapon group's attacks
-        # ASPECT WARRIORS wargear - see shooting.py's identical pair and
-        # game/aspect_shrine.py for why the dice COUNT is what gets kept.
-        self._hit_dice_count = None
-        self._wound_dice_count = None
-        self._aspect_shrine_hit_offered = False
-        self._aspect_shrine_wound_offered = False
         self._hit_reroll_used = False  # Monster Hunters: likewise a fresh chance per weapon group
 
         if not pairs or not target_squad.models:
@@ -1017,7 +1238,6 @@ class FightController:
             hits = sum(1 for r in results if r != "fail")
             crits = sum(1 for r in results if r == "critical")
             misses = len(rolls) - hits
-            self._hit_dice_count = len(rolls)
             self._log(
                 f"{weapon_label} hit roll {rolls}"
                 f"{_threshold_note(threshold, _parse_threshold(effective_weapon_skill(group['pairs'][0][0], weapon)), self._hit_modifiers(group['pairs'][0][0], target_squad))}: "
@@ -1109,7 +1329,6 @@ class FightController:
             wounds = sum(1 for r in results if r != "fail")
             crits = sum(1 for r in results if r == "critical")
             no_effect = len(rolls) - wounds
-            self._wound_dice_count = len(rolls)
             # A dice can never be re-rolled more than once, so a failure a
             # Command Re-roll (15.02) already threw is not [TWIN-LINKED]'s to
             # throw again - DiceManager.already_rerolled is where that memory
@@ -1132,6 +1351,15 @@ class FightController:
                 self._offer_twin_linked_choice(
                     free_no_effect, wounds, crits, weapon, target_squad, target_profile, weapon_label, wound_threshold,
                     self.fighting_squad.owner, rerollable, ones=ones,
+                )
+            elif (ones and self.path_of_the_warrior is not None
+                    and self.path_of_the_warrior.wound_ones_apply(self.fighting_squad)):
+                # Path of the Warrior's wound-side clause, held in the same
+                # place and for the same reason as its hit-side twin.
+                self._begin_ones_reroll(
+                    "wound", ones, wound_threshold, weapon, target_squad, weapon_label,
+                    wounds=wounds, crits=crits, target_profile=target_profile,
+                    reason=path_of_the_warrior.PATH_OF_THE_WARRIOR_LABEL,
                 )
             elif ones and implacable_eradication.applies(self.fighting_squad):
                 # The base clause, fired only when its whole-roll alternative
@@ -1167,6 +1395,20 @@ class FightController:
         elif self.pending_step == "save":
             damage_weapon = melta_adjusted_weapon(weapon, group["pairs"], target_squad)
             if self._precision_choice_needed(weapon, target_squad):
+                self._offer_precision_choice(rolls, damage_weapon, target_squad, weapon_label, self.fighting_squad.owner)
+            else:
+                self._begin_damage_allocation(rolls, damage_weapon, target_squad, priority_group=None)
+
+        elif self.pending_step == "save_crit_split":
+            # The critical share's own Save roll - see _begin_crit_split_save().
+            # Everything downstream reads the SPLIT weapon, not the group's:
+            # the whole point of pulling these dice out is that they resolve
+            # against what their source dictates, and the [PRECISION] question
+            # is exactly one of the things that changes.
+            split_weapon = critical_wound_split.adjusted_weapon(
+                weapon, group["pairs"][0][0], self.fighting_squad)
+            damage_weapon = melta_adjusted_weapon(split_weapon, group["pairs"], target_squad)
+            if self._precision_choice_needed(split_weapon, target_squad):
                 self._offer_precision_choice(rolls, damage_weapon, target_squad, weapon_label, self.fighting_squad.owner)
             else:
                 self._begin_damage_allocation(rolls, damage_weapon, target_squad, priority_group=None)
@@ -1214,6 +1456,24 @@ class FightController:
             weapon, pairs, self.charge_controller, self.fighting_squad,
         )
         weapon = spirit_of_gork_adjusted_weapon(weapon, self.fighting_squad)
+        # The Corsair grants, all of them properties of the attacking unit
+        # (and, for the last two, of what it is swinging at).
+        weapon = corsair_abilities.piratical_hero_adjusted_weapon(
+            weapon, self.fighting_squad)
+        if self.piratical_raiders is not None:
+            weapon = self.piratical_raiders.adjusted_weapon(
+                weapon, self.fighting_squad,
+                target_squad if target_squad is not None else self.target_squad)
+        if self.fury_of_the_void is not None:
+            weapon = self.fury_of_the_void.adjusted_weapon(
+                weapon, self.fighting_squad,
+                target_squad if target_squad is not None else self.target_squad)
+        # The Spiritseer's Spirit Mark - a mark on the TARGET, so it is asked
+        # of the controller that holds it.
+        if self.spirit_mark is not None:
+            weapon = spiritseer.spirit_mark_adjusted_weapon(
+                weapon, self.spirit_mark, self.fighting_squad,
+                target_squad if target_squad is not None else self.target_squad)
         # Illuminor Szeras's Mechanical Augmentation. Its printed text says
         # "makes an attack", not "a ranged attack", so it reaches this phase
         # too. `target_squad` falls back to the controller's current one for
@@ -1228,11 +1488,45 @@ class FightController:
         # Rage above, and in the chain for the same reason: _crit_note()
         # must know at ROLL time that a critical die is a devastating one.
         weapon = plasmacyte.adjusted_weapon(weapon, self.fighting_squad)
+        # The Skorpekh Lord's United In Destruction: [LETHAL HITS] on the whole
+        # unit's melee weapons while he leads it. In the chain rather than at
+        # the wound step because _crit_note() must know at ROLL time that a
+        # critical die is a lethal one.
+        weapon = united_in_destruction.adjusted_weapon(weapon, self.fighting_squad)
+        # The Kroot Shapers' Ritual Butchery is the same grant one keyword
+        # over ([SUSTAINED HITS 1]), in the same place for the same reason.
+        weapon = ritual_butchery.adjusted_weapon(weapon, self.fighting_squad)
+        # Kroot Farstalkers' Bounty Hunters is a pre-battle MARK on an enemy
+        # unit, held per Farstalker squad, so it is asked of its controller.
+        if self.bounty_hunters is not None:
+            weapon = self.bounty_hunters.adjusted_weapon(
+                weapon, self.fighting_squad, self.target_squad)
         # Awakened Dynasty's Protocol of the Hungry Void: +1 Strength on melee
-        # weapons, and +1 AP as well while a CHARACTER leads the unit. Last in
-        # the chain because it changes S/AP only - nothing downstream reads a
-        # keyword it might have granted.
-        return protocol_hungry_void.adjusted_weapon(weapon, self.fighting_squad)
+        # weapons, and +1 AP as well while a CHARACTER leads the unit.
+        weapon = protocol_hungry_void.adjusted_weapon(weapon, self.fighting_squad)
+        # Auxiliary Cadre's Experimental Modifications: +1 AP, and in BOTH
+        # chains - the printed text says "attacks", not "ranged attacks".
+        weapon = aux_experimental_modifications.adjusted_weapon(
+            weapon, self.fighting_squad)
+        # Death Guard's Gift of Contagion is defender-conditioned, so it takes
+        # the target as well - and falls back to the controller's current one
+        # for a caller with none in hand, like Mechanical Augmentation above.
+        weapon = gift_of_contagion.adjusted_weapon(
+            weapon, self.fighting_squad,
+            target_squad if target_squad is not None else self.target_squad)
+        # The two Spirit Conclave grants.
+        weapon = conclave_blades_from_beyond.adjusted_weapon(
+            weapon, self.fighting_squad)
+        weapon = conclave_seers_eye.adjusted_weapon(
+            weapon, self.fighting_squad,
+            target_squad if target_squad is not None else self.target_squad)
+        # Aspect of Murder is per BEARER, so it takes the group's
+        # representative MODEL rather than the squad.
+        weapon = enh_aspect_of_murder.adjusted_weapon(weapon, pairs[0][0] if pairs else None)
+        # LAST, because it IGNORES characteristic modifiers rather than adding
+        # one: whatever the chain above produced is compared against the
+        # PRINTED profile and the better half of each characteristic kept.
+        return aspect_warrior_focus.adjusted_weapon(weapon, self.fighting_squad)
 
     def _crit_note(self, kind, weapon, target_squad):
         """See game/shooting.py's _crit_note - identical purpose, with
@@ -1294,41 +1588,7 @@ class FightController:
     def _resolve_wounds(self, weapon, target_squad, target_profile, weapon_label, wounds, crits):
         """The wound step's funnel, and so where an Aspect Shrine token is
         offered - see shooting.py's identical pair."""
-        if self._offer_aspect_shrine_wound(weapon, target_squad, target_profile, weapon_label, wounds, crits):
-            return
         self._resolve_wounds_now(weapon, target_squad, target_profile, weapon_label, wounds, crits)
-
-    def _offer_aspect_shrine_wound(self, weapon, target_squad, target_profile, weapon_label, wounds, crits):
-        """See shooting.py's method of the same name."""
-        if self.decision_manager is None or self.current_group is None or self._aspect_shrine_wound_offered:
-            return False
-        squad = self.fighting_squad
-        pairs = self.current_group.get("pairs") or ()
-        model = pairs[0][0] if pairs else None
-        no_effect = 0 if self._wound_dice_count is None else max(0, self._wound_dice_count - wounds)
-        source, change = _unmodified_six_source(
-            "wound_change", squad, model, weapon, wounds, crits, no_effect)
-        if change is None:
-            return False
-        self._aspect_shrine_wound_offered = True
-        new_wounds, new_crits, _new_no_effect, what = change
-
-        def spend():
-            source.spend(squad)
-            self._log(
-                f"{weapon_label}: {source.ACCEPT_LABEL} - one wound roll counts as an unmodified 6 "
-                f"({wounds} wound(s) of which {crits} critical -> {new_wounds} of which {new_crits})."
-            )
-            self._resolve_wounds_now(weapon, target_squad, target_profile, weapon_label, new_wounds, new_crits)
-
-        def keep():
-            self._resolve_wounds_now(weapon, target_squad, target_profile, weapon_label, wounds, crits)
-
-        self.decision_manager.request(
-            squad.owner, source.prompt_for(squad, weapon_label, what, "wound"),
-            [(source.ACCEPT_LABEL, spend), ("Keep the roll", keep)],
-        )
-        return True
 
     def _resolve_wounds_now(self, weapon, target_squad, target_profile, weapon_label, wounds, crits):
         """See shooting.py's _resolve_wounds_now - identical shared tail end of
@@ -1341,7 +1601,16 @@ class FightController:
         # wound, this one leaves it alone and adds mortal wounds on top. See
         # game/hold_still.py.
         self._hold_still_crits = crits if hold_still_rule.applies(weapon, target_squad) else 0
-        normal_wounds = wounds - self._devastating_crits + self._lethal_hits_auto_wounds
+        # Spirit Conclave's Stave of Kurnous: "on a Critical Wound, that attack
+        # has [PRECISION]". That is a property of the DIE, not of the attack or
+        # the target, and this engine's Save roll is batched per group - so the
+        # critical share has to be pulled out and resolved on its own, against
+        # the weapon its source dictates. See game/critical_wound_split.py.
+        _fighter = self.current_group["pairs"][0][0] if self.current_group else None
+        _split = critical_wound_split.applies(weapon, _fighter, self.fighting_squad)
+        self._pending_crit_split = (crits - self._devastating_crits) if _split else 0
+        normal_wounds = (wounds - self._devastating_crits - self._pending_crit_split
+                         + self._lethal_hits_auto_wounds)
         self._lethal_hits_auto_wounds = 0
 
         if normal_wounds > 0:
@@ -1375,6 +1644,10 @@ class FightController:
             self.pending_step = "save"
         elif self._devastating_crits > 0:
             self._begin_devastating_wounds(weapon, target_squad)
+        elif self._pending_crit_split > 0:
+            # Every wound in this roll was critical, so there is no ordinary
+            # Save to resolve first and the split share goes straight out.
+            self._begin_crit_split_save()
         else:
             self._finish_group_after_wounds()
 
@@ -1460,6 +1733,16 @@ class FightController:
             weapon = self.current_group["pairs"][0][1]
             target_squad = self.current_group["target_squad"]
             self._begin_devastating_wounds(weapon, target_squad)
+        elif self._pending_crit_split > 0:
+            # THE MIXED CASE, and the one that is easy to lose: a wound roll
+            # that produced BOTH ordinary and critical wounds resolves the
+            # ordinary ones here, and the critical share is still owed its own
+            # Save roll. Without this branch the group would finish and those
+            # wounds would vanish - the split only ever reaching the table
+            # when EVERY wound in the roll was critical. The ranged twin
+            # (shooting.py's _check_damage_done) has had this elif since
+            # crit_ap.py's first source.
+            self._begin_crit_split_save()
         else:
             self._finish_group_after_wounds()
 
@@ -1477,7 +1760,53 @@ class FightController:
         if self.devastating_wound_session is None or not self.devastating_wound_session.done:
             return
         self.devastating_wound_session = None
+        # The split share is resolved AFTER the devastating one, exactly as on
+        # the ranged side - both take their crits from the same pool, and
+        # [DEVASTATING WOUNDS] takes its share first.
+        if self._pending_crit_split > 0:
+            self._begin_crit_split_save()
+            return
         self._finish_group_after_wounds()
+
+    def _begin_crit_split_save(self):
+        """The critical-wound subset pulled out of this group's main Save roll
+        gets its OWN Save roll here, against the weapon its source dictates -
+        for Stave of Kurnous, the same weapon with [PRECISION].
+
+        The melee twin of shooting.py's _begin_crit_ap_save(), and it reuses the
+        ordinary DamageAllocationSession rather than the mortal-wound path,
+        because these wounds still take a real save."""
+        crits = self._pending_crit_split
+        self._pending_crit_split = 0
+        if self.current_group is None or self.dice_manager is None or crits <= 0:
+            self._finish_group_after_wounds()
+            return
+        weapon = self.current_group["pairs"][0][1]
+        target_squad = self.current_group["target_squad"]
+        split_weapon = critical_wound_split.adjusted_weapon(
+            weapon, self.current_group["pairs"][0][0], self.fighting_squad)
+        if self.turn_tracker is not None:
+            self.turn_tracker.set_active(target_squad.owner)
+        # The SAME definition the ordinary Save roll uses - so a die saved by
+        # the invulnerable save is coloured and counted alike in both halves of
+        # one wound roll. Asked against the SPLIT weapon, which is the whole
+        # point: this share resolves against what its source dictates.
+        save_threshold = displayed_save_threshold(
+            allocation_target_model(target_squad), split_weapon, self.waaagh)
+        split_label = critical_wound_split.label(
+            weapon, self.current_group["pairs"][0][0], self.fighting_squad)
+        melta_weapon = melta_adjusted_weapon(
+            split_weapon, self.current_group["pairs"], target_squad)
+        self.dice_manager.roll(
+            count=crits, sides=6,
+            label="Save Roll (%s): %d critical wound(s)" % (split_label, crits),
+            success_threshold=save_threshold if save_threshold is not None else 7,
+            target_name=target_squad.name, attacker_squad=self.fighting_squad,
+            target_squad=target_squad, roll_kind=SAVE_ROLL,
+            damage_per_failure=(None if melta_weapon.damage_notation is not None
+                                else melta_weapon.damage),
+        )
+        self.pending_step = "save_crit_split"
 
     def _hit_reroll_reason(self, target_squad):
         """Which ability grants a re-roll of THIS group's Hit roll, as a label.
@@ -1486,10 +1815,46 @@ class FightController:
         Destroyers' Whirling Onslaught is a two-clause source, so - exactly as
         Swift Demise is on the ranged side - it counts as a "reason" only when
         its WHOLE-roll half is live; its base clause is the automatic 1s."""
+        # Mont'ka's Pinpoint Counter-Offensive is checked first: it is a
+        # STRATAGEM the player has already paid a CP for this phase, so it
+        # should not be shadowed by an ability that would have offered the
+        # same re-roll for free.
+        if (self.pinpoint_counter_offensive is not None
+                and self.pinpoint_counter_offensive.applies(self.fighting_squad, target_squad)):
+            return montka_pinpoint_counter_offensive.PINPOINT_NAME
         if monster_hunters.applies(self.fighting_squad, target_squad):
             return monster_hunters.MONSTER_HUNTERS_REROLL_LABEL
+        # The Kroot Lone-Spear's Advanced Scouting is a MARK on the target
+        # rather than a property of the attacker, so it is asked of the
+        # controller that owns the marks - the same shape as Guide, Doom and
+        # the Whispering Web. It reads "an attack", so it reaches this phase
+        # as well as the ranged one.
+        if (self.advanced_scouting is not None
+                and self.advanced_scouting.applies(self.fighting_squad, target_squad)):
+            return advanced_scouting_module.ADVANCED_SCOUTING_LABEL
         if destroyer_cult.whirling_onslaught_offers_full_reroll(self.fighting_squad):
             return destroyer_cult.WHIRLING_ONSLAUGHT_LABEL
+        # The Lokhust Lord's Driven by Hatred is per MODEL ("each time THIS
+        # MODEL makes an attack"), and this offer is made to a GROUP - so it
+        # is granted only when every model in the group carries it, which is
+        # the conservative direction: the other way round would re-roll a
+        # bodyguard's dice on the Lord's entitlement.
+        if destroyer_cult.driven_by_hatred_applies_to_group(
+                self.current_group.get("pairs") if self.current_group else None, target_squad):
+            return destroyer_cult.DRIVEN_BY_HATRED_LABEL
+        # Corsair Voidscarred's Fated Hero is likewise per model, so it takes
+        # the group and answers for the whole of it or not at all - see
+        # game/fated_hero.py.
+        if (self.fated_hero is not None
+                and self.fated_hero.applies_to_group(
+                    self.current_group.get("pairs") if self.current_group else None,
+                    target_squad)):
+            return fated_hero_module.FATED_HERO_LABEL
+        # Death Lord's Chosen's Grim Reapers is the exact mirror of Monster
+        # Hunters above - their target tests are complements, so the two can
+        # never both apply to one attack.
+        if dlc_grim_reapers.applies(self.fighting_squad, target_squad):
+            return dlc_grim_reapers.GRIM_REAPERS_LABEL
         return None
 
     def _begin_ones_reroll(self, kind, ones, threshold, weapon, target_squad, weapon_label, **ctx):
@@ -1538,47 +1903,25 @@ class FightController:
                 rerollable=(free_hits, free_crits, free_count - ones),
             )
             return
+        # Aspect Host's Path of the Warrior, whichever of its two exclusive
+        # options the unit took this activation - the same "automatic 1s"
+        # shape as Whirling Onslaught above, and held in the same place so a
+        # unit carrying both does not re-roll the same dice twice.
+        if ones and self.path_of_the_warrior is not None and self.path_of_the_warrior.hit_ones_apply(self.fighting_squad):
+            free_hits, free_crits, free_count = rerollable
+            self._begin_ones_reroll(
+                "hit", ones, hit_threshold, weapon, target_squad, weapon_label,
+                hits=hits, crits=crits, reason=path_of_the_warrior.PATH_OF_THE_WARRIOR_LABEL,
+                rerollable=(free_hits, free_crits, free_count - ones),
+            )
+            return
         self._apply_sustained_hits(hits, crits, weapon, target_squad, weapon_label)
 
     def _apply_sustained_hits(self, hits, crits, weapon, target_squad, weapon_label):
         """The funnel every path through the hit step reaches, and therefore
         where an Aspect Shrine token is offered - see shooting.py's identical
         pair of methods."""
-        if self._offer_aspect_shrine_hit(hits, crits, weapon, target_squad, weapon_label):
-            return
         self._apply_sustained_hits_now(hits, crits, weapon, target_squad, weapon_label)
-
-    def _offer_aspect_shrine_hit(self, hits, crits, weapon, target_squad, weapon_label):
-        """See shooting.py's method of the same name."""
-        if self.decision_manager is None or self.current_group is None or self._aspect_shrine_hit_offered:
-            return False
-        squad = self.fighting_squad
-        pairs = self.current_group.get("pairs") or ()
-        model = pairs[0][0] if pairs else None
-        misses = 0 if self._hit_dice_count is None else max(0, self._hit_dice_count - hits)
-        source, change = _unmodified_six_source(
-            "hit_change", squad, model, weapon, hits, crits, misses)
-        if change is None:
-            return False
-        self._aspect_shrine_hit_offered = True
-        new_hits, new_crits, what = change
-
-        def spend():
-            source.spend(squad)
-            self._log(
-                f"{weapon_label}: {source.ACCEPT_LABEL} - one hit roll counts as an unmodified 6 "
-                f"({hits} hit(s) of which {crits} critical -> {new_hits} of which {new_crits})."
-            )
-            self._apply_sustained_hits_now(new_hits, new_crits, weapon, target_squad, weapon_label)
-
-        def keep():
-            self._apply_sustained_hits_now(hits, crits, weapon, target_squad, weapon_label)
-
-        self.decision_manager.request(
-            squad.owner, source.prompt_for(squad, weapon_label, what, "hit"),
-            [(source.ACCEPT_LABEL, spend), ("Keep the roll", keep)],
-        )
-        return True
 
     def _apply_sustained_hits_now(self, hits, crits, weapon, target_squad, weapon_label):
         """Rule 24.36 ([SUSTAINED HITS X]): see shooting.py's identical
@@ -1729,6 +2072,33 @@ class FightController:
         # live; the base clause is the automatic 1s.
         if implacable_eradication.offers_full_reroll(self.fighting_squad, target_squad, self.objectives):
             return implacable_eradication.IMPLACABLE_ERADICATION_LABEL
+        # Driven by Hatred covers BOTH rolls, which no other source here does.
+        if destroyer_cult.driven_by_hatred_applies_to_group(
+                self.current_group.get("pairs") if self.current_group else None, target_squad):
+            return destroyer_cult.DRIVEN_BY_HATRED_LABEL
+        # Fated Hero likewise reaches both rolls, and likewise answers for the
+        # whole group or not at all - it is a per-model grant being offered to
+        # a group, so anything less would re-roll dice it never earned.
+        if (self.fated_hero is not None
+                and self.fated_hero.applies_to_group(
+                    self.current_group.get("pairs") if self.current_group else None,
+                    target_squad)):
+            return fated_hero_module.FATED_HERO_LABEL
+        # Yvraine's Herald of Ynnead. Its choice is resolved when the mark is
+        # placed, not here: by the time a wound roll is on the table the
+        # ability either grants this re-roll or it does not, so this only has
+        # to ask which.
+        if (self.herald_of_ynnead is not None
+                and self.herald_of_ynnead.grants(self.fighting_squad, target_squad)):
+            return ynnari_abilities.HERALD_OF_YNNEAD_LABEL
+        # Guardian Battlehost's Warding Salvoes - an objective-conditioned
+        # source, same shape as Implacable Eradication above.
+        if guardian_warding_salvoes.offers_reroll(self.fighting_squad, target_squad, self.objectives):
+            return guardian_warding_salvoes.WARDING_SALVOES_NAME
+        # Windrider Host's Death from on High: conditioned on the attacker
+        # alone (it arrived from Reserves this turn), so it takes no target.
+        if windrider_death_from_on_high.offers_reroll(self.fighting_squad):
+            return windrider_death_from_on_high.DEATH_FROM_ON_HIGH_NAME
         return None
 
     def _wound_reroll_is_full(self, weapon, target_squad):
@@ -1738,7 +2108,10 @@ class FightController:
         the shooting side."""
         reason = self._wound_reroll_reason(weapon, target_squad)
         return reason in (storm_of_silence.STORM_OF_SILENCE_LABEL,
-                          implacable_eradication.IMPLACABLE_ERADICATION_LABEL)
+                          implacable_eradication.IMPLACABLE_ERADICATION_LABEL,
+                          # "re-roll the Wound roll" with no "failed" - the
+                          # whole roll, like the two above it.
+                          destroyer_cult.DRIVEN_BY_HATRED_LABEL)
 
     def _twin_linked_choice_needed(self, weapon, no_effect, target_squad):
         """Pointless with zero failures, and once per weapon group - see
@@ -1856,6 +2229,13 @@ class FightController:
         )
 
     def _begin_damage_allocation(self, rolls, weapon, target_squad, priority_group):
+        # Death Lord's Chosen's Lethal Ichor counts melee wound ALLOCATIONS -
+        # one per die, INCLUDING the ones that go on to be saved. That number
+        # exists only here: by the time the session is done it has become
+        # saved/failed and the total is not reconstructable.
+        if self.lethal_ichor is not None:
+            for _ in rolls:
+                self.lethal_ichor.notify_melee_allocation(target_squad, self.fighting_squad)
         self.damage_session = DamageAllocationSession(
             rolls, weapon, target_squad, dice_manager=self.dice_manager, log=self._log, priority_group=priority_group,
             stealth_drones=self.stealth_drones, waaagh=self.waaagh,
@@ -1897,6 +2277,22 @@ class FightController:
         # game/psychic_guidance.py.
         if psychic_guidance.applies(self.fighting_squad, self.all_tokens):
             modifiers.append(Modifier(-1, "Psychic Guidance"))
+        # Corsair Voidscarred's Piratical Hero - a property of the attacking
+        # unit alone, so it needs no target.
+        if corsair_abilities.piratical_hero_applies(self.fighting_squad):
+            modifiers.append(Modifier(-1, corsair_abilities.PIRATICAL_HERO_LABEL))
+        # Guardian Battlehost's Defend at All Costs is measured per MODEL and
+        # against the objective markers, so it takes both.
+        modifiers.extend(defend_at_all_costs.hit_modifiers(
+            [fighter_model], self.fighting_squad, target_squad, self.objectives))
+        if self.shepherds_of_the_dead is not None:
+            modifiers.extend(self.shepherds_of_the_dead.hit_modifiers(
+                self.fighting_squad, target_squad))
+        # Psychic Guidance's second clause, which changes CHARACTERISTICS
+        # rather than granting the flat bonus above - a separate question with
+        # a separate answer, kept apart so neither can quietly widen.
+        if psychic_guidance.applies_characteristics(self.fighting_squad, self.all_tokens):
+            modifiers.append(Modifier(-1, "Psychic Guidance"))
         # The Farseer's Guide: "each time a friendly AELDARI model makes an
         # attack that targets that enemy unit, add 1 to the Hit roll" - a
         # bonus, so a -1 on the threshold. Army-wide, not unit-wide, which
@@ -1908,7 +2304,11 @@ class FightController:
             modifiers.append(Modifier(-1, "Guide"))
         if self.suppression is not None and self.fighting_squad is not None and self.suppression.is_suppressed(self.fighting_squad):
             modifiers.append(Modifier(1, "Suppressed"))
-        modifiers.extend(tank_hunters_modifiers(fighter_model, target_squad))
+        modifiers.extend(tank_hunters_modifiers(fighter_model, target_squad, melee=True))
+        # Warhost's Lightning-Fast Reactions is defender-side and asks only
+        # about the target, the same shape as Forewarned above.
+        modifiers.extend(
+            warhost_lightning_fast_reactions.hit_modifiers(target_squad))
         # Warboss's own "Might is Right" (user-supplied): "while this model is
         # leading a unit, each time a model in that unit makes a MELEE attack,
         # add 1 to the Hit roll". Melee-only, so it lives here and not in the
@@ -1921,6 +2321,21 @@ class FightController:
         # only in reaching BOTH phases: its text says "an attack", not "a melee
         # attack", so game/shooting.py reads it too.
         modifiers.extend(awakened_dynasty.hit_modifiers(self.fighting_squad))
+        # Nurgle's Gift: an afflicted unit's OWN attacks take -1, which reads
+        # backwards until you notice the printed text says "each time a model
+        # in this unit makes AN ATTACK" about the afflicted unit itself.
+        modifiers.extend(plagues.hit_modifiers(self.fighting_squad))
+        # Destroyer Hive is defender-side: it worsens attacks against the
+        # marked unit, so it takes the target.
+        modifiers.extend(destroyer_hive.hit_modifiers(target_squad))
+        # LAST, because it REMOVES modifiers rather than adding one: the
+        # Aspect Host detachment's Warrior Focus lets its units ignore any or
+        # all Hit-roll modifiers, resolved automatically the way rule 24.29
+        # [PSYCHIC] and Kauyon already are - a worsening modifier is never
+        # something a player wants to keep, so a prompt per attack would be
+        # offering a choice with one sane answer.
+        if aspect_warrior_focus.ignores_hit_modifiers(self.fighting_squad):
+            modifiers = [m for m in modifiers if m.amount <= 0]
         return modifiers
 
     def _wound_modifiers(self, weapon, target_squad):
@@ -1960,10 +2375,21 @@ class FightController:
         # rather than a malus, so a NEGATIVE amount. See game/doom.py.
         if self.doom is not None and self.doom.applies_to_squad(self.fighting_squad, target_squad):
             modifiers.append(Modifier(DOOM_WOUND_BONUS, "Doom"))
+        if self.shepherds_of_the_dead is not None:
+            modifiers.extend(self.shepherds_of_the_dead.wound_modifiers(
+                self.fighting_squad, target_squad))
+        # Guardian Battlehost's Shield Nodes - defender-side, target only.
+        modifiers.extend(guardian_shield_nodes.wound_modifiers(target_squad))
         if weapon.lance and self.charge_controller is not None and self.fighting_squad is not None and self.fighting_squad in self.charge_controller.charged_squad_ids:
             modifiers.append(Modifier(-1, "[LANCE] (charged)"))
         if self.fighting_squad is not None and self.fighting_squad.models:
-            modifiers.extend(tank_hunters_modifiers(self.fighting_squad.models[0], target_squad))
+            modifiers.extend(tank_hunters_modifiers(self.fighting_squad.models[0], target_squad, melee=True))
+        # Corsair Kharseth's Misfortune is a MARK on the attacking unit, so it
+        # is asked of the controller that holds the marks rather than of the
+        # squad - the same shape as Guide and Doom above, one side over.
+        if self.misfortune is not None and self.misfortune.afflicts(self.fighting_squad):
+            modifiers.append(Modifier(misfortune_module.MISFORTUNE_PENALTY,
+                                      misfortune_module.MISFORTUNE_LABEL))
         # Commander Farsight's Way of the Short Blade: "+1 to the Wound
         # roll" for a unit he is LEADING, against a target within 9".
         # Hooked into both phases because its text says "makes an
@@ -2058,6 +2484,7 @@ class FightController:
         self.target_squad = None
         self.remaining_weapon_types = []
         self._used_other_melee_weapon = set()
+        self._reset_engagement_snapshot()
         self._hazardous_count = 0
         self._lethal_hits_auto_wounds = 0
         self.mortal_wound_session = None
@@ -2077,6 +2504,59 @@ class FightController:
         # activation (however it started) funnels through when it ends.
         if squad is not None and self.on_unit_finished_fighting is not None:
             self.on_unit_finished_fighting(squad)
+
+    def unmodified_six_damage_context(self):
+        """(squad, model, notation_roll) when a DAMAGE roll for this
+        controller's current weapon group is on the table, or None.
+
+        Separate from unmodified_six_context() because a Damage roll is a
+        different shape: it is not a die that succeeds or fails, it is a
+        rolled AMOUNT, and only the Farseer's Branching Fates covers it at
+        all.
+
+        The MODEL handed over is the weapon group's representative attacker,
+        the same one the hit/wound hook uses - the printed clause is
+        "excluding SUPPORT WEAPON models" about the model MAKING the attack.
+        The prompt this replaced passed the model that was taking the wound
+        instead; harmless today (no SUPPORT WEAPON datasheet exists) but the
+        wrong model to ask, so it is not carried over."""
+        session = self.damage_session
+        if session is None or self.current_group is None:
+            return None
+        roll = getattr(session, "pending_damage_roll", None)
+        if roll is None or not roll.is_pending:
+            return None
+        pairs = self.current_group.get("pairs") or ()
+        if not pairs:
+            return None
+        return (self.fighting_squad, pairs[0][0], roll)
+
+    def unmodified_six_context(self):
+        """(squad, model, weapon) for the roll this controller currently has
+        on the table, or None when it has no weapon group open.
+
+        Read by game/unmodified_six_controller.py, which needs all three:
+        the MODEL because both abilities exclude one ("excluding CHARACTER
+        models" for an Aspect Shrine token, "excluding SUPPORT WEAPON models"
+        for Branching Fates), and the WEAPON because whether a critical is
+        worth buying depends on it ([SUSTAINED HITS]/[LETHAL HITS] on a hit,
+        [DEVASTATING WOUNDS] on a wound - see game/unmodified_six.py).
+
+        The representative model of the weapon group is the one the old
+        prompt judged from too: a joined character carries its own
+        datasheet's weapons, so it lands in its own attack group rather than
+        sharing one."""
+        if self.current_group is None:
+            return None
+        pairs = self.current_group.get("pairs") or ()
+        if not pairs:
+            return None
+        # The ADJUSTED weapon, not the printed one: a conditional grant is
+        # exactly what decides whether a critical is worth a token, and the
+        # printed profile would answer for a weapon nobody is swinging.
+        target_squad = self.current_group.get("target_squad")
+        return (self.fighting_squad, pairs[0][0],
+                self._adjusted_weapon(pairs, target_squad))
 
     def _log(self, message):
         if self.game_log is not None:

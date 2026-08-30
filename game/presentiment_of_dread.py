@@ -33,6 +33,7 @@ as printed.
 from game.line_of_sight import has_line_of_sight
 from game.turn import PHASE_COMMAND
 from game.stratagems import Stratagem
+from game import strands_of_fate
 
 PRESENTIMENT_RANGE_IN = 18.0
 PRESENTIMENT_TEST_PENALTY = 1
@@ -67,8 +68,21 @@ class PresentimentOfDreadController:
         return [m for m in getattr(squad, "models", None) or ()
                 if getattr(m.profile, "psyker", False) and not m.is_dead()]
 
+    def panel_label(self, squad):
+        """The button text, for game/proactive_stratagems.py.
+
+        Migrated onto the registry rather than kept as its own parameter
+        through ActionPanel.draw()'s three-stage chain: that chain already
+        carries 81 of them, and this label used to be a string literal inside
+        the panel, which is what let the panel's "nothing to do here" hint
+        stay unaware that a button was on offer."""
+        return "%s (%d CP)" % (PRESENTIMENT_NAME, PRESENTIMENT_CP)
+
     def can_use(self, squad):
         if squad is None or self.stratagem_controller is None or self.battle_shock is None:
+            return False
+        # Seer Council only - see game/strands_of_fate.py's has_detachment().
+        if not strands_of_fate.has_detachment(squad.owner):
             return False
         if self.turn_tracker is None or self.turn_tracker.phase != PHASE_COMMAND:
             return False

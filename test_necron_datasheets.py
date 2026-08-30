@@ -191,8 +191,8 @@ c.true("Voltaic Storm is [BLAST] with [SUSTAINED HITS 2]",
        w.VoltaicStormProfile().blast and w.VoltaicStormProfile().sustained_hits == 2)
 
 # the "same name, different numbers" pairs - pinned against EACH OTHER
-ov_r, tm_r = w.OverlordStaffOfLightRangedProfile(), w.TechnomancerStaffOfLightRangedProfile()
-ov_m, tm_m = w.OverlordStaffOfLightMeleeProfile(), w.TechnomancerStaffOfLightMeleeProfile()
+ov_r, tm_r = w.LordStaffOfLightRangedProfile(), w.TechnomancerStaffOfLightRangedProfile()
+ov_m, tm_m = w.LordStaffOfLightMeleeProfile(), w.TechnomancerStaffOfLightMeleeProfile()
 c.eq("both Staffs of Light print the same NAME", (ov_r.name, tm_r.name),
      ("Staff of Light", "Staff of Light"))
 c.true("...but the melee halves differ in Attacks (4 vs 2)", ov_m.attacks != tm_m.attacks)
@@ -321,12 +321,13 @@ print("--- 5. keywords and leaders ---")
 c.true("Warriors and Immortals are BATTLELINE",
        "BATTLELINE" in nec.NECRON_WARRIORS.keywords and "BATTLELINE" in nec.IMMORTALS.keywords)
 c.true("the Overlord is a NOBLE", "NOBLE" in nec.OVERLORD.keywords)
-c.true("the Destroyer Cult is three datasheets",
+c.true("the Destroyer Cult is five datasheets - both Lords joined it",
        all("DESTROYER CULT" in s.keywords for s in
-           (nec.SKORPEKH_DESTROYERS, nec.LOKHUST_DESTROYERS, nec.LOKHUST_HEAVY_DESTROYERS)))
+           (nec.SKORPEKH_DESTROYERS, nec.LOKHUST_DESTROYERS,
+            nec.LOKHUST_HEAVY_DESTROYERS, nec.SKORPEKH_LORD, nec.LOKHUST_LORD)))
 c.true("every datasheet carries the NECRONS faction keyword",
        all("NECRONS" in s.keywords for s in nec.NECRONS.datasheets.values()))
-c.eq("thirteen datasheets are registered", len(nec.NECRONS.datasheets), 13)
+c.eq("fifteen datasheets are registered", len(nec.NECRONS.datasheets), 15)
 c.eq("the faction keyword is NECRONS", nec.NECRONS.keyword, "NECRONS")
 
 # can_attach() returns a list of REASONS - empty means legal
@@ -358,8 +359,8 @@ print("--- 6. sprites ---")
 missing = [s.name for s in nec.NECRONS.datasheets.values()
            if not sprites.sprite_for(build(s).models[0])]
 c.eq("every Necron datasheet resolves to a real file", missing, [])
-c.eq("...all thirteen of them",
-     len(nec.NECRONS.datasheets) - len(missing), 13)
+c.eq("...all fifteen of them",
+     len(nec.NECRONS.datasheets) - len(missing), 15)
 c.eq("the faction badge is mapped too",
      sprites.FACTION_LOGO_KEYS.get("NECRONS"), "Necron Logo")
 

@@ -17,7 +17,7 @@ SMALL board is magnified MORE. Measured at 1920x1200, the same 2.5 gave:
 
     map1 44"x60"   x1.87 upscale at max zoom  (46% of shown pixels invented)
     map2 60"x44"   x1.37                      (27% invented)
-    map3 30"x30"   x2.74                      (64% invented)
+    map3 30"x30"   x2.74                      (64% invented)   [the old test board]
 
 So the resolution is derived here instead of configured. `needed` below is
 exactly the resolution at which, at MAX_ZOOM, one rendered pixel maps to one

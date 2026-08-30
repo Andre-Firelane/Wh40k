@@ -67,6 +67,7 @@ no ai/agent_driver.py path and none is wanted.
 
 from game import attached_units  # no imports of its own, so this cannot cycle
 from game import config
+from game import martial_grace
 from game.turn import PHASE_MOVEMENT, PHASE_FIGHT, PHASE_SHOOTING  # game/turn.py imports nothing, so this cannot cycle
 
 # Battle sizes and their token counts, from the rule's own table.
@@ -121,9 +122,21 @@ def has_battle_focus(squad):
     game/coldstar.py, which imports this module for the Move characteristic
     bonus, so importing squad.py back from here would close a cycle."""
     models = getattr(squad, "models", None)
-    return bool(models) and all(
+    if bool(models) and all(
         getattr(m.profile, "battle_focus", False) for m in models
-    )
+    ):
+        return True
+    # Spirit Conclave's Spirit Guides aura - the first TEMPORARY source of the
+    # army rule, granted to a wraith unit standing within 12" of a friendly
+    # ASURYANI PSYKER. It folds in here because this is the one place that
+    # answers "does this unit have Battle Focus"; anywhere else and the pool,
+    # the manoeuvres and this function could disagree.
+    #
+    # A near-no-op on the built roster - all three named datasheets already
+    # print the ability - so it is written for the rule rather than for the
+    # roster, and pinned with a unit that does not print it.
+    grant = getattr(squad, "spirit_guides_source", None)
+    return bool(grant is not None and grant.spirit_guides_reaches(squad))
 
 
 def qualifying_players(squads):
@@ -158,7 +171,12 @@ def movement_bonus_in(model):
     such source today)."""
     squad = getattr(model, "squad", None)
     if squad is not None and getattr(squad, "swift_as_the_wind_active", False):
-        return SWIFT_AS_THE_WIND_BONUS_IN
+        # Warhost's Martial Grace adds "an ADDITIONAL 1 inch" on top of this
+        # manoeuvre's own 2", so it is summed rather than substituted - and it
+        # is conditional on the manoeuvre being active, which is why it is
+        # inside this branch and not beside it.
+        from game import martial_grace
+        return SWIFT_AS_THE_WIND_BONUS_IN + martial_grace.extra_move_in(squad)
     return 0.0
 
 
@@ -306,7 +324,12 @@ class BattleFocusPool:
                     )
         amount = tokens_for_battle_size(self.battle_size)
         for player in self.players:
-            self.tokens[player] = amount
+            # Warhost's Martial Grace: "at the start of the battle round, you
+            # receive 1 ADDITIONAL Battle Focus token". Per PLAYER, so it is
+            # added here rather than inside tokens_for_battle_size(), which
+            # answers a question about the battle size and would have handed
+            # the extra token to both armies.
+            self.tokens[player] = amount + martial_grace.extra_tokens_for(player)
         self._granted_round = battle_round
         self._log(
             f"Battle Focus: {', '.join(self.players)} receive {amount} token(s) "
@@ -656,6 +679,13 @@ class BattleFocusPool:
                 count=1, sides=6, label=f"{manoeuvre}: {squad.name} moves D6+1\"",
             )
             distance += sum(values or [0])
+            # Warhost's Martial Grace: "each time a unit performs an Agile
+            # Manoeuvre that involves rolling a D6, add 1 to the RESULT".
+            # Measured, this is the only such roll: of the six manoeuvres only
+            # Opportunity Seized and Fade Back throw anything, and both come
+            # through here. Added to the result, so the die itself is untouched
+            # and anything that later re-reads the roll still sees what fell.
+            distance += martial_grace.roll_bonus_for(squad)
         mover = self.movement_controller
         if mover is None or not squad.models:
             return False
@@ -663,6 +693,11 @@ class BattleFocusPool:
         mover.start_battle_focus_move(squad, distance)
         self._log(f"{squad.name} may make a Normal move of up to {distance:.0f}\" ({manoeuvre}).")
         return True
+
+    # Set by main.py - the Autarch Wayleaper's token refund, read in
+    # _spend(). A class attribute so every existing BattleFocusController
+    # (tests, harnesses) keeps working without a constructor change.
+    indomitable = None
 
     def _spend(self, player, manoeuvre, squad):
         reason = self.refusal_reason(player, manoeuvre, squad)
@@ -687,6 +722,13 @@ class BattleFocusPool:
             f"{player} spends 1 Battle Focus token: {squad.name} performs "
             f"{manoeuvre} ({self.tokens[player]} token(s) left)."
         )
+        # The Autarch Wayleaper's Indomitable Strength of Will refunds the
+        # token on a 3+. Fed from HERE, after the decrement and on the PAID
+        # path only: the free branch above returns early, and a refund hung
+        # on "performed a manoeuvre" would print tokens out of Fleet of
+        # Foot's free ones. Optional, so every existing caller is unchanged.
+        if self.indomitable is not None:
+            self.indomitable.on_token_spent(player, squad, manoeuvre)
         return True
 
     # --------------------------------------------------- agile manoeuvres

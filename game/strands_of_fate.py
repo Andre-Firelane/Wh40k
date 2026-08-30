@@ -52,6 +52,7 @@ layered on without reworking this.
 """
 
 from game import config
+from game import detachment_gate
 from game import dice as dice_module  # for random.randint, which testkit scripts
 
 FATE_DICE_BY_BATTLE_SIZE = {
@@ -74,6 +75,25 @@ STRATAGEM_BY_FATE_VALUE = {
 FATE_VALUE_BY_STRATAGEM = {name: value for value, name in STRATAGEM_BY_FATE_VALUE.items()}
 
 FATE_DICE_DISCOUNT_CP = 1
+
+
+#: The config constant game/detachments.py writes for this detachment. Named
+#: here because this module IS the Seer Council rule, the same way each T'au
+#: detachment module carries its own SETTING.
+SETTING = "SEER_COUNCIL_PLAYERS"
+
+
+def has_detachment(player):
+    """Whether `player` actually fields Seer Council.
+
+    THIS WAS MISSING FROM THE SIX STRATAGEMS, and it was harmless right up
+    until it was not: while Seer Council was the only Aeldari detachment
+    modelled, "an Aeldari army" and "a Seer Council army" were the same set, so
+    ungated stratagems were accidentally correct. Seven more Aeldari
+    detachments make them wrong - a Warhost army would own Strands of Fate's
+    stratagems without paying for the detachment that prints them. Every T'au
+    stratagem has carried this gate from the start; these six now do too."""
+    return detachment_gate.has_detachment(player, SETTING)
 
 
 def fate_dice_for_battle_size(battle_size=None):

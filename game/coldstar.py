@@ -34,8 +34,8 @@ call sites across five files, including the AI movement code, which is the
 single most regression-prone area in this repo. The Aeldari logic itself lives
 in battle_focus.py, so only the composition is here.
 """
-from game import attached_units
-from game import battle_focus, flickerjump, whirling_death
+from game import attached_units, montka_aggressive_mobility, montka_pulse_onslaught
+from game import battle_focus, elemental_ensnarement, flickerjump, monofilament_web, plagues, whirling_death
 from game.weapons import RANGED
 
 COLDSTAR_MOVEMENT_IN = 12.0
@@ -74,7 +74,40 @@ def effective_movement_in(model):
     # Jain Zar's Whirling Death adds its 6" the same way Swift as the Wind
     # adds its 2": on top of whichever override won, per unit rather than
     # per model.
-    return base + battle_focus.movement_bonus_in(model) + whirling_death.movement_bonus_in(squad)
+    #
+    # The Death Guard Plague Scabrous Soulrot ("worsen the Move ... by 1")
+    # SUBTRACTS here, and last: it worsens the characteristic this unit
+    # actually has, not the printed one, so a Flickerjumping Warp Spider under
+    # it moves 23" and not 5". Clamped at 0 - a negative Move would let a
+    # clamp_move() budget run backwards.
+    total = (base + battle_focus.movement_bonus_in(model)
+             + whirling_death.movement_bonus_in(squad)
+             - plagues.movement_penalty_in(squad))
+    # Mont'ka's Aggressive Mobility (+6") and its Pulse Onslaught's shaken
+    # status (-2) ADD TO or SUBTRACT FROM whatever the characteristic has
+    # become, so they land on `total` - after every override AND after the
+    # other add/subtract terms - which is the same place Swift as the Wind's
+    # note above describes. Applied to `base` instead they would be silently
+    # discarded, since `total` is already computed from it.
+    total += montka_aggressive_mobility.move_bonus_for(squad)
+    # Guardian Battlehost's Time to Strike prints Aggressive Mobility's two
+    # sentences word for word, so it reads the same two seams - its own flag
+    # rather than reusing that one, because the two Stratagems have different
+    # names, costs and owners and only happen to share an effect.
+    from game import guardian_time_to_strike
+    total += guardian_time_to_strike.move_bonus_for(squad)
+    total -= montka_pulse_onslaught.move_penalty_for(squad)
+    # The Night Spinner's Monofilament Web leaves a unit `pinned`: -2 Move.
+    # A SEPARATE status from `shaken` above, and they STACK - two printed
+    # effects on one unit - which is why this is its own term rather than a
+    # second writer of the same flag. See game/monofilament_web.py.
+    total -= monofilament_web.move_penalty_for(squad)
+    # The Stonesinger's Elemental Ensnarement leaves a unit `ensnared`: -2
+    # Move. The THIRD movement status, and its own term for the same reason -
+    # ensnared and shaken can hold at once and both apply. It cannot stack
+    # with `pinned` though, because an ensnared unit cannot BECOME pinned.
+    total -= elemental_ensnarement.move_penalty_for(squad)
+    return max(0.0, total)
 
 
 def weapon_has_assault(weapon, squad):
@@ -91,6 +124,16 @@ def weapon_has_assault(weapon, squad):
         return False
     if squad is None:
         return False
-    # Two independent grants, and the RANGED gate above is right for both:
-    # Star Engines also says "Ranged weapons equipped by this unit".
-    return squad_has_coldstar_commander(squad) or battle_focus.grants_assault(squad)
+    # Three independent grants now, and the RANGED gate above is right for all
+    # of them: Star Engines and Skilled Crews both say "ranged".
+    #
+    # Skilled Crews HAS to be read here and not only in the adjuster chain.
+    # [ASSAULT] is what lets a unit shoot after Advancing (24.04), and that is
+    # decided by this function, not by the damage maths - a grant that reached
+    # only the chain would look wired while failing to do the one thing the
+    # detachment is bought for. Imported inside the function: game/coldstar.py
+    # is reached very early from game/squad.py's own import, and
+    # game/skilled_crews.py pulls game.factions through aeldari_detachments.
+    from game import skilled_crews
+    return (squad_has_coldstar_commander(squad) or battle_focus.grants_assault(squad)
+            or skilled_crews.applies(squad))

@@ -10,7 +10,7 @@ from ai import observation as ai_observation
 from ai.agent_driver import AIMemory, take_one_action
 from ai.claude_agent import ClaudeAgent
 # from ai.mock_agent import MockAgent  # free/offline alternative - no API key or network needed
-from game import attached_units, battle_focus, charge, config, consolidate, crushing_impact, epic_challenge, explosives, fall_back, fight, firing_deck, greater_good, line_of_sight, maps, movement, overwatch, pregame, setup, shooting, starflare_ignition, status_effects, strands_of_fate
+from game import attached_units, battle_focus, biomes, charge, config, consolidate, crushing_impact, enhancements, epic_challenge, explosives, fall_back, fight, firing_deck, greater_good, line_of_sight, maps, movement, overwatch, pregame, setup, shooting, starflare_ignition, status_effects, strands_of_fate
 from game.arrokon_protocol import ArrokonProtocolController
 from game.shortened_blade import ShortenedBladeController
 from game.torchstar_gambit import TorchstarGambitController
@@ -25,6 +25,7 @@ from game.charge import ChargeController
 from game.coherency import CoherencyEnforcer
 from game.command_points import CommandPointManager
 from game.command_reroll import CommandRerollController
+from game.unmodified_six_controller import UnmodifiedSixController
 from game.env import load_dotenv
 from game.explosives import ExplosivesController
 from game.fall_back import FallBackController
@@ -38,7 +39,7 @@ from game.consolidate import ConsolidateController
 from game.counteroffensive import CounteroffensiveController
 from game.deadly_demise import DeadlyDemiseController
 from game.decision import DecisionManager
-from game.dice import DiceManager
+from game.dice import ADVANCE_ROLL, DiceManager
 from game.crushing_impact import CrushingImpactController
 from game.epic_challenge import EpicChallengeController
 from game.fight import FightController
@@ -54,7 +55,13 @@ from game.greater_good import GreaterGoodController
 from game.heroic_intervention import HeroicInterventionController
 from game.homing_beacon import HomingBeaconController
 from game.movement import MovementController
-from game import neocapacitor_shields, render_resolution, scene_io
+from game import neocapacitor_shields, render_resolution, rites_of_feasting, scene_io
+from game import ynnari_abilities
+from game.ynnari_abilities import HeraldOfYnneadController
+from game.path_of_the_warrior import PathOfTheWarriorController
+from game.shepherds_of_the_dead import ShepherdsOfTheDeadController
+from game.word_of_the_phoenix import WordOfThePhoenixController
+from game.inevitable_death import InevitableDeathController
 from game.neocapacitor_shields import NeocapacitorShieldsController
 from game.nova_charge import NovaChargeController
 from game.overwatch import FireOverwatchController
@@ -72,10 +79,58 @@ from game.grot_orderly import GrotOrderlyController, unit_has_grot_orderly
 from game.reanimation_protocols import ReanimationProtocolsController
 from game.technomancer import TechnomancerController
 from game.resurrection_orb import ResurrectionOrbController
-from game.mortal_wound_abilities import LivingLightningController, MatterAbsorptionController
+from game.mortal_wound_abilities import (
+    CrimsonHarvestController, KrootLinebreakersController, LivingLightningController, MatterAbsorptionController,
+)
 from game.wraith_form import WraithFormController
 from game.mechanical_augmentation import AtomicEnergyManipulatorController
+from game.nurgles_gift import NurglesGiftController
+from game.deadly_vectors import DeadlyVectorsController
+from game.barrage_of_filth import BarrageOfFilthController
+from game.curse_of_the_walking_pox import CurseOfTheWalkingPoxController
+from game.fevered_strategist import FeveredStrategistDiscount
+from game.lethal_ichor import LethalIchorController
+from game.mortal_wound_abilities import EaterPlagueController
+from game.pestilent_fallout import PestilentFalloutController
+from game.spore_laced_shock_waves import SporeLacedShockWavesController
+from game.dlc_blooming_pestilence import BloomingPestilenceController
+from game.dlc_grim_reapers import GrimReapersController
+from game.dlc_mortarions_teachings import MortarionsTeachingsController
+from game.dlc_sickening_impact import SickeningImpactController
+from game.dlc_signal_pox import SignalPoxController
+from game.dlc_undying_spite import UndyingSpiteController
+from game.fated_hero import FatedHeroController
+from game.malevolent_souls import MalevolentSoulsController
+from game import plagues
 from game.my_will_be_done import MyWillBeDoneDiscount
+from game.advanced_scouting import AdvancedScoutingController
+from game.drone_harassment import DroneHarassmentController
+from game.targeting_array import TargetingArrayController
+# The T'au detachment Enhancements that need a per-battle controller or a
+# pre-battle step. game/enhancements.py is the registry that says who bears one
+# and gates each on the detachment actually fielded; these are the rules.
+from game import enh_prototype_weapons, enh_strategic_conqueror
+from game.enh_admired_leader import AdmiredLeaderController
+from game.enh_light_of_clarity import LightOfClarityController
+from game.enh_stave_of_kurnous import StaveOfKurnousController
+from game.enh_internal_grenade_racks import InternalGrenadeRacksController
+from game.enh_prototype_weapon_system import PrototypeWeaponSystemController
+from game.enh_puretide_neurochip import PuretideNeurochipController
+from game.enh_solid_image_projection import SolidImageProjectionStep
+from game.enh_strike_swiftly import StrikeSwiftlyStep
+from game.enh_student_of_kauyon import StudentOfKauyonStep
+from game.enh_unmasking_suite import UnmaskingSuiteController
+from game.airborne_agility import AirborneAgilityController
+from game.ride_the_wind import RideTheWindController
+from game.bounty_hunters import BountyHuntersController
+from game.kroot_packmates import KrootPackmatesController
+from game.oversight_drone import OversightDroneController
+from game import loping_pounce
+from game import move_exceptions
+from game.coordinated_leadership import CoordinatedLeadershipController
+from game.fire_and_fade import FireAndFadeController
+from game.root_of_honour import RootOfHonourController
+from game.war_leader import WarLeaderDiscount
 from game import overwhelming_obliteration, plasmacyte
 from game.protocol_hungry_void import HungryVoidController
 from game.protocol_sudden_storm import SuddenStormController
@@ -109,6 +164,25 @@ from game.path_of_the_outcast import PathOfTheOutcastController
 from game import target_acquisition
 from game.target_acquisition import TargetAcquisitionController
 from game.crystalline_targeting import CrystallineTargetingController
+from game.monofilament_snare import MonofilamentSnareController, SHADOW_WEAVER_NAME
+from game.monofilament_web import MonofilamentWebController, DOOMWEAVER_NAME
+from game.misfortune import MisfortuneController
+from game.face_of_death import FaceOfDeathController
+from game.panicked_quarry import PanickedQuarryController
+from game import corsair_abilities
+from game.corsair_abilities import PiraticalRaidersController
+from game.fury_of_the_void import FuryOfTheVoidController, DREAD_OF_THE_DEEP_VOID_NAME
+from game.hallucinogen_grenades import HallucinogenGrenadesController
+from game.prince_of_corsairs import PrinceOfCorsairsStep
+from game.raid_and_run import RaidAndRunController
+from game.drakolithe import DrakolitheController
+from game.elemental_ensnarement import ElementalEnsnarementController
+from game.harvester_of_souls import HarvesterOfSoulsController
+from game.indomitable_strength_of_will import IndomitableStrengthOfWillController
+from game.path_of_command import PathOfCommandDiscount
+from game.superlative_strategist import SuperlativeStrategistController
+from game.spiritseer import SpiritMarkController, TearsOfIshaController
+from game.sonic_destruction import SonicDestructionController
 from game.unquenchable_resolve import UnquenchableResolveController
 from game.cloudstrider import CloudstriderController
 from game.grenade_pack_flyover import GrenadePackFlyoverController
@@ -121,6 +195,7 @@ from game.transport import TransportController
 from game.squad import Squad
 from game.token import Token
 from game import army_lists
+from game import pestilent_fallout
 from game.factions.faction import player_factions as derive_player_factions
 from game.input_handler import InputManager
 from game.renderer import Renderer
@@ -129,18 +204,94 @@ from game.turn import TurnTracker, PHASE_COMMAND, PHASE_MOVEMENT, PHASE_SHOOTING
 from game.unbridled_carnage import UnbridledCarnageController
 from game.ui.action_panel import ActionPanel
 from game.ui.army_select import ArmySelectScreen
+from game.auxiliary_cadre import AuxiliaryCadreController
+from game.proactive_stratagems import ProactiveStratagems
+from game import windrider_daring_riders, windrider_death_from_on_high
+from game import windrider_focused_firepower, windrider_overflight
+from game import windrider_spiralling_evasion, windrider_wind_of_blades
+from game.windrider_daring_riders import DaringRidersController
+from game.windrider_death_from_on_high import DeathFromOnHighController
+from game.windrider_focused_firepower import FocusedFirepowerController
+from game.windrider_overflight import OverflightController
+from game.windrider_spiralling_evasion import SpirallingEvasionController
+from game.windrider_wind_of_blades import WindOfBladesController
+from game import martial_grace
+from game import warhost_blitzing_firepower, warhost_feigned_retreat
+from game import warhost_fire_and_fade, warhost_lightning_fast_reactions
+from game import warhost_webway_tunnel
+from game.skyborne_sanctuary import SkyborneSanctuaryController
+from game.warhost_blitzing_firepower import BlitzingFirepowerController
+from game.warhost_feigned_retreat import FeignedRetreatController
+from game.warhost_fire_and_fade import WarhostFireAndFadeController
+from game.warhost_lightning_fast_reactions import LightningFastReactionsController
+from game.warhost_webway_tunnel import WebwayTunnelController
+from game import conclave_blades_from_beyond, conclave_seers_eye
+from game import conclave_soul_bridge, conclave_wraithbone_armour
+from game.conclave_blades_from_beyond import BladesFromBeyondController
+from game.conclave_crushing_strides import CrushingStridesController
+from game.conclave_seers_eye import SeersEyeController
+from game.conclave_soul_bridge import SoulBridgeController
+from game.conclave_spirit_token import SpiritTokenController
+from game.conclave_wraithbone_armour import WraithboneArmourController
+from game import aspect_doom_inescapable, aspect_preternatural_precision
+from game import aspect_warrior_focus
+from game.aspect_doom_inescapable import DoomInescapableController
+from game.aspect_khaines_vengeance import KhainesVengeanceController
+from game.aspect_preternatural_precision import PreternaturalPrecisionController
+from game.aspect_to_their_final_breath import ToTheirFinalBreathController
+from game.aspect_warrior_focus import WarriorFocusController
+from game.damage_resolution import MortalWoundAllocationSession
+from game.armoured_layered_wards import LayeredWardsController
+from game import armoured_layered_wards, armoured_soulsight
+from game.armoured_soulsight import SoulsightController
+from game.armoured_vectored_engines import VectoredEnginesController
+from game import outcast_casting_back_the_veil
+from game.outcast_casting_back_the_veil import CastingBackTheVeilController
+from game.outcast_eldritch_suppression import EldritchSuppressionController
+from game.outcast_nomads_of_the_hidden_way import NomadsOfTheHiddenWayController
+from game import (guardian_blades_of_asuryan, guardian_shield_nodes,
+                  guardian_time_to_strike, guardian_warding_salvoes)
+from game.guardian_blades_of_asuryan import BladesOfAsuryanController
+from game.guardian_cost_of_victory import CostOfVictoryController
+from game.guardian_shield_nodes import ShieldNodesController
+from game.guardian_time_to_strike import TimeToStrikeController
+from game.guardian_vauls_vengeance import VaulsVengeanceController
+from game.guardian_warding_salvoes import WardingSalvoesController
+from game.kauyon_coordinate_to_engage import CoordinateToEngageController
+from game.kauyon_point_blank_ambush import PointBlankAmbushController
+from game.kauyon_tempting_trap import TemptingTrapController
+from game.kauyon_wall_of_mirrors import WallOfMirrorsController
+from game.kauyon_photon_grenades import PhotonGrenadesController
+from game.kauyon_combat_embarkation import CombatEmbarkationController
+from game.montka_aggressive_mobility import AggressiveMobilityController
+from game.montka_combat_debarkation import CombatDebarkationController
+from game.montka_counterfire_defence import CounterfireDefenceController
+from game.montka_focused_fire import FocusedFireController
+from game.montka_pinpoint_counter_offensive import PinpointCounterOffensiveController
+from game.montka_pulse_onslaught import PulseOnslaughtController
+from game.aac_autoreactive_camouflage import AutoreactiveCamouflageController
+from game.aac_marker_beacon import MarkerBeaconController
+from game.aac_microdrone_support import MicrodroneSupportController
+from game.aux_alien_expertise import AlienExpertiseController
+from game.aux_experimental_modifications import ExperimentalModificationsController
+from game.aux_guided_fire import GuidedFireController
+from game.epc_experimental_ammunition import (
+    MODE_STRENGTH, MODE_STRENGTH_AP_HAZARDOUS, ExperimentalAmmunitionController)
+from game import detachments
 from game.ui.map_select import MapSelectScreen
 from game.ui.ai_busy_badge import AiBusyBadge, draw_auto_play_dot
 from game.ui.decision_overlay import DecisionOverlay
 from game.ui.stratagem_notice_overlay import StratagemNoticeOverlay
 from game.ui.waaagh_notice_overlay import WaaaghNoticeOverlay
 from game.ui.turn_start_overlay import TurnStartOverlay
+from game.ui.fight_warning_overlay import FightWarningOverlay
 from game.ui.turn_plan_overlay import TurnPlanOverlay
 from game.ui.dice_panel import DicePanel
 from game.ui.game_status_panel import GameStatusPanel
 from game.ui.log_panel import LogPanel
 from game.ui.mission_cards import MissionCardsOverlay
 from game.ui.mission_draw_overlay import MissionDrawOverlay
+from game.ui.battle_end_overlay import BattleEndOverlay
 from game.ui.player_banner import PlayerBanner
 from game.ui.reserves_panel import ReservesPanel
 from game.ui.unit_datacard import UnitDatacardOverlay
@@ -233,12 +384,19 @@ def _enhancement_lines(state, owner):
     until it fires."""
     lines = []
     for squad in _player_squads(state, owner):
-        for model in starflare_ignition.bearer_models(squad):
-            lines.append(
-                f"{owner}: {model.profile.name} in {squad.name} carries the "
-                f"{starflare_ignition.STARFLARE_IGNITION_SYSTEM_NAME} Enhancement "
-                f"({starflare_ignition.STARFLARE_IGNITION_SYSTEM_POINTS} pts)."
-            )
+        # Every engine-wired Enhancement, off the registry rather than the one
+        # named module this used to know about: nineteen are wired now, and a
+        # startup log that mentions only the first one is worse than none.
+        for name in enhancements.granted_names(squad):
+            spec = enhancements.get(name)
+            bearers = enhancements.enhancement_models(squad, name)
+            # A unit-level Enhancement ("STEALTH BATTLESUITS unit only") marks
+            # every model, so it is reported as the UNIT rather than as one
+            # line per model - which would otherwise print ten identical lines.
+            who = (squad.name if spec.unit_level
+                   else f"{bearers[0].profile.name} in {squad.name}")
+            lines.append(f"{owner}: {who} carries the {name} Enhancement "
+                         f"({spec.points} pts).")
     return lines
 
 
@@ -332,10 +490,20 @@ def main(map_key=None):
             pygame.quit()
             return
         armies = chosen
-    # Writes who fields Seer Council and who Awakened Dynasty - the one part of
-    # a list that genuinely cannot be derived from the units on the board. Has
-    # to happen before ANY unit is built, same as maps.apply_to_config() above.
+    # Writes the army keys, and each list's DEFAULT detachment through
+    # game/detachments.py - the one part of a list that genuinely cannot be
+    # derived from the units on the board. Has to happen before ANY unit is
+    # built, same as maps.apply_to_config() above.
     army_lists.apply_to_config(armies)
+
+    # Which detachments each player fields comes from the LIST - it is part of
+    # how the army was written down, not a choice made at the table. A
+    # selection screen was built here and taken back out: you cannot swap
+    # detachment before a game, and an army may field several at once out of a
+    # shared Detachment Points budget, which is a list-building matter rather
+    # than a pre-battle one. Still written into config, because a detachment
+    # cannot be derived from the units - see game/detachments.py.
+    detachments.apply_to_config(armies)
 
     top_row_height = window_height - config.RESERVES_PANEL_HEIGHT
     available_width = window_width - config.LEFT_PANEL_WIDTH - config.RIGHT_PANEL_WIDTH
@@ -482,6 +650,13 @@ def main(map_key=None):
     battle_map.build(state)
 
     game_log = GameLog(file_path=_new_game_log_file_path())
+    # Which map and which BIOME, on the log's first line. The map has always
+    # been reconstructible from the terrain coordinates in the log; the biome
+    # is not reconstructible from anything, because it changes nothing except
+    # what the table is painted in - so a screenshot in a bug report cannot be
+    # matched to a run without this. file_only: it is provenance, not play.
+    game_log.add(f"[setup] {battle_map.name} | biome: {biomes.current().name}",
+                 file_only=True)
     dice_manager = DiceManager()
     decision_manager = DecisionManager()
     # With a pre-game sequence, who takes the first turn isn't known until
@@ -542,6 +717,12 @@ def main(map_key=None):
                 game_log.add(line)
             for line in _enhancement_lines(state, owner):
                 game_log.add(line)
+        # The three Experimental Prototype Cadre weapon upgrades. Their printed
+        # timing is Declare Battle Formations, which this path does not have -
+        # and without this line a legacy or --load scene would carry the
+        # Enhancement, and its points, with none of its effect. Idempotent, so
+        # a scene that somehow reached both paths is still upgraded once.
+        enh_prototype_weapons.apply_all(state.all_squads(), game_log=game_log)
         command_points.gain_core_cp()  # rule 08.02: the battle's very first phase is already Command
         # Same "the battle's very first phase is already Command" case as
         # gain_core_cp() above - update_control() itself only ever runs
@@ -614,6 +795,12 @@ def main(map_key=None):
     # the discount without knowing about it (see game/puretide.py).
     puretide_controller = PuretideController(turn_tracker=turn_tracker, game_log=game_log)
     stratagem_controller.cost_discounts.append(puretide_controller)
+    # Both Autarchs' Path of Command - the FOURTH datasheet to print the same
+    # sentence, and the one that paid for extracting it. All four now share
+    # game/cp_discount.py; only the flag, the discount and the label differ.
+    path_of_command_discount = PathOfCommandDiscount(
+        turn_tracker=turn_tracker, game_log=game_log)
+    stratagem_controller.cost_discounts.append(path_of_command_discount)
     neocapacitor_controller = NeocapacitorShieldsController(
         decision_manager=decision_manager, turn_tracker=turn_tracker,
         all_tokens=state.tokens, game_log=game_log,
@@ -738,31 +925,104 @@ def main(map_key=None):
         game_state=state, auto_players=("Player 2",),
         position_valid=_necron_position_valid,
     )
+    # The Kroot War Shaper's Root of Honour. Offered at the start of EVERY
+    # phase (see the call in advance_turn_phase), so no dice and no CP - it
+    # only ever flips Squad.battle_shocked off. `all_squads` is passed as a
+    # CALLABLE so the controller can never hold a unit list that has gone
+    # stale as models died.
+    # The Ethereal's Coordinated Leadership - a D6 at the end of its owner's
+    # Command phase. It reads command_points directly rather than gaining CP
+    # itself, so CommandPointManager stays the one place the per-round bonus
+    # cap is enforced.
+    coordinated_leadership_controller = CoordinatedLeadershipController(
+        dice_manager=dice_manager, command_points=command_points,
+        turn_tracker=turn_tracker, game_log=game_log,
+    )
+    root_of_honour_controller = RootOfHonourController(
+        decision_manager=decision_manager, game_log=game_log,
+        all_squads=lambda: [t.squad for t in state.tokens if t.squad is not None],
+        auto_players=("Player 2",),
+    )
+    # The real line-of-sight test, so "visible to this model" means what it
+    # means everywhere else rather than a second approximation of it. Named
+    # rather than inlined because Typhus' Eater Plague asks the identical
+    # question further down, and two copies is how two answers start.
+    def _psychic_visible(model, squad):
+        return any(
+            line_of_sight.has_line_of_sight(
+                model, t, state.obstacles, state.tokens, state.terrain_areas)
+            for t in squad.models if not t.is_dead()
+        )
+
     living_lightning_controller = LivingLightningController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
         game_state=state, auto_players=("Player 2",),
         target_pick=_best_damage_target,
-        # The real line-of-sight test, so "visible to this model" means what it
-        # means everywhere else rather than a second approximation of it.
-        visible=lambda model, squad: any(
-            line_of_sight.has_line_of_sight(
-                model, t, state.obstacles, state.tokens, state.terrain_areas)
-            for t in squad.models if not t.is_dead()
-        ),
+        visible=_psychic_visible,
     )
     matter_absorption_controller = MatterAbsorptionController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
         game_state=state, auto_players=("Player 2",), target_pick=_best_damage_target,
+    )
+    crimson_harvest_controller = CrimsonHarvestController(
+        dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
+        game_state=state, auto_players=("Player 2",), target_pick=_best_damage_target,
+    )
+    # Krootox Rampagers' Kroot Linebreakers - Crimson Harvest's sibling in
+    # game/mortal_wound_abilities.py, on the same charge hook. It is the
+    # only one that also owes a Battle-shock test, hence battle_shock.
+    kroot_linebreakers_controller = KrootLinebreakersController(
+        dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
+        game_state=state, auto_players=("Player 2",), target_pick=_best_damage_target,
+        battle_shock=battle_shock_controller,
     )
     wraith_form_controller = WraithFormController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
         game_state=state, movement_controller=movement_controller,
         auto_players=("Player 2",), target_pick=_best_damage_target,
     )
+    # Retaliation Cadre's Internal Grenade Racks: Wraith Form's own trigger and
+    # geometry (see game/enh_internal_grenade_racks.py), but per BEARER MODEL
+    # and six flat D6. Built right beside it so the two stay comparable.
+    internal_grenade_racks_controller = InternalGrenadeRacksController(
+        dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
+        game_state=state, movement_controller=movement_controller,
+        auto_players=("Player 2",), target_pick=_best_damage_target,
+    )
+    # Retaliation Cadre's Puretide Engram Neurochip - NOT Commander Farsight's
+    # "Puretide's Teachings" discount registered further down; two rules under
+    # similar printed names, one module each.
+    puretide_neurochip_controller = PuretideNeurochipController(
+        dice_manager=dice_manager, command_points=command_points,
+        turn_tracker=turn_tracker, game_log=game_log)
+    stratagem_controller.on_targets_chosen.append(
+        puretide_neurochip_controller.on_targets_chosen)
+    # Auxiliary Cadre's Admired Leader - driven from the Command-phase block,
+    # where it first clears last round's mark and then offers this round's.
+    admired_leader_controller = AdmiredLeaderController(
+        game_state=state, decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",))
+    # Spirit Conclave's Light of Clarity prints the SAME Command-phase sentence,
+    # so it is the same machine with its own keyword clause and its own flag -
+    # see game/command_phase_mark.py for why that is four carriers, not two.
+    light_of_clarity_controller = LightOfClarityController(
+        game_state=state, decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",))
+    # Stave of Kurnous - the same Command-phase sentence again, with the
+    # TITANIC exclusion that only IT prints.
+    stave_of_kurnous_controller = StaveOfKurnousController(
+        game_state=state, decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",))
     atomic_energy_controller = AtomicEnergyManipulatorController(game_log=game_log)
     # The third cost_discounts collaborator, after Puretide and Strands of Fate.
     stratagem_controller.cost_discounts.append(
         MyWillBeDoneDiscount(turn_tracker=turn_tracker, game_log=game_log))
+    # The fifth (Fevered Strategist below is the fourth). Word for word the
+    # same rule as My Will Be Done above, in a different faction's typeface -
+    # see game/war_leader.py. Registering it unconditionally is safe: its own
+    # predicate finds no War Shaper unless one is on the table.
+    stratagem_controller.cost_discounts.append(
+        WarLeaderDiscount(turn_tracker=turn_tracker, game_log=game_log))
     # Both reactive stratagems above fire at the same moment in the sequence,
     # so both controllers go into the one target_reactions list that
     # ShootingController/FightController iterate at that point.
@@ -782,8 +1042,15 @@ def main(map_key=None):
         stratagem_controller, decision_manager=decision_manager, game_log=game_log,
         all_tokens=state.tokens, turn_tracker=turn_tracker,
     )
+    # Krootox Riders' Kroot Packmates reacts at exactly the same instant the
+    # two stratagems do - "just after an enemy unit has selected its targets".
+    kroot_packmates_controller = KrootPackmatesController(
+        decision_manager=decision_manager, game_state=state, turn_tracker=turn_tracker,
+        game_log=game_log, auto_players=("Player 2",),
+    )
     shooting_target_reactions = (
         stim_injectors_controller, ard_as_nails_controller, psychic_shield_controller,
+        kroot_packmates_controller,
     )
     fight_target_reactions = (
         stim_injectors_controller, ard_as_nails_controller, forewarned_controller,
@@ -810,6 +1077,31 @@ def main(map_key=None):
     # holds what the two share), except it improves the WOUND roll and prints no
     # once-per-turn cap. Its own controller rather than a mode of the one above,
     # because a player can legitimately have both marks live at once.
+    # The Farseer Skyrunner's Misfortune - the THIRD mark of this shape, and
+    # the first read from the ATTACKER's side: it penalises the marked unit's
+    # own Wound rolls rather than helping attacks against it. Same machinery,
+    # different question, so a subclass rather than a third copy.
+    misfortune_controller = MisfortuneController(
+        decision_manager=decision_manager, game_log=game_log, all_tokens=state.tokens,
+        obstacles=state.obstacles, terrain_areas=state.terrain_areas,
+    )
+    # The Spiritseer's Spirit Mark and Tears of Isha. Two abilities, one
+    # datasheet, and both reach WRAITH CONSTRUCT units by range.
+    spirit_mark_controller = SpiritMarkController(
+        decision_manager=decision_manager, game_log=game_log, all_tokens=state.tokens)
+    tears_of_isha_controller = TearsOfIshaController(
+        dice_manager=dice_manager, decision_manager=decision_manager,
+        game_log=game_log, game_state=state, all_tokens=state.tokens,
+        auto_players=("Player 2",))
+    # The Voidscarred's Piratical Raiders (a battle-long mark chosen before the
+    # first turn) and Kharseth's Fury of the Void (a turn-long one placed by a
+    # hit). Both ride the adjuster chain, so both are built before the attack
+    # controllers that take them.
+    piratical_raiders_controller = PiraticalRaidersController(
+        game_log=game_log, decision_manager=decision_manager,
+        auto_players=("Player 2",))
+    fury_of_the_void_controller = FuryOfTheVoidController(
+        decision_manager=decision_manager, game_log=game_log)
     doom_controller = DoomController(
         decision_manager=decision_manager, game_log=game_log, all_tokens=state.tokens,
         obstacles=state.obstacles, terrain_areas=state.terrain_areas,
@@ -827,6 +1119,14 @@ def main(map_key=None):
     # game/crit_hit.py.
     whispering_web_controller = WhisperingWebController(
         decision_manager=decision_manager, game_log=game_log,
+    )
+    # Auxiliary Cadre's Harnessed Alien Instincts - the fifth enemy mark in this
+    # engine, and the only one whose effect is a DETECTION RANGE. Built here
+    # with the other marks; line_of_sight_check is filled in below, once the
+    # obstacles and the terrain the check needs are in scope.
+    auxiliary_cadre_controller = AuxiliaryCadreController(
+        decision_manager=decision_manager, game_state=state,
+        turn_tracker=turn_tracker, game_log=game_log,
     )
     # Seer Council's Presentiment of Dread - a forced Battle-shock test at -1,
     # so it needs battle_shock_controller. Third consumer of start_forced_roll()
@@ -853,6 +1153,8 @@ def main(map_key=None):
     # on_move_finished and the SECOND of on_ingress_resolved, which is why both
     # of those hooks are lists now.
     movement_controller.on_move_finished.append(wraith_form_controller.on_move_finished)
+    movement_controller.on_move_finished.append(
+        internal_grenade_racks_controller.on_move_finished)
     # Overwhelming Obliteration is not a decision - it simply follows the move
     # type the unit already chose, so it hangs off the Remain Stationary hook
     # rather than prompting anything.
@@ -899,15 +1201,72 @@ def main(map_key=None):
         movement_controller=movement_controller, decision_manager=decision_manager,
         game_log=game_log,
     )
+    # The Kroot Lone-Spear's Fire and Fade - Tactical Acumen's twin, built
+    # here for the same reason and immediately after it, so the two post-
+    # shooting movers stay next to each other.
+    fire_and_fade_controller = FireAndFadeController(
+        movement_controller=movement_controller, decision_manager=decision_manager,
+        all_tokens=state.tokens, game_log=game_log, auto_players=("Player 2",),
+    )
+    # His OTHER ability: a mark placed on the unit he HIT, read by every
+    # other KROOT unit in the army until the end of the turn.
+    advanced_scouting_controller = AdvancedScoutingController(game_log=game_log)
+    # The two gunships' Targeting Array. Its shooting_controller back-reference
+    # is filled in after that controller exists (it needs to know which unit is
+    # shooting to spend the right unit's once-per-activation use).
+    targeting_array_controller = TargetingArrayController(
+        dice_manager=dice_manager, game_log=game_log)
+    # The Piranhas' Drone Harassment Tactics - it orders a Battle-shock test
+    # out of turn, which BattleShockController.start_forced_roll() already
+    # exists for (added for Neocapacitor Shields).
+    drone_harassment_controller = DroneHarassmentController(
+        battle_shock=battle_shock_controller, decision_manager=decision_manager,
+        game_log=game_log, auto_players=("Player 2",), target_pick=_best_damage_target,
+    )
+    # Kroot Farstalkers' Bounty Hunters: chosen once before the battle and
+    # read by BOTH attack steps, since its text says "an attack".
+    bounty_hunters_controller = BountyHuntersController(
+        game_log=game_log, target_pick=_best_damage_target)
+    # The Vespid Strain Leader's Oversight Drone - offered from
+    # ShootingController.start_shooting() only, like Nova Charge.
+    oversight_drone_controller = OversightDroneController(
+        decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",))
+    # Vespid Stingwings' Airborne Agility - offered at the END of a turn, to
+    # whoever's turn it is NOT.
+    ride_the_wind_controller = RideTheWindController(
+        decision_manager=decision_manager, game_state=state, game_log=game_log,
+        all_tokens=state.tokens, auto_players=("Player 2",))
+    airborne_agility_controller = AirborneAgilityController(
+        decision_manager=decision_manager, game_state=state, game_log=game_log,
+        auto_players=("Player 2",))
+    # Retaliation Cadre's Prototype Weapon System and Advanced Acquisition
+    # Cadre's Unmasking Suite: both open on "selected to shoot" and close on
+    # "until those attacks are resolved"/"until this unit has shot", which is
+    # the same pair of ShootingController seams game/targeting_array.py uses -
+    # so both are passed in and driven from there, not from this loop.
+    prototype_weapon_system_controller = PrototypeWeaponSystemController(
+        decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",))
+    unmasking_suite_controller = UnmaskingSuiteController(
+        game_state=state, decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",))
     shooting_controller = ShootingController(
         obstacles=state.obstacles, game_log=game_log, dice_manager=dice_manager, turn_tracker=turn_tracker,
         all_tokens=state.tokens, movement_controller=movement_controller, terrain_areas=state.terrain_areas,
         decision_manager=decision_manager, greater_good=greater_good_controller, suppression=suppression_controller,
-        ammo_runt=ammo_runt_controller,
+        ammo_runt=ammo_runt_controller, advanced_scouting=advanced_scouting_controller,
+        bounty_hunters=bounty_hunters_controller, oversight_drone=oversight_drone_controller,
+        targeting_array=targeting_array_controller,
+        prototype_weapon_system=prototype_weapon_system_controller,
+        unmasking_suite=unmasking_suite_controller,
         objectives=state.objectives, stealth_drones=stealth_drones_controller, waaagh=waaagh_controller,
         target_reactions=shooting_target_reactions, nova_charge=nova_charge_controller,
         fire_support=fire_support_controller, hand_of_asuryan=hand_of_asuryan_controller,
         guide=guide_controller, doom=doom_controller,
+        misfortune=misfortune_controller, spirit_mark=spirit_mark_controller,
+        piratical_raiders=piratical_raiders_controller,
+        fury_of_the_void=fury_of_the_void_controller,
         whispering_web=whispering_web_controller,
     )
     # Rule 13.09 (Hidden): GreaterGoodController.eligible_targets() needs
@@ -956,6 +1315,114 @@ def main(map_key=None):
     shooting_controller.crystalline_targeting = crystalline_targeting_controller
     shooting_controller.on_squad_finished_shooting.append(
         crystalline_targeting_controller.offer_after_shooting)
+    # The Shadow Weaver Platform's Monofilament Snare - the same
+    # "after this model has shot, select one enemy unit hit" moment, but with
+    # the per-WEAPON subset, because a unit hit only by the platform's shuriken
+    # catapult is not a legal choice. Same split Target Acquisition uses above.
+    monofilament_snare_controller = MonofilamentSnareController(
+        dice_manager=dice_manager, game_log=game_log,
+        decision_manager=decision_manager, game_state=state,
+        turn_tracker=turn_tracker)
+    shooting_controller.monofilament_snare = monofilament_snare_controller
+    shooting_controller.on_squad_finished_shooting.append(
+        lambda squad, hit_squads: monofilament_snare_controller.offer_after_shooting(
+            squad, hit_squads,
+            shooting_controller.squads_hit_by_weapon(SHADOW_WEAVER_NAME),
+        )
+    )
+    # The Vibro Cannon Platforms' Sonic Destruction ledger. Read back inside
+    # the AP/S/D adjuster chain, and fed from _begin_resolution().
+    sonic_destruction_controller = SonicDestructionController(game_log=game_log)
+    shooting_controller.sonic_destruction = sonic_destruction_controller
+    # Maugan Ra's Face of Death: after he shoots, one enemy unit he hit takes a
+    # FORCED Battle-shock test at -1. No per-weapon subset - he carries one
+    # weapon and the printed text names none.
+    # The Autarch's Superlative Strategist, and the seam it needed - see below.
+    superlative_strategist_controller = SuperlativeStrategistController(
+        dice_manager=dice_manager, decision_manager=decision_manager,
+        game_log=game_log, auto_players=("Player 2",))
+    face_of_death_controller = FaceOfDeathController(
+        battle_shock_controller=battle_shock_controller,
+        decision_manager=decision_manager, game_log=game_log)
+    shooting_controller.on_squad_finished_shooting.append(
+        face_of_death_controller.offer_after_shooting)
+    # The Leystalker's Panicked Quarry - the same sentence one clause longer,
+    # sharing game/battle_shock_after_shooting.py with the line above.
+    panicked_quarry_controller = PanickedQuarryController(
+        battle_shock_controller=battle_shock_controller,
+        decision_manager=decision_manager, game_log=game_log)
+    shooting_controller.on_squad_finished_shooting.append(
+        panicked_quarry_controller.offer_after_shooting)
+    # Kharseth's Fury of the Void - the per-WEAPON subset again, because only a
+    # unit his Dread of the Deep Void hit is a legal choice.
+    shooting_controller.on_squad_finished_shooting.append(
+        lambda squad, hit_squads: fury_of_the_void_controller.offer_after_shooting(
+            squad, hit_squads,
+            shooting_controller.squads_hit_by_weapon(DREAD_OF_THE_DEEP_VOID_NAME),
+        )
+    )
+    # ...and his Harvester of Souls, which needs the TARGETED set rather than
+    # the hit set: "every attack targets the same unit" is about selection, and
+    # a group that targeted a second unit and missed still split the fire.
+    harvester_of_souls_controller = HarvesterOfSoulsController(
+        dice_manager=dice_manager, game_log=game_log, game_state=state,
+        all_tokens=state.tokens)
+    shooting_controller.on_squad_finished_shooting.append(
+        lambda squad, hit_squads: harvester_of_souls_controller.after_shooting(
+            squad, hit_squads,
+            set(shooting_controller._targeted_squads_this_activation),
+        )
+    )
+    # The Night Spinner's Monofilament Web. No prompt: the printed text has no
+    # "select", so every unit its doomweaver hit is pinned - which is why this
+    # is a plain listener rather than an offer. The per-WEAPON subset again,
+    # because a unit hit only by the twin shuriken catapult is not pinned.
+    monofilament_web_controller = MonofilamentWebController(
+        game_log=game_log, game_state=state)
+    shooting_controller.on_squad_finished_shooting.append(
+        lambda squad, hit_squads: monofilament_web_controller.after_shooting(
+            squad, hit_squads,
+            shooting_controller.squads_hit_by_weapon(DOOMWEAVER_NAME),
+        )
+    )
+    # The Vypers' Harassment Fire writes the SAME `suppressed` status as the
+    # Strike Team's Suppression Volley, so it goes into that controller rather
+    # than a second one - the hit step must have one answer to ask.
+    shooting_controller.on_squad_finished_shooting.append(
+        suppression_controller.offer_harassment_fire)
+    # The snare is READ at confirm_move(), so the movement controller needs it
+    # too. A class-attribute slot like action_controller's, set here.
+    movement_controller.monofilament_snare = monofilament_snare_controller
+    # The Exodites' Drakolithe reacts to the SAME seam - an enemy unit ending a
+    # move - but to ANY move, where the snare names three kinds. Its own slot
+    # rather than a second entry in the snare's, since the two share nothing
+    # but the moment.
+    drakolithe_controller = DrakolitheController(
+        dice_manager=dice_manager, decision_manager=decision_manager,
+        game_log=game_log, game_state=state, all_tokens=state.tokens,
+        auto_players=("Player 2",))
+    movement_controller.drakolithe = drakolithe_controller
+    # Corsair Skyreavers' Raid and Run. Its eligibility is SAMPLED during the
+    # Fight phase - the same problem Retro-thrusters has and the same answer -
+    # and the move it grants goes through the reactive-move door.
+    raid_and_run_controller = RaidAndRunController(
+        movement_controller=movement_controller, dice_manager=dice_manager,
+        decision_manager=decision_manager, game_log=game_log,
+        all_tokens=state.tokens, auto_players=("Player 2",))
+    # The Starfangs' Hallucinogen Grenades fire at the start of the OPPONENT'S
+    # Shooting phase, so the offer goes to the other player.
+    hallucinogen_grenades_controller = HallucinogenGrenadesController(
+        decision_manager=decision_manager, game_log=game_log,
+        all_tokens=state.tokens, auto_players=("Player 2",))
+    # The Clanblade's Cornered Prey is the only thing in the Fall Back flow
+    # that needs the board; without it that controller degrades to "no bearer
+    # nearby", which is what every harness gets.
+    fall_back_controller.all_tokens = state.tokens
+    # The Stonesinger's Elemental Ensnarement fires at the END of the Fight
+    # phase, so it is offered from the phase change rather than from a hook.
+    elemental_ensnarement_controller = ElementalEnsnarementController(
+        dice_manager=dice_manager, decision_manager=decision_manager,
+        game_log=game_log, all_tokens=state.tokens, auto_players=("Player 2",))
     shooting_controller.on_squad_finished_shooting.append(suppression_controller.offer_after_shooting)
     # The Falcon's Fire Support marks one unit it just hit - the same
     # "after this model has shot" moment Suppression Volley uses.
@@ -963,6 +1430,25 @@ def main(map_key=None):
     # Asurmen's Tactical Acumen - the fourth consumer of this list, and the
     # one that does not care WHAT was hit, only that the unit shot.
     shooting_controller.on_squad_finished_shooting.append(tactical_acumen_controller.offer_after_shooting)
+    # Kroot Packmates fires its own shot only once the attacker has FINISHED -
+    # "after that enemy unit has finished making its attacks".
+    kroot_packmates_controller.shooting_controller = shooting_controller
+    # Rule 13.09's detection range reads the prey mark through the shooting
+    # controller; assigned after construction because the mark controller is
+    # built with the other marks, ~100 lines before ShootingController exists
+    # (error class 23 - construction order in main()).
+    shooting_controller.auxiliary_cadre = auxiliary_cadre_controller
+    # "one VISIBLE enemy unit within 12"" - the line-of-sight half, injected so
+    # game/auxiliary_cadre.py needs no dependency on the LoS engine.
+    auxiliary_cadre_controller.line_of_sight_check = lambda observer, target: any(
+        line_of_sight.has_line_of_sight(a, b, state.obstacles, state.tokens, state.terrain_areas)
+        for a in observer.models if not a.is_dead()
+        for b in target.models if not b.is_dead()
+    )
+    targeting_array_controller.shooting_controller = shooting_controller
+    shooting_controller.on_squad_finished_shooting.append(
+        kroot_packmates_controller.on_squad_finished_shooting)
+    shooting_controller.on_squad_finished_shooting.append(fire_and_fade_controller.offer_after_shooting)
     # Lhykhis' Whispering Web - fifth consumer, and back to caring WHICH units
     # were hit, like Fire Support. Differs from it in scope: the mark benefits
     # every friendly AELDARI model, not just one transport's passengers.
@@ -991,6 +1477,7 @@ def main(map_key=None):
         stratagem_controller, shooting_controller=shooting_controller, movement_controller=movement_controller,
         all_tokens=state.tokens, turn_tracker=turn_tracker, game_log=game_log,
     )
+
     # The Starflare Ignition System Enhancement (user-supplied, 20 pts) - the
     # only Enhancement this engine implements. Takes just the GameState: it
     # both reads state.tokens (Engagement Range) and removes from it (the
@@ -1019,6 +1506,109 @@ def main(map_key=None):
         state, setup_controller, dice_manager, decision_manager,
         turn_tracker=turn_tracker, game_log=game_log,
         on_battle_start=lambda first_player: begin_battle(first_player),
+    )
+    # The DEATH GUARD army rule, Nurgle's Gift (game/nurgles_gift.py). Built
+    # unconditionally, like the Awakened Dynasty protocols further down: with
+    # no Death Guard on the table qualifying_players() is empty, no Plague is
+    # ever chosen, and refresh() sets every Squad.afflicted to False - so the
+    # whole rule costs one flag write per unit per frame and changes nothing.
+    plague_choice = plagues.PlagueChoice(game_log=game_log)
+    plague_selection = plagues.PlagueSelectionStep(
+        plague_choice, decision_manager=decision_manager,
+        # The same single fact PregameController itself was constructed with,
+        # read off it rather than repeated - a second literal "Player 1" here
+        # is exactly how the two would drift apart.
+        human_player=pregame_controller.human_player, game_log=game_log,
+    )
+    nurgles_gift_controller = NurglesGiftController(
+        turn_tracker=turn_tracker, game_log=game_log, plague_choice=plague_choice,
+    )
+    # The Death Lord's Chosen detachment rule, Deadly Vectors. Built
+    # unconditionally like the six Awakened Dynasty protocols: every gate
+    # re-checks config.DEATH_LORDS_CHOSEN_PLAYERS, so it is inert in a game
+    # nobody plays that detachment in.
+    #
+    # No decision_manager and no auto_players, and that is the rule rather than
+    # an omission: the printed text has no "you can", so there is nothing to
+    # ask and the human and the AI are treated identically. It therefore cannot
+    # cost an API call by construction.
+    deadly_vectors_controller = DeadlyVectorsController(
+        dice_manager=dice_manager, game_log=game_log, game_state=state,
+    )
+    # The Death Guard datasheet abilities that need a controller. Built
+    # unconditionally like everything else in this block: each one's own gate
+    # asks about a profile flag no other faction carries, so they are inert in
+    # a game with no Death Guard in it.
+    barrage_of_filth_controller = BarrageOfFilthController(
+        decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",), target_pick=_best_damage_target,
+    )
+    shooting_controller.barrage_of_filth = barrage_of_filth_controller
+    pestilent_fallout_controller = PestilentFalloutController(
+        turn_tracker=turn_tracker, game_log=game_log,
+        auto_players=("Player 2",), target_pick=_best_damage_target,
+    )
+    lethal_ichor_controller = LethalIchorController(
+        dice_manager=dice_manager, game_log=game_log,
+    )
+    curse_of_the_walking_pox_controller = CurseOfTheWalkingPoxController(
+        game_log=game_log, game_state=state, position_valid=_necron_position_valid,
+    )
+    spore_laced_controller = SporeLacedShockWavesController(
+        dice_manager=dice_manager, game_log=game_log, game_state=state,
+    )
+    # Fed at TARGET SELECTION, not at the end of the activation: the D6s freeze
+    # the set of units at risk before the Crawler's own shooting can rearrange
+    # the board. Assigned rather than passed at construction because
+    # shooting_controller was built ~160 lines above - and assigned AFTER the
+    # controller exists, which is error class 23 and the third time this block
+    # has caught me.
+    shooting_controller.spore_laced = spore_laced_controller
+    eater_plague_controller = EaterPlagueController(
+        dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
+        game_state=state, auto_players=("Player 2",), target_pick=_best_damage_target,
+        visible=_psychic_visible,
+        # The printed TYPHUS clause of Curse of the Walking Pox: models killed
+        # by this psychic power count as killed by a POXWALKER attack. Wired
+        # here because that is the only place both abilities meet.
+        on_kills=curse_of_the_walking_pox_controller.notify_eater_plague_kills,
+    )
+    # The FOURTH cost_discounts collaborator, after Puretide, Strands of Fate
+    # and My Will Be Done. `all_tokens` is a LIVE reference, not a copy: its
+    # 12" has to be measured wherever the models are when the Stratagem is
+    # bought.
+    fevered_strategist_discount = FeveredStrategistDiscount(
+        turn_tracker=turn_tracker, game_log=game_log, all_tokens=state.tokens,
+    )
+    stratagem_controller.cost_discounts.append(fevered_strategist_discount)
+
+
+    # The Defiler's Barrage of Filth - eighth consumer, third whose effect is a
+    # mark on the TARGET, and the only one that REMOVES cover rather than
+    # granting it (shooting_controller reads it back in the cover test).
+    shooting_controller.on_squad_finished_shooting.append(
+        barrage_of_filth_controller.on_squad_finished_shooting)
+    # The Malignant Plaguecaster's Pestilent Fallout - ninth, and the only one
+    # that names a WEAPON as well as a target, so it is handed what was fired.
+    shooting_controller.on_squad_finished_shooting.append(
+        lambda squad, hit_squads: pestilent_fallout_controller.on_squad_finished_shooting(
+            squad, hit_squads,
+            weapon_names=[name for name in pestilent_fallout.PLAGUE_WIND_NAMES
+                          if shooting_controller.squads_hit_by_weapon(name)],
+        )
+    )
+    # The Plagueburst Crawler's Spore-laced Shock Waves resolves its D3s "after
+    # this model has resolved all of its attacks" - the same instant, but it
+    # needs no target list, only the shooter.
+    shooting_controller.on_squad_finished_shooting.append(
+        lambda squad, hit_squads: spore_laced_controller.resolve_after_attacks(squad))
+    # "During the Declare Battle Formations step, select one of the Plagues."
+    # A hook rather than a pregame state, for the reason PregameController's
+    # own on_formations_started comment gives. The lambda re-derives the army
+    # from the units the pregame was handed, so only a player actually
+    # fielding Death Guard is ever asked.
+    pregame_controller.on_formations_started = lambda owners: plague_selection.begin(
+        [squad for owner in owners for squad in pregame_controller.army(owner)]
     )
     # Which faction each player fields, for the Game Status panel's badges.
     # Derived from the units themselves rather than configured (see
@@ -1092,6 +1682,20 @@ def main(map_key=None):
         turn_tracker=turn_tracker, game_log=game_log,
     )
     charge_controller.on_charge_declared = grav_inhibitor_controller.maybe_offer
+    # Rule 11.04's "ends a Charge move" - the Skorpekh Lord's Crimson Harvest.
+    # Fed from ChargeController rather than from a phase hook, because that
+    # moment exists nowhere else; and it has to be HERE rather than beside the
+    # controller's own construction, since charge_controller is built several
+    # hundred lines further down. This is exactly the "built but never fed"
+    # wiring that has bitten this project three times (VengefulStarsController,
+    # the marks, Path of the Outcast), so test_skorpekh_lord.py's source guard
+    # checks for this line by name.
+    charge_controller.on_charge_move_finished.append(
+        crimson_harvest_controller.on_charge_move_finished)
+    # Krootox Rampagers' Kroot Linebreakers - the same hook and the same
+    # module as Crimson Harvest above.
+    charge_controller.on_charge_move_finished.append(
+        kroot_linebreakers_controller.on_charge_move_finished)
     crushing_impact_controller = CrushingImpactController(
         stratagem_controller, dice_manager, charge_controller, all_tokens=state.tokens,
         turn_tracker=turn_tracker, game_log=game_log,
@@ -1109,6 +1713,13 @@ def main(map_key=None):
         pile_in_controller=pile_in_controller, charge_controller=charge_controller, decision_manager=decision_manager,
         suppression=suppression_controller, stealth_drones=stealth_drones_controller, waaagh=waaagh_controller,
         target_reactions=fight_target_reactions,
+        # The Kroot Lone-Spear's Advanced Scouting mark. The SAME ledger the
+        # shooting controller writes: his ranged hit places it, and his
+        # ability's text says "an attack", so a KROOT melee attack reads it too.
+        advanced_scouting=advanced_scouting_controller,
+        # The SAME bounty ledger the shooting controller holds - one mark,
+        # read by both steps.
+        bounty_hunters=bounty_hunters_controller,
         # Immortals' Implacable Eradication upgrades its re-roll when the target
         # is within range of an objective marker, and its text says "makes an
         # attack" - so the melee side needs the markers too. ShootingController
@@ -1120,7 +1731,447 @@ def main(map_key=None):
         # never actually passed in here, so its melee half was dead - caught by
         # Doom needing the same seam.
         guide=guide_controller, doom=doom_controller,
+        misfortune=misfortune_controller, spirit_mark=spirit_mark_controller,
+        piratical_raiders=piratical_raiders_controller,
+        fury_of_the_void=fury_of_the_void_controller,
         whispering_web=whispering_web_controller,
+    )
+
+    # Placed AFTER fight_controller: Experimental Modifications takes it for
+    # the Fight-phase half of its WHEN, and main() is a 4600-line function in
+    # which construction ORDER is the bug (error class 23). Caught here by a
+    # smoke run, not by any suite - none of them drives main().
+    # --- The T'au detachment Stratagems a human buys proactively -----------
+    # Registered in ONE list rather than threaded through ActionPanel.draw()'s
+    # forty-parameter, three-stage signature chain one at a time - see
+    # game/proactive_stratagems.py. Built unconditionally like every other
+    # detachment's: each can_use() gates on its own config setting, so they are
+    # inert in a battle nobody plays that detachment in.
+    proactive_stratagems = ProactiveStratagems()
+    # Seer Council's three proactive Stratagems join the SAME registry. They
+    # predate it - each used to be its own parameter through ActionPanel.draw()'s
+    # three-stage chain, which is exactly the shape this registry exists to
+    # stop, and which also kept the panel's "nothing to do here" hint unaware
+    # that one of their buttons was on offer. All three are constructed far
+    # above, so they are registered rather than built here.
+    proactive_stratagems.add(presentiment_controller)
+    proactive_stratagems.add(fate_inescapable_controller)
+    proactive_stratagems.add(unshrouded_truth_controller)
+
+    # --- Armoured Warhost's three -----------------------------------------
+    # One is a panel button (bought during the unit's own shooting
+    # activation); the other two react to a moment - a mortal wound landing,
+    # and a fall-back move being made - so they are driven from those hooks
+    # and are NOT registered as buttons.
+    soulsight_controller = proactive_stratagems.add(SoulsightController(
+        stratagem_controller, shooting_controller=shooting_controller,
+        turn_tracker=turn_tracker, game_log=game_log,
+    ))
+    layered_wards_controller = LayeredWardsController(
+        stratagem_controller, decision_manager=decision_manager,
+        game_log=game_log, auto_players=("Player 2",),
+    )
+    # "Any phase, when a friendly AELDARI VEHICLE unit suffers a mortal wound."
+    # MortalWoundAllocationSession is built at a dozen call sites and rolls
+    # Feel No Pain for the first wound in its constructor, so the offer hangs
+    # on the session itself rather than on any one of those callers - and it
+    # PAUSES the session, because a Feel No Pain granted after that first roll
+    # would arrive too late for the wound that triggered it.
+    MortalWoundAllocationSession.on_mortal_wounds = layered_wards_controller.maybe_offer
+    vectored_engines_controller = VectoredEnginesController(
+        stratagem_controller, turn_tracker=turn_tracker,
+        decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",),
+    )
+
+    # --- Path of the Outcast's three --------------------------------------
+    # All three print the SAME WHEN - "when a friendly RANGERS/SHROUD RUNNERS
+    # unit has shot" - so all three hang on
+    # ShootingController.on_squad_finished_shooting rather than on the panel.
+    # None is a button: the moment is not one the player picks.
+    eldritch_suppression_controller = EldritchSuppressionController(
+        stratagem_controller, battle_shock_controller=battle_shock_controller,
+        shooting_controller=shooting_controller, decision_manager=decision_manager,
+        game_log=game_log, auto_players=("Player 2",),
+    )
+    casting_back_the_veil_controller = CastingBackTheVeilController(
+        stratagem_controller, decision_manager=decision_manager,
+        game_log=game_log, auto_players=("Player 2",),
+    )
+    nomads_controller = NomadsOfTheHiddenWayController(
+        stratagem_controller, movement_controller=movement_controller,
+        dice_manager=dice_manager, decision_manager=decision_manager,
+        game_log=game_log, auto_players=("Player 2",),
+    )
+    for _outcast in (eldritch_suppression_controller, casting_back_the_veil_controller,
+                     nomads_controller):
+        shooting_controller.on_squad_finished_shooting.append(
+            _outcast.offer_after_shooting)
+
+    # --- Guardian Battlehost's six ----------------------------------------
+    # Three are panel buttons; Shield Nodes reacts to a target selection,
+    # Vaul's Vengeance to a unit dying, and Cost of Victory to the end of the
+    # opponent's Fight phase - so those three are driven from their own hooks.
+    warding_salvoes_controller = proactive_stratagems.add(WardingSalvoesController(
+        stratagem_controller, shooting_controller=shooting_controller,
+        fight_controller=fight_controller, turn_tracker=turn_tracker,
+        game_log=game_log,
+    ))
+    time_to_strike_controller = proactive_stratagems.add(TimeToStrikeController(
+        stratagem_controller, movement_controller=movement_controller,
+        turn_tracker=turn_tracker, game_log=game_log,
+    ))
+    blades_of_asuryan_controller = proactive_stratagems.add(BladesOfAsuryanController(
+        stratagem_controller, shooting_controller=shooting_controller,
+        turn_tracker=turn_tracker, game_log=game_log,
+    ))
+    shield_nodes_controller = ShieldNodesController(
+        stratagem_controller, turn_tracker=turn_tracker, objectives=state.objectives,
+        decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",),
+    )
+    # "just after an enemy unit has selected its targets" - the same instant
+    # Stim Injectors and Psychic Shield react at, in BOTH phases because its
+    # printed WHEN names both.
+    shooting_controller.target_reactions = tuple(shooting_controller.target_reactions) + (
+        shield_nodes_controller,)
+    fight_controller.target_reactions.append(shield_nodes_controller)
+    vauls_vengeance_controller = VaulsVengeanceController(
+        stratagem_controller, shooting_controller=shooting_controller,
+        turn_tracker=turn_tracker, game_state=state,
+        decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",),
+    )
+    cost_of_victory_controller = CostOfVictoryController(
+        stratagem_controller, game_state=state, turn_tracker=turn_tracker,
+        all_tokens=state.tokens, decision_manager=decision_manager,
+        game_log=game_log, auto_players=("Player 2",),
+    )
+    # --- Windrider Host's six -------------------------------------------
+    # Four panel buttons, one reactive save and one end-of-phase move. All
+    # four buttons register on the shared registry, so the panel needs no
+    # parameter for any of them - the whole reason that registry exists.
+    wind_of_blades_controller = proactive_stratagems.add(WindOfBladesController(
+        stratagem_controller, movement_controller=movement_controller,
+        turn_tracker=turn_tracker, game_log=game_log,
+    ))
+    focused_firepower_controller = proactive_stratagems.add(FocusedFirepowerController(
+        stratagem_controller, shooting_controller=shooting_controller,
+        turn_tracker=turn_tracker, game_log=game_log,
+    ))
+    death_from_on_high_controller = proactive_stratagems.add(DeathFromOnHighController(
+        stratagem_controller, ingress_controller=ingress_controller,
+        shooting_controller=shooting_controller, fight_controller=fight_controller,
+        turn_tracker=turn_tracker, game_log=game_log,
+    ))
+    daring_riders_controller = proactive_stratagems.add(DaringRidersController(
+        stratagem_controller, ingress_controller=ingress_controller,
+        game_state=state, all_tokens=state.tokens,
+        setup_controller=setup_controller, turn_tracker=turn_tracker,
+        game_log=game_log,
+    ))
+    # "when doing so, IF your unit is set up within 8"" - answered from the
+    # arrival itself, because it is about where the models ended up.
+    ingress_controller.on_ingress_resolved.append(
+        daring_riders_controller.notify_arrival)
+    # Spiralling Evasion reacts to target selection in the opponent's SHOOTING
+    # phase only, so it joins that one list and deliberately not the Fight
+    # phase's twin.
+    spiralling_evasion_controller = SpirallingEvasionController(
+        stratagem_controller, turn_tracker=turn_tracker,
+        decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",),
+    )
+    # A TUPLE on this controller and a list on the fight one - the two
+    # were built differently, so appending here is the wrong verb.
+    shooting_controller.target_reactions = tuple(
+        shooting_controller.target_reactions) + (spiralling_evasion_controller,)
+    overflight_controller = OverflightController(
+        stratagem_controller, movement_controller=movement_controller,
+        turn_tracker=turn_tracker, decision_manager=decision_manager,
+        game_log=game_log, auto_players=("Player 2",),
+    )
+    # --- Warhost's six ---------------------------------------------------
+    blitzing_firepower_controller = proactive_stratagems.add(BlitzingFirepowerController(
+        stratagem_controller, shooting_controller=shooting_controller,
+        turn_tracker=turn_tracker, game_log=game_log,
+    ))
+    # Lightning-Fast Reactions prints "your opponent's Shooting phase OR the
+    # Fight phase", so unlike Spiralling Evasion beside it, it joins BOTH
+    # reaction lists.
+    lightning_fast_reactions_controller = LightningFastReactionsController(
+        stratagem_controller, turn_tracker=turn_tracker,
+        decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",),
+    )
+    shooting_controller.target_reactions = tuple(
+        shooting_controller.target_reactions) + (lightning_fast_reactions_controller,)
+    fight_controller.target_reactions.append(lightning_fast_reactions_controller)
+    feigned_retreat_controller = FeignedRetreatController(
+        stratagem_controller, turn_tracker=turn_tracker,
+        decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",),
+    )
+    # "Just after an ASURYANI unit Falls Back" - a moment this engine did not
+    # publish until now. ASSIGNED rather than appended to: the controller's
+    # default is an empty TUPLE, a class attribute so every existing
+    # FallBackController keeps working without a constructor change.
+    fall_back_controller.on_fall_back_finished = [
+        feigned_retreat_controller.notify_fell_back]
+    warhost_fire_and_fade_controller = WarhostFireAndFadeController(
+        stratagem_controller, movement_controller=movement_controller,
+        turn_tracker=turn_tracker, dice_manager=dice_manager,
+        decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",),
+    )
+    shooting_controller.on_squad_finished_shooting.append(
+        warhost_fire_and_fade_controller.offer_after_shooting)
+    webway_tunnel_controller = WebwayTunnelController(
+        stratagem_controller, game_state=state, turn_tracker=turn_tracker,
+        all_tokens=state.tokens, board_width_in=config.BOARD_WIDTH_IN,
+        board_height_in=config.BOARD_HEIGHT_IN,
+        decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",),
+    )
+    # Skyborne Sanctuary is printed by TWO detachments, word for word - one
+    # module, one instance per printing, each with its own gate. Aspect Host's
+    # copy joins this list in its own stage.
+    skyborne_sanctuary_controllers = [
+        SkyborneSanctuaryController(
+            stratagem_controller, setting, transport_controller=transport_controller,
+            fight_controller=fight_controller, game_state=state,
+            all_tokens=state.tokens, turn_tracker=turn_tracker,
+            decision_manager=decision_manager, game_log=game_log,
+            auto_players=("Player 2",),
+        )
+        for setting in (martial_grace.SETTING,)
+    ]
+    # --- Spirit Conclave's six -------------------------------------------
+    seers_eye_controller = proactive_stratagems.add(SeersEyeController(
+        stratagem_controller, all_tokens=state.tokens,
+        visible=(lambda observer, target: line_of_sight.has_line_of_sight(
+            observer, target, state.obstacles, state.tokens)),
+        shooting_controller=shooting_controller, fight_controller=fight_controller,
+        turn_tracker=turn_tracker, decision_manager=decision_manager,
+        game_log=game_log, auto_players=("Player 2",),
+    ))
+    blades_from_beyond_controller = proactive_stratagems.add(BladesFromBeyondController(
+        stratagem_controller, fight_controller=fight_controller,
+        turn_tracker=turn_tracker, game_log=game_log,
+    ))
+    soul_bridge_controller = proactive_stratagems.add(SoulBridgeController(
+        stratagem_controller, all_tokens=state.tokens, turn_tracker=turn_tracker,
+        decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",),
+    ))
+    spirit_token_controller = proactive_stratagems.add(SpiritTokenController(
+        stratagem_controller, objectives=state.objectives,
+        movement_controller=movement_controller, turn_tracker=turn_tracker,
+        decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",),
+    ))
+    # Wraithbone Armour reacts in BOTH attack phases, like Lightning-Fast
+    # Reactions above.
+    wraithbone_armour_controller = WraithboneArmourController(
+        stratagem_controller, turn_tracker=turn_tracker,
+        decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",),
+    )
+    shooting_controller.target_reactions = tuple(
+        shooting_controller.target_reactions) + (wraithbone_armour_controller,)
+    fight_controller.target_reactions.append(wraithbone_armour_controller)
+    crushing_strides_controller = CrushingStridesController(
+        dice_manager=dice_manager, decision_manager=decision_manager,
+        game_log=game_log, game_state=state, auto_players=("Player 2",),
+        target_pick=_best_damage_target,
+        stratagem_controller=stratagem_controller, turn_tracker=turn_tracker,
+    )
+    charge_controller.on_charge_move_finished.append(
+        crushing_strides_controller.on_charge_move_finished)
+    # --- Aspect Host's six -----------------------------------------------
+    warrior_focus_controller = proactive_stratagems.add(WarriorFocusController(
+        stratagem_controller, shooting_controller=shooting_controller,
+        fight_controller=fight_controller, turn_tracker=turn_tracker,
+        game_log=game_log,
+    ))
+    doom_inescapable_controller = proactive_stratagems.add(DoomInescapableController(
+        stratagem_controller, shooting_controller=shooting_controller,
+        turn_tracker=turn_tracker, game_log=game_log,
+    ))
+    preternatural_precision_controller = proactive_stratagems.add(
+        PreternaturalPrecisionController(
+            stratagem_controller, shooting_controller=shooting_controller,
+            turn_tracker=turn_tracker, decision_manager=decision_manager,
+            game_log=game_log, auto_players=("Player 2",),
+        ))
+    # To Their Final Breath is Undying Spite's twin, so it takes the same three
+    # seams: the Fight-phase reaction list, the death sweep, and the
+    # after-the-attacker-has-finished resolution.
+    to_their_final_breath_controller = ToTheirFinalBreathController(
+        stratagem_controller, fight_controller=fight_controller, game_state=state,
+        turn_tracker=turn_tracker, decision_manager=decision_manager,
+        game_log=game_log, auto_players=("Player 2",),
+    )
+    fight_controller.target_reactions.append(to_their_final_breath_controller)
+    khaines_vengeance_controller = KhainesVengeanceController(
+        stratagem_controller, dice_manager=dice_manager, all_tokens=state.tokens,
+        turn_tracker=turn_tracker, decision_manager=decision_manager,
+        game_log=game_log, auto_players=("Player 2",),
+    )
+    # "Just after an enemy unit IS SELECTED to Fall Back" - the OTHER Fall Back
+    # instant, one word apart from Feigned Retreat's.
+    fall_back_controller.on_fall_back_declared = [
+        khaines_vengeance_controller.notify_selected_to_fall_back]
+    # Skyborne Sanctuary's SECOND printing - one module, one instance per
+    # detachment that prints it, each with its own gate.
+    skyborne_sanctuary_controllers.append(SkyborneSanctuaryController(
+        stratagem_controller, aspect_warrior_focus.SETTING,
+        transport_controller=transport_controller, fight_controller=fight_controller,
+        game_state=state, all_tokens=state.tokens, turn_tracker=turn_tracker,
+        decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",),
+    ))
+    # Vaul's Vengeance fires "after that enemy unit has finished making its
+    # attacks", which is one instant in each attack phase.
+    shooting_controller.on_squad_finished_shooting.append(
+        lambda squad, hits: vauls_vengeance_controller.on_attacker_finished(squad))
+    # Experimental Ammunition prints two modes joined by "OR", so it is two
+    # buttons over one Stratagem - buying either spends the once-per-phase
+    # allowance, because they share a name in rule 15.01's ledger.
+    experimental_ammunition_controllers = [
+        proactive_stratagems.add(ExperimentalAmmunitionController(
+            stratagem_controller, shooting_controller=shooting_controller,
+            turn_tracker=turn_tracker, game_log=game_log, mode=mode,
+        ))
+        for mode in (MODE_STRENGTH, MODE_STRENGTH_AP_HAZARDOUS)
+    ]
+    experimental_modifications_controller = proactive_stratagems.add(
+        ExperimentalModificationsController(
+            stratagem_controller, shooting_controller=shooting_controller,
+            fight_controller=fight_controller, turn_tracker=turn_tracker,
+            game_log=game_log,
+        ))
+    alien_expertise_controller = proactive_stratagems.add(AlienExpertiseController(
+        stratagem_controller, movement_controller=movement_controller,
+        turn_tracker=turn_tracker, game_log=game_log,
+    ))
+    guided_fire_controller = proactive_stratagems.add(GuidedFireController(
+        stratagem_controller, shooting_controller=shooting_controller,
+        turn_tracker=turn_tracker, game_log=game_log,
+    ))
+
+    # --- Kauyon's six -----------------------------------------------------
+    # The three proactive ones join the panel registry; the three that react to
+    # something (a charge declaration, the end of a Fight phase) are driven
+    # from their own hooks instead and are NOT registered as buttons.
+    point_blank_ambush_controller = proactive_stratagems.add(PointBlankAmbushController(
+        stratagem_controller, shooting_controller=shooting_controller,
+        turn_tracker=turn_tracker, game_log=game_log,
+    ))
+    coordinate_to_engage_controller = proactive_stratagems.add(CoordinateToEngageController(
+        stratagem_controller, shooting_controller=shooting_controller,
+        greater_good=greater_good_controller, turn_tracker=turn_tracker,
+        game_log=game_log,
+    ))
+    tempting_trap_controller = proactive_stratagems.add(TemptingTrapController(
+        stratagem_controller, shooting_controller=shooting_controller,
+        turn_tracker=turn_tracker, objectives=state.objectives,
+        deployment_zones={z.owner: z for z in getattr(state, "deployment_zones", []) or []},
+        decision_manager=decision_manager, game_log=game_log,
+    ))
+    # A Tempting Trap is read at the WOUND step, so the shooting controller
+    # needs it - assigned after construction, like the prey mark above.
+    shooting_controller.tempting_trap = tempting_trap_controller
+    wall_of_mirrors_controller = WallOfMirrorsController(
+        stratagem_controller, game_state=state, turn_tracker=turn_tracker,
+        all_tokens=state.tokens, decision_manager=decision_manager, game_log=game_log,
+    )
+    photon_grenades_controller = PhotonGrenadesController(
+        stratagem_controller, turn_tracker=turn_tracker, all_tokens=state.tokens,
+        battle_shock_controller=battle_shock_controller,
+        decision_manager=decision_manager, game_log=game_log,
+    )
+    combat_embarkation_controller = CombatEmbarkationController(
+        stratagem_controller, transport_controller=transport_controller,
+        turn_tracker=turn_tracker, all_tokens=state.tokens,
+        decision_manager=decision_manager, game_log=game_log,
+    )
+    # Both react to "an enemy unit has declared a charge". The list is CHAINED
+    # (see game/charge.py), so each gets its own window instead of the first
+    # one swallowing the second - which is why on_charge_declared could not
+    # simply take a third owner.
+    charge_controller.charge_declaration_reactions.extend([
+        photon_grenades_controller.maybe_offer,
+        combat_embarkation_controller.maybe_offer,
+    ])
+
+    # --- Mont'ka's six ----------------------------------------------------
+    aggressive_mobility_controller = proactive_stratagems.add(AggressiveMobilityController(
+        stratagem_controller, movement_controller=movement_controller,
+        turn_tracker=turn_tracker, game_log=game_log,
+    ))
+    combat_debarkation_controller = proactive_stratagems.add(CombatDebarkationController(
+        stratagem_controller, shooting_controller=shooting_controller,
+        turn_tracker=turn_tracker, game_log=game_log,
+    ))
+    focused_fire_controller = proactive_stratagems.add(FocusedFireController(
+        stratagem_controller, shooting_controller=shooting_controller,
+        turn_tracker=turn_tracker, all_tokens=state.tokens,
+        decision_manager=decision_manager, game_log=game_log,
+    ))
+    # Reactive, so no panel button: they answer their own hooks.
+    pinpoint_controller = PinpointCounterOffensiveController(
+        stratagem_controller, turn_tracker=turn_tracker,
+        decision_manager=decision_manager, game_log=game_log,
+    )
+    # Read by BOTH attack steps - "an attack", not "a ranged attack".
+    shooting_controller.pinpoint_counter_offensive = pinpoint_controller
+    fight_controller.pinpoint_counter_offensive = pinpoint_controller
+    pulse_onslaught_controller = PulseOnslaughtController(
+        stratagem_controller, turn_tracker=turn_tracker,
+        decision_manager=decision_manager, game_log=game_log,
+    )
+    shooting_controller.on_squad_finished_shooting.append(
+        pulse_onslaught_controller.offer_after_shooting)
+    counterfire_defence_controller = CounterfireDefenceController(
+        stratagem_controller, turn_tracker=turn_tracker,
+        decision_manager=decision_manager, game_log=game_log,
+    )
+    # "just after an enemy unit has selected its targets" - the same instant
+    # Stim Injectors and Kroot Packmates react at.
+    shooting_controller.target_reactions = tuple(shooting_controller.target_reactions) + (
+        counterfire_defence_controller,)
+
+    # --- Advanced Acquisition Cadre's three -------------------------------
+    marker_beacon_controller = proactive_stratagems.add(MarkerBeaconController(
+        stratagem_controller, turn_tracker=turn_tracker, objectives=state.objectives,
+        all_tokens=state.tokens, decision_manager=decision_manager, game_log=game_log,
+    ))
+    microdrone_support_controller = proactive_stratagems.add(MicrodroneSupportController(
+        stratagem_controller, action_controller=action_controller,
+        turn_tracker=turn_tracker, game_log=game_log,
+    ))
+    # Reactive. Its "if that friendly unit is hidden" clause needs the terrain,
+    # the tracker and the shooting record, so it is handed a callable that
+    # answers rule 13.09 rather than reaching for that state itself.
+    autoreactive_camouflage_controller = AutoreactiveCamouflageController(
+        stratagem_controller, turn_tracker=turn_tracker,
+        is_hidden_check=lambda squad: any(
+            status_effects.is_hidden(m, state.terrain_areas, turn_tracker,
+                                     shooting_controller.last_ranged_attack_turn)
+            for m in squad.models if not m.is_dead()),
+        decision_manager=decision_manager, game_log=game_log,
+    )
+    shooting_controller.target_reactions = tuple(shooting_controller.target_reactions) + (
+        autoreactive_camouflage_controller,)
+    # "Change one die to an unmodified 6" (Aspect Shrine tokens, the Farseer's
+    # Branching Fates). Built here rather than inside either attack controller
+    # because it spans both of them - it reads whichever one has a weapon group
+    # open. User: "kann das nicht eine option im linken panel sein, statt eines
+    # overlays? command reroll funktioniert ja auch so."
+    unmodified_six_controller = UnmodifiedSixController(
+        dice_manager, attack_controllers=(shooting_controller, fight_controller),
+        game_log=game_log,
     )
 
     # --- Awakened Dynasty, the six protocols ------------------------------
@@ -1167,6 +2218,129 @@ def main(map_key=None):
         worth_using=_vengeful_stars_worth_it,
     )
 
+    # --- The six Death Lord's Chosen Stratagems -------------------------------
+    # Built unconditionally like every other detachment's: each one's can_use()
+    # goes through death_lords_chosen.stratagem_target_ok(), which reads
+    # config.DEATH_LORDS_CHOSEN_PLAYERS, so they are inert in a game nobody
+    # plays that detachment in.
+    #
+    # THREE get an AI path and three deliberately do not (user instruction:
+    # "GRIM REAPERS - erste Gelegenheit / UNDYING SPITE - wenn rechnerisch ein
+    # Terminator im Nahkampf sterben wuerde / SICKENING IMPACT - erste
+    # Gelegenheit; der Rest ist irrelevant fuer die KI"). The two REACTIVE ones
+    # answer inside their own controllers via auto_players and need nothing in
+    # ai/; Grim Reapers is proactive and gets a handler there instead.
+    blooming_pestilence_controller = BloomingPestilenceController(
+        stratagem_controller, nurgles_gift_controller=nurgles_gift_controller,
+        turn_tracker=turn_tracker, game_log=game_log,
+    )
+    grim_reapers_controller = GrimReapersController(
+        stratagem_controller, turn_tracker=turn_tracker,
+        fight_controller=fight_controller, game_log=game_log,
+    )
+    mortarions_teachings_controller = MortarionsTeachingsController(
+        stratagem_controller, turn_tracker=turn_tracker,
+        shooting_controller=shooting_controller, game_log=game_log,
+    )
+    signal_pox_controller = SignalPoxController(
+        stratagem_controller, nurgles_gift_controller=nurgles_gift_controller,
+        decision_manager=decision_manager, turn_tracker=turn_tracker,
+        game_log=game_log, game_state=state,
+    )
+    sickening_impact_controller = SickeningImpactController(
+        stratagem_controller, dice_manager=dice_manager,
+        decision_manager=decision_manager, turn_tracker=turn_tracker,
+        game_log=game_log, game_state=state, auto_players=("Player 2",),
+    )
+
+    def _undying_spite_worth_it(attacker, defender):
+        """The user's rule: buy it when, computationally, at least one
+        Terminator would die to this melee attack.
+
+        Measured with the SAME game/damage_estimate.py value every other
+        deterministic CP decision here uses, rather than a second opinion - and
+        injected rather than imported, because game/ does not depend on ai/."""
+        estimate = ai_observation.expected_kills(attacker, defender, melee=True)
+        if not estimate:
+            return False
+        return (estimate.get("models") or 0.0) >= UndyingSpiteController.MIN_EXPECTED_KILLS
+
+    undying_spite_controller = UndyingSpiteController(
+        stratagem_controller, dice_manager=dice_manager,
+        decision_manager=decision_manager, turn_tracker=turn_tracker,
+        fight_controller=fight_controller, game_log=game_log, game_state=state,
+        auto_players=("Player 2",), worth_using=_undying_spite_worth_it,
+    )
+    # "Just after an enemy unit has selected its targets" - the list every
+    # reaction of that timing sits in. Appended rather than passed at
+    # construction because fight_controller was built above; FightController
+    # turns the field into a list for exactly this.
+    fight_controller.target_reactions.append(undying_spite_controller)
+    # Wraithblades' Malevolent Souls - the same "dead model strikes back"
+    # mechanism as Undying Spite (they share game/fight_after_death.py), but a
+    # printed datasheet ability rather than a Stratagem: always on, 3+ instead
+    # of 4+, and restricted to deaths caused by a MELEE attack. Nothing to
+    # offer, so no DecisionManager and no auto_players. Constructed HERE, after
+    # fight_controller, because it reads that controller's fought_squad_ids.
+    malevolent_souls_controller = MalevolentSoulsController(
+        game_state=state, game_log=game_log, turn_tracker=turn_tracker,
+        fight_controller=fight_controller)
+    # The Wraithlord's Fated Hero picks its hated keyword in the pre-battle
+    # step registered further down; the controller has to exist before both
+    # attack controllers are handed it.
+    fated_hero_controller = FatedHeroController(
+        game_state=state, game_log=game_log, decision_manager=decision_manager,
+        auto_players=("Player 2",))
+    # Yvraine's Herald of Ynnead marks an enemy unit at the start of the
+    # Fight phase and BOTH attack steps read it - "makes an attack", not
+    # "a melee attack" - so it is built here beside Fated Hero, which has
+    # the same two readers for the same reason.
+    herald_of_ynnead_controller = HeraldOfYnneadController(
+        decision_manager=decision_manager, game_log=game_log,
+        all_tokens=state.tokens, auto_players=("Player 2",))
+    fight_controller.herald_of_ynnead = herald_of_ynnead_controller
+    shooting_controller.herald_of_ynnead = herald_of_ynnead_controller
+    # Aspect Host's Path of the Warrior: one choice per unit per phase, made
+    # when it is selected to shoot or to fight, so BOTH attack controllers
+    # offer it and both read it. Built beside Herald of Ynnead for the same
+    # reason - two readers, so it has to exist before either is finished.
+    path_of_the_warrior_controller = PathOfTheWarriorController(
+        decision_manager=decision_manager, game_log=game_log,
+        turn_tracker=turn_tracker, auto_players=("Player 2",))
+    fight_controller.path_of_the_warrior = path_of_the_warrior_controller
+    shooting_controller.path_of_the_warrior = path_of_the_warrior_controller
+    # Spirit Conclave's Shepherds of the Dead: Vengeful Dead tokens, read by
+    # BOTH roll steps in BOTH attack controllers, plus a Battle Focus aura.
+    shepherds_of_the_dead_controller = ShepherdsOfTheDeadController(
+        game_log=game_log, all_tokens=state.tokens)
+    fight_controller.shepherds_of_the_dead = shepherds_of_the_dead_controller
+    shooting_controller.shepherds_of_the_dead = shepherds_of_the_dead_controller
+    # Word of the Phoenix returns destroyed bodyguards INTO a standing
+    # unit, so it needs the setup controller's position_valid() for the
+    # placement and the token list for the Engagement Range test that
+    # position_valid() deliberately does not do.
+    word_of_the_phoenix_controller = WordOfThePhoenixController(
+        dice_manager=dice_manager, game_state=state, game_log=game_log,
+        setup_controller=setup_controller, all_tokens=state.tokens,
+        decision_manager=decision_manager, auto_players=("Player 2",))
+    # Inevitable Death moves a LIVING model to where somebody else died,
+    # so unlike every other user of this shape it returns nothing to the
+    # board and only needs the spot search.
+    inevitable_death_controller = InevitableDeathController(
+        game_state=state, game_log=game_log, decision_manager=decision_manager,
+        setup_controller=setup_controller, all_tokens=state.tokens,
+        turn_tracker=turn_tracker, auto_players=("Player 2",))
+    fight_controller.fated_hero = fated_hero_controller
+    # Raid and Run samples "was eligible to fight this phase" off the fight
+    # controller, which is built after it - so the back-reference is filled in
+    # here, the same shape targeting_array's is.
+    raid_and_run_controller.fight_controller = fight_controller
+    shooting_controller.fated_hero = fated_hero_controller
+    # "Just after a TERMINATOR unit ends a Charge move" - the hook the Skorpekh
+    # Lord's Crimson Harvest introduced, and deliberately not _finish_charge().
+    charge_controller.on_charge_move_finished.append(
+        sickening_impact_controller.on_charge_move_finished)
+
     # Undying Legions' WHEN is "just after an enemy unit has RESOLVED its
     # attacks", which is a different instant from the target_reactions list
     # ('Ard as Nails et al. fire at "just after it has SELECTED its targets").
@@ -1179,6 +2353,13 @@ def main(map_key=None):
 
     shooting_controller.on_squad_finished_shooting.append(_necron_after_enemy_shooting)
 
+    # The Chaos Spawn's Lethal Ichor is counted per melee attack ALLOCATED to
+    # its unit, which only FightController sees - a SAVED attack still counts,
+    # so it cannot be reconstructed from casualties afterwards. Assigned here
+    # rather than at the controller's own construction because that block runs
+    # ~150 lines before FightController exists (error class 23).
+    fight_controller.lethal_ichor = lethal_ichor_controller
+
     _previous_finished_fighting = fight_controller.on_unit_finished_fighting
 
     def _necron_after_enemy_fight(*args):
@@ -1187,6 +2368,24 @@ def main(map_key=None):
         for squad in {t.squad for t in state.tokens if t.squad is not None}:
             if undying_legions_controller.maybe_offer(squad):
                 break
+        # Two Death Guard abilities share this exact instant, and both are
+        # written as "after the attacking unit has finished making its
+        # attacks": the Chaos Spawn's Lethal Ichor (which hurts the ATTACKER)
+        # and the Poxwalkers' Curse of the Walking Pox (which brings a model
+        # back to the attacker's own unit, when the attacker is the Poxwalkers).
+        _fighter = args[0] if args else None
+        if _fighter is not None:
+            curse_of_the_walking_pox_controller.resolve_after_attacks(_fighter)
+            lethal_ichor_controller.on_unit_finished_fighting(_fighter)
+            # "...it can fight after the attacking unit has finished making its
+            # attacks, and is THEN removed from play." The activation itself
+            # runs through the ordinary fight step; this is the removal half.
+            undying_spite_controller.resolve_after_attacks(_fighter)
+            to_their_final_breath_controller.resolve_after_attacks(_fighter)
+            malevolent_souls_controller.resolve_after_attacks(_fighter)
+            # Vaul's Vengeance: "after that enemy unit has finished making its
+            # attacks" - the melee half of the same instant.
+            vauls_vengeance_controller.on_attacker_finished(_fighter)
         if _previous_finished_fighting is not None:
             _previous_finished_fighting(*args)
 
@@ -1234,8 +2433,25 @@ def main(map_key=None):
     # Volley uses - which is why that one is now a list. Opportunity Seized
     # needed a new hook, fired at the very end of confirm_move() so the fall
     # back is fully settled before the other player gets a break point.
+    # The Autarch Wayleaper's Indomitable Strength of Will refunds a Battle
+    # Focus token on a 3+, and is read from the POOL's own spend - so it is
+    # attached here, after the pool exists.
+    indomitable_controller = IndomitableStrengthOfWillController(
+        battle_focus=battle_focus_pool, game_log=game_log)
+    battle_focus_pool.indomitable = indomitable_controller
     shooting_controller.on_squad_finished_shooting.append(battle_focus_pool.offer_fade_back)
-    movement_controller.on_fall_back_finished = battle_focus_pool.offer_opportunity_seized
+    # TWO reactors on one slot now, so it becomes an ordered pair rather than
+    # a single callable. The squad is captured ONCE and handed to both - the
+    # lesson the charge-declaration chain taught, where a per-step re-read of
+    # active_squad handed None to the second reactor after the first ended the
+    # charge. Battle Focus goes first because it was here first and may open a
+    # reactive move; a Stratagem prompt queued behind it is answered after,
+    # which DecisionManager's queue handles.
+    def _on_fall_back_finished(squad, *args, **kwargs):
+        battle_focus_pool.offer_opportunity_seized(squad, *args, **kwargs)
+        vectored_engines_controller.offer_after_fall_back(squad)
+
+    movement_controller.on_fall_back_finished = _on_fall_back_finished
     # Seer Council's Isha's Fury: "just after an enemy unit ends a Normal,
     # Advance or Fall Back move" - broader than the Fall-Back-only hook above,
     # and fired at the same point for the same reason.
@@ -1291,6 +2507,8 @@ def main(map_key=None):
     # the UI exists - the deck itself was built ~700 lines up, next to the
     # ledger it credits.
     mission_draw_overlay = MissionDrawOverlay()
+    # Rule 07.01: shown once the last battle round has been played out.
+    battle_end_overlay = BattleEndOverlay()
     secondary_mission_controller.draw_overlay = mission_draw_overlay
     secondary_mission_controller.flush_announcements()
     log_panel = LogPanel()
@@ -1299,6 +2517,7 @@ def main(map_key=None):
     stratagem_notice_overlay = StratagemNoticeOverlay()
     waaagh_notice_overlay = WaaaghNoticeOverlay()
     turn_start_overlay = TurnStartOverlay()
+    fight_warning_overlay = FightWarningOverlay()
     turn_plan_overlay = TurnPlanOverlay()
     # User: "immer wenn die KI ein Stratagem benutzt will ich ein prompt
     # haben... das ich wegklicken muss" - only when the ACTING player is
@@ -1471,6 +2690,20 @@ def main(map_key=None):
 
         turn_tracker.start_battle(first_player)
 
+        # Kroot Farstalkers' Bounty Hunters: "at the start of the battle,
+        # select one unit from your opponent's army". Here rather than in the
+        # pre-game sequence because this is the first moment BOTH armies are
+        # fully on the table - the same reason the points lines are logged here.
+        bounty_hunters_controller.select_at_start_of_battle(state.all_squads())
+
+        # Mont'ka's Strategic Conqueror: "at the start of the first battle
+        # round, before the first turn begins, select one objective marker" -
+        # the same instant Bounty Hunters uses just above, and for the same
+        # reason (the first moment both armies are fully on the table).
+        enh_strategic_conqueror.offer(
+            state.all_squads(), state.objectives, decision_manager=decision_manager,
+            game_log=game_log, auto_players=("Player 2",))
+
         # Battle round 1's tokens. advance_turn_phase() would hand them out at
         # the first phase change anyway (sync_battle_round() is idempotent),
         # but that is one phase late, and this is the moment the armies are
@@ -1513,11 +2746,28 @@ def main(map_key=None):
     # bottom of the frame. A new notice belongs in this tuple AND in the chain.
     def _front_notice():
         """The one notice that currently owns the screen, or None."""
-        for overlay in (turn_start_overlay, turn_plan_overlay, mission_draw_overlay,
-                        stratagem_notice_overlay, waaagh_notice_overlay):
+        # fight_warning_overlay first: it is the direct answer to a click the
+        # human just made, and the only one of these raised BY the "End Turn"
+        # button rather than by something the game did on its own. In practice
+        # the set is disjoint - every other notice here is produced by
+        # advance_turn_phase() or by an AI action, and this warning exists
+        # precisely to stop advance_turn_phase() from running while the AI is
+        # gated on it - so the order decides nothing today; it is written this
+        # way so that if that ever changes, an answer beats an announcement.
+        # battle_end_overlay ahead of all of them: once the battle is over
+        # nothing else is worth reading, and nothing behind it can be acted on.
+        for overlay in (battle_end_overlay,
+                        fight_warning_overlay, turn_start_overlay, turn_plan_overlay,
+                        mission_draw_overlay, stratagem_notice_overlay, waaagh_notice_overlay):
             if overlay.is_pending:
                 return overlay
         return None
+
+    def _check_battle_end():
+        """Rule 07.01: raise the result once the last round has been played.
+        Idempotent - BattleEndOverlay.show() only ever fires once."""
+        if turn_tracker.battle_over:
+            battle_end_overlay.show(mission_controller)
 
     def advance_turn_phase():
         # Rule 15.07 (Rapid Ingress): any pending offer from a PREVIOUS
@@ -1525,6 +2775,13 @@ def main(map_key=None):
         # dragged onto the board - forfeit it before possibly opening a
         # new one below.
         rapid_ingress_controller.expire_if_unused()
+        # The "you can still fight" warning is once per PHASE, and this is the
+        # one place a phase ever changes (ai_advance_phase() routes through
+        # here too), so this is its point of re-offer. Without it the warning
+        # would fire once per battle: after the first time it was dismissed
+        # every later Fight phase would end silently again, which is exactly
+        # the bug it was built to fix.
+        fight_warning_overlay.reset()
         phase_before = turn_tracker.phase
         # turn_owner, not active_player: the latter is a transient "whose
         # decision is this right now" flag (flipped by e.g. a defending
@@ -1579,6 +2836,47 @@ def main(map_key=None):
         # any phase, so this isn't gated to one specific phase like the
         # other reset_*_phase() calls below.
         stratagem_controller.reset_phase()
+        # Aspect Host's Path of the Warrior lasts "until the end of the phase",
+        # and its ledger keys on (unit, phase) - so it is cleared on every
+        # phase change, unconditionally, like stratagem_controller above.
+        path_of_the_warrior_controller.reset_phase()
+        # Soulsight lasts one activation, but its latch is cleared on the
+        # phase boundary too - the activation ledger in
+        # game/activation_reroll.py forgets per squad, and this makes sure
+        # a unit that never finished an activation does not carry it.
+        _detachment_squads_now = {t.squad for t in state.tokens if t.squad is not None}
+        armoured_soulsight.reset_phase(_detachment_squads_now)
+        # Guardian Battlehost's three phase-long grants. Time to Strike's
+        # SECOND half is turn-long and is cleared by game/move_exceptions.py's
+        # own sweep instead - two clocks, two sweeps.
+        guardian_warding_salvoes.reset_phase(_detachment_squads_now)
+        guardian_blades_of_asuryan.reset_phase(_detachment_squads_now)
+        guardian_time_to_strike.reset_phase(_detachment_squads_now)
+        shield_nodes_controller.reset_phase(_detachment_squads_now)
+        # Windrider Host's three phase-long grants plus the two per-phase
+        # ledgers. Wind of Blades is turn-long and is cleared with the other
+        # move exemptions at end of turn instead - two clocks, two sweeps.
+        windrider_focused_firepower.reset_phase(_detachment_squads_now)
+        windrider_death_from_on_high.reset_phase(_detachment_squads_now)
+        windrider_daring_riders.reset_phase(_detachment_squads_now)
+        spiralling_evasion_controller.reset_phase(_detachment_squads_now)
+        overflight_controller.reset_phase()
+        # Warhost's two phase-long grants. Feigned Retreat is turn-long and is
+        # cleared with the other move exemptions at end of turn instead.
+        warhost_blitzing_firepower.reset_phase(_detachment_squads_now)
+        lightning_fast_reactions_controller.reset_phase(_detachment_squads_now)
+        # Spirit Conclave's three phase-long grants. Soul Bridge is on the
+        # Command-phase clock instead - "until the START of your next Command
+        # phase" - and is cleared with Guide and Doom.
+        conclave_seers_eye.reset_phase(_detachment_squads_now)
+        conclave_blades_from_beyond.reset_phase(_detachment_squads_now)
+        wraithbone_armour_controller.reset_phase(_detachment_squads_now)
+        # Aspect Host's three phase-long grants plus its fight-after-death
+        # ledger.
+        aspect_warrior_focus.reset_phase(_detachment_squads_now)
+        aspect_doom_inescapable.reset_phase(_detachment_squads_now)
+        aspect_preternatural_precision.reset_phase(_detachment_squads_now)
+        to_their_final_breath_controller.reset_phase()
         # Seer Council: three "until the end of the phase" grants plus the two
         # reactive controllers' own once-per-pair memos. Reset unconditionally on
         # every phase change, like stratagem_controller itself.
@@ -1602,6 +2900,12 @@ def main(map_key=None):
         # SEPARATE, longer lifetime and is cleared at the end of the turn -
         # the two are deliberately not the same clock.
         crystalline_targeting_controller.reset_phase()
+        # Sonic Destruction counts platforms that fired "this phase", so its
+        # ledger clears on the same seam - not on the turn, which would let a
+        # second phase inherit the first one's stacking.
+        sonic_destruction_controller.reset_shooting_phase()
+        # Hallucinogen Grenades grant Stealth "until the end of the phase".
+        hallucinogen_grenades_controller.reset_phase()
         forewarned_controller.reset_phase()
         psychic_shield_controller.reset_phase()
         # Fail-Safe Detonator's "already asked about this unit" memo is scoped
@@ -1618,6 +2922,30 @@ def main(map_key=None):
         # The Arro'kon Protocol: likewise "until the end of the phase", and
         # expired in the same place for the same reason.
         arrokon_controller.reset_phase({t.squad for t in state.tokens if t.squad is not None})
+        # The T'au detachment Stratagem grants that last "this phase". Alien
+        # Expertise is NOT here: the ban it lifts (09.06) lasts the whole turn,
+        # so it expires with the turn instead - see below.
+        _detachment_squads = {t.squad for t in state.tokens if t.squad is not None}
+        for _ctrl in experimental_ammunition_controllers:
+            _ctrl.reset_phase(_detachment_squads)
+        experimental_modifications_controller.reset_phase(_detachment_squads)
+        guided_fire_controller.reset_phase(_detachment_squads)
+        point_blank_ambush_controller.reset_phase(_detachment_squads)
+        coordinate_to_engage_controller.reset_phase(_detachment_squads)
+        # A Tempting Trap's GRANT is phase-scoped; its Trap objective is
+        # chosen once and lasts the battle, so it is not touched here.
+        tempting_trap_controller.reset_phase(_detachment_squads)
+        photon_grenades_controller.reset_phase(_detachment_squads)
+        aggressive_mobility_controller.reset_phase(_detachment_squads)
+        combat_debarkation_controller.reset_phase(_detachment_squads)
+        focused_fire_controller.reset_phase(_detachment_squads)
+        counterfire_defence_controller.reset_phase(_detachment_squads)
+        microdrone_support_controller.reset_phase(_detachment_squads)
+        autoreactive_camouflage_controller.reset_phase(_detachment_squads)
+        # Pulse Onslaught's `shaken` runs to the end of the victim's NEXT
+        # turn, so it is not cleared on a boundary - expire() compares each
+        # mark against its own deadline instead.
+        pulse_onslaught_controller.expire(_detachment_squads)
         # Asurmen's Hand of Asuryan grant is "until the end of the phase" too.
         # The once-per-battle SPEND is deliberately not reset here - two
         # lifetimes, see game/hand_of_asuryan.py.
@@ -1671,6 +2999,31 @@ def main(map_key=None):
         conquering_tyrant_controller.reset_phase({t.squad for t in state.tokens if t.squad is not None})
         sudden_storm_controller.reset_phase({t.squad for t in state.tokens if t.squad is not None})
         vengeful_stars_controller.reset_phase()
+        # Nurgle's Gift has TWO clocks and only one of them is a phase. The
+        # Contagion Range bonuses (Blooming Pestilence, "until the end of the
+        # phase") clear here; the sticky Afflicted marks do NOT - they run to
+        # the start of a turn and are cleared in begin_battle_round_turn()
+        # below. Named after their lifetimes and cleared in two places, the
+        # same care game/protocol_sudden_storm.py takes with its own pair.
+        nurgles_gift_controller.expire_phase()
+        # The Defiler's Barrage of Filth is "until the end of the phase"; the
+        # Chaos Spawn's Lethal Ichor tally and the Poxwalkers' unspent kill
+        # credit are per Fight phase. All three clear on the same boundary.
+        barrage_of_filth_controller.reset_phase()
+        lethal_ichor_controller.reset_phase()
+        curse_of_the_walking_pox_controller.reset_phase()
+        # The Death Lord's Chosen grants are all "until the end of the phase".
+        # Blooming Pestilence's RANGE bonus is cleared by
+        # nurgles_gift_controller.expire_phase() above, which owns the table;
+        # its own reset_phase() only forgets that the unit was granted one.
+        _phase_squads = {t.squad for t in state.tokens if t.squad is not None}
+        blooming_pestilence_controller.reset_phase(_phase_squads)
+        grim_reapers_controller.reset_phase(_phase_squads)
+        mortarions_teachings_controller.reset_phase(_phase_squads)
+        # Undying Spite's reset also REMOVES anything still owed an activation,
+        # so no model survives on a Stratagem that has expired.
+        undying_spite_controller.reset_phase()
+        malevolent_souls_controller.reset_phase()
         # "At the end of the phase, set up the destroyed model" - ANY phase,
         # so this is resolved at every boundary, exactly like Fuegan's.
         eternal_revenant_controller.resolve_end_of_phase()
@@ -1681,8 +3034,46 @@ def main(map_key=None):
         # is why it is offered here rather than in one phase's own branch.
         if mover_before is not None:
             resurrection_orb_controller.offer_at_end_of_phase({t.squad for t in state.tokens if t.squad is not None}, mover_before)
+        # Overflight: "End of your Shooting phase or the end of the Fight
+        # phase". One offer covering both, because can_use() is what knows
+        # which side of the table each half belongs to - the Shooting half is
+        # the turn owner's, the Fight half is nobody's.
+        if phase_before in (PHASE_SHOOTING, PHASE_FIGHT):
+            overflight_controller.offer_at_end_of_phase(
+                {t.squad for t in state.tokens if t.squad is not None})
         if phase_before == PHASE_FIGHT:
             atomic_energy_controller.resolve_end_of_fight_phase({t.squad for t in state.tokens if t.squad is not None})
+            # Kauyon's Wall of Mirrors: "End of your opponent's Fight phase",
+            # so the offer goes to whoever is NOT the player whose phase just
+            # ended. A phase boundary, not a turn one - it fires even when the
+            # turn continues.
+            wall_of_mirrors_controller.offer_at_end_of_fight_phase(turn_tracker.turn_owner)
+            # Cost of Victory: "end of your OPPONENT'S Fight phase", so the
+            # same side as Wall of Mirrors above - whoever is NOT the player
+            # whose phase just ended.
+            cost_of_victory_controller.offer_at_end_of_fight_phase(
+                {t.squad for t in state.tokens if t.squad is not None},
+                turn_tracker.turn_owner)
+            # Webway Tunnel: the same "end of your OPPONENT'S Fight phase" as
+            # Cost of Victory above, and the same withdrawal minus the dead
+            # models that one brings back.
+            webway_tunnel_controller.offer_at_end_of_fight_phase(
+                {t.squad for t in state.tokens if t.squad is not None},
+                turn_tracker.turn_owner)
+            # Skyborne Sanctuary says "End of THE Fight phase" - it belongs to
+            # nobody, so both players are offered it and no owner is passed.
+            for _skyborne in skyborne_sanctuary_controllers:
+                _skyborne.offer_at_end_of_fight_phase(
+                    {t.squad for t in state.tokens if t.squad is not None})
+            # The Stonesinger's Elemental Ensnarement: "at the end of YOUR Fight
+            # phase", so it is offered to the player whose phase just ended -
+            # the opposite side from Wall of Mirrors directly above it.
+            # Raid and Run's own end-of-Fight-phase window, before the
+            # ensnarement offer so the two prompts cannot collide.
+            raid_and_run_controller.reset_phase()
+            elemental_ensnarement_controller.offer_at_end_of_fight(
+                turn_tracker.turn_owner,
+                {t.squad for t in state.tokens if t.squad is not None})
         if ending_player is not None:
             # Rule 11.04: "Until the end of the turn" - Fights First from a
             # charge made this turn expires once the turn actually ends.
@@ -1693,12 +3084,38 @@ def main(map_key=None):
             # War Horde's 'Ere We Go: "until the end of the turn", the same
             # lifetime as the three flags cleared in the loop right below.
             ere_we_go_controller.expire_for_turn(ending_squads)
+            # Vespid Stingwings' Airborne Agility: "at the end of YOUR
+            # OPPONENT'S turn" - so it is offered to whoever's turn just
+            # ENDED is not, which is what the controller's own argument
+            # name says. The one ability in this batch whose timing is
+            # easiest to get backwards.
+            airborne_agility_controller.offer_at_end_of_turn(
+                {t.squad for t in state.tokens if t.squad is not None}, ending_player)
+            # Windrider Host's Ride the Wind, second clause - the same instant
+            # and the same trap: "at the end of your OPPONENT'S turn", so the
+            # offer goes to whoever is NOT ending_player. Capped by battle size,
+            # unlike Airborne Agility, which is per unit.
+            ride_the_wind_controller.offer_at_end_of_turn(
+                {t.squad for t in state.tokens if t.squad is not None}, ending_player)
             # Doomsday Ark's Overwhelming Obliteration: "until the end of the
             # turn", so it expires with the other one-turn grants rather than
             # at the phase boundary above.
             overwhelming_obliteration.expire_for_turn(ending_squads)
             # Sudden Storm's [ASSAULT] grant - "until the end of the turn".
             sudden_storm_controller.expire_for_turn(ending_squads)
+            # Alien Expertise lifts rule 09.06's "Advanced, so no charge" for
+            # the whole TURN - the Charge phase is where it is read, so a
+            # phase-scoped reset would buy nothing at all.
+            alien_expertise_controller.expire_for_turn(ending_squads)
+            # The Malignant Plaguecaster's Pestilent Fallout runs "until the
+            # end of your opponent's next turn" - nearly two full turns, the
+            # longest lifetime in this faction - so it expires on the VICTIM's
+            # turn ending, not the caster's.
+            pestilent_fallout_controller.expire_for_turn(ending_player)
+            # Signal Pox's objective is chosen "until the start of your next
+            # turn" - the sticky Afflicted marks themselves are dropped by
+            # nurgles_gift_controller.expire_marks_for(), which owns them.
+            signal_pox_controller.expire_for_turn(ending_player)
             # "Each model can only be selected for this ability once per turn"
             # (Technomancer) and "you cannot resurrect more than one unit per
             # turn" (Resurrection Orb) - both per-TURN ledgers, cleared here.
@@ -1716,11 +3133,27 @@ def main(map_key=None):
             # likewise not per-squad: it is held per player, because every
             # friendly AELDARI unit reads it.
             whispering_web_controller.reset_turn()
+            # Harnessed Alien Instincts' prey mark is "until the end of the
+            # turn" too - a decision, since the printed text gives no duration;
+            # matching the four marks around it. reset_turn() also clears the
+            # once-per-phase offer memo, which reset_phase() clears on its own
+            # at every phase boundary - two lifetimes, cleared separately so
+            # the mark cannot be quietly shortened to a phase.
+            auxiliary_cadre_controller.reset_turn()
             # Crystalline Targeting's "each unit can only be selected for this
             # ability once per turn" - a limit on the TARGET, so likewise not
             # per-squad and not tied to ending_squads. Its AP effect expired a
             # phase boundary ago; only the selection ledger lives this long.
             crystalline_targeting_controller.reset_turn()
+            # The Kroot Lone-Spear's Advanced Scouting mark: "until the end
+            # of the turn" - a turn, not a phase and not a battle round, so
+            # it clears on the same seam as every other end-of-turn state.
+            advanced_scouting_controller.reset_turn()
+            # Loping Pounce is "until the end of the turn", and an owed Kroot
+            # Packmates reaction must not survive into the next one either.
+            loping_pounce.reset_turn(
+                {t.squad for t in state.tokens if t.squad is not None})
+            kroot_packmates_controller.reset_turn()
             # The Twin Lance's Neocapacitor Shields: likewise "until the end
             # of the turn", and on the turn-taker's own units (the ones that
             # would have been charging), so ending_squads is exactly right.
@@ -1735,6 +3168,24 @@ def main(map_key=None):
             # ability fires in the OPPONENT's Movement phase, so the unit that
             # used it is never the one whose turn is ending.
             path_of_the_outcast_controller.reset_for_new_turn()
+            # Rule 09.06/09.07's Stratagem exemptions - Vectored Engines,
+            # Time to Strike, Feigned Retreat, Wind of Blades. Every latch in
+            # game/move_exceptions.py is "until the end of the turn", so they
+            # end together, here, at the one place a turn ends.
+            #
+            # Swept over EVERY squad on the board rather than over
+            # ending_squads: a turn is one player's turn, so the end of any
+            # turn ends an "until the end of the turn" grant, whichever turn
+            # it was bought in. ending_squads would have left a latch bought
+            # in the opponent's turn running for the rest of the battle.
+            move_exceptions.clear_turn_flags(
+                {t.squad for t in state.tokens if t.squad is not None})
+            # Rule 20.04 arrivals, read by Death from on High's "set upon the
+            # battlefield from Reserves THIS TURN". Kept apart from
+            # SetupController's own Squad.set_up_this_turn, which every
+            # placement sets - deployment included - and so cannot answer a
+            # question about Reserves.
+            ingress_controller.reset_turn()
             for squad in ending_squads:
                 squad.fights_first = False
                 squad.charged_this_turn = False  # rule 11.04's own marker, see Squad.charged_this_turn
@@ -1806,6 +3257,27 @@ def main(map_key=None):
             # the turn the card is drawn this finds it not yet in hand and does
             # nothing, so only the draw window fires instead of both.
             secondary_mission_controller.start_of_turn(turn_tracker.turn_owner)
+            # Monofilament Snare is "until the start of YOUR next turn", so a
+            # mark expires as the player who placed it begins a turn - one
+            # boundary further out than a Guide/Doom mark, which is why it is
+            # keyed on the owner instead of being flat-reset with the phase.
+            monofilament_snare_controller.clear_for_turn_of(turn_tracker.turn_owner)
+            # Monofilament Web is "until the start of YOUR next turn" too, and
+            # the pin lives on the squad (like `shaken`), so expiry walks the
+            # board rather than a registry.
+            monofilament_web_controller.clear_for_turn_of(turn_tracker.turn_owner)
+            # Fury of the Void is "until the end of the TURN" - one boundary
+            # shorter than Guide and Doom, so it clears here rather than at a
+            # Command phase.
+            fury_of_the_void_controller.reset_turn()
+            # Channeller Stones is a per-TURN resource on the squad.
+            corsair_abilities.reset_channeller_stones(
+                {t.squad for t in state.tokens if t.squad is not None})
+            # ENSNARED is "until the start of YOUR next turn" as well, and lives
+            # on the squad like `pinned`, so it expires on the same seam.
+            elemental_ensnarement_controller.clear_for_turn_of(
+                turn_tracker.turn_owner,
+                {t.squad for t in state.tokens if t.squad is not None})
             secondary_mission_controller.draw_at_command_phase(
                 turn_tracker.turn_owner, turn_tracker.battle_round)
             # Strike Team's DS8 Support Turret ability (user-supplied):
@@ -1829,6 +3301,11 @@ def main(map_key=None):
             # this is, rather than in the end-of-turn block with every other
             # duration. That is also where its "once per turn" resets.
             guide_controller.start_of_command_phase(turn_tracker.turn_owner)
+            # Misfortune shares Guide's "until the start of your next Command
+            # phase" lifetime, so it clears on the same seam.
+            misfortune_controller.start_of_command_phase(turn_tracker.turn_owner)
+            # Tears of Isha is once per unit per TURN, so its ledger clears here.
+            tears_of_isha_controller.reset_turn()
             # Eldrad Ulthran's Doom: the same duration, so the same instant.
             doom_controller.start_of_command_phase(turn_tracker.turn_owner)
             # Eldrad Ulthran's Diviner of Futures: "at the start of your
@@ -1860,10 +3337,6 @@ def main(map_key=None):
             thievin_scavengers_controller.start_check(turn_tracker.active_player)
         if turn_tracker.phase == PHASE_SHOOTING:
             shooting_controller.reset_shooting_phase()
-            # Rule 16.01 "STARTS: Your Shooting phase" - the Cleanse action's
-            # window. turn_owner, not active_player: this is about whose turn
-            # it is, not whose decision happens to be open.
-            secondary_mission_controller.offer_actions_at_shooting_phase(turn_tracker.turn_owner)
         if turn_tracker.phase == PHASE_CHARGE:
             charge_controller.reset_charge_phase()
             # The Twin Lance's Neocapacitor Shields: "at the start of your
@@ -1884,6 +3357,15 @@ def main(map_key=None):
                 sq for sq in {t.squad for t in state.tokens if t.squad is not None}
                 if sq.owner == turn_tracker.turn_owner and unit_has_spirit_of_gork(sq)
             ])
+            # Yvraine's Herald of Ynnead: "at the START of the Fight phase".
+            # Cleared FIRST and offered second - the mark lasts only until the
+            # end of the phase it was set in, so a stale one from last turn
+            # must not survive into this offer.
+            herald_of_ynnead_controller.reset_phase()
+            for _sq in sorted({t.squad for t in state.tokens if t.squad is not None},
+                              key=lambda q: q.name):
+                if _sq.owner == turn_tracker.turn_owner:
+                    herald_of_ynnead_controller.offer_at_fight_phase(_sq)
             pile_in_controller.reset_fight_phase()
             fight_controller.reset_fight_phase()
             consolidate_controller.reset_fight_phase()
@@ -1891,6 +3373,8 @@ def main(map_key=None):
         # Rule 20.03: "At the end of the third battle round... all
         # strategic reserves units that have not made one or more ingress
         # moves are destroyed."
+        # Rule 07.01: did that turn end the battle?
+        _check_battle_end()
         if turn_tracker.battle_round == battle_round_before + 1 and battle_round_before == 3:
             ingress_controller.destroy_remaining_reserves()
         # T'au "For The Greater Good" army rule (user-supplied): Spotted/
@@ -1905,12 +3389,78 @@ def main(map_key=None):
         # the marking player's own next Shooting phase finally rolled
         # around, a full round later, instead of clearing the instant the
         # Shooting phase that created it actually ended.
+        # Nurgle's Gift's sticky half: "until the START of your next turn,
+        # that enemy unit is Afflicted". A turn has just started for whoever
+        # turn_owner now is, whenever that differs from who owned the phase
+        # that just ended - which is exactly the mirror of `ending_player`
+        # computed above. Everything THAT player marked stops being marked.
+        if mover_before is not None and turn_tracker.turn_owner != mover_before:
+            nurgles_gift_controller.expire_marks_for(turn_tracker.turn_owner)
+        # The Kroot War Shaper's Root of Honour: "once per battle, AT THE START
+        # OF ANY PHASE". Any phase means any - including the opponent's - so
+        # this sits above every phase-specific block below and is offered to
+        # BOTH players rather than to turn_owner. Its own predicate keeps it
+        # silent unless a War Shaper is on the table with a Battle-shocked
+        # KROOT unit in range, so the unconditional call costs nothing.
+        root_of_honour_controller.offer_at_start_of_phase(
+            {t.squad for t in state.tokens if t.squad is not None})
+        if turn_tracker.phase == PHASE_COMMAND:
+            # Kroot Hounds' Loping Pounce: "AT THE START of your Command
+            # phase" - checked once and latched for the turn, which is what
+            # separates it from the two live advance-then-charge sources it
+            # joins in game/charge.py.
+            loping_pounce.begin_command_phase(
+                {t.squad for t in state.tokens if t.squad is not None},
+                turn_tracker.turn_owner, game_log=game_log)
+            # Deadly Vectors: "IN YOUR OPPONENT'S Command phase". Fired at the
+            # START of a Command phase and handed the player whose phase it is
+            # - the controller then rolls for every OTHER player holding the
+            # detachment, which is what makes "your opponent's" mean what it
+            # says without this line having to know who the Death Guard is.
+            #
+            # The START rather than the end, and that is not cosmetic: rule
+            # 02.02.04's Reanimation Protocols fires at the END of the same
+            # phase and drains its own dice queue there. Two queues starting on
+            # the same seam would fight over DiceManager.pending_values, and a
+            # Necrons-versus-Death-Guard game is a perfectly ordinary pairing.
+            # The printed text says only "in", so the start satisfies it and
+            # costs nothing.
+            deadly_vectors_controller.begin_opponent_command_phase(
+                {t.squad for t in state.tokens if t.squad is not None},
+                turn_tracker.turn_owner,
+            )
+            # Auxiliary Cadre's Admired Leader: "IN your Command phase, you can
+            # select one KROOT/VESPID STINGWINGS unit within 12"", lasting
+            # "until the start of your next Command phase". Those are the same
+            # instant a round apart, so this one call clears last round's mark
+            # and then offers this round's - in that order, which is its own
+            # test line because the two lines look independent.
+            admired_leader_controller.begin_command_phase(turn_tracker.turn_owner)
+            # ...and Light of Clarity, on the same clock and through the same
+            # shared machine.
+            light_of_clarity_controller.begin_command_phase(turn_tracker.turn_owner)
+            stave_of_kurnous_controller.begin_command_phase(turn_tracker.turn_owner)
         if phase_before == PHASE_COMMAND:
             # Reanimation Protocols: "at the end of your Command phase, each
             # friendly unit with this ability that is on the battlefield
             # activates". A QUEUE - every eligible unit gets its own labelled
             # roll, one at a time; see game/reanimation_protocols.py.
             reanimation_controller.begin_command_phase({t.squad for t in state.tokens if t.squad is not None}, mover_before)
+            # The Ethereal's Coordinated Leadership: "at the end of your
+            # Command phase, roll one D6". Same seam, and after Reanimation
+            # Protocols on purpose - both drain a dice queue, and a queue
+            # already started owes its dice first.
+            coordinated_leadership_controller.begin_command_phase(
+                {t.squad for t in state.tokens if t.squad is not None}, mover_before)
+            # Yvraine's Word of the Phoenix: "in your Command phase, you can
+            # roll one D6". LAST of the three for the same reason the second
+            # is after the first - each one holds the dice window until it is
+            # answered, and this one needs TWO of them.
+            for _sq in sorted({t.squad for t in state.tokens if t.squad is not None},
+                              key=lambda q: q.name):
+                if _sq.owner == mover_before and word_of_the_phoenix_controller.can_use(_sq):
+                    if word_of_the_phoenix_controller.start(_sq):
+                        break
         if turn_tracker.phase == PHASE_SHOOTING:
             # The Void Dragon's Matter Absorption is "at the START of your
             # Shooting phase"; the Plasmancer's Living Lightning is "in your
@@ -1922,8 +3472,27 @@ def main(map_key=None):
                 {t.squad for t in state.tokens if t.squad is not None}, turn_tracker.turn_owner)
             living_lightning_controller.offer_at_shooting_phase(
                 {t.squad for t in state.tokens if t.squad is not None}, turn_tracker.turn_owner)
+            # Typhus' Eater Plague is "in your Shooting phase" too, and shares
+            # Living Lightning's 18"-and-visible targeting - so it is offered
+            # at the same instant and resets the same way.
+            eater_plague_controller.reset_phase()
+            eater_plague_controller.offer_at_shooting_phase(
+                {t.squad for t in state.tokens if t.squad is not None}, turn_tracker.turn_owner)
+            # Auxiliary Cadre's Harnessed Alien Instincts is "IN your Shooting
+            # phase" - not "after this unit has shot" - so it is offered at the
+            # start, once per eligible KROOT/VESPID unit, the same instant the
+            # For The Greater Good army rule picks its Observers. A unit that
+            # never fires can still mark. reset_phase() clears only the
+            # once-per-unit memo; the mark itself is turn-scoped.
+            auxiliary_cadre_controller.reset_phase()
+            auxiliary_cadre_controller.offer_at_start_of_shooting_phase(turn_tracker.turn_owner)
         if phase_before == PHASE_SHOOTING:
             greater_good_controller.reset_shooting_phase()
+            # The Vespid Oversight Drone's grant is "until the end of the
+            # phase" - the GRANT only; its once-per-battle ledger is never
+            # cleared.
+            oversight_drone_controller.reset_phase(
+                {t.squad for t in state.tokens if t.squad is not None})
         # Rules 15.07/15.08 (Rapid Ingress / Fire Overwatch): WHEN is "end
         # of your opponent's Movement phase" - `phase_before` is whichever
         # phase we just left, so this only fires the instant Movement
@@ -1945,10 +3514,20 @@ def main(map_key=None):
             guide_controller.offer_at_end_of_movement(
                 mover_before, {t.squad for t in state.tokens if t.squad is not None},
             )
+            # Misfortune fires at the same instant as Guide ("at the end of your
+            # Movement phase") and is offered to the same player.
+            misfortune_controller.offer_at_end_of_movement(
+                mover_before, {t.squad for t in state.tokens if t.squad is not None},
+            )
             # The Technomancer's own ability: "at the end of your Movement
             # phase". Same instant as Guide above, and likewise offered to the
             # player whose Movement phase just ended.
             technomancer_controller.offer_at_end_of_movement({t.squad for t in state.tokens if t.squad is not None}, mover_before)
+            # The Piranhas' Drone Harassment Tactics: "at the end of your
+            # Movement phase". Same instant as the two above, and offered to
+            # the player whose Movement phase just ended.
+            drone_harassment_controller.offer_at_end_of_movement(
+                {t.squad for t in state.tokens if t.squad is not None}, mover_before)
             # Eldrad Ulthran's Doom: same trigger, same instant. Two separate
             # offers rather than one combined prompt - they are two abilities
             # with two independent marks, and a player owning both should be
@@ -2091,6 +3670,9 @@ def main(map_key=None):
                 shooting_controller, fight_controller, explosives_controller,
                 deadly_demise_controller, crushing_impact_controller,
                 transport_controller, fall_back_controller,
+                deadly_vectors_controller, lethal_ichor_controller,
+                spore_laced_controller, sickening_impact_controller,
+                internal_grenade_racks_controller,
             )
         )
 
@@ -2149,7 +3731,9 @@ def main(map_key=None):
         extend if a future controller adds another such sub-state, instead
         of two lists that could drift apart."""
         return (
-            pregame_controller.is_active  # rule 03.01: the battle hasn't started yet
+            # Rule 07.01: the battle is over - nothing advances, for either side.
+            turn_tracker.battle_over
+            or pregame_controller.is_active  # rule 03.01: the battle hasn't started yet
             or setup_controller.state == setup.PLACING
             or fight_controller.state in (fight.CHOOSING_TARGET, fight.CHOOSING_WEAPON, fight.ASSIGNING)
             or fight_controller.current_group is not None
@@ -2182,7 +3766,71 @@ def main(map_key=None):
             or fire_overwatch_controller.state != overwatch.IDLE
             or transport_controller.pending_damage_choice is not None
             or deadly_demise_controller.pending_damage_choice is not None
+            or deadly_vectors_controller.pending_damage_choice is not None
+            # Deadly Vectors drains a QUEUE - one 2D6 per Afflicted enemy unit,
+            # then a D3 and an allocation for each that triggered. Advancing the
+            # phase mid-queue would silently drop the units still owed a roll.
+            or deadly_vectors_controller.is_busy
+            # Lethal Ichor and Spore-laced Shock Waves each drain their own
+            # dice-then-allocation cycle; advancing the phase mid-cycle would
+            # drop the mortal wounds they still owe.
+            or lethal_ichor_controller.is_busy
+            or spore_laced_controller.is_busy
+            or lethal_ichor_controller.pending_damage_choice is not None
+            or spore_laced_controller.pending_damage_choice is not None
+            # Sickening Impact owes a dice-then-allocation cycle, and Undying
+            # Spite may be holding destroyed models on the board that still
+            # owe an activation. Neither may be rolled over by a phase change.
+            or sickening_impact_controller.is_busy
+            or sickening_impact_controller.pending_damage_choice is not None
+            or undying_spite_controller.is_busy
+            or to_their_final_breath_controller.is_busy
+            or khaines_vengeance_controller.is_busy
+            or malevolent_souls_controller.is_busy
+            # Retaliation Cadre's Internal Grenade Racks owes a
+            # dice-then-allocation cycle, and its Puretide Engram Neurochip
+            # drains a QUEUE of D6s (one per Stratagem that targeted a bearer's
+            # unit). Neither may be rolled over by a phase change.
+            or internal_grenade_racks_controller.is_busy
+            or internal_grenade_racks_controller.pending_damage_choice is not None
+            or puretide_neurochip_controller.is_busy
         )
+
+    def _fight_warning_intercepts_end_turn():
+        """True if this "End Turn" click was spent raising the "you still
+        have units that could fight" warning instead of ending the turn.
+
+        User: "gib mal bitte ine warnung aus, die ich wegklicken muss, wenn
+        ich auf end turn klicke, obwohl ich noch mit einheiten im nahkampf
+        kaempfen koennte." Reproduced before changing anything: with a human
+        unit eligible under rule 12.04 and an engaged enemy in front of it,
+        NOTHING stopped the click - _has_unresolved_declaration() above
+        covers fight_controller's CHOOSING_*/ASSIGNING sub-states (a
+        half-finished activation) but deliberately not SELECTING, which is
+        the ordinary "it is your turn to fight, pick a unit" state. So the
+        turn ended and those attacks were simply gone, with a game_log line
+        as the only trace.
+
+        A warning, not a lock: this engine never forces a player to fight,
+        so the click is spent on the warning and the next one goes through
+        (see FightWarningOverlay.warn_once()).
+
+        Asked for "Player 1" - the human throughout this engine, the same
+        single fact as the ScoutsStep human_players wiring below - and not
+        for turn_owner: rule 12.04's Fight step is SHARED, so the human can
+        still owe attacks during the AI's own turn, and it is always the
+        human doing the clicking here.
+
+        One shared check with two callers, for the same reason
+        _has_unresolved_declaration() is one: the right panel's button is not
+        the only route into advance_turn_phase() from a human click - a click
+        blocked by "Regaining Coherency" (09.02) resumes into the very same
+        call once the model is removed, and a warning that one of the two
+        routes walks straight past is not a warning."""
+        if not turn_tracker.is_last_phase:
+            return False
+        return fight_warning_overlay.warn_once(
+            [s.name for s in fight_controller.squads_that_could_still_fight("Player 1")])
 
     def run_ai_pregame_action():
         """Player 2's side of rule 03.01's opening sequence - one action per
@@ -2226,6 +3874,15 @@ def main(map_key=None):
             hungry_void_controller=hungry_void_controller,
             conquering_tyrant_controller=conquering_tyrant_controller,
             sudden_storm_controller=sudden_storm_controller,
+            # Not a handler - Deadly Vectors asks nothing. Passed so the AI can
+            # answer its OWN mortal-wound allocation when it is the victim; see
+            # take_one_action()'s own note on this parameter.
+            deadly_vectors_controller=deadly_vectors_controller,
+            # Death Lord's Chosen: only Grim Reapers needs a handler. Undying
+            # Spite and Sickening Impact are reactive and answer inside their
+            # own controllers via auto_players; the other three are irrelevant
+            # to the AI by user instruction.
+            grim_reapers_controller=grim_reapers_controller,
         )
         # User: "ich würde den plan gerne ausführlicher in einem großen text
         # prompt sehen am anfang des gegnerischen zuges nachdem er erstellt
@@ -2352,6 +4009,71 @@ def main(map_key=None):
         pregame_controller.scene_hints = {
             id(e["squad"]): (e["destination"], e["transport"]) for e in scene_units
         }
+        # Two T'au Enhancements whose printed timing is the Declare Battle
+        # Formations step, run right after start() puts the controller into it.
+        # Student of Kauyon MUST be before the reserve declarations are
+        # answered - Deep Strike granted afterwards would be worth nothing this
+        # battle, which is why its own printed text names this step.
+        _student_of_kauyon_step = StudentOfKauyonStep(
+            decision_manager=decision_manager, game_log=game_log,
+            auto_players=("Player 2",))
+        for _owner in ("Player 1", "Player 2"):
+            _student_of_kauyon_step.start(_player_squads(state, _owner), _owner)
+        # The three Experimental Prototype Cadre weapon upgrades - permanent
+        # changes to one named weapon, applied once and idempotent.
+        enh_prototype_weapons.apply_all(state.all_squads(), game_log=game_log)
+        # Mont'ka's Strike Swiftly runs in Resolve Pre-battle Abilities and
+        # MUST come before the Scouts step it feeds - hence the ordered list
+        # rather than another named attribute. See game/enh_strike_swiftly.py.
+        pregame_controller.prebattle_steps.append(StrikeSwiftlyStep(
+            decision_manager=decision_manager, game_log=game_log,
+            auto_players=("Player 2",), game_state=state))
+        # The Wraithlord's Fated Hero also runs in Resolve Pre-battle Abilities.
+        # Unlike Strike Swiftly it has NO ordering constraint - it grants nothing
+        # another step reads - so it simply joins the list. The AI answers it
+        # deterministically (see game/fated_hero.py), so there is no ai/ path and
+        # no prompt that could stall the pregame.
+        pregame_controller.prebattle_steps.append(fated_hero_controller)
+        # Kauyon's Solid-image Projection Unit fires "after both players have
+        # deployed", which is EARLIER than Resolve Pre-battle Abilities - so it
+        # is its own hook rather than a member of the list above.
+        # Prince Yriel's Prince of Corsairs fires at the SAME instant as
+        # Kauyon's Solid-image Projection Unit - "after both players have
+        # deployed" - so the two share the hook and are chained: whichever is
+        # live runs, and the second is handed the first's on_done.
+        prince_of_corsairs_step = PrinceOfCorsairsStep(
+            game_state=state, decision_manager=decision_manager, game_log=game_log,
+            auto_players=("Player 2",))
+        _solid_image_step = SolidImageProjectionStep(
+            game_state=state, decision_manager=decision_manager, game_log=game_log,
+            auto_players=("Player 2",))
+
+        class _RedeployChain:
+            """Both redeployment abilities fire at the same instant, and
+            PregameController has ONE redeploy_step slot. Chained rather than
+            made a list: the slot's protocol is start(controller, on_done) ->
+            "did I take over", which composes by handing the second step the
+            first's on_done - and a list would need the same composition
+            written into the pregame controller instead."""
+
+            def __init__(self, *steps):
+                self.steps = list(steps)
+
+            def start(self, pregame_controller=None, on_done=None):
+                return self._run(0, pregame_controller, on_done)
+
+            def _run(self, index, pregame_controller, on_done):
+                if index >= len(self.steps):
+                    if on_done is not None:
+                        on_done()
+                    return False
+                nxt = lambda: self._run(index + 1, pregame_controller, on_done)
+                if self.steps[index].start(pregame_controller, nxt):
+                    return True
+                return self._run(index + 1, pregame_controller, on_done)
+
+        pregame_controller.redeploy_step = _RedeployChain(
+            _solid_image_step, prince_of_corsairs_step)
         # "Auto-place this unit" on the human's side runs the AI's own placer.
         pregame_controller.on_auto_place = lambda squad: deployment_ai.auto_deploy_squad(
             pregame_controller, setup_controller, squad, board.width_in, board.height_in,
@@ -2481,6 +4203,7 @@ def main(map_key=None):
                     not dice_panel.is_busy and not stratagem_notice_overlay.is_pending and not mission_draw_overlay.is_pending
                     and not waaagh_notice_overlay.is_pending
                     and not turn_start_overlay.is_pending and not turn_plan_overlay.is_pending
+                    and not fight_warning_overlay.is_pending
                     and not ai_action_paused_this_frame
                 ):
                     # User report: the AI used to fire its next action the
@@ -2523,6 +4246,27 @@ def main(map_key=None):
                 # miss is simply swallowed rather than falling through to the
                 # board dispatch.
                 log_panel.handle_click(event.pos)
+            elif fight_warning_overlay.is_pending:
+                # The "you still have units that could fight" warning raised by
+                # this same frame's own "End Turn" click (see that branch
+                # below). It sits here, above every other notice and far above
+                # the button that raised it, for the same reason they all do:
+                # the chain is a state-gated if/elif, so a branch further down
+                # would be swallowed the moment anything else was pending, and
+                # this one in particular MUST outrank the End Turn button - a
+                # single click may not both dismiss the warning and end the
+                # turn it warned about. Any click dismisses it; there is
+                # nothing to choose, and clicking End Turn again is the
+                # "anyway" answer.
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    fight_warning_overlay.dismiss()
+                    ai_action_paused_this_frame = True
+            elif battle_end_overlay.is_pending:
+                # The battle is over; a click only puts the box aside so the
+                # final board can be looked at. Nothing resumes either way.
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    battle_end_overlay.dismiss()
+                    ai_action_paused_this_frame = True
             elif turn_start_overlay.is_pending:
                 # User: the "Player X Turn Y" banner takes priority over
                 # everything else, even a Stratagem-use notice or a pending
@@ -2591,10 +4335,48 @@ def main(map_key=None):
                         die_index = dice_panel.die_index_at(event.pos)
                         if die_index is not None:
                             command_reroll_controller.choose_die(die_index)
+                    elif targeting_array_controller.selecting_die:
+                        # A third selection mode, and a separate branch for the
+                        # same reason the two below are separate: each takes
+                        # over the whole panel, so only one can be open, and
+                        # folding them together would let one controller answer
+                        # a click meant for another.
+                        die_index = dice_panel.die_index_at(event.pos)
+                        if die_index is not None:
+                            targeting_array_controller.choose_die(die_index)
+                    elif unmodified_six_controller.selecting_die:
+                        # Same shape as the branch above, and deliberately a
+                        # separate one: the two selections can never be open at
+                        # once (each takes over the whole panel), and folding
+                        # them together would mean one controller answering a
+                        # click meant for the other.
+                        die_index = dice_panel.die_index_at(event.pos)
+                        if die_index is not None:
+                            unmodified_six_controller.choose_die(die_index)
                     elif left_panel_rect.collidepoint(event.pos):
                         action_panel.handle_click(event.pos)
                     else:
+                        # An Advance roll can still be RE-ROLLED at this instant,
+                        # and only at this instant: acknowledge() clears
+                        # pending_values and DiceManager.reroll_die() refuses a
+                        # roll with none. Two abilities want it - the Autarch's
+                        # Superlative Strategist and Protocol of the Sudden Storm
+                        # - and the second had been built, unit-tested and never
+                        # called from here at all, so its half of that Stratagem
+                        # could not fire in a real game. Both are offered from
+                        # this one place. A human prompt means the roll must NOT
+                        # be acknowledged yet: its callback re-rolls the die.
+                        if dice_manager.roll_kind == ADVANCE_ROLL:
+                            _adv_squad = movement_controller.selected_squad
+                            superlative_strategist_controller.maybe_offer_advance_reroll(_adv_squad)
+                            sudden_storm_controller.maybe_offer_advance_reroll(_adv_squad)
+                            if decision_manager.is_pending:
+                                continue
                         dice_manager.acknowledge()
+                        # Before every on_dice_acknowledged(): the roll this
+                        # selection belonged to is gone, so an open one would
+                        # strand the panel in a mode with nothing to click.
+                        unmodified_six_controller.reset()
                         movement_controller.on_dice_acknowledged()
                         shooting_controller.on_dice_acknowledged()
                         charge_controller.on_dice_acknowledged()
@@ -2604,6 +4386,11 @@ def main(map_key=None):
                         # first step IS a Battle-Shock test, and its second roll
                         # is queued only once that outcome has been applied.
                         grav_inhibitor_controller.on_dice_acknowledged()
+                        # Kauyon's Photon Grenades, for the same reason and in
+                        # the same place: its one roll IS a Battle-Shock test,
+                        # and the charge it interrupted resumes once that
+                        # outcome has been applied.
+                        photon_grenades_controller.on_dice_acknowledged()
                         flickerjump_controller.on_dice_acknowledged()
                         explosives_controller.on_dice_acknowledged()
                         ishas_fury_controller.on_dice_acknowledged()
@@ -2620,6 +4407,15 @@ def main(map_key=None):
                         # Third time this project has hit that class; hence the
                         # source-level wiring guard in test_rangers.py.
                         path_of_the_outcast_controller.on_dice_acknowledged()
+                        # Word of the Phoenix is TWO rolls - the 2+ gate and
+                        # then the D3+1 count - so it visits this seam twice
+                        # and drains the count roll first; see its own
+                        # on_dice_acknowledged().
+                        word_of_the_phoenix_controller.on_dice_acknowledged()
+                        # Nomads of the Hidden Way rolls its D6 for the
+                        # move distance, then opens the move on the
+                        # acknowledgement - Raid and Run's arrangement.
+                        nomads_controller.on_dice_acknowledged()
                         grenade_pack_controller.on_dice_acknowledged()
                         deadly_demise_controller.on_dice_acknowledged()
                         transport_controller.on_dice_acknowledged()
@@ -2629,12 +4425,23 @@ def main(map_key=None):
                         spirit_of_gork_controller.on_dice_acknowledged()
                         grot_orderly_controller.on_dice_acknowledged()
                         reanimation_controller.on_dice_acknowledged()
+                        coordinated_leadership_controller.on_dice_acknowledged()
                         undying_legions_controller.on_dice_acknowledged()
                         technomancer_controller.on_dice_acknowledged()
                         resurrection_orb_controller.on_dice_acknowledged()
                         living_lightning_controller.on_dice_acknowledged()
                         matter_absorption_controller.on_dice_acknowledged()
+                        crimson_harvest_controller.on_dice_acknowledged()
+                        kroot_linebreakers_controller.on_dice_acknowledged()
+                        kroot_linebreakers_controller.resolve_pending_battle_shock()
                         wraith_form_controller.on_dice_acknowledged()
+                        internal_grenade_racks_controller.on_dice_acknowledged()
+                        puretide_neurochip_controller.on_dice_acknowledged()
+                        deadly_vectors_controller.on_dice_acknowledged()
+                        lethal_ichor_controller.on_dice_acknowledged()
+                        spore_laced_controller.on_dice_acknowledged()
+                        eater_plague_controller.on_dice_acknowledged()
+                        sickening_impact_controller.on_dice_acknowledged()
                         pregame_controller.on_dice_acknowledged()  # rule 03.01 roll-offs
             elif crushing_impact_controller.pending_damage_choice is not None:
                 if (
@@ -2644,6 +4451,20 @@ def main(map_key=None):
                     clicked = input_manager.token_at_event(state.tokens, board, event.pos)
                     if clicked is not None and clicked in crushing_impact_controller.pending_damage_choice:
                         crushing_impact_controller.choose_damage_model(clicked)
+            elif internal_grenade_racks_controller.pending_damage_choice is not None:
+                # Retaliation Cadre's Internal Grenade Racks - rule 06.02, the
+                # DEFENDER allocates. The canonical form of this branch: event
+                # type and button, then the board rect, then token_at_event()'s
+                # three-argument call. Four mortal-wound branches were once
+                # built against older signatures and crashed the moment they
+                # were finally reached (see test_event_chain_wiring.py).
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in internal_grenade_racks_controller.pending_damage_choice:
+                        internal_grenade_racks_controller.choose_damage_model(clicked)
             elif secondary_mission_controller.pending_pick:
                 # A Secondary Mission asking the human to CLICK ONE OF THEIR
                 # UNITS on the board (Burden of Trust's guards). Placed here -
@@ -2707,6 +4528,20 @@ def main(map_key=None):
                     clicked = input_manager.token_at_event(state.tokens, board, event.pos)
                     if clicked is not None and clicked in fall_back_controller.pending_damage_choice:
                         fall_back_controller.choose_damage_model(clicked)
+            elif deadly_vectors_controller.pending_damage_choice is not None:
+                # Deadly Vectors' mortal wounds land on a whole enemy unit, so a
+                # multi-model target pauses on the defender's allocation choice -
+                # which is the COMMON case, not the exception. Canonical form,
+                # letter for letter like its siblings above: the MOUSEBUTTONDOWN
+                # guard, the board_rect_screen test, then the three-argument
+                # token_at_event(). test_event_chain_wiring.py checks all three.
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in deadly_vectors_controller.pending_damage_choice:
+                        deadly_vectors_controller.choose_damage_model(clicked)
             elif (
                 event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
                 and right_panel_rect.collidepoint(event.pos)
@@ -2746,7 +4581,10 @@ def main(map_key=None):
                     )
                     or _has_unresolved_declaration()
                 )
-                if not blocked:
+                # _fight_warning_intercepts_end_turn(): see its own
+                # docstring - ending the turn while rule 12.04 still owes the
+                # human melee attacks used to happen silently.
+                if not blocked and not _fight_warning_intercepts_end_turn():
                     movement_controller.select(None)
                     shooting_controller.cancel()
                     advance_turn_phase()
@@ -2755,7 +4593,13 @@ def main(map_key=None):
                     clicked = input_manager.token_at_event(state.tokens, board, event.pos)
                     if clicked is not None and clicked in coherency_enforcer.pending_squad.models:
                         coherency_enforcer.remove_model(clicked)
-                        if coherency_enforcer.pending_squad is None:
+                        # The second route into advance_turn_phase() from a
+                        # human click: this IS the "End Turn" click above,
+                        # resumed once 09.02's coherency removal is answered.
+                        # Without the same guard here the warning would be
+                        # skipped by exactly the turns that took the long way
+                        # round.
+                        if coherency_enforcer.pending_squad is None and not _fight_warning_intercepts_end_turn():
                             movement_controller.select(None)
                             shooting_controller.cancel()
                             advance_turn_phase()
@@ -2876,14 +4720,21 @@ def main(map_key=None):
                     if clicked is not None and clicked in grav_inhibitor_controller.pending_damage_choice:
                         grav_inhibitor_controller.choose_damage_model(clicked)
             elif grenade_pack_controller.pending_damage_choice is not None:
-                clicked = input_manager.token_at_event(state.tokens, event, camera)
-                if clicked is not None and clicked in grenade_pack_controller.pending_damage_choice:
-                    grenade_pack_controller.choose_damage_model(clicked)
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in grenade_pack_controller.pending_damage_choice:
+                        grenade_pack_controller.choose_damage_model(clicked)
             elif ishas_fury_controller.pending_damage_choice is not None:
                 # Rule 06.02 again: the moving player picks which of their own
                 # models takes each mortal wound.
-                if board_rect.collidepoint(event.pos):
-                    clicked = input_manager.token_at_event(state.tokens, event, board, board_rect)
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
                     if clicked is not None and clicked in ishas_fury_controller.pending_damage_choice:
                         ishas_fury_controller.choose_damage_model(clicked)
             elif explosives_controller.pending_damage_choice is not None:
@@ -3160,6 +5011,7 @@ def main(map_key=None):
             ai_auto_play and not dice_panel.is_busy and not stratagem_notice_overlay.is_pending and not mission_draw_overlay.is_pending
             and not waaagh_notice_overlay.is_pending
             and not turn_start_overlay.is_pending and not turn_plan_overlay.is_pending
+            and not fight_warning_overlay.is_pending
             and not ai_action_paused_this_frame
         ):
             # Shift+A was used to turn this on - Player 2 just keeps acting,
@@ -3201,7 +5053,55 @@ def main(map_key=None):
         # recomputed afterwards (see game/retro_thrusters.py).
         if turn_tracker.phase == PHASE_FIGHT:
             retro_thrusters_controller.note_eligibility()
+            # Raid and Run needs the same sample for the same reason: "was
+            # eligible to fight this phase" cannot be recomputed once the phase
+            # has ended.
+            raid_and_run_controller.note_eligibility()
         _swept = state.remove_dead_models()
+        # Undying Spite: destroyed models that have not fought roll a D6 and,
+        # on a 4+, are put straight back so they can strike after the attacker
+        # finishes. Intercepted HERE because remove_dead_models() is what takes
+        # them off the board - noticing it later would be reading a board that
+        # has already changed (error class 12). Putting the model BACK is the
+        # shared ledger's job (game/fight_after_death.py), not this loop's -
+        # which is what let the second consumer below join in one line.
+        undying_spite_controller.intercept_destroyed(_swept)
+        to_their_final_breath_controller.intercept_destroyed(_swept)
+        # Wraithblades' Malevolent Souls, fed from the same sweep and for the
+        # same reason. It needs no re-add loop of its own: the shared ledger in
+        # game/fight_after_death.py puts the model back itself, which is why the
+        # second consumer of this mechanism did not have to copy the four halves
+        # of "back on the board" into this loop.
+        malevolent_souls_controller.intercept_destroyed(_swept)
+        # Nurgle's Gift: re-derive Squad.afflicted / Squad.afflicted_plague for
+        # every unit, once per frame. Here, right AFTER the sweep, because the
+        # aura is measured against LIVING Death Guard models and a unit wiped
+        # out this frame must stop projecting it in the same frame it dies -
+        # the recurring "remove_dead_models() runs once per frame" ordering
+        # trap. Positions change every frame, so once per frame is genuinely
+        # the rate this has to run at; the alternative is re-deriving the same
+        # geometry once per weapon group inside attached_unit_toughness(),
+        # which has nine callers. See game/nurgles_gift.py's docstring.
+        # Signal Pox re-marks whatever is standing on its chosen objective
+        # RIGHT NOW - the objective is fixed for the duration, the units on it
+        # are not. BEFORE the aura refresh, so the marks it sets are part of
+        # the same frame's answer rather than one frame late.
+        signal_pox_controller.refresh(state.tokens)
+        nurgles_gift_controller.refresh(state.tokens)
+        # Spirit Conclave's Spirit Guides aura is read from the squad by
+        # game/battle_focus.py, which cannot import a controller (it is
+        # reached from game/squad.py's own import chain). So every squad is
+        # stamped with a back-reference here, beside the other per-frame aura
+        # refreshes - the arrangement Nurgle's Gift already uses.
+        shepherds_of_the_dead_controller.attach_to(
+            {t.squad for t in state.tokens if t.squad is not None})
+        # The Poxwalkers' Curse of the Walking Pox counts enemy models a
+        # POXWALKER killed. Counted in the sweep, spent when the unit finishes
+        # its attacks - the printed text separates those two moments and so
+        # does this.
+        if _swept:
+            curse_of_the_walking_pox_controller.notify_kills(
+                getattr(fight_controller, "fighting_squad", None), _swept)
         # Protocol of the Vengeful Stars reacts to a whole UNIT dying, not to
         # individual models, and its 6" is measured from where that unit stood
         # - so it is fed once per wiped-out squad, here, with whoever was
@@ -3211,6 +5111,44 @@ def main(map_key=None):
                        if t.squad is not None and not any(not m.is_dead() for m in t.squad.models)}:
             vengeful_stars_controller.notify_unit_destroyed(
                 _wiped, getattr(shooting_controller, "active_squad", None))
+            # Mont'ka's Pinpoint Counter-Offensive reacts to the same
+            # instant, but its WHEN is "any phase" rather than the Shooting
+            # phase - so the Fight phase's attacker counts too. Same "who was
+            # attacking at the time" answer; this engine has no other.
+            pinpoint_controller.notify_unit_destroyed(
+                _wiped,
+                getattr(shooting_controller, "active_squad", None)
+                or getattr(fight_controller, "fighting_squad", None))
+            # The Yncarne's Inevitable Death teleports to where a friendly
+            # AELDARI unit fell, so it is fed from the same per-SQUAD loop -
+            # the corpses' coordinates survive the sweep, which is the whole
+            # reason it can be answered here and not later.
+            inevitable_death_controller.notify_unit_destroyed(
+                _wiped, [t for t in _swept if t.squad is _wiped])
+            # Vaul's Vengeance: "just after an enemy unit DESTROYS a DIRE
+            # AVENGERS or GUARDIANS unit". Fed per wiped-out SQUAD, not per
+            # corpse - a unit is destroyed once however many models it had.
+            vauls_vengeance_controller.notify_unit_destroyed(
+                _wiped,
+                getattr(shooting_controller, "active_squad", None)
+                or getattr(fight_controller, "fighting_squad", None))
+            # Overflight: "destroyed one or more enemy units this phase". Fed
+            # from the same per-SQUAD loop and for the same reason - the fact
+            # is unrecoverable once the dead unit is gone, and nothing on the
+            # killer remembers it.
+            overflight_controller.notify_unit_destroyed(
+                _wiped,
+                getattr(shooting_controller, "active_squad", None)
+                or getattr(fight_controller, "fighting_squad", None))
+            # Its Ethereal Form heals it for destroying one. Same "whoever was
+            # attacking at the time" answer as the line above - this engine has
+            # no other, as Szeras' own note records - and only for an ENEMY of
+            # the killer, which the owner test is.
+            _killer = (getattr(shooting_controller, "active_squad", None)
+                       or getattr(fight_controller, "fighting_squad", None))
+            if (_killer is not None and _killer.owner != _wiped.owner
+                    and ynnari_abilities.ethereal_form_applies(_killer)):
+                ynnari_abilities.roll_ethereal_form(_killer, game_log)
         for dead in _swept:
             game_log.add(f"{dead.profile.name} was destroyed.")
             # Fuegan's Unquenchable Resolve only NOTES the death here; the roll
@@ -3218,6 +5156,16 @@ def main(map_key=None):
             # Noting it here rather than there is what keeps "the first time this
             # model is destroyed" honest about which phase the death was in.
             unquenchable_resolve_controller.notify_destroyed([dead])
+            # Shepherds of the Dead: "each time an ASURYANI PSYKER model from
+            # your army is destroyed BY AN ENEMY UNIT, that enemy unit gains a
+            # Vengeful Dead token". Per MODEL, so it is fed from this loop
+            # rather than the per-squad one above - a unit can lose two psykers
+            # and hand out two tokens. The killer is whoever was attacking at
+            # the time, this engine's only answer to that question.
+            shepherds_of_the_dead_controller.notify_psyker_destroyed(
+                dead, dead.squad,
+                getattr(shooting_controller, "active_squad", None)
+                or getattr(fight_controller, "fighting_squad", None))
             # Atomic Energy Manipulator: "if this model destroyed one or more
             # models this phase". Credited to the unit that was fighting, which
             # is exact for Szeras - he has no LEADER line, so his unit is always
@@ -3270,6 +5218,22 @@ def main(map_key=None):
                 # hangs off this branch's own unit_is_destroyed() judgement
                 # rather than re-deriving one.
                 secondary_mission_controller.record_destroyed_squad(dead.squad)
+                # Third consumer of the same judgement: the Kroot Flesh
+                # Shaper's Rites of Feasting upgrades its unit's Feel No Pain
+                # from 6+ to 5+ for the rest of the battle once that unit has
+                # "destroyed one or more enemy units in the Fight phase".
+                #
+                # THE KILLER IS TAKEN FROM fight_controller.fighting_squad,
+                # which is this engine's only available answer to "who did
+                # that" - there is no kill attribution here (the same gap
+                # Illuminor Szeras' own note records). It is still set while
+                # the sweep runs, because deaths are removed in the same frame
+                # the damage is applied. The module itself re-checks that the
+                # phase really is Fight rather than trusting this call site.
+                if fight_controller.fighting_squad is not None \
+                        and fight_controller.fighting_squad.owner != dead.squad.owner:
+                    rites_of_feasting.record_fight_phase_kill(
+                        fight_controller.fighting_squad, turn_tracker)
             # Per MODEL, not per unit, and unconditionally: the Secondary
             # Mission card "Bring It Down" counts enemy MODELS with a Wounds
             # characteristic of 10+ destroyed this turn, so a squadron losing
@@ -3408,6 +5372,19 @@ def main(map_key=None):
             deployment_zones=state.deployment_zones, blood_decals=state.blood_decals,
             terrain_areas=state.terrain_areas,
         )
+        # The DEATH GUARD Contagion aura, as a faint green layer. Drawn
+        # immediately after the board and BEFORE the models, so the models sit
+        # on top of it rather than under a green wash - it is a property of the
+        # ground they stand on, not a tint on the miniatures.
+        #
+        # reach_of is the CONTROLLER's own answer, so the circle drawn is the
+        # circle the rule reads: Blooming Pestilence's +3" and the 12" cap
+        # included. A renderer that computed the range itself would be a
+        # second, quietly diverging answer.
+        renderer.draw_contagion_aura(
+            board_surface, board, state.tokens,
+            reach_of=nurgles_gift_controller.reach_of,
+        )
         # User request: always show what a TRANSPORT (18.02) is carrying,
         # not just while actively disembarking it - see
         # Renderer.draw_embarked_passengers()'s own docstring.
@@ -3521,6 +5498,7 @@ def main(map_key=None):
         renderer.draw_damage_choice_highlight(board_surface, board, transport_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, crushing_impact_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, fall_back_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, deadly_vectors_controller.pending_damage_choice)
         renderer.draw_assigning_model_highlight(board_surface, board, fight_assigning_model)
         renderer.draw_assigning_model_highlight(board_surface, board, shoot_assigning_model)
         renderer.draw_status_labels(board_surface, board, status_by_token)
@@ -3584,24 +5562,31 @@ def main(map_key=None):
             # By keyword on purpose: every argument above is POSITIONAL, so a new
             # one added mid-signature silently shifts them all - a mistake this
             # call site has already caused once (see CLAUDE.md).
-            presentiment_controller=presentiment_controller,
-            fate_inescapable_controller=fate_inescapable_controller,
-            unshrouded_truth_controller=unshrouded_truth_controller,
             # Appended BY KEYWORD: this call is POSITIONAL up to
             # battle_focus_pool, and inserting a parameter mid-signature
             # has silently shifted every argument after it before.
             sudden_storm_controller=sudden_storm_controller,
             conquering_tyrant_controller=conquering_tyrant_controller,
             hungry_void_controller=hungry_void_controller,
+            # Death Lord's Chosen - the three a human buys proactively.
+            blooming_pestilence_controller=blooming_pestilence_controller,
+            grim_reapers_controller=grim_reapers_controller,
+            mortarions_teachings_controller=mortarions_teachings_controller,
+            proactive_stratagems=proactive_stratagems,
             # Rangers' Path of the Outcast: its reactive move needs its OWN
             # Confirm/Cancel, or the generic ones leave turn_tracker.
             # active_player stranded on the reacting player - see the branch in
             # _draw_movement_ui().
             path_of_the_outcast_controller=path_of_the_outcast_controller,
+            fire_and_fade_controller=fire_and_fade_controller,
+            overflight_controller=overflight_controller,
+            warhost_fire_and_fade_controller=warhost_fire_and_fade_controller,
+            targeting_array_controller=targeting_array_controller,
             # An open "click a unit on the board" request from a Secondary
             # Mission owns the panel while it lasts - it is the only place that
             # can name WHICH objective is being decided.
             secondary_mission_controller=secondary_mission_controller,
+            unmodified_six_controller=unmodified_six_controller,
         )
         # Drawn after the left panel itself (so their expanded/slid-out
         # state renders on top of the board, not underneath the panel) but
@@ -3691,7 +5676,10 @@ def main(map_key=None):
         # duration, so the roll still plays its full slide-in/tumble
         # afterwards instead of jumping straight to the result.
         dice_panel.draw(
-            screen, dice_manager, selecting_die=command_reroll_controller.selecting_die,
+            screen, dice_manager,
+            selecting_die=(command_reroll_controller.selecting_die
+                           or unmodified_six_controller.selecting_die
+                           or targeting_array_controller.selecting_die),
             bounds_rect=board_rect_screen,
             suppressed=bool(_front_notice()),
         )
@@ -3718,6 +5706,7 @@ def main(map_key=None):
             and not decision_manager.is_pending and not stratagem_notice_overlay.is_pending and not mission_draw_overlay.is_pending
             and not waaagh_notice_overlay.is_pending
             and not turn_start_overlay.is_pending and not turn_plan_overlay.is_pending
+            and not fight_warning_overlay.is_pending
         ):
             unit_datacard.draw(
                 screen, input_manager.hovered_token, pygame.mouse.get_pos(),
@@ -3788,7 +5777,7 @@ def _parse_args(argv):
     parser.add_argument(
         "--map", dest="map_key", default=None,
         help='which battlefield to play on: "map1" (44"x60" portrait), "map2" '
-             '(60"x44" landscape) or "map3" (a 30"x30" test board). The bare number '
+             '(60"x44" landscape) or "map3" (60"x44", corner deployment). The bare number '
              'works too ("--map 2"). Naming one here SKIPS the map selection screen; '
              "without it, that screen decides, falling back to config.MAP.",
     )
@@ -3796,6 +5785,14 @@ def _parse_args(argv):
         "--no-map-select", dest="map_select", action="store_false", default=None,
         help="skip the map selection screen and play on config.MAP (or --map). "
              "What the headless harnesses use.",
+    )
+    parser.add_argument(
+        "--biome", dest="biome", default=None, choices=biomes.keys(),
+        help="which biome the battlefield is painted in (game/biomes.py). Purely "
+             "cosmetic - it swaps the ground picture and the two terrain cover "
+             "textures and nothing else. Unlike --map this does NOT skip the map "
+             "selection screen, it only seeds which biome that screen opens on; "
+             "without it, config.BIOME does.",
     )
     parser.add_argument(
         "--army1", dest="player1_army", default=None, choices=ARMY_KEYS,
@@ -3834,6 +5831,13 @@ if __name__ == "__main__":
     _args = _parse_args(sys.argv[1:])
     if _args.map_select is not None:
         config.MAP_SELECT = _args.map_select
+    # Seeds the biome, deliberately WITHOUT skipping the map screen the way
+    # --map does. The two are not the same kind of answer: --map answers that
+    # screen's question, while a biome is a second, cosmetic setting the same
+    # screen happens to carry - so naming one still leaves the battlefield to
+    # be picked, and the buttons open on what was named.
+    if _args.biome is not None:
+        config.BIOME = _args.biome
     if _args.player1_army is not None:
         config.PLAYER1_ARMY = _args.player1_army
     if _args.player2_army is not None:

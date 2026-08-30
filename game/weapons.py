@@ -1,5 +1,13 @@
 from game.dice_notation import D3, D6
 
+#: A sentinel keyword for the NEGATED form of [ANTI-X], which no ordinary
+#: keyword entry can express: the Stonesinger prints "ANTI-non-MONSTER/VEHICLE
+#: 3+" and "...2+". Written as a keyword so it flows through the existing
+#: (keyword, threshold) machinery and the "best threshold wins" fold unchanged;
+#: game/shooting.py's _unit_has_keyword() is the one place that knows it means
+#: "the complement of is_monster_or_vehicle_unit()".
+NON_MONSTER_VEHICLE = "NON-MONSTER/VEHICLE"
+
 RANGED = "ranged"
 MELEE = "melee"
 
@@ -32,6 +40,7 @@ class WeaponProfile:
     blast = 0               # the [BLAST]/[BLAST X] keyword value (X; plain [BLAST] is X=1) - rule 24.05
     cleave = 0              # the [CLEAVE X] keyword value (X) - rule 24.06
     devastating_wounds = False  # the [DEVASTATING WOUNDS] keyword - rule 24.10
+    devastating_wounds_vs_non_monster_vehicle = False  # the CONDITIONAL form, printed as "DEVASTATING WOUNDS: non-MONSTER/VEHICLE" on the Leystalker's Long Rifle - granted against the real target in game/conditional_devastating_wounds.py, never as the flat flag above
     extra_attacks = False   # the [EXTRA ATTACKS] keyword - rule 24.11 (melee only)
     hazardous = False       # the [HAZARDOUS] keyword - rule 24.15
     heavy = False           # the [HEAVY] keyword - rule 24.16 (ranged only, Shooting phase)
@@ -1103,14 +1112,30 @@ class TwinPulseCarbineProfile(WeaponProfile):
 
 
 class MissilePodProfile(WeaponProfile):
+    """The printed missile pod row as a MODEL carries it - no ballistic_skill
+    override, so the firing model's own BS applies.
+
+    THAT ABSENCE IS THE POINT, and it was found the hard way. This class used
+    to hard-code "5+", which is the DRONE's printed value; that was invisible
+    while the Missile Drone and the Riptide's drone-carried pair were the only
+    users, and became wrong the moment a battlesuit carried one - the Commander
+    in Enforcer Battlesuit prints BS3+ and Crisis Fireknife Battlesuits print
+    BS4+, and both were silently firing at 5+. The drone's value now lives on
+    DroneMissilePodProfile below, where it does real work."""
     name = "Missile Pod"
     weapon_type = RANGED
     range_in = 30
     attacks = 2
-    ballistic_skill = "5+"
     strength = 7
     ap = -1
     damage = 2
+
+
+class DroneMissilePodProfile(MissilePodProfile):
+    """The Missile Drone's own copy: identical except that the drone prints
+    BS5+ where the model carrying it prints better. Inherits so the shared
+    numbers cannot drift; the test pins the two against each other."""
+    ballistic_skill = "5+"
 
 
 # --- Kroot Carnivores (T'au Empire) datasheet ---
@@ -2078,6 +2103,661 @@ class IonRifleOverchargeProfile(WeaponProfile):
 
 
 IonRifleStandardProfile.overcharge_profile = IonRifleOverchargeProfile
+
+
+# --- Kroot Shapers (T'au Empire): Flesh / Trail / War Shaper datasheets ---
+#
+# All three print WS 2+ and BS 4+ on every one of their own weapon rows, so
+# those live on the UnitProfile (game/units.py) rather than as per-weapon
+# overrides - the per-weapon `weapon_skill`/`ballistic_skill` hooks are for a
+# model whose rows DISAGREE with each other, which is The Twin Lance, not
+# these. The Kroot rifle and Kroot pistol they also carry already exist above
+# with exactly the printed numbers and are reused rather than re-declared.
+
+class KrootScattergunProfile(WeaponProfile):
+    name = "Kroot Scattergun"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 2
+    strength = 4
+    ap = 0
+    damage = 1
+    assault = True
+
+
+class TwinRitualisticBladesProfile(WeaponProfile):
+    """[TWIN-LINKED] despite "twin" also being in the printed name - the
+    keyword is printed on the row as well, so this is not the Wave Serpent
+    case where the name alone carries it."""
+    name = "Twin Ritualistic Blades"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    strength = 5
+    ap = -1
+    damage = 1
+    twin_linked = True
+
+
+class ShapersBladeProfile(WeaponProfile):
+    """Printed identically on the Trail Shaper and the War Shaper, so it is
+    ONE class shared by both datasheets rather than a copy each."""
+    name = "Shaper's Blade"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    strength = 5
+    ap = 0
+    damage = 1
+
+
+class DartBowAndTriBladeProfile(WeaponProfile):
+    """Printed Attacks is "D3+1", hence attacks_notation - `attacks` below is
+    only the grouping/preview value, the real count is rolled per attacking
+    model (see WeaponProfile.attacks_notation's own note).
+
+    It prints [ASSAULT] and [HEAVY] together, which is not a contradiction:
+    24.16 is a bonus for not moving, 24.04 permits shooting after Advancing,
+    and this engine already evaluates them independently."""
+    name = "Dart-bow and Tri-blade"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 3  # preview only - see attacks_notation
+    attacks_notation = D3(bonus=1)
+    strength = 4
+    ap = 0
+    damage = 2
+    anti = ("INFANTRY", 3)
+    assault = True
+    heavy = True
+
+
+class BladestaveAndPreyHookProfile(WeaponProfile):
+    name = "Bladestave and Prey-hook"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    strength = 5
+    ap = -1
+    damage = 2
+    lethal_hits = True
+
+
+# --- Ethereal (T'au Empire) datasheet ---
+
+class HonourStaveProfile(WeaponProfile):
+    name = "Honour Stave"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 2
+    strength = 5
+    ap = 0
+    damage = 1
+
+
+# --- Darkstrider (T'au Empire) datasheet ---
+
+class ShadeProfile(WeaponProfile):
+    """His BS 2+ is better than the profile's own, so unlike the Kroot Shapers
+    this one DOES need the per-weapon override - his close combat weapon is
+    WS 4+ and the two rows disagree."""
+    name = "Shade"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 2
+    ballistic_skill = "2+"
+    strength = 5
+    ap = 0
+    damage = 2
+    assault = True
+
+
+class DarkstriderCloseCombatWeaponProfile(WeaponProfile):
+    """Same printed name as the other Close Combat Weapon classes but A3/S3 -
+    needs its own class, same reasoning as every other one in this file."""
+    name = "Close Combat Weapon"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    strength = 3
+    ap = 0
+    damage = 1
+
+
+# --- Firesight Team (T'au Empire) datasheet ---
+
+class LongshotPulseRiflesProfile(WeaponProfile):
+    """Plural on the printed datasheet: the sniper drones' rifles and the
+    Marksman's are ONE weapon row, because the Designer's Note makes the drones
+    part of the single Marksman model rather than models of their own."""
+    name = "Longshot Pulse Rifles"
+    weapon_type = RANGED
+    range_in = 36
+    attacks = 3
+    strength = 5
+    ap = -1
+    damage = 2
+    heavy = True
+    precision = True
+
+
+class FiresightCloseCombatWeaponsProfile(WeaponProfile):
+    """Printed name is plural ("Close combat weapons"), for the same reason the
+    rifles are - so it is kept as printed rather than normalised to the
+    singular the other classes use."""
+    name = "Close Combat Weapons"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    weapon_skill = "5+"
+    strength = 3
+    ap = 0
+    damage = 1
+
+
+# --- Kroot Lone-Spear (T'au Empire) datasheet ---
+
+class KrootLongGunProfile(WeaponProfile):
+    name = "Kroot Long Gun"
+    weapon_type = RANGED
+    range_in = 36
+    attacks = 1
+    ballistic_skill = "3+"
+    strength = 6
+    ap = -2
+    damage = 3
+    heavy = True
+    precision = True
+
+
+class BlastJavelinProfile(WeaponProfile):
+    """Printed Attacks "D6" - see attacks_notation. Its BS 4+ differs from the
+    Kroot long gun's 3+ on the same model, so both carry an override."""
+    name = "Blast Javelin"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 6  # preview only - see attacks_notation
+    attacks_notation = D6()
+    ballistic_skill = "4+"
+    strength = 10
+    ap = -2
+    damage = 2
+    assault = True
+    blast = 1  # plain [BLAST] (no explicit X) is X=1
+
+
+class HuntingJavelinProfile(WeaponProfile):
+    name = "Hunting Javelin"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    strength = 4
+    ap = -1
+    damage = 1
+    lance = True
+
+
+class KalamandrasBiteProfile(WeaponProfile):
+    """The mount's own bite: [EXTRA ATTACKS] (24.11), so it is swung IN
+    ADDITION to whichever other melee weapon the rider chooses, and 04.01's
+    one-melee-weapon lock does not apply to it."""
+    name = "Kalamandra's Bite"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    weapon_skill = "4+"
+    strength = 5
+    ap = -1
+    damage = 1
+    extra_attacks = True
+
+
+class LoneSpearCloseCombatWeaponProfile(WeaponProfile):
+    """Same printed name as the other Close Combat Weapon classes, A3/S4/WS3+
+    on this datasheet - its own class, same reasoning as the rest."""
+    name = "Close Combat Weapon"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    strength = 4
+    ap = 0
+    damage = 1
+
+
+# --- Commander Shadowsun (T'au Empire) datasheet ---
+#
+# Her pulse pistol and battlesuit fists rows print the numbers the existing
+# PulsePistolProfile and CrisisBattlesuitFistsProfile already carry, so those
+# are reused; only the three weapons nothing else in the army prints are new.
+
+class FlechetteLauncherProfile(WeaponProfile):
+    name = "Flechette Launcher"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 5
+    strength = 3
+    ap = 0
+    damage = 1
+
+
+class HighEnergyFusionBlasterProfile(WeaponProfile):
+    """Printed Damage "D6" - hence damage_notation; `damage` below is the
+    preview value, same arrangement as every other dice-damage weapon here."""
+    name = "High-energy Fusion Blaster"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 1
+    strength = 10
+    ap = -4
+    damage = 6  # preview only - see damage_notation
+    damage_notation = D6()
+    melta = 2
+
+
+class LightMissilePodProfile(WeaponProfile):
+    """A THIRD weapon printed as some flavour of "missile pod" (after the
+    Crisis suits' 30"/S7/AP-1 one and the Riptide's drone-carried copy), with
+    its own range and AP - so its own class, and the printed name is kept
+    exactly rather than folded into the others."""
+    name = "Light Missile Pod"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 2
+    strength = 7
+    ap = 0
+    damage = 2
+
+
+# --- Kroot Hounds / Kroot Farstalkers (T'au Empire) ---
+
+class RippingFangsProfile(WeaponProfile):
+    """Printed identically on the Kroot Hounds datasheet and on the two Kroot
+    Hounds inside a Kroot Farstalkers unit, so it is ONE class shared by both -
+    unlike their MODEL profiles, whose Leadership differs (8+ alone, 7+ inside
+    the Farstalkers)."""
+    name = "Ripping Fangs"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    strength = 3
+    ap = 0
+    damage = 1
+
+
+class FarstalkerFirearmProfile(KrootRifleProfile):
+    """Every number is the Kroot rifle's; only the printed NAME differs. So it
+    INHERITS rather than repeating them - the same arrangement the Wave
+    Serpent's twin weapons and the Lokhust Lord's blade use, and the reason the
+    test pins the two against EACH OTHER instead of against literals."""
+    name = "Farstalker Firearm"
+
+
+class TauTechRifleProfile(PulseRifleProfile):
+    """Likewise the Pulse rifle's numbers under another name - 30"/A1/S5/AP0/
+    D1/[RAPID FIRE 1], which is what a Kroot carrying T'au-issue kit should
+    print."""
+    name = "T'au-tech Rifle"
+
+
+class DvorgiteSkinnerProfile(WeaponProfile):
+    """BS "N/A" on the printed row, which per this repo's own recipe means
+    [TORRENT] - and the row prints that keyword too, so the two agree."""
+    name = "Dvorgite Skinner"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 6  # preview only - see attacks_notation
+    attacks_notation = D6()
+    strength = 4
+    ap = -1
+    damage = 1
+    ignores_cover = True
+    torrent = True
+
+
+class LondaxiTribalestProfile(WeaponProfile):
+    name = "Londaxi Tribalest"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 3
+    ballistic_skill = "5+"
+    strength = 7
+    ap = -1
+    damage = 1
+    anti = ("VEHICLE", 4)
+    devastating_wounds = True
+    heavy = True
+
+
+class RitualBladeProfile(WeaponProfile):
+    """The Kill-broker's own blade. Same printed S/AP/D as the Shapers' blade
+    but A3/WS3+ rather than A4/WS2+, so it needs its own class - the standing
+    rule for a shared name with different numbers."""
+    name = "Ritual Blade"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    strength = 5
+    ap = 0
+    damage = 1
+
+
+# --- Vespid Stingwings (T'au Empire) datasheet ---
+
+class NeutronBlasterProfile(WeaponProfile):
+    name = "Neutron Blaster"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 2
+    strength = 5
+    ap = -2
+    damage = 2
+    assault = True
+
+
+class NeutronGrenadeLauncherProfile(WeaponProfile):
+    name = "Neutron Grenade Launcher"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 6  # preview only - see attacks_notation
+    attacks_notation = D6()
+    strength = 4
+    ap = -1
+    damage = 2
+    anti = ("INFANTRY", 3)
+    blast = 1  # plain [BLAST] (no explicit X) is X=1
+
+
+class NeutronRailRifleProfile(WeaponProfile):
+    """Not the Pathfinders' Rail rifle: 30" and S10/AP-4/D3 against that one's
+    30"/S10/AP-4/D3 at BS5+ with [HEAVY]. The printed rows differ in skill and
+    keywords, so this is its own class rather than a rename."""
+    name = "Neutron Rail Rifle"
+    weapon_type = RANGED
+    range_in = 30
+    attacks = 1
+    strength = 10
+    ap = -4
+    damage = 3
+    devastating_wounds = True
+
+
+class StingwingClawsProfile(WeaponProfile):
+    name = "Stingwing Claws"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 1
+    weapon_skill = "4+"
+    strength = 4
+    ap = -1
+    damage = 1
+
+
+# --- Krootox Riders / Krootox Rampagers (T'au Empire) ---
+
+class RepeaterCannonProfile(WeaponProfile):
+    name = "Repeater Cannon"
+    weapon_type = RANGED
+    range_in = 36
+    attacks = 2
+    strength = 7
+    ap = -1
+    damage = 2
+    rapid_fire = 2
+
+
+class TanglecannonProfile(WeaponProfile):
+    """Printed Attacks "D6+1" - hence attacks_notation."""
+    name = "Tanglecannon"
+    weapon_type = RANGED
+    range_in = 36
+    attacks = 4  # preview only - see attacks_notation
+    attacks_notation = D6(bonus=1)
+    strength = 6
+    ap = 0
+    damage = 1
+    blast = 1
+    heavy = True
+
+
+class KrootoxFistsProfile(WeaponProfile):
+    """The Krootox Riders' version: [EXTRA ATTACKS] only."""
+    name = "Krootox Fists"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    strength = 6
+    ap = -1
+    damage = 2
+    extra_attacks = True
+
+
+class RampagerKrootoxFistsProfile(KrootoxFistsProfile):
+    """The RAMPAGERS' version. Identical numbers to the Riders' fists above
+    and the same printed name, but it also prints [SUSTAINED HITS 1] - so it
+    inherits and adds only the keyword, which is what keeps the shared numbers
+    from drifting apart. The test pins the two against each other.
+
+    Keeping the printed name means two classes share it; that is the same
+    situation the several "Close Combat Weapon" classes are in, and it is
+    exactly why each needs its own class rather than a shared instance."""
+    sustained_hits = 1
+
+
+class KrootPistolAndHuntingJavelinsProfile(WeaponProfile):
+    """One printed weapon ROW combining two named weapons, so one class - the
+    same reading the Kill-broker's "dart-bow and tri-blade" gets."""
+    name = "Kroot Pistol and Hunting Javelins"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 2
+    strength = 4
+    ap = 0
+    damage = 1
+    assault = True
+    pistol = True
+
+
+class RampagerCloseCombatWeaponProfile(WeaponProfile):
+    """Printed as "Close combat weapon" on the weapon table, and as "hunting
+    blades" on the Unit Composition line - the table is what carries the
+    numbers, so the table's name is used. A3/S4/AP-1/[LANCE], which is neither
+    of the other Kroot "Close Combat Weapon" classes."""
+    name = "Close Combat Weapon"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    strength = 4
+    ap = -1
+    damage = 1
+    lance = True
+
+
+# --- Broadside Battlesuits (T'au Empire) datasheet ---
+
+class HeavyRailRifleProfile(WeaponProfile):
+    """The heaviest gun in the T'au list: S12/AP-4/D6+1 at 60".
+
+    Not a bigger Rail rifle - the Pathfinders' (30"/A1/BS5+/S10/AP-4/D3,
+    [DEVASTATING WOUNDS] [HEAVY]) and the Vespid's Neutron rail rifle share
+    only the family name. Three printed rows, three classes."""
+    name = "Heavy Rail Rifle"
+    weapon_type = RANGED
+    range_in = 60
+    attacks = 2
+    strength = 12
+    ap = -4
+    damage = 7  # preview only - see damage_notation
+    damage_notation = D6(bonus=1)
+    devastating_wounds = True
+    heavy = True
+
+
+class HighYieldMissilePodsProfile(WeaponProfile):
+    """Printed PLURAL, and it is one weapon row rather than two missile pods -
+    the same reading the Firesight Team's "longshot pulse rifles" gets. A6 and
+    [TWIN-LINKED] is what distinguishes it from the ordinary missile pod, which
+    is A2 and neither."""
+    name = "High-yield Missile Pods"
+    weapon_type = RANGED
+    range_in = 30
+    attacks = 6
+    strength = 7
+    ap = -1
+    damage = 2
+    twin_linked = True
+
+
+class BroadsideTwinSmartMissileSystemProfile(WeaponProfile):
+    """A4 where the Riptide's copy of the same printed name is A3 - so its own
+    class, the standing rule for a shared name with different numbers, and the
+    third weapon in this file called some flavour of "smart missile system"."""
+    name = "Twin Smart Missile System"
+    weapon_type = RANGED
+    range_in = 30
+    attacks = 4
+    strength = 5
+    ap = 0
+    damage = 1
+    indirect_fire = True
+    twin_linked = True
+
+
+class CrushingBulkProfile(WeaponProfile):
+    name = "Crushing Bulk"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    strength = 6
+    ap = 0
+    damage = 1
+
+
+# --- Hammerhead Gunship / Sky Ray Gunship / Piranhas (T'au Empire) ---
+#
+# The Accelerator burst cannon, Seeker missile, Smart missile system and
+# Armoured hull rows on these three datasheets print exactly the numbers the
+# Devilfish's classes already carry, so those are reused. Only what genuinely
+# differs is new - and on this batch that includes one weapon whose difference
+# is a single missing keyword.
+
+class HammerheadTwinPulseCarbineProfile(WeaponProfile):
+    """The Hammerhead's twin pulse carbine prints [TWIN-LINKED] and NOTHING
+    ELSE, where the Devilfish's, the Piranha's and the Sky Ray's all print
+    [ASSAULT] as well.
+
+    One keyword, one class - and it is worth the class rather than a shrug:
+    [ASSAULT] is what lets a weapon fire after Advancing (24.04), so sharing
+    the Devilfish's copy would quietly let a Hammerhead Advance and still
+    shoot its carbines."""
+    name = "Twin Pulse Carbine"
+    weapon_type = RANGED
+    range_in = 20
+    attacks = 2
+    strength = 5
+    ap = 0
+    damage = 1
+    twin_linked = True
+
+
+class IonCannonStandardProfile(WeaponProfile):
+    """The Hammerhead's alternative main gun. Its overcharge_profile links to
+    the Hazardous mode below - one weapon with two selectable modes, like every
+    other ion weapon in this file."""
+    name = "Ion Cannon - Standard"
+    weapon_type = RANGED
+    range_in = 60
+    attacks = 6  # preview only - see attacks_notation
+    attacks_notation = D6(bonus=3)
+    strength = 7
+    ap = -1
+    damage = 2
+    blast = 1
+
+
+class IonCannonOverchargeProfile(WeaponProfile):
+    """Not a standalone loadout choice - only ever instantiated on demand by
+    ShootingController.choose_weapon(overcharge=True)."""
+    name = "Ion Cannon - Overcharge"
+    weapon_type = RANGED
+    range_in = 60
+    attacks = 6  # preview only - see attacks_notation
+    attacks_notation = D6(bonus=3)
+    strength = 8
+    ap = -2
+    damage = 3
+    blast = 1
+    hazardous = True
+
+
+IonCannonStandardProfile.overcharge_profile = IonCannonOverchargeProfile
+
+
+class RailgunProfile(WeaponProfile):
+    """The biggest gun in this engine by a wide margin: S20/AP-5/D6+6 at 72".
+
+    Not the Broadside's heavy rail rifle (60"/S12/AP-4/D6+1) and not the
+    Pathfinders' rail rifle - three printed rows, three classes, and this one
+    is the reason a Hammerhead is worth its points."""
+    name = "Railgun"
+    weapon_type = RANGED
+    range_in = 72
+    attacks = 1
+    strength = 20
+    ap = -5
+    damage = 12  # preview only - see damage_notation
+    damage_notation = D6(bonus=6)
+    devastating_wounds = True
+    heavy = True
+
+
+class SeekerMissileRackProfile(WeaponProfile):
+    """The Sky Ray's main armament: the Seeker missile's S/AP/D three times
+    over and [TWIN-LINKED] instead of [ONE SHOT] - so it fires every turn where
+    a Seeker missile fires once per battle. That contrast is the datasheet."""
+    name = "Seeker Missile Rack"
+    weapon_type = RANGED
+    range_in = 48
+    attacks = 3
+    strength = 14
+    ap = -3
+    damage = 7  # preview only - see damage_notation
+    damage_notation = D6(bonus=1)
+    twin_linked = True
+
+
+class PiranhaBurstCannonProfile(AcceleratorBurstCannonProfile):
+    """Every number is the Accelerator burst cannon's; only the printed NAME
+    differs, so it inherits rather than repeating them - and the test pins the
+    two against EACH OTHER rather than against literals."""
+    name = "Piranha Burst Cannon"
+
+
+class PiranhaFusionBlasterProfile(WeaponProfile):
+    """[MELTA 4], where every other fusion weapon in this file is [MELTA 2] -
+    the highest melta value in the engine, and the reason this is its own class
+    rather than the plain Fusion blaster under another name."""
+    name = "Piranha Fusion Blaster"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 1
+    strength = 9
+    ap = -4
+    damage = 6  # preview only - see damage_notation
+    damage_notation = D6()
+    melta = 4
+
+
+class PiranhaArmouredHullProfile(WeaponProfile):
+    """A2/S4 where the Devilfish's and the two gunships' armoured hull is
+    A3/S6 - a lighter skimmer, so its own class."""
+    name = "Armoured Hull"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 2
+    weapon_skill = "5+"
+    strength = 4
+    ap = 0
+    damage = 1
 
 
 # --- Guardian Defenders (Aeldari), see game/factions/aeldari.py ---
@@ -3560,15 +4240,22 @@ class TeslaCarbineProfile(WeaponProfile):
     sustained_hits = 2
 
 
-# --- Overlord ---
+# --- Overlord / Lokhust Lord ---
 
-class OverlordStaffOfLightRangedProfile(WeaponProfile):
-    """The Overlord's Staff of Light, NOT the Technomancer's.
+class LordStaffOfLightRangedProfile(WeaponProfile):
+    """The A4 Staff of Light, NOT the Technomancer's.
 
     Exactly the "same name, different numbers" case the datasheet recipe warns
-    about: both datasheets print a weapon called "Staff of light", and they
-    differ in both BS/WS (2+ against 4+) and melee Attacks (4 against 2). Two
-    class pairs, therefore - see TechnomancerStaffOfLightRangedProfile."""
+    about: three datasheets print a weapon called "Staff of light", and the
+    Technomancer's differs in both BS/WS (4+ against 2+) and melee Attacks
+    (2 against 4). Two class pairs, therefore - see
+    TechnomancerStaffOfLightRangedProfile.
+
+    NAMED FOR THE LORDS AND NOT FOR THE OVERLORD, which it was until the
+    Lokhust Lord arrived carrying the identical row. A class named after the
+    first datasheet to field it is precisely the lying name this repo renames
+    rather than copies (game/ere_we_go.py, game/melee_crit.py and
+    weapon_support_system are the three recorded precedents)."""
     name = "Staff of Light"
     weapon_type = RANGED
     range_in = 18
@@ -3578,7 +4265,7 @@ class OverlordStaffOfLightRangedProfile(WeaponProfile):
     damage = 1
 
 
-class OverlordStaffOfLightMeleeProfile(WeaponProfile):
+class LordStaffOfLightMeleeProfile(WeaponProfile):
     name = "Staff of Light"
     weapon_type = MELEE
     range_in = 2
@@ -3651,7 +4338,7 @@ class PlasmicLanceMeleeProfile(WeaponProfile):
 # --- Technomancer ---
 
 class TechnomancerStaffOfLightRangedProfile(WeaponProfile):
-    """The Technomancer's Staff of Light - see OverlordStaffOfLightRangedProfile
+    """The Technomancer's Staff of Light - see LordStaffOfLightRangedProfile
     for why these are two class pairs and not one shared one."""
     name = "Staff of Light"
     weapon_type = RANGED
@@ -3932,3 +4619,1531 @@ class CanoptekTailBladesProfile(WeaponProfile):
     ap = -1
     damage = 1
     extra_attacks = True
+
+
+
+class LordsBladeProfile(OverlordsBladeProfile):
+    """The Lokhust Lord's blade. Same numbers as the Overlord's Blade to the
+    last characteristic, different printed NAME - the mirror image of the
+    Staff of Light case above, and handled the mirror way: it INHERITS, so a
+    correction to the shared numbers reaches both, and only the name is
+    overridden. Same move as the Wave Serpent's five twin-linked subclasses.
+
+    The test pins the two AGAINST EACH OTHER rather than against literals - a
+    copied class would pass any check that only read one of them."""
+    name = "Lord's Blade"
+
+
+# --- Skorpekh Lord ---
+
+class EnmiticAnnihilatorProfile(WeaponProfile):
+    """NOT the Lokhust Heavy Destroyers' Enmitic Exterminator: same family of
+    name, different numbers (18"/A2 against 36"/A6, and [RAPID FIRE 2] against
+    [HEAVY] [RAPID FIRE 6] [SUSTAINED HITS 1]). Its own class, which is the
+    trap the datasheet recipe warns about and this faction has now hit three
+    times (Staff of Light, Close Combat Weapon, and this)."""
+    name = "Enmitic Annihilator"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 2
+    strength = 6
+    ap = -1
+    damage = 1
+    rapid_fire = 2
+
+
+class FlensingClawProfile(WeaponProfile):
+    """A8 at S6, and NO keywords - checked rather than assumed, because a
+    many-attacks claw alongside a heavier weapon usually IS [EXTRA ATTACKS]
+    and here it is not. That makes the Lord's two melee weapons a real rule
+    04.01 CHOICE (see SkorpekhLordProfile), not a claw that comes free with
+    the harvester."""
+    name = "Flensing Claw"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 8
+    strength = 6
+    ap = -1
+    damage = 1
+
+
+class HyperphaseHarvesterProfile(WeaponProfile):
+    """The heavy half of the Lord's 04.01 choice - a quarter of the claw's
+    attacks at S10/AP-3/D3 instead of S6/AP-1/D1. Distinct from both the
+    Lychguard's Hyperphase Sword and the Skorpekh Destroyers' Skorpekh
+    Hyperphase Weapons; all three print different numbers."""
+    name = "Hyperphase Harvester"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    strength = 10
+    ap = -3
+    damage = 3
+
+
+# ---------------------------------------------------------------------------
+# Death Guard - see game/factions/death_guard.py
+#
+# Two naming notes, both of the kind CLAUDE.md's error class 11 is about:
+#
+#   * PLAIN NAMES ARE USED HERE (Boltgun, Meltagun, Power Fist, Multi-melta)
+#     because Death Guard is currently the only faction in this engine that
+#     prints them. A loyalist Space Marine faction prints several of the same
+#     NAMES with DIFFERENT numbers - if one is ever added, these need renaming
+#     for their datasheet or their numbers, not copying.
+#   * "Plaguespitter" is printed on the Foetid Bloat-drone AND the Plagueburst
+#     Crawler with IDENTICAL numbers, so both share one class. Plague Marines'
+#     "plague spewer" is a different weapon (S5, Anti-Infantry 2+) with a
+#     confusingly similar name, and the Deathshroud's "plaguespurt gauntlet"
+#     is a third - all three are separate classes on purpose.
+#
+# The keyword column rendered EMPTY for every weapon row on every Death Guard
+# datasheet, exactly as it did for all thirteen Necron sheets - the ~15th
+# occurrence of that artefact. The NAME column is followed throughout, and the
+# values here come from per-weapon follow-up queries rather than the bundled
+# summary, which had merged several weapons' keywords into one list.
+# ---------------------------------------------------------------------------
+
+
+class BoltgunProfile(WeaponProfile):
+    name = "Boltgun"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 2
+    strength = 4
+    ap = 0
+    damage = 1
+    lethal_hits = True
+
+
+class BoltPistolProfile(WeaponProfile):
+    """Printed identically on Plague Marines and the Malignant Plaguecaster,
+    so one class serves both - the same call the two Warlock Conclaves' shared
+    weapons get."""
+    name = "Bolt Pistol"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 1
+    strength = 4
+    ap = 0
+    damage = 1
+    lethal_hits = True
+    pistol = True
+
+
+class BlightLauncherProfile(WeaponProfile):
+    name = "Blight Launcher"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 2  # preview/grouping placeholder only - attacks_notation is what is rolled
+    attacks_notation = D3()
+    strength = 6
+    ap = -1
+    damage = 2
+    blast = 1
+    lethal_hits = True
+
+
+class MeltagunProfile(WeaponProfile):
+    name = "Meltagun"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 1
+    strength = 9
+    ap = -4
+    damage = 3  # preview/grouping placeholder only - damage_notation is what is rolled
+    damage_notation = D6()
+    melta = 2
+
+
+class PlagueBelcherProfile(WeaponProfile):
+    """Printed BS is "N/A" - no ballistic_skill override needed, since
+    [TORRENT] skips the Hit roll entirely."""
+    name = "Plague Belcher"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 3  # preview/grouping placeholder only
+    attacks_notation = D6()
+    strength = 4
+    ap = 0
+    damage = 1
+    anti = ("INFANTRY", 4)
+    ignores_cover = True
+    torrent = True
+
+
+class PlagueSpewerProfile(WeaponProfile):
+    """The bigger of the two Plague Marine flamers: S5/AP-1 and Anti-Infantry
+    2+ where the belcher is S4/AP0 and 4+."""
+    name = "Plague Spewer"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 3  # preview/grouping placeholder only
+    attacks_notation = D6()
+    strength = 5
+    ap = -1
+    damage = 1
+    anti = ("INFANTRY", 2)
+    ignores_cover = True
+    torrent = True
+
+
+class PlasmaGunSuperchargeProfile(WeaponProfile):
+    """Defined above the standard profile because overcharge_profile names the
+    class object, so it has to already exist."""
+    name = "Plasma Gun - supercharge"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 1
+    strength = 8
+    ap = -3
+    damage = 2
+    hazardous = True
+    rapid_fire = 1
+
+
+class PlasmaGunProfile(WeaponProfile):
+    name = "Plasma Gun"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 1
+    strength = 7
+    ap = -2
+    damage = 1
+    rapid_fire = 1
+    overcharge_profile = PlasmaGunSuperchargeProfile
+
+
+class PlasmaPistolSuperchargeProfile(WeaponProfile):
+    name = "Plasma Pistol - supercharge"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 1
+    strength = 8
+    ap = -3
+    damage = 2
+    hazardous = True
+    pistol = True
+
+
+class PlasmaPistolProfile(WeaponProfile):
+    name = "Plasma Pistol"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 1
+    strength = 7
+    ap = -2
+    damage = 1
+    pistol = True
+    overcharge_profile = PlasmaPistolSuperchargeProfile
+
+
+class PlaguespurtGauntletProfile(WeaponProfile):
+    """The Deathshroud Terminators' only ranged weapon. [PISTOL] as well as
+    [TORRENT], so it can be fired while the unit is in Engagement Range."""
+    name = "Plaguespurt Gauntlet"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 3  # preview/grouping placeholder only
+    attacks_notation = D6()
+    strength = 3
+    ap = 0
+    damage = 1
+    anti = ("INFANTRY", 4)
+    ignores_cover = True
+    pistol = True
+    torrent = True
+
+
+class PlaguespitterProfile(WeaponProfile):
+    """Shared by the Foetid Bloat-drone and the Plagueburst Crawler - the same
+    printed name with the same numbers on both, so one class. NOT the Plague
+    Marines' plague spewer, which is S5/AP-1, nor the Deathshroud's
+    plaguespurt gauntlet, which is S3/AP0 and a [PISTOL]."""
+    name = "Plaguespitter"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 3  # preview/grouping placeholder only
+    attacks_notation = D6()
+    strength = 6
+    ap = -1
+    damage = 1
+    anti = ("INFANTRY", 2)
+    ignores_cover = True
+    torrent = True
+
+
+class PlagueWindFocusedProfile(WeaponProfile):
+    """The Malignant Plaguecaster's second fire mode - more shots and better
+    S/AP, at the cost of [HAZARDOUS]."""
+    name = "Plague Wind - focused witchfire"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 6  # preview/grouping placeholder only
+    attacks_notation = D6(3)
+    strength = 6
+    ap = -2
+    damage = 2  # preview/grouping placeholder only
+    damage_notation = D3()
+    hazardous = True
+    psychic = True
+    torrent = True
+
+
+class PlagueWindProfile(WeaponProfile):
+    name = "Plague Wind - witchfire"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 3  # preview/grouping placeholder only
+    attacks_notation = D6()
+    strength = 4
+    ap = -1
+    damage = 2  # preview/grouping placeholder only
+    damage_notation = D3()
+    psychic = True
+    torrent = True
+    overcharge_profile = PlagueWindFocusedProfile
+
+
+class InfernalCannonProfile(WeaponProfile):
+    name = "Infernal Cannon"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 3
+    ballistic_skill = "2+"
+    strength = 5
+    ap = -1
+    damage = 2
+    lethal_hits = True
+
+
+class BileSpurtProfile(WeaponProfile):
+    name = "Bile Spurt"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 3
+    strength = 5
+    ap = 0
+    damage = 1
+    lethal_hits = True
+
+
+class MissileLauncherFragProfile(WeaponProfile):
+    """The Myphitic Blight-hauler's. Its keyword column really is empty for
+    this row - checked against the frag/krak pair, where only the krak carries
+    [LETHAL HITS]. Distinct from the Defiler's HEAVY missile launcher, which
+    prints different numbers under a different name."""
+    name = "Missile Launcher - frag"
+    weapon_type = RANGED
+    range_in = 48
+    attacks = 3  # preview/grouping placeholder only
+    attacks_notation = D6()
+    strength = 4
+    ap = 0
+    damage = 1
+
+
+class MissileLauncherKrakProfile(WeaponProfile):
+    name = "Missile Launcher - krak"
+    weapon_type = RANGED
+    range_in = 48
+    attacks = 1
+    strength = 9
+    ap = -2
+    damage = 3  # preview/grouping placeholder only
+    damage_notation = D6()
+    lethal_hits = True
+
+
+class MultiMeltaProfile(WeaponProfile):
+    name = "Multi-melta"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 2
+    strength = 9
+    ap = -4
+    damage = 3  # preview/grouping placeholder only
+    damage_notation = D6()
+    lethal_hits = True
+    melta = 2
+
+
+class EntropyCannonProfile(WeaponProfile):
+    name = "Entropy Cannon"
+    weapon_type = RANGED
+    range_in = 36
+    attacks = 1
+    strength = 10
+    ap = -3
+    damage = 4  # preview/grouping placeholder only
+    damage_notation = D6(1)
+    lethal_hits = True
+
+
+class HeavySluggerProfile(WeaponProfile):
+    name = "Heavy Slugger"
+    weapon_type = RANGED
+    range_in = 36
+    attacks = 4
+    strength = 5
+    ap = -1
+    damage = 1
+    lethal_hits = True
+
+
+class PlagueburstMortarProfile(WeaponProfile):
+    """The Plagueburst Crawler's main gun, and the trigger for its
+    Spore-laced Shock Waves ability - see game/spore_laced_shock_waves.py,
+    which identifies it by this class."""
+    name = "Plagueburst Mortar"
+    weapon_type = RANGED
+    range_in = 48
+    attacks = 6  # preview/grouping placeholder only
+    attacks_notation = D6(3)
+    strength = 8
+    ap = -1
+    damage = 2
+    blast = 1
+    indirect_fire = True
+    lethal_hits = True
+
+
+class RothailVolleyGunProfile(WeaponProfile):
+    name = "Rothail Volley Gun"
+    weapon_type = RANGED
+    range_in = 36
+    attacks = 3
+    strength = 5
+    ap = 0
+    damage = 1
+    lethal_hits = True
+    rapid_fire = 3
+
+
+class EctoplasmaDestructorProfile(WeaponProfile):
+    name = "Ectoplasma Destructor"
+    weapon_type = RANGED
+    range_in = 36
+    attacks = 3  # preview/grouping placeholder only
+    attacks_notation = D6()
+    strength = 12
+    ap = -3
+    damage = 3
+    lethal_hits = True
+
+
+class ExcruciatorCannonProfile(WeaponProfile):
+    name = "Excruciator Cannon"
+    weapon_type = RANGED
+    range_in = 36
+    attacks = 6
+    strength = 6
+    ap = -1
+    damage = 2
+    lethal_hits = True
+
+
+class HadesBattleCannonProfile(WeaponProfile):
+    name = "Hades Battle Cannon"
+    weapon_type = RANGED
+    range_in = 48
+    attacks = 6  # preview/grouping placeholder only
+    attacks_notation = D6(3)
+    strength = 10
+    ap = -1
+    damage = 3
+    blast = 1
+    lethal_hits = True
+
+
+class HadesLascannonProfile(WeaponProfile):
+    name = "Hades Lascannon"
+    weapon_type = RANGED
+    range_in = 48
+    attacks = 2
+    strength = 12
+    ap = -3
+    damage = 4  # preview/grouping placeholder only
+    damage_notation = D6(1)
+    lethal_hits = True
+
+
+class HeavyBaleflamerProfile(WeaponProfile):
+    name = "Heavy Baleflamer"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 6  # preview/grouping placeholder only
+    attacks_notation = D6(3)
+    strength = 7
+    ap = -2
+    damage = 2
+    ignores_cover = True
+    torrent = True
+
+
+class DefilerHeavyMissileLauncherFragProfile(WeaponProfile):
+    """Named for its datasheet because the Myphitic Blight-hauler prints a
+    plain "missile launcher" with different numbers - the same reason the Dark
+    Reapers' launcher carries its own prefix."""
+    name = "Heavy Missile Launcher - frag"
+    weapon_type = RANGED
+    range_in = 48
+    attacks = 7  # preview/grouping placeholder only
+    attacks_notation = D6(0, 2)   # "2D6"
+    strength = 5
+    ap = -1
+    damage = 1
+    blast = 1
+    lethal_hits = True
+
+
+class DefilerHeavyMissileLauncherKrakProfile(WeaponProfile):
+    name = "Heavy Missile Launcher - krak"
+    weapon_type = RANGED
+    range_in = 48
+    attacks = 2
+    strength = 10
+    ap = -2
+    damage = 4  # preview/grouping placeholder only
+    damage_notation = D6(1)
+    lethal_hits = True
+
+
+class HeavyReaperAutocannonProfile(WeaponProfile):
+    """Three offensive keywords at once - the only weapon in this faction with
+    [DEVASTATING WOUNDS], and one of the two Defiler options that costs points."""
+    name = "Heavy Reaper Autocannon"
+    weapon_type = RANGED
+    range_in = 48
+    attacks = 4
+    strength = 9
+    ap = -1
+    damage = 3
+    devastating_wounds = True
+    lethal_hits = True
+    sustained_hits = 1
+
+
+class MagmaCuttersProfile(WeaponProfile):
+    name = "Magma Cutters"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 2
+    strength = 9
+    ap = -4
+    damage = 3  # preview/grouping placeholder only
+    damage_notation = D6()
+    lethal_hits = True
+    melta = 2
+
+
+# --- Death Guard melee ------------------------------------------------------
+
+class PlagueKnivesProfile(WeaponProfile):
+    name = "Plague Knives"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    strength = 4
+    ap = 0
+    damage = 1
+    lethal_hits = True
+
+
+class BuboticWeaponsProfile(WeaponProfile):
+    name = "Bubotic Weapons"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    strength = 5
+    ap = -2
+    damage = 1
+    lethal_hits = True
+
+
+class HeavyPlagueWeaponProfile(WeaponProfile):
+    """Fewer attacks at a WORSE WS than plague knives, in exchange for S8/AP-2 -
+    so a Plague Marine carrying one is a real 04.01 choice, not an upgrade."""
+    name = "Heavy Plague Weapon"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    weapon_skill = "4+"
+    strength = 8
+    ap = -2
+    damage = 2
+    lethal_hits = True
+
+
+class PowerFistProfile(WeaponProfile):
+    name = "Power Fist"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    strength = 8
+    ap = -2
+    damage = 2
+    lethal_hits = True
+
+
+class ImprovisedWeaponProfile(WeaponProfile):
+    name = "Improvised Weapon"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 2
+    weapon_skill = "5+"
+    strength = 3
+    ap = 0
+    damage = 1
+    lethal_hits = True
+
+
+class LakrimaeSweepProfile(WeaponProfile):
+    name = "Lakrimae - sweep"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 12
+    weapon_skill = "2+"
+    strength = 6
+    ap = -1
+    damage = 1
+    lethal_hits = True
+
+
+class LakrimaeStrikeProfile(WeaponProfile):
+    """Typhus' manreaper. ONE printed datasheet entry with two profiles, so it
+    is modelled as a fire mode rather than two weapons - otherwise rule 04.01
+    would let him swing both."""
+    name = "Lakrimae - strike"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 6
+    weapon_skill = "2+"
+    strength = 9
+    ap = -2
+    damage = 3
+    lethal_hits = True
+    overcharge_profile = LakrimaeSweepProfile
+
+
+class CorruptedStaffProfile(WeaponProfile):
+    name = "Corrupted Staff"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    strength = 6
+    ap = -1
+    damage = 2  # preview/grouping placeholder only
+    damage_notation = D3()
+    lethal_hits = True
+    psychic = True
+
+
+class HellforgedWeaponsSweepProfile(WeaponProfile):
+    name = "Hellforged Weapons - sweep"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 14
+    weapon_skill = "2+"
+    strength = 6
+    ap = -1
+    damage = 1
+    lethal_hits = True
+
+
+class HellforgedWeaponsStrikeProfile(WeaponProfile):
+    name = "Hellforged Weapons - strike"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 7
+    weapon_skill = "2+"
+    strength = 8
+    ap = -2
+    damage = 3
+    lethal_hits = True
+    overcharge_profile = HellforgedWeaponsSweepProfile
+
+
+class HideousMutationsProfile(WeaponProfile):
+    """The Chaos Spawn's only weapon, and one of the few in this engine with a
+    dice-notation Attacks characteristic AND no keywords at all."""
+    name = "Hideous Mutations"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 5  # preview/grouping placeholder only
+    attacks_notation = D6(2)
+    weapon_skill = "4+"
+    strength = 5
+    ap = -1
+    damage = 2
+
+
+class ManreaperSweepProfile(WeaponProfile):
+    """Note the WORSE weapon skill on the sweep (3+ against the strike's 2+),
+    which the Lakrimae and Hellforged pairs do not have - so the two halves of
+    this weapon differ in three characteristics, not two."""
+    name = "Manreaper - sweep"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 8
+    weapon_skill = "3+"
+    strength = 4
+    ap = -1
+    damage = 1
+    lethal_hits = True
+
+
+class ManreaperStrikeProfile(WeaponProfile):
+    name = "Manreaper - strike"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    weapon_skill = "2+"
+    strength = 8
+    ap = -2
+    damage = 2
+    lethal_hits = True
+    overcharge_profile = ManreaperSweepProfile
+
+
+class FleshmowerProfile(WeaponProfile):
+    name = "Fleshmower"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 10
+    strength = 7
+    ap = -1
+    damage = 2
+    lethal_hits = True
+
+
+class PlagueProbeProfile(WeaponProfile):
+    name = "Plague Probe"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    strength = 6
+    ap = -1
+    damage = 1
+    lethal_hits = True
+
+
+class GnashingMawProfile(WeaponProfile):
+    name = "Gnashing Maw"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    strength = 6
+    ap = -1
+    damage = 1
+    lethal_hits = True
+
+
+class ArmouredTracksProfile(WeaponProfile):
+    name = "Armoured Tracks"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    weapon_skill = "4+"
+    strength = 6
+    ap = 0
+    damage = 1
+
+
+class ElectroscourgeProfile(WeaponProfile):
+    """[EXTRA ATTACKS] (24.11), so it never takes part in the Defiler's 04.01
+    choice - it is swung in ADDITION to whatever else the model has."""
+    name = "Electroscourge"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 5
+    strength = 12
+    ap = -2
+    damage = 2
+    extra_attacks = True
+    sustained_hits = 2
+
+
+class ShearingClawsSweepProfile(WeaponProfile):
+    name = "Shearing Claws - sweep"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 10
+    strength = 6
+    ap = -2
+    damage = 1
+    lethal_hits = True
+
+
+class ShearingClawsStrikeProfile(WeaponProfile):
+    """S16 is the highest Strength characteristic in this engine - checked
+    rather than assumed, because a number that far outside the usual band reads
+    like a transcription slip."""
+    name = "Shearing Claws - strike"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 5
+    strength = 16
+    ap = -3
+    damage = 4  # preview/grouping placeholder only
+    damage_notation = D6(1)
+    lethal_hits = True
+    overcharge_profile = ShearingClawsSweepProfile
+
+
+# --- Wraith Constructs: Wraithlord and Wraithblades -------------------------
+#
+# The Wraithlord's ranged rows are the shared Aeldari guns (bright lance,
+# flamer, both missile launcher modes, scatter laser, shuriken cannon,
+# shuriken catapult, starcannon) and are REUSED rather than re-declared: not
+# one of them pins ballistic_skill, so each reads the firing model's own BS.
+# That is what makes the reuse safe here - the Wraithlord prints BS4+ where
+# the War Walker prints BS3+, and a hardcoded skill on a shared class is
+# exactly the MissilePodProfile bug this repo already paid for once.
+
+
+class GhostglaiveSweepProfile(WeaponProfile):
+    """The wide profile of the Wraithlord's ghostglaive."""
+    name = "Ghostglaive - Sweep"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 8
+    strength = 7
+    ap = -2
+    damage = 2
+
+
+class GhostglaiveStrikeProfile(WeaponProfile):
+    """One datasheet entry, two printed profiles, so the second is an alternate
+    FIRING MODE and not a second weapon - the same shape the missile launcher's
+    starshot/sunburst pair uses. Strike is the row printed first, so it is the
+    granted instance; handing out both would give the model two glaives."""
+    name = "Ghostglaive - Strike"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    strength = 10
+    ap = -3
+    damage = 4  # preview/grouping placeholder only - damage_notation is what is rolled
+    damage_notation = D6(1)
+    overcharge_profile = GhostglaiveSweepProfile
+
+
+class WraithboneFistsProfile(WeaponProfile):
+    """NOT the Wraithbone Hull, which is the grav-tank row at A3/WS4+/S6/AP0/D1.
+    These are A4/S7/AP-2/D2 - three characteristics apart, so a separate class
+    rather than a shared one. Pinned against the hull in the test."""
+    name = "Wraithbone Fists"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    strength = 7
+    ap = -2
+    damage = 2
+
+
+class GhostswordsProfile(WeaponProfile):
+    """The Wraithblades' default: more attacks, less strength than the axe."""
+    name = "Ghostswords"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 5
+    strength = 5
+    ap = -2
+    damage = 2
+
+
+class GhostaxeProfile(WeaponProfile):
+    """The traded-down profile: the axe costs two attacks and buys S7, and it
+    comes bundled with the forceshield (a 4+ invulnerable save), which is why
+    the wargear option is one swap and not two."""
+    name = "Ghostaxe"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    strength = 7
+    ap = -2
+    damage = 2
+
+
+# --- Support Weapon Platforms (D-cannon / Shadow Weaver / Vibro Cannon) ------
+#
+# Three datasheets, one chassis. The shuriken catapult and the A2 close combat
+# weapon are the shared Aeldari rows and are reused; only the heavy gun differs,
+# which is the whole difference between the three sheets. None of the three
+# pins ballistic_skill - the platforms print BS3+ on every row, so the model's
+# own skill is the right source and a per-weapon override would be the
+# MissilePodProfile mistake again.
+
+
+class DCannonProfile(WeaponProfile):
+    """The heaviest gun in the engine by Strength: S16, and D6+2 damage on top
+    of [DEVASTATING WOUNDS]. Attacks is a D3, so both characteristics are
+    notations rather than fixed numbers."""
+    name = "D-cannon"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 2  # preview/grouping placeholder only - attacks_notation is what is rolled
+    attacks_notation = D3()
+    strength = 16
+    ap = -4
+    damage = 5  # preview/grouping placeholder only - damage_notation is what is rolled
+    damage_notation = D6(2)
+    blast = 1
+    devastating_wounds = True
+    indirect_fire = True
+
+
+class ShadowWeaverProfile(WeaponProfile):
+    """Volume rather than weight: D6+2 shots at S6/AP-1/D1, indirect."""
+    name = "Shadow Weaver"
+    weapon_type = RANGED
+    range_in = 48
+    attacks = 5  # preview/grouping placeholder only - attacks_notation is what is rolled
+    attacks_notation = D6(2)
+    strength = 6
+    ap = -1
+    damage = 1
+    blast = 1
+    indirect_fire = True
+
+
+class VibroCannonProfile(WeaponProfile):
+    """The only one of the three with NO weapon keywords at all - checked
+    rather than assumed, the same doubt BrightLanceProfile records, because an
+    S9 48" gun with nothing attached reads like a transcription gap. Its
+    stacking is a datasheet ability (Sonic Destruction), not a keyword."""
+    name = "Vibro Cannon"
+    weapon_type = RANGED
+    range_in = 48
+    attacks = 3  # preview/grouping placeholder only - attacks_notation is what is rolled
+    attacks_notation = D6()
+    strength = 9
+    ap = -1
+    damage = 2
+
+
+# --- Fire Prism / Night Spinner / Vypers ------------------------------------
+
+
+class PrismCannonFocusedLancesProfile(WeaponProfile):
+    """The heavy profile: two shots at S18/AP-4/D6, the highest Strength on any
+    Aeldari gun here.
+
+    Its printed [LINKED FIRE] keyword is NOT modelled - see the Fire Prism's
+    abilities_text for what the keyword does and why re-basing a weapon's range
+    and visibility onto a second model is a targeting-layer change rather than
+    a weapon flag."""
+    name = "Prism Cannon - Focused Lances"
+    weapon_type = RANGED
+    range_in = 60
+    attacks = 2
+    strength = 18
+    ap = -4
+    damage = 6
+
+
+class PrismCannonDispersedPulseProfile(WeaponProfile):
+    """One datasheet entry, two printed profiles, so the second is an alternate
+    FIRING MODE rather than a second weapon - the shape the missile launcher's
+    starshot/sunburst pair uses. Dispersed pulse is printed first, so it is the
+    granted instance; handing out both would give the tank two cannons.
+
+    2D6 attacks, not D6+3: same mean, different spread, and game/dice_notation.
+    py grew its `dice` field precisely so a printed "2D6" is not quietly
+    restated (Dark Reapers' Tempest Launcher was the first)."""
+    name = "Prism Cannon - Dispersed Pulse"
+    weapon_type = RANGED
+    range_in = 60
+    attacks = 7  # preview/grouping placeholder only - attacks_notation is what is rolled
+    attacks_notation = D6(dice=2)
+    strength = 6
+    ap = -2
+    damage = 2
+    blast = 1
+    overcharge_profile = PrismCannonFocusedLancesProfile
+
+
+class DoomweaverProfile(WeaponProfile):
+    """The Night Spinner's gun: a lot of indirect, twin-linked shots."""
+    name = "Doomweaver"
+    weapon_type = RANGED
+    range_in = 48
+    attacks = 6  # preview/grouping placeholder only - attacks_notation is what is rolled
+    attacks_notation = D6(3)
+    strength = 7
+    ap = -1
+    damage = 2
+    blast = 1
+    indirect_fire = True
+    twin_linked = True
+
+
+class VyperScatterLaserProfile(ScatterLaserProfile):
+    """The Vyper prints [SUSTAINED HITS 2] where every other carrier of this
+    row prints 1 - same name, same numbers otherwise, one keyword value
+    different, which is exactly the case that needs its own class. Inherits so
+    the shared characteristics cannot drift apart from the base row."""
+    sustained_hits = 2
+
+
+class VyperStarcannonProfile(StarcannonProfile):
+    """Printed BS2+ on the Vyper's datasheet, where its five other weapon rows
+    all print 3+ - so this is a genuine per-WEAPON override rather than the
+    model's own skill, which is the one case WeaponProfile.ballistic_skill
+    exists for (The Twin Lance and Darkstrider are the others).
+
+    Transcribed as printed. It looks like a typo next to the rest of the sheet,
+    which is exactly why it is pinned in the test with this note attached: a
+    later correction should be a visible one-line change, not a silent one."""
+    ballistic_skill = "2+"
+
+
+# --- Spiritseer --------------------------------------------------------------
+
+
+class WitchStaffProfile(WeaponProfile):
+    """The Spiritseer's melee row. The Witchblade's twin in everything but
+    Damage: A2/S3/AP0 with [ANTI-INFANTRY 2+] and [PSYCHIC] on both, but this
+    one rolls a D3 where the Witchblade is a flat 2 - so a separate class, and
+    pinned against the Witchblade in the test rather than against literals."""
+    name = "Witch Staff"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 2
+    strength = 3
+    ap = 0
+    damage = 2  # preview/grouping placeholder only - damage_notation is what is rolled
+    damage_notation = D3()
+    psychic = True
+    anti = ("INFANTRY", 2)
+
+
+# --- Autarchs and Maugan Ra --------------------------------------------------
+#
+# The Autarch's wargear is the Aspect Warriors' arsenal in a character's hands,
+# and three of those rows print DIFFERENT numbers on his sheet than on the
+# squad's. Each of those gets its own class rather than sharing - the recurring
+# "same printed name, different numbers" case - and each INHERITS, so the
+# characteristics they do share cannot drift apart.
+
+
+class AutarchBansheeBladeProfile(BansheeBladeProfile):
+    """A5 in an Autarch's hands, against the Howling Banshee Exarch's A2.
+    Everything else - S4/AP-2/D2 and [ANTI-INFANTRY 3+] - is the same row."""
+    attacks = 5
+
+
+class AutarchScorpionChainswordProfile(ScorpionChainswordProfile):
+    """A7 against the Striking Scorpion's A4. Same S4/AP-1/D1 and the same
+    [SUSTAINED HITS 1]."""
+    attacks = 7
+
+
+class AutarchReaperLauncherStarswarmProfile(ReaperLauncherStarswarmProfile):
+    """TWO differences from the Dark Reapers' row, both printed: it is [HEAVY],
+    and it is S4 where theirs is S5. Checked against their datasheet rather
+    than assumed, because a shared class would have been the obvious move."""
+    strength = 4
+    heavy = True
+
+
+class AutarchReaperLauncherStarshotProfile(ReaperLauncherStarshotProfile):
+    """Same numbers as the Dark Reapers' starshot, plus [HEAVY]."""
+    heavy = True
+    overcharge_profile = AutarchReaperLauncherStarswarmProfile
+
+
+class StarGlaiveProfile(WeaponProfile):
+    """The Autarch's default melee weapon. No keywords at all."""
+    name = "Star Glaive"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    strength = 6
+    ap = -3
+    damage = 3
+
+
+class MaugetarRangedProfile(WeaponProfile):
+    """Maugan Ra's reaper launcher and scythe in one - the ranged half."""
+    name = "Maugetar"
+    weapon_type = RANGED
+    range_in = 36
+    attacks = 6
+    strength = 7
+    ap = -2
+    damage = 2
+    devastating_wounds = True
+    ignores_cover = True
+
+
+class MaugetarMeleeProfile(WeaponProfile):
+    """...and the melee half. ONE printed weapon with a ranged row and a melee
+    row, like the Star Lance and the Singing Spear - so both are granted, and
+    that is not a duplicate."""
+    name = "Maugetar"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 5
+    strength = 6
+    ap = -2
+    damage = 2
+
+
+# --- Exodites ----------------------------------------------------------------
+#
+# Four datasheets on one drakesteed, and the Fangs and Talons plus the Solar
+# Carbine are shared by every one of them that prints them.
+#
+# The Laser Lance's RANGED row is the Shining Spears' exactly, so it is reused.
+# Its MELEE row is not: S6 against their S5, and no [ANTI-MONSTER/VEHICLE].
+
+
+class SolarCarbineProfile(WeaponProfile):
+    """The Exodite sidearm."""
+    name = "Solar Carbine"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 2
+    strength = 4
+    ap = 0
+    damage = 1
+    rapid_fire = 2
+
+
+class DrakesteedFangsAndTalonsProfile(WeaponProfile):
+    """The mount itself. [EXTRA ATTACKS] (24.11), so it never competes with
+    the rider's weapon under 04.01."""
+    name = "Drakesteed Fangs and Talons"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    strength = 5
+    ap = -1
+    damage = 1
+    extra_attacks = True
+
+
+class ExoditeLaserLanceMeleeProfile(WeaponProfile):
+    """NOT the Shining Spears' melee row: S6 against their S5, and it prints no
+    [ANTI-MONSTER/VEHICLE] where theirs does. Two differences, so its own class
+    - and both are pinned against theirs rather than against literals."""
+    name = "Laser Lance"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    strength = 6
+    ap = -2
+    damage = 3
+    lance = True           # [LANCE], rule 24.21
+
+
+class MoonbladesProfile(WeaponProfile):
+    """The Clanblade's own blades."""
+    name = "Moonblades"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 5
+    weapon_skill = "2+"    # its own row prints 2+ where the drakesteed's prints 3+
+    strength = 4
+    ap = -2
+    damage = 2
+    lethal_hits = True
+    twin_linked = True
+
+
+class ExoditeLongRifleProfile(WeaponProfile):
+    """The Leystalker's rifle, and the first weapon here whose [DEVASTATING
+    WOUNDS] is CONDITIONAL on the target: the printed keyword line reads
+    "DEVASTATING WOUNDS: non-MONSTER/VEHICLE".
+
+    So `devastating_wounds` itself stays False and the grant is applied in the
+    adjuster chain against the actual target - see
+    game/conditional_devastating_wounds.py. Setting the flat flag instead would
+    hand it [DEVASTATING WOUNDS] against exactly the targets the printed line
+    excludes."""
+    name = "Long Rifle"
+    weapon_type = RANGED
+    range_in = 36
+    attacks = 2
+    ballistic_skill = "2+"
+    strength = 6
+    ap = -2
+    damage = 3
+    precision = True
+    devastating_wounds_vs_non_monster_vehicle = True
+
+
+class HuntingBladesProfile(WeaponProfile):
+    name = "Hunting Blades"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 2
+    strength = 3
+    ap = -1
+    damage = 1
+
+
+class SongOfWaningProfile(WeaponProfile):
+    """[ANTI-MONSTER/VEHICLE 3+] written as the two entries this engine already
+    uses for that printed pair, so the "best threshold wins" fold applies."""
+    name = "Song of Waning"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 3
+    strength = 4
+    ap = -2
+    damage = 3
+    anti = (("MONSTER", 3), ("VEHICLE", 3))
+    psychic = True
+
+
+class VenomcrestSpitProfile(WeaponProfile):
+    """Printed BS is "-", which is [TORRENT] - no ballistic_skill override
+    needed, the same call AeldariFlamerProfile records.
+
+    [ANTI-non-MONSTER/VEHICLE 3+] is the NEGATED form, which no [ANTI-X] entry
+    could express: see game/shooting.py's NON_MONSTER_VEHICLE sentinel."""
+    name = "Venomcrest Spit"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 3
+    strength = 3
+    ap = -2
+    damage = 2
+    anti = ((NON_MONSTER_VEHICLE, 3),)
+    blast = 1
+    torrent = True
+
+
+class StoneStaveProfile(WeaponProfile):
+    """The same negated [ANTI-X], one threshold better."""
+    name = "Stone Stave"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    strength = 3
+    ap = -1
+    damage = 2
+    anti = ((NON_MONSTER_VEHICLE, 2),)
+    psychic = True
+
+
+# --- Anhrathe (Corsairs) -----------------------------------------------------
+#
+# The Corsair arsenal. The power sword, fusion gun, shuriken pistol, shuriken
+# cannon, wraithcannon and both Aeldari close combat rows are the shared ones
+# and are reused; what follows is everything the Corsairs print that nothing
+# else does, plus the three rows that share a NAME with an existing weapon and
+# not its numbers.
+
+
+class BlasterProfile(WeaponProfile):
+    name = "Blaster"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 1
+    strength = 8
+    ap = -4
+    damage = 4  # preview/grouping placeholder only - damage_notation is what is rolled
+    damage_notation = D6(1)
+    assault = True
+
+
+class NeuroDisruptorProfile(WeaponProfile):
+    name = "Neuro Disruptor"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 1
+    strength = 4
+    ap = -2
+    damage = 1
+    anti = ("INFANTRY", 2)
+    assault = True
+    pistol = True
+
+
+class ShredderProfile(WeaponProfile):
+    """Printed BS is "N/A", which is [TORRENT] - no override needed."""
+    name = "Shredder"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 3  # preview/grouping placeholder only - attacks_notation is what is rolled
+    attacks_notation = D6()
+    strength = 6
+    ap = 0
+    damage = 1
+    assault = True
+    torrent = True
+
+
+class ShurikenRifleProfile(WeaponProfile):
+    name = "Shuriken Rifle"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 1
+    strength = 4
+    ap = -1
+    damage = 1
+    assault = True
+    rapid_fire = 1
+
+
+class BlastPistolProfile(WeaponProfile):
+    name = "Blast Pistol"
+    weapon_type = RANGED
+    range_in = 6
+    attacks = 1
+    strength = 8
+    ap = -3
+    damage = 2  # preview/grouping placeholder only - damage_notation is what is rolled
+    damage_notation = D3()
+    assault = True
+    pistol = True
+
+
+class CorsairBladeProfile(WeaponProfile):
+    name = "Corsair Blade"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    strength = 4
+    ap = -2
+    damage = 1
+
+
+class PairedHekatariiBladesProfile(WeaponProfile):
+    """The Shade Runner's blades."""
+    name = "Paired Hekatarii Blades"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 5
+    strength = 3
+    ap = -1
+    damage = 1
+
+
+class VoidscarredExecutionerProfile(WeaponProfile):
+    """NOT the Aeldari Executioner already here, which is a MELEE row at
+    A3/S6/AP-3/D3 with [ANTI-INFANTRY 3+]. This is a RANGED 18" gun with
+    [ANTI-INFANTRY 2+] and [PSYCHIC]. Same printed name, nothing else in
+    common - the clearest case of the "needs its own class" rule in this
+    batch, and pinned against the melee one so the two cannot merge."""
+    name = "Executioner"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 3
+    strength = 6
+    ap = -2
+    damage = 2  # preview/grouping placeholder only - damage_notation is what is rolled
+    damage_notation = D3()
+    anti = ("INFANTRY", 2)
+    psychic = True
+
+
+class WaySeekerWitchStaffProfile(WitchStaffProfile):
+    """The Spiritseer's row exactly, plus the WS2+ its own line prints - the
+    Way Seeker stands in a WS3+ unit, so this is a genuine per-WEAPON override
+    rather than the model's own skill."""
+    weapon_skill = "2+"
+
+
+class DreadOfTheDeepVoidProfile(WeaponProfile):
+    """Kharseth's gun. Five keywords at once, [HAZARDOUS] among them - the
+    price the datasheet charges for a D6+2 [BLAST] with [ANTI-INFANTRY 2+]."""
+    name = "Dread of the Deep Void"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 5  # preview/grouping placeholder only - attacks_notation is what is rolled
+    attacks_notation = D6(2)
+    strength = 3
+    ap = -2
+    damage = 1
+    anti = ("INFANTRY", 2)
+    blast = 1
+    hazardous = True
+    ignores_cover = True
+    psychic = True
+
+
+class WaystaveProfile(WeaponProfile):
+    name = "Waystave"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    weapon_skill = "2+"
+    strength = 3
+    ap = 0
+    damage = 3
+    anti = ("INFANTRY", 2)
+    psychic = True
+
+
+class EyeOfWrathProfile(WeaponProfile):
+    name = "Eye of Wrath"
+    weapon_type = RANGED
+    range_in = 6
+    attacks = 3
+    ballistic_skill = "2+"
+    strength = 6
+    ap = -2
+    damage = 2
+    assault = True
+    pistol = True
+
+
+class SpearOfTwilightProfile(WeaponProfile):
+    name = "Spear of Twilight"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 5
+    weapon_skill = "2+"
+    strength = 7
+    ap = -3
+    damage = 3
+    lance = True
+
+
+class DisintegratorCannonProfile(WeaponProfile):
+    name = "Disintegrator Cannon"
+    weapon_type = RANGED
+    range_in = 36
+    attacks = 3
+    strength = 6
+    ap = -3
+    damage = 2
+    assault = True
+
+
+class StarfangGrenadeLauncherProfile(WeaponProfile):
+    name = "Starfang Grenade Launcher"
+    weapon_type = RANGED
+    range_in = 36
+    attacks = 2  # preview/grouping placeholder only - attacks_notation is what is rolled
+    attacks_notation = D3()
+    strength = 6
+    ap = -3
+    damage = 2
+    assault = True
+    blast = 1
+
+
+# --- The Ynnari triumvirate --------------------------------------------------
+
+
+class StormOfWhispersProfile(WeaponProfile):
+    """Yvraine's gun: many weak shots that crit on 2+ against INFANTRY and turn
+    every crit into mortal wounds."""
+    name = "Storm of Whispers"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 6  # preview/grouping placeholder only - attacks_notation is what is rolled
+    attacks_notation = D6(3)
+    ballistic_skill = "2+"
+    strength = 2
+    ap = -2
+    damage = 1
+    anti = ("INFANTRY", 2)
+    devastating_wounds = True
+    psychic = True
+
+
+class KhaVirProfile(WeaponProfile):
+    name = "Kha-vir"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 5
+    weapon_skill = "2+"
+    strength = 4
+    ap = -3
+    damage = 2
+    devastating_wounds = True
+
+
+# The Visarch's Asu-var prints THREE stances, where every other multi-profile
+# weapon in this engine prints two. overcharge_profile is a single link, so the
+# three are CHAINED: quicksilver -> duellist -> mythic. That is the shape the
+# field already has, and it keeps "one datasheet entry, one granted weapon"
+# true - only the first is handed out.
+
+
+class AsuVarMythicStanceProfile(WeaponProfile):
+    name = "Asu-var - Mythic Stance"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    weapon_skill = "2+"
+    strength = 3
+    ap = -4
+    damage = 3
+    anti = ("EPIC HERO", 2)
+    precision = True
+
+
+class AsuVarDuellistStanceProfile(WeaponProfile):
+    name = "Asu-var - Duellist Stance"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 6
+    weapon_skill = "2+"
+    strength = 5
+    ap = -2
+    damage = 2
+    devastating_wounds = True
+    precision = True
+    overcharge_profile = AsuVarMythicStanceProfile
+
+
+class AsuVarQuicksilverStanceProfile(WeaponProfile):
+    """The row printed first, so the granted one."""
+    name = "Asu-var - Quicksilver Stance"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 8
+    weapon_skill = "2+"
+    strength = 4
+    ap = -1
+    damage = 1
+    sustained_hits = 2
+    overcharge_profile = AsuVarDuellistStanceProfile
+
+
+class SwirlingSoulEnergyProfile(WeaponProfile):
+    """Printed BS is "N/A", which is [TORRENT]."""
+    name = "Swirling Soul Energy"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 6  # preview/grouping placeholder only - attacks_notation is what is rolled
+    attacks_notation = D6(3)
+    strength = 7
+    ap = -1
+    damage = 2  # preview/grouping placeholder only - damage_notation is what is rolled
+    damage_notation = D3()
+    ignores_cover = True
+    psychic = True
+    torrent = True
+
+
+class VilithZharSweepProfile(WeaponProfile):
+    name = "Vilith-zhar - Sweep"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 10
+    weapon_skill = "2+"
+    strength = 6
+    ap = -4
+    damage = 1
+
+
+class VilithZharStrikeProfile(WeaponProfile):
+    name = "Vilith-zhar - Strike"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 5
+    weapon_skill = "2+"
+    strength = 12
+    ap = -4
+    damage = 4  # preview/grouping placeholder only - damage_notation is what is rolled
+    damage_notation = D6(1)
+    overcharge_profile = VilithZharSweepProfile

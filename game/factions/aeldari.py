@@ -15,6 +15,7 @@ whose army counts as ASURYANI.
 
 from game.factions.aeldari_points import AELDARI_POINTS
 from game.factions.datasheet import Datasheet, Gear, ModelLine, WargearOption
+from game.factions.detachment import Detachment, Enhancement
 from game.factions.faction import Faction, register_faction
 from game.units import (
     AsurmenProfile,
@@ -47,6 +48,20 @@ from game.units import (
     WaveSerpentProfile, WindriderProfile,
     RangerProfile, ShroudRunnerProfile,
     BaharrothProfile, SwoopingHawkExarchProfile, SwoopingHawkProfile,
+    WraithbladeProfile, WraithlordProfile,
+    DCannonPlatformProfile, ShadowWeaverPlatformProfile,
+    VibroCannonPlatformProfile,
+    FirePrismProfile, NightSpinnerProfile, VyperProfile,
+    LoneWarlockProfile, SpiritseerProfile, FarseerSkyrunnerProfile,
+    AutarchProfile, AutarchWayleaperProfile, MauganRaProfile,
+    DragonKnightProfile, ClanbladeProfile, LeystalkerProfile,
+    StonesingerProfile,
+    CorsairVoidreaverProfile, VoidreaverFelarchProfile,
+    CorsairVoidscarredProfile, VoidscarredFelarchProfile,
+    ShadeRunnerProfile, SoulWeaverProfile, WaySeekerProfile,
+    CorsairSkyreaverProfile, SkyreaverFelarchProfile,
+    KharsethProfile, PrinceYrielProfile, StarfangProfile,
+    YvraineProfile, TheVisarchProfile, TheYncarneProfile,
 )
 from game.weapons import (
     AeldariCloseCombatWeaponA2Profile,
@@ -124,9 +139,218 @@ from game.weapons import (
     ExarchsLasblasterProfile, FuryOfTheTempestProfile, HawksTalonProfile,
     LasblasterProfile, ShiningBladeProfile, SunpistolProfile,
     SwoopingHawkPowerSwordProfile,
+    GhostaxeProfile, GhostglaiveStrikeProfile, GhostswordsProfile,
+    WraithboneFistsProfile,
+    DCannonProfile, ShadowWeaverProfile, VibroCannonProfile,
+    PrismCannonDispersedPulseProfile, DoomweaverProfile,
+    WitchStaffProfile,
+    AutarchBansheeBladeProfile, AutarchScorpionChainswordProfile,
+    AutarchReaperLauncherStarshotProfile, StarGlaiveProfile,
+    MaugetarRangedProfile, MaugetarMeleeProfile,
+    DeathSpinnerProfile, DragonFusionGunProfile, DragonFusionPistolProfile,
+    SolarCarbineProfile, DrakesteedFangsAndTalonsProfile,
+    ExoditeLaserLanceMeleeProfile, MoonbladesProfile,
+    ExoditeLongRifleProfile, HuntingBladesProfile,
+    SongOfWaningProfile, VenomcrestSpitProfile, StoneStaveProfile,
+    BlasterProfile, NeuroDisruptorProfile, ShredderProfile,
+    ShurikenRifleProfile, BlastPistolProfile, CorsairBladeProfile,
+    PairedHekatariiBladesProfile, VoidscarredExecutionerProfile,
+    WaySeekerWitchStaffProfile, DreadOfTheDeepVoidProfile, WaystaveProfile,
+    EyeOfWrathProfile, SpearOfTwilightProfile, DisintegratorCannonProfile,
+    StarfangGrenadeLauncherProfile, PowerSwordProfile, FusionGunProfile,
+    LaserLanceRangedProfile,
+    VyperScatterLaserProfile, VyperStarcannonProfile,
+    TwinShurikenCatapultProfile,
+    StormOfWhispersProfile, KhaVirProfile, AsuVarQuicksilverStanceProfile,
+    SwirlingSoulEnergyProfile, VilithZharStrikeProfile,
 )
 
 AELDARI = register_faction(Faction("Aeldari", "AELDARI"))
+
+# The one Aeldari detachment modelled. Recorded here so that every faction
+# answers "which detachments do you have, and which config constant says who
+# is fielding them" the same way - game/detachments.py reads exactly that, and
+# a faction that answered it differently would need a special case there.
+# Until the T'au gained a second detachment this record did not exist at all
+# and game/army_lists.py carried the setting name instead, which worked only
+# while an army list and a detachment were the same choice.
+SEER_COUNCIL = AELDARI.add_detachment(Detachment(
+    "Seer Council",
+    rule_name="Strands of Fate",
+    setting="SEER_COUNCIL_PLAYERS",
+    points=2,
+    rule_text=(
+        "Strands of Fate: at the start of the battle, roll six D6 and set them aside as "
+        "Fate dice. Once per phase, you can spend one to reduce the cost of a Stratagem. "
+        "See game/strands_of_fate.py."
+    ),
+    enhancements=(
+        Enhancement("Lucid Eye", 30),
+        Enhancement("Runes of Warding", 25),
+        Enhancement("Stone of Eldritch Fury", 15),
+        Enhancement("Torc of Morai-Heg", 20),
+    ),))
+
+# The seven further detachments whose RULES are modelled. Their `rule_text` is
+# the VERBATIM printed rule from rules/aeldari/detachments/, not Seer Council's
+# older paraphrase-with-a-module-pointer style.
+#
+# `stratagems=` stays EMPTY and `enhancements=` no longer does. A record here
+# makes a detachment SELECTABLE and nothing more - making one DO something is a
+# module per rule - but the Enhancement records are also what game/enhancements.py's
+# registry is PINNED AGAINST (points and detachment, rather than literals), so
+# they earn their place twice.
+#
+# Between them these seven print 36 Stratagems and 24 Enhancements, and both are
+# now built; Seer Council's four bring the Enhancement total to 28. (The
+# Stratagem count read 30 until it was recounted against the corpus:
+# 6+6+6+6+6+3+3. The wrong figure had silently dropped Armoured Warhost's three
+# and Path of the Outcast's three, i.e. exactly the two detachments that print
+# fewer than six - which is how a plausible-looking 5 x 6 survived review. The
+# test counts the corpus headings rather than trusting either number, and does
+# the same for the Enhancements.)
+#
+# No `tag` on any of them: none prints an exclusion clause. Measured across all
+# 15 Aeldari detachment pages - only Fateful Performance and Twilight Flickers
+# carry one (ACROBATIC), and neither is in this batch.
+
+ARMOURED_WARHOST = AELDARI.add_detachment(Detachment(
+    "Armoured Warhost",
+    rule_name="Skilled Crews",
+    setting="ARMOURED_WARHOST_PLAYERS",
+    points=1,
+    rule_text=(
+        "Skilled Crews: Friendly AELDARI VEHICLE units' ranged attacks have [ASSAULT]. "
+        "Granted in the adjuster chain AND read by game/coldstar.py's "
+        "weapon_has_assault(), which is what actually lets a vehicle Advance and still "
+        "shoot (24.04). See game/skilled_crews.py."
+    ),
+    enhancements=(
+        Enhancement("Spirit Stone of Raelyth", 20),
+        Enhancement("Guiding Presence", 25),
+    ),))
+
+PATH_OF_THE_OUTCAST_DETACHMENT = AELDARI.add_detachment(Detachment(
+    "Path of the Outcast",
+    rule_name="Far-Reaching Doom",
+    setting="PATH_OF_THE_OUTCAST_PLAYERS",
+    points=1,
+    rule_text=(
+        "Far-Reaching Doom: when a friendly RANGERS/SHROUD RUNNERS unit is selected to "
+        "shoot, enemy units have +6\" detection range until that friendly unit has shot. "
+        "The engine module is named after the RULE, not the detachment - "
+        "game/path_of_the_outcast.py is the RANGERS DATASHEET ability of the same name "
+        "and shares none of this text. See game/far_reaching_doom.py."
+    ),
+    enhancements=(
+        Enhancement("Camouflaged Snipers", 10),
+        Enhancement("Assassins' Eye", 15),
+    ),))
+
+GUARDIAN_BATTLEHOST = AELDARI.add_detachment(Detachment(
+    "Guardian Battlehost",
+    rule_name="Defend at All Costs",
+    setting="GUARDIAN_BATTLEHOST_PLAYERS",
+    points=2,
+    rule_text=(
+        "Defend at All Costs: each time a DIRE AVENGER, GUARDIAN, SUPPORT WEAPON or "
+        "WAR WALKER model from your army makes an attack, if that model's unit and/or "
+        "the target unit are within range of one or more objective markers, add 1 to "
+        "the Hit roll. The \"and/or\" is an OR - three of the four board states pay. "
+        "See game/defend_at_all_costs.py."
+    ),
+    enhancements=(
+        Enhancement("Craftworld's Champion", 25),
+        Enhancement("Ethereal Pathway", 30),
+        Enhancement("Protector of the Paths", 20),
+        Enhancement("Breath of Vaul", 10),
+    ),))
+
+ASPECT_HOST = AELDARI.add_detachment(Detachment(
+    "Aspect Host",
+    rule_name="Path of the Warrior",
+    setting="ASPECT_HOST_PLAYERS",
+    points=3,
+    rule_text=(
+        "Path of the Warrior: each time an ASPECT WARRIORS or AVATAR OF KHAINE unit "
+        "from your army is selected to shoot or fight, select one of the following for "
+        "it to gain until the end of the phase - re-roll a Hit roll of 1, or re-roll a "
+        "Wound roll of 1. A real choice between two exclusive options, so a real "
+        "prompt; each clause is a plain automatic 1s re-roll rather than a "
+        "failures-or-whole offer. See game/path_of_the_warrior.py."
+    ),
+    enhancements=(
+        Enhancement("Aspect of Murder", 15),
+        Enhancement("Mantle of Wisdom", 20),
+        Enhancement("Shimmerstone", 10),
+        Enhancement("Strategic Savant", 10),
+    ),))
+
+WARHOST = AELDARI.add_detachment(Detachment(
+    "Warhost",
+    rule_name="Martial Grace",
+    setting="WARHOST_PLAYERS",
+    points=3,
+    rule_text=(
+        "Martial Grace: at the start of the battle round you receive 1 additional "
+        "Battle Focus token; each time a unit performs the Swift as the Wind Agile "
+        "Manoeuvre, add an additional 1\" to the Move characteristic of models in that "
+        "unit until the end of the phase; and each time a unit performs an Agile "
+        "Manoeuvre that involves rolling a D6, add 1 to the result. Three clauses, all "
+        "three turning dials on the army rule rather than adding a mechanism - so all "
+        "three live in game/battle_focus.py's own seams. See game/martial_grace.py."
+    ),
+    enhancements=(
+        Enhancement("Phoenix Gem", 35),
+        Enhancement("Timeless Strategist", 15),
+        Enhancement("Gift of Foresight", 15),
+        Enhancement("Psychic Destroyer", 30),
+    ),))
+
+WINDRIDER_HOST = AELDARI.add_detachment(Detachment(
+    "Windrider Host",
+    rule_name="Ride the Wind",
+    setting="WINDRIDER_HOST_PLAYERS",
+    points=2,
+    rule_text=(
+        "Ride the Wind: ASURYANI MOUNTED and VYPER units may be set up in Reserves and "
+        "arrive as if from Strategic Reserves, and for the purposes of setting such "
+        "units up the current battle round counts as one higher. In addition, at the "
+        "end of your opponent's turn you may pull back up to N of them (Incursion 1, "
+        "Strike Force 2, Onslaught 3) that are not within Engagement Range. WINDRIDERS "
+        "gain BATTLELINE. Two of the four clauses are measured no-ops here - rule 20.01 "
+        "already lets any unit start in Reserves, and no Aeldari rule reads BATTLELINE. "
+        "See game/ride_the_wind.py."
+    ),
+    enhancements=(
+        Enhancement("Firstdrawn Blade", 10),
+        Enhancement("Mirage Field", 25),
+        Enhancement("Seersight Strike", 15),
+        Enhancement("Echoes of Ulthanesh", 20),
+    ),))
+
+SPIRIT_CONCLAVE = AELDARI.add_detachment(Detachment(
+    "Spirit Conclave",
+    rule_name="Shepherds of the Dead",
+    setting="SPIRIT_CONCLAVE_PLAYERS",
+    points=2,
+    rule_text=(
+        "Shepherds of the Dead: each time an ASURYANI PSYKER model from your army is "
+        "destroyed by an enemy unit, that enemy unit gains a Vengeful Dead token, and "
+        "WRAITH CONSTRUCT models add 1 to the Hit roll and 1 to the Wound roll against "
+        "a unit carrying one or more. ASURYANI PSYKER models also have Spirit Guides "
+        "(Aura): a WRAITHBLADES/WRAITHGUARD/WRAITHLORD unit within 12\" has the Battle "
+        "Focus ability. WRAITHBLADES and WRAITHGUARD gain BATTLELINE (a measured no-op "
+        "here). The ninth enemy mark and the first placed by a DEATH rather than a "
+        "choice - cumulative, and the only one that never expires. "
+        "See game/shepherds_of_the_dead.py."
+    ),
+    enhancements=(
+        Enhancement("Light of Clarity", 30),
+        Enhancement("Stave of Kurnous", 15),
+        Enhancement("Rune of Mists", 10),
+        Enhancement("Higher Duty", 25),
+    ),))
 
 _GUARDIAN_LOADOUT = [AeldariCloseCombatWeaponProfile, ShurikenCatapultProfile]
 _PLATFORM_LOADOUT = [AeldariCloseCombatWeaponProfile, BrightLanceProfile]
@@ -1386,3 +1610,1165 @@ FUEGAN = AELDARI.add_datasheet(Datasheet(
         'Invulnerable Save 4+.',
     ],
 ))
+
+
+# --- Wraithblades -----------------------------------------------------------
+
+_WRAITHBLADE_LOADOUT = [GhostswordsProfile]
+
+_WRAITHBLADE_LINE = "Wraithblade"
+
+WRAITHBLADE_TO_GHOSTAXE = "Ghostswords -> Ghostaxe + Forceshield"
+
+
+def _equip_forceshield(token):
+    """"All of the models in this unit can each have their ghostswords replaced
+    with 1 ghostaxe AND 1 forceshield."
+
+    ONE printed option, but half of it is a weapon swap and half is a defensive
+    item, so it arrives as a WargearOption plus this Gear - exactly the split
+    the Lychguard's dispersion shield and the Dire Avenger Exarch's
+    shimmershield already use.
+
+    build_squad() runs gear AFTER every weapon swap, so this simply declines to
+    attach to a model that kept its ghostswords. The pairing enforces itself
+    that way rather than needing a validation rule nobody would remember to
+    call."""
+    if not any(isinstance(w, GhostaxeProfile) for w in token.weapons):
+        return
+    token.forceshield = True   # read by game/invulnerable_save.py
+
+
+WRAITHBLADES = AELDARI.add_datasheet(Datasheet(
+    "Wraithblades",
+    keywords=("INFANTRY", "AELDARI", "WRAITH CONSTRUCT", "WRAITHBLADES"),
+    model_lines=[ModelLine(WraithbladeProfile, 5, _WRAITHBLADE_LOADOUT,
+                           name=_WRAITHBLADE_LINE)],
+    wargear_options=[
+        WargearOption(_WRAITHBLADE_LINE, replaces=GhostswordsProfile,
+                      with_weapons=[GhostaxeProfile],
+                      max_models=5, name=WRAITHBLADE_TO_GHOSTAXE),
+    ],
+    gear_options=[
+        # all_models=True: the printed line dresses EVERY model, not a
+        # character - the same reason the Lychguard's shield needed the flag.
+        Gear(_WRAITHBLADE_LINE, WRAITHBLADE_TO_GHOSTAXE, _equip_forceshield,
+             all_models=True),
+    ],
+    gear_slots={_WRAITHBLADE_LINE: 1},
+    points=AELDARI_POINTS["Wraithblades"],
+    abilities_text=[
+        'Battle Focus (army rule): see game/battle_focus.py.',
+        'Malevolent Souls: each time a model in this unit is destroyed by a melee attack, '
+        'if that model has not fought this phase, roll one D6. On a 3+ it is not removed - '
+        'it fights after the attacking unit has finished its attacks and is then removed '
+        'from play. See game/malevolent_souls.py, which shares the "dead model strikes '
+        'back" ledger with Undying Spite via game/fight_after_death.py.',
+        'Psychic Guidance: while this unit is within 12" of one or more friendly AELDARI '
+        'PSYKER models, models in this unit have Leadership 6+ and add 1 to their Hit '
+        'rolls - see game/psychic_guidance.py. The same printed ability the Wraithguard '
+        'carry, and the same flag.',
+        'Forceshield (wargear): the bearer has a 4+ invulnerable save. Bundled with the '
+        'ghostaxe in ONE printed option - see _equip_forceshield above.',
+        'WRAITH CONSTRUCT: a TRANSPORT counts each of these models as two.',
+        'Led by: BONESINGER. NOT modelled - the Bonesinger is a Legends datasheet and is '
+        'deliberately not built, so no leader in this engine names this unit. That '
+        'direction of the pairing would live on the Bonesinger\'s own points entry '
+        '(UnitPoints.leads), not here.',
+    ],
+))
+
+
+# --- Wraithlord -------------------------------------------------------------
+
+_WRAITHLORD_LOADOUT = [
+    ShurikenCatapultProfile, ShurikenCatapultProfile, WraithboneFistsProfile,
+]
+
+_WRAITHLORD_LINE = "Wraithlord"
+
+WRAITHLORD_CATAPULTS_TO_FLAMERS = "2x Shuriken Catapult -> 2x Flamer"
+WRAITHLORD_GHOSTGLAIVE = "Add Ghostglaive"
+WRAITHLORD_ADD_MISSILE = "Add Missile Launcher"
+WRAITHLORD_ADD_BRIGHT_LANCE = "Add Bright Lance"
+WRAITHLORD_ADD_SCATTER_LASER = "Add Scatter Laser"
+WRAITHLORD_ADD_SHURIKEN_CANNON = "Add Shuriken Cannon"
+WRAITHLORD_ADD_STARCANNON = "Add Starcannon"
+
+# Three separate printed sentences, so three groups of options:
+#   1. "Each of this model's shuriken catapults can be replaced with 1 flamer"
+#      - per catapult, and it carries two. build_squad() addresses MODELS
+#      rather than weapon copies, so this is written as the both-at-once swap,
+#      the same call War Walkers records for its paired shuriken cannons.
+#   2. "This model can be equipped with 1 ghostglaive" - a pure ADDITION
+#      (replaces=None), and only the STRIKE profile is granted: sweep is its
+#      alternate firing mode, so handing out both would be two glaives.
+#   3. "up to two of the following" - five heavy weapons, each a pure addition.
+#      NAMED LIMITATION: gear_slots caps Gear, not WargearOptions, so "up to
+#      TWO" is not expressible here and a build can currently take all five.
+#      The printed cap is recorded in abilities_text and pinned in the test as
+#      a known limitation, the same treatment the Kroot Farstalkers' "one of
+#      the following" and the Broadsides' "not both" already carry.
+WRAITHLORD = AELDARI.add_datasheet(Datasheet(
+    "Wraithlord",
+    keywords=("MONSTER", "AELDARI", "WALKER", "WRAITH CONSTRUCT", "WRAITHLORD"),
+    model_lines=[ModelLine(WraithlordProfile, 1, _WRAITHLORD_LOADOUT,
+                           name=_WRAITHLORD_LINE)],
+    wargear_options=[
+        WargearOption(_WRAITHLORD_LINE, replaces=ShurikenCatapultProfile,
+                      with_weapons=[AeldariFlamerProfile, AeldariFlamerProfile],
+                      max_models=1, name=WRAITHLORD_CATAPULTS_TO_FLAMERS),
+        WargearOption(_WRAITHLORD_LINE, replaces=None,
+                      with_weapons=[GhostglaiveStrikeProfile],
+                      max_models=1, name=WRAITHLORD_GHOSTGLAIVE),
+        WargearOption(_WRAITHLORD_LINE, replaces=None,
+                      with_weapons=[MissileLauncherStarshotProfile],
+                      max_models=1, name=WRAITHLORD_ADD_MISSILE),
+        WargearOption(_WRAITHLORD_LINE, replaces=None,
+                      with_weapons=[BrightLanceProfile],
+                      max_models=1, name=WRAITHLORD_ADD_BRIGHT_LANCE),
+        WargearOption(_WRAITHLORD_LINE, replaces=None,
+                      with_weapons=[ScatterLaserProfile],
+                      max_models=1, name=WRAITHLORD_ADD_SCATTER_LASER),
+        WargearOption(_WRAITHLORD_LINE, replaces=None,
+                      with_weapons=[ShurikenCannonProfile],
+                      max_models=1, name=WRAITHLORD_ADD_SHURIKEN_CANNON),
+        WargearOption(_WRAITHLORD_LINE, replaces=None,
+                      with_weapons=[StarcannonProfile],
+                      max_models=1, name=WRAITHLORD_ADD_STARCANNON),
+    ],
+    points=AELDARI_POINTS["Wraithlord"],
+    abilities_text=[
+        'Battle Focus (army rule): see game/battle_focus.py.',
+        'Deadly Demise 1 (24.08): core, already implemented - only the value was needed.',
+        'Fated Hero: at the start of the battle, select one of INFANTRY, MONSTER, MOUNTED '
+        'or VEHICLE. Each time this model makes an attack against a unit with the selected '
+        'keyword, re-roll a Hit roll of 1 and a Wound roll of 1 - see game/fated_hero.py.',
+        'Psychic Guidance: while this model is within 12" of one or more friendly AELDARI '
+        'PSYKER models, the Ballistic Skill and Weapon Skill characteristics of its weapons '
+        'improve by 1 and it has Leadership 6+ - see game/psychic_guidance.py. NOTE this is '
+        'the Wraithlord\'s VARIANT of the printed name: the Wraithguard/Wraithblades version '
+        'adds 1 to the Hit ROLL instead, and the two are separate flags.',
+        'Wargear limitation, NOT modelled: "up to two of the following" heavy weapons is a '
+        'list-building cap, and a WargearOption cannot express mutual exclusivity across a '
+        'group - a build can currently take more than two. Named rather than silently '
+        'dropped, the same way the Kroot Farstalkers\' "one of the following" is.',
+        'WRAITH CONSTRUCT: a TRANSPORT counts this model as two.',
+        'Led by: BONESINGER. NOT modelled - a Legends datasheet, deliberately not built.',
+    ],
+))
+
+
+# --- Support Weapon Platforms -----------------------------------------------
+#
+# Three datasheets off one chassis (SupportWeaponPlatformProfile in
+# game/units.py), and the two abilities they SHARE are declared once each in
+# the shared strings below - a per-datasheet copy is exactly how three sheets
+# that must agree start disagreeing.
+
+_SUPPORT_PLATFORM_SHARED_ABILITIES = [
+    'Battle Focus (army rule): see game/battle_focus.py.',
+    'Support Artillery: at the start of the Declare Battle Formations step this model '
+    'can join one GUARDIAN DEFENDERS unit from your army (a unit cannot have more than '
+    'one SUPPORT WEAPON model joined to it); it then counts as part of that unit for '
+    'the rest of the battle and increases its Starting Strength. This is the SUPPORT '
+    'attachment role (24.34) - the pairing is read off the points list\'s own '
+    'UnitPoints.supports, exactly like a LEADER line.',
+    'Support Artillery, second sentence: this model, and any unit it is joined to, '
+    'cannot embark within a TRANSPORT - see game/transport.py\'s can_embark(). Both '
+    'halves fall out of one per-model test, because 19.01 merges the platform into the '
+    'Guardians\' own Squad.models.',
+    'Support Weapon: each time an attack targets this model\'s unit, if that unit '
+    'contains one or more other models, until that attack is resolved this model has '
+    'Toughness 3 - folded into game/squad.py\'s attached_unit_toughness(), beside the '
+    'Gretchin Runtherd override that answers the same question. A platform standing '
+    'alone keeps its printed T6, unprompted.',
+]
+
+_D_CANNON_LOADOUT = [DCannonProfile, ShurikenCatapultProfile,
+                     AeldariCloseCombatWeaponA2Profile]
+_SHADOW_WEAVER_LOADOUT = [ShadowWeaverProfile, ShurikenCatapultProfile,
+                          AeldariCloseCombatWeaponA2Profile]
+_VIBRO_CANNON_LOADOUT = [VibroCannonProfile, ShurikenCatapultProfile,
+                         AeldariCloseCombatWeaponA2Profile]
+
+D_CANNON_PLATFORM = AELDARI.add_datasheet(Datasheet(
+    "D-cannon Platform",
+    keywords=("INFANTRY", "AELDARI", "FRAME", "SUPPORT WEAPON", "D-CANNON PLATFORM"),
+    model_lines=[ModelLine(DCannonPlatformProfile, 1, _D_CANNON_LOADOUT,
+                           name="D-cannon Platform")],
+    points=AELDARI_POINTS["D-cannon Platform"],
+    abilities_text=_SUPPORT_PLATFORM_SHARED_ABILITIES + [
+        'Structural Collapse: each time this model makes an attack with its D-cannon, '
+        're-roll a Damage roll of 1 - MANDATORY (the text has no "you can"), so it is '
+        'resolved without a prompt. See game/structural_collapse.py.',
+        'Structural Collapse, second clause: "if that attack targets a TITANIC unit, you '
+        'can re-roll the Damage roll instead" is a BELIEVED NO-OP - no built datasheet '
+        'carries TITANIC. Written out rather than dropped, like rapid_ingress.py\'s '
+        'AIRCRAFT carve-out.',
+    ],
+))
+
+SHADOW_WEAVER_PLATFORM = AELDARI.add_datasheet(Datasheet(
+    "Shadow Weaver Platform",
+    keywords=("INFANTRY", "AELDARI", "FRAME", "SUPPORT WEAPON", "SHADOW WEAVER PLATFORM"),
+    model_lines=[ModelLine(ShadowWeaverPlatformProfile, 1, _SHADOW_WEAVER_LOADOUT,
+                           name="Shadow Weaver Platform")],
+    points=AELDARI_POINTS["Shadow Weaver Platform"],
+    abilities_text=_SUPPORT_PLATFORM_SHARED_ABILITIES + [
+        'Monofilament Snare: in your Shooting phase, after this model has shot, select '
+        'one enemy unit hit by one or more of those attacks made with its shadow weaver. '
+        'Until the start of your next turn that unit is snared, and each time it makes a '
+        'Normal, Advance or Fall Back move it rolls one D6 per model and suffers 1 mortal '
+        'wound for each 1. See game/monofilament_snare.py.',
+    ],
+))
+
+VIBRO_CANNON_PLATFORM = AELDARI.add_datasheet(Datasheet(
+    "Vibro Cannon Platform",
+    keywords=("INFANTRY", "AELDARI", "FRAME", "SUPPORT WEAPON", "VIBRO CANNON PLATFORM"),
+    model_lines=[ModelLine(VibroCannonPlatformProfile, 1, _VIBRO_CANNON_LOADOUT,
+                           name="Vibro Cannon Platform")],
+    points=AELDARI_POINTS["Vibro Cannon Platform"],
+    abilities_text=_SUPPORT_PLATFORM_SHARED_ABILITIES + [
+        'Sonic Destruction: in your Shooting phase, each time this model attacks with its '
+        'vibro cannon, improve the Strength, Armour Penetration and Damage of that attack '
+        'by 1 for each OTHER friendly VIBRO CANNON PLATFORM model that attacked the same '
+        'enemy unit with its vibro cannon this phase. See game/sonic_destruction.py.',
+    ],
+))
+
+
+# --- Fire Prism / Night Spinner ---------------------------------------------
+#
+# One hull (AeldariGunTankProfile in game/units.py), two guns. Both print the
+# same single wargear line, so that is shared too.
+
+_FIRE_PRISM_LOADOUT = [PrismCannonDispersedPulseProfile,
+                       TwinShurikenCatapultProfile, WraithboneHullProfile]
+_NIGHT_SPINNER_LOADOUT = [DoomweaverProfile,
+                          TwinShurikenCatapultProfile, WraithboneHullProfile]
+
+_FIRE_PRISM_LINE = "Fire Prism"
+_NIGHT_SPINNER_LINE = "Night Spinner"
+
+FIRE_PRISM_CATAPULT_TO_CANNON = "Twin Shuriken Catapult -> Shuriken Cannon"
+NIGHT_SPINNER_CATAPULT_TO_CANNON = "Twin Shuriken Catapult -> Shuriken Cannon"
+
+FIRE_PRISM = AELDARI.add_datasheet(Datasheet(
+    "Fire Prism",
+    keywords=("VEHICLE", "AELDARI", "FLY", "FRAME", "FIRE PRISM"),
+    model_lines=[ModelLine(FirePrismProfile, 1, _FIRE_PRISM_LOADOUT,
+                           name=_FIRE_PRISM_LINE)],
+    wargear_options=[
+        WargearOption(_FIRE_PRISM_LINE, replaces=TwinShurikenCatapultProfile,
+                      with_weapons=[ShurikenCannonProfile],
+                      max_models=1, name=FIRE_PRISM_CATAPULT_TO_CANNON),
+    ],
+    points=AELDARI_POINTS["Fire Prism"],
+    abilities_text=[
+        'Battle Focus (army rule): see game/battle_focus.py.',
+        'Deadly Demise D3 (24.08): core, already implemented.',
+        'Damaged 1-4 wounds remaining: -1 to this model\'s Hit rolls - the shared '
+        'bracket every damaged vehicle here uses.',
+        'Crystal Matrix: each time this model is selected to shoot, you can re-roll one '
+        'Hit roll AND one Wound roll. One use of EACH, where the gunships\' Targeting '
+        'Array is one use of EITHER - the two share game/activation_reroll.py and differ '
+        'only in that word. See game/crystal_matrix.py.',
+        'Prism cannon: ONE datasheet entry with two firing profiles. Only the dispersed '
+        'pulse is granted; focused lances is its alternate firing mode, so handing out '
+        'both would give the tank two cannons.',
+        '[LINKED FIRE] on the focused lances is NOT modelled. The keyword reads: "when '
+        'selecting targets for this weapon, you can measure range and determine '
+        'visibility from another friendly FIRE PRISM model that is visible to the '
+        'bearer; when doing so, this weapon has an Attacks characteristic of 1." That '
+        're-bases range AND line of sight onto a different model, which every targeting '
+        'test in game/shooting.py measures from the firing model - a targeting-layer '
+        'change rather than a weapon flag, and one that needs a SECOND Fire Prism on the '
+        'board before it can do anything. Named rather than silently dropped.',
+    ],
+))
+
+NIGHT_SPINNER = AELDARI.add_datasheet(Datasheet(
+    "Night Spinner",
+    keywords=("VEHICLE", "AELDARI", "FLY", "FRAME", "NIGHT SPINNER"),
+    model_lines=[ModelLine(NightSpinnerProfile, 1, _NIGHT_SPINNER_LOADOUT,
+                           name=_NIGHT_SPINNER_LINE)],
+    wargear_options=[
+        WargearOption(_NIGHT_SPINNER_LINE, replaces=TwinShurikenCatapultProfile,
+                      with_weapons=[ShurikenCannonProfile],
+                      max_models=1, name=NIGHT_SPINNER_CATAPULT_TO_CANNON),
+    ],
+    points=AELDARI_POINTS["Night Spinner"],
+    abilities_text=[
+        'Battle Focus (army rule): see game/battle_focus.py.',
+        'Deadly Demise D3 (24.08): core, already implemented.',
+        'Damaged 1-4 wounds remaining: -1 to this model\'s Hit rolls.',
+        'Monofilament Web: in your Shooting phase, after this model has shot, any enemy '
+        'unit its doomweaver hit is PINNED until the start of your next turn - subtract 2 '
+        'from its Move characteristic and 2 from Charge rolls made for it. NOT from '
+        'Advance rolls: that is the one clause separating "pinned" from Mont\'ka\'s '
+        '"shaken", and the two stack. See game/monofilament_web.py.',
+    ],
+))
+
+
+# --- Vypers -----------------------------------------------------------------
+
+_VYPER_LOADOUT = [ShurikenCannonProfile, BrightLanceProfile, WraithboneHullProfile]
+
+_VYPER_LINE = "Vyper"
+
+VYPER_LANCE_TO_SCATTER_LASER = "Bright Lance -> Scatter Laser"
+VYPER_LANCE_TO_STARCANNON = "Bright Lance -> Starcannon"
+VYPER_CANNON_TO_MISSILE = "Shuriken Cannon -> Missile Launcher"
+
+VYPERS = AELDARI.add_datasheet(Datasheet(
+    "Vypers",
+    keywords=("VEHICLE", "AELDARI", "FLY", "VYPERS"),
+    composition_options=[
+        [ModelLine(VyperProfile, 1, _VYPER_LOADOUT, name=_VYPER_LINE)],
+        [ModelLine(VyperProfile, 2, _VYPER_LOADOUT, name=_VYPER_LINE)],
+    ],
+    # Two independent printed sentences, so two groups of options: the bright
+    # lance becomes one of two guns, and the shuriken cannon independently
+    # becomes a missile launcher. They replace DIFFERENT weapons, so a model
+    # can take one from each - which is what "any number of models can each"
+    # means twice over.
+    wargear_options=[
+        WargearOption(_VYPER_LINE, replaces=BrightLanceProfile,
+                      with_weapons=[VyperScatterLaserProfile],
+                      max_models=2, name=VYPER_LANCE_TO_SCATTER_LASER),
+        WargearOption(_VYPER_LINE, replaces=BrightLanceProfile,
+                      with_weapons=[VyperStarcannonProfile],
+                      max_models=2, name=VYPER_LANCE_TO_STARCANNON),
+        WargearOption(_VYPER_LINE, replaces=ShurikenCannonProfile,
+                      with_weapons=[MissileLauncherStarshotProfile],
+                      max_models=2, name=VYPER_CANNON_TO_MISSILE),
+    ],
+    points=AELDARI_POINTS["Vypers"],
+    abilities_text=[
+        'Battle Focus (army rule): see game/battle_focus.py.',
+        'Deadly Demise 1 (24.08): core, already implemented.',
+        'Harassment Fire: in your Shooting phase, after this unit has shot, select one '
+        'enemy unit hit by one or more of those attacks; until the start of your next '
+        'turn it is SUPPRESSED and subtracts 1 from its Hit rolls. The same status the '
+        'T\'au Strike Team\'s Suppression Volley applies, so it is written into the same '
+        'ledger (game/suppression.py) - with two printed differences: no INFANTRY '
+        'restriction, and no "while this unit is on the battlefield" clause, so it '
+        'outlives the Vypers that applied it.',
+        'The Vypers\' scatter laser prints [SUSTAINED HITS 2] where every other carrier '
+        'of that row prints 1, and their starcannon prints BS2+ where their five other '
+        'weapon rows print 3+. Both transcribed as printed and pinned, because both look '
+        'like typos beside the rest of the sheet.',
+    ],
+))
+
+
+# --- The three standalone Asuryani psykers ----------------------------------
+
+_LONE_WARLOCK_LOADOUT = [DestructorProfile, ShurikenPistolProfile, WitchbladeProfile]
+_LONE_WARLOCK_LINE = "Warlock"
+LONE_WARLOCK_WITCHBLADE_TO_SPEAR = "Witchblade -> Singing Spear"
+
+WARLOCK = AELDARI.add_datasheet(Datasheet(
+    "Warlock",
+    keywords=("INFANTRY", "CHARACTER", "AELDARI", "PSYKER", "WARLOCK"),
+    model_lines=[ModelLine(LoneWarlockProfile, 1, _LONE_WARLOCK_LOADOUT,
+                           name=_LONE_WARLOCK_LINE)],
+    wargear_options=[
+        WargearOption(_LONE_WARLOCK_LINE, replaces=WitchbladeProfile,
+                      with_weapons=[SingingSpearRangedProfile, SingingSpearMeleeProfile],
+                      max_models=1, name=LONE_WARLOCK_WITCHBLADE_TO_SPEAR),
+    ],
+    points=AELDARI_POINTS["Warlock"],
+    abilities_text=[
+        'Battle Focus (army rule): see game/battle_focus.py.',
+        'Support (24.34): this model can be attached to a Guardian Defenders or Storm '
+        'Guardians unit. The pairing is read off the points list\'s UnitPoints.supports.',
+        'Runes of Fortune: each time an enemy unit declares a charge, if one or more '
+        'units with this ability are among its targets, subtract 2 from the Charge roll - '
+        'see game/runes_of_fortune.py. The first DEFENDER-side term in that fold; the '
+        'other three (Photon Grenades, shaken, pinned) all belong to the charging unit.',
+        'Psychic Communion: the same ability the Warlock Conclave prints, and the same '
+        'flag - see game/psychic_communion.py.',
+        'NOT the Warlock Conclave\'s model, despite the shared statline: that datasheet '
+        'prints PROTECT and this one prints RUNES OF FORTUNE, and this one attaches as an '
+        'ordinary SUPPORT model where the Conclave\'s line is a JOIN that occupies no '
+        'leader slot. LoneWarlockProfile inherits the statline and switches those off.',
+        'Invulnerable Save 4+.',
+    ],
+))
+
+
+_SPIRITSEER_LOADOUT = [ShurikenPistolProfile, WitchStaffProfile]
+
+SPIRITSEER = AELDARI.add_datasheet(Datasheet(
+    "Spiritseer",
+    keywords=("INFANTRY", "CHARACTER", "AELDARI", "PSYKER", "SPIRITSEER"),
+    model_lines=[ModelLine(SpiritseerProfile, 1, _SPIRITSEER_LOADOUT,
+                           name="Spiritseer")],
+    points=AELDARI_POINTS["Spiritseer"],
+    abilities_text=[
+        'Battle Focus (army rule): see game/battle_focus.py.',
+        'Stealth (24.33): core, already implemented - only the flag was needed.',
+        'Spiritseer: while within 3" of one or more friendly WRAITH CONSTRUCT units, this '
+        'model has Lone Operative (24.24) - the SECOND conditional grant of that ability, '
+        'after Illuminor Szeras, and it needed no new seam because his made '
+        'game/status_effects.py ask a module rather than read a printed value.',
+        'Spirit Mark: once per turn in your Movement phase, when this model starts or ends '
+        'a move, one friendly WRAITH CONSTRUCT unit within 6" gains [SUSTAINED HITS 1] '
+        'against one visible enemy unit, until the start of your next Movement phase. A '
+        'PAIR rather than a mark - see game/spiritseer.py.',
+        'Tears of Isha: in your Command phase, one friendly WRAITH CONSTRUCT unit within '
+        '6" either returns one destroyed model or heals D3 wounds. The two branches are '
+        'NOT a free choice: "otherwise" makes the heal what happens when there is nothing '
+        'to return. See game/spiritseer.py.',
+        'No LEADER or SUPPORT line at all: it stands alone, and reaches wraith units by '
+        'RANGE rather than by attachment.',
+        'Invulnerable Save 4+.',
+    ],
+))
+
+
+_FARSEER_SKYRUNNER_LOADOUT = [EldritchStormProfile, ShurikenPistolProfile,
+                              TwinShurikenCatapultProfile, WitchbladeProfile]
+_FARSEER_SKYRUNNER_LINE = "Farseer Skyrunner"
+FARSEER_SKYRUNNER_WITCHBLADE_TO_SPEAR = "Witchblade -> Singing Spear"
+
+FARSEER_SKYRUNNER = AELDARI.add_datasheet(Datasheet(
+    "Farseer Skyrunner",
+    keywords=("MOUNTED", "CHARACTER", "AELDARI", "FLY", "PSYKER", "FARSEER",
+              "FARSEER SKYRUNNER"),
+    model_lines=[ModelLine(FarseerSkyrunnerProfile, 1, _FARSEER_SKYRUNNER_LOADOUT,
+                           name=_FARSEER_SKYRUNNER_LINE)],
+    wargear_options=[
+        WargearOption(_FARSEER_SKYRUNNER_LINE, replaces=WitchbladeProfile,
+                      with_weapons=[SingingSpearRangedProfile, SingingSpearMeleeProfile],
+                      max_models=1, name=FARSEER_SKYRUNNER_WITCHBLADE_TO_SPEAR),
+    ],
+    points=AELDARI_POINTS["Farseer Skyrunner"],
+    abilities_text=[
+        'Battle Focus (army rule): see game/battle_focus.py.',
+        'Leader (24.22): this model can be attached to a Windriders unit - which is also '
+        'the only unit the Warlock Skyrunner can join, so a Windrider squad can end up '
+        'with both.',
+        'Branching Fates: the same ability the foot Farseer prints, and the same flag - '
+        'see game/branching_fates.py.',
+        'Misfortune: at the end of your Movement phase, one enemy unit within 18" and '
+        'visible subtracts 1 from ITS OWN Wound rolls until the start of your next Command '
+        'phase. The THIRD psychic mark of Guide and Doom\'s shape, and the first read from '
+        'the attacker\'s side rather than the target\'s - see game/misfortune.py.',
+        'MOUNTED, so it takes the 45 mm table size the other three jetbike datasheets '
+        'share rather than its printed 32 mm.',
+        'Invulnerable Save 4+.',
+    ],
+))
+
+
+# --- Autarchs and Maugan Ra -------------------------------------------------
+#
+# The two Autarchs print the SAME wargear menus, so the loadout, the option
+# names and the two swap groups are shared here rather than written twice.
+
+_AUTARCH_LOADOUT = [ShurikenPistolProfile, StarGlaiveProfile]
+
+AUTARCH_PISTOL_TO_DEATH_SPINNER = "Shuriken Pistol -> Death Spinner"
+AUTARCH_PISTOL_TO_FUSION_GUN = "Shuriken Pistol -> Dragon Fusion Gun"
+AUTARCH_PISTOL_TO_FUSION_PISTOL = "Shuriken Pistol -> Dragon Fusion Pistol"
+AUTARCH_PISTOL_TO_REAPER = "Shuriken Pistol -> Reaper Launcher"
+AUTARCH_GLAIVE_TO_BANSHEE_BLADE = "Star Glaive -> Banshee Blade"
+AUTARCH_GLAIVE_TO_CHAINSWORD = "Star Glaive -> Scorpion Chainsword"
+
+
+def _autarch_wargear(line):
+    """The two printed sentences, as six options. Both are "one of the
+    following", and the two groups replace DIFFERENT weapons - so a model takes
+    one from each, and the options within a group are mutually exclusive
+    because they all give up the same weapon."""
+    return [
+        WargearOption(line, replaces=ShurikenPistolProfile,
+                      with_weapons=[DeathSpinnerProfile],
+                      max_models=1, name=AUTARCH_PISTOL_TO_DEATH_SPINNER),
+        WargearOption(line, replaces=ShurikenPistolProfile,
+                      with_weapons=[DragonFusionGunProfile],
+                      max_models=1, name=AUTARCH_PISTOL_TO_FUSION_GUN),
+        WargearOption(line, replaces=ShurikenPistolProfile,
+                      with_weapons=[DragonFusionPistolProfile],
+                      max_models=1, name=AUTARCH_PISTOL_TO_FUSION_PISTOL),
+        WargearOption(line, replaces=ShurikenPistolProfile,
+                      with_weapons=[AutarchReaperLauncherStarshotProfile],
+                      max_models=1, name=AUTARCH_PISTOL_TO_REAPER),
+        WargearOption(line, replaces=StarGlaiveProfile,
+                      with_weapons=[AutarchBansheeBladeProfile],
+                      max_models=1, name=AUTARCH_GLAIVE_TO_BANSHEE_BLADE),
+        WargearOption(line, replaces=StarGlaiveProfile,
+                      with_weapons=[AutarchScorpionChainswordProfile],
+                      max_models=1, name=AUTARCH_GLAIVE_TO_CHAINSWORD),
+    ]
+
+
+AUTARCH = AELDARI.add_datasheet(Datasheet(
+    "Autarch",
+    keywords=("INFANTRY", "CHARACTER", "AELDARI", "GRENADES", "AUTARCH"),
+    model_lines=[ModelLine(AutarchProfile, 1, _AUTARCH_LOADOUT, name="Autarch")],
+    wargear_options=_autarch_wargear("Autarch"),
+    points=AELDARI_POINTS["Autarch"],
+    abilities_text=[
+        'Battle Focus (army rule): see game/battle_focus.py.',
+        'Leader (24.22): the widest LEADER line in the faction - seven datasheets. '
+        'Note the printed line says "DARK REAPER" in the singular; the datasheet is '
+        '"Dark Reapers", and `leads` takes datasheet names.',
+        'Aspect Training: while leading HOWLING BANSHEES it has Fights First; while '
+        'leading STRIKING SCORPIONS it has Infiltrators, Scouts 7" and Stealth. ALL FOUR '
+        'ARE BELIEVED NO-OPS here, and that is MEASURED rather than assumed - both units '
+        'already print every ability they are granted (the Scorpions\' own CORE line is '
+        'Infiltrators, Scouts 7", Stealth), and this engine\'s 19.04 already stops a '
+        'joining character from stripping a bodyguard component\'s abilities, which is '
+        'the breakage the printed ability exists to prevent. Kept as predicates so that '
+        'a future tightening is one wiring change - see game/aspect_training.py, which '
+        'also names the wider Scouts reading and why the narrow one is used.',
+        'Superlative Strategist: while leading a unit, you can re-roll its Advance rolls. '
+        'See game/superlative_strategist.py. Its SECOND clause - re-rolling "any rolls '
+        'made for that unit while it is performing an Agile Manoeuvre" - is NOT modelled: '
+        'the six manoeuvres resolve without a dice step of their own, so there is no roll '
+        'for it to attach to.',
+        'Path of Command: once per battle round, a Stratagem used on this model\'s unit '
+        'costs 1CP less - the FOURTH datasheet in this engine to print that exact '
+        'sentence, and the one that paid for extracting it into game/cp_discount.py.',
+        'Its Banshee Blade (A5), Scorpion Chainsword (A7) and Reaper Launcher (S4 '
+        'starswarm, and [HEAVY] on both modes) print DIFFERENT numbers from the Aspect '
+        'Warriors\' own rows, so each has its own class that inherits the shared one.',
+        'Invulnerable Save 4+.',
+    ],
+))
+
+AUTARCH_WAYLEAPER = AELDARI.add_datasheet(Datasheet(
+    "Autarch Wayleaper",
+    keywords=("INFANTRY", "CHARACTER", "AELDARI", "JUMP PACK", "FLY", "GRENADES",
+              "AUTARCH WAYLEAPER"),
+    model_lines=[ModelLine(AutarchWayleaperProfile, 1, _AUTARCH_LOADOUT,
+                           name="Autarch Wayleaper")],
+    wargear_options=_autarch_wargear("Autarch Wayleaper"),
+    points=AELDARI_POINTS["Autarch Wayleaper"],
+    abilities_text=[
+        'Battle Focus (army rule): see game/battle_focus.py.',
+        'Deep Strike (24.09) and Leader (24.22): core, already implemented.',
+        'Indomitable Strength of Will: while leading a unit, each Battle Focus token '
+        'SPENT to let that unit perform an Agile Manoeuvre is refunded on a 3+. Fed from '
+        'game/battle_focus.py\'s own spend, on the PAID path only - a refund hung on '
+        '"performed a manoeuvre" would print tokens out of Fleet of Foot\'s free ones. '
+        'See game/indomitable_strength_of_will.py.',
+        'Path of Command: the same ability the Autarch prints, and "one model from your '
+        'army" means the two share ONE use per battle round.',
+        'NOT a subclass of the Autarch\'s profile: they share a statline in everything '
+        'but Movement, and all three of their named abilities differ, so inheriting '
+        'would switch off more than it kept.',
+        'Invulnerable Save 4+.',
+    ],
+))
+
+
+_MAUGAN_RA_LOADOUT = [MaugetarRangedProfile, MaugetarMeleeProfile]
+
+MAUGAN_RA = AELDARI.add_datasheet(Datasheet(
+    "Maugan Ra",
+    keywords=("INFANTRY", "CHARACTER", "EPIC HERO", "AELDARI", "ASPECT WARRIOR",
+              "PHOENIX LORD", "MAUGAN RA"),
+    model_lines=[ModelLine(MauganRaProfile, 1, _MAUGAN_RA_LOADOUT, name="Maugan Ra")],
+    points=AELDARI_POINTS["Maugan Ra"],
+    abilities_text=[
+        'Battle Focus (army rule): see game/battle_focus.py.',
+        'Leader (24.22): this model can be attached to a Dark Reapers unit - the reverse '
+        'gap that datasheet has carried since it was built.',
+        'Harvester of Souls: while leading a unit, if every one of that unit\'s attacks '
+        'targets the SAME enemy unit, roll a D6 for that unit and for every other enemy '
+        'unit within 3" of it; each 5+ suffers D3 mortal wounds after the attacks '
+        'resolve. The printed cost is giving up Split Fire entirely. See '
+        'game/harvester_of_souls.py, which also names the one timing simplification.',
+        'Face of Death: after this model shoots, one enemy unit it hit must take a '
+        'Battle-shock test at -1 - a FORCED test ("must take"), through the same '
+        'start_forced_roll() entry Neocapacitor Shields opened. See game/face_of_death.py.',
+        'Maugetar is ONE printed weapon with a ranged row and a melee row, so both are '
+        'granted - the same shape as the Star Lance and the Singing Spear, and not a '
+        'duplicate.',
+        'No wargear options at all, like every other Phoenix Lord here.',
+        'Invulnerable Save 4+.',
+    ],
+))
+
+
+# --- Exodites ---------------------------------------------------------------
+#
+# Four datasheets on one drakesteed (ExoditeProfile in game/units.py). The
+# Drakesteed Fangs and Talons is on all four; the Solar Carbine on three.
+
+_EXODITE_SHARED_ABILITIES = [
+    'Battle Focus (army rule): see game/battle_focus.py.',
+    'MOUNTED and MOBILE, on a 75 x 42 mm oval converted to an equal-area circle - '
+    'the same conversion the Ghostkeel, Riptide and Warp Spiders already use.',
+    'Drakesteed Fangs and Talons is [EXTRA ATTACKS] (24.11), so it never competes '
+    'with the rider\'s own weapon under 04.01.',
+]
+
+_DRAGON_KNIGHT_LOADOUT = [DrakesteedFangsAndTalonsProfile, LaserLanceRangedProfile,
+                          ExoditeLaserLanceMeleeProfile, SolarCarbineProfile]
+
+DRAGON_KNIGHTS = AELDARI.add_datasheet(Datasheet(
+    "Dragon Knights",
+    keywords=("MOUNTED", "AELDARI", "EXODITE", "MOBILE"),
+    composition_options=[
+        [ModelLine(DragonKnightProfile, 3, _DRAGON_KNIGHT_LOADOUT, name="Dragon Knight")],
+        [ModelLine(DragonKnightProfile, 6, _DRAGON_KNIGHT_LOADOUT, name="Dragon Knight")],
+    ],
+    points=AELDARI_POINTS["Dragon Knights"],
+    abilities_text=_EXODITE_SHARED_ABILITIES + [
+        'On the Hunt: a Fall Back move does not stop this unit being eligible to shoot '
+        'or to declare a charge - the FOURTH printed wording of that exception, after '
+        'Battlesuit Support System, War Construct and Agile Combatant, and it joins them '
+        'at the same two gates rather than opening a fifth.',
+        'Agile Reach: when this unit is selected to fight, melee weapons on UNENGAGED '
+        'models within 3" of an enemy unit the unit is already engaged with can target '
+        'that enemy. It widens 12.02 for the back rank only - it cannot bring a wholly '
+        'disengaged unit into a fight. See game/agile_reach.py.',
+        'Drakolithe: once per battle per token, when an enemy unit ends a move within 8", '
+        'roll a D6 - on a 3+ it suffers 1 mortal wound. NO move-type filter, unlike the '
+        'Shadow Weaver\'s snare: the printed text names none, so a Charge counts. See '
+        'game/drakolithe.py.',
+        'Wargear: "for every 3 models in this unit, this unit can be equipped with 2 '
+        'Drakolithe" - a per-UNIT token count rather than a weapon, so it is set on the '
+        'squad at build time (Squad.drakolithe_tokens) rather than as a WargearOption.',
+        'Its Laser Lance shares the Shining Spears\' RANGED row exactly, and needs its own '
+        'MELEE row: S6 against their S5, and no [ANTI-MONSTER/VEHICLE].',
+    ],
+))
+
+
+_CLANBLADE_LOADOUT = [DrakesteedFangsAndTalonsProfile, MoonbladesProfile,
+                      SolarCarbineProfile]
+
+CLANBLADE = AELDARI.add_datasheet(Datasheet(
+    "Clanblade",
+    keywords=("MOUNTED", "AELDARI", "CHARACTER", "EXODITE", "MOBILE"),
+    model_lines=[ModelLine(ClanbladeProfile, 1, _CLANBLADE_LOADOUT, name="Clanblade")],
+    points=AELDARI_POINTS["Clanblade"],
+    abilities_text=_EXODITE_SHARED_ABILITIES + [
+        'Leader (24.22): this model can be attached to a Dragon Knights unit.',
+        'Ld6+ where the other three Exodites print 7+ - the ONE characteristic that '
+        'differs from the shared chassis.',
+        'Blade of the Clans: this unit\'s melee attacks have [SUSTAINED HITS 1] - the '
+        'third grant of that keyword here, and the only one with no leader clause and no '
+        'range. See game/blade_of_the_clans.py.',
+        'Cornered Prey: an enemy engaged with this unit that falls back MUST use Desperate '
+        'Escape, and takes -1 on those hazard rolls if it is battle-shocked. The two '
+        'clauses stack rather than overlap - the first forces the mode on a unit that is '
+        'NOT battle-shocked and would otherwise choose Ordered Retreat. See '
+        'game/cornered_prey.py.',
+    ],
+))
+
+
+_LEYSTALKER_LOADOUT = [DrakesteedFangsAndTalonsProfile, ExoditeLongRifleProfile,
+                       HuntingBladesProfile]
+
+LEYSTALKER = AELDARI.add_datasheet(Datasheet(
+    "Leystalker",
+    keywords=("MOUNTED", "AELDARI", "CHARACTER", "EXODITE", "MOBILE"),
+    model_lines=[ModelLine(LeystalkerProfile, 1, _LEYSTALKER_LOADOUT, name="Leystalker")],
+    points=AELDARI_POINTS["Leystalker"],
+    abilities_text=_EXODITE_SHARED_ABILITIES + [
+        'Lone Operative (24.24), Scouts 9" (24.31) and Stealth (24.33): core, already '
+        'implemented - and PRINTED OUTRIGHT here, unlike the Spiritseer\'s conditional '
+        'Lone Operative grant.',
+        'Panicked Quarry: after this unit shoots, one non-MONSTER/VEHICLE unit it hit '
+        'takes a Battle-shock test at -1. Maugan Ra\'s Face of Death prints the same '
+        'sentence WITHOUT that exclusion, and the two share '
+        'game/battle_shock_after_shooting.py.',
+        'Drakolithe: the same ability the Dragon Knights carry, and it prints TWO tokens '
+        'on its own wargear line rather than buying them.',
+        'Its Long Rifle prints "DEVASTATING WOUNDS: non-MONSTER/VEHICLE" - the first '
+        'CONDITIONAL grant of that keyword here, applied against the real target in the '
+        'adjuster chain rather than as a flat flag, which would hand it the ability '
+        'against exactly the targets the printed line excludes. See '
+        'game/conditional_devastating_wounds.py.',
+        'No LEADER or SUPPORT line: it stands alone.',
+    ],
+))
+
+
+_STONESINGER_LOADOUT = [DrakesteedFangsAndTalonsProfile, SongOfWaningProfile,
+                        SolarCarbineProfile, StoneStaveProfile, VenomcrestSpitProfile]
+
+STONESINGER = AELDARI.add_datasheet(Datasheet(
+    "Stonesinger",
+    keywords=("MOUNTED", "AELDARI", "CHARACTER", "EXODITE", "MOBILE", "PSYKER"),
+    model_lines=[ModelLine(StonesingerProfile, 1, _STONESINGER_LOADOUT,
+                           name="Stonesinger")],
+    points=AELDARI_POINTS["Stonesinger"],
+    abilities_text=_EXODITE_SHARED_ABILITIES + [
+        'Support (24.34): this model can be attached to a Dragon Knights unit - the same '
+        'unit the Clanblade LEADS, so a Dragon Knight squad can end up with both.',
+        'Elemental Ensnarement: at the end of your Fight phase, roll a D6 - on a 1 this '
+        'unit is battle-shocked, AND one visible enemy MONSTER/VEHICLE unit within 18" is '
+        'ENSNARED until the start of your next turn (-2" Move, and it cannot be pinned). '
+        'The two bullets are NOT alternatives: the roll is the price, not the gate. See '
+        'game/elemental_ensnarement.py.',
+        '"Cannot be pinned" really bites: an ensnared unit that a Night Spinner then hits '
+        'does not stack the two -2s, because the pin never lands. Enforced where the pin '
+        'is APPLIED, so a unit ensnared AFTER being pinned keeps the pin it had.',
+        'Its Venomcrest Spit and Stone Stave print [ANTI-non-MONSTER/VEHICLE X+] - the '
+        'NEGATED form, which no keyword entry could express. See the NON_MONSTER_VEHICLE '
+        'sentinel in game/weapons.py, resolved in game/shooting.py as the exact '
+        'complement of is_monster_or_vehicle_unit().',
+        'The Venomcrest Spit\'s printed BS is "-", which is [TORRENT] - no override '
+        'needed, the same call the Aeldari flamer records.',
+    ],
+))
+
+
+# --- Anhrathe (Corsairs) ----------------------------------------------------
+
+_CORSAIR_SHARED_ABILITIES = [
+    'Battle Focus (army rule): see game/battle_focus.py.',
+    'Scouts 7" (24.31/24.32): core, already implemented - every ANHRATHE datasheet '
+    'here prints it, which is what makes them a raiding force rather than a line.',
+]
+
+_VOIDREAVER_LOADOUT = [ShurikenPistolProfile, PowerSwordProfile,
+                       AeldariCloseCombatWeaponA2Profile]
+_VOIDREAVER_LINE = "Corsair Voidreaver"
+_VOIDREAVER_FELARCH_LINE = "Voidreaver Felarch"
+
+VOIDREAVER_PISTOL_TO_NEURO = "Felarch -> Neuro Disruptor"
+VOIDREAVER_PISTOL_TO_RIFLE = "Felarch -> Shuriken Rifle"
+VOIDREAVER_TO_SHURIKEN_RIFLE = "Shuriken Pistol + Power Sword -> Shuriken Rifle"
+VOIDREAVER_TO_BLASTER = "-> Blaster"
+VOIDREAVER_TO_SHREDDER = "-> Shredder"
+VOIDREAVER_TO_SHURIKEN_CANNON = "-> Shuriken Cannon"
+VOIDREAVER_TO_WRAITHCANNON = "-> Wraithcannon"
+
+
+def _equip_mistshield(token):
+    """"The Voidreaver Felarch can be equipped with 1 mistshield" - a defensive
+    item rather than a weapon, so Gear, exactly like the Dire Avenger Exarch's
+    shimmershield and the Lychguard's dispersion shield."""
+    token.mistshield = True   # read by game/invulnerable_save.py
+
+
+VOIDREAVER_MISTSHIELD = "Felarch -> Mistshield"
+
+CORSAIR_VOIDREAVERS = AELDARI.add_datasheet(Datasheet(
+    "Corsair Voidreavers",
+    keywords=("INFANTRY", "BATTLELINE", "AELDARI", "GRENADES", "ANHRATHE",
+              "CORSAIR VOIDREAVERS"),
+    composition_options=[
+        [ModelLine(VoidreaverFelarchProfile, 1, _VOIDREAVER_LOADOUT,
+                   name=_VOIDREAVER_FELARCH_LINE),
+         ModelLine(CorsairVoidreaverProfile, 4, _VOIDREAVER_LOADOUT,
+                   name=_VOIDREAVER_LINE)],
+        [ModelLine(VoidreaverFelarchProfile, 1, _VOIDREAVER_LOADOUT,
+                   name=_VOIDREAVER_FELARCH_LINE),
+         ModelLine(CorsairVoidreaverProfile, 9, _VOIDREAVER_LOADOUT,
+                   name=_VOIDREAVER_LINE)],
+    ],
+    wargear_options=[
+        WargearOption(_VOIDREAVER_FELARCH_LINE, replaces=ShurikenPistolProfile,
+                      with_weapons=[NeuroDisruptorProfile],
+                      max_models=1, name=VOIDREAVER_PISTOL_TO_NEURO),
+        WargearOption(_VOIDREAVER_FELARCH_LINE, replaces=ShurikenPistolProfile,
+                      with_weapons=[ShurikenRifleProfile],
+                      max_models=1, name=VOIDREAVER_PISTOL_TO_RIFLE),
+        WargearOption(_VOIDREAVER_LINE, replaces=ShurikenPistolProfile,
+                      with_weapons=[ShurikenRifleProfile],
+                      max_models=9, name=VOIDREAVER_TO_SHURIKEN_RIFLE),
+        WargearOption(_VOIDREAVER_LINE, replaces=PowerSwordProfile,
+                      with_weapons=[BlasterProfile],
+                      max_models=2, name=VOIDREAVER_TO_BLASTER),
+        WargearOption(_VOIDREAVER_LINE, replaces=PowerSwordProfile,
+                      with_weapons=[ShredderProfile],
+                      max_models=2, name=VOIDREAVER_TO_SHREDDER),
+        WargearOption(_VOIDREAVER_LINE, replaces=PowerSwordProfile,
+                      with_weapons=[ShurikenCannonProfile],
+                      max_models=1, name=VOIDREAVER_TO_SHURIKEN_CANNON),
+        WargearOption(_VOIDREAVER_LINE, replaces=PowerSwordProfile,
+                      with_weapons=[WraithcannonProfile],
+                      max_models=1, name=VOIDREAVER_TO_WRAITHCANNON),
+    ],
+    gear_options=[
+        Gear(_VOIDREAVER_FELARCH_LINE, VOIDREAVER_MISTSHIELD, _equip_mistshield),
+    ],
+    gear_slots={_VOIDREAVER_FELARCH_LINE: 1},
+    points=AELDARI_POINTS["Corsair Voidreavers"],
+    abilities_text=_CORSAIR_SHARED_ABILITIES + [
+        'Reavers of the Void: re-roll a Hit roll of 1, or re-roll the WHOLE Hit roll '
+        'instead if the target is within range of an objective marker. The SEVENTH '
+        '"ones or whole, never just failures" source, so it registers in '
+        'game/reroll_scope.py rather than growing its own reading - and it is the first '
+        'whose whole-roll half turns on the target\'s POSITION rather than on a unit '
+        'state or a keyword. See game/reavers_of_the_void.py.',
+        'Mistshield (wargear): the bearer has a 4+ invulnerable save - the fourth item '
+        'of that exact shape, folded into game/invulnerable_save.py beside the '
+        'shimmershield, the dispersion shield and the forceshield.',
+        'NAMED LIMITATION: the printed per-model caps ("for every 5 models, 1 ... can be '
+        'replaced", "if this unit contains 10 models, 1 ...") are expressed as '
+        'max_models on each option, which is exact for the 10-model build and generous '
+        'for the 5-model one - a WargearOption cannot scale its cap with the composition. '
+        'Named rather than silently dropped, the same treatment the Kroot Farstalkers\' '
+        '"one of the following" carries.',
+        'Led by: KHARSETH, PRINCE YRIEL or YVRAINE; supported by THE VISARCH. All four '
+        'are built; the pairings live on their own points entries.',
+    ],
+))
+
+
+_SKYREAVER_LOADOUT = [ShurikenPistolProfile, CorsairBladeProfile]
+_SKYREAVER_LINE = "Skyreaver"
+_SKYREAVER_FELARCH_LINE = "Skyreaver Felarch"
+
+SKYREAVER_PISTOL_TO_BLAST_PISTOL = "Felarch -> Blast Pistol"
+SKYREAVER_PISTOL_TO_NEURO = "Felarch -> Neuro Disruptor"
+SKYREAVER_TO_BLASTER = "Pistol + Blade -> Blaster"
+SKYREAVER_TO_FLAMER = "Pistol + Blade -> Flamer"
+SKYREAVER_TO_FUSION_GUN = "Pistol + Blade -> Fusion Gun"
+SKYREAVER_TO_SHREDDER = "Pistol + Blade -> Shredder"
+
+CORSAIR_SKYREAVERS = AELDARI.add_datasheet(Datasheet(
+    "Corsair Skyreavers",
+    keywords=("INFANTRY", "AELDARI", "ANHRATHE", "JUMP PACK", "FLY", "GRENADES",
+              "CORSAIR SKYREAVERS"),
+    composition_options=[
+        [ModelLine(SkyreaverFelarchProfile, 1, _SKYREAVER_LOADOUT,
+                   name=_SKYREAVER_FELARCH_LINE),
+         ModelLine(CorsairSkyreaverProfile, 4, _SKYREAVER_LOADOUT, name=_SKYREAVER_LINE)],
+        [ModelLine(SkyreaverFelarchProfile, 1, _SKYREAVER_LOADOUT,
+                   name=_SKYREAVER_FELARCH_LINE),
+         ModelLine(CorsairSkyreaverProfile, 9, _SKYREAVER_LOADOUT, name=_SKYREAVER_LINE)],
+    ],
+    # "up to 2 Skyreaver models can each have their shuriken pistol AND Corsair
+    # blade replaced with 1 <gun> and 1 close combat weapon" - so each option
+    # gives up BOTH printed weapons and returns two, which is why every one of
+    # them lists the close combat weapon as well.
+    wargear_options=[
+        WargearOption(_SKYREAVER_FELARCH_LINE, replaces=ShurikenPistolProfile,
+                      with_weapons=[BlastPistolProfile],
+                      max_models=1, name=SKYREAVER_PISTOL_TO_BLAST_PISTOL),
+        WargearOption(_SKYREAVER_FELARCH_LINE, replaces=ShurikenPistolProfile,
+                      with_weapons=[NeuroDisruptorProfile],
+                      max_models=1, name=SKYREAVER_PISTOL_TO_NEURO),
+        WargearOption(_SKYREAVER_LINE, replaces=CorsairBladeProfile,
+                      with_weapons=[BlasterProfile, AeldariCloseCombatWeaponA3Profile],
+                      max_models=2, name=SKYREAVER_TO_BLASTER),
+        WargearOption(_SKYREAVER_LINE, replaces=CorsairBladeProfile,
+                      with_weapons=[AeldariFlamerProfile, AeldariCloseCombatWeaponA3Profile],
+                      max_models=2, name=SKYREAVER_TO_FLAMER),
+        WargearOption(_SKYREAVER_LINE, replaces=CorsairBladeProfile,
+                      with_weapons=[FusionGunProfile, AeldariCloseCombatWeaponA3Profile],
+                      max_models=2, name=SKYREAVER_TO_FUSION_GUN),
+        WargearOption(_SKYREAVER_LINE, replaces=CorsairBladeProfile,
+                      with_weapons=[ShredderProfile, AeldariCloseCombatWeaponA3Profile],
+                      max_models=2, name=SKYREAVER_TO_SHREDDER),
+    ],
+    points=AELDARI_POINTS["Corsair Skyreavers"],
+    abilities_text=_CORSAIR_SHARED_ABILITIES + [
+        'Deep Strike (24.09): core, already implemented.',
+        'Raid and Run: at the end of the Fight phase, a unit that was eligible to fight '
+        'may make a D3+3" Normal move if it is unengaged, or a D3+3" Fall Back move if it '
+        'is not. ONE gate, two moves - "otherwise" selects the move, it is not a second '
+        'condition. Registered in MovementController.REACTIVE_MOVE_MODES, which is what '
+        'stops the AI walking over a human\'s open move (reported twice before). See '
+        'game/raid_and_run.py.',
+        'NAMED LIMITATION: "you cannot select the same option more than once per unit '
+        'unless it contains 10 models, in which case not more than twice" is a '
+        'composition-dependent cap across a GROUP of options, which WargearOption cannot '
+        'express - max_models=2 is exact for the 10-model build and generous for the '
+        '5-model one.',
+    ],
+))
+
+
+_VOIDSCARRED_LOADOUT = [ShurikenPistolProfile, PowerSwordProfile,
+                        AeldariCloseCombatWeaponA2Profile]
+_VOIDSCARRED_LINE = "Corsair Voidscarred"
+_VOIDSCARRED_FELARCH_LINE = "Voidscarred Felarch"
+_SHADE_RUNNER_LINE = "Shade Runner"
+_SOUL_WEAVER_LINE = "Soul Weaver"
+_WAY_SEEKER_LINE = "Way Seeker"
+
+CORSAIR_VOIDSCARRED = AELDARI.add_datasheet(Datasheet(
+    "Corsair Voidscarred",
+    keywords=("INFANTRY", "AELDARI", "GRENADES", "ANHRATHE", "CORSAIR VOIDSCARRED"),
+    # FIVE model lines - the most of any datasheet in this engine. The three
+    # specialists are 0-1 each, so the built composition takes all three: they
+    # are what the datasheet is FOR, and a build without them would exercise
+    # none of the three wargear abilities.
+    composition_options=[
+        [ModelLine(VoidscarredFelarchProfile, 1, _VOIDSCARRED_LOADOUT,
+                   name=_VOIDSCARRED_FELARCH_LINE),
+         ModelLine(CorsairVoidscarredProfile, 4, _VOIDSCARRED_LOADOUT,
+                   name=_VOIDSCARRED_LINE)],
+        [ModelLine(VoidscarredFelarchProfile, 1, _VOIDSCARRED_LOADOUT,
+                   name=_VOIDSCARRED_FELARCH_LINE),
+         ModelLine(CorsairVoidscarredProfile, 6, _VOIDSCARRED_LOADOUT,
+                   name=_VOIDSCARRED_LINE),
+         ModelLine(ShadeRunnerProfile, 1,
+                   [ShurikenPistolProfile, PairedHekatariiBladesProfile],
+                   name=_SHADE_RUNNER_LINE),
+         ModelLine(SoulWeaverProfile, 1,
+                   [ShurikenPistolProfile, PowerSwordProfile],
+                   name=_SOUL_WEAVER_LINE),
+         ModelLine(WaySeekerProfile, 1,
+                   [ShurikenPistolProfile, VoidscarredExecutionerProfile,
+                    WaySeekerWitchStaffProfile],
+                   name=_WAY_SEEKER_LINE)],
+    ],
+    points=AELDARI_POINTS["Corsair Voidscarred"],
+    abilities_text=_CORSAIR_SHARED_ABILITIES + [
+        'Piratical Raiders: at the start of the battle, select one enemy unit; this '
+        'unit\'s weapons have [LETHAL HITS] and [PRECISION] against it for the whole '
+        'battle. Both keywords are granted in ONE copy, so neither can arrive without the '
+        'other. See game/corsair_abilities.py.',
+        'Channeller Stones (Soul Weaver\'s wargear): once per turn, the first failed save '
+        'in this unit takes Damage 0. A per-TURN resource on the squad.',
+        'Faolchu (wargear): RANGED weapons in the bearer\'s unit have [IGNORES COVER] - '
+        'the "ranged" is printed and is the half easiest to drop.',
+        'Mistshield (wargear): a 4+ invulnerable save.',
+        'The Way Seeker\'s Executioner is NOT the Aeldari Executioner already in this '
+        'engine: that is a MELEE row at A3/S6/AP-3/D3 with [ANTI-INFANTRY 3+], this is a '
+        'RANGED 18" gun with [ANTI-INFANTRY 2+] and [PSYCHIC]. Same printed name, nothing '
+        'else in common.',
+        'FIVE model lines, which is the most of any datasheet here; the three 0-1 '
+        'specialists are all taken in the 10-model build.',
+    ],
+))
+
+
+_KHARSETH_LOADOUT = [DreadOfTheDeepVoidProfile, WaystaveProfile]
+
+KHARSETH = AELDARI.add_datasheet(Datasheet(
+    "Kharseth",
+    keywords=("INFANTRY", "AELDARI", "CHARACTER", "EPIC HERO", "PSYKER",
+              "ANHRATHE", "KHARSETH"),
+    model_lines=[ModelLine(KharsethProfile, 1, _KHARSETH_LOADOUT, name="Kharseth")],
+    points=AELDARI_POINTS["Kharseth"],
+    abilities_text=_CORSAIR_SHARED_ABILITIES + [
+        'Leader (24.22): Corsair Voidreavers or Corsair Voidscarred. His printed line '
+        'also names CORSAIR REAVER BAND, a LEGENDS datasheet deliberately not built - so '
+        'it is left out of `leads` rather than dangling, and named here instead.',
+        'Aethersense: enemy units arriving from Reserves cannot be set up within 12" of '
+        'this MODEL - measured to the model, as printed, not to its unit. See '
+        'game/corsair_abilities.py.',
+        'Fury of the Void: a unit his Dread of the Deep Void hits is RIVEN until the end '
+        'of the turn, and every AELDARI attack against it adds 1 to its STRENGTH. The '
+        'seventh enemy mark here and the FIRST that changes a characteristic rather than '
+        'a roll - so it lands in the adjuster chain, not in _wound_modifiers(). See '
+        'game/fury_of_the_void.py.',
+        'Invulnerable Save 4+.',
+    ],
+))
+
+
+_PRINCE_YRIEL_LOADOUT = [EyeOfWrathProfile, ShurikenPistolProfile,
+                         SpearOfTwilightProfile]
+
+PRINCE_YRIEL = AELDARI.add_datasheet(Datasheet(
+    "Prince Yriel",
+    keywords=("INFANTRY", "AELDARI", "CHARACTER", "EPIC HERO", "ANHRATHE",
+              "PRINCE YRIEL"),
+    model_lines=[ModelLine(PrinceYrielProfile, 1, _PRINCE_YRIEL_LOADOUT,
+                           name="Prince Yriel")],
+    points=AELDARI_POINTS["Prince Yriel"],
+    abilities_text=_CORSAIR_SHARED_ABILITIES + [
+        'Leader (24.22): Corsair Voidreavers or Corsair Voidscarred, with the same '
+        'CORSAIR REAVER BAND omission Kharseth carries.',
+        'Piratical Hero: while leading a unit, its attacks have [SUSTAINED HITS 1] AND '
+        'add 1 to the Hit roll. Two halves at two seams - the keyword in the adjuster '
+        'chain (where _crit_note() can read it at roll time) and the +1 in '
+        '_hit_modifiers(). See game/corsair_abilities.py.',
+        'Prince of Corsairs: after both players have deployed, redeploy up to three '
+        'AELDARI units, and they may go into Strategic Reserves REGARDLESS of how many '
+        'are already there. The second consumer of PregameController.redeploy_step, after '
+        'Kauyon\'s Solid-image Projection Unit, and it fires at the same instant. The AI '
+        'declines, for the same reason that one does. See game/prince_of_corsairs.py.',
+        'Invulnerable Save 4+.',
+    ],
+))
+
+
+_STARFANG_LOADOUT = [DisintegratorCannonProfile, StarfangGrenadeLauncherProfile,
+                     WraithboneHullProfile]
+
+STARFANGS = AELDARI.add_datasheet(Datasheet(
+    "Starfangs",
+    keywords=("VEHICLE", "AELDARI", "ANHRATHE", "FLY", "SMOKE", "GRENADES", "STARFANGS"),
+    composition_options=[
+        [ModelLine(StarfangProfile, 1, _STARFANG_LOADOUT, name="Starfang")],
+        [ModelLine(StarfangProfile, 2, _STARFANG_LOADOUT, name="Starfang")],
+    ],
+    points=AELDARI_POINTS["Starfangs"],
+    abilities_text=_CORSAIR_SHARED_ABILITIES + [
+        'Deadly Demise 1 (24.08): core, already implemented.',
+        'Hallucinogen Grenades: at the start of your OPPONENT\'S Shooting phase, give one '
+        'friendly AELDARI INFANTRY unit within 36" the Stealth ability until the end of '
+        'the phase. The FIRST temporary grant of Stealth in this engine, so '
+        'game/squad.py\'s squad_has_stealth() grew a second source rather than the grant '
+        'being written as a flag someone has to clear. See '
+        'game/hallucinogen_grenades.py.',
+        'Its 105 x 70 mm oval takes the same equal-area circle as the Vyper\'s, and is '
+        'pinned against it rather than against a literal.',
+    ],
+))
+
+
+# --- The Ynnari triumvirate --------------------------------------------------
+#
+# Yvraine, The Visarch and The Yncarne share one FACTION line (YNNARI) and one
+# army-list restriction, so their shared text is written once here.
+
+_YNNARI_SHARED_ABILITIES = [
+    'Battle Focus: the Aeldari army rule - see game/battle_focus.py.',
+    'Disparate Paths: the YNNARI army rule, printed on the datasheet as a second '
+    'FACTION line. It is an ARMY rule rather than a datasheet ability - it says which '
+    'detachment rules a mixed Ynnari army may use - and this engine builds army rules '
+    'from the ArmyList, not from a datasheet. Not modelled, and named here rather than '
+    'dropped, the same way the Falcon and the Devilfish name their YNNARI transport '
+    'clause.',
+    'Servant Of The Whispering God: your army cannot include non-YNNARI EPIC HERO '
+    'units. A LIST-BUILDING restriction, and this engine has no army-building step - '
+    'by the time a battle starts the list is fixed, so there is no moment at which it '
+    'could fire and nothing for it to refuse. A documented no-op; see '
+    'game/ynnari_abilities.py.',
+]
+
+_YVRAINE_LOADOUT = [StormOfWhispersProfile, KhaVirProfile]
+
+YVRAINE = AELDARI.add_datasheet(Datasheet(
+    "Yvraine",
+    keywords=("INFANTRY", "AELDARI", "CHARACTER", "EPIC HERO", "PSYKER", "YNNARI",
+              "YVRAINE"),
+    model_lines=[ModelLine(YvraineProfile, 1, _YVRAINE_LOADOUT, name="Yvraine")],
+    points=AELDARI_POINTS["Yvraine"],
+    abilities_text=_YNNARI_SHARED_ABILITIES + [
+        'Leader (24.22): Corsair Voidreavers, Corsair Voidscarred, Guardian Defenders '
+        'or Storm Guardians. Her printed line also names CORSAIR REAVER BAND (Legends) '
+        'and the Ynnari-Drukhari Incubi, Kabalite Warriors and Wyches, none of which is '
+        'built - so those four are left out of the pairing table rather than pointed at '
+        'nothing.',
+        'Word of the Phoenix (Psychic): while leading a unit, in your Command phase roll '
+        'a D6; on a 2+ return up to D3+1 destroyed BODYGUARD models (excluding SUPPORT '
+        'WEAPON models) with their full wounds. Two rolls, therefore two dice windows - '
+        'DiceManager holds one at a time. See game/word_of_the_phoenix.py.',
+        'Herald of Ynnead: at the start of the Fight phase, mark one enemy unit within '
+        'Engagement Range of her unit; until the end of the PHASE, friendly AELDARI '
+        'attacks against it re-roll a Wound roll of 1. The eighth enemy mark and the '
+        'shortest-lived. Resolved automatically rather than offered: a bare optional '
+        're-roll of 1s has no downside, so a prompt would have exactly one right answer. '
+        'See game/ynnari_abilities.py.',
+        'Invulnerable Save 4+.',
+        'Her 75 x 42 mm oval takes the same equal-area circle as the Exodite drakesteed, '
+        'and is pinned against it rather than against a literal.',
+    ],
+))
+
+
+_VISARCH_LOADOUT = [AsuVarQuicksilverStanceProfile]
+
+THE_VISARCH = AELDARI.add_datasheet(Datasheet(
+    "The Visarch",
+    keywords=("INFANTRY", "AELDARI", "CHARACTER", "EPIC HERO", "YNNARI",
+              "THE VISARCH"),
+    model_lines=[ModelLine(TheVisarchProfile, 1, _VISARCH_LOADOUT,
+                           name="The Visarch")],
+    points=AELDARI_POINTS["The Visarch"],
+    abilities_text=_YNNARI_SHARED_ABILITIES + [
+        'Support (24.23): the same four built datasheets Yvraine leads, with the same '
+        'four omissions. His printed line adds "even if YVRAINE has already been '
+        'attached to it" - the same sentence Eldrad Ulthran prints, and the same engine '
+        'question (may this model join a unit that already has a leader?), so it takes '
+        'the same flag rather than a second one meaning the same thing.',
+        'Asu-var: ONE printed weapon with THREE stances - quicksilver, duellist and '
+        'mythic. Every other multi-profile weapon here prints two, and overcharge_profile '
+        'is a single link, so the three are CHAINED (quicksilver -> duellist -> mythic) '
+        'and only the first is handed out.',
+        'Way of the Blade: while leading a unit, models in that unit have Fights First '
+        '(24.13). The THIRD source of Fights First and the first that is neither the '
+        'unit\'s own printed ability nor rule 11.04\'s post-charge grant, so it folds '
+        'into squad_has_fights_first() - the one place that decides activation ORDER. '
+        'See game/ynnari_abilities.py.',
+        'Yvraine\'s Champion: while leading a unit, OTHER CHARACTER models attached to '
+        'that unit have Feel No Pain 4+. Three words do real work - "other" excludes him, '
+        '"CHARACTER" excludes the bodyguards, "leading" is 24.22. See '
+        'game/ynnari_abilities.py.',
+        'Invulnerable Save 4+.',
+    ],
+))
+
+
+_YNCARNE_LOADOUT = [SwirlingSoulEnergyProfile, VilithZharStrikeProfile]
+
+THE_YNCARNE = AELDARI.add_datasheet(Datasheet(
+    "The Yncarne",
+    keywords=("MONSTER", "AELDARI", "CHARACTER", "EPIC HERO", "FLY", "PSYKER",
+              "DAEMON", "YNNARI", "THE YNCARNE"),
+    model_lines=[ModelLine(TheYncarneProfile, 1, _YNCARNE_LOADOUT,
+                           name="The Yncarne")],
+    points=AELDARI_POINTS["The Yncarne"],
+    abilities_text=_YNNARI_SHARED_ABILITIES + [
+        'Deadly Demise D3 (24.08) and Deep Strike (24.09): core, already implemented.',
+        'Vilith-zhar: one printed weapon with a strike and a sweep profile, the ordinary '
+        'two-mode shape.',
+        'Inevitable Death: once in EACH OPPONENT\'S turn, when another friendly AELDARI '
+        'unit is destroyed, remove this model and set it up as close as possible to where '
+        'one of that unit\'s models died, outside Engagement Range - and it can still '
+        'move this turn. Fuegan\'s Unquenchable Resolve with the arrow reversed: it is '
+        'somebody else\'s death that moves a model which was alive the whole time, so '
+        'nothing goes on or off the destroyed list. See game/inevitable_death.py.',
+        'Ethereal Form: regains up to D3 lost wounds each time it destroys an enemy unit. '
+        '"Up to" makes the roll a ceiling, so a model at full wounds gains nothing from a '
+        '3. The killer is read from whoever was attacking at the time - this engine has '
+        'no other answer, the same one Szeras\' Atomic Energy Manipulator takes. See '
+        'game/ynnari_abilities.py.',
+        'Invulnerable Save 4+.',
+        'Its 80 mm base is the Avatar of Khaine\'s, and is pinned against it rather than '
+        'against a literal.',
+    ],
+))
+
+
+# --- FACTION KEYWORDS ---------------------------------------------------------
+#
+# The second printed keyword line, transcribed. It is NOT one keyword per
+# datasheet: most craftworld units may be taken in a Ynnari army as well, and
+# print both. Measured across the 54 built datasheets, there are exactly three
+# lines:
+#
+#   ASURYANI, YNNARI   41   the ordinary case
+#   ASURYANI           10   the non-Ynnari EPIC HEROes
+#   YNNARI              3   the Ynnari triumvirate
+#
+# THE TEN ARE NOT AN ARBITRARY LIST - they are Servant Of The Whispering God
+# showing up in the data. That rule (printed on all three Ynnari datasheets)
+# says a Ynnari army cannot include EPIC HEROes without the YNNARI keyword, so
+# those heroes cannot carry it, and the ten ASURYANI-only sheets are precisely
+# the ten that set `epic_hero`. Derived here from that flag rather than listed
+# by hand, and cross-checked against the corpus in the test - a hand-kept list
+# of ten names is the second copy that drifts.
+#
+# WHY THIS IS NOT THE battle_focus FLAG, measured: all 54 set `battle_focus`,
+# but only 51 print ASURYANI. The Ynnari triumvirate prints Battle Focus as a
+# faction ability while belonging to YNNARI, and two of those three are
+# PSYKERs - exactly the models Spirit Conclave's "ASURYANI PSYKER" clause has
+# to exclude. Using the flag as a stand-in would have been wrong in the one
+# place the clause bites rather than harmlessly wide.
+#
+# ANHRATHE (Corsairs) and EXODITE units ARE ASURYANI - read off the corpus, not
+# assumed from the sub-faction names.
+_YNNARI_ONLY = frozenset({"Yvraine", "The Visarch", "The Yncarne"})
+
+for _sheet_name, _sheet in AELDARI.datasheets.items():
+    if _sheet_name in _YNNARI_ONLY:
+        _sheet.faction_keywords = ("YNNARI",)
+    elif any(getattr(_line.profile_cls, "epic_hero", False)
+             for _option in _sheet.compositions() for _line in _option):
+        _sheet.faction_keywords = ("ASURYANI",)
+    else:
+        _sheet.faction_keywords = ("ASURYANI", "YNNARI")

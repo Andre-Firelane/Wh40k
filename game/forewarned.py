@@ -37,6 +37,7 @@ printed clauses ARE the eligibility.
 from game import attached_units
 from game import psychic_guidance
 from game.stratagems import Stratagem
+from game import strands_of_fate
 
 FOREWARNED_CP = 1
 FOREWARNED_NAME = "Forewarned"
@@ -116,6 +117,9 @@ class ForewarnedController:
         if self.stratagem_controller is None or attacker is None or target is None:
             return False
         if target.owner == attacker.owner:
+            return False
+        # Seer Council only - see game/strands_of_fate.py's has_detachment().
+        if not strands_of_fate.has_detachment(target.owner):
             return False
         if applies(target):
             return False   # already up on this unit

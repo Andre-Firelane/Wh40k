@@ -1,6 +1,7 @@
 from game.homing_beacon import HOMING_BEACON_MIN_ENEMY_DISTANCE_IN, HOMING_BEACON_RANGE_IN
 from game import unshrouded_truth
 from game.squad import edge_distance
+from game import ride_the_wind
 
 INGRESS_SET_UP_DISTANCE_IN = 6.0
 INGRESS_MIN_ENEMY_DISTANCE_IN = 8.0
@@ -62,6 +63,17 @@ class IngressController:
         self.board_height_in = board_height_in
         self._ingressing_squad = None
         self.ingressed_this_phase = set()  # squads that ingressed THIS Movement phase - rule 18.04's Rapid Disembark reads this
+        # The same fact on the TURN's clock, for rules that ask "was this unit
+        # set up on the battlefield from Reserves this turn" after the
+        # Movement phase is over - Windrider Host's Death from on High is the
+        # first. Kept as its own set rather than read off the phase one: that
+        # answer happens to be right today only because
+        # reset_movement_phase() has not run again yet, which is a coincidence
+        # of ordering rather than a statement about turns. And deliberately
+        # not Squad.set_up_this_turn, which SetupController sets for EVERY
+        # placement, deployment included, so it cannot answer a question about
+        # Reserves.
+        self.ingressed_this_turn = set()
         # Homing Beacon (user-supplied wargear item, game/homing_beacon.py):
         # the bearer Squad whose alternate placement rule (3" of the bearer,
         # >9" from enemies, instead of the normal 6"-of-edge/>8"-from-
@@ -102,6 +114,11 @@ class IngressController:
     def reset_movement_phase(self):
         self.ingressed_this_phase = set()
 
+    def reset_turn(self):
+        """Called from main.py's end-of-turn block. Its own method, and its
+        own set, because "this phase" and "this turn" are different clocks."""
+        self.ingressed_this_turn = set()
+
     def can_ingress(self, squad):
         if squad is None or squad not in self.game_state.reserves:
             return False
@@ -111,7 +128,13 @@ class IngressController:
         # game/unshrouded_truth.py.
         if unshrouded_truth.applies(squad):
             return True
-        if self.turn_tracker is not None and self.turn_tracker.battle_round < INGRESS_MIN_BATTLE_ROUND:
+        # Windrider Host's Ride the Wind: "for the purposes of SETTING UP ...
+        # on the battlefield, treat the current battle round number as being
+        # one higher". Scoped to arrival and to nothing else - the counter
+        # itself is untouched, so VP, mission timing and the round-3
+        # destruction below all still read the real number.
+        if self.turn_tracker is not None and ride_the_wind.arrival_battle_round(
+                squad, self.turn_tracker.battle_round) < INGRESS_MIN_BATTLE_ROUND:
             return False
         return True
 
@@ -159,6 +182,12 @@ class IngressController:
         sites stay put."""
         return self._has_deep_strike(squad)
 
+    def _min_enemy_distance_relaxed(self, squad):
+        """Kept beside _uses_relaxed_arrival() so the two halves of one rule
+        cannot drift: whoever waives the board-edge band also relaxes the
+        distance."""
+        return SHORTENED_BLADE_MIN_ENEMY_DISTANCE_IN
+
     def _min_enemy_distance(self, squad):
         """How far every model of `squad` must end up from every enemy model
         for THIS arrival - one definition, so _extra_check() (Confirm) and
@@ -173,6 +202,8 @@ class IngressController:
             return SHORTENED_BLADE_MIN_ENEMY_DISTANCE_IN
         if self.homing_beacon_bearer is not None:
             return HOMING_BEACON_MIN_ENEMY_DISTANCE_IN
+        if self._uses_relaxed_arrival(squad):
+            return self._min_enemy_distance_relaxed(squad)
         return INGRESS_MIN_ENEMY_DISTANCE_IN
 
     def _enemy_models_of(self, squad):
@@ -205,7 +236,12 @@ class IngressController:
 
         Per MODEL, exactly as the rule is worded, and only before round 3 - from
         the third round on the restriction lifts entirely."""
-        if self.turn_tracker is None or self.turn_tracker.battle_round >= 3:
+        # The SECOND arrival gate the round number reaches, and Ride the Wind
+        # says "for the purposes of setting up" without naming one - so this
+        # takes the adjusted number too. A version that changed only
+        # can_ingress() would look complete from can_ingress().
+        if self.turn_tracker is None or ride_the_wind.arrival_battle_round(
+                squad, self.turn_tracker.battle_round) >= 3:
             return False
         if self._has_deep_strike(squad):
             return False
@@ -214,9 +250,27 @@ class IngressController:
                 return True
         return False
 
+    def _uses_relaxed_arrival(self, squad):
+        """Whether this arrival uses the "anywhere on the battlefield, more
+        than 6\" from all enemy models" rule.
+
+        THREE sources now, on TWO clocks. The Shortened Blade and Baharroth's
+        Cloudstrider arm relaxed_arrival_squad, which is ONE arrival and is
+        cleared when that placement is confirmed or cancelled. Windrider
+        Host's Daring Riders is bought while the unit is still in Reserves and
+        lasts "until the end of the phase", so it keeps its own latch on the
+        Squad. One rule, one enforcement, two lifetimes - each owned by the
+        source whose printed text names it."""
+        # Function-local: game/windrider_daring_riders.py imports the
+        # distance constant from THIS module, so a top-level import here would
+        # cycle. The same remedy game/tau_detachments.py records for its own.
+        from game import windrider_daring_riders
+        return (self.relaxed_arrival_squad is squad
+                or windrider_daring_riders.is_active(squad))
+
     def _extra_check(self, squad):
-        if self.relaxed_arrival_squad is squad:
-            return self._shortened_blade_extra_check(squad)
+        if self._uses_relaxed_arrival(squad):
+            return self._relaxed_arrival_extra_check(squad)
         if self.homing_beacon_bearer is not None:
             return self._homing_beacon_extra_check(squad)
 
@@ -246,10 +300,16 @@ class IngressController:
             )
         return errors
 
-    def _shortened_blade_extra_check(self, squad):
-        """The Shortened Blade (2CP, game/shortened_blade.py): "can be set up
-        anywhere on the battlefield that is more than 6\" horizontally away
-        from all enemy models" - one constraint, and the only one.
+    def _relaxed_arrival_extra_check(self, squad):
+        """"Can be set up anywhere on the battlefield that is more than 6\"
+        horizontally away from all enemy models" - one constraint, and the
+        only one.
+
+        Named after the RULE rather than after The Shortened Blade, which was
+        merely the first of what are now three sources (Cloudstrider and
+        Daring Riders are the others). The distance below keeps that
+        Stratagem's constant name because game/ingress.py is where it is
+        defined and both other sources import it from here.
 
         The edge-distance and before-round-3 deployment-zone rules are absent
         here because "anywhere on the battlefield" removes them; the target is
@@ -264,7 +324,7 @@ class IngressController:
         if too_close:
             return [
                 f'Every model must be set up more than {SHORTENED_BLADE_MIN_ENEMY_DISTANCE_IN:.0f}" '
-                f'from all enemy models (The Shortened Blade).'
+                f'from all enemy models.'
             ]
         return []
 
@@ -342,7 +402,7 @@ class IngressController:
         bearer = self.homing_beacon_bearer
         min_enemy_distance = self._min_enemy_distance(squad)
 
-        if self.relaxed_arrival_squad is squad:
+        if self._uses_relaxed_arrival(squad):
             pass  # "anywhere on the battlefield" - only the distance below applies
         elif bearer is not None:
             if not any(
@@ -368,6 +428,7 @@ class IngressController:
             # confirm_setup() succeeded (it clears setting_up_squad only then).
             squad.ingress_locked = True
             self.ingressed_this_phase.add(squad)
+            self.ingressed_this_turn.add(squad)
             if self.game_log is not None:
                 self.game_log.add(f"{squad.owner}: {squad.name} arrives via Ingress move (rule 20.04).")
             self._ingressing_squad = None

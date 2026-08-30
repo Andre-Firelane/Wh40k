@@ -255,6 +255,12 @@ ORKS = Faction("Orks", "ORKS")
 
 WAR_HORDE = ORKS.add_detachment(Detachment(
     "War Horde",
+    rule_name="Get Stuck In",
+    points=3,
+    # No `setting`: War Horde is the only Ork detachment modelled, and both
+    # its rule and its stratagems gate on the ORKS keyword, so there is
+    # nothing to declare. This is the position Retaliation Cadre was in until
+    # the other T'au detachments were added - see game/detachments.py.
     rule_text=(
         'Get Stuck In: Melee weapons equipped by Orks models from your army have the '
         '[SUSTAINED HITS 1] ability.'

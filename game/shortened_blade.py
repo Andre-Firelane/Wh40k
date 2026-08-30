@@ -38,11 +38,19 @@ therefore does land on the Squad (charge_locked_until_end_of_turn, the
 already-existing field rules 18.04/18.05 use for their own no-charge lock and
 that main.py already clears at end of turn).
 
-SIMPLIFICATION (documented, matching game/retaliation_cadre.py's own note):
-this engine has no army-building/detachment-selection flow yet, and
-Retaliation Cadre is currently the only detachment that exists - the T'AU
-EMPIRE half of the TARGET clause is therefore not checked, exactly as Bonded
-Heroes applies unconditionally to any BATTLESUIT model. The BATTLESUIT half
+DETACHMENT GATE
+---------------
+The T'AU EMPIRE half of the TARGET clause, and "from your army", are checked
+through game/retaliation_cadre.py's stratagem_target_ok() - the shared
+predicate all six of this detachment's Stratagems use, in the same shape as
+game/awakened_dynasty.py's and game/death_lords_chosen.py's.
+
+This module used to say the opposite: that the check was skipped because
+"Retaliation Cadre is currently the only detachment that exists". That
+assumption expired the moment a T'au army could be a Kauyon or Mont'ka one
+instead, and in a T'au mirror match it was wrong for both players at once.
+
+The BATTLESUIT half
 IS checked, via is_battlesuit_unit()'s rule 19.03 keyword pooling, and so is
 the [DEEP STRIKE] half.
 """
@@ -51,7 +59,7 @@ the [DEEP STRIKE] half.
 # beside the code that enforces it - one definition, and this direction of the
 # import is the one that doesn't cycle.
 from game.ingress import INGRESS_MIN_ENEMY_DISTANCE_IN, SHORTENED_BLADE_MIN_ENEMY_DISTANCE_IN
-from game.retaliation_cadre import is_battlesuit_unit
+from game.retaliation_cadre import is_battlesuit_unit, stratagem_target_ok
 from game.stratagems import Stratagem
 from game.turn import PHASE_MOVEMENT
 
@@ -100,6 +108,8 @@ class ShortenedBladeController:
             return False
         if self.ingress_controller.relaxed_arrival_squad is squad:
             return False  # already armed for this arrival
+        if not stratagem_target_ok(squad):
+            return False
         if not is_battlesuit_unit(squad):
             return False
         return self.stratagem_controller.can_use(squad.owner, self._stratagem, [squad])

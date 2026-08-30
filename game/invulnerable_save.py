@@ -32,6 +32,8 @@ from game.waaagh import WAAAGH_INVULNERABLE_SAVE
 SERPENT_SHIELD_INVULNERABLE_SAVE = "5+"
 SHIMMERSHIELD_INVULNERABLE_SAVE = "4+"
 DISPERSION_SHIELD_INVULNERABLE_SAVE = "4+"
+FORCESHIELD_INVULNERABLE_SAVE = "4+"
+MISTSHIELD_INVULNERABLE_SAVE = "4+"
 
 
 def unit_has_serpent_shield(squad):
@@ -85,6 +87,13 @@ def effective_invulnerable_save(model, waaagh=None, melee=False):
             and squad is not None and waaagh.is_active(squad.owner)):
         save = _better(save, WAAAGH_INVULNERABLE_SAVE)
 
+    # Windrider Host's Spiralling Evasion: "models in your unit have a 4+
+    # invulnerable save" until the end of the phase. Folded through _better()
+    # like every other source, which is what stops 1CP from making an existing
+    # 4+ Shimmershield or Forceshield worse.
+    from game import windrider_spiralling_evasion
+    save = _better(save, windrider_spiralling_evasion.invulnerable_save_for(squad))
+
     if unit_has_serpent_shield(squad):
         save = _better(save, SERPENT_SHIELD_INVULNERABLE_SAVE)
 
@@ -103,5 +112,17 @@ def effective_invulnerable_save(model, waaagh=None, melee=False):
     # (all_models=True in game/factions/necrons.py), not of this test.
     if getattr(model, "dispersion_shield", False):
         save = _better(save, DISPERSION_SHIELD_INVULNERABLE_SAVE)
+
+    # Wraithblades' Forceshield: "The bearer has a 4+ invulnerable save" - the
+    # third of the same per-BEARER shape, and set the same way (a Gear item in
+    # game/factions/aeldari.py with all_models=True, which declines to attach
+    # to a model that did not take the ghostaxe it is printed alongside).
+    if getattr(model, "forceshield", False):
+        save = _better(save, FORCESHIELD_INVULNERABLE_SAVE)
+
+    # The Corsairs' Mistshield: the FOURTH item of this exact shape, set by a
+    # Gear item in game/factions/aeldari.py and read the same way.
+    if getattr(model, "mistshield", False):
+        save = _better(save, MISTSHIELD_INVULNERABLE_SAVE)
 
     return save

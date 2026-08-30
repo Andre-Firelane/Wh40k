@@ -7,10 +7,11 @@ over (the Vengeful Stars controller, the mark wiring, Path of the Outcast). A
 screen whose answer is computed and then dropped looks exactly like a working
 screen.
 
-So this drives main()'s REAL loop the way the other smokes do: it clicks a map
-tile, then an army tile per player, and then asks the built battlefield what it
-is and what is standing on it. Every click is deliberately something NO
-configuration produces - map1 against config's map2, and Player 1 the ORKS with
+So this drives main()'s REAL loop the way the other smokes do: it clicks a
+BIOME button, then a map tile, then an army tile per player, and then asks the
+built battlefield what it is, what it is painted in and what is standing on it.
+Every click is deliberately something NO configuration produces - forest
+against config's desert, map1 against config's map2, and Player 1 the ORKS with
 Player 2 the AELDARI against config's aeldari/necrons - so a pass cannot come
 from the defaults happening to agree.
 
@@ -39,6 +40,7 @@ MAX_FRAMES = 4000
 # What the clicks ask for. The map is NOT config.MAP and the pairing is not the
 # configured one, so nothing here can pass by coincidence.
 WANTED_MAP = "map1"
+WANTED_BIOME = "forest"   # config.BIOME below stays on the default, "desert"
 WANTED = {"Player 1": "orks", "Player 2": "aeldari"}
 
 pygame.init()
@@ -85,6 +87,13 @@ def fake_events():
     if picker is not None:
         if not picker.tiles:
             return []
+        # The biome first, on its own frame: it is a SECOND kind of button on
+        # the same screen, and clicking a map ends that screen - so a biome
+        # click has to be shown to land while the screen is still up AND to
+        # leave it up, which is exactly the risk of putting both there.
+        if picker.biome != WANTED_BIOME and picker.biome_rects:
+            state["clicked"].append(("biome", WANTED_BIOME))
+            return _click(picker.biome_rects[WANTED_BIOME].center)
         tile = next((t for t in picker.tiles if t.battle_map.key == WANTED_MAP), None)
         if tile is None:
             state["results"]["error"] = f"no tile for {WANTED_MAP!r}"
@@ -123,8 +132,17 @@ def fake_events():
 
     from game import maps  # noqa: F401  (imported for symmetry with the map check)
 
+    from game import sprites
+
     results = state["results"]
     results["map"] = loc["battle_map"].key
+    results["biome"] = config.BIOME
+    # Not just the setting: where the RENDERER will actually read its ground
+    # picture from. A setting that no lookup honours is the same "computed and
+    # then dropped" failure this whole harness exists for.
+    ground = sprites.ground_texture_path()
+    results["ground_folder"] = (os.path.basename(os.path.dirname(ground))
+                                if ground else None)
     results["board"] = (config.BOARD_WIDTH_IN, config.BOARD_HEIGHT_IN)
     results["armies"] = dict(loc["armies"])
     results["seer_council"] = tuple(config.SEER_COUNCIL_PLAYERS)
@@ -150,6 +168,7 @@ config.PREGAME_DEPLOYMENT = True
 # The whole point: leave the SETTINGS on the defaults, so anything the clicks
 # achieve is visibly the clicks' doing.
 config.MAP = "map2"
+config.BIOME = "desert"
 config.PLAYER1_ARMY = "aeldari"
 config.PLAYER2_ARMY = "necrons"
 config.SEER_COUNCIL_PLAYERS = ("Player 1",)
@@ -182,8 +201,12 @@ if "error" in results:
     print("ERROR:", results["error"])
 
 check("every step was answered by the harness, not by an agent",
-      [p for p, _k in state["clicked"]] == ["map", "Player 1", "Player 2"],
+      [p for p, _k in state["clicked"]] == ["biome", "map", "Player 1", "Player 2"],
       str(state["clicked"]))
+check("the biome click reached config", results.get("biome") == WANTED_BIOME,
+      f"got {results.get('biome')}, want {WANTED_BIOME} (config.BIOME is desert)")
+check("...and the renderer reads its ground art out of that biome's folder",
+      results.get("ground_folder") == "Forest", str(results.get("ground_folder")))
 check("main() plays on the map that was clicked", results.get("map") == WANTED_MAP,
       f"got {results.get('map')}, want {WANTED_MAP} (config.MAP is map2)")
 # The board dimensions are the thing everything downstream reads, so the click
@@ -202,8 +225,13 @@ check("Player 2 is on the board as AELDARI",
 check("Player 1 fields the whole Ork list (14 units)",
       results.get("unit_counts", {}).get("Player 1") == 14,
       str(results.get("unit_counts", {}).get("Player 1")))
-check("Player 2 fields the whole Aeldari list (13 units)",
-      results.get("unit_counts", {}).get("Player 2") == 13,
+# 12, down from 13: the Shroud Runners -> Windriders swap merged the Warlock
+# Skyrunner - which stood alone only because its JOIN names WINDRIDERS and the
+# list fielded none - into the Windriders. One list entry fewer on the table is
+# what an attachment LOOKS like, and is not a unit going missing (the model
+# count is unchanged); see game/army_lists.py's roster docstring.
+check("Player 2 fields the whole Aeldari list (12 units)",
+      results.get("unit_counts", {}).get("Player 2") == 12,
       str(results.get("unit_counts", {}).get("Player 2")))
 # The detachment settings have to follow the lists, not stay where config left
 # them - this is the half that silently leaves a player running a detachment

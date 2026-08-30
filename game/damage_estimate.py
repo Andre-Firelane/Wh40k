@@ -180,7 +180,10 @@ def attack_modifiers(attacker_model, defender, melee=False):
     is one line here; each needs its own measurement, which is why they are
     named rather than swept in."""
     hit = wound = 0
-    for modifier in tank_hunters_modifiers(attacker_model, defender):
+    # `melee` is threaded through so the Myphitic Blight-hauler's ranged-only
+    # Tank Hunters is not counted for its Gnashing Maw - see
+    # game/squad.py's tank_hunters_modifiers() on why there are two flags.
+    for modifier in tank_hunters_modifiers(attacker_model, defender, melee=melee):
         # Tankbustas' Tank Hunters is +1 to Hit AND +1 to Wound against a
         # MONSTER or VEHICLE unit - the whole reason an anti-tank unit is an
         # anti-tank unit, and it was worth exactly nothing here. User:

@@ -29,8 +29,10 @@ the two steps cannot disagree about it.
 """
 
 from game.destroyer_cult import HARD_WIRED_LABEL, WHIRLING_ONSLAUGHT_LABEL
+from game.fireknife import FIREKNIFE_LABEL
 from game.implacable_eradication import IMPLACABLE_ERADICATION_LABEL
 from game.protocol_conquering_tyrant import CONQUERING_TYRANT_LABEL
+from game.reavers_of_the_void import REAVERS_OF_THE_VOID_LABEL
 from game.swift_demise import SWIFT_DEMISE_LABEL
 
 #: Every re-roll source whose entitlement is "the 1s, OR the whole roll".
@@ -41,6 +43,8 @@ ONES_OR_WHOLE_LABELS = frozenset({
     WHIRLING_ONSLAUGHT_LABEL,           # Skorpekh Destroyers (hit)
     IMPLACABLE_ERADICATION_LABEL,       # Immortals (wound)
     CONQUERING_TYRANT_LABEL,            # Awakened Dynasty Stratagem (hit)
+    FIREKNIFE_LABEL,                    # Crisis Fireknife Battlesuits (hit)
+    REAVERS_OF_THE_VOID_LABEL,          # Corsair Voidreavers (hit)
 })
 
 

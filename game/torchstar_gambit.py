@@ -42,11 +42,19 @@ shot_squad_ids, which is populated in _actually_finish_squad() - i.e. it
 means exactly "resolved", not "started", so a unit mid-activation is
 correctly refused.
 
-SIMPLIFICATION (documented, matching game/retaliation_cadre.py's own note):
-this engine has no army-building/detachment-selection flow yet, and
-Retaliation Cadre is currently the only detachment that exists - the T'AU
-EMPIRE half of the TARGET clause is therefore not checked, exactly as Bonded
-Heroes applies unconditionally to any BATTLESUIT model. The BATTLESUIT and
+DETACHMENT GATE
+---------------
+The T'AU EMPIRE half of the TARGET clause, and "from your army", are checked
+through game/retaliation_cadre.py's stratagem_target_ok() - the shared
+predicate all six of this detachment's Stratagems use, in the same shape as
+game/awakened_dynasty.py's and game/death_lords_chosen.py's.
+
+This module used to say the opposite: that the check was skipped because
+"Retaliation Cadre is currently the only detachment that exists". That
+assumption expired the moment a T'au army could be a Kauyon or Mont'ka one
+instead, and in a T'au mirror match it was wrong for both players at once.
+
+The BATTLESUIT and
 FLY halves ARE checked, both through rule 19.03's keyword pooling.
 
 DELIBERATE OMISSION: rule 21.03's "Take to the Skies" is not offered during
@@ -60,7 +68,7 @@ by adding "torchstar" to that tuple.
 """
 
 from game.attached_units import unit_has_keyword
-from game.retaliation_cadre import is_battlesuit_unit
+from game.retaliation_cadre import is_battlesuit_unit, stratagem_target_ok
 from game.stratagems import Stratagem
 from game.turn import PHASE_SHOOTING
 
@@ -116,6 +124,8 @@ class TorchstarGambitController:
         # started - a unit still mid-activation is correctly refused, and so is
         # one that never shot.
         if squad not in self.shooting_controller.shot_squad_ids:
+            return False
+        if not stratagem_target_ok(squad):
             return False
         if not is_battlesuit_unit(squad) or not can_fly(squad):
             return False

@@ -1,7 +1,9 @@
 from game.dice import DAMAGE_ROLL
 from game.dice_notation import DiceNotationRoll
 from game import damage_reduction, molten_form
+from game import plagues  # imports only game/modifiers.py, so this cannot cycle
 from game.feel_no_pain import FeelNoPainRoll
+from game.enforcer_commander import adjusted_ap as enforcer_commander_adjusted_ap
 from game.ramshackle import adjusted_ap as ramshackle_adjusted_ap
 from game.thresholds import parse_threshold
 from game.invulnerable_save import effective_invulnerable_save
@@ -33,12 +35,33 @@ def save_thresholds(model, weapon, waaagh=None):
     angezeigt". A Riptide (Sv3+/Inv4+) under AP-2 is the plain case: its
     armour is a 5+ there, so a rolled 4 saves on the invuln and looked failed.
     The Battlewagon's Ramshackle had the mirror problem (the panel did not
-    know the AP had been worsened against it)."""
+    know the AP had been worsened against it).
+
+    The Death Guard Plague Rattlejoint Ague ("worsen the Save characteristic
+    of models in this unit by 1") lands on `sv` and deliberately not on `insv`
+    or `ap`: it names the Save CHARACTERISTIC, which is the printed armour
+    save, so an invulnerable save is untouched and AP still applies on top.
+    Here rather than at the two callers precisely because this function exists
+    to stop the panel and the resolution disagreeing about a save."""
     sv = parse_threshold(model.profile.armor_save)
+    if sv is not None:
+        sv += plagues.save_penalty(getattr(model, "squad", None))
+        # Advanced Acquisition Cadre's Autoreactive Camouflage: "+1 Sv" is a
+        # BETTER save, so it SUBTRACTS from the threshold - the mirror of the
+        # Plague penalty on the line above, and in the same place so the dice
+        # panel and the resolution keep agreeing about a save.
+        from game import aac_autoreactive_camouflage
+        sv -= aac_autoreactive_camouflage.save_bonus_for(getattr(model, "squad", None))
     insv = parse_threshold(effective_invulnerable_save(
         model, waaagh, melee=getattr(weapon, "weapon_type", None) == MELEE,
     ))
-    return sv, insv, ramshackle_adjusted_ap(weapon.ap, model)
+    # Two AP adjustments, applied in turn rather than folded: Ramshackle but
+    # Rugged belongs to the MODEL being allocated to, the Enforcer Commander's
+    # aura belongs to its UNIT and only to ranged attacks. No model has both
+    # today, but composing them is what the printed texts say, where a max()
+    # would silently cap two independent effects at one.
+    ap = ramshackle_adjusted_ap(weapon.ap, model)
+    return sv, insv, enforcer_commander_adjusted_ap(ap, model, weapon)
 
 
 def displayed_save_threshold(model, weapon, waaagh=None):
@@ -65,6 +88,16 @@ def _select_candidates(group):
     if damaged:
         return damaged
     return [m for m in group if not m.is_dead()]
+
+
+def _reroll_label(offer):
+    """The ability that owns this re-roll, for the dice label.
+
+    It used to read "Sunforge" unconditionally, which was true while
+    game/sunforge.py was the only source and a lying name the moment
+    Assured Destruction became the second - the same rename this repo
+    makes whenever a second carrier arrives."""
+    return getattr(offer, "label", None) or "re-roll"
 
 
 class DamageAllocationSession:
@@ -100,7 +133,7 @@ class DamageAllocationSession:
 
     def __init__(
         self, rolls, weapon, target_squad, dice_manager=None, log=None, priority_group=None, stealth_drones=None,
-        waaagh=None, damage_reroll=None, damage_override=None,
+        waaagh=None, damage_reroll=None,
     ):
         self.weapon = weapon
         self.target_squad = target_squad
@@ -116,11 +149,6 @@ class DamageAllocationSession:
         # may want to re-roll. Passed only by game/shooting.py - Sunforge is
         # ranged-only, so game/fight.py builds its session without one.
         self.damage_reroll = damage_reroll
-        # A second, parallel collaborator for the same die: where damage_reroll
-        # answers "throw it again", this one answers "it counts as N instead"
-        # (the Farseer's Branching Fates). Two seams rather than a bool
-        # overloaded into one, because they are different answers.
-        self.damage_override = damage_override
         # Set by the OWNING controller right after construction (it needs the
         # session object to bind against). Called whenever one of the two
         # asynchronous collaborators above - Stealth Drones, or the Damage
@@ -335,12 +363,23 @@ class DamageAllocationSession:
         # is a Damage roll to re-roll. Like Stealth Drones above, a True
         # return means the answer arrives later through the callback, so
         # this call must not carry on.
-        if self.damage_override is not None and self.damage_override.maybe_offer(
-            model, amount,
-            lambda new_amount: self._after_damage_override(model, roll, amount, new_amount),
-        ):
-            # Same busy-marking as the re-roll below - see pending_damage_reroll.
-            self.pending_damage_reroll = True
+        #
+        # The Farseer's Branching Fates used to have a second, parallel seam
+        # right here ("it counts as 6 instead"). It is gone: that ability is
+        # now spent from the left panel WHILE the Damage roll is still on the
+        # table, by setting the die itself - so by the time this runs the roll
+        # already says what it says, and there is nothing left to override.
+        # See game/unmodified_six_controller.py.
+        # A MANDATORY re-roll ("re-roll a Damage roll of 1") is not an offer:
+        # nothing is asked, so it resolves on the synchronous path exactly as a
+        # declined offer would. The D-cannon Platform's Structural Collapse is
+        # the first source - see game/structural_collapse.py.
+        if (self.damage_reroll is not None
+                and self.damage_reroll.auto_reroll_for(amount)):
+            if self.log is not None:
+                self.log.add("%s: re-rolling %s's Damage roll of 1."
+                             % (self.damage_reroll.label, self.weapon.name))
+            self._after_damage_reroll(model, roll, amount, True)
             return
         if self.damage_reroll is not None and self.damage_reroll.maybe_offer(
             amount, lambda again: self._after_damage_reroll(model, roll, amount, again, resumed=True)
@@ -351,25 +390,6 @@ class DamageAllocationSession:
             self.pending_damage_reroll = True
             return
         self._after_damage_reroll(model, roll, amount, False)
-
-    def _after_damage_override(self, model, roll, amount, new_amount):
-        """Resumes once the Branching Fates offer has been answered.
-
-        `new_amount` None means "keep the roll", which then falls through to
-        the re-roll offer exactly as if this one had never been made - the two
-        are separate abilities and declining the first does not decline the
-        second. A replacement short-circuits both, since a die whose result has
-        been SET is not a die anyone still wants to throw again."""
-        self.pending_damage_reroll = False
-        if new_amount is None:
-            if self.damage_reroll is not None and self.damage_reroll.maybe_offer(
-                amount, lambda again: self._after_damage_reroll(model, roll, amount, again, resumed=True)
-            ):
-                self.pending_damage_reroll = True
-                return
-            self._after_damage_reroll(model, roll, amount, False, resumed=True)
-            return
-        self._after_damage_reroll(model, roll, new_amount, False, resumed=True)
 
     def _after_damage_reroll(self, model, roll, amount, again, resumed=False):
         """Resumes on_damage_roll_acknowledged() once a Damage re-roll offer
@@ -390,7 +410,7 @@ class DamageAllocationSession:
         if again:
             reroll = DiceNotationRoll(
                 self.weapon.damage_notation, count=1, dice_manager=self.dice_manager,
-                label=f"Damage (Sunforge re-roll): {self.weapon.name}", roll_kind=DAMAGE_ROLL,
+                label=f"Damage ({_reroll_label(self.damage_reroll)} re-roll): {self.weapon.name}", roll_kind=DAMAGE_ROLL,
                 log=self.log, is_reroll=True,
                 target_name=self.target_squad.name if self.target_squad is not None else None,
                 target_squad=self.target_squad,
@@ -445,6 +465,31 @@ class DamageAllocationSession:
         if reduced != result and self.log is not None:
             self.log(f"{damage_reduction.label_for(model)}: {model.profile.name} reduces "
                      f"this attack's Damage {result} -> {reduced}.")
+        # Mont'ka's Counterfire Defence Systems: "subtract 1 from the Damage
+        # characteristic of that attack" - the fourth source folded here.
+        # Applied to `reduced`, the value actually returned, and floored at 1
+        # like every other reduction in this method: a Damage characteristic
+        # never drops below 1.
+        # Imported inside the method: a module-level import here closes a
+        # cycle (this module <- game/squad.py <- the Stratagem's own imports).
+        from game import conclave_wraithbone_armour, montka_counterfire_defence
+        counterfire = (
+            montka_counterfire_defence.damage_reduction_for(
+                getattr(model, "squad", None))
+            # Spirit Conclave's Wraithbone Armour - the FIFTH source here, and
+            # the first bought by the defender in reaction to being targeted.
+            # Summed with the line above rather than max()'d: two "subtract 1
+            # from the Damage characteristic" effects are two subtractions, and
+            # the floor below still stops either from reaching 0.
+            + conclave_wraithbone_armour.damage_reduction_for(
+                getattr(model, "squad", None)))
+        if counterfire:
+            after = max(1, reduced - counterfire)
+            if after != reduced and self.log is not None:
+                self.log(f"{montka_counterfire_defence.COUNTERFIRE_NAME}: "
+                         f"{model.profile.name} reduces this attack's Damage "
+                         f"{reduced} -> {after}.")
+            reduced = after
         return reduced
 
     def _apply_feel_no_pain(self, model, roll, amount, was_pending):
@@ -532,6 +577,19 @@ class MortalWoundAllocationSession:
     (Feel No Pain): see DamageAllocationSession's docstring - same
     pending_fnp/on_fnp_acknowledged() pattern."""
 
+    #: A hook fired ONCE, before the first wound is resolved, for a rule whose
+    #: WHEN is "when a unit suffers a mortal wound" - Armoured Warhost's
+    #: Layered Wards is the first. Set by main.py; a plain module attribute
+    #: rather than a constructor argument because this session is built at a
+    #: dozen call sites, none of which should have to learn about a Stratagem.
+    #:
+    #: It returns True if it opened a decision, in which case the session does
+    #: NOT resolve anything until resume() is called. That matters: the effect
+    #: on offer is a Feel No Pain threshold, and _advance() rolls Feel No Pain
+    #: for the FIRST wound immediately - so an offer that did not pause would
+    #: arrive too late for the wound that triggered it.
+    on_mortal_wounds = None
+
     def __init__(self, squad, count, dice_manager=None, log=None, waaagh=None):
         self.squad = squad
         self.dice_manager = dice_manager
@@ -542,10 +600,31 @@ class MortalWoundAllocationSession:
         self.pending_choice = None
         self.pending_fnp = None
         self._fnp_model = None
+        self.waiting_on_interrupt = False
+        hook = MortalWoundAllocationSession.on_mortal_wounds
+        if hook is not None and count > 0 and hook(squad):
+            self.waiting_on_interrupt = True
+            return
+        self._advance()
+
+    def resume(self):
+        """Continue after an interrupt has been answered. Idempotent, so a
+        caller that is unsure whether it paused may call it anyway."""
+        if not self.waiting_on_interrupt:
+            return
+        self.waiting_on_interrupt = False
         self._advance()
 
     @property
     def done(self):
+        # No `waiting_on_interrupt` term here, and that is deliberate rather
+        # than an oversight: the pause only happens when count > 0, and it
+        # happens before anything is resolved, so `remaining` is still the full
+        # count and this already answers False. A guard was written here first
+        # and removed once an A/B probe showed deleting it changed no answer -
+        # the same call game/tau_detachments.py's battle_round_in() records, and
+        # for the same reason: a branch no input can reach will eventually be
+        # trusted wrongly.
         return self.remaining == 0 and self.pending_choice is None and self.pending_fnp is None
 
     def _advance(self):
@@ -575,7 +654,11 @@ class MortalWoundAllocationSession:
             self._advance()
 
     def _apply(self, model):
-        fnp = FeelNoPainRoll(model, 1, self.dice_manager, log=self.log, waaagh=self.waaagh)
+        # mortal=True: this session IS the mortal-wound path (06.02), so it
+        # is the one place that can answer the question the Broadsides'
+        # Advanced Armour asks - see game/advanced_armour.py.
+        fnp = FeelNoPainRoll(model, 1, self.dice_manager, log=self.log,
+                             waaagh=self.waaagh, mortal=True)
         if fnp.is_pending:
             self.pending_fnp = fnp
             self._fnp_model = model

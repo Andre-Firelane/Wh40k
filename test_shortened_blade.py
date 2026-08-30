@@ -39,6 +39,14 @@ from game.shortened_blade import SHORTENED_BLADE_CP_COST, ShortenedBladeControll
 from game.stratagems import StratagemController
 from game.turn import PHASES, PHASE_MOVEMENT, PHASE_SHOOTING, TurnTracker
 
+# Retaliation Cadre must be DECLARED for this suite: its rule and all six of
+# its Stratagems gate on config.RETALIATION_CADRE_PLAYERS, which is empty until
+# an army list that fields the detachment is chosen. Set here so the subject of
+# these checks actually applies - the same precondition
+# test_death_guard_stratagems.py's `detachment_on` exists for.
+from game import config as _config  # noqa: E402
+_config.RETALIATION_CADRE_PLAYERS = ("Player 1", "Player 2")
+
 m = maps.get("map2")
 maps.apply_to_config(m)
 
@@ -130,8 +138,18 @@ check("5\" is still refused - the floor moved, it did not vanish",
       not sc["ingress"].position_valid(sc["arriving"], token, 30.0, too_close_y))
 put_at(sc, too_close_y)
 errors = sc["ingress"]._extra_check(sc["arriving"])
-check("and Confirm says so, naming the stratagem", bool(errors) and "Shortened Blade" in errors[0],
+# The message names the DISTANCE, not this Stratagem. It used to say "(The
+# Shortened Blade)", which was true while this was the only source of the rule;
+# Baharroth's Cloudstrider and then Windrider Host's Daring Riders arm the same
+# relaxed placement, so a message crediting this one would be wrong two times
+# in three. What the player needs from it is the number they must clear, and
+# that is what is pinned - the assurance moved rather than loosened.
+check("and Confirm says so, naming the relaxed distance",
+      bool(errors)
+      and ('%.0f"' % SHORTENED_BLADE_MIN_ENEMY_DISTANCE_IN) in errors[0],
       "; ".join(errors))
+check("...and does NOT credit one of the three sources",
+      bool(errors) and "Shortened Blade" not in errors[0], "; ".join(errors))
 
 # The mask the overlay caches has to be told the ground changed.
 sc2 = scene()

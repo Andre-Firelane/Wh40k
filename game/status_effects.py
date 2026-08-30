@@ -1,4 +1,5 @@
-from game import illuminor
+from game import conditional_lone_operative
+from game import nurgles_gift
 from game.squad import edge_distance, squad_is_attached_unit
 from game.terrain import DENSE
 
@@ -15,6 +16,18 @@ MARKED = "marked"  # T'au "For The Greater Good" army rule (game/greater_good.py
 GUIDED = "guided"          # the Farseer's Guide (game/guide.py) - friendly AELDARI add 1 to Hit rolls against it
 DOOMED = "doomed"          # Eldrad Ulthran's Doom (game/doom.py) - friendly AELDARI add 1 to Wound rolls against it
 WEBBED = "webbed"          # Lhykhis' Whispering Web (game/whispering_web.py) - friendly AELDARI crit on an unmodified 5+ against it
+# The DEATH GUARD army rule Nurgle's Gift (game/nurgles_gift.py). Like the
+# three Aeldari marks above, this one belongs to the OPPONENT of the model it
+# is drawn on - it is a warning, not a buff. Without a board label an
+# army-wide, always-on -1 Toughness (plus a Plague) would be invisible: unlike
+# Battle-shock it is never announced, and unlike Hidden it has no obvious
+# cause on the table, since the Contagion Range that produces it is not drawn.
+AFFLICTED = "afflicted"
+# Spirit Conclave's Shepherds of the Dead (game/shepherds_of_the_dead.py).
+# The ninth mark on an enemy unit, and the only one placed by a DEATH rather
+# than by a choice - and the only one that never expires, so without a board
+# label a unit could carry it for the rest of the battle with nothing to show.
+VENGEFUL_DEAD = "vengeful_dead"
 
 LABELS = {
     BATTLE_SHOCKED: "BS",
@@ -24,6 +37,8 @@ LABELS = {
     GUIDED: "GD",
     DOOMED: "DM",
     WEBBED: "WW",
+    AFFLICTED: "AF",
+    VENGEFUL_DEAD: "VD",
 }
 
 DETECTION_RANGE_IN = 15.0  # rule 13.09: a hidden model's default detection range
@@ -66,14 +81,19 @@ def lone_operative_range(squad, all_tokens=()):
     if squad is None or squad_is_attached_unit(squad):
         return None
     values = [m.profile.lone_operative for m in squad.models if m.profile.lone_operative]
-    # Illuminor Szeras grants it CONDITIONALLY ("while this model is within 3"
-    # of one or more other friendly NECRONS units"), so it cannot be a printed
-    # value on the profile and has to be asked about instead. `all_tokens` is
-    # optional and defaults to empty, so every existing caller keeps meaning
-    # exactly what it did - a caller that does not pass the board simply never
-    # sees the conditional grant. See game/illuminor.py.
-    if illuminor.grants_lone_operative(squad, all_tokens):
-        values.append(illuminor.ILLUMINOR_LONE_OPERATIVE_RANGE_IN)
+    # CONDITIONAL grants - Illuminor Szeras, the Spiritseer, Death Guard
+    # Defenders and Armoured Warhost's Spirit Stone of Raelyth all print the
+    # same sentence ("while this model is within 3" of one or more friendly
+    # <KEYWORD> units, this model has Lone Operative"), so they cannot be a
+    # printed value on the profile and are asked about instead. Four hand-
+    # written blocks became game/conditional_lone_operative.py; two of them had
+    # each described themselves as "the second", which is what three copies of
+    # one shape look like from the inside.
+    #
+    # `all_tokens` stays optional, so every existing caller keeps meaning what
+    # it did - one that does not pass the board simply never sees a conditional
+    # grant.
+    values.extend(conditional_lone_operative.granted_ranges(squad, all_tokens))
     if not values:
         return None
     return max(values)
@@ -117,14 +137,31 @@ def _wall_on_own_footprint(model, terrain_areas):
     )
 
 
-def is_detectable(model, observer_squad, terrain_areas, turn_tracker, last_ranged_attack_turn):
+def is_detectable(model, observer_squad, terrain_areas, turn_tracker, last_ranged_attack_turn,
+                  prey_marks=None, unmasking=None):
     """Rule 13.09: a hidden model can only be seen by enemy models within its
     detection range (15" by default, or the closer 12" house rule above if a
     wall stands on its own footprint) - a non-hidden model imposes no such
-    restriction (ordinary visibility rules apply elsewhere)."""
+    restriction (ordinary visibility rules apply elsewhere).
+
+    Everything that CHANGES that distance is summed by
+    game/detection_range.py rather than added here: there are now three
+    sources (Auxiliary Cadre's prey marks, and the two Advanced Acquisition
+    Cadre Enhancements), and three named arguments summed at this one line is
+    how the fourth ends up applied at one call site and not the other. Each is
+    optional and absent by default, so a caller that knows about none of them
+    measures the printed distance - the arrangement every other controller
+    argument in this module uses.
+
+    Since detection range belongs to the HIDDEN model here, a POSITIVE
+    contribution makes the unit visible from FURTHER AWAY. See
+    game/detection_range.py for each source's own direction."""
     if not is_hidden(model, terrain_areas, turn_tracker, last_ranged_attack_turn):
         return True
-    detection_range = CLOSE_DETECTION_RANGE_IN if _wall_on_own_footprint(model, terrain_areas) else DETECTION_RANGE_IN
+    from game import detection_range as detection_range_module
+    base = CLOSE_DETECTION_RANGE_IN if _wall_on_own_footprint(model, terrain_areas) else DETECTION_RANGE_IN
+    detection_range = detection_range_module.apply(
+        base, getattr(model, "squad", None), prey_marks=prey_marks, unmasking=unmasking)
     return any(edge_distance(model, observer) <= detection_range for observer in observer_squad.models)
 
 
@@ -153,6 +190,11 @@ def active_effects(model, terrain_areas, turn_tracker, last_ranged_attack_turn, 
     for controller, effect in ((guide, GUIDED), (doom, DOOMED), (whispering_web, WEBBED)):
         if controller is not None and model.squad is not None and _is_marked(controller, model.squad):
             effects.append(effect)
+    # Nurgle's Gift needs no controller argument: NurglesGiftController stamps
+    # Squad.afflicted once a frame, so the flag on the unit IS the answer - the
+    # same reason every one of the six Plague funnels reads the squad.
+    if nurgles_gift.is_afflicted(model.squad):
+        effects.append(AFFLICTED)
     return effects
 
 

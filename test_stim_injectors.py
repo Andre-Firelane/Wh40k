@@ -40,6 +40,14 @@ from game.stim_injectors import StimInjectorsController
 from game.stratagems import StratagemController
 from game.turn import PHASE_FIGHT, PHASE_MOVEMENT, PHASE_SHOOTING, PHASES, TurnTracker
 
+# Retaliation Cadre must be DECLARED for this suite: its rule and all six of
+# its Stratagems gate on config.RETALIATION_CADRE_PLAYERS, which is empty until
+# an army list that fields the detachment is chosen. Set here so the subject of
+# these checks actually applies - the same precondition
+# test_death_guard_stratagems.py's `detachment_on` exists for.
+from game import config as _config  # noqa: E402
+_config.RETALIATION_CADRE_PLAYERS = ("Player 1", "Player 2")
+
 PASS, FAIL = [], []
 
 

@@ -99,6 +99,20 @@ def _datasheet_label(item):
     return getattr(datasheet, "name", None) or getattr(item, "name", "?")
 
 
+def detachment_summary(entry):
+    """The detachments this list fields, and their total Detachment Points.
+
+    Written here rather than on ArmyList because it is a display concern, and
+    it is one function because the header and the tile must not disagree about
+    what a list brings."""
+    from game import detachments as detachments_module
+    names = list(entry.detachments)
+    if not names:
+        return "no detachment"
+    points = detachments_module.points_for(entry.key)
+    return "%s (%d DP)" % (" + ".join(names), points)
+
+
 class _Entry:
     """One picture in a tile: either a unit, or one component of an attached
     unit (19.01).
@@ -498,7 +512,7 @@ class ArmySelectScreen(ts.Paged):
             if key is None:
                 continue
             entry = army_lists.get(key)
-            notes.append((f"{done_player}: {entry.name} ({entry.detachment})",
+            notes.append((f"{done_player}: {entry.name} ({detachment_summary(entry)})",
                           ts.PLAYER_ACCENT_COLORS.get(done_player, TEXT_COLOR)))
         ts.draw_header(
             surface, screen_rect, self.fonts,
@@ -528,7 +542,11 @@ class ArmySelectScreen(ts.Paged):
         for line in wrap_text(self.name_font, entry.name, text_width) or [entry.name]:
             surface.blit(self.name_font.render(line, True, TITLE_COLOR), (text_x, y))
             y += self.name_font.get_height()
-        surface.blit(self.font.render(entry.detachment, True, TEXT_COLOR), (text_x, y + 2))
+        # EVERY detachment the list declares, with what they cost: a list may
+        # field several, and they belong to the list rather than being chosen
+        # later, so the tile is the only place they are ever shown.
+        surface.blit(self.font.render(detachment_summary(entry), True, TEXT_COLOR),
+                     (text_x, y + 2))
         y += self.font.get_height() + 4
         surface.blit(self.small_font.render(entry.army_rule, True, DIM_TEXT_COLOR), (text_x, y + 2))
 

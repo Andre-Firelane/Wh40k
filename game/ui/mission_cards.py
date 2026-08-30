@@ -37,6 +37,7 @@ CARD_SCORE_COLOR = (255, 230, 170)
 CARD_READY_COLOR = (140, 245, 160)   # a Secondary whose cash-in prompt is open right now
 CARD_TIMING_COLOR = (135, 160, 185)  # muted: WHEN a Secondary is checked, not a claim that it is met
 CARD_DETAIL_COLOR = (255, 205, 120)  # a card's WHEN DRAWN choice (which objective, which unit)
+CARD_INFO_COLOR = (150, 195, 225)    # the facts the printed prose does not carry - timing, action, draw clause
 
 # Same fixed per-player identity color as the objective-control markers on the
 # board (renderer.py's OBJECTIVE_COLORS) - duplicated here rather than
@@ -61,7 +62,7 @@ SECONDARY = "Secondary"
 
 class _MissionCard:
     def __init__(self, player, category, title, text, status=None, status_color=None,
-                 detail=None):
+                 detail=None, info=()):
         self.player = player       # whose progress this card is about
         self.category = category   # "Primary"/"Secondary"
         self.title = title
@@ -72,6 +73,11 @@ class _MissionCard:
         # body. Not appended to `text`: wrap_text() splits on spaces, so an
         # embedded newline would not start a new line at all.
         self.detail = detail
+        # Short "LABEL  value" rows shown above the body - see
+        # SecondaryMissionCard.info_lines(). The timing is the one that was
+        # genuinely missing: it lives on the collapsed bar, so opening a card
+        # used to HIDE it.
+        self.info = list(info)
         self.height = float(BAR_HEIGHT)    # animated, collapsed by default
 
 
@@ -158,6 +164,7 @@ class MissionCardsOverlay:
                 player, SECONDARY, card.name, card.text,
                 status=status, status_color=color,
                 detail=secondary_controller.detail_for(card),
+                info=card.info_lines(),
             ))
         return cards
 
@@ -218,6 +225,11 @@ class MissionCardsOverlay:
         height = (BAR_HEIGHT + BODY_GAP
                   + wrapped_text_height(self.body_font, card.text, text_width,
                                         line_height=line_height))
+        for line in card.info:
+            height += wrapped_text_height(self.body_font, line, text_width,
+                                          line_height=line_height)
+        if card.info:
+            height += BODY_GAP
         if card.detail:
             height += BODY_GAP + wrapped_text_height(
                 self.body_font, card.detail, text_width, line_height=line_height)
@@ -325,9 +337,18 @@ class MissionCardsOverlay:
             body_y = rect.y + BAR_HEIGHT
             pygame.draw.line(surface, border_color,
                              (rect.x + CARD_PADDING, body_y), (rect.right - CARD_PADDING, body_y))
+            y = body_y + BODY_GAP
+            for line in card.info:
+                y = draw_wrapped_text(
+                    surface, self.body_font, line, CARD_INFO_COLOR,
+                    text_x, y, text_width,
+                    line_height=self.body_font.get_height() + 2,
+                )
+            if card.info:
+                y += BODY_GAP
             y = draw_wrapped_text(
                 surface, self.body_font, card.text, CARD_TEXT_COLOR,
-                text_x, body_y + BODY_GAP, text_width,
+                text_x, y, text_width,
                 line_height=self.body_font.get_height() + 2,
             )
             if card.detail:

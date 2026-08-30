@@ -216,6 +216,15 @@ main.ClaudeAgent = lambda *a, **k: MockAgent()
 if __name__ == "__main__":
     try:
         main.main(MAP_KEY)
-    except SystemExit:
-        pass
+    except SystemExit as stop:
+        # Only OUR OWN stop is a clean finish - fake_events() raises
+        # SystemExit(0) once MAX_FRAMES is reached. main() also raises
+        # SystemExit, with a MESSAGE, for a real refusal (a map roster that
+        # names a unit the scene never fielded, a snapshot that disagrees
+        # with the board). Swallowing those printed "no exception" over a
+        # run that had produced ZERO frames, which is exactly the quiet
+        # failure this project keeps having to hunt: a loud guard made
+        # silent by the harness that was supposed to surface it.
+        if stop.code not in (0, None):
+            raise
     print(f"self-play {MAP_KEY} (pregame={PREGAME}): {state['frames']} frames, no exception")

@@ -52,6 +52,7 @@ from game import attached_units
 from game import psychic_guidance
 from game.turn import PHASE_SHOOTING
 from game.stratagems import Stratagem
+from game import strands_of_fate
 
 PSYCHIC_SHIELD_CP = 1
 PSYCHIC_SHIELD_NAME = "Psychic Shield"
@@ -101,6 +102,9 @@ class PsychicShieldController:
         if self.stratagem_controller is None or attacker is None or target is None:
             return False
         if target.owner == attacker.owner:
+            return False
+        # Seer Council only - see game/strands_of_fate.py's has_detachment().
+        if not strands_of_fate.has_detachment(target.owner):
             return False
         if applies(target):
             return False   # already up on this unit

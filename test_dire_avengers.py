@@ -222,7 +222,15 @@ checks.eq("BLADESTORM grants exactly 1", BLADESTORM_SUSTAINED_HITS, 1)
 
 # ...and the two abilities interlock in a way worth pinning down: the token is
 # only worth spending on a hit roll when a critical buys something, so at close
-# range (Bladestorm active) it is offered and beyond half range it is not.
+# range (Bladestorm active) the button is offered and beyond half range it is
+# not. Read through the real UnmodifiedSixController, which is what the left
+# panel draws its buttons off - and this is the case that proves the
+# controller reads the ADJUSTED weapon: Bladestorm's [SUSTAINED HITS] is a
+# conditional grant, so the printed profile would say "nothing to buy" in
+# exactly the situation where there is.
+from game.unmodified_six_controller import UnmodifiedSixController  # noqa: E402
+from game import aspect_shrine  # noqa: E402
+
 near_offer = tk.shooting_scene(ae.DIRE_AVENGERS, ae.HOWLING_BANSHEES, attacker_owner="Player 1", gap=6.0)
 far_offer = tk.shooting_scene(ae.DIRE_AVENGERS, ae.HOWLING_BANSHEES, attacker_owner="Player 1", gap=14.0)
 for scene, expected, label in ((near_offer, True, "within"), (far_offer, False, "beyond")):
@@ -232,12 +240,21 @@ for scene, expected, label in ((near_offer, True, "within"), (far_offer, False, 
              if r[1] == "Avenger Shuriken Catapult")
     script(*FACES)
     scene["shooting"].choose_weapon(k)
-    scene["dice"].acknowledge()
-    scene["shooting"].on_dice_acknowledged()
+    ctrl = UnmodifiedSixController(scene["dice"], attack_controllers=(scene["shooting"],))
+    offered = [src.__name__ for src, _sq, _m in ctrl.available_sources()]
     checks.eq(f"an all-hits roll {label} half range offers the token: {expected}",
-              scene["decision"].is_pending, expected)
-    if scene["decision"].is_pending:
-        tk.pick_option(scene["decision"], "Keep the roll")
+              offered == ["game.aspect_shrine"], expected)
+    # ...and it is Bladestorm's grant doing it, not something else: the gate
+    # says "success" (a plain hit worth turning critical) rather than
+    # "failure", because this roll has no misses at all.
+    if expected:
+        _sq, _m, adjusted = scene["shooting"].unmodified_six_context()
+        checks.eq("...because the adjusted weapon has [SUSTAINED HITS]",
+                  bool(adjusted.sustained_hits), True)
+        checks.eq("...and the gate calls it a plain-success upgrade",
+                  ctrl.worth_changing(adjusted), "success")
+    checks.eq(f"...and nothing is asked in an overlay ({label})",
+              scene["decision"].is_pending, False)
 
 # Half range is per WEAPON, not per unit: the Exarch's 12" Shuriken Pistol
 # halves to 6", not to the catapult's 9".

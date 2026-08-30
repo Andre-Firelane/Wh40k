@@ -1,9 +1,9 @@
-"""The three DESTROYER CULT re-rolls.
+"""The four DESTROYER CULT re-rolls.
 
-One module because they are one family: three datasheets, three abilities that
-all read "re-roll a roll of 1, and under some condition you can re-roll the
-whole roll instead". Splitting them into three files would put the same shape
-in three places and invite the second one to drift.
+One module because they are one family: four datasheets, four abilities that
+are all "re-roll something, under some condition". Splitting them into four
+files would put the same shape in four places and invite the second one to
+drift.
 
 RULES (printed, word for word):
 
@@ -22,7 +22,11 @@ RULES (printed, word for word):
   model in this unit makes an attack with a gauss destructor that targets a
   MONSTER or VEHICLE, re-roll a Wound roll of 1."
 
-"INSTEAD" IS THE WORD THAT SHAPES ALL OF THIS, exactly as it does for the
+  Lokhust Lord, "Driven by Hatred": "Each time this model makes an attack
+  that targets an enemy unit that is Below Half-strength, you can re-roll the
+  Hit roll and you can re-roll the Wound roll."
+
+"INSTEAD" IS THE WORD THAT SHAPES THE FIRST THREE, exactly as it does for the
 Windriders' Swift Demise (game/swift_demise.py), which is the working
 precedent this follows rather than inventing a second arrangement:
 
@@ -37,20 +41,41 @@ then offering the rest would be strictly more generous than the printed text.
 game/reroll_scope.py is what tells the two attack steps that this source has
 that shape.
 
-OPTIMISED FOR SLAUGHTER IS THE ODD ONE OUT, twice over, and both differences
-are in its text: it has NO upgrade clause at all (so it is a plain automatic
-re-roll of 1s, like Forward Observers), and its condition is per WEAPON rather
-than per unit - the exterminator wants soft targets, the destructor wants hard
-ones. That is why it takes a `weapon` argument and the other two do not.
+OPTIMISED FOR SLAUGHTER IS THE ODD ONE OUT of those three, twice over, and
+both differences are in its text: it has NO upgrade clause at all (so it is a
+plain automatic re-roll of 1s, like Forward Observers), and its condition is
+per WEAPON rather than per unit - the exterminator wants soft targets, the
+destructor wants hard ones. That is why it takes a `weapon` argument and the
+other two do not.
+
+DRIVEN BY HATRED IS THE ODD ONE OUT OF ALL FOUR, and in a third way again:
+
+  * it has no "1s" clause and no "instead" - it is simply an OPTIONAL whole-
+    roll re-roll, so it does NOT belong in game/reroll_scope.py's
+    ones-or-whole family. Putting it there would silently offer the player a
+    1s-only option the printed text never gives;
+  * it covers BOTH the Hit roll and the Wound roll, which none of the other
+    three do;
+  * and it is per MODEL ("each time THIS MODEL makes an attack"), not per
+    unit. The other three say "a model in this unit". So it takes the
+    attacking MODEL rather than the squad, and a bodyguard swinging beside the
+    Lord gets nothing from it - which is exactly the sort of difference that
+    disappears if the predicate is written to match its neighbours.
+
+"Below Half-strength" is game/squad.py's is_below_half_strength(), which is
+the Appendix's own STRICTLY-less-than definition - deliberately not
+is_at_half_strength(), which is the at-OR-below one that Battle-shock and 'Ard
+as Nails use. A unit sitting exactly on half is NOT below it.
 """
 
 from game.objectives import is_within_range_of_objective
-from game.squad import is_monster_or_vehicle_unit
+from game.squad import is_below_half_strength, is_monster_or_vehicle_unit
 from game.weapons import EnmiticExterminatorProfile, GaussDestructorProfile
 
 HARD_WIRED_LABEL = "Hard-wired for Destruction"
 WHIRLING_ONSLAUGHT_LABEL = "Whirling Onslaught"
 OPTIMISED_FOR_SLAUGHTER_LABEL = "Optimised for Slaughter"
+DRIVEN_BY_HATRED_LABEL = "Driven by Hatred"
 
 
 def _unit_has(squad, attribute):
@@ -138,3 +163,35 @@ def optimised_for_slaughter_applies(squad, weapon, target_squad):
     if isinstance(weapon, GaussDestructorProfile):
         return hard
     return False
+
+
+# --- Lokhust Lord -----------------------------------------------------------
+
+def driven_by_hatred_applies(model, target_squad):
+    """The whole ability, in one predicate: does THIS MODEL get to re-roll both
+    of its rolls against this target?
+
+    Takes a MODEL, unlike the other three, because the printed text does:
+    "each time THIS MODEL makes an attack". A Lokhust Destroyer swinging
+    alongside its Lord gets nothing from it."""
+    if model is None or target_squad is None:
+        return False
+    if not getattr(model.profile, "driven_by_hatred", False) or model.is_dead():
+        return False
+    return is_below_half_strength(target_squad)
+
+
+def driven_by_hatred_applies_to_group(pairs, target_squad):
+    """The group-level form the two attack steps need.
+
+    A re-roll offer is made for a whole attack GROUP (rule 04.03's "identical
+    attacks"), but this ability belongs to ONE model. So it is granted only
+    when EVERY model in the group carries it - conservative on purpose: the
+    other way round would re-roll a bodyguard's dice on a Lord's entitlement,
+    which the printed text does not allow. It cannot over-grant, and the case
+    it declines is one no current build produces (the Lord's Staff of Light
+    and Lord's Blade share no characteristics with any Lokhust weapon, so
+    _attack_key() separates him anyway)."""
+    if not pairs:
+        return False
+    return all(driven_by_hatred_applies(model, target_squad) for model, _ in pairs)

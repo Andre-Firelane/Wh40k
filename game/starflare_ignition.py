@@ -76,20 +76,36 @@ it. That is arguably right anyway - such a unit either deployed normally or
 HAS already made an ingress move, which is exactly what 20.03 exempts - but
 it is an ordering accident rather than a decision, so it is written down.
 
-SIMPLIFICATION (documented, matching game/retaliation_cadre.py's own note):
-this engine has no army-building/detachment-selection flow, so the T'AU
-EMPIRE half of the bearer restriction is not checked - the same gap Bonded
-Heroes documents for itself. The BATTLESUIT half IS checked, and so is
-CHARACTER: an Enhancement is given to a CHARACTER model during army
-building, and grant() is where that decision is actually made in this
-engine, so that is where both are enforced.
+GATED ON THE DETACHMENT - THE LIMITATION THIS USED TO NAME IS CLOSED
+--------------------------------------------------------------------
+This module used to write out, at length, why it was NOT gated on its
+detachment while the other six Retaliation Cadre modules were: an Enhancement
+is a LIST-BUILDING choice, this engine has no army-building step, and the
+predefined T'au list handed this one to its Coldstar Commander unconditionally.
+The consequence it stated plainly was that fielding a different T'au detachment
+left that Commander holding a Retaliation Cadre Enhancement, and its 20 points.
+
+That is fixed. A detachment now belongs to the LIST (game/detachments.py), so
+game/army_lists.py's tau_army() hands out the Enhancement of each detachment it
+actually declares, and game/enhancements.py's is_active() refuses one whose
+detachment is not fielded - so a hand-built scene or an older save cannot run a
+Kauyon Enhancement in a Mont'ka army either.
+
+The BATTLESUIT half IS checked, and so is CHARACTER: grant() is where the
+bearer decision is actually made in this engine, so that is where both are
+enforced.
 """
 
+from game import enhancements
 from game.squad import ENGAGEMENT_RANGE_IN, edge_distance
 from game.strategic_reserves import withdraw_to_reserves
 
 STARFLARE_IGNITION_SYSTEM_NAME = "Starflare Ignition System"
-STARFLARE_IGNITION_SYSTEM_POINTS = 20
+# Read off the registry rather than repeated here: game/enhancements.py and
+# game/factions/tau_empire.py already have to agree about this number, and a
+# third copy is one more place for them to drift.
+STARFLARE_IGNITION_SYSTEM_POINTS = enhancements.get(STARFLARE_IGNITION_SYSTEM_NAME).points
+
 
 
 def _living(models):
@@ -101,28 +117,16 @@ def _living(models):
 def bearer_models(squad):
     """Every living model of `squad` carrying this Enhancement.
 
-    A list rather than a bool because rule 19.01 can merge a bearer into a
-    larger unit, and "does this unit still have the Enhancement" then means
-    "is the bearer model still alive".
-
-    Squad.models is NOT enough to answer that on its own, which is the whole
-    reason is_dead() is filtered here as well. Its dead entries are swept by
-    GameState.remove_dead_models(), but main.py runs that sweep ONCE PER
-    FRAME (main.py:2501) - strictly AFTER the event loop and run_ai_action(),
-    which is where advance_turn_phase() and therefore offer() are reached.
-    At the instant this rule is evaluated, every model killed during the turn
-    that just ended is still sitting in Squad.models and in GameState.tokens
-    with current_wounds <= 0.
-
-    User report ("ich habe gewaehlt, dass der squad wieder in strategic
-    reserves soll, aber er ist auf dem feld geblieben"): without this filter
-    a unit whose BEARER had just been killed still looked like it had the
-    Enhancement, so offer() raised the prompt - and by the time the human
-    answered it, a frame later, the sweep had run, the bearer was really
-    gone, and withdraw()'s re-check refused. The prompt closed, nothing
-    happened, and (see withdraw()) not one line was written explaining it.
-    """
-    return _living(enhancement_models(squad))
+    game/enhancements.py owns this reading now - it is the same 19.04 question
+    for all nineteen Enhancements, and the "a model killed this frame is still
+    in Squad.models" trap that this rule's own bug report taught is exactly
+    what a shared answer must not lose. The report: without the is_dead()
+    filter a unit whose BEARER had just been killed still looked like it had
+    the Enhancement, so offer() raised the prompt - and by the time the human
+    answered it a frame later, the sweep had run and withdraw()'s re-check
+    refused. The prompt closed, nothing happened, and not one line explained
+    it."""
+    return enhancements.bearer_models(squad, STARFLARE_IGNITION_SYSTEM_NAME)
 
 
 def enhancement_models(squad):
@@ -132,83 +136,36 @@ def enhancement_models(squad):
     whose bearer has just been killed no longer has the Enhancement (19.04),
     but it is still the unit the rule is about, and saying so is the point of
     offer()'s "not offered - because X" line."""
-    return [m for m in squad.models if getattr(m.profile, "starflare_ignition_system", False)]
+    return enhancements.enhancement_models(squad, STARFLARE_IGNITION_SYSTEM_NAME)
 
 
 def has_starflare_ignition_system(squad):
-    return bool(bearer_models(squad))
+    """A living bearer AND an owner who fields Retaliation Cadre.
+
+    The second half is NEW, and it closes the limitation this module's own
+    docstring used to write out at length ("picking a different T'au detachment
+    leaves that Commander holding a Retaliation Cadre Enhancement"). See
+    game/enhancements.py for why that is now answerable: the detachment is
+    chosen before the armies are built."""
+    return enhancements.is_active(squad, STARFLARE_IGNITION_SYSTEM_NAME)
 
 
 def grant(squad, model=None, game_log=None):
     """Give this Enhancement to one model of `squad` during army building.
 
-    This is the "apply" step game/factions/detachment.py's Enhancement
-    docstring describes (set the matching field on that one model's own
-    UnitProfile instance - build_squad() creates a fresh instance per model,
-    so this never leaks to another model of the same datasheet). It exists
-    as a function rather than a raw attribute poke in main.py for two
-    reasons: the BEARER restriction has to be enforced somewhere, and army
-    building is the only moment it is ever decided; and the points cost has
-    to land on Squad.points, which a bare assignment would silently skip.
-
-    `model` selects the bearer explicitly; omitted, the single eligible
-    model is used - and an ambiguous squad (more than one eligible model) is
-    refused rather than guessed at, since which model carries a 20-point
-    upgrade is not something to pick arbitrarily.
-
-    Returns the bearer model. Raises ValueError on an illegal grant: this
-    runs while the scene is being built, long before there is a UI to report
-    into, and a silently-dropped Enhancement would show up much later as
-    "the rule never triggers".
+    Delegates to game/enhancements.py's grant(), which owns the bearer
+    restriction, the points and the log line for all nineteen. Kept as a named
+    function here because callers (and tests) name this rule, not the registry.
     """
-    if squad is None:
-        raise ValueError(f"{STARFLARE_IGNITION_SYSTEM_NAME}: no unit given.")
-    if has_starflare_ignition_system(squad):
-        raise ValueError(
-            f"{STARFLARE_IGNITION_SYSTEM_NAME}: {squad.name} already has this Enhancement."
-        )
-    candidates = [m for m in squad.models if _can_bear(m)]
-    if model is not None:
-        if model not in squad.models:
-            raise ValueError(f"{STARFLARE_IGNITION_SYSTEM_NAME}: that model is not in {squad.name}.")
-        if not _can_bear(model):
-            raise ValueError(
-                f"{STARFLARE_IGNITION_SYSTEM_NAME}: {model.profile.name} is not a "
-                f"BATTLESUIT CHARACTER model."
-            )
-    elif not candidates:
-        raise ValueError(
-            f"{STARFLARE_IGNITION_SYSTEM_NAME}: {squad.name} has no BATTLESUIT CHARACTER model to bear it."
-        )
-    elif len(candidates) > 1:
-        raise ValueError(
-            f"{STARFLARE_IGNITION_SYSTEM_NAME}: {squad.name} has "
-            f"{len(candidates)} eligible models - name the bearer explicitly."
-        )
-    else:
-        model = candidates[0]
-
-    model.profile.starflare_ignition_system = True
-    # An Enhancement's points are part of what the army costs. Squad.points
-    # is None for a faction with no transcribed points list, and that "None
-    # is contagious" convention (game/attached_units.py's attach() uses the
-    # same one) has to hold here too - adding 20 to an unpriced unit would
-    # invent a total that isn't one.
-    if squad.points is not None:
-        squad.points += STARFLARE_IGNITION_SYSTEM_POINTS
-    if game_log is not None:
-        game_log.add(
-            f"{squad.owner}: {model.profile.name} carries the {STARFLARE_IGNITION_SYSTEM_NAME} "
-            f"Enhancement ({STARFLARE_IGNITION_SYSTEM_POINTS} pts)."
-        )
-    return model
+    return enhancements.grant(squad, STARFLARE_IGNITION_SYSTEM_NAME,
+                              model=model, game_log=game_log)
 
 
 def _can_bear(model):
     """"T'AU EMPIRE BATTLESUIT model only", plus the general Enhancement rule
-    that the bearer is a CHARACTER model. The T'AU EMPIRE half is not
-    checked - see the module docstring."""
-    return bool(model.profile.battlesuit and model.profile.character)
+    that the bearer is a CHARACTER model. The T'AU EMPIRE half is not checked -
+    this engine has no per-model faction keyword (see game/enhancements.py)."""
+    return enhancements.get(STARFLARE_IGNITION_SYSTEM_NAME).can_bear(model, None)
 
 
 class StarflareIgnitionController:

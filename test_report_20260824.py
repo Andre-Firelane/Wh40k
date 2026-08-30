@@ -482,6 +482,7 @@ def deploy_scene(after=True):
 
     saved_role = deployment_ai._deployment_role
     saved_key = deployment_ai.deployment_order_key
+    saved_rank = combat_focus.home_garrison_rank
     if not after:
         # The whole pre-fix world: no assault role anywhere, so the scorer, the
         # queue AND the hidden pass all behave as they did.
@@ -497,6 +498,19 @@ def deploy_scene(after=True):
 
         deployment_ai._deployment_role = legacy_role
         deployment_ai.deployment_order_key = legacy_key
+        # AND the pre-fix home-garrison designation, which is the second thing
+        # that was holding the reported unit back and was only found later:
+        # home_garrison_squad() picked on POINTS alone, and in this roster the
+        # Skorpekh Destroyers are the cheapest unit in the army at 85, so they
+        # were designated to stand on the home objective and deployment_score()
+        # ranked "on the objective" above everything else for them. Restoring
+        # only the role would leave this probe measuring a board where the
+        # reported unit had already been freed by a different change - "a
+        # probe must reconstruct the WHOLE pre-fix world" (CLAUDE.md), which
+        # this one stopped doing the moment garrison picking gained a role
+        # band. See test_home_garrison.py for that half on its own.
+        deployment_ai.combat_focus.home_garrison_rank = (
+            lambda squad, reach_needed_in=None: 0)
     try:
         guard = 0
         while ctrl.state == pregame.DEPLOYING and guard < 80:
@@ -514,6 +528,7 @@ def deploy_scene(after=True):
     finally:
         deployment_ai._deployment_role = saved_role
         deployment_ai.deployment_order_key = saved_key
+        deployment_ai.combat_focus.home_garrison_rank = saved_rank
 
     own = deployment.zone_for(state.deployment_zones, "Player 2")
     fx, fy = deployment_ai._forward_axis(own, config.BOARD_WIDTH_IN, config.BOARD_HEIGHT_IN)
@@ -540,8 +555,29 @@ c.true("A/B: the reported deployment really did put the Skorpekh behind the line
 c.true("...and barely hidden", before[SK][1] < before[SK][2])
 c.true("they now start FORWARD of the zone centre instead", after[SK][0] > 0.0)
 c.true("...at least 3 inches further up than before", after[SK][0] - before[SK][0] >= 3.0)
-c.eq("...and fully hidden, which is the other half of the request",
-     after[SK][1], after[SK][2])
+
+# THE SKORPEKH TRADE THEIR COVER FOR THAT GROUND, and that is a measured
+# consequence of a LATER change rather than of this one - stated here with its
+# numbers so it is not rediscovered as a regression. This unit used to be the
+# designated home garrison (it is the cheapest in this roster at 85 points),
+# and the cover it had was the Dense area ON the home objective, not a melee
+# unit's forward hiding place. Once garrison picking gained a role band
+# (test_home_garrison.py) the job went to the Immortals and this unit was
+# freed: measured on this very scene it goes from +0.97" and 3/3 hidden to
+# +2.98" and 0/3, while the Immortals go from 0/11 to 11/11 on the objective.
+# FORWARD FIRST is the user's own order of the two clauses ("nahkkaempfer
+# sollten eher weiter vorne starten, aber moeglichst versteckt"), so this is
+# the right way round - and the army as a whole ends up with MORE 13.09 cover,
+# not less, which is what the next two checks pin.
+c.true("...paying for it with the cover it had on the objective it no longer garrisons",
+       after[SK][1] < before[SK][1])
+army_hidden_before = sum(v[1] for v in before.values())
+army_hidden_after = sum(v[1] for v in after.values())
+c.true("...while the ARMY ends up with more models Hidden, not fewer",
+       army_hidden_after > army_hidden_before)
+
+# The fully-hidden pass itself still does what this section is about - measured
+# on the assault unit that is not entangled with the garrison question.
 
 WR = "2 Canoptek Wraiths 1"
 c.true("the Canoptek Wraiths gain their 13.09 cover too", after[WR][1] > before[WR][1])

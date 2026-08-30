@@ -207,6 +207,13 @@ class ActionController:
         state = next((s for s in self.states if s.squad is squad), None)
         if state is None:
             return False
+        # Advanced Acquisition Cadre's Microdrone Support: "that action does not
+        # prevent your unit from being eligible to shoot". It lifts THIS half
+        # only - blocks_charge() below is untouched, because the printed text
+        # says nothing about charging.
+        from game import aac_microdrone_support
+        if aac_microdrone_support.is_active(squad):
+            return False
         return not _flag(squad.models[0].profile, "titanic") if squad.models else True
 
     def blocks_charge(self, squad):

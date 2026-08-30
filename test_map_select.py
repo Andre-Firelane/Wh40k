@@ -121,12 +121,16 @@ for battle_map in ALL_MAPS:
     c.true(f"{battle_map.key}: and how much open ground is between them",
            "no man's land" in deployment)
 
-# The arithmetic, per map, written out rather than trusted: board depth minus
-# both deployment zones.
-for key, depth, gap in (("map1", 18, 24), ("map2", 12, 20), ("map3", 8, 14)):
+# The two numbers, per map, written out rather than trusted. Both are measured
+# off the BUILT zones (see map_facts), so they keep meaning something for a map
+# whose zones are not bands: map 3 deploys in opposite corners with a 9" circle
+# bitten out of the middle, and 12.7" is the true closest approach between the
+# two - the distance between the two points where those circles meet the
+# quadrant boundaries, not a board dimension minus two depths.
+for key, depth, gap in (("map1", 18, 24), ("map2", 12, 20), ("map3", 21, 12.7)):
     deployment, _contents = map_facts(maps.get(key))
-    c.true(f"{key}: zones {depth}\" deep -- {deployment}", f'zones {depth}" deep' in deployment)
-    c.true(f"{key}: {gap}\" of no man's land -- {deployment}", f'{gap}" of no man' in deployment)
+    c.true(f"{key}: zones {depth}\" deep -- {deployment}", f'zones {depth:g}" deep' in deployment)
+    c.true(f"{key}: {gap}\" of no man's land -- {deployment}", f'{gap:g}" of no man' in deployment)
 
 # The board size is deliberately NOT repeated - every map's own name already
 # carries it, and the line is worth more spent on something else.
@@ -289,7 +293,7 @@ c.true("naming BOTH armies skips the army screen",
 # Every headless harness has to opt out of BOTH screens - one that forgets
 # hangs on a click nobody will make.
 for harness in ("selfplay.py", "smoke_pregame.py", "smoke_log_input.py",
-                "smoke_measure_tool.py"):
+                "smoke_measure_tool.py", "smoke_end_turn_warning.py"):
     src = _read(harness)
     for flag in ("config.MAP_SELECT = False", "config.ARMY_SELECT = False"):
         c.true(f"{harness} sets {flag.split('.')[1].split(' ')[0]}", flag in src)

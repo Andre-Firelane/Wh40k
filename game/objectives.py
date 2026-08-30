@@ -1,3 +1,5 @@
+from game import objective_control  # the one answer to "what is this model's OC now"
+from game import plagues  # imports only game/modifiers.py, so this cannot cycle
 from game.squad import OBJECTIVE_CONSOLIDATION_RANGE_IN
 
 # The generic "within range of an objective marker" distance used across
@@ -60,18 +62,29 @@ class Objective:
         """Rule 14.02: sum of OC characteristics per player, for models
         with OC >= 1 that are within range (within the terrain area). Rule
         01.07/02.02: a battle-shocked unit's OC is modified to '-' for all
-        of its models, so it contributes nothing to either player's total."""
+        of its models, so it contributes nothing to either player's total.
+
+        The Death Guard Plague Scabrous Soulrot worsens OC by 1 (to a minimum
+        of 1) - read through objective_control.effective_oc(), which is also what the
+        `<= 0` eligibility test above now asks about, so a model whose OC the
+        Plague reduced still counts with its reduced value rather than being
+        judged eligible on one number and summed on another."""
         totals = {}
         for token in all_tokens:
             if token.squad is None or token.profile is None:
                 continue
             if token.squad.battle_shocked:
                 continue
-            if token.profile.oc <= 0:
+            # `objective=self`: Mont'ka's Strategic Conqueror Enhancement adds
+            # +1 only "within range of THAT objective marker", so the fold has
+            # to know which one is being counted. Every other OC source ignores
+            # it. See game/objective_control.py's own note on the argument.
+            oc = objective_control.effective_oc(token, all_tokens, objective=self)
+            if oc <= 0:
                 continue
             if not self.terrain_area.overlaps_model(token):
                 continue
-            totals[token.squad.owner] = totals.get(token.squad.owner, 0) + token.profile.oc
+            totals[token.squad.owner] = totals.get(token.squad.owner, 0) + oc
         return totals
 
     def secure_for(self, player):

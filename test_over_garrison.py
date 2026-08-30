@@ -31,6 +31,8 @@ from testkit import Checks, Log, build_squad, GameState, TurnTracker
 
 from ai import agent_driver, observation
 from game import config, maps
+from game import combat_focus
+from game import army_lists
 from game.factions import orks, tau_empire
 
 c = Checks("over-garrison (rules 14.01-14.02)")
@@ -290,15 +292,50 @@ c.eq("rule 18.02: a passenger stands on nothing, so it is not a garrison unit",
 
 
 # ----------------------------------- 9. unknown points are freed, not parked
+#
+# CHANGED SHAPE, and the change is the point. "Unknown points may not be read
+# as cheap" is still the rule, but points are now the SECOND term - role band
+# first (see agent_driver._garrison_fitness()). So the principle has to be
+# measured where it still decides, which is between two units in the SAME
+# band, and the case where it no longer decides is worth pinning too.
 
+# (a) the band beats an unknown price, and that is the reported outcome:
+#     Gretchin hold, Boyz go forward. User, on this very board: "die 20 boyz
+#     wurden gerade auf dem home objective geparkt, obwohl die KI auch 2
+#     gretchin trupps hat ... die boyz sollen nach vorne und gretchins das
+#     homeobjective halten."
 state, turn, squads = scene()
 squads["2 Gretchin 2"].points = None
 unpriced = reported_plan()
 plan, log = validate(state, turn, unpriced)
-c.eq("a unit whose cost is unknown is not claimed to be the cheapest",
-     plan["unit_plans"]["2 Gretchin 2"]["role"], "advance")
-c.eq("...and the cheapest KNOWN unit keeps the objective",
-     plan["unit_plans"]["2 Boyz 1 + Warboss"]["role"], "hold")
+c.eq("an unpriced unit still keeps the objective when it is better suited to it",
+     plan["unit_plans"]["2 Gretchin 2"]["role"], "hold")
+c.eq("...and the 20-model melee mob is freed, which is what was reported",
+     plan["unit_plans"]["2 Boyz 1 + Warboss"]["role"], "advance")
+c.true("the Gretchin are in a better garrison band than the Boyz, price aside",
+       combat_focus.home_garrison_rank(squads["2 Gretchin 2"])
+       < combat_focus.home_garrison_rank(squads["2 Boyz 1 + Warboss"]))
+
+# (b) WITHIN one band, unknown points still sort LAST - the original rule,
+#     measured between two units that tie on the band so only price can decide.
+state, turn, squads = scene()
+home_obj = next(o for o in state.objectives if o.name == HOME)
+boyz, rig = squads["2 Boyz 1 + Warboss"], squads["2 Kill Rig 1"]
+c.eq("the two melee units really do tie on the band, so this measures price alone",
+     combat_focus.home_garrison_rank(boyz, 14.8),
+     combat_focus.home_garrison_rank(rig, 14.8))
+c.true("...and the Boyz are the cheaper of the two while both are priced",
+       boyz.points < rig.points)
+c.true("...so with prices known the Boyz would win on price",
+       agent_driver._garrison_fitness(boyz, home_obj, state)
+       < agent_driver._garrison_fitness(rig, home_obj, state))
+# Take the price off the one that was winning: it has to LOSE now, which is
+# the whole content of the rule. Reading it the other way round would pass
+# even if unknown sorted first.
+boyz.points = None
+c.true("a unit whose cost is unknown is not claimed to be the cheapest",
+       agent_driver._garrison_fitness(rig, home_obj, state)
+       < agent_driver._garrison_fitness(boyz, home_obj, state))
 
 
 # ============================================================================
@@ -432,5 +469,150 @@ c.true("the Trukk really would be the cheapest thing in reach",
 plan, log = validate(state, turn, lone_plan())
 c.eq("a loaded transport is not parked on garrison duty",
      plan["unit_plans"]["2 Boyz 1 + Warboss"]["role"], "hold")
+
+# ------------------------- 10. the garrison job does not go to a melee unit
+# Second user report on the same behaviour, from logs/game_20260826_185516.log:
+# "die lych guard waren sehr passiv. die sollten eher weiter nach vorne pushen".
+# The strongest case in that log is not the reported unit but the one THIS pass
+# assigned: it moved the 270-point Necron Warriors off P2 Home Objective and
+# handed the job to the 85-point Skorpekh Destroyers, who have no ranged
+# weapons at all and then stood on empty ground for four of five turns
+# (roles per AI turn: hold, hold, hold, hold, advance).
+#
+# Cheapest-first is what did it, and an army's assault units are routinely its
+# cheapest - so the correction that exists to stop good units being wasted was
+# choosing which good unit to waste. Role now orders the candidates, and points
+# only break ties within a role.
+#
+# THE SCENE IS BUILT FROM army_lists.build_necrons(), not from datasheets picked
+# here. The first draft of this section hand-passed composition indices and got
+# a 2-model 55-point Lokhust squad where the real list fields 6 models at 170 -
+# which silently inverted the very comparison being asserted. That is CLAUDE.md's
+# error class 17 in miniature, and building the real roster is the fix for it.
+NECRON_SPOTS = {
+    # Round-2 [move detail] coordinates from that log (its lines 450/722 region),
+    # i.e. the board the reported plan correction was made against.
+    "2 Necron Warriors 1 + Technomancer": [
+        (36.61, 4.20), (34.18, 8.89), (35.24, 3.36), (31.76, 9.33), (32.76, 8.46),
+        (32.33, 11.41), (35.48, 5.16), (29.44, 3.53), (37.12, 5.90), (36.87, 7.36),
+        (28.53, 4.57), (34.01, 7.33), (33.65, 5.80), (36.37, 9.88), (30.20, 11.59),
+        (31.31, 4.19), (38.61, 6.64), (38.79, 8.15), (32.39, 4.86), (36.20, 8.62),
+        (31.79, 12.95)],
+    # Four and seven models now, not three and six: the list revision put a
+    # Skorpekh Lord in one and a Lokhust Lord in the other (19.01), so these
+    # are the merged units and their merged names.
+    "2 Skorpekh Destroyers 1 + Skorpekh Lord": [
+        (30.0, 8.0), (31.6, 8.0), (33.2, 8.0), (34.8, 8.0)],
+    "2 Lokhust Destroyers 1 + Lokhust Lord": [
+        (30.5, 10.0), (32.1, 10.0), (33.7, 10.0),
+        (35.3, 10.0), (36.9, 10.0), (38.5, 10.0), (40.1, 10.0)],
+}
+
+
+def necron_scene():
+    maps.apply_to_config(maps.MAPS["map2"])
+    state = GameState()
+    maps.MAPS["map2"].build(state)
+    built = []
+    army_lists.build_necrons("Player 2", lambda sq, *a, **kw: built.append(sq), state=state)
+    squads, state.tokens = {}, []
+    for squad in built:
+        spots = NECRON_SPOTS.get(squad.name)
+        if spots is None:
+            continue
+        for model, (x_in, y_in) in zip(squad.models, spots):
+            model.x_in, model.y_in = x_in, y_in
+        squads[squad.name] = squad
+        state.tokens.extend(squad.models[:len(spots)])
+    return state, squads
+
+
+state, squads = necron_scene()
+holder = squads["2 Necron Warriors 1 + Technomancer"]
+skorpekh = squads["2 Skorpekh Destroyers 1 + Skorpekh Lord"]
+lokhust = squads["2 Lokhust Destroyers 1 + Lokhust Lord"]
+home_obj = next(o for o in state.objectives if o.name == HOME)
+
+c.eq("the scene fields the real 21-model Necron Warriors + Technomancer",
+     len(holder.models), 21)
+# NOT "no ranged weapons at all" any more - the Skorpekh Lord brought an
+# enmitic annihilator into the unit. is_assault_unit() is a RATIO, not a
+# presence test, and one 18" gun on one model of four does not turn a squad of
+# hyperphase blades into a gunline. Worth stating, because the previous
+# revision of this list made the two readings indistinguishable here.
+c.true("the Skorpekh Destroyers still read as an assault unit even with their "
+       "Lord's one ranged weapon in the squad",
+       combat_focus.is_assault_unit(skorpekh))
+c.true("...and the Lokhust Destroyers really are not",
+       not combat_focus.is_assault_unit(lokhust))
+c.true("...and the melee unit really is the CHEAPER of the two, which is the trap",
+       agent_driver._garrison_cost_key(skorpekh) < agent_driver._garrison_cost_key(lokhust))
+
+order = agent_driver._cheaper_garrison_candidates(
+    home_obj, holder, squads, state, "Player 2", busy=set())
+c.eq("the garrison job goes to the shooting unit, not the melee one",
+     order[0].name, "2 Lokhust Destroyers 1 + Lokhust Lord")
+
+# THE BAND IS NOW PART OF THE GATE, NOT JUST THE ORDER, and that is the second
+# half of this same report. "Strictly cheaper than the holder" was the whole
+# definition of a worthwhile swap, so with points alone deciding it, this pass
+# could only ever move a garrison DOWN the points list - which is how it came
+# to take P2 Home Objective off the 270-point Necron Warriors and hand it to
+# the 170-point Lychguard (logs/game_20260826_234856.log lines 124-125). User:
+# "die ki soll fernkampfeinheiten stark bevorzugen, wenn es darum geht das home
+# objective zu halten ... sie hat im letzten spiel dafuer die lychguard
+# benutzt, was voelliger quatsch ist."
+c.true("a unit that would be WORSE at the job is not offered it, however cheap",
+       "2 Skorpekh Destroyers 1 + Skorpekh Lord" not in {sq.name for sq in order})
+c.true("...and that is the band talking, not the price - it IS the cheaper one",
+       agent_driver._garrison_cost_key(skorpekh) < agent_driver._garrison_cost_key(holder))
+
+# THE OBJECTIVE IS NEVER LEFT UNHELD BY THIS. The earlier version of this pass
+# kept an assault unit as a last resort, on the argument that "a garrison that
+# does not happen loses the objective". That argument does not apply here and
+# never did: this is the LONE-holder case, so refusing the swap leaves the
+# HOLDER standing exactly where it was. Measured rather than argued.
+state, squads = necron_scene()
+lone_holder = squads["2 Necron Warriors 1 + Technomancer"]
+only_melee = agent_driver._cheaper_garrison_candidates(
+    home_obj, lone_holder, squads, state, "Player 2",
+    busy={id(squads["2 Lokhust Destroyers 1 + Lokhust Lord"])})
+c.eq("with only an assault unit left, no swap is offered at all",
+     [sq.name for sq in only_melee], [])
+# The invariant this rests on, stated once rather than per case: whatever swap
+# the pass does propose is an IMPROVEMENT on the fitness order. Refusing a swap
+# therefore never costs the objective - the holder is still standing on it.
+state, squads = necron_scene()
+lone_plan_necron = {"unit_plans": {lone_holder.name: {
+    "role": "hold", "target": None, "position": list(agent_driver._objective_centre(home_obj)),
+    "priority": 5, "reason": "hold home"}}}
+proposed = agent_driver._lone_garrison_swaps(lone_plan_necron, squads, state, "Player 2")
+c.true("with the shooting unit free, a swap IS proposed (the scene is live)",
+       len(proposed) == 1)
+c.true("...and every proposed swap strictly improves the garrison fitness",
+       all(agent_driver._garrison_fitness(new_sq, obj, state)
+           < agent_driver._garrison_fitness(old_sq, obj, state)
+           for obj, old_sq, new_sq in proposed))
+c.eq("...which here means the Lokhust Destroyers take it off the Warriors",
+     [(o.name, a.name, b.name) for o, a, b in proposed],
+     [(HOME, "2 Necron Warriors 1 + Technomancer",
+       "2 Lokhust Destroyers 1 + Lokhust Lord")])
+
+# A/B: the whole pre-fix world, not one line of it - no band in the GATE and
+# none in the ORDER. A probe that re-sorted the new candidate list would have
+# been measuring a list the Skorpekh are no longer in.
+_real_rank = combat_focus.home_garrison_rank
+try:
+    agent_driver.combat_focus.home_garrison_rank = lambda squad, reach_needed_in=None: 0
+    state, squads = necron_scene()
+    pre_fix = agent_driver._cheaper_garrison_candidates(
+        home_obj, squads["2 Necron Warriors 1 + Technomancer"], squads, state,
+        "Player 2", busy=set())
+finally:
+    agent_driver.combat_focus.home_garrison_rank = _real_rank
+c.eq("A/B: points alone hand it to the Skorpekh Destroyers, as reported",
+     pre_fix[0].name if pre_fix else None, "2 Skorpekh Destroyers 1 + Skorpekh Lord")
+c.true("A/B: ...and points alone let the melee unit through the gate at all",
+       "2 Skorpekh Destroyers 1 + Skorpekh Lord" in {sq.name for sq in pre_fix})
 
 c.finish()

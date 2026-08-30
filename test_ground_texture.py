@@ -5,9 +5,9 @@ wiederholbare kachel. das sprite soll die gesamte map ausfuellen."
 
 Two separate claims, and they need separate checks:
 
-  * WHICH art - sprites.GROUND_TEXTURE_NAME now resolves to the desert
-    file, not the old seamless Sprites/Ground.jpg (which is still in the
-    folder, so "it renders something" would pass either way).
+  * WHICH art - sprites.ground_texture_path() resolves to the selected
+    biome's ground picture, out of that biome's own folder, and to the
+    GROUND role within it rather than to one of its cover tiles.
   * HOW it is drawn - Renderer._ground_image() scales a SINGLE copy to
     cover the board, so (a) every pixel of the board is painted, on a
     board of any aspect ratio, and (b) the picture appears exactly once.
@@ -21,10 +21,16 @@ not a stretch, i.e. that a square in the source is still square on a board
 whose aspect ratio doesn't match it (map1 is portrait, the art is
 landscape).
 
-The two COVER textures went desert in the same pass and are checked here
-too, but they are the opposite case: they still tile, and what needed
-fixing there was that a tile was forced square. Every cover texture used to
-be square so that was free; Dense_Cover-Desert.jpg is 1024x748.
+The two COVER textures are the opposite case: they still tile, and what
+needed fixing there was that a tile was forced square. Every cover texture
+used to be square so that was free; one of them then turned up 1024x748.
+
+WHICH art is now a BIOME's answer (game/biomes.py) rather than three fixed
+filenames - the user sorted the three pictures into
+Sprites/Map Textures/<biome>/ and added a city and a forest set beside the
+desert one. This suite pins the DRAWING RULES, which are the same whichever
+biome is selected, so it selects one (desert, the default) and stays there;
+test_biomes.py is where the three-way choice itself is checked.
 
 Purely cosmetic; no rule reads the floor or the cover art.
 """
@@ -39,7 +45,12 @@ import pygame
 
 from testkit import Checks
 
-from game import sprites
+from game import config, sprites
+
+# The drawing rules below hold for every biome, so this suite fixes one rather
+# than inheriting whatever the settings file happens to say - otherwise the
+# measured sizes it asserts would move with an unrelated edit.
+config.BIOME = "desert"
 
 c = Checks("ground texture")
 
@@ -57,13 +68,13 @@ SCRATCH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
 
 path = sprites.ground_texture_path()
 c.true("the ground art resolves", path is not None)
-c.true("...to the desert floor the user asked for",
-       path is not None and "boden" in os.path.basename(path).lower())
-c.true("...and NOT to the old seamless tile, which is still in the folder",
-       path is not None and os.path.basename(path) != "Ground.jpg")
-c.true("PRE-CHANGE: that old tile is still present, so this check is not "
-       "passing just because the file went away",
-       sprites._resolve_path("Ground") is not None)
+# It comes out of the selected biome's folder now, not loose out of Sprites/.
+# Both halves are checked: the right folder AND the ground role within it, so
+# a lookup that found SOME picture in the right place would still fail.
+c.true("...out of the selected biome's own folder",
+       path is not None and os.path.basename(os.path.dirname(path)) == "Dessert")
+c.true("...and it is that folder's GROUND picture, not one of its cover tiles",
+       path is not None and os.path.basename(path).lower().startswith("ground"))
 
 
 # --- how it is drawn: the real art, on both boards -------------------------
@@ -140,17 +151,23 @@ c.true("...and so is everything in between (no unpainted strip along an edge)", 
 
 # --- the two cover textures, which DO still tile ---------------------------
 
-# User: "ersetze das bodensprite für dense cover mit dem neuen
-# Dense_Cover-Desert.jpg" / "und light cover durch Light_Cover-Desert".
-# "Light cover" is NORMAL_COVER_TEXTURE_NAME - the renderer's split is
+# normal_cover_texture_path() is the LIGHT_COVER one: the renderer's split is
 # "footprint with a wall on it" vs "footprint without", not the terrain
-# CATEGORY, so the constant keeps its name and only the file changes.
-for label, path_of in (("dense cover", sprites.dense_cover_texture_path),
-                       ("light cover", sprites.normal_cover_texture_path)):
+# CATEGORY, so the function keeps its NORMAL_ name while the file it resolves
+# to is the biome's Light_Cover picture. Worth pinning - the two names
+# disagreeing looks like a bug until you know which question is being asked.
+for label, path_of, prefix in (
+    ("dense cover", sprites.dense_cover_texture_path, "dense_cover"),
+    ("light cover", sprites.normal_cover_texture_path, "light_cover"),
+):
     resolved = path_of()
     c.true(f"the {label} art resolves", resolved is not None)
-    c.true(f"...to the desert version ({os.path.basename(resolved or '')})",
-           resolved is not None and "Desert" in os.path.basename(resolved))
+    c.true(f"...out of the selected biome's folder",
+           resolved is not None and os.path.basename(os.path.dirname(resolved)) == "Dessert")
+    c.true(f"...and carries the {prefix} role ({os.path.basename(resolved or '')})",
+           resolved is not None and os.path.basename(resolved).lower().startswith(prefix))
+c.true("the two cover textures are different files",
+       sprites.dense_cover_texture_path() != sprites.normal_cover_texture_path())
 
 # Unlike the floor these are still tiles, each sized by its OWN constant -
 # the two are pictures of different things at different real-world scales.
@@ -198,10 +215,97 @@ os.remove(wide_path)
 
 # A square source is unaffected by any of it - it tiled correctly before and
 # still does, which is why this could change without touching the old art.
-square = Renderer()._cached_tile(sprites._resolve_path("Normal_Cover"), board,
-                                 rmod.NORMAL_COVER_TILE_SIZE_IN)
+# Synthetic like the 2:1 probe above rather than a shipped file: every biome's
+# art happens to be square-ish today, so a real one would make this pass for
+# the wrong reason the moment somebody drops in a non-square replacement.
+sq = pygame.Surface((256, 256))
+sq.fill((90, 120, 60))
+square_path = os.path.join(SCRATCH, "_test_cover_probe_square.png")
+pygame.image.save(sq, square_path)
+square = Renderer()._cached_tile(square_path, board, rmod.NORMAL_COVER_TILE_SIZE_IN)
 c.eq("a square cover texture still gives a square tile",
      square.get_width(), square.get_height())
+os.remove(square_path)
+
+
+# --- the masked tile path blends exactly once ------------------------------
+
+# A ROTATED footprint cannot be clipped with set_clip(), so those tiles go via
+# a scratch surface and a polygon mask. That path used to apply
+# TERRAIN_TILE_ALPHA TWICE - once blending the tile against the scratch
+# surface's own transparent black, and again blitting the patch back - so a
+# footprint came out markedly darker than the same texture drawn through the
+# clip path. Nobody saw it while every shipped texture was the high-contrast
+# desert set; the city biome's ground and rubble are ~27 points apart in the
+# source art, and more than half of that was being blended away (user:
+# "Light_Cover_City.jpg sieht man nicht").
+#
+# Checked on a SOLID colour so the arithmetic is unambiguous, and against the
+# blend computed here rather than against the other path alone - matching a
+# second implementation would also be satisfied by both being wrong.
+TILE_RGB, BG_RGB = (200, 200, 200), (60, 60, 60)
+solid = pygame.Surface((64, 64))
+solid.fill(TILE_RGB)
+solid_path = os.path.join(SCRATCH, "_test_tile_blend.png")
+pygame.image.save(solid, solid_path)
+
+blend_board = Board(20.0, 20.0, 12.0)
+patch_rect = pygame.Rect(40, 40, 120, 120)
+corners = [patch_rect.topleft, patch_rect.topright,
+           patch_rect.bottomright, patch_rect.bottomleft]
+weight = rmod.TERRAIN_TILE_ALPHA / 255.0
+expected = tuple(round(weight * t + (1 - weight) * b)
+                 for t, b in zip(TILE_RGB, BG_RGB))
+# pygame's per-surface-alpha blit rounds its own way, so neither path lands on
+# the arithmetic exactly - measured, both sit 3 low. The tolerance is set just
+# wide enough to allow that and far below the 16 points a SECOND blend cost,
+# which is the thing being ruled out.
+TOL = 4
+
+drawn = {}
+for label, mask in (("masked", corners), ("clip", None)):
+    canvas = pygame.Surface((blend_board.width_px, blend_board.height_px))
+    canvas.fill(BG_RGB)
+    renderer = Renderer()
+    renderer._tile_texture(canvas, solid_path, blend_board, patch_rect, 3.0,
+                           alpha=rmod.TERRAIN_TILE_ALPHA, mask_points=mask)
+    drawn[label] = canvas.get_at(patch_rect.center)[:3]
+    c.true(f"the {label} tile path blends once, to {expected} (got {drawn[label]})",
+           all(abs(g - e) <= TOL for g, e in zip(drawn[label], expected)))
+c.true(f"...so the two paths agree ({drawn['masked']} vs {drawn['clip']})",
+       all(abs(a - b) <= TOL for a, b in zip(drawn["masked"], drawn["clip"])))
+c.true(f"PRE-CHANGE: the masked path landed on 154, {expected[0] - 154} points "
+       f"below the intended {expected[0]} - measured before the fix",
+       abs(drawn["masked"][0] - 154) > TOL)
+
+# The mask still masks: outside the polygon the ground is untouched. Half the
+# rectangle, so "it clips" cannot pass by the tile simply not being drawn.
+canvas = pygame.Surface((blend_board.width_px, blend_board.height_px))
+canvas.fill(BG_RGB)
+Renderer()._tile_texture(
+    canvas, solid_path, blend_board, patch_rect, 3.0,
+    alpha=rmod.TERRAIN_TILE_ALPHA,
+    mask_points=[patch_rect.topleft, patch_rect.topright, patch_rect.bottomleft])
+c.eq("outside the mask polygon the ground is untouched",
+     canvas.get_at((patch_rect.right - 6, patch_rect.bottom - 6))[:3], BG_RGB)
+c.true("...while inside it the texture is there",
+       canvas.get_at((patch_rect.left + 8, patch_rect.top + 8))[:3] != BG_RGB)
+
+# The tile Surface is shared across every call for the same path, so the alpha
+# one path sets must not leak into the other. Clip first, then masked - the
+# order in which a stale set_alpha() would show up.
+canvas = pygame.Surface((blend_board.width_px, blend_board.height_px))
+canvas.fill(BG_RGB)
+shared = Renderer()
+shared._tile_texture(canvas, solid_path, blend_board, patch_rect, 3.0,
+                     alpha=rmod.TERRAIN_TILE_ALPHA, mask_points=None)
+canvas.fill(BG_RGB)
+shared._tile_texture(canvas, solid_path, blend_board, patch_rect, 3.0,
+                     alpha=rmod.TERRAIN_TILE_ALPHA, mask_points=corners)
+c.true("a clip-path call leaves no alpha on the shared tile for the masked one",
+       all(abs(g - e) <= TOL
+           for g, e in zip(canvas.get_at(patch_rect.center)[:3], expected)))
+os.remove(solid_path)
 
 
 # --- A/B: what the tiling path would have done -----------------------------

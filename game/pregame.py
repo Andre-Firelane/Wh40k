@@ -175,11 +175,40 @@ class PregameController:
         self.rolloff = None
         self.errors = []
         self.scouts_step = None  # set by game/scouts.py in PREBATTLE_ABILITIES
+        # Other Resolve Pre-battle Abilities steps, run IN ORDER and BEFORE
+        # scouts_step. An ordered list rather than more named attributes,
+        # because at least one entry's correctness is entirely about its place
+        # in that order: Mont'ka's Strike Swiftly Enhancement grants Scouts 6",
+        # and a unit granted it after ScoutsStep has already walked the army
+        # carries an ability it can never use. Each entry offers
+        # start(pregame_controller, on_done) and returns True if it took over
+        # (a prompt is on screen); on_done resumes this queue.
+        self.prebattle_steps = []
+        self._prebattle_queue = []
+        # Kauyon's Solid-image Projection Unit fires "after both players have
+        # deployed their armies", which is BEFORE Determine First Turn - so it
+        # hangs off _finish_deployment() rather than the pre-battle queue above.
+        # It may put units back into _pending and return the controller to
+        # DEPLOYING, which reaches _finish_deployment() a second time; the flag
+        # is what stops it from running twice and re-offering a redeploy of the
+        # redeploy.
+        self.redeploy_step = None
+        self._redeploy_done = False
         # Optional callable(squad) - wired by main.py to the AI's own
         # deployment placer, so the human can hand a unit to it ("Auto-place
         # this unit"). A callback rather than an import so game/ never depends
         # on ai/.
         self.on_auto_place = None
+        # Optional callable(owners) fired once, at the moment Declare Battle
+        # Formations begins. The Death Guard army rule selects its Plague
+        # "during the Declare Battle Formations step" (game/plagues.py), which
+        # is a per-army choice with nothing to do with this controller's job of
+        # placing units - so it is a hook, like on_auto_place above, rather
+        # than a seventh state. main.py wires it; nothing here waits on the
+        # answer, because the DecisionManager prompt it opens is modal and is
+        # therefore resolved long before the first shot, which is all the rule
+        # actually requires.
+        self.on_formations_started = None
 
     # --- lifecycle -------------------------------------------------------
 
@@ -205,6 +234,8 @@ class PregameController:
         self.active_player = self.human_player
         self._sync_turn_tracker()
         self._log("Pre-battle: Declare Battle Formations (rule 03.01).")
+        if self.on_formations_started is not None:
+            self.on_formations_started(self._owners())
 
     def _sync_turn_tracker(self):
         # active_player is exactly "whose decision is this right now" (see
@@ -382,6 +413,14 @@ class PregameController:
 
     def _finish_deployment(self):
         self._log("Pre-battle: deployment complete.")
+        if self.redeploy_step is not None and not self._redeploy_done:
+            self._redeploy_done = True
+            # Returns True if it took over - either a prompt is on screen or it
+            # has put units back into _pending and returned this controller to
+            # DEPLOYING, in which case placing them reaches here again with the
+            # flag already set.
+            if self.redeploy_step.start(self, self._finish_deployment):
+                return
         if SCOUTS_BEFORE_FIRST_TURN_ROLLOFF:
             self._begin_prebattle_abilities(then_rolloff=True)
         else:
@@ -589,6 +628,19 @@ class PregameController:
         self.state = PREBATTLE_ABILITIES
         self._pending_rolloff_after_scouts = then_rolloff
         self._log("Pre-battle: Resolve Pre-battle Abilities (rule 03.01).")
+        self._prebattle_queue = list(self.prebattle_steps)
+        self._run_next_prebattle_step()
+
+    def _run_next_prebattle_step(self):
+        """Drain prebattle_steps in order, then hand over to scouts_step.
+
+        With an empty prebattle_steps this is exactly what this method used to
+        do inline, which is what keeps every existing harness and test
+        unchanged."""
+        while self._prebattle_queue:
+            step = self._prebattle_queue.pop(0)
+            if step.start(self, self._run_next_prebattle_step):
+                return
         if self.scouts_step is None:
             self.finish_prebattle_abilities()
             return

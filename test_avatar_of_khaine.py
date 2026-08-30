@@ -61,20 +61,35 @@ checks.true("Molten Form", p.molten_form)
 checks.true("The Bloody-Handed", p.bloody_handed)
 for kw in ("MONSTER", "CHARACTER", "EPIC HERO", "DAEMON"):
     checks.true(f"keyword {kw}", kw in ae.AVATAR_OF_KHAINE.keywords)
-# The largest INFANTRY-scale base here: the 80 mm base out-sizes every other
-# Aeldari model except the two grav-tanks. Those are excluded because their
-# radius is NOT their printed base - the Falcon's was matched to the Devilfish's
-# enlarged one on user request ("genau so gross machen wie devilfish"), and the
-# Wave Serpent then took the same value because it is the same hull. Both are
-# named rather than filtered by keyword: the War Walker is a VEHICLE too and
-# does keep its printed 60 mm, so it belongs in the comparison.
-_GRAV_TANKS = (ae.FALCON, ae.WAVE_SERPENT)
-biggest = max((tk.build(s, "Player 1", name=f"1 {s.name} 1").models[0].profile
-               for s in ae.AELDARI.datasheets.values()
-               if s is not ae.AVATAR_OF_KHAINE and s not in _GRAV_TANKS),
-              key=lambda q: q.base_radius_in)
-checks.true("the largest base in the faction bar the two grav-tanks",
-            p.base_radius_in > biggest.base_radius_in)
+# The largest base of any Aeldari model that is NOT a VEHICLE - which is the
+# durable form of what this used to say. It read "the largest bar the two
+# grav-tanks" while those were the only VEHICLEs bigger than 80 mm; two more
+# grav-tanks and the Vypers have since arrived, and the Vypers are genuinely
+# larger (their 105 x 70 oval converts to r=1.69 against the Avatar's 1.575),
+# so an exclusion LIST would have to be hand-maintained forever and would keep
+# growing for reasons that have nothing to do with this datasheet.
+#
+# Two facts, so two checks: the Avatar out-sizes every non-VEHICLE model, and
+# the models that beat him are all VEHICLEs - which is the part that would
+# otherwise quietly stop being true.
+_others = [tk.build(s, "Player 1", name=f"1 {s.name} 1").models[0].profile
+           for s in ae.AELDARI.datasheets.values() if s is not ae.AVATAR_OF_KHAINE]
+biggest_foot = max((q for q in _others if not q.vehicle),
+                   key=lambda q: q.base_radius_in)
+# The Yncarne prints the same 80 mm, so this is now a TIE at the top rather
+# than a strict maximum - which is a fact worth keeping rather than papering
+# over: two 80 mm bases should convert to the same radius, and if one of them
+# ever drifts, this is where it shows. So the assurance is stated as the two
+# halves it really has: nobody on foot is BIGGER, and the only model level with
+# him is the one that prints the same base.
+checks.true("no non-VEHICLE model in the faction has a larger base",
+            p.base_radius_in >= biggest_foot.base_radius_in)
+_ties = sorted(q.name for q in _others
+               if not q.vehicle and q.base_radius_in == p.base_radius_in)
+checks.eq("...and the only model level with him is the Yncarne, on the same 80 mm",
+          _ties, ["The Yncarne"])
+checks.true("...and everything that out-sizes him is a VEHICLE",
+            all(q.vehicle for q in _others if q.base_radius_in > p.base_radius_in))
 # No LEADER line at all - so nothing attaches in either direction.
 from game.attached_units import attachment_role, can_attach  # noqa: E402
 

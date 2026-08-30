@@ -47,7 +47,14 @@ checks.eq("no invulnerable save", p.invulnerable_save, "-")
 checks.eq("40 mm base", round(p.base_radius_in, 3), round(40 / 2 / 25.4, 3))
 checks.true("INFANTRY", p.infantry)
 checks.true("WRAITH CONSTRUCT", p.wraith_construct)
-checks.true("Battle Focus", p.battle_focus)
+# NO Battle Focus, and that is the PRINTED datasheet: it carries no FACTION
+# line at all, where every Aeldari sheet that has the army rule prints
+# "FACTION: **Battle Focus**". The engine used to set it - a transcription
+# error on six datasheets - which let these units perform Agile Manoeuvres
+# they are not entitled to, and - worse - made Spirit Conclave's
+# Spirit Guides aura inert, since it exists to GRANT them exactly this.
+checks.true("no Battle Focus of its own - Spirit Guides has to grant it",
+            not p.battle_focus)
 checks.true("War Construct", p.war_construct)
 checks.true("Psychic Guidance", p.psychic_guidance)
 for kw in ("INFANTRY", "WRAITH CONSTRUCT", "WRAITHGUARD"):

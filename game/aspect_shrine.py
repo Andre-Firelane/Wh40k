@@ -124,24 +124,6 @@ def _is_character(squad, model):
     return model in attached_units.leader_models(squad, alive_only=False)
 
 
-def hit_change(squad, model, weapon, hits, crits, misses):
-    """What spending a token on this HIT roll would buy, or None.
-
-    The arithmetic and the "is it worth offering" gate live in
-    game/unmodified_six.py, shared with the Farseer's Branching Fates; what
-    belongs to THIS ability is only the resource check below."""
-    if not _usable(squad, model):
-        return None
-    return unmodified_six.hit_change(weapon, hits, crits, misses)
-
-
-def wound_change(squad, model, weapon, wounds, crits, no_effect):
-    """The same for a WOUND roll: (new_wounds, new_crits, new_no_effect, what)."""
-    if not _usable(squad, model):
-        return None
-    return unmodified_six.wound_change(weapon, wounds, crits, no_effect)
-
-
 def _usable(squad, model):
     return (
         squad is not None
@@ -150,13 +132,21 @@ def _usable(squad, model):
     )
 
 
+def usable(squad, model):
+    """Public: has this unit a token to spend on a roll made by `model`?
+
+    The RESOURCE half only - whether changing a die would buy anything is a
+    separate question, and since game/unmodified_six_controller.py turned the
+    offer into a button rather than a prompt, it is the player's to answer
+    (see that module for why the old certainty gate could relax)."""
+    return _usable(squad, model)
+
+
 ACCEPT_LABEL = "Spend an Aspect Shrine token"
 
 
-def prompt_for(squad, weapon_label, what, step):
-    left = unspent_tokens(squad)
-    return (
-        f"{squad.name}: spend an Aspect Shrine token on the {weapon_label} {step} roll? "
-        f"{unmodified_six.describes(what, step).capitalize()}. "
-        f"{left} token(s) left, once per battle each."
-    )
+def button_label(squad):
+    """The left-panel button. Says how many tokens are left, because with a
+    once-per-battle resource that is the whole decision."""
+    return f"Aspect Shrine ({unspent_tokens(squad)} token(s) left)"
+

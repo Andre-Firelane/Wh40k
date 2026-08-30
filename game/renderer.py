@@ -1,3 +1,5 @@
+import math
+
 import pygame
 
 from game import config, movement, sprites, status_effects
@@ -8,6 +10,17 @@ from game.ui.text_utils import wrap_text
 
 RANGE_CIRCLE_COLOR = (255, 255, 255, 70)
 ENGAGEMENT_WARNING_COLOR = (255, 40, 40, 70)
+#: The DEATH GUARD Contagion aura (game/nurgles_gift.py). Drawn OPAQUE onto its
+#: own overlay and blitted once at CONTAGION_AURA_ALPHA, rather than as
+#: translucent circles like the engagement warning above - see
+#: draw_contagion_aura() for why the two differ.
+CONTAGION_AURA_COLOR = (60, 120, 45)
+#: Measured on a real map2 frame over the sand ground rather than picked: at 34
+#: the layer was invisible and at 90 it read as a colour wash over the terrain.
+#: 58 was the first value that showed at all; the user then asked for fainter
+#: still ("mach die deathguard aura noch ein bisschen durchsichtiger"), and 40
+#: is the bottom of the band that is still visible on that same frame.
+CONTAGION_AURA_ALPHA = 40
 MEASURE_LINE_COLOR = (255, 255, 255)
 MEASURE_TEXT_COLOR = (20, 20, 20)
 MEASURE_TEXT_BG = (255, 255, 255)
@@ -165,6 +178,168 @@ DEPLOYMENT_ZONE_LINE_COLORS = {
 DEPLOYMENT_ZONE_FALLBACK_COLOR = (150, 150, 150, 150)
 DEPLOYMENT_ZONE_LINE_WIDTH = 2
 BOARD_EDGE_LINE_WIDTH = 5  # thicker highlight along a zone's own board edge - "Zuordnung der Spielfeldkanten"
+# Grid step for tracing a zone's outline from its signed distance. Only ever
+# paid on the CACHED static layer (once per scene), so this buys accuracy
+# cheaply: 0.25" over a 60x44 board is ~42k evaluations per zone.
+ZONE_OUTLINE_STEP_IN = 0.25
+# A zone whose boundary IS a board edge sits at distance 0 there; this decides
+# "touching" without letting floating point cast the vote.
+ZONE_EDGE_TOUCH_TOLERANCE_IN = 1e-6
+# A board edge counts as a zone's OWN edge when its outward normal points the
+# same way the zone lies from the board centre. Strictly positive, so the two
+# edges a full-width band merely runs into sideways (dot product exactly 0)
+# drop out - which is what keeps the shipped maps drawing as they always did.
+ZONE_OWN_EDGE_MIN_DOT = 1e-6
+
+
+
+
+BOARD_EDGE_NAMES = ("north", "south", "west", "east")
+
+
+def own_board_edges(board, zone):
+    """Which board edges this zone sits BEHIND - its owner's own edges, as
+    ((x0,y0),(x1,y1)) pairs in inches.
+
+    Derived, not hardcoded: an edge qualifies when its outward normal points
+    the same way as "from the board centre toward this zone". That is the
+    generalisation of the test this replaces, which asked only whether a
+    rectangle's north or south side lay on a board edge and so could name only
+    a horizontal one.
+
+    It is behaviour-identical on the three shipped maps, and the strict > is
+    what makes it so: their zones band the full width, so they really do touch
+    the west and east edges too, but those normals are exactly PERPENDICULAR
+    to the zone direction (dot product 0) and drop out. A corner zone, whose
+    direction is diagonal, correctly keeps both of the adjacent edges it sits
+    behind.
+
+    A pure function rather than part of the drawing, because "which edges are
+    this zone's own" is the part with a right answer - the drawing around it
+    only paints what this returns."""
+    centroid = zone.centroid(board_box=(0.0, 0.0, board.width_in, board.height_in))
+    if centroid is None:
+        return []
+    away_x = centroid[0] - board.width_in / 2
+    away_y = centroid[1] - board.height_in / 2
+    length = math.hypot(away_x, away_y)
+    if length < 1e-9:
+        return []
+    away_x, away_y = away_x / length, away_y / length
+    candidates = (
+        (((0.0, 0.0), (board.width_in, 0.0)), (0.0, -1.0)),                          # north
+        (((0.0, board.height_in), (board.width_in, board.height_in)), (0.0, 1.0)),   # south
+        (((0.0, 0.0), (0.0, board.height_in)), (-1.0, 0.0)),                         # west
+        (((board.width_in, 0.0), (board.width_in, board.height_in)), (1.0, 0.0)),    # east
+    )
+    return [edge for edge, (nx, ny) in candidates
+            if nx * away_x + ny * away_y > ZONE_OWN_EDGE_MIN_DOT]
+
+
+
+def obstacle_points_px(board, obstacle):
+    """An obstacle's four corners in screen pixels. The one place terrain is
+    turned into something drawable, so a rotated piece is drawn as the shape
+    the rules actually test rather than as its bounding box."""
+    return [tuple(round(v) for v in board.to_px(x_in, y_in))
+            for x_in, y_in in obstacle.corners()]
+
+
+def _points_bounds(points):
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    return pygame.Rect(min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys))
+
+
+
+OBJECTIVE_OUTLINE_INFLATE_PX = 5   # was rect.inflate(10, 10), i.e. 5 px a side
+
+
+def objective_outline_points(board, terrain_area, inflate_px=OBJECTIVE_OUTLINE_INFLATE_PX):
+    """The outline of an objective's terrain area, in screen pixels.
+
+    Built from the FEATURES' own corners rather than from the area's
+    axis-aligned bounding box, so it follows a rotated footprint instead of
+    boxing it in - rule 14.02 measures control with
+    TerrainArea.overlaps_model(), which is the rotated rectangle, and an
+    outline that disagrees with it draws a promise the rules do not keep.
+
+    Each feature is grown by `inflate_px` on every side IN ITS OWN FRAME (so
+    the margin stays even around a turned piece) and the hull of all the grown
+    corners is taken, which is what makes a multi-feature area - a ruin's
+    floor plus its walls - come out as one outline."""
+    per_px = board.in_to_px_len(1.0)
+    inflate_in = inflate_px / per_px if per_px else 0.0
+    points = []
+    for feature in terrain_area.features:
+        half_w = feature.width_in / 2 + inflate_in
+        half_h = feature.height_in / 2 + inflate_in
+        angle = math.radians(getattr(feature, "angle_deg", 0.0))
+        cos_a, sin_a = math.cos(angle), math.sin(angle)
+        for lx, ly in ((-half_w, -half_h), (half_w, -half_h), (half_w, half_h), (-half_w, half_h)):
+            # SNAPPED to a millionth of an inch before hulling. A ruin's walls
+            # are inset by half their thickness so their outer edge is exactly
+            # the footprint's, but the two are reached by different arithmetic
+            # and land 7e-15 apart. That is enough to order two points that
+            # should tie the other way round, and the hull then starts at a
+            # wall corner and drops a real one - a rectangle came out as a
+            # pentagon. A millionth of an inch is far below a pixel at any
+            # zoom, so this cannot move an outline anyone can see.
+            points.append((round(feature.x_in + lx * cos_a - ly * sin_a, 6),
+                           round(feature.y_in + lx * sin_a + ly * cos_a, 6)))
+    return [tuple(round(v) for v in board.to_px(x, y)) for x, y in _convex_hull(points)]
+
+
+def _convex_hull(points):
+    """Monotone chain. Returns the hull in order; a degenerate input (all
+    points collinear or identical) comes back as-is so the caller still has
+    something to draw."""
+    pts = sorted(set(points))
+    if len(pts) < 3:
+        return pts
+
+    # The epsilon is not decoration: a ruin's walls are inset by half their
+    # thickness so their outer edge lies EXACTLY on the footprint's, and after
+    # the same inflation those corners are collinear with it. Tested against a
+    # bare 0 the cross product comes out at ~1e-15 rather than 0 and the wall
+    # corners survive as vertices, which turns a rectangle into a six-sided
+    # outline that is a rectangle everywhere except in the vertex list.
+    eps = 1e-9
+
+    def half(seq):
+        out = []
+        for p in seq:
+            while len(out) >= 2 and (out[-1][0] - out[-2][0]) * (p[1] - out[-2][1])                     - (out[-1][1] - out[-2][1]) * (p[0] - out[-2][0]) <= eps:
+                out.pop()
+            out.append(p)
+        return out
+    hull = half(pts)[:-1] + half(pts[::-1])[:-1]
+    return hull or pts
+
+
+def _crossing(v0, v1):
+    """Where between two samples the signed distance changes sign, as a
+    fraction of the gap - linear interpolation, so a traced boundary is not
+    quantised to the sampling grid."""
+    span = v0 - v1
+    if abs(span) < 1e-12:
+        return 0.5
+    return max(0.0, min(1.0, v0 / span))
+
+
+def _draw_inset_edge_line(overlay, board, start_in, end_in, color):
+    """The board-edge highlight for one run along one edge, nudged inward so
+    the full line width stays on the board instead of half of it falling off
+    the surface."""
+    inset = BOARD_EDGE_LINE_WIDTH / 2
+    ax, ay = board.to_px(*start_in)
+    bx, by = board.to_px(*end_in)
+    if abs(ay - by) < 1e-6:                       # horizontal edge
+        ay = by = ay + (inset if ay < board.height_px / 2 else -inset)
+    elif abs(ax - bx) < 1e-6:                     # vertical edge
+        ax = bx = ax + (inset if ax < board.width_px / 2 else -inset)
+    pygame.draw.line(overlay, color, (round(ax), round(ay)), (round(bx), round(by)),
+                     width=BOARD_EDGE_LINE_WIDTH)
 
 
 class Renderer:
@@ -322,8 +497,10 @@ class Renderer:
         # washing back out over the walls drawn beneath it.
         terrain_overlay = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
         for area in terrain_areas:
-            # User: Dense_Cover for a footprint that has a wall (Dense
-            # feature) standing on it (a ruin's floor), Normal_Cover for a
+            # User: the dense-cover texture for a footprint that has a wall
+            # (Dense feature) standing on it (a ruin's floor), the light-cover
+            # one (normal_cover_texture_path, see game/sprites.py for the
+            # name) for a
             # footprint with no wall at all (a standalone barricade/crater) -
             # picked once per TerrainArea, not per feature, since that's the
             # whole "terrain area" a wall does or doesn't belong to.
@@ -334,17 +511,16 @@ class Renderer:
             for obstacle in area.features:
                 if obstacle.category == DENSE:
                     continue
-                top_left = board.to_px(obstacle.min_x, obstacle.min_y)
-                width_px = board.in_to_px_len(obstacle.width_in)
-                height_px = board.in_to_px_len(obstacle.height_in)
-                rect = pygame.Rect(round(top_left[0]), round(top_left[1]), round(width_px), round(height_px))
+                points = obstacle_points_px(board, obstacle)
+                rect = _points_bounds(points)
                 if cover_path is not None:
                     # Drawn straight onto `surface`, at TERRAIN_TILE_ALPHA
                     # rather than fully opaque, so the base Ground tile
                     # underneath still shows through a little (less contrast
                     # against the surrounding ground than a flat opaque tile).
                     self._tile_texture(
-                        surface, cover_path, board, rect, cover_tile_size_in, alpha=TERRAIN_TILE_ALPHA,
+                        surface, cover_path, board, rect, cover_tile_size_in,
+                        alpha=TERRAIN_TILE_ALPHA, mask_points=points,
                     )
                     continue
                 if obstacle.category == LIGHT and self._is_barricade_shaped(obstacle):
@@ -354,28 +530,29 @@ class Renderer:
                 # Fallback (no cover tile texture present): translucent flat
                 # color overlay instead of a solid block - a visual cue that
                 # models can move onto and end their move on this terrain.
-                pygame.draw.rect(terrain_overlay, (*color, 140), rect)
+                pygame.draw.polygon(terrain_overlay, (*color, 140), points)
         surface.blit(terrain_overlay, (0, 0))
 
         for obstacle in obstacles:
             if obstacle.category != DENSE:
                 continue
-            top_left = board.to_px(obstacle.min_x, obstacle.min_y)
-            width_px = board.in_to_px_len(obstacle.width_in)
-            height_px = board.in_to_px_len(obstacle.height_in)
-            rect = pygame.Rect(round(top_left[0]), round(top_left[1]), round(width_px), round(height_px))
             # Dense terrain is drawn as a solid, opaque block - it's a real
             # obstacle, matching how it behaves for LoS (movement depends on
             # the specific model, rule 13.06 - see Obstacle.blocks_movement_for()).
-            pygame.draw.rect(surface, TERRAIN_COLORS.get(DENSE, OBSTACLE_COLOR), rect)
+            # A POLYGON of its four corners rather than a Rect of its bounding
+            # box: for a rotated wall those are different shapes, and the
+            # bounding box is the one the rules do NOT use.
+            pygame.draw.polygon(surface, TERRAIN_COLORS.get(DENSE, OBSTACLE_COLOR),
+                                obstacle_points_px(board, obstacle))
         return surface
 
     def _draw_ground(self, surface, board):
         """Später-Liste (Sprites): the battlefield floor
-        (Sprites/<sprites.GROUND_TEXTURE_NAME>.<ext>), if the user has
-        dropped one in - falls back to the plain BACKGROUND_COLOR fill (as
-        before any ground art existed) if there isn't one, same "missing art
-        is fine" convention as unit sprites (see game/sprites.py).
+        (sprites.ground_texture_path(), i.e. the selected biome's ground
+        picture - see game/biomes.py), if the user has dropped one in - falls
+        back to the plain BACKGROUND_COLOR fill (as before any ground art
+        existed) if there isn't one, same "missing art is fine" convention as
+        unit sprites (see game/sprites.py).
 
         Unlike the two cover textures this is NOT a repeatable tile (User:
         "wueste-boden ist keine wiederholbare kachel. das sprite soll die
@@ -431,7 +608,7 @@ class Renderer:
         image.blit(scaled, (0, 0), crop)
         return image
 
-    def _tile_texture(self, surface, path, board, rect, tile_size_in, alpha=None):
+    def _tile_texture(self, surface, path, board, rect, tile_size_in, alpha=None, mask_points=None):
         """Tiles the image at `path` across `rect` (clipped to it, so this
         also works for a single terrain footprint, not just the whole
         board), each tile sized to `tile_size_in` physical inches - like
@@ -445,17 +622,58 @@ class Renderer:
         the cached tile Surface is shared across every call for the same
         `path`, so this is applied fresh each call rather than baked in once."""
         tile = self._cached_tile(path, board, tile_size_in)
-        if alpha is not None:
-            tile.set_alpha(alpha)
+        # Set on the CLIP path only. The masked path below carries `alpha` in
+        # its mask instead - see there for why - and would otherwise apply it
+        # twice. Explicitly cleared rather than left alone, because the tile
+        # Surface is shared with every other call for the same `path` and a
+        # previous clip-path call would leave its own alpha on it.
+        tile.set_alpha(alpha if mask_points is None else None)
         tile_w, tile_h = tile.get_size()
         start_x = (rect.x // tile_w) * tile_w
         start_y = (rect.y // tile_h) * tile_h
-        previous_clip = surface.get_clip()
-        surface.set_clip(rect)
+        if mask_points is None:
+            previous_clip = surface.get_clip()
+            surface.set_clip(rect)
+            for y in range(start_y, rect.bottom, tile_h):
+                for x in range(start_x, rect.right, tile_w):
+                    surface.blit(tile, (x, y))
+            surface.set_clip(previous_clip)
+            return
+        # A ROTATED footprint cannot be clipped with set_clip(), which only
+        # takes a Rect. So the tiles go onto a scratch surface the size of the
+        # footprint's bounding box and are then multiplied by a filled polygon
+        # mask before being blitted back. The tile grid keeps its alignment to
+        # the DESTINATION surface's origin (start_x/start_y above, minus the
+        # scratch offset), so two patches still show one continuous pattern
+        # rather than each restarting at its own corner.
+        #
+        # `alpha` RIDES IN THE MASK, and that is not a tidy-up. The tiles are
+        # blitted OPAQUE onto a transparent scratch surface; a translucent tile
+        # there would first be blended against the scratch's own (0,0,0,0)
+        # black - darkening it - and then blended again on the way back, so the
+        # footprint came out substantially darker than the same texture drawn
+        # through the clip path above. Measured on a solid 200-grey tile over a
+        # 60-grey ground at alpha 200: 154 through here against the intended
+        # 170, i.e. the texture lost 16 of the 110 points of contrast it was
+        # supposed to have. Invisible for years because every shipped texture
+        # was the high-contrast desert set; the city biome's ground and rubble
+        # are only ~27 points apart in the source art, so more than half of the
+        # difference was being blended away and the user reported the light
+        # cover as simply not visible.
+        #
+        # Multiplying by a mask whose own alpha IS `alpha` gets it right in one
+        # step: RGB is multiplied by white (unchanged), the patch's alpha
+        # becomes `alpha` inside the polygon and 0 outside, and the single blit
+        # back is then exactly the blend the clip path performs.
+        patch = pygame.Surface(rect.size, pygame.SRCALPHA)
         for y in range(start_y, rect.bottom, tile_h):
             for x in range(start_x, rect.right, tile_w):
-                surface.blit(tile, (x, y))
-        surface.set_clip(previous_clip)
+                patch.blit(tile, (x - rect.x, y - rect.y))
+        mask = pygame.Surface(rect.size, pygame.SRCALPHA)
+        pygame.draw.polygon(mask, (255, 255, 255, 255 if alpha is None else alpha),
+                            [(px - rect.x, py - rect.y) for px, py in mask_points])
+        patch.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+        surface.blit(patch, rect.topleft)
 
     def _cached_tile(self, path, board, tile_size_in):
         """A texture scaled to tile_size_in physical inches WIDE, keeping its
@@ -469,7 +687,7 @@ class Renderer:
         The height follows from the source's aspect rather than being
         forced square, which is what this used to do. It cost nothing while
         every texture happened to be square, and then a 1024x748
-        Dense_Cover-Desert.jpg turned up and had its stonework squeezed
+        1024x748 cover texture turned up and had its stonework squeezed
         ~27% narrower than it was drawn. (The art has since been redrawn
         square, so today this is a no-op on the real files - the rule
         stays because nothing makes the next one square.)
@@ -733,24 +951,125 @@ class Renderer:
         pygame.draw.circle(overlay, CENTER_CIRCLE_COLOR, (round(center_px[0]), round(center_px[1])), round(radius_px), width=2)
 
     def _draw_deployment_zone(self, overlay, board, zone):
-        color = DEPLOYMENT_ZONE_LINE_COLORS.get(zone.owner, DEPLOYMENT_ZONE_FALLBACK_COLOR)
-        for x_in, y_in, width_in, height_in in zone.rects:
-            min_x_in, max_x_in = x_in - width_in / 2, x_in + width_in / 2
-            min_y_in, max_y_in = y_in - height_in / 2, y_in + height_in / 2
-            top_left = board.to_px(min_x_in, min_y_in)
-            width_px = board.in_to_px_len(width_in)
-            height_px = board.in_to_px_len(height_in)
-            rect = pygame.Rect(round(top_left[0]), round(top_left[1]), round(width_px), round(height_px))
-            pygame.draw.rect(overlay, color, rect, width=DEPLOYMENT_ZONE_LINE_WIDTH)
+        """The zone's boundary, traced from its signed distance rather than
+        from a rectangle list - so a rotated, diagonal or holed zone draws
+        itself with no extra case here.
 
-            # "Zuordnung der Spielfeldkanten": a thicker highlight on whichever
-            # board edge this rect actually touches (its owner's own edge).
-            if abs(min_y_in) < 1e-6:
-                edge_y_px = round(board.to_px(0, 0)[1])
-                pygame.draw.line(overlay, color, (rect.left, edge_y_px), (rect.right, edge_y_px), width=BOARD_EDGE_LINE_WIDTH)
-            if abs(max_y_in - board.height_in) < 1e-6:
-                edge_y_px = round(board.to_px(0, board.height_in)[1]) - BOARD_EDGE_LINE_WIDTH
-                pygame.draw.line(overlay, color, (rect.left, edge_y_px), (rect.right, edge_y_px), width=BOARD_EDGE_LINE_WIDTH)
+        Runs on the CACHED static layer (_cached_static_layer), i.e. once per
+        scene and not per frame, which is what makes sampling affordable at
+        all. ZONE_OUTLINE_STEP_IN is the trade: 0.25" over a 60x44 board is
+        ~42k distance evaluations per zone."""
+        color = DEPLOYMENT_ZONE_LINE_COLORS.get(zone.owner, DEPLOYMENT_ZONE_FALLBACK_COLOR)
+        box = zone.bounding_box()
+        # An unbounded part (a half-plane) leaves the box open on that side;
+        # the board is the only place anything can stand anyway.
+        clamp = (0.0, 0.0, board.width_in, board.height_in)
+        if box is None:
+            box = clamp
+        else:
+            box = (max(box[0], clamp[0]), max(box[1], clamp[1]),
+                   min(box[2], clamp[2]), min(box[3], clamp[3]))
+        # Then GROWN by a margin, which is not cosmetic: a point exactly on the
+        # boundary counts as inside (signed distance 0 >= 0), so sampling only
+        # up to the shape's own extent leaves every corner of the grid "inside"
+        # and marching squares finds no sign change at all - the outline simply
+        # vanishes along any edge flush with the bounding box, which is every
+        # edge of a rectangular zone. Segments falling outside the surface are
+        # clipped by pygame.
+        margin = 2 * ZONE_OUTLINE_STEP_IN
+        box = (box[0] - margin, box[1] - margin, box[2] + margin, box[3] + margin)
+        # A traced line sits ON the boundary, where pygame.draw.rect's outline
+        # used to sit just INSIDE it. That only shows where the boundary is a
+        # board edge, and there it showed as the line vanishing off the
+        # surface entirely - so the same inset _draw_inset_edge_line uses is
+        # applied here, by clamping into the surface.
+        inset = DEPLOYMENT_ZONE_LINE_WIDTH / 2
+
+        def to_px(x_in, y_in):
+            px, py = board.to_px(x_in, y_in)
+            px = min(max(px, inset), board.width_px - 1 - inset)
+            py = min(max(py, inset), board.height_px - 1 - inset)
+            return (round(px), round(py))
+
+        for (ax_in, ay_in), (bx_in, by_in) in self._shape_outline_segments(zone.shape, box):
+            pygame.draw.line(overlay, color, to_px(ax_in, ay_in), to_px(bx_in, by_in),
+                             width=DEPLOYMENT_ZONE_LINE_WIDTH)
+        self._draw_zone_board_edges(overlay, board, zone, color)
+
+    @staticmethod
+    def _shape_outline_segments(shape, box, step_in=ZONE_OUTLINE_STEP_IN):
+        """Marching squares over `shape`'s signed distance: the boundary as a
+        list of ((x0,y0),(x1,y1)) segments in inches.
+
+        Crossings are placed by LINEAR INTERPOLATION of the distance along
+        each cell edge, not snapped to the cell corner, so a curve (the
+        circular hole a mission layout punches around the board centre) comes
+        out smooth at a step far coarser than a pixel."""
+        min_x, min_y, max_x, max_y = box
+        if max_x <= min_x or max_y <= min_y:
+            return []
+        cols = max(1, int(math.ceil((max_x - min_x) / step_in)))
+        rows = max(1, int(math.ceil((max_y - min_y) / step_in)))
+        dx = (max_x - min_x) / cols
+        dy = (max_y - min_y) / rows
+        sd = shape.signed_distance
+        # One row of samples at a time, reusing the previous row - halves the
+        # distance evaluations versus sampling each cell's four corners.
+        rowbuf = [sd(min_x + i * dx, min_y) for i in range(cols + 1)]
+        segments = []
+        for j in range(rows):
+            y1 = min_y + (j + 1) * dy
+            nextbuf = [sd(min_x + i * dx, y1) for i in range(cols + 1)]
+            y0 = min_y + j * dy
+            for i in range(cols):
+                x0 = min_x + i * dx
+                x1 = x0 + dx
+                v00, v10, v01, v11 = rowbuf[i], rowbuf[i + 1], nextbuf[i], nextbuf[i + 1]
+                points = []
+                if (v00 >= 0) != (v10 >= 0):                       # bottom edge
+                    points.append((x0 + dx * _crossing(v00, v10), y0))
+                if (v10 >= 0) != (v11 >= 0):                       # right edge
+                    points.append((x1, y0 + dy * _crossing(v10, v11)))
+                if (v01 >= 0) != (v11 >= 0):                       # top edge
+                    points.append((x0 + dx * _crossing(v01, v11), y1))
+                if (v00 >= 0) != (v01 >= 0):                       # left edge
+                    points.append((x0, y0 + dy * _crossing(v00, v01)))
+                # Two crossings is the ordinary case. Four is a saddle (the
+                # cell straddles a pinch of the shape); pairing them in the
+                # order collected is visually right at this step size and
+                # cannot mis-place the boundary, only which two ends join.
+                for k in range(0, len(points) - 1, 2):
+                    segments.append((points[k], points[k + 1]))
+            rowbuf = nextbuf
+        return segments
+
+    @staticmethod
+    def _draw_zone_board_edges(overlay, board, zone, color):
+        """"Zuordnung der Spielfeldkanten": a thicker highlight along the
+        stretch of each of its owner's own board edges (own_board_edges) that
+        this zone actually reaches.
+
+        The run is WALKED rather than read off a rectangle's coordinates, so a
+        diagonal zone highlights exactly the part of the edge it reaches
+        instead of all of it or none of it."""
+        for (sx, sy), (ex, ey) in own_board_edges(board, zone):
+            length_in = math.hypot(ex - sx, ey - sy)
+            steps = max(1, int(math.ceil(length_in / ZONE_OUTLINE_STEP_IN)))
+            run_start = None
+            for k in range(steps + 1):
+                t = k / steps
+                x, y = sx + (ex - sx) * t, sy + (ey - sy) * t
+                # Nudge inward by a hair: a zone whose boundary IS the board
+                # edge sits exactly at distance 0 there, and floating point
+                # must not decide whether that counts.
+                touching = zone.signed_distance(x, y) >= -ZONE_EDGE_TOUCH_TOLERANCE_IN
+                if touching and run_start is None:
+                    run_start = (x, y)
+                elif not touching and run_start is not None:
+                    _draw_inset_edge_line(overlay, board, run_start, (x, y), color)
+                    run_start = None
+            if run_start is not None:
+                _draw_inset_edge_line(overlay, board, run_start, (ex, ey), color)
 
     def _unusual_loadout_models(self, tokens):
         """Which of these tokens should get the tint highlight: either an
@@ -856,19 +1175,28 @@ class Renderer:
         get cut off."""
         icon_radius = max(9, self.label_font.get_height() // 2 + 2)
         for objective in objectives:
-            min_x, min_y, max_x, max_y = objective.terrain_area.bounding_box
-            top_left = board.to_px(min_x, min_y)
-            bottom_right = board.to_px(max_x, max_y)
-            rect = pygame.Rect(
-                round(top_left[0]), round(top_left[1]),
-                round(bottom_right[0] - top_left[0]), round(bottom_right[1] - top_left[1]),
-            )
+            area = objective.terrain_area
+            points = objective_outline_points(board, area)
+            outline_rect = _points_bounds(points)
             color = OBJECTIVE_COLORS.get(objective.controlled_by, OBJECTIVE_NEUTRAL_COLOR)
-            outline_rect = rect.inflate(10, 10)
-            pygame.draw.rect(surface, color, outline_rect, width=4, border_radius=10)
+            if all(abs(getattr(f, "angle_deg", 0.0)) < 1e-9 for f in area.features):
+                # Square to the board: the hull IS this rectangle, drawn the
+                # way it always was so the rounded corner survives. Only the
+                # CORNER STYLE differs between the two calls - the shape comes
+                # from objective_outline_points() either way.
+                pygame.draw.rect(surface, color, outline_rect, width=4, border_radius=10)
+            else:
+                pygame.draw.polygon(surface, color, points, width=4)
 
+            # Pinned to the outline's own top-left VERTEX, not to the corner
+            # of its bounding box: on a rotated piece those are different
+            # points, and the box corner floats in open ground with nothing
+            # under it. min(x + y) is the top-left-most point of the hull, and
+            # for an axis-aligned outline it IS the box corner, so nothing
+            # moves on the square pieces.
+            anchor = min(points, key=lambda p: p[0] + p[1]) if points else outline_rect.topleft
             icon_bounds = pygame.Rect(0, 0, icon_radius * 2, icon_radius * 2)
-            icon_bounds.center = outline_rect.topleft
+            icon_bounds.center = anchor
             icon_bounds = self._clamp_rect_to_surface(icon_bounds, surface)
             icon_center = icon_bounds.center
             is_hovered = (
@@ -1114,6 +1442,75 @@ class Renderer:
             radius_px = board.in_to_px_len(token.radius_in + ENGAGEMENT_RANGE_IN)
             pygame.draw.circle(overlay, ENGAGEMENT_WARNING_COLOR, (round(cx), round(cy)), round(radius_px))
         surface.blit(overlay, (0, 0))
+
+    def draw_contagion_aura(self, surface, board, all_tokens, reach_of=None):
+        """The DEATH GUARD army rule's Contagion Range, as a faint green layer.
+
+        User request: "fuer deathguard spezifische aura, die alle einheiten
+        haben haette ich gerne einen ganz subtilen gruenen layer. aehnlich wie
+        die anzeige der gegnerischen engagement range beim movement."
+
+        Built exactly like draw_forbidden_engagement_ranges() above - one
+        reusable SRCALPHA overlay, one filled circle per model, blitted once -
+        with two differences that both follow from what it shows:
+
+          * IT IS ALWAYS ON. The engagement warning appears only while a unit
+            is being dragged, because it answers a question you are asking at
+            that moment. Contagion Range is a standing property of the board:
+            it decides Toughness, saves, Movement, Leadership and Objective
+            Control for everything inside it, in every phase. So it is drawn
+            unconditionally, and is correspondingly fainter.
+          * THE RADIUS IS MEASURED FROM THE BASE EDGE, like the engagement
+            ring and for the same reason: the rule is "within Contagion Range
+            of a DEATH GUARD MODEL", which nurgles_gift._gap() measures edge to
+            edge. A ring drawn from the centre would be a different circle from
+            the one the rule uses.
+
+        `reach_of(squad) -> inches` is supplied by main.py so the ONE range
+        this draws is the one the rule reads - bonuses (Blooming Pestilence)
+        and the 12" cap included. Without it the aura is simply not drawn,
+        which is the right degradation: a renderer that guessed the range would
+        be a second, quietly diverging answer to the question the controller
+        already owns.
+
+        THE CIRCLES ARE DRAWN OPAQUE AND THE WHOLE LAYER IS BLITTED ONCE at
+        CONTAGION_AURA_ALPHA, which is the one real difference from the
+        engagement warning - and it is forced by the numbers. That overlay
+        paints a handful of 2" circles; this one paints up to 49 circles of up
+        to 12". Drawn as translucent circles they stack, and the union comes
+        out as a patchwork of hotspots where models happen to cluster - which
+        says nothing about the rule, since being inside the aura twice is the
+        same as being inside it once. Painting the union opaque and fading it
+        once gives one flat, even tint that means exactly what Afflicted means.
+        Measured, not assumed: a real map2 frame at alpha 34 was invisible over
+        the sand ground, and at 90 it read as a colour wash over the terrain.
+        """
+        if reach_of is None:
+            return
+        overlay = self._reusable_overlay("contagion_aura", surface.get_size())
+        drawn = False
+        for token in all_tokens or ():
+            squad = getattr(token, "squad", None)
+            if squad is None or token.is_dead():
+                continue
+            if not getattr(token.profile, "nurgles_gift", False):
+                continue
+            reach = reach_of(squad)
+            if not reach:
+                continue
+            cx, cy = board.to_px(token.x_in, token.y_in)
+            radius_px = board.in_to_px_len(token.radius_in + reach)
+            pygame.draw.circle(overlay, CONTAGION_AURA_COLOR,
+                               (round(cx), round(cy)), round(radius_px))
+            drawn = True
+        if drawn:
+            overlay.set_alpha(CONTAGION_AURA_ALPHA)
+            surface.blit(overlay, (0, 0))
+            # _reusable_overlay() hands the same Surface back next frame, and
+            # set_alpha persists on it - harmless here (it is set again above)
+            # but reset anyway, so a future second user of this overlay cannot
+            # inherit a fade it never asked for.
+            overlay.set_alpha(None)
 
     def draw_move_range(self, surface, board, movement_controller):
         if movement_controller.state != movement.MOVING or movement_controller.selected_squad is None:

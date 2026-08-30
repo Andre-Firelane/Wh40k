@@ -53,6 +53,7 @@ own Movement phase is running. Noted because the two words differ.
 from game.stratagems import Stratagem
 from game.strategic_reserves import withdraw_to_reserves
 from game.turn import PHASE_MOVEMENT
+from game import strands_of_fate
 
 UNSHROUDED_TRUTH_CP = 1
 UNSHROUDED_TRUTH_NAME = "Unshrouded Truth"
@@ -98,9 +99,18 @@ class UnshroudedTruthController:
         # takes it, arming the reserves drag - see take_pending_placement().
         self.pending_placement = None
 
+    def panel_label(self, squad):
+        """The label says what happens NEXT, because what happens next is a
+        board click the player has to know is coming."""
+        return ("%s (%d CP) - into Reserves, then place it now"
+                % (UNSHROUDED_TRUTH_NAME, UNSHROUDED_TRUTH_CP))
+
     def can_use(self, squad):
         from game.forewarned import eligible_unit, near_friendly_psyker
         if squad is None or self.stratagem_controller is None or self.game_state is None:
+            return False
+        # Seer Council only - see game/strands_of_fate.py's has_detachment().
+        if not strands_of_fate.has_detachment(squad.owner):
             return False
         if applies(squad):
             return False

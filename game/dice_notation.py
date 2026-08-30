@@ -102,6 +102,44 @@ class DiceNotationRoll:
     def done(self):
         return not self.is_pending
 
+    @property
+    def projected_total(self):
+        """What total() would come out as if the dice on the table were
+        acknowledged right now, or None when nothing is pending.
+
+        Same formula as on_dice_acknowledged() below, and deliberately the
+        only other place it exists: game/unmodified_six_controller.py needs
+        the amount BEFORE the roll is acknowledged (that is when its button is
+        offered), and a second copy of "sum plus bonus times count" is exactly
+        the drift this repo keeps consolidating away."""
+        if not self.is_pending or self.dice_manager is None:
+            return None
+        values = self.dice_manager.pending_values
+        if not values:
+            return None
+        return sum(values) + self.notation.bonus * self.count
+
+    def face_for_total(self, wanted):
+        """The single die face that would make this roll come to `wanted`, or
+        None if this roll is not one die or no face could.
+
+        Not simply `wanted`: a Damage characteristic can print a bonus (nine
+        weapons in this repo do - D6+1, D6+2), and game/branching_fates.py
+        commits to reading "change the result of one Damage roll to an
+        unmodified 6" as the RESULT becoming 6. So on a D6+2 the die has to
+        become a 4. Setting it to 6 instead would mean 8, which is a different
+        reading of the rule.
+
+        Deliberately refuses a multi-die roll rather than guessing how to
+        spread a target across several dice. Measured: every dice-notation
+        Damage characteristic in this repo throws exactly one die, so this
+        never declines in practice - but a future 2D6 would, loudly, instead
+        of silently doing something arbitrary."""
+        if self.count * self.notation.dice != 1:
+            return None
+        face = wanted - self.notation.bonus * self.count
+        return face if 1 <= face else None
+
     def on_dice_acknowledged(self):
         if not self.is_pending:
             return

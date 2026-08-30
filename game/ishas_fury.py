@@ -37,6 +37,7 @@ moves.
 from game.damage_resolution import MortalWoundAllocationSession
 from game.turn import PHASE_MOVEMENT
 from game.stratagems import Stratagem
+from game import strands_of_fate
 
 ISHAS_FURY_CP = 1
 ISHAS_FURY_NAME = "Isha's Fury"
@@ -107,6 +108,11 @@ class IshasFuryController:
             return False
         reactor = self._opponent_of(mover.owner)
         if reactor is None:
+            return False
+        # Seer Council only - see game/strands_of_fate.py's has_detachment().
+        # The REACTOR is the one who pays, so it is their detachment that
+        # matters, not the mover's.
+        if not strands_of_fate.has_detachment(reactor):
             return False
         candidates = [s for s in self._psyker_units_in_range(mover, reactor)
                       if self.stratagem_controller.can_use(reactor, self._stratagem, [s])]

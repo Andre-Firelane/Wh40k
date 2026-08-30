@@ -46,17 +46,25 @@ Rule 19.01: an attached unit is a single unit, so its model count is the
 merged total - a 10-model Boyz mob with a Warboss joined is an 11-model
 unit and hits the second tier.
 
-SIMPLIFICATION (documented, matching game/retaliation_cadre.py's own note):
-this engine has no army-building/detachment-selection flow yet, and
-Retaliation Cadre is currently the only detachment that exists - the T'AU
-EMPIRE half of the TARGET clause is therefore not checked, exactly as Bonded
-Heroes applies unconditionally to any BATTLESUIT model. The BATTLESUIT half
+DETACHMENT GATE
+---------------
+The T'AU EMPIRE half of the TARGET clause, and "from your army", are checked
+through game/retaliation_cadre.py's stratagem_target_ok() - the shared
+predicate all six of this detachment's Stratagems use, in the same shape as
+game/awakened_dynasty.py's and game/death_lords_chosen.py's.
+
+This module used to say the opposite: that the check was skipped because
+"Retaliation Cadre is currently the only detachment that exists". That
+assumption expired the moment a T'au army could be a Kauyon or Mont'ka one
+instead, and in a T'au mirror match it was wrong for both players at once.
+
+The BATTLESUIT half
 IS checked, via is_battlesuit_unit()'s rule 19.03 keyword pooling.
 """
 
 import copy
 
-from game.retaliation_cadre import is_battlesuit_unit
+from game.retaliation_cadre import is_battlesuit_unit, stratagem_target_ok
 from game.stratagems import Stratagem
 from game.turn import PHASE_SHOOTING
 
@@ -219,6 +227,8 @@ class ArrokonProtocolController:
                 return False
         if getattr(squad, "arrokon_protocol_active", False):
             return False  # already up on this unit - nothing left to buy
+        if not stratagem_target_ok(squad):
+            return False
         if not is_battlesuit_unit(squad):
             return False
         # TARGET: "has not been selected to shoot this phase". can_shoot()

@@ -24,6 +24,7 @@ descriptive ability.
 """
 
 from game import aspect_shrine
+from game import drakolithe_tokens
 from game.squad import Squad
 from game.token import Token
 
@@ -172,11 +173,23 @@ class Datasheet:
     def __init__(
         self, name, keywords=(), model_lines=(), wargear_options=(),
         composition_options=None, points=None, abilities_text=(),
-        gear_options=(), gear_slots=None,
+        gear_options=(), gear_slots=None, faction_keywords=(),
     ):
         self.name = name
         self.faction = None
         self.keywords = tuple(keywords)
+        # A real datasheet prints TWO keyword lines, and they are different
+        # things: "KEYWORDS:" (above) is what this model is, "FACTION
+        # KEYWORDS:" is which army it may be taken in. Almost every rule reads
+        # the first, so for a long time only the first was modelled - but the
+        # Aeldari detachments ask about ASURYANI, which lives only on the
+        # second, and which is NOT the same set as any flag already here: 54
+        # Aeldari datasheets print Battle Focus, only 51 print ASURYANI (the
+        # Ynnari triumvirate prints the army rule while belonging to YNNARI).
+        # Kept as its own field rather than folded into `keywords`, because
+        # merging two printed lines into one tuple is exactly the conflation
+        # this repo renames rather than copies.
+        self.faction_keywords = tuple(faction_keywords)
         # composition_options: a list of "unit builds", each a list of
         # ModelLine - e.g. Boyz's real datasheet offers a 10-model and a
         # 20-model build, each its own list. model_lines/composition_options
@@ -532,4 +545,10 @@ def build_squad(
     # answer (see game/aspect_shrine.py). Read off starting strength, which is
     # exactly what this Squad was just built with.
     aspect_shrine.grant_tokens(squad)
+    # The Exodites' Drakolithe: the Leystalker prints two outright, the
+    # Dragon Knights get "2 for every 3 models". Granted here for the same
+    # reason the Aspect Shrine tokens are - it is free and has no downside,
+    # so it is a choice with one sensible answer - and read off the starting
+    # strength this Squad was just built with.
+    drakolithe_tokens.grant_tokens(squad)
     return squad

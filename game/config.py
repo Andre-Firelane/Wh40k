@@ -4,6 +4,22 @@
 # `python main.py --map 1` overrides it for one run without editing this.
 MAP = "map2"
 
+# WHICH BIOME the battlefield is painted in: "city", "desert" or "forest"
+# (game/biomes.py). Purely cosmetic - it swaps the ground picture and the two
+# terrain cover textures and nothing else; no rule reads any of them, and the
+# board, zones, terrain and objectives are identical whichever one is set.
+#
+# This is the DEFAULT the map selection screen opens on, not the final answer:
+# the three buttons at the top of that screen (game/ui/map_select.py) write
+# whatever is clicked back over it, the same way ARMY_SELECT's screen writes
+# PLAYER1_ARMY/PLAYER2_ARMY. `python main.py --biome forest` sets it for one
+# run without editing this, and with MAP_SELECT off it is the whole answer.
+#
+# "desert" is the default because its three files are byte-identical to the
+# three that used to sit loose in Sprites/ - so an untouched setup renders
+# exactly what it rendered before biomes existed.
+BIOME = "desert"
+
 # WHICH ARMY LIST EACH PLAYER FIELDS: "aeldari", "orks", "necrons" or "tau" (see
 # game/army_lists.py, which holds all four and can build any of them for
 # either player). `python main.py --army1 orks --army2 aeldari` overrides both
@@ -28,7 +44,7 @@ PLAYER2_ARMY = "necrons"
 # 03.01's pre-game sequence.
 #
 # It runs FIRST because everything downstream depends on it - board size,
-# deployment zones, terrain, and on map3 even which units are fielded (User:
+# deployment zones and terrain (User:
 # "Vor der Fraktion würde ich jetzt allerdings gerne noch die Map auswählen").
 #
 # Turned OFF by the headless harnesses for the same reason ARMY_SELECT below
@@ -65,6 +81,47 @@ ARMY_SELECT = True
 # PLAYER2_ARMY is "necrons" - it is inert for an Ork army, since every gate
 # also checks that the unit is actually a NECRONS one.
 AWAKENED_DYNASTY_PLAYERS = ("Player 2",)
+
+# Which players field the Death Guard detachment "Death Lord's Chosen", whose
+# rule is Deadly Vectors (game/deadly_vectors.py) and whose six Stratagems all
+# gate on game/death_lords_chosen.py's stratagem_target_ok().
+#
+# Empty by default, unlike the two settings around it: Death Guard is not
+# either player's default army, so nobody has this detachment until
+# army_lists.apply_to_config() writes it from the chosen lists. Note the
+# contrast with the ARMY rule next door - Nurgle's Gift is derived from the
+# UNITS (nurgles_gift.qualifying_players()), because an army rule is a
+# property of the army, while a detachment is a list-building declaration that
+# no amount of looking at the board can recover.
+DEATH_LORDS_CHOSEN_PLAYERS = ()
+
+# --- T'au Empire detachments ---------------------------------------------
+# One tuple per detachment, same owner-keyed shape as the two settings above,
+# all written by game/detachments.py's apply_to_config() from the DETACHMENTS
+# THE CHOSEN ARMY LISTS DECLARE. There is no detachment-selection screen: a
+# detachment is part of a written list, not something picked at the table.
+#
+# These did not exist while Retaliation Cadre was the faction's only modelled
+# detachment: its Bonded Heroes gated on the BATTLESUIT keyword alone and its
+# six Stratagems on T'AU EMPIRE, so - like War Horde - there was nothing to
+# declare, and both game/retaliation_cadre.py and game/army_lists.py said so
+# explicitly, the former ending "Revisit once a real detachment-selection
+# system exists". Adding Kauyon and the rest is that moment: without a flag
+# per detachment, Bonded Heroes would keep applying to EVERY Battlesuit of
+# EVERY owner, including both sides of a T'au mirror.
+#
+# ALL EMPTY by default, and that is not a placeholder: neither default army is
+# T'au, so nobody holds a T'au detachment until apply_to_config() writes one
+# from the lists. It rewrites every one of these from scratch, so switching
+# list really takes the old detachments away. An army may hold SEVERAL of them
+# at once - see game/detachments.py's Detachment Points budget.
+RETALIATION_CADRE_PLAYERS = ()
+KAUYON_PLAYERS = ()
+MONTKA_PLAYERS = ()
+EXPERIMENTAL_PROTOTYPE_CADRE_PLAYERS = ()
+ADVANCED_ACQUISITION_CADRE_PLAYERS = ()
+AUXILIARY_CADRE_PLAYERS = ()
+
 
 # Whether the battle opens with rule 03.01's real pre-game sequence
 # (game/pregame.py): Declare Battle Formations -> roll-off -> alternating
@@ -121,7 +178,7 @@ FULLSCREEN = True
 # DERIVED per map and per screen instead - see game/render_resolution.py for
 # why a single constant cannot be right for more than one map (measured: the
 # same 2.5 left 27% of the shown pixels invented on map2, 46% on map1 and
-# 64% on the small map3, because a smaller board gets magnified more).
+# 64% on the old 30x30 test board, because a smaller board gets magnified more).
 #
 # What stays configurable is the ceiling. The per-FRAME cost follows the
 # visible screen area (main.py clips the board draw to the camera's visible
@@ -219,9 +276,9 @@ SPREAD_LIMIT_PLAYERS = ("Player 1",)
 
 # Battle size, which today is read by exactly one rule: the Aeldari army rule
 # Battle Focus hands out 2/4/6 tokens per battle round for Incursion/Strike
-# Force/Onslaught (see game/battle_focus.py). Strike Force is the bracket this
-# project's demo armies fall in - Player 1 is 1535 pts, Player 2 1935 pts, and
-# Strike Force is the 2000-pt game. There is no army-building flow to derive it
+# Force/Onslaught (see game/battle_focus.py). Strike Force is the bracket every
+# list in this project falls in - they run 1890 to 2030 pts (game/army_lists.py)
+# and Strike Force is the 2000-pt game. There is no army-building flow to derive it
 # from (CLAUDE.md's deferred list), so it is a setting rather than a
 # consequence; anything unrecognised falls back to strike_force rather than to
 # zero tokens, so a typo cannot silently switch the army rule off.
@@ -242,6 +299,23 @@ BATTLE_SIZE = "strike_force"
 # infer it from (game/factions/detachment.py is deliberately pure data). Same
 # owner-keyed shape as WALL_CROSSING_PLAYERS and SPREAD_LIMIT_PLAYERS above.
 SEER_COUNCIL_PLAYERS = ("Player 1",)
+
+# The seven further Aeldari detachments whose RULES are modelled. Same shape
+# and same reason as SEER_COUNCIL_PLAYERS above: a detachment is a
+# list-building declaration and cannot be inferred from any unit.
+#
+# All empty, and that is the whole story - the predefined Aeldari list fields
+# Seer Council and nothing here changes that. Each rule is verified by fielding
+# its detachment for one run, the same way the six T'au detachments are. Only
+# game/detachments.py ever writes these, from scratch on every army choice, so
+# switching list cannot leave a stale detachment live.
+ASPECT_HOST_PLAYERS = ()
+GUARDIAN_BATTLEHOST_PLAYERS = ()
+WARHOST_PLAYERS = ()
+WINDRIDER_HOST_PLAYERS = ()
+SPIRIT_CONCLAVE_PLAYERS = ()
+ARMOURED_WARHOST_PLAYERS = ()
+PATH_OF_THE_OUTCAST_PLAYERS = ()
 
 # Which players run the Tactical Secondary Mission card deck
 # (game/secondary_missions.py) INSTEAD of the standard "No Mercy" Secondary.

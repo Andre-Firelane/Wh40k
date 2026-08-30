@@ -14,3 +14,8 @@ logs/
 # Debug/measurement output artifacts
 deployment_test.png
 headroom_map2.txt
+
+# Raw Wahapedia HTML behind rules/*.md (~16 MB, re-downloadable in one command:
+# `python fetch_datasheet_rules.py`). The generated markdown IS tracked - that
+# is the whole point, since its git diff is how a rules change gets noticed.
+rules/.cache/

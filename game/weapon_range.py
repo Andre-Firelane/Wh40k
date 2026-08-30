@@ -1,13 +1,17 @@
 """How far a weapon reaches RIGHT NOW - the one definition.
 
-Two abilities in this engine add to a weapon's Range characteristic, and both do
-it the same way: one model grants the change to every model in its unit, so the
-number cannot be baked into the weapon at build time and has to be derived live.
+Three abilities in this engine add to a weapon's Range characteristic, and they
+all do it the same way: something about the UNIT grants the change to every
+model in it, so the number cannot be baked into the weapon at build time and has
+to be derived live.
 
   * the Pulse Accelerator Drone - +6" to pulse carbines in the bearer's unit
     (game/pulse_accelerator.py)
   * Fuegan's Burning Lance - +6" to Melta weapons in the unit he is leading
     (game/burning_lance.py)
+  * Experimental Prototype Cadre's Superior Craftsmanship - +6" to every ranged
+    weapon of a BATTLESUIT CHARACTER unit, for the whole battle
+    (game/experimental_prototype_cadre.py)
 
 EXTRACTED AT THE SECOND CONSUMER, which is this repo's standing rule: the drone
 owned the answer while it was the only one asking, and its function was reached
@@ -16,9 +20,16 @@ had to either bolt itself onto a module named after the first ability, or add a
 second place that answers the same question - the drift this codebase keeps
 consolidating away.
 
-THE TERMS ADD. Nothing in either printed text makes them exclusive, and a weapon
-that is both a pulse carbine and [MELTA] does not exist today anyway; adding is
-the reading that needs no special case if one ever appears.
+THE BONUS TERMS ADD. Nothing in any of those printed texts makes them
+exclusive, and a weapon that is both a pulse carbine and [MELTA] does not exist
+today anyway; adding is the reading that needs no special case if one appears.
+
+AN OVERRIDE WINS OVER THE SUM, and Aspect Host's Doom Inescapable is the first
+of those: "your model's Wailing Doom ranged weapon HAS a Range characteristic
+of 18\"" SETS the number rather than moving it - and sets it BELOW the printed
+24\", so reading it as a bonus would produce a 42\" gun and reading it as "take
+the better" would do nothing at all. Same arrangement game/coldstar.py's
+effective_movement_in() already uses for a Move override beside its bonuses.
 
 ALL THREE RANGE SITES READ THIS, and that is the point of the extraction rather
 than a bonus. game/shooting.py used to call the drone's function at the "can
@@ -31,7 +42,7 @@ the new number. Routing all three through here discharges that note instead of
 leaving the next reader to rediscover it.
 """
 
-from game import burning_lance, pulse_accelerator
+from game import burning_lance, experimental_prototype_cadre, pulse_accelerator
 
 
 def effective_range_in(model, weapon):
@@ -40,8 +51,17 @@ def effective_range_in(model, weapon):
     Takes the MODEL rather than the squad so callers can pass what they already
     have on the hot path, and so a model with no squad degrades to the printed
     range instead of raising."""
+    from game import aspect_doom_inescapable
+    override = aspect_doom_inescapable.range_override_in(model, weapon)
+    if override is not None:
+        return override
+    from game import enh_psychic_weapons
     return (pulse_accelerator.effective_range_in(model, weapon)
-            + burning_lance.bonus_for(model, weapon))
+            + burning_lance.bonus_for(model, weapon)
+            + experimental_prototype_cadre.bonus_for(model, weapon)
+            # Seer Council's Stone of Eldritch Fury - the fourth bonus term,
+            # and the first that is not +6".
+            + enh_psychic_weapons.range_bonus_in(model, weapon))
 
 
 def half_range_in(model, weapon):

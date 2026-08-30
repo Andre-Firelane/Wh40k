@@ -25,7 +25,7 @@ from game import greater_good as greater_good_module
 from game import line_of_sight
 # For REACTIVE_MOVE_MODES - the set of move_modes a player can have OPEN
 # during the opponent's turn, which _is_blocked() has to hold still for.
-from game.movement import MovementController
+from game.movement import MovementController, take_to_the_skies_pays
 from game import overwatch as overwatch_module
 from game import pathfinding
 from game import protocol_conquering_tyrant
@@ -1229,7 +1229,7 @@ def _route_around_waypoints(model, target_x, target_y, obstacles, movement_contr
     blocking_obstacles = [
         o for o in obstacles
         if o.blocks_movement_for(model)
-        and geometry.segment_intersects_rect((mx, my), (target_x, target_y), o.min_x, o.min_y, o.max_x, o.max_y)
+        and o.blocks_segment((mx, my), (target_x, target_y))
     ]
     # Same "friendly blockers" definition _clamp_target_against_friendly_
     # models() itself uses - every other Player-owned model currently on
@@ -1255,20 +1255,14 @@ def _route_around_waypoints(model, target_x, target_y, obstacles, movement_contr
     clearance = model.radius_in + CORNER_ROUTE_CLEARANCE_IN
     candidates = []
     for o in blocking_obstacles:
-        # Same-axis "slide past it" waypoints - the straight line to these
-        # runs parallel to one of the obstacle's own edges, so it can never
-        # cross the obstacle's rectangle at all, regardless of which side
-        # of it the model is currently on.
-        candidates.append((mx, o.min_y - clearance))
-        candidates.append((mx, o.max_y + clearance))
-        candidates.append((o.min_x - clearance, my))
-        candidates.append((o.max_x + clearance, my))
-        # Diagonal corners too - genuinely useful when the model isn't
+        # "Slide past it" waypoints parallel to the obstacle's own edges, plus
+        # its corners pushed outward - genuinely useful when the model isn't
         # pressed flush against this particular obstacle (e.g. a second,
         # different obstacle is what's actually blocking it right now).
-        for corner_x, sign_x in ((o.min_x, -1), (o.max_x, 1)):
-            for corner_y, sign_y in ((o.min_y, -1), (o.max_y, 1)):
-                candidates.append((corner_x + sign_x * clearance, corner_y + sign_y * clearance))
+        # Asked of the obstacle so a ROTATED piece offers the ways past its
+        # real edges, and so this file's two copies of the routing cannot be
+        # taught different geometry.
+        candidates.extend(o.route_waypoints(mx, my, clearance))
 
     dx, dy = target_x - mx, target_y - my
     dist_to_target = (dx * dx + dy * dy) ** 0.5
@@ -1285,7 +1279,7 @@ def _route_around_waypoints(model, target_x, target_y, obstacles, movement_contr
     def reachable(point):
         if any(
             o.blocks_movement_for(model)
-            and geometry.segment_intersects_rect((mx, my), point, o.min_x, o.min_y, o.max_x, o.max_y)
+            and o.blocks_segment((mx, my), point)
             for o in obstacles
         ):
             return False
@@ -2740,7 +2734,7 @@ def _route_around_waypoints(model, target_x, target_y, obstacles, movement_contr
     blocking_obstacles = [
         o for o in obstacles
         if o.blocks_movement_for(model)
-        and geometry.segment_intersects_rect((mx, my), (target_x, target_y), o.min_x, o.min_y, o.max_x, o.max_y)
+        and o.blocks_segment((mx, my), (target_x, target_y))
     ]
     # Same "friendly blockers" definition _clamp_target_against_friendly_
     # models() itself uses - every other Player-owned model currently on
@@ -2766,20 +2760,14 @@ def _route_around_waypoints(model, target_x, target_y, obstacles, movement_contr
     clearance = model.radius_in + CORNER_ROUTE_CLEARANCE_IN
     candidates = []
     for o in blocking_obstacles:
-        # Same-axis "slide past it" waypoints - the straight line to these
-        # runs parallel to one of the obstacle's own edges, so it can never
-        # cross the obstacle's rectangle at all, regardless of which side
-        # of it the model is currently on.
-        candidates.append((mx, o.min_y - clearance))
-        candidates.append((mx, o.max_y + clearance))
-        candidates.append((o.min_x - clearance, my))
-        candidates.append((o.max_x + clearance, my))
-        # Diagonal corners too - genuinely useful when the model isn't
+        # "Slide past it" waypoints parallel to the obstacle's own edges, plus
+        # its corners pushed outward - genuinely useful when the model isn't
         # pressed flush against this particular obstacle (e.g. a second,
         # different obstacle is what's actually blocking it right now).
-        for corner_x, sign_x in ((o.min_x, -1), (o.max_x, 1)):
-            for corner_y, sign_y in ((o.min_y, -1), (o.max_y, 1)):
-                candidates.append((corner_x + sign_x * clearance, corner_y + sign_y * clearance))
+        # Asked of the obstacle so a ROTATED piece offers the ways past its
+        # real edges, and so this file's two copies of the routing cannot be
+        # taught different geometry.
+        candidates.extend(o.route_waypoints(mx, my, clearance))
 
     dx, dy = target_x - mx, target_y - my
     dist_to_target = (dx * dx + dy * dy) ** 0.5
@@ -2796,7 +2784,7 @@ def _route_around_waypoints(model, target_x, target_y, obstacles, movement_contr
     def reachable(point):
         if any(
             o.blocks_movement_for(model)
-            and geometry.segment_intersects_rect((mx, my), point, o.min_x, o.min_y, o.max_x, o.max_y)
+            and o.blocks_segment((mx, my), point)
             for o in obstacles
         ):
             return False
@@ -7375,6 +7363,20 @@ def take_one_action(
     # nothing here - they answer inside their own controllers via auto_players.
     hungry_void_controller=None, conquering_tyrant_controller=None,
     sudden_storm_controller=None,
+    # Death Lord's Chosen's detachment rule Deadly Vectors needs NO handler -
+    # it is not optional, asks nothing and rolls itself from main.py. It is
+    # here for one reason: its mortal wounds land on the OPPONENT, so when the
+    # AI is the victim its own allocation choice has to be resolvable, and
+    # _resolve_own_damage_choice() is the only thing that ever does that for
+    # Player 2's models. Without it, main.py's is_blocked() gate would hold on
+    # a pending_damage_choice nobody could answer - a real deadlock, the same
+    # one deadly_demise_controller was added to that list to prevent.
+    deadly_vectors_controller=None,
+    # Death Lord's Chosen. Only Grim Reapers gets a handler: the other two the
+    # AI uses (Undying Spite, Sickening Impact) are REACTIVE and answer inside
+    # their own controllers via auto_players, and the remaining three are
+    # irrelevant to the AI by user instruction.
+    grim_reapers_controller=None,
 ):
     """Resolve exactly ONE pending decision for `player` (Player 2 by
     default) and return - this is the function main.py's "A" key calls. A
@@ -7523,6 +7525,7 @@ def take_one_action(
         shooting_controller, charge_controller, fight_controller, battle_shock_controller,
         explosives_controller, transport_controller, fall_back_controller,
         crushing_impact_controller, deadly_demise_controller,
+        deadly_vectors_controller,
     ]
     controllers = [c for c in controllers if c is not None]
 
@@ -7645,6 +7648,7 @@ def take_one_action(
             consolidate_controller=consolidate_controller, game_log=game_log,
             unbridled_carnage_controller=unbridled_carnage_controller,
             hungry_void_controller=hungry_void_controller,
+            grim_reapers_controller=grim_reapers_controller,
         )
     else:
         acted = False
@@ -8140,6 +8144,30 @@ def _garrison_cost_key(squad):
     return (squad.points is None, squad.points if squad.points is not None else 0, squad.name)
 
 
+def _garrison_fitness(squad, objective, state):
+    """How well suited `squad` is to being the unit left standing on
+    `objective`, lower is better - the ONE definition all three garrison sites
+    read.
+
+    Role band first, points within the band. The band is
+    combat_focus.home_garrison_rank(), measured against the reach
+    observation.garrison_reach_needed_in() takes off this board; see that
+    function and _cheaper_garrison_candidates() for why role has to come first
+    and why the reach half is a separate term from the ratio.
+
+    ALL THREE SITES, deliberately. The over-garrison pass picks a keeper out of
+    two or three units, its planner-facing twin reports the same keeper, and
+    the lone-garrison pass decides whether one unit should hand the job to
+    another. Those are one question asked three times, and answering it from
+    two different orderings is exactly the quiet drift this codebase keeps
+    consolidating away - it would have let the over-garrison pass keep the very
+    unit the lone pass was rewritten to stop choosing."""
+    reach_needed = observation.garrison_reach_needed_in(
+        objective, getattr(state, "objectives", ()))
+    return (combat_focus.home_garrison_rank(squad, reach_needed),
+            _garrison_cost_key(squad))
+
+
 def _objective_centre(objective):
     """The point ai/observation.py reports to the planner as an objective's
     position - its terrain area's bounding-box centre. Read from the same place
@@ -8169,8 +8197,46 @@ def _cheaper_garrison_candidates(objective, holder, squads_by_name, state, playe
     hold ground at all, able to REACH the objective under its own movement
     this turn, strictly cheaper than the holder - and not already assigned to
     an objective of its own, since pulling it off one to cover another just
-    moves the hole."""
+    moves the hole.
+
+    ORDERED BY ROLE FIRST, POINTS SECOND. Cheapest-first alone hands the job to
+    whichever unit is cheapest, and an army's assault units are routinely its
+    cheapest - so this correction, whose entire purpose is to stop good units
+    being wasted on empty ground, was itself doing the wasting. Reported by the
+    user as "die lych guard waren sehr passiv. die sollten eher weiter nach
+    vorne pushen": measured on logs/game_20260826_185516.log, the strongest
+    case is not even the unit reported. This pass moved the Necron Warriors off
+    P2 Home Objective and handed it to the 85-point Skorpekh Destroyers, who
+    then spent four of five turns standing on ground no enemy came within 12"
+    of - the army's best melee unit, with no ranged weapons at all, garrisoning.
+
+    THE ROLE IS ALSO PART OF "CHEAPER", which is the half a sort key could not
+    fix and the reported failure came back through. "Strictly cheaper than the
+    holder" was the whole definition of a worthwhile swap, so with points alone
+    deciding it, this pass could only ever move the job DOWN the points list -
+    and on the current Necron list that meant it took P2 Home Objective off the
+    270-point Necron Warriors and gave it to the 170-point Lychguard, the
+    army's melee anvil, while the Immortals were not even eligible to be
+    considered because they cost more. Measured on the reported game
+    (logs/game_20260826_234856.log, lines 124-125). The gate is now the same
+    (band, points) pair as the ordering, so a swap has to be an improvement on
+    the axis that matters first: a unit that would be WORSE at the job is not a
+    candidate for it however little it costs.
+
+    combat_focus.home_garrison_rank() is the repo's existing measurement of
+    "where does this unit's damage come from" read a third way (it already
+    gates the charge block and the deployment `assault` role), so this is
+    another consumer rather than a second opinion. It also carries the range
+    half of the user's "starke fernkaempfer mit hoher reichweite", against the
+    distance observation.garrison_reach_needed_in() measures on this board.
+
+    Still a SORT KEY within a band: if several units are equally suited, the
+    cheapest takes the job, which is what that rule was always for."""
     centre = _objective_centre(objective)
+    def fitness(squad):
+        return _garrison_fitness(squad, objective, state)
+
+    held = fitness(holder)
     off_board = {id(sq) for sq in list(state.embarked_squads) + list(getattr(state, "reserves", ()))}
     loaded_hulls = {
         id(passenger.embarked_in) for passenger in state.embarked_squads
@@ -8190,13 +8256,13 @@ def _cheaper_garrison_candidates(objective, holder, squads_by_name, state, playe
         # the objective and benches the unit inside it at the same time.
         if any(id(m) in loaded_hulls for m in squad.models):
             continue
-        if _garrison_cost_key(squad) >= _garrison_cost_key(holder):
+        if fitness(squad) >= held:
             continue
         gap, reach = _reach_to_point(squad, centre)
         if gap > reach:
             continue
         out.append((squad, gap))
-    return [sq for sq, _ in sorted(out, key=lambda pair: (_garrison_cost_key(pair[0]), pair[1]))]
+    return [sq for sq, _ in sorted(out, key=lambda pair: (fitness(pair[0]), pair[1]))]
 
 
 def _lone_garrison_swaps(plan, squads_by_name, state, player, shortened=()):
@@ -8265,9 +8331,10 @@ def _lone_garrison_problems(plan, squads_by_name, state, player):
             f"{holder.name}{cost} is left holding {objective.name}, which no enemy is within "
             f"{observation.GARRISON_THREAT_RANGE_IN:.0f}\" of and which you already control. "
             f"Control is decided by the higher Objective Control total, not by how good the unit "
-            f"is, so {replacement.name}{cheap} holds it exactly as well and can reach it this "
-            f"turn. Garrison with your cheapest unit and give {holder.name} a job where the game "
-            f"is actually being decided"
+            f"is, so {replacement.name}{cheap} holds it exactly as well, can reach it this turn "
+            f"and is better suited to standing there. Garrison behind your own lines with a "
+            f"long-ranged shooting unit - it still fires from back there - and give "
+            f"{holder.name} a job where the game is actually being decided"
         )
     return problems
 
@@ -8303,7 +8370,8 @@ def _over_garrison_problems(plan, squads_by_name, state, player):
         squads = garrisons.get(objective.name, [])
         if len(squads) < 2:
             continue
-        keeper, *freed = sorted(squads, key=_garrison_cost_key)
+        keeper, *freed = sorted(
+            squads, key=lambda sq: _garrison_fitness(sq, objective, state))
         problems.append(
             f"{len(squads)} of your units are all left standing on {objective.name}: "
             + ", ".join(f"{s.name} ({s.points} pts)" if s.points is not None else s.name
@@ -8810,7 +8878,8 @@ def _validate_turn_plan(plan, player, state, turn_tracker, game_log=None):
         squads = garrisons.get(objective.name, [])
         if len(squads) < 2:
             continue
-        keeper, *freed = sorted(squads, key=_garrison_cost_key)
+        keeper, *freed = sorted(
+            squads, key=lambda sq: _garrison_fitness(sq, objective, state))
         for squad in freed:
             entry = plan["unit_plans"].get(squad.name)
             if entry is None:
@@ -8922,8 +8991,8 @@ def _validate_turn_plan(plan, player, state, turn_tracker, game_log=None):
         corrections.append(
             f"{holder.name}: {' and '.join(did) or 'freed'} - it was garrisoning {objective.name} "
             f"alone with no enemy within {observation.GARRISON_THREAT_RANGE_IN:.0f}\", and "
-            f"{replacement.name} is cheaper and can reach it this turn, so the garrison job goes "
-            f"to it instead (rules 14.01-14.02: control is the higher OC total)"
+            f"{replacement.name} is better suited to it and can reach it this turn, so the "
+            f"garrison job goes to it instead (rules 14.01-14.02: control is the higher OC total)"
         )
 
     # Two of our own squads sent to the same ground. Last, so it sees the
@@ -9701,11 +9770,21 @@ def _handle_movement(
             # -2" distance penalty (unless HOVER). Since this squad type is
             # exactly the one most prone to getting boxed in by terrain (no
             # free INFANTRY-style Dense-terrain pass-through, and now no
-            # bulk-translation fallback either), always taking to the skies
-            # when the squad can is a deterministic policy, not a judgment
-            # call for the agent to weigh - it can only ever help this
-            # squad's own mobility, at a fixed, small cost.
-            use_fly = any(m.profile.fly for m in squad.models)
+            # bulk-translation fallback either), taking to the skies is a
+            # deterministic policy, not a judgment call for the agent.
+            #
+            # WHICH squads it pays for is take_to_the_skies_pays()'s question,
+            # not an any()/all() spelled out here - see its docstring. This
+            # used to read `any(m.profile.fly ...)` on the premise that the
+            # declaration "can only ever help this squad's own mobility, at a
+            # fixed, small cost". True for the squad it was written for, where
+            # every model flies; false for an attached unit (19.01) whose
+            # leader is the only flyer, because the 2" is charged to the whole
+            # squad and the bypass is granted per model. Second user report,
+            # "die necron krieger sind hinten nicht rausgekommen": one
+            # Technomancer turned it on for twenty Necron Warriors, who paid
+            # 40% of a 5" move every turn and flew over nothing.
+            use_fly = take_to_the_skies_pays(squad)
             use_advance = chosen["type"] in (
                 "advance_to_nearest_enemy", "advance_to_objective", "advance_to_planned_target",
                 "advance_to_planned_position",
@@ -11309,6 +11388,46 @@ def _unbridled_carnage_verdict(squad, fight_controller):
     return best if best > 0 else None
 
 
+def _handle_grim_reapers(player, all_tokens, grim_reapers_controller, game_log=None):
+    """Death Lord's Chosen's Grim Reapers: buy it at the FIRST OPPORTUNITY.
+
+    USER INSTRUCTION, verbatim: "GRIM REAPERS - erste gelegenheit". So there is
+    deliberately NO verdict function here, and that absence is the design
+    rather than an omission - the three Awakened Dynasty handlers each measure
+    what their grant is worth because each can be worth nothing (Hungry Void's
+    +1 Strength can fail to cross a wound threshold; Blooming Pestilence's +3"
+    is capped away from round 3). A Hit re-roll against anything that is not a
+    MONSTER or VEHICLE cannot be worth nothing to a unit that is about to
+    fight, so measuring it would only ever produce the same answer more slowly.
+
+    The one thing that IS enforced is the printed TARGET line, and can_use()
+    already does it: "has not been selected to fight this phase". That is why
+    this runs BEFORE the fight loop, exactly like Unbridled Carnage below - an
+    offer after that point would be illegal.
+
+    Deterministic by construction: `sorted(..., key=name)` picks the same unit
+    on every replay, and the function takes no `agent`, so it cannot cost an
+    API call however it is wired.
+
+    No memory.declined_* memo, for the reason _handle_unbridled_carnage()
+    records: the verdict is a pure function of the board, and a "yes" cannot
+    repeat because can_use() refuses once the grant is up and rule 15.01
+    refuses a second use this phase."""
+    if grim_reapers_controller is None:
+        return False
+    for squad in sorted(_all_squads(all_tokens), key=lambda s: s.name):
+        if squad.owner != player or not grim_reapers_controller.can_use(squad):
+            continue
+        if not grim_reapers_controller.use(squad):
+            continue
+        if game_log is not None:
+            game_log.add(
+                f"[grim reapers] {player}: {squad.name} - first eligible TERMINATOR "
+                f"unit this Fight phase.", file_only=True)
+        return True
+    return False
+
+
 def _handle_unbridled_carnage(player, all_tokens, fight_controller, unbridled_carnage_controller, game_log=None):
     """Buy Unbridled Carnage for whichever of `player`'s own units gains the
     most from it, if any. Returns True if the CP was actually spent, so the
@@ -11350,7 +11469,7 @@ def _handle_unbridled_carnage(player, all_tokens, fight_controller, unbridled_ca
 def _handle_fight(
     agent, memory, player, all_tokens, fight_controller, pile_in_controller, movement_controller, on_thinking,
     consolidate_controller=None, game_log=None, unbridled_carnage_controller=None,
-    hungry_void_controller=None,
+    hungry_void_controller=None, grim_reapers_controller=None,
 ):
     # Rule 12.07/12.08 (Consolidate): checked first, for any of player's own
     # squads that have already fought and haven't consolidated (or declined
@@ -11421,6 +11540,13 @@ def _handle_fight(
     if _handle_hungry_void(player, all_tokens, fight_controller, hungry_void_controller, game_log):
         return True
 
+    # Death Lord's Chosen's Grim Reapers: the third stratagem sharing this
+    # window and the same "not yet selected to fight" TARGET clause. Bought at
+    # the first opportunity by user instruction, so it has no verdict function -
+    # see _handle_grim_reapers().
+    if _handle_grim_reapers(player, all_tokens, grim_reapers_controller, game_log):
+        return True
+
     eligible = sorted(fight_controller.eligible_to_select_now(), key=lambda s: s.name)
     if not eligible:
         if fight_controller.can_pass():
@@ -11464,7 +11590,15 @@ def _melee_group_pairs(fight_controller, squad):
     a group can be valued and checked for overlap. Reaches into fight.py's own
     grouping rather than re-deriving it, same reasoning as the existing
     charge_controller._enemy_squads_within() use above: one source of truth for
-    which weapon may still swing."""
+    which weapon may still swing.
+
+    Engagement Range comes from the controller's own activation snapshot
+    (fight.py's _engaged_with(), rule 12.02), not from a fresh
+    model_engaged_with() call: all of a unit's melee attacks are made in one
+    activation, so an earlier group's casualties must not shrink a later
+    group here either. A live check made this function disagree with
+    weapon_eligibility() the moment a target's front models died - the very
+    "one source of truth" this docstring claims."""
     target = getattr(fight_controller, "target_squad", None)
     if target is None:
         return {}
@@ -11474,7 +11608,7 @@ def _melee_group_pairs(fight_controller, squad):
         getattr(fight_controller, "one_shot_used", None),
     )
     return {
-        key: [(m, w) for m, w in pairs if model_engaged_with(m, target)]
+        key: [(m, w) for m, w in pairs if fight_controller._engaged_with(m, target)]
         for key, pairs in groups.items()
     }
 

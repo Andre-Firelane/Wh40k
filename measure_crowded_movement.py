@@ -51,10 +51,10 @@ one level up:
   * ONE SHARED GOAL for every unit. Fourteen units ordered to the same
     coordinate pile up on it by construction, so most of the "crowding" was
     self-inflicted. Each unit now gets its own goal, as a turn plan gives it.
-  * NO Take to the Skies. The real path (_handle_movement) sets
-    `use_fly = any(m.profile.fly ...)` unconditionally, and a flying model
-    ignores terrain and models in transit. Without it the two worst units in
-    the whole report were the two that fly.
+  * NO Take to the Skies. The real path (_handle_movement) declares it
+    whenever game.movement.take_to_the_skies_pays() says so, and a flying
+    model ignores terrain and models in transit. Without it the two worst
+    units in the whole report were the two that fly.
   * NO bulk-fallback rule. A VEHICLE-only squad gets no rigid fallback in the
     real path; the harness gave it one.
 
@@ -106,7 +106,7 @@ from game.factions.tau_empire import (
     STRIKE_TEAM,
 )
 from game.game_state import GameState
-from game.movement import MovementController
+from game.movement import MovementController, take_to_the_skies_pays
 from game.squad import edge_distance, min_model_movement
 from game.turn import PHASE_MOVEMENT, PHASES, TurnTracker
 
@@ -278,12 +278,20 @@ def move_once(state, squad, goal):
     """One Normal Move, driven exactly as _handle_movement() drives it.
 
     The `flying` half is not optional detail. Rule 21.03 (Take to the Skies) is
-    a deterministic policy in the real path - `use_fly = any(m.profile.fly ...)`
-    - and it changes the move completely, since a flying model ignores terrain
-    and other models in transit. A harness that leaves it out measures every FLY
-    unit as if it were walking: before this was mirrored, the two worst units in
-    the whole report were the Stormboyz (16%) and the Deffkoptas (25%), and both
-    of them fly."""
+    a deterministic policy in the real path - and it changes the move
+    completely, since a flying model ignores terrain and other models in
+    transit. A harness that leaves it out measures every FLY unit as if it were
+    walking: before this was mirrored, the two worst units in the whole report
+    were the Stormboyz (16%) and the Deffkoptas (25%), and both of them fly.
+    The Stormboyz half of that is now history rather than current behaviour -
+    they are all-INFANTRY, so take_to_the_skies_pays() rules them out (13.06
+    already crosses walls for them). Measured A/B when that rule went in:
+    crowded median got 60% -> 65%, total ground 202.1" -> 209.1".
+
+    WHICH squads declare it is read from take_to_the_skies_pays() rather than
+    spelled out again here. It used to be a local copy of the real path's
+    `any(m.profile.fly ...)`, which is exactly how this fixture drifted from
+    the code it measures three times before (see the header)."""
     tracker = TurnTracker(first_player="Player 2")
     tracker.phase_index = PHASES.index(PHASE_MOVEMENT)
     controller = MovementController(
@@ -291,7 +299,7 @@ def move_once(state, squad, goal):
         all_tokens=state.tokens, board_width_in=config.BOARD_WIDTH_IN,
         board_height_in=config.BOARD_HEIGHT_IN,
     )
-    use_fly = any(m.profile.fly for m in squad.models)
+    use_fly = take_to_the_skies_pays(squad)
     # VEHICLE-only squads get no bulk translation in the real path either.
     allow_bulk = not all(m.profile.vehicle for m in squad.models)
 

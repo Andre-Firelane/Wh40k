@@ -71,6 +71,18 @@ checks.eq("...and the same as the Shroud Runners", p.base_radius_in, ShroudRunne
 # The Windriders were NOT part of that call and keep their printed 32 mm, so the
 # Skyrunner no longer matches the jetbike it joins. Deliberate and pinned, since
 # the two shared a value until now and a later "fix" would otherwise look tidy.
+#
+# THE PREMISE HAS SINCE CHANGED, which is why this line is worth re-reading
+# rather than trusting: when the sizes were set, the note recorded that the
+# Windriders were "in no demo army", so the mismatch was theoretical. The
+# Aeldari list now fields 3 Windriders WITH this Skyrunner merged into them
+# (19.01), so a 45 mm base sits in a unit of 32 mm ones - the same shape the
+# Skorpekh Lord's note calls "exactly where the difference would show". It is a
+# GAMEPLAY number, not a cosmetic one (edge_distance() reads the radius, so
+# engagement range, overlap, coherency and formation packing all move with it),
+# so it is named here rather than quietly aligned. Measured to still work: the
+# merged unit deploys all 4 models and holds coherency over a full self-play
+# run. Aligning them is a decision for whoever asks for it.
 checks.true("...but the Windriders it joins were left on their printed 32 mm",
             p.base_radius_in != WindriderProfile.base_radius_in)
 

@@ -22,6 +22,7 @@ from the first frame and is the ground the enemy will actually occupy."""
 import math
 
 from ai import observation
+from game import shapes
 from ai.agent_driver import (
     _DISEMBARK_FACINGS,
     _all_squads,
@@ -293,8 +294,10 @@ def _forward_axis(own_zone, board_w_in, board_h_in):
     portrait map 1 and the landscape map 2."""
     if own_zone is None:
         return (0.0, 1.0)
-    cx = sum(r[0] for r in own_zone.rects) / len(own_zone.rects)
-    cy = sum(r[1] for r in own_zone.rects) / len(own_zone.rects)
+    centre = _zone_centroid(own_zone, board_w_in, board_h_in)
+    if centre is None:
+        return (0.0, 1.0)
+    cx, cy = centre
     dx, dy = board_w_in / 2 - cx, board_h_in / 2 - cy
     length = (dx * dx + dy * dy) ** 0.5
     if length < 1e-9:
@@ -302,25 +305,67 @@ def _forward_axis(own_zone, board_w_in, board_h_in):
     return (dx / length, dy / length)
 
 
-def _zone_probe_points(zone, count=DEPLOY_ZONE_PROBE_POINTS):
+def _zone_centroid(zone, board_w_in, board_h_in):
+    """A representative point inside a zone. Sampled from its shape, so it is
+    still inside for a diagonal or holed zone - averaging rectangle centres
+    only means anything while the zone IS rectangles."""
+    if zone is None:
+        return None
+    return zone.centroid(board_box=(0.0, 0.0, board_w_in, board_h_in))
+
+
+def _shape_box(zone, board_box=None):
+    """A zone's extent, clipped to the board when the board is known.
+
+    `board_box` is OPTIONAL and clipping is skipped without it - not a
+    convenience: a zone bounded by its own rectangle needs no clipping, and
+    defaulting the missing board to (0,0,0,0) would clip every such zone away
+    to nothing. Two harnesses (measure_deployment_safety.py, smoke_pregame.py)
+    call the probe helper with no board, and that is exactly what happened to
+    them. A zone with an unbounded part (a half-plane) reports no box of its
+    own, and there the board really is the answer, since it is the only place
+    anything can stand - so that case still needs one."""
+    box = zone.bounding_box() if zone is not None else None
+    if box is None:
+        return board_box
+    if board_box is None:
+        return box
+    return (max(box[0], board_box[0]), max(box[1], board_box[1]),
+            min(box[2], board_box[2]), min(box[3], board_box[3]))
+
+
+def _shape_grid(box, cols, rows):
+    min_x, min_y, max_x, max_y = box
+    for i in range(cols):
+        x = min_x + (max_x - min_x) * (i + 0.5) / cols
+        for j in range(rows):
+            yield (x, min_y + (max_y - min_y) * (j + 0.5) / rows)
+
+
+def _zone_probe_points(zone, count=DEPLOY_ZONE_PROBE_POINTS, board_box=None):
     """Evenly spread sample points across a deployment zone - the stand-in for
-    "wherever the enemy army ends up standing"."""
+    "wherever the enemy army ends up standing".
+
+    Sampled against the zone's own shape rather than laid out per rectangle,
+    so a diagonal or holed zone is probed where units can actually stand and
+    not across the hole. The grid is OVERSAMPLED by the fraction of its
+    bounding box the zone actually fills, so the requested count is still met
+    rather than quietly undershot - the same concern the per-rectangle version
+    had, now measured instead of assumed."""
     if zone is None:
         return []
-    points = []
-    per_rect = max(1, count // len(zone.rects))
-    for (cx, cy, w, h) in zone.rects:
-        # Aspect-matched grid, rounded UP so the requested count is met rather
-        # than quietly undershot - the naive `per_rect // cols` returned 6 of a
-        # requested 8 on map 2's wide, shallow zone.
-        cols = max(1, int(round((per_rect * w / max(h, 1e-6)) ** 0.5)))
-        rows = max(1, -(-per_rect // cols))
-        for i in range(cols):
-            for j in range(rows):
-                x = cx - w / 2 + w * (i + 0.5) / cols
-                y = cy - h / 2 + h * (j + 0.5) / rows
-                points.append((x, y))
-    return points
+    box = _shape_box(zone, board_box)
+    if box is None:
+        return []
+    width, height = box[2] - box[0], box[3] - box[1]
+    if width <= 0 or height <= 0:
+        return []
+    probe = [p for p in _shape_grid(box, 16, 16) if zone.contains_point(*p)]
+    fill = max(len(probe) / 256.0, 1e-3)
+    cells = count / fill
+    cols = max(1, int(round((cells * width / max(height, 1e-6)) ** 0.5)))
+    rows = max(1, -(-int(round(cells)) // cols))
+    return [p for p in _shape_grid(box, cols, rows) if zone.contains_point(*p)]
 
 
 def _candidate_points(pregame_ctrl, squad, board_w_in, board_h_in):
@@ -341,20 +386,27 @@ def _candidate_points(pregame_ctrl, squad, board_w_in, board_h_in):
     inset = radius + (1.0 if len(squad.models) > 1 else 0.0)
     zones = getattr(pregame_ctrl.game_state, "deployment_zones", ())
 
-    if squad_has_infiltrators(squad):
-        rects = [(board_w_in / 2, board_h_in / 2, board_w_in, board_h_in)]
+    board_box = (0.0, 0.0, board_w_in, board_h_in)
+    own = None if squad_has_infiltrators(squad) else deployment.zone_for(zones, squad.owner)
+    if own is None:
+        # INFILTRATORS (24.20) may go anywhere on the table, and a map with no
+        # zone at all gets the same treatment - position_valid() does the
+        # filtering either way. Routed through the SAME sampling_boxes() call
+        # as a zone so the inset is applied here too; handing the raw board
+        # rectangle over instead silently widened the grid for every
+        # INFILTRATORS unit by exactly the base radius.
+        boxes = shapes.Rect(board_w_in / 2, board_h_in / 2, board_w_in, board_h_in).sampling_boxes(inset)
     else:
-        own = deployment.zone_for(zones, squad.owner)
-        if own is None:
-            rects = [(board_w_in / 2, board_h_in / 2, board_w_in, board_h_in)]
-        else:
-            rects = own.rects
+        # One box per part of the zone, already shrunk by the inset - see
+        # shapes.Shape.sampling_boxes(). For the axis-aligned rectangles every
+        # shipped map uses, this is the identical grid the rectangle-only code
+        # produced; a diagonal or holed zone gets a box that covers it and is
+        # then thinned by position_valid() below.
+        boxes = own.shape.sampling_boxes(inset, fallback_box=board_box)
 
     token = squad.models[0]
     points = []
-    for (cx, cy, w, h) in rects:
-        x0, x1 = cx - w / 2 + inset, cx + w / 2 - inset
-        y0, y1 = cy - h / 2 + inset, cy + h / 2 - inset
+    for (x0, y0, x1, y1) in boxes:
         if x1 < x0 or y1 < y0:
             continue
         nx = max(1, int((x1 - x0) / DEPLOY_GRID_STEP_IN) + 1)
@@ -517,18 +569,35 @@ def home_garrison_squad(pregame_ctrl, owner, objectives, own_zone):
     ends, or None if this player has no home objective or nothing to spare.
 
     Rule 14.02 decides control on the Objective Control total, so the job wants
-    the CHEAPEST body that can do it - the same rule ai/agent_driver.py now
+    the cheapest body that can do it - the same rule ai/agent_driver.py now
     enforces on the turn plan, applied one phase earlier so the army does not
     have to spend turn 1 correcting its own deployment. User: "Wieso platziert
     er nicht die Gretchen auf dem Home Objective? Das ist doch der perfekte
     Fit."
+
+    BUT ROLE COMES FIRST, AND CHEAPEST ONLY DECIDES WITHIN A ROLE. Points alone
+    hands the job to whatever happens to be cheapest, and that is not a property
+    of the job - measured on the current Necron list, the cheapest unit in the
+    whole army is the Lychguard at 170, which is its melee anvil with no ranged
+    weapons at all, so the army's best counter-charge unit spent every game
+    standing on empty ground behind its own lines. Reported by the user: "die ki
+    soll fernkampfeinheiten stark bevorzugen, wenn es darum geht das home
+    objective zu halten. sie hat im letzten spiel dafuer die lychguard benutzt,
+    was voelliger quatsch ist. die immortals waeren perfekt."
+
+    The ordering is game/combat_focus.py's home_garrison_rank(), which is the
+    same measurement that already gates the charge block and the `assault`
+    deployment role - so this is a third reader of one definition rather than a
+    second opinion. It takes the range half of the user's sentence from
+    observation.garrison_reach_needed_in(), measured off THIS board.
 
     Excluded: anything with no Objective Control (rule 14.02 counts OC, so a
     zero-OC unit garrisons nothing), and "heavy" units - a Battlewagon parked
     on an objective is precisely the outcome the heavy role exists to avoid.
     Read off the DECLARED deploy list rather than what is still pending, so the
     designation is the same answer at every step of the alternating sequence."""
-    if _home_objective(owner, objectives, own_zone) is None:
+    home = _home_objective(owner, objectives, own_zone)
+    if home is None:
         return None
     candidates = [
         squad for squad in pregame_ctrl.army(owner)
@@ -539,7 +608,9 @@ def home_garrison_squad(pregame_ctrl, owner, objectives, own_zone):
     ]
     if not candidates:
         return None
-    return sorted(candidates, key=_garrison_cost_key)[0]
+    reach_needed = observation.garrison_reach_needed_in(home, objectives)
+    return sorted(candidates, key=lambda sq: (
+        combat_focus.home_garrison_rank(sq, reach_needed), _garrison_cost_key(sq)))[0]
 
 
 def deployment_score(point, squad, pregame_ctrl, context):
@@ -622,9 +693,9 @@ def _score_context(pregame_ctrl, squad, objectives, board_w_in, board_h_in):
     enemy = deployment.enemy_zones(zones, squad.owner)
     probes = []
     for zone in enemy:
-        probes.extend(_zone_probe_points(zone))
-    cx = sum(r[0] for r in own.rects) / len(own.rects) if own else board_w_in / 2
-    cy = sum(r[1] for r in own.rects) / len(own.rects) if own else board_h_in / 2
+        probes.extend(_zone_probe_points(zone, board_box=(0.0, 0.0, board_w_in, board_h_in)))
+    centre = _zone_centroid(own, board_w_in, board_h_in)
+    cx, cy = centre if centre else (board_w_in / 2, board_h_in / 2)
     home = _home_objective(squad.owner, objectives or getattr(state, "objectives", ()), own)
     garrison = home_garrison_squad(
         pregame_ctrl, squad.owner, objectives or getattr(state, "objectives", ()), own)

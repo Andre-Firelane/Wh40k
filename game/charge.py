@@ -1,9 +1,12 @@
-from game import grav_inhibitor_drone, neocapacitor_shields
+from game import grav_inhibitor_drone, hovering_death, neocapacitor_shields
+from game import (aux_alien_expertise, kauyon_photon_grenades, loping_pounce,
+                  montka_pulse_onslaught, monofilament_web, runes_of_fortune)
 from game.dice import CHARGE_ROLL
 from game.roll_bonus import advance_and_charge_bonus, sources as roll_bonus_sources
 from game.squad import squad_has_full_throttle
 from game.turn import PHASE_CHARGE
 from game.waaagh import squad_waaagh_active
+from game import move_exceptions
 
 IDLE = "idle"
 DECLARING_TARGETS = "declaring_targets"  # charge roll made (or pending); player picks 1+ charge targets
@@ -56,6 +59,28 @@ class ChargeController:
         # unit that has just been wiped out is the kind of half-state this
         # project has repeatedly had to unpick.
         self.on_charge_declared = None
+        # Further reactors to the same instant, tried after the slot above.
+        # A LIST because more than one Stratagem can answer one declaration -
+        # Kauyon prints two (Photon Grenades and Combat Embarkation) - and
+        # _offer_declaration_reactions() chains them so each gets its window
+        # instead of the first one swallowing the rest. The single slot above
+        # is kept so its existing owner needs no change; both use the same
+        # "return True to take ownership of the resume" protocol.
+        self.charge_declaration_reactions = []
+        # Listeners for rule 11.04's "ends a Charge move" - fired with the
+        # charging squad by confirm_charge_move() once the move is ACCEPTED.
+        # Wired in main.py to the Skorpekh Lord's Crimson Harvest.
+        #
+        # A LIST rather than a single callable, unlike on_charge_declared just
+        # above: that one has a return-value protocol ("True means I took
+        # ownership of resume"), which forces exactly one owner. This is a
+        # plain notification with nothing to own, so a second listener should
+        # cost a line and not a refactor.
+        #
+        # And it is deliberately NOT in _finish_charge(), which also runs for
+        # a DECLINED charge and for a unit destroyed before it could move -
+        # neither of those ends a Charge move.
+        self.on_charge_move_finished = []
         self.charged_squad_ids = set()  # squads that already declared a charge this phase
         self._pending_roll = False
 
@@ -111,7 +136,10 @@ class ChargeController:
         # in this method (e.g. still blocked by Disembark-lock above, or by
         # already being engaged/out of range below).
         full_throttle = squad_has_full_throttle(squad)
-        if squad.fell_back_this_turn and not full_throttle:
+        # The Foetid Bloat-drone's Hovering Death: "eligible to shoot AND declare
+        # a charge in a turn in which it Fell Back" - so both halves of rule
+        # 09.07's ban have to ask, not just the shooting one.
+        if squad.fell_back_this_turn and not move_exceptions.may_charge_after_falling_back(squad):
             return False  # rule 09.07: a unit that Fell Back this turn cannot charge until the end of the turn
         if squad.is_engaged(self.all_tokens):
             return False
@@ -119,7 +147,15 @@ class ChargeController:
         # charge in a turn in which they Advanced" - ADVANCED only, unlike
         # Full Throttle above (no Fell Back exception in this ability's own
         # text), and only while active for this squad's owner.
-        advance_ok = full_throttle or squad_waaagh_active(squad, self.waaagh)
+        # Kroot Hounds' Loping Pounce is the THIRD source of the same
+        # exception. Unlike the two beside it, it is LATCHED rather than
+        # live - set at the start of the Command phase and held all turn -
+        # so it reads a flag rather than a distance; see
+        # game/loping_pounce.py on why the printed text demands that.
+        # Auxiliary Cadre's Alien Expertise is the FOURTH source of the same
+        # exception, and the second latched one - bought for one unit in the
+        # Movement phase and read here, a phase later.
+        advance_ok = move_exceptions.may_charge_after_advancing(squad, self.waaagh)
         if self.movement_controller is not None and squad in self.movement_controller.advanced_squad_ids and not advance_ok:
             return False
         return len(self._enemy_squads_within(squad, CHARGE_RANGE_IN)) > 0
@@ -219,6 +255,36 @@ class ChargeController:
         if penalty:
             note += f" (-{penalty} - Neocapacitor Shields)"
             total -= penalty
+        # Kauyon's Photon Grenades: "subtract 2 from Charge rolls made FOR that
+        # enemy unit" - the same side as Neocapacitor Shields above, so it
+        # joins the charger-side total here and the drone's
+        # not-cumulative-with-anything -2 stays reconciled in one place.
+        grenades = kauyon_photon_grenades.charge_penalty_for(self.active_squad)
+        if grenades:
+            note += f" (-{grenades} - Photon Grenades)"
+            total -= grenades
+        # Mont'ka's Pulse Onslaught leaves a unit `shaken`: -2 on Charge rolls
+        # made for it, the third charger-side penalty in this fold.
+        shaken = montka_pulse_onslaught.roll_penalty_for(self.active_squad)
+        if shaken:
+            note += f" (-{shaken} - shaken)"
+            total -= shaken
+        # The Night Spinner's Monofilament Web leaves a unit `pinned`: -2 on
+        # Charge rolls, and NOT on Advance rolls - the one clause that makes
+        # it a different status from shaken. They stack.
+        pinned = monofilament_web.charge_penalty_for(self.active_squad)
+        if pinned:
+            note += f" (-{pinned} - pinned)"
+            total -= pinned
+        # The Warlock's Runes of Fortune: -2 if any DECLARED TARGET of this
+        # charge carries it. The first defender-side term in this fold - the
+        # other three are properties of the charging unit - which is why it
+        # reads self.charge_targets. Only ever -2, however many targets carry
+        # it: the rule says subtract 2, not subtract 2 per unit.
+        runes = runes_of_fortune.charge_penalty_against(self.charge_targets)
+        if runes:
+            note += f" (-{runes} - Runes of Fortune)"
+            total -= runes
         if self._mode == "into_the_fray" and total > 6:
             return 6, note + ' (capped to 6" - [Into the Fray])'
         return total, note
@@ -347,11 +413,58 @@ class ChargeController:
             return
         if self.movement_controller is None or self.movement_controller.selected_squad is not self.active_squad:
             return
-        if self.on_charge_declared is not None and self.on_charge_declared(
-            self.active_squad, list(self.charge_targets), self._start_declared_move,
-        ):
-            return  # a reaction is being resolved first; it owns _start_declared_move now
-        self._start_declared_move()
+        self._offer_declaration_reactions(list(self.charge_targets))
+
+    def _offer_declaration_reactions(self, targets):
+        """Give each registered reactor its window, in order, then move.
+
+        CHAINED rather than "first one wins": each reactor is handed a resume
+        that continues to the NEXT one, so a charge declaration that two
+        different reactions could answer offers both - which is what the rules
+        say, and what a single-owner slot could not do.
+
+        The single `on_charge_declared` slot is still honoured and goes FIRST,
+        so nothing that already used it has to change. Both forms keep the same
+        protocol: return True to say "I opened something and now own the
+        resume", anything else to decline and let the chain continue.
+        """
+        reactors = ([self.on_charge_declared] if self.on_charge_declared is not None else [])
+        reactors += list(self.charge_declaration_reactions)
+
+        # Captured ONCE. Every reactor in this chain is answering the SAME
+        # declaration, so the charging unit is a fixed fact of the window - and
+        # re-reading self.active_squad per step is how a cleared field leaked
+        # out to a reactor as None (reported crash: Photon Grenades resolved,
+        # the resume ran, and Combat Embarkation was handed None).
+        charging = self.active_squad
+
+        def window_is_open():
+            """Is the declaration these reactors share still standing?
+
+            A reaction's own resolution can END the charge outright - the
+            Grav-Inhibitor Field's mortal wounds can destroy the charging unit,
+            and its _finish() says in as many words that it relies on the
+            resume landing somewhere that re-checks. That was true while the
+            resume went straight to _start_declared_move(); chaining put other
+            reactors in between, so the check has to move here. Their window is
+            "just after an enemy unit has selected its charge target" - once
+            there is no charge, there is nothing left to react to, and offering
+            it anyway would let a player spend CP on a charge that is over.
+            """
+            return (charging is not None and self.active_squad is charging
+                    and self.state == DECLARING_TARGETS)
+
+        def step(index):
+            while index < len(reactors):
+                if not window_is_open():
+                    return
+                reactor = reactors[index]
+                index += 1
+                if reactor(charging, list(targets), lambda i=index: step(i)):
+                    return  # that reactor owns the continuation now
+            self._start_declared_move()
+
+        step(0)
 
     def _start_declared_move(self):
         """The second half of begin_charge_move(), split out so a reaction to
@@ -367,7 +480,13 @@ class ChargeController:
             return
         if self.movement_controller is None or self.movement_controller.selected_squad is not self.active_squad:
             return
-        if self.active_squad is None or not any(not m.is_dead() for m in self.active_squad.models):
+        if self.active_squad is None:
+            # Nothing to log a name for, and nothing to finish - whoever
+            # cleared it already ran _finish_charge(). Split from the check
+            # below because the combined form short-circuited on None and then
+            # formatted None.name, the same crash shape as the reported one.
+            return
+        if not any(not m.is_dead() for m in self.active_squad.models):
             self._log(f"{self.active_squad.name} cannot complete its charge - the unit was destroyed.")
             self._finish_charge()
             return
@@ -416,6 +535,12 @@ class ChargeController:
                     f"(engaged: {squad.is_engaged_with(target)})"
                 )
         self._finish_charge()
+        # Rule 11.04's "ends a Charge move", fired AFTER _finish_charge() so
+        # the charge is fully concluded before a listener can open a dice roll
+        # or a prompt on top of it. `squad` was captured above precisely
+        # because _finish_charge() clears active_squad.
+        for listener in list(self.on_charge_move_finished):
+            listener(squad)
 
     def decline_charge_move(self):
         """Rule 11.02 step 3: 'if you still want to' - the player can

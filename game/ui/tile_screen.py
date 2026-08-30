@@ -178,11 +178,21 @@ class Paged:
         return True
 
 
+def header_bar(screen_rect):
+    """The filled bar across the top - where the heading and hint sit.
+
+    Its own function because a screen may want to put a control INSIDE it
+    (the map picker's biome buttons) and hit-test that control in layout(),
+    before anything is drawn. Computing the same rectangle in two places is
+    how a control ends up a few pixels off the bar it looks like it is in."""
+    return pygame.Rect(screen_rect.x, screen_rect.y, screen_rect.width, HEADER_HEIGHT - 18)
+
+
 def draw_header(surface, screen_rect, fonts, title, hint, accent, notes=()):
     """The title bar: heading, one line of instruction, and any already-made
     choices along the right so a later step is taken with the earlier ones in
     view rather than from memory."""
-    bar = pygame.Rect(screen_rect.x, screen_rect.y, screen_rect.width, HEADER_HEIGHT - 18)
+    bar = header_bar(screen_rect)
     pygame.draw.rect(surface, HEADER_BG_COLOR, bar)
     pygame.draw.line(surface, accent, (bar.x, bar.bottom - 1), (bar.right, bar.bottom - 1), 2)
     surface.blit(fonts["title"].render(title, True, TITLE_COLOR),

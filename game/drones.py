@@ -43,7 +43,7 @@ Equips the bearer with a Twin pulse carbine (same weapon/stats already
 defined for Strike Team's "Unselected Profiles", game/weapons.py -
 TwinPulseCarbineProfile)."""
 
-from game.weapons import DroneBurstCannonProfile, MissilePodProfile, TwinPulseCarbineProfile
+from game.weapons import DroneBurstCannonProfile, DroneMissilePodProfile, TwinPulseCarbineProfile
 from game.factions.datasheet import Gear
 
 DRONE_SLOTS = 2  # "the leader can get 2 drones, but never the same one twice"
@@ -54,6 +54,11 @@ DRONE_SLOTS = 2  # "the leader can get 2 drones, but never the same one twice"
 # a single menu behaves exactly as before - see Datasheet.gear_slots.
 DRONE_GROUP = "drones"
 SPECIAL_DRONE_GROUP = "special_drone"
+# The Ethereal's Hover Drone is granted on its own printed line ("This model
+# can be equipped with 1 hover drone") separately from his "up to two of the
+# following" menu, so it gets its own group and cannot eat one of those slots.
+HOVER_DRONE_GROUP = "hover_drone"
+HOVER_DRONE_SLOTS = 1
 
 
 def _marker_drone_effect(token):
@@ -89,7 +94,36 @@ def _gun_drone_effect(token):
 
 
 def _missile_drone_effect(token):
-    token.weapons.append(MissilePodProfile())
+    token.weapons.append(DroneMissilePodProfile())
+
+
+HOVER_DRONE_MOVEMENT_IN = 10
+
+
+def _hover_drone_effect(token):
+    """"The bearer can FLY and has a Move characteristic of 10"."
+
+    Two real characteristic changes rather than modifiers, the same shape as
+    the Shield Drone's extra wound above - and safe to write onto
+    token.profile because build_squad() gives every Token its own profile
+    INSTANCE (game/factions/datasheet.py's `profile = line.profile_cls()`), so
+    this shadows the class attribute instead of changing it for every Ethereal
+    ever built.
+
+    Note it SETS the Move rather than adding to it: the printed text names a
+    value. The Ethereal's own 6" is the only carrier, so the two spellings
+    would be indistinguishable today - which is precisely why it is written
+    the way the rule reads."""
+    token.profile.fly = True
+    token.profile.movement_in = HOVER_DRONE_MOVEMENT_IN
+
+
+def hover_drone_gear(model_line_name, max_count=1):
+    """The Ethereal's Hover Drone. Its own group, because the printed text
+    grants it on a separate line from his "up to two of the following" drone
+    menu - so it must not eat one of those two slots."""
+    return Gear(model_line_name, "Hover Drone", _hover_drone_effect,
+                max_count=max_count, group=HOVER_DRONE_GROUP)
 
 
 def marker_drone_gear(model_line_name, max_count=1):
@@ -100,25 +134,28 @@ def marker_drone_gear(model_line_name, max_count=1):
     return Gear(model_line_name, "Marker Drone", _marker_drone_effect, max_count=max_count, group=DRONE_GROUP)
 
 
-def gun_drone_gear(model_line_name, max_count=1):
+def gun_drone_gear(model_line_name, max_count=1, all_models=False):
     """A standalone Gun Drone Gear item, reused both by drone_options()'s
     own menu and directly by datasheets that grant Gun Drone on its own
     (e.g. Stealth Battlesuits' Shas'vre: "can be equipped with 1 gun
     drone")."""
-    return Gear(model_line_name, "Gun Drone", _gun_drone_effect, max_count=max_count, group=DRONE_GROUP)
+    return Gear(model_line_name, "Gun Drone", _gun_drone_effect, max_count=max_count,
+                group=DRONE_GROUP, all_models=all_models)
 
 
-def missile_drone_gear(model_line_name, max_count=1):
+def missile_drone_gear(model_line_name, max_count=1, all_models=False):
     """A standalone Missile Drone Gear item - grants the bearer a Missile
     pod, the same shape as gun_drone_gear()'s Twin pulse carbine. Justified
     by Pathfinder Team's own "Unselected Profiles" table listing a Missile
     pod, which on a unit with no missile-armed model of its own can only be
     a drone's weapon (the Riptide carries the same weapon for the same
     reason, see game/factions/tau_empire.py's _RIPTIDE_LOADOUT)."""
-    return Gear(model_line_name, "Missile Drone", _missile_drone_effect, max_count=max_count, group=DRONE_GROUP)
+    return Gear(model_line_name, "Missile Drone", _missile_drone_effect, max_count=max_count,
+                group=DRONE_GROUP, all_models=all_models)
 
 
-def drone_options(model_line_name, include_guardian=True, allow_duplicates=False, include_missile=False):
+def drone_options(model_line_name, include_guardian=True, allow_duplicates=False,
+                  include_missile=False, all_models=False):
     """The Gear choices for a given Shas'ui-type ModelLine, re-scoped to
     that datasheet's own leader line name. `include_guardian` drops Guardian
     Drone entirely for datasheets whose real menu doesn't have it (Crisis
@@ -129,17 +166,27 @@ def drone_options(model_line_name, include_guardian=True, allow_duplicates=False
     of wargear" text wherever it appears. `include_missile` adds a Missile
     Drone for datasheets whose own weapon table shows a Missile pod they
     have no other way of carrying (Pathfinder Team) - off by default, since
-    no other datasheet's text or weapon table implies one."""
+    no other datasheet's text or weapon table implies one.
+
+    `all_models` turns "this line's character takes drones" into "EVERY model
+    on this line takes them", which is the Broadside Battlesuits' printed
+    wording ("ANY NUMBER OF MODELS can each be equipped with up to two of the
+    following"). Every earlier T'au datasheet reads "this model can be
+    equipped with...", so it is off by default and nothing changes for them."""
     dup_count = 2 if allow_duplicates else 1
     options = [
-        Gear(model_line_name, "Marker Drone", _marker_drone_effect, max_count=dup_count, group=DRONE_GROUP),
-        Gear(model_line_name, "Shield Drone", _shield_drone_effect, max_count=dup_count, group=DRONE_GROUP),
+        Gear(model_line_name, "Marker Drone", _marker_drone_effect, max_count=dup_count,
+             group=DRONE_GROUP, all_models=all_models),
+        Gear(model_line_name, "Shield Drone", _shield_drone_effect, max_count=dup_count,
+             group=DRONE_GROUP, all_models=all_models),
     ]
     if include_guardian:
-        options.append(Gear(model_line_name, "Guardian Drone", _guardian_drone_effect, max_count=1, group=DRONE_GROUP))
-    options.append(gun_drone_gear(model_line_name, max_count=dup_count))
+        options.append(Gear(model_line_name, "Guardian Drone", _guardian_drone_effect,
+                            max_count=1, group=DRONE_GROUP, all_models=all_models))
+    options.append(gun_drone_gear(model_line_name, max_count=dup_count, all_models=all_models))
     if include_missile:
-        options.append(missile_drone_gear(model_line_name, max_count=dup_count))
+        options.append(missile_drone_gear(model_line_name, max_count=dup_count,
+                                          all_models=all_models))
     return options
 
 

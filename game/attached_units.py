@@ -718,3 +718,20 @@ def unit_has_datasheet_keyword(squad, keyword):
     sheets = [getattr(squad, "datasheet", None)]
     sheets += [c.datasheet for c in getattr(squad, "attached_components", None) or ()]
     return any(keyword in (getattr(s, "keywords", None) or ()) for s in sheets if s is not None)
+
+
+def unit_has_faction_keyword(squad, keyword):
+    """Rule 19.03 once more, for the datasheet's OTHER printed keyword line.
+
+    Same pooling and the same per-COMPONENT granularity as
+    unit_has_datasheet_keyword() above - a model does not know which datasheet
+    it came from, so an attached unit is answered from the components 19.01's
+    merge kept. Separate from that function because the two lines mean
+    different things: "KEYWORDS" is what a model IS, "FACTION KEYWORDS" is
+    which army it may be taken in. The Aeldari detachments are the first rules
+    to ask about the second (ASURYANI), and reading it out of `keywords` would
+    have meant writing a faction line into the wrong tuple on 51 datasheets."""
+    sheets = [getattr(squad, "datasheet", None)]
+    sheets += [c.datasheet for c in getattr(squad, "attached_components", None) or ()]
+    return any(keyword in (getattr(s, "faction_keywords", None) or ())
+               for s in sheets if s is not None)

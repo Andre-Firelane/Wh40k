@@ -49,7 +49,16 @@ class ExplosivesController:
         self._stratagem = Stratagem(name="Explosives", cp_cost=EXPLOSIVES_CP_COST, effect=self._begin_roll)
 
     def _qualifying_models(self, squad):
-        return [m for m in squad.models if m.profile.explosives or m.profile.grenades]
+        # Rule 15.05 targets "one EXPLOSIVES/GRENADES unit". The keyword is
+        # usually printed on the datasheet, but Retaliation Cadre's Internal
+        # Grenade Racks Enhancement GRANTS it to its bearer - asked through
+        # that module rather than by writing a second profile flag, so there
+        # is one place that says who has the keyword. See
+        # game/enh_internal_grenade_racks.py.
+        from game import enh_internal_grenade_racks
+        return [m for m in squad.models
+                if m.profile.explosives or m.profile.grenades
+                or enh_internal_grenade_racks.has_grenades_keyword(m)]
 
     def _has_reachable_target(self, squad):
         """TARGET (rule 15.05): is there any unengaged enemy unit within 8"

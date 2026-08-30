@@ -10,8 +10,6 @@ from game.dice_notation import DiceNotation, DiceNotationRoll, describe as descr
 from game.modifiers import Modifier, apply_modifiers, describe_modifiers
 from game.objectives import is_on_objective
 from game.arrokon_protocol import arrokon_adjusted_weapon
-from game import aspect_shrine
-from game import branching_fates
 from game import psychic_guidance
 from game import protect
 from game.doom import DOOM_WOUND_BONUS
@@ -26,6 +24,11 @@ from game import wave_serpent_shield
 from game.fire_support import FIRE_SUPPORT_LABEL
 from game.hand_of_asuryan import hand_of_asuryan_adjusted_weapon
 from game.damage_reroll import DamageRerollOffer
+from game.weapons import NON_MONSTER_VEHICLE
+from game import conditional_devastating_wounds
+from game import corsair_abilities
+from game import reavers_of_the_void
+from game import structural_collapse
 from game.bladestorm import bladestorm_adjusted_weapon
 from game import crit_ap
 from game import fate_inescapable
@@ -33,14 +36,57 @@ from game.drive_by_dakka import drive_by_dakka_adjusted_weapon
 from game.gun_crazy_showoffs import gun_crazy_adjusted_weapon, unit_has_gun_crazy_showoffs
 from game.ammo_runt import ammo_runt_adjusted_weapon
 from game.nova_charge import nova_charge_adjusted_weapon
-from game import awakened_dynasty, destroyer_cult, exemplars_of_montka, protocol_conquering_tyrant, protocol_sudden_storm, guardian_protocols, implacable_eradication, mechanical_augmentation, monster_hunters, overwhelming_obliteration, reroll_scope, sunforge, target_uploaded, way_of_the_short_blade
+from game import awakened_dynasty, destroyer_cult, dlc_mortarions_teachings, exemplars_of_montka, gift_of_contagion, hovering_death, miasma_of_pestilence, protocol_conquering_tyrant, protocol_sudden_storm, guardian_protocols, implacable_eradication, mechanical_augmentation, monster_hunters, overwhelming_obliteration, plagues, reroll_scope, sunforge, target_uploaded, way_of_the_short_blade
 from game import weapon_range
 from game.retaliation_cadre import bonded_heroes_adjusted_weapon
+from game import (aux_experimental_modifications, aux_guided_fire,
+                  epc_experimental_ammunition, hidden_after_shooting,
+                  exemplars_of_montka, kauyon, kauyon_coordinate_to_engage,
+                  kauyon_point_blank_ambush, kauyon_tempting_trap, montka,
+                  montka_combat_debarkation, montka_focused_fire,
+                  montka_pinpoint_counter_offensive)
+# The T'au detachment Enhancements that touch the shooting sequence. Each is
+# registered in game/enhancements.py, which owns who bears one and gates it on
+# the detachment actually fielded; these modules hold only the rule.
+from game import (enh_guided_keyword_grants, enh_precision_patient_hunter,
+                  enh_prototype_weapon_system)
 from game.starscythe import starscythe_adjusted_weapon
 from game.squad import (
-    allocation_target_model, allocation_target_profile, attached_unit_toughness, edge_distance, is_monster_or_vehicle_unit, squad_has_battlesuit_support_system, squad_has_war_construct,
+    allocation_target_model, allocation_target_profile, attached_unit_toughness, edge_distance, is_monster_or_vehicle_unit, squad_has_advanced_guardian_drone, squad_has_agile_combatant, squad_has_battlesuit_support_system, squad_has_war_construct,
     squad_has_breach_and_clear, squad_has_guardian_drone, squad_has_stealth, tank_hunters_modifiers,
 )
+from game import advanced_scouting as advanced_scouting_module
+from game import fated_hero as fated_hero_module
+from game import defend_at_all_costs
+from game import guardian_blades_of_asuryan
+from game import guardian_shield_nodes
+from game import guardian_warding_salvoes
+from game import enh_assassins_eye
+from game import enh_psychic_weapons
+from game import aspect_doom_inescapable
+from game import aspect_preternatural_precision
+from game import aspect_warrior_focus
+from game import conclave_seers_eye
+from game import warhost_blitzing_firepower
+from game import warhost_lightning_fast_reactions
+from game import windrider_death_from_on_high
+from game import windrider_focused_firepower
+from game import move_exceptions
+from game import shepherds_of_the_dead
+from game import path_of_the_warrior
+from game import far_reaching_doom
+from game import skilled_crews
+from game import ynnari_abilities
+from game import misfortune as misfortune_module
+from game import spiritseer
+from game import armour_hunter as armour_hunter_module
+from game import fireknife
+from game import velocity_tracker as velocity_tracker_module
+from game import bounty_hunters as bounty_hunters_module
+from game import oversight_drone as oversight_drone_module
+from game import hero_of_the_empire as hero_of_the_empire_module
+from game import precise_targeting as precise_targeting_module
+from game import structural_analyser as structural_analyser_module
 from game.coldstar import weapon_has_assault
 from game.thresholds import parse_threshold as _parse_threshold
 from game.turn import PHASE_SHOOTING
@@ -52,16 +98,6 @@ from game.weapons import RANGED
 # actually applies rather than duplicated per ability - the same "second
 # consumer turns a field into a list" move made for target_reactions,
 # cost_discounts and on_squad_finished_shooting.
-_UNMODIFIED_SIX_SOURCES = (aspect_shrine, branching_fates)
-
-
-def _unmodified_six_source(method, squad, model, *args):
-    """The first source that would buy something here, and what it buys."""
-    for source in _UNMODIFIED_SIX_SOURCES:
-        change = getattr(source, method)(squad, model, *args)
-        if change is not None:
-            return source, change
-    return None, None
 
 
 IDLE = "idle"
@@ -104,6 +140,10 @@ def _resolve_roll(roll, threshold, crit_threshold=6):
 _KEYWORD_FIELDS = {
     "INFANTRY": "infantry", "BEASTS": "beasts", "SWARM": "swarm", "MOBILE": "mobile",
     "CHARACTER": "character", "MONSTER": "monster", "VEHICLE": "vehicle",
+    # The Visarch's mythic stance prints [ANTI-EPIC HERO 2+] - the first
+    # weapon here to name that keyword, and the profile flag already
+    # existed for rule 15.03 (Epic Challenge).
+    "EPIC HERO": "epic_hero",
 }
 
 
@@ -123,6 +163,13 @@ def _unit_has_keyword(squad, keyword):
     shares the same keywords anyway, so this is behaviorally identical to
     the old all()-based check there - the difference only matters once a
     squad actually mixes profiles (an attached unit, rule 19.01)."""
+    if keyword == NON_MONSTER_VEHICLE:
+        # The NEGATED form, which no keyword field can express - the
+        # Stonesinger prints [ANTI-non-MONSTER/VEHICLE X+]. Answered as the
+        # exact complement of is_monster_or_vehicle_unit(), which is the
+        # same pair Monster Hunters and Grim Reapers already use to divide
+        # the board between them.
+        return not is_monster_or_vehicle_unit(squad)
     field = _KEYWORD_FIELDS.get(keyword)
     if field is None:
         return False
@@ -243,7 +290,8 @@ def melta_adjusted_weapon(weapon, pairs, target_squad):
     return boosted
 
 
-def _model_can_reach(model, weapon, target_squad, obstacles, all_tokens=(), shooting_type=None, terrain_areas=()):
+def _model_can_reach(model, weapon, target_squad, obstacles, visible_models, all_tokens=(),
+                     shooting_type=None, terrain_areas=()):
     """Rule 10.07: an [INDIRECT FIRE] weapon fired as Indirect shooting can
     target units not visible to the attacking model - range still applies,
     line of sight doesn't. Rule 24.24 (LONE OPERATIVE): on top of the
@@ -251,7 +299,27 @@ def _model_can_reach(model, weapon, target_squad, obstacles, all_tokens=(), shoo
     a Lone Operative "cannot be targeted by [INDIRECT FIRE] weapons unless
     the attacking model is within X\" of this unit" - a per-MODEL
     restriction, since Indirect Fire otherwise lets any model in the unit
-    fire regardless of its own distance to the target."""
+    fire regardless of its own distance to the target.
+
+    `visible_models` is REQUIRED, and it is the models of `target_squad` rule
+    13.09 lets this attacking unit see - see _detectable_models(). Required
+    rather than defaulted to "all of them", because the default is precisely
+    the bug it exists to prevent:
+
+        Reported by a user, and measured on their own board. Hidden was asked
+        ONCE, at unit level, in _is_valid_target_squad ("is ANY model of the
+        target detectable"), and range+line of sight were asked here over
+        target_squad.models - so the two halves could be satisfied by
+        DIFFERENT models. On the reported board the Lokhust Destroyers had
+        line of sight to Pathfinders 1, 2 and 3 only, all three hidden and 20
+        to 22" away (detection range 15"), while the models that passed the
+        Hidden gate were 6 to 9, standing outside the ruin with no line of
+        sight to them at all. Nothing was both visible and shootable, and the
+        unit was shot anyway.
+
+    The LONE OPERATIVE clause below deliberately still measures against the
+    whole unit: its printed text is "within X\" of this UNIT", a distance, not
+    a visibility question."""
     bypass_los = shooting_type == INDIRECT_SHOOTING and weapon.indirect_fire
     if bypass_los:
         lone_range = status_effects.targeting_range_limit(target_squad)
@@ -268,7 +336,7 @@ def _model_can_reach(model, weapon, target_squad, obstacles, all_tokens=(), shoo
     return any(
         edge_distance(model, defender) <= reach_in
         and (bypass_los or line_of_sight.has_line_of_sight(model, defender, obstacles, all_tokens, terrain_areas))
-        for defender in target_squad.models
+        for defender in visible_models
     )
 
 
@@ -278,6 +346,16 @@ def is_close_quarters(weapon):
     [CLOSE-QUARTERS] (10.06/24.07) is checked, instead of duplicating each
     call site's logic for a second flag."""
     return weapon.close_quarters or weapon.pistol
+
+
+def _living_count(squad):
+    """Living models in a unit, right now.
+
+    Its own function because "living" is not "in Squad.models":
+    remove_dead_models() runs once per frame, so a model killed this
+    activation is still in the list with is_dead() True. Every count this file
+    compares across an activation has to mean the same thing."""
+    return sum(1 for m in (getattr(squad, "models", ()) or ()) if not m.is_dead())
 
 
 def _damaged_modifier(model):
@@ -361,10 +439,25 @@ def _attack_key(model, weapon):
     one-representative shortcut handed whichever bonus pairs[0] happened to
     carry to the whole group. Putting the bonus itself in the key is what
     makes that docstring true and the shortcut exact. It is 0 for every model
-    without the ability, so no group that already existed splits."""
+    without the ability, so no group that already existed splits.
+
+    Two T'au Enhancements are in the key for exactly that reason, and it is
+    exactly that trap: Precision of the Patient Hunter is a PER-MODEL bonus to
+    the Hit roll (and, from round 3, the Wound roll), and Prototype Weapon
+    System grants a keyword to THE BEARER's weapons only. After a rule 19.01
+    merge either is carried by one model out of ten, so without them here the
+    one-representative shortcut would hand pairs[0]'s answer to the whole
+    group. Both read 0/"" for every model without the Enhancement, so no group
+    that already existed splits."""
     return (effective_ballistic_skill(model, weapon), weapon.strength, weapon.ap, weapon.damage,
             is_close_quarters(weapon), weapon.melta,
-            getattr(model, "psychic_communion_bonus", 0))
+            getattr(model, "psychic_communion_bonus", 0),
+            enh_precision_patient_hunter.hit_bonus(model),
+            enh_prototype_weapon_system.attack_key(model),
+            # Seersight Strike and Psychic Destroyer are per BEARER and change
+            # characteristics this key groups on - fourth and fifth instance of
+            # the one-representative fix. (False, False) for every other model.
+            enh_psychic_weapons.attack_key(model))
 
 
 def _weapon_eligible_for_type(weapon, shooting_type, squad):
@@ -464,8 +557,13 @@ def available_shooting_types(squad, all_tokens, movement_controller=None):
     squad_has_battlesuit_support_system(). Wraithguard's "War Construct" is
     the second source of exactly the same exception, word for word ("this
     unit is eligible to shoot in a turn in which it Fell Back")."""
-    if (squad.fell_back_this_turn and not squad_has_battlesuit_support_system(squad)
-            and not squad_has_war_construct(squad)):
+    # The Foetid Bloat-drone's Hovering Death is the second exception to rule
+    # 09.07's shooting ban after a Fall Back, alongside the Crisis suits'
+    # Battlesuit Support System - so it is asked at the same gate.
+    # Commander Shadowsun's Agile Combatant is the fourth exception, and the
+    # third printed wording of the same sentence - so it is asked at the same
+    # gate as the other three.
+    if squad.fell_back_this_turn and not move_exceptions.may_shoot_after_falling_back(squad):
         return []
     engaged = squad.is_engaged(all_tokens)
     advanced = movement_controller is not None and squad in movement_controller.advanced_squad_ids
@@ -474,6 +572,13 @@ def available_shooting_types(squad, all_tokens, movement_controller=None):
     has_assault = any(weapon_has_assault(w, squad) for plist in groups.values() for _, w in plist)
     has_close_quarters = any(is_close_quarters(w) for plist in groups.values() for _, w in plist)
     has_indirect_fire = any(w.indirect_fire for plist in groups.values() for _, w in plist)
+
+    # Guardian Battlehost's Time to Strike and Windrider Host's Wind of Blades
+    # both say "your unit is eligible to shoot ... in a turn in which it
+    # Advanced" - about the UNIT, not about a weapon, so it cannot be a
+    # keyword grant. See game/move_exceptions.py.
+    if advanced and move_exceptions.may_shoot_after_advancing(squad):
+        advanced = False
 
     types = []
     if not engaged and not advanced:
@@ -505,7 +610,16 @@ class ShootingController:
         self, obstacles=None, game_log=None, player_name="Player 1", dice_manager=None,
         turn_tracker=None, all_tokens=None, movement_controller=None, terrain_areas=None,
         decision_manager=None, greater_good=None, suppression=None, objectives=None, stealth_drones=None,
+        barrage_of_filth=None, spore_laced=None,
         waaagh=None, target_reactions=(), nova_charge=None, ammo_runt=None, fire_support=None, hand_of_asuryan=None, guide=None, doom=None, whispering_web=None,
+        advanced_scouting=None, bounty_hunters=None, oversight_drone=None,
+        sonic_destruction=None, monofilament_snare=None, misfortune=None,
+        spirit_mark=None, piratical_raiders=None, fury_of_the_void=None,
+        fated_hero=None, herald_of_ynnead=None, path_of_the_warrior=None,
+        shepherds_of_the_dead=None,
+        targeting_array=None,
+        prototype_weapon_system=None,
+        unmasking_suite=None,
     ):
         self.active_squad = None
         self.state = IDLE
@@ -514,6 +628,15 @@ class ShootingController:
         self.terrain_areas = terrain_areas if terrain_areas is not None else []
         self.objectives = objectives if objectives is not None else []  # Breacher Team's Breach and Clear ability - see _wound_reroll_reason()
         self.game_log = game_log
+        # The Defiler's Barrage of Filth (game/barrage_of_filth.py), which strips
+        # cover from a unit it hit. A collaborator like `suppression` above rather
+        # than a flag, because the mark lives for a phase and belongs to nobody's
+        # Squad in particular.
+        self.barrage_of_filth = barrage_of_filth
+        # The Plagueburst Crawler's Spore-laced Shock Waves - fed at target
+        # selection, resolved from on_squad_finished_shooting. A collaborator
+        # for the same reason barrage_of_filth is one.
+        self.spore_laced = spore_laced
         self.player_name = player_name
         self.dice_manager = dice_manager
         self.turn_tracker = turn_tracker
@@ -528,6 +651,22 @@ class ShootingController:
         self.doom = doom  # Eldrad Ulthran's Doom mark - optional; read by _wound_modifiers() (see game/doom.py)
         self.whispering_web = whispering_web  # Lhykhis' Whispering Web mark - optional; read by the hit step's crit threshold (see game/whispering_web.py)
         self.fire_support = fire_support  # the Falcon's Fire Support mark - optional; read by _wound_reroll_reason() (see game/fire_support.py)
+        self.bounty_hunters = bounty_hunters  # Kroot Farstalkers' battle-long bounty - optional; read by _adjusted_weapon()'s chain (see game/bounty_hunters.py)
+        self.oversight_drone = oversight_drone  # the Vespid Strain Leader's once-per-battle [IGNORES COVER] - optional, same shape and same start_shooting()-only trigger as nova_charge (see game/oversight_drone.py)
+        self.targeting_array = targeting_array  # the two gunships' once-per-activation single-die re-roll - optional; its ledger is opened by start_shooting() and closed by _actually_finish_squad() (see game/targeting_array.py)
+        self.unmasking_suite = unmasking_suite  # Advanced Acquisition Cadre's Unmasking Suite Enhancement - optional; read by rule 13.09's detectability check, and opened/closed on the same activation seams as prototype_weapon_system below ("when this unit is selected to shoot" / "until this unit has shot"). See game/enh_unmasking_suite.py
+        self.prototype_weapon_system = prototype_weapon_system  # Retaliation Cadre's Prototype Weapon System Enhancement - optional; opened and closed on the SAME two seams as targeting_array above, because its printed timing is the same pair ("each time the bearer is selected to shoot" / "until those attacks are resolved"). See game/enh_prototype_weapon_system.py
+        self.advanced_scouting = advanced_scouting  # the Kroot Lone-Spear's mark - optional; WRITTEN by the hit step (a mark placed by a hit, not by an attack) and read by _hit_reroll_reason() (see game/advanced_scouting.py)
+        self.fated_hero = fated_hero  # the Wraithlord's chosen-keyword ledger - optional; read by BOTH _hit_reroll_reason() and _wound_reroll_reason(), because the printed text re-rolls a 1 on each (see game/fated_hero.py)
+        self.shepherds_of_the_dead = shepherds_of_the_dead  # Spirit Conclave's Vengeful Dead tokens - optional; read by BOTH _hit_modifiers() and _wound_modifiers() here and in game/fight.py, because the printed text says "makes an attack" (see game/shepherds_of_the_dead.py)
+        self.path_of_the_warrior = path_of_the_warrior  # Aspect Host's per-activation choice of a mandatory 1s re-roll on Hit OR Wound - optional; offered by start_shooting() and read by BOTH automatic-ones branches in this file (see game/path_of_the_warrior.py)
+        self.herald_of_ynnead = herald_of_ynnead  # Yvraine's start-of-Fight-phase mark - optional. A BELIEVED NO-OP on this side today and wired anyway: the printed text says "makes an attack", not "a melee attack", but the mark is set at the start of the Fight phase and cleared at its end, so nothing in an ordinary Shooting phase can see it. Written out rather than left to the next reader to re-derive - the same call Command Protocols records. See game/ynnari_abilities.py
+        self.misfortune = misfortune  # the Farseer Skyrunner's mark - optional; read here on the ATTACKER side, since it penalises the marked unit's OWN Wound rolls (see game/misfortune.py)
+        self.spirit_mark = spirit_mark  # the Spiritseer's (friendly, enemy) pairs - optional; see game/spiritseer.py
+        self.piratical_raiders = piratical_raiders  # the Voidscarred's battle-long mark - optional; see game/corsair_abilities.py
+        self.fury_of_the_void = fury_of_the_void  # Kharseth's riven mark - optional; a STRENGTH change, so it rides the adjuster chain (see game/fury_of_the_void.py)
+        self.sonic_destruction = sonic_destruction  # the Vibro Cannon Platforms' shared per-phase ledger - optional; see game/sonic_destruction.py
+        self.monofilament_snare = monofilament_snare  # the Shadow Weaver Platforms' snare marks - optional; WRITTEN here (the mark is placed by a hit) and read from game/movement.py
         self.ammo_runt = ammo_runt  # Flash Gitz' Ammo Runt wargear - optional, same shape and same start_shooting()-only trigger as nova_charge (see game/ammo_runt.py)
         self.nova_charge = nova_charge  # Riptide Battlesuit's Nova Charge ability - optional, like greater_good; offered from start_shooting() only (see game/nova_charge.py)
         self.waaagh = waaagh  # Orks army rule "Waaagh!" - optional, like greater_good (its invulnerable-save boost applies to an Ork squad being SHOT AT, not just when it's shooting/fighting); see game/waaagh.py
@@ -542,6 +681,16 @@ class ShootingController:
         self.shot_squad_ids = set()
         self.fired_weapon_types = {}  # squad -> set of attack_keys already fired this phase
         self.last_ranged_attack_turn = {}  # squad -> turn_tracker.turn_number_for(owner) as of its last shot (rule 13.09)
+        # Auxiliary Cadre's prey mark, set after construction like the other
+        # optional collaborators here. None means "no such detachment in this
+        # battle", and rule 13.09 then measures the printed detection range.
+        self.auxiliary_cadre = None
+        # Kauyon's A Tempting Trap, for the wound step. None means "nobody
+        # plays that detachment", and the modifier is simply never added.
+        self.tempting_trap = None
+        # Mont'ka's Pinpoint Counter-Offensive, for the hit re-roll. None
+        # means nobody plays that detachment.
+        self.pinpoint_counter_offensive = None
         self.one_shot_used = set()  # rule 24.26: (model.id, id(weapon)) pairs already fired - persists for the whole battle, never reset
         # Shroud Runners' Target Acquisition needs to know WHICH weapon hit,
         # not just which unit - "hit by one or more of those attacks made with
@@ -549,7 +698,13 @@ class ShootingController:
         # names the weapon that way too and the deciding is left to
         # game/target_acquisition.py rather than done here.
         self._hit_weapon_names_this_activation = {}  # id(squad) -> {weapon name}
+        self._living_when_first_hit = {}  # id(squad) -> living models when first hit this activation; see _handle_hit_results() and models_lost_this_activation()
         self._hit_target_squads_this_activation = set()  # Suppression Volley: enemy squads hit by 1+ attacks this activation, see _handle_hit_results()/on_squad_finished_shooting
+        # Maugan Ra's Harvester of Souls needs "every attack targets the SAME
+        # unit", which the hit set above cannot answer: a group that targeted a
+        # second unit and missed with everything still split the fire. Recorded
+        # at _begin_resolution(), where the target is decided.
+        self._targeted_squads_this_activation = set()
         # Rule 13.09 (Hidden): whether this activation has actually resolved a
         # weapon group yet. Deliberately NOT _hit_target_squads_this_activation,
         # which is about HITTING - a unit that fires and misses with everything
@@ -582,12 +737,6 @@ class ShootingController:
         self.resolved_groups = []    # queued {"weapon_key", "weapon_label", "target_squad", "pairs"} dicts
 
         self.current_group = None    # the group currently being rolled
-        # Defaults for the per-group counters set in _begin_resolution() -
-        # see there for what they are for (game/aspect_shrine.py).
-        self._hit_dice_count = None
-        self._wound_dice_count = None
-        self._aspect_shrine_hit_offered = False
-        self._aspect_shrine_wound_offered = False
         self.pending_step = None     # "attacks" | "hit" | "wound" | "save" | "save_crit_ap" | "allocate" | None
         self.damage_session = None   # DamageAllocationSession while pending_step == "allocate"
         self.devastating_wound_session = None  # DevastatingWoundAllocationSession, rule 24.10
@@ -731,6 +880,8 @@ class ShootingController:
         self._hazardous_count = 0
         self._lethal_hits_auto_wounds = 0
         self._hit_target_squads_this_activation = set()
+        self._living_when_first_hit = {}
+        self._targeted_squads_this_activation = set()
         self._hit_weapon_names_this_activation = {}
         self._fired_this_activation = False
         # An activation started HERE is by definition the unit's own, not a
@@ -760,6 +911,36 @@ class ShootingController:
             self.hand_of_asuryan.maybe_offer(squad)
         if self.ammo_runt is not None:
             self.ammo_runt.offer(squad)
+        # The Vespid Strain Leader's Oversight Drone - "when the bearer's
+        # unit is SELECTED TO SHOOT", which is this instant. Offered here
+        # only, never mid-sequence, exactly like Nova Charge above.
+        if self.oversight_drone is not None:
+            self.oversight_drone.offer(squad)
+        # The gunships' Targeting Array is "each time this model is SELECTED
+        # TO SHOOT" - so this instant opens its one use for the activation.
+        # No offer here: it is a panel button on the roll, not a decision now.
+        if self.targeting_array is not None:
+            self.targeting_array.begin_activation(squad)
+        # Path of the Outcast's Far-Reaching Doom: "when a friendly
+        # RANGERS/SHROUD RUNNERS unit is SELECTED TO SHOOT". Same pair of
+        # seams as the targeting array above, because it is the same printed
+        # window - opened here, closed in _actually_finish_squad(). Module
+        # state rather than a controller: game/detection_range.py's fold reads
+        # it from inside a pure function.
+        far_reaching_doom.begin_shooting(squad)
+        # Aspect Host's Path of the Warrior: "each time an ASPECT WARRIORS
+        # or AVATAR OF KHAINE unit is SELECTED TO SHOOT or fight, select one
+        # of the following". A real choice between two exclusive options,
+        # so a real prompt - unlike Herald of Ynnead, whose single option
+        # was pure gain. The fight step offers the same thing at its own
+        # activation, and the ledger keys on the phase so the two are
+        # independent.
+        if self.path_of_the_warrior is not None:
+            self.path_of_the_warrior.offer(squad)
+        if self.prototype_weapon_system is not None:
+            self.prototype_weapon_system.begin_activation(squad)
+        if self.unmasking_suite is not None:
+            self.unmasking_suite.begin_activation(squad)
         self.available_types = available_shooting_types(squad, self.all_tokens, self.movement_controller)
         if len(self.available_types) == 1:
             self.shooting_type = self.available_types[0]
@@ -801,6 +982,8 @@ class ShootingController:
         self._hazardous_count = 0
         self._lethal_hits_auto_wounds = 0
         self._hit_target_squads_this_activation = set()
+        self._living_when_first_hit = {}
+        self._targeted_squads_this_activation = set()
         self._hit_weapon_names_this_activation = {}
         self._fired_this_activation = False
         self._reactive = True
@@ -843,6 +1026,8 @@ class ShootingController:
         self._hazardous_count = 0
         self._lethal_hits_auto_wounds = 0
         self._hit_target_squads_this_activation = set()
+        self._living_when_first_hit = {}
+        self._targeted_squads_this_activation = set()
         self._hit_weapon_names_this_activation = {}
         self._fired_this_activation = False
         self.shooting_type = SNAP_SHOOTING
@@ -996,6 +1181,13 @@ class ShootingController:
         # target the grant excluded.
         if self._restrict_targets_to is not None and target_squad not in self._restrict_targets_to:
             return False
+        # Mont'ka's Focused Fire: "it can only target that enemy unit".
+        # Checked beside the grant restriction above and for the same
+        # reason - it is absolute, and no later clause restores a target it
+        # excluded. The "(and only if it is an eligible target)" clause is
+        # the rest of this method, which still runs.
+        if not montka_focused_fire.target_allowed(attacking_squad, target_squad):
+            return False
         if target_squad.owner == attacking_squad.owner:
             return False
         if shooting_type == CLOSE_QUARTERS_SHOOTING:
@@ -1036,12 +1228,29 @@ class ShootingController:
             for defender in target_squad.models
         ):
             return False
-        return any(
-            status_effects.is_detectable(
-                model, attacking_squad, self.terrain_areas, self.turn_tracker, self.last_ranged_attack_turn,
+        return bool(self._detectable_models(target_squad, attacking_squad))
+
+    def _detectable_models(self, target_squad, attacking_squad):
+        """Rule 13.09, per DEFENDER: which of `target_squad`'s models this
+        attacking unit is allowed to see right now.
+
+        The ONE definition, read by both halves of targeting - the unit-level
+        gate above ("is there anything here I may see") and _model_can_reach()
+        ("is one of those in range and in line of sight"). They used to ask it
+        separately, the unit-level one with any() and the other not at all,
+        which let a unit be TARGETED through models the shooter could not see
+        and then SHOT through models it was not allowed to see. See
+        _model_can_reach()'s own note for the reported board that showed it."""
+        if target_squad is None or attacking_squad is None:
+            return []
+        return [
+            model for model in target_squad.models
+            if status_effects.is_detectable(
+                model, attacking_squad, self.terrain_areas, self.turn_tracker,
+                self.last_ranged_attack_turn,
+                prey_marks=self.auxiliary_cadre, unmasking=self.unmasking_suite,
             )
-            for model in target_squad.models
-        )
+        ]
 
     def has_valid_target(self, squad, shooting_type, all_tokens, target_filter=None):
         """Whether `squad` would have at least one legal target if it
@@ -1076,7 +1285,9 @@ class ShootingController:
         return any(
             self._is_valid_target_squad(target_squad, all_tokens, attacking_squad=squad, shooting_type=shooting_type)
             and any(
-                _model_can_reach(model, weapon, target_squad, self.obstacles, all_tokens, shooting_type, self.terrain_areas)
+                _model_can_reach(model, weapon, target_squad, self.obstacles,
+                                 self._detectable_models(target_squad, squad),
+                                 all_tokens, shooting_type, self.terrain_areas)
                 for model, weapon in pairs
             )
             for target_squad in candidate_squads
@@ -1194,8 +1405,9 @@ class ShootingController:
                 key = (model, id(weapon), target_squad)
                 if key not in self._reach_snapshot:
                     self._reach_snapshot[key] = _model_can_reach(
-                        model, weapon, target_squad, self.obstacles, self.all_tokens,
-                        self.shooting_type, self.terrain_areas,
+                        model, weapon, target_squad, self.obstacles,
+                        self._detectable_models(target_squad, self.active_squad),
+                        self.all_tokens, self.shooting_type, self.terrain_areas,
                     )
 
     def _can_reach(self, model, weapon, target_squad):
@@ -1216,8 +1428,9 @@ class ShootingController:
         if key in self._reach_snapshot:
             return self._reach_snapshot[key]
         return _model_can_reach(
-            model, weapon, target_squad, self.obstacles, self.all_tokens,
-            self.shooting_type, self.terrain_areas,
+            model, weapon, target_squad, self.obstacles,
+            self._detectable_models(target_squad, model.squad),
+            self.all_tokens, self.shooting_type, self.terrain_areas,
         )
 
     def _squad_qualifies(self, squad, all_tokens, checker, cache):
@@ -1255,8 +1468,10 @@ class ShootingController:
             cache = {}
 
             def check(squad):
+                visible = self._detectable_models(squad, self.active_squad)
                 return self._is_valid_target_squad(squad, all_tokens) and any(
-                    _model_can_reach(model, weapon, squad, self.obstacles, all_tokens, self.shooting_type, self.terrain_areas)
+                    _model_can_reach(model, weapon, squad, self.obstacles, visible,
+                                     all_tokens, self.shooting_type, self.terrain_areas)
                     for model, weapon in pairs
                 )
 
@@ -1271,7 +1486,9 @@ class ShootingController:
 
             def check(squad):
                 return self._is_valid_target_squad(squad, all_tokens) and _model_can_reach(
-                    model, weapon, squad, self.obstacles, all_tokens, self.shooting_type, self.terrain_areas
+                    model, weapon, squad, self.obstacles,
+                    self._detectable_models(squad, self.active_squad),
+                    all_tokens, self.shooting_type, self.terrain_areas
                 )
 
             return {
@@ -1687,6 +1904,13 @@ class ShootingController:
             and self.greater_good.is_guided_attack(self.active_squad, target_squad)
             and self.greater_good.marked_by_markerlight(target_squad)
         )
+        # Kauyon's Coordinate to Engage grants [IGNORES COVER] as well, but
+        # only "if your unit has the MARKERLIGHT keyword" - so the two halves
+        # of that Stratagem are asked separately, and a unit without the
+        # keyword gets the Ballistic Skill half alone.
+        if kauyon_coordinate_to_engage.ignores_cover(
+                self.greater_good, self.active_squad, target_squad):
+            return True
         # Pathfinder Team's Target Uploaded: "that attack has the [IGNORES
         # COVER] ability" against the unit THIS unit Spotted. ORed, not
         # summed - see game/target_uploaded.py on why it and the Guided
@@ -1777,19 +2001,19 @@ class ShootingController:
             "target_squad": target_squad,
         }
         self._twin_linked_used = False  # rule 24.38: fresh chance to re-roll for each new weapon group's attacks
-        # ASPECT WARRIORS wargear (game/aspect_shrine.py): how many dice each
-        # step of THIS group threw. The count never changes across re-rolls
-        # (a re-roll replaces dice, it never adds or removes any), so it is
-        # an exact way to recover the failure count at the end of the step
-        # without threading it through every signature in between. None
-        # means that step made no roll at all ([TORRENT], or a fully
-        # auto-wounded group), i.e. no failures.
-        self._hit_dice_count = None
-        self._wound_dice_count = None
-        self._aspect_shrine_hit_offered = False   # at most one offer per group per step
-        self._aspect_shrine_wound_offered = False
         self._hit_reroll_used = False  # Monster Hunters: likewise a fresh chance per weapon group - see _hit_reroll_choice_needed()
         self._rolled_strength = None  # a dice-notation Strength is rolled once per weapon group - see _effective_strength()
+        if target_squad is not None:
+            self._targeted_squads_this_activation.add(target_squad)
+        # Sonic Destruction's ledger, the 'also targeted that enemy unit this
+        # phase' half. Noted HERE, the same seam Spore-laced Shock Waves uses,
+        # because this is where target and weapon are first both known - and
+        # noted for EVERY firing platform, not just the ones that benefit,
+        # since the first shooter is what the second one counts.
+        if self.sonic_destruction is not None:
+            for _model, _weapon in (pairs or ()):
+                self.sonic_destruction.note_attack(
+                    _model, _weapon, target_squad, reactive=self._reactive)
 
         if not pairs or not target_squad.models:
             self._finish_group()
@@ -1798,6 +2022,16 @@ class ShootingController:
         shooter_model = pairs[0][0]
         if self.turn_tracker is not None:
             self.turn_tracker.set_active(shooter_model.squad.owner)
+
+        # The Plagueburst Crawler's Spore-laced Shock Waves: "each time you
+        # SELECT A TARGET for this model's Plagueburst mortar". This engine
+        # picks the target first and the weapon second, so the printed instant
+        # is the moment the MORTAR's group begins resolving against that
+        # target - the first point at which both halves of the clause are
+        # known. The D6s are rolled here, before any attack, which is what
+        # freezes the set of units at risk (see the module's own docstring).
+        if self.spore_laced is not None:
+            self.spore_laced.notify_target_selected(self.active_squad, pairs[0][1], target_squad)
 
         weapon = pairs[0][1]
         # Psychic Communion (Warlock Conclave) adds to the ATTACKS
@@ -1955,6 +2189,32 @@ class ShootingController:
         # game/psychic_guidance.py.
         if psychic_guidance.applies(self.active_squad, self.all_tokens):
             modifiers.append(Modifier(-1, "Psychic Guidance"))
+        # Prince Yriel's Piratical Hero, second half: "add 1 to the Hit roll"
+        # while he leads. A bonus, so a -1 on the threshold.
+        if corsair_abilities.piratical_hero_applies(self.active_squad):
+            modifiers.append(Modifier(-1, corsair_abilities.PIRATICAL_HERO_LABEL))
+        # Guardian Battlehost's Defend at All Costs: +1 to Hit for a DIRE
+        # AVENGERS/GUARDIANS/SUPPORT WEAPON/WAR WALKERS model while its unit
+        # AND/OR the target is within range of an objective. "makes an attack",
+        # so it is in both phases' hit modifiers, like Psychic Guidance above.
+        # Appended here, i.e. BEFORE the ignore-modifier filters at the end of
+        # this method - a bonus added after them would simply be dropped.
+        modifiers.extend(defend_at_all_costs.hit_modifiers(
+            [m for m, _ in group["pairs"]], self.active_squad, target_squad,
+            self.objectives))
+        # Spirit Conclave's Shepherds of the Dead: +1 Hit AND +1 Wound for a
+        # WRAITH CONSTRUCT against a unit carrying Vengeful Dead tokens. Two
+        # modifiers at two seams, in both phases - "makes an attack".
+        if self.shepherds_of_the_dead is not None:
+            modifiers.extend(self.shepherds_of_the_dead.hit_modifiers(
+                self.active_squad, target_squad))
+        # The Wraithlord prints the same ability NAME with the other half:
+        # "improve the Ballistic Skill and Weapon Skill characteristics of
+        # weapons equipped by this model by 1". Separate flag, separate
+        # predicate, same arithmetic - see game/psychic_guidance.py for why
+        # the two readings cannot diverge in this engine.
+        if psychic_guidance.applies_characteristics(self.active_squad, self.all_tokens):
+            modifiers.append(Modifier(-1, "Psychic Guidance"))
         # The Farseer's Guide: "each time a friendly AELDARI model makes an
         # attack that targets that enemy unit, add 1 to the Hit roll" - a
         # bonus, so a -1 on the threshold. Army-wide, not unit-wide, which
@@ -2001,6 +2261,15 @@ class ShootingController:
             # stack into -2; see game/target_uploaded.py.
             modifiers.append(Modifier(-1, "Target Uploaded"))
         modifiers.extend(tank_hunters_modifiers(shooter_model, target_squad))
+        # Warhost's Lightning-Fast Reactions - DEFENDER-side, like Guardian
+        # Drone above: a penalty on the attacker's Hit roll because of
+        # something the unit being attacked bought. Its printed WHEN names
+        # both attack phases, so it is read in both files.
+        modifiers.extend(
+            warhost_lightning_fast_reactions.hit_modifiers(target_squad))
+        # The Hammerhead's Armour Hunter - Tank Hunters with the WOUND half
+        # missing, so it sits beside it and shares its keyword test.
+        modifiers.extend(armour_hunter_module.modifiers(shooter_model, target_squad))
         # Riptide Battlesuit's "Weapon Support System" wargear ability
         # (user-supplied, not a core rule), and Dark Reapers' "Inescapable
         # Accuracy", which prints the same permission under another name:
@@ -2023,7 +2292,41 @@ class ShootingController:
         # placing it here means that stays true by construction rather than by
         # where the line happens to sit.
         modifiers.extend(awakened_dynasty.hit_modifiers(self.active_squad))
+        # The Death Guard Plague Skullsquirm Blight: "each time a model in this
+        # [Afflicted] unit makes an attack, subtract 1 from the Hit roll". "An
+        # attack", not "a ranged attack", so game/fight.py reads the same
+        # function - and it is asked of the SHOOTER, since it is the afflicted
+        # unit's own attacks that are blunted.
+        modifiers.extend(plagues.hit_modifiers(self.active_squad))
+        # Kauyon's Precision of the Patient Hunter Enhancement: "each time the
+        # BEARER makes a ranged attack, add 1 to the Hit roll" - per MODEL, and
+        # shooter_model is exact for it because the Enhancement is part of
+        # _attack_key(). Added before the two ignore-modifier filters, like
+        # Command Protocols above and for the same reason: it is an IMPROVING
+        # modifier, so both filters keep it, and placing it here means that
+        # stays true by construction rather than by where the line sits.
+        modifiers.extend(enh_precision_patient_hunter.hit_modifiers(shooter_model))
         if shooter_model.profile.ignores_hit_modifiers:
+            modifiers = [m for m in modifiers if m.amount <= 0]
+        # Kauyon's Patient Hunter, second half: "you can ignore any or all
+        # modifiers to that attack's Ballistic Skill characteristic and/or all
+        # modifiers to the Hit roll" while Guided against a Spotted unit, in
+        # rounds 3-5. Word for word what the flag above and [PSYCHIC] below
+        # say, so it gets their treatment - drop the worsening modifiers, keep
+        # the improving ones, automatically. See game/kauyon.py for why a
+        # "you can" is resolved without asking.
+        # Kauyon's Coordinate to Engage: "improve the Ballistic Skill
+        # characteristic of that attack by 1" against the unit this OBSERVER
+        # marked - a better BS is a LOWER threshold, so -1 per this file's
+        # Modifier convention. Added BEFORE the ignore-modifier filters, like
+        # Command Protocols above and for the same reason: it is an IMPROVING
+        # modifier, so both filters keep it, and placing it here means that
+        # stays true by construction.
+        if kauyon_coordinate_to_engage.applies(
+                self.greater_good, self.active_squad, target_squad):
+            modifiers.append(Modifier(-1, "Coordinate to Engage"))
+        if kauyon.hit_modifiers_ignored(
+                self.active_squad, target_squad, self.turn_tracker, self.greater_good):
             modifiers = [m for m in modifiers if m.amount <= 0]
         if weapon.psychic:
             # Rule 24.29 ([PSYCHIC]): "you can ignore any or all modifiers...
@@ -2033,6 +2336,15 @@ class ShootingController:
             # a real downstream trade-off) this is applied automatically
             # rather than as an interactive decision - there's no case where
             # keeping a positive modifier would ever be the better play.
+            modifiers = [m for m in modifiers if m.amount <= 0]
+        # Aspect Host's Warrior Focus: "ignore any or all modifiers to that
+        # attack's Ballistic Skill, Weapon skill ... and/or any or all
+        # modifiers to the Hit roll". Three printed nouns, one threshold
+        # here - so it gets the same treatment as the flag above and
+        # [PSYCHIC]: drop the worsening modifiers, keep the improving
+        # ones, automatically. Its Strength/AP/Damage third rides the
+        # adjuster chain instead.
+        if aspect_warrior_focus.ignores_hit_modifiers(self.active_squad):
             modifiers = [m for m in modifiers if m.amount <= 0]
         return modifiers
 
@@ -2060,6 +2372,21 @@ class ShootingController:
         modifiers = []
         if squad_has_guardian_drone(target_squad):
             modifiers.append(Modifier(1, "Guardian Drone"))
+        # The Farseer Skyrunner's Misfortune: a MARKED enemy unit subtracts 1
+        # from its OWN Wound rolls. Attacker-side, unlike the defender-side
+        # maluses below it - the mark sits on the unit attacking HERE, so
+        # reading it against target_squad would build the mirror image of
+        # the printed rule. A malus, so a POSITIVE modifier.
+        if (self.misfortune is not None
+                and self.misfortune.afflicts(self.active_squad)):
+            modifiers.append(Modifier(misfortune_module.MISFORTUNE_PENALTY,
+                                      misfortune_module.MISFORTUNE_LABEL))
+        # Commander Shadowsun's Advanced Guardian Drone - the same malus
+        # one word narrower ("targets the bearer", not "the bearer's
+        # unit"), which on a LONE OPERATIVE single-model unit is the same
+        # set of attacks. See game/squad.py's own note.
+        if squad_has_advanced_guardian_drone(target_squad):
+            modifiers.append(Modifier(1, "Advanced Guardian Drone"))
         # War Horde's 'Ard as Nails (user-supplied): "each time an attack
         # targets your unit, subtract 1 from the Wound roll" - the same
         # defender-side malus as the Guardian Drone above, from a stratagem
@@ -2080,6 +2407,25 @@ class ShootingController:
         # rather than a malus, so a NEGATIVE amount. See game/doom.py.
         if self.doom is not None and self.doom.applies_to_squad(self.active_squad, target_squad):
             modifiers.append(Modifier(DOOM_WOUND_BONUS, "Doom"))
+        # Darkstrider's Structural Analyser: "while this model is leading a
+        # unit, each time a model in that unit makes a ranged attack, add 1 to
+        # the Wound roll" - only the SECOND attacker-side entry in this
+        # defender-oriented list, after Tank Hunters just below, and a BONUS,
+        # so a negative amount (see game/structural_analyser.py on the sign).
+        if structural_analyser_module.applies(self.active_squad):
+            modifiers.append(Modifier(
+                structural_analyser_module.STRUCTURAL_ANALYSER_WOUND_MODIFIER,
+                structural_analyser_module.STRUCTURAL_ANALYSER_LABEL))
+        # Shepherds of the Dead's second half: the SAME condition as the hit
+        # modifier, on the other roll. Two seams rather than one, because the
+        # printed text adds 1 to each.
+        if self.shepherds_of_the_dead is not None:
+            modifiers.extend(self.shepherds_of_the_dead.wound_modifiers(
+                self.active_squad, target_squad))
+        # Guardian Battlehost's Shield Nodes - DEFENDER-side, like Guardian
+        # Drone and Protect beside it: a penalty on the attacker's Wound roll
+        # because of something about the unit being shot at.
+        modifiers.extend(guardian_shield_nodes.wound_modifiers(target_squad))
         if self.active_squad.models:
             modifiers.extend(tank_hunters_modifiers(self.active_squad.models[0], target_squad))
         # Commander Farsight's Way of the Short Blade: "+1 to the Wound
@@ -2106,7 +2452,38 @@ class ShootingController:
             modifiers.append(Modifier(
                 guardian_protocols.GUARDIAN_PROTOCOLS_PENALTY,
                 guardian_protocols.GUARDIAN_PROTOCOLS_LABEL))
+        # Kauyon's A Tempting Trap: "add 1 to the Wound roll" against an enemy
+        # within range of the player's Trap objective - an ATTACKER-side entry
+        # in a mostly defender-side list, like Structural Analyser, so it reads
+        # self.active_squad for the shooter. A bonus, so a -1 on the threshold.
+        if (self.tempting_trap is not None
+                and self.tempting_trap.wound_bonus_applies(self.active_squad, target_squad)):
+            modifiers.append(Modifier(-1, kauyon_tempting_trap.TEMPTING_TRAP_NAME))
+        # Kauyon's Precision of the Patient Hunter Enhancement, second half:
+        # "from the third battle round onwards, add 1 to the Wound roll as
+        # well". PER MODEL, so it needs the group's shooter rather than
+        # self.active_squad - and that read is exact rather than a
+        # simplification, because the Enhancement is part of _attack_key().
+        modifiers.extend(enh_precision_patient_hunter.wound_modifiers(
+            self._representative_shooter(), self.turn_tracker))
         return modifiers
+
+    def _representative_shooter(self):
+        """The model whose per-model properties stand for the weapon group
+        currently being resolved.
+
+        current_group is set before a group is dispatched and holds its pairs,
+        so this is the SAME model _hit_modifiers() reads as `shooter_model`.
+        Falls back to the unit's first model for the callers that ask outside a
+        live group (previews and log lines), which is the older
+        one-representative simplification this file already uses for
+        Tank Hunters - and is exact for anything that is part of
+        _attack_key()."""
+        group = self.current_group
+        if group and group.get("pairs"):
+            return group["pairs"][0][0]
+        models = getattr(self.active_squad, "models", None) or []
+        return models[0] if models else None
 
     def _forward_observers_applies(self, target_squad):
         """Stealth Battlesuits' "Forward Observers" ability (user-supplied,
@@ -2176,50 +2553,7 @@ class ShootingController:
         Shrine token can be offered against the roll that actually STANDS,
         and it has to happen before _apply_sustained_hits_now() below turns
         criticals into extra hits."""
-        if self._offer_aspect_shrine_hit(hits, crits, weapon, target_squad, weapon_label):
-            return
         self._apply_sustained_hits_now(hits, crits, weapon, target_squad, weapon_label)
-
-    def _offer_aspect_shrine_hit(self, hits, crits, weapon, target_squad, weapon_label):
-        """ASPECT WARRIORS wargear: "change the result of one Hit roll ... to
-        an unmodified 6". Returns True if a decision was raised, in which case
-        the caller must stop - the chosen callback resumes the step.
-
-        The miss count is derived rather than threaded through the nine
-        signatures between here and the roll, and it is exact: _hit_dice_count
-        is the number of attacks this group made, and no re-roll can change
-        that - a re-roll replaces dice, it never adds or removes any. None
-        means no Hit roll happened at all ([TORRENT]), which is correctly zero
-        misses."""
-        if self.decision_manager is None or self.current_group is None or self._aspect_shrine_hit_offered:
-            return False
-        squad = self.active_squad
-        pairs = self.current_group.get("pairs") or ()
-        model = pairs[0][0] if pairs else None
-        misses = 0 if self._hit_dice_count is None else max(0, self._hit_dice_count - hits)
-        source, change = _unmodified_six_source(
-            "hit_change", squad, model, weapon, hits, crits, misses)
-        if change is None:
-            return False
-        self._aspect_shrine_hit_offered = True
-        new_hits, new_crits, what = change
-
-        def spend():
-            source.spend(squad)
-            self._log(
-                f"{weapon_label}: {source.ACCEPT_LABEL} - one hit roll counts as an unmodified 6 "
-                f"({hits} hit(s) of which {crits} critical -> {new_hits} of which {new_crits})."
-            )
-            self._apply_sustained_hits_now(new_hits, new_crits, weapon, target_squad, weapon_label)
-
-        def keep():
-            self._apply_sustained_hits_now(hits, crits, weapon, target_squad, weapon_label)
-
-        self.decision_manager.request(
-            squad.owner, source.prompt_for(squad, weapon_label, what, "hit"),
-            [(source.ACCEPT_LABEL, spend), ("Keep the roll", keep)],
-        )
-        return True
 
     def _apply_sustained_hits_now(self, hits, crits, weapon, target_squad, weapon_label):
         """The part of the hit step that must run on the FINAL hit roll -
@@ -2350,7 +2684,20 @@ class ShootingController:
         "if every model in a unit has this ability", that unit unconditionally
         has the benefit of cover against every ranged attack - checked first
         so a Stealth unit never needs terrain/visibility at all."""
+        if self.barrage_of_filth is not None and self.barrage_of_filth.denies_cover(target_squad):
+            # The Defiler's Barrage of Filth: "that unit CANNOT have the
+            # benefit of Cover". Checked FIRST and returning False, because it
+            # is an absolute statement while everything below it is a grant -
+            # so it has to beat STEALTH and the two Death Guard cover-granting
+            # abilities rather than merely joining them.
+            return False
         if squad_has_stealth(target_squad):
+            return True
+        # The Daemon Prince's Miasma of Pestilence - the third unconditional
+        # grant here, and asked of the TARGET where Skullsquirm Blight above is
+        # asked of the shooter. The two read almost identically in prose and
+        # sit on opposite sides of this function.
+        if miasma_of_pestilence.applies(target_squad, self.all_tokens):
             return True
         for model in target_squad.models:
             keyword_in_area = (
@@ -2501,13 +2848,12 @@ class ShootingController:
             # (Unbridled Carnage, Mandiblasters) out. See game/crit_hit.py.
             crit_threshold = crit_hit_threshold(
                 group["pairs"][0][0], target_squad, self.whispering_web,
-                hit_threshold=threshold,
+                hit_threshold=threshold, weapon=weapon,
             )
             results = [_resolve_roll(r, threshold, crit_threshold) for r in rolls]
             hits = sum(1 for r in results if r != "fail")
             crits = sum(1 for r in results if r == "critical")
             misses = len(rolls) - hits
-            self._hit_dice_count = len(rolls)
             # Only 1s that still have their re-roll left (a dice can never be
             # re-rolled more than once) - a die a Command Re-roll (15.02) has
             # already thrown stays as it landed, even on a 1.
@@ -2537,15 +2883,42 @@ class ShootingController:
                 self.active_squad, target_squad, self._eligible_target_squads())
             tyrant = protocol_conquering_tyrant.applies(
                 self.active_squad, weapon, group.get("pairs"), target_squad)
+            # Commander Shadowsun's Hero of the Empire - the only AURA among
+            # these, so it is a property of where her model stands rather than
+            # of the attacking unit, and it re-rolls the HIT roll only (Forward
+            # Observers, which it otherwise resembles, does both).
+            hero_aura = hero_of_the_empire_module.applies(self.active_squad, self.all_tokens)
+            fireknife_ones = fireknife.applies(self.active_squad)
+            # Reavers of the Void's base clause: "re-roll a Hit roll of 1",
+            # unconditional. Its whole-roll upgrade is the reason above, and
+            # when that is on offer these 1s are held back like every other
+            # two-clause source here.
+            reavers_ones = reavers_of_the_void.applies(self.active_squad)
+            # Path of the Warrior's first option. A PLAIN automatic 1s
+            # re-roll - no "you can", no "instead" - so it belongs in this
+            # disjunction and NOT in _hit_reroll_reason(), which drives the
+            # failures-or-whole offer the printed text never gives.
+            warrior_hit_ones = (self.path_of_the_warrior is not None
+                                and self.path_of_the_warrior.hit_ones_apply(self.active_squad))
             automatic_ones = ones and not ones_or_whole_choice and (
                 self._forward_observers_applies(target_squad)
                 or swift_demise.applies(self.active_squad)
                 or hard_wired
                 or tyrant
+                or hero_aura
+                or fireknife_ones
+                or reavers_ones
+                or warrior_hit_ones
             )
             if automatic_ones:
                 if self._forward_observers_applies(target_squad):
                     ones_reason = "Forward Observers"
+                elif hero_aura:
+                    ones_reason = hero_of_the_empire_module.HERO_OF_THE_EMPIRE_LABEL
+                elif fireknife_ones:
+                    ones_reason = fireknife.FIREKNIFE_LABEL
+                elif reavers_ones:
+                    ones_reason = reavers_of_the_void.REAVERS_OF_THE_VOID_LABEL
                 elif swift_demise.applies(self.active_squad):
                     ones_reason = swift_demise.SWIFT_DEMISE_LABEL
                 elif hard_wired:
@@ -2593,7 +2966,7 @@ class ShootingController:
             self._pending_hit_reroll = None
             crit_threshold = crit_hit_threshold(
                 group["pairs"][0][0], ctx["target_squad"], self.whispering_web,
-                hit_threshold=ctx["hit_threshold"],
+                hit_threshold=ctx["hit_threshold"], weapon=ctx["weapon"],
             )
             results = [_resolve_roll(r, ctx["hit_threshold"], crit_threshold) for r in rolls]
             extra_hits = sum(1 for r in results if r != "fail")
@@ -2630,7 +3003,6 @@ class ShootingController:
             # what part of it may still be re-rolled at all (see
             # _rerollable_dice_indices()). [TWIN-LINKED]/Breach and Clear
             # below may only throw the latter.
-            self._wound_dice_count = len(rolls)
             free = self._rerollable_dice_indices(rolls)
             ones = sum(1 for i in free if rolls[i] == 1)
             free_wounds = sum(1 for i in free if results[i] != "fail")
@@ -2654,6 +3026,11 @@ class ShootingController:
                 ones_reason = implacable_eradication.IMPLACABLE_ERADICATION_LABEL
             elif destroyer_cult.optimised_for_slaughter_applies(self.active_squad, weapon, target_squad):
                 ones_reason = destroyer_cult.OPTIMISED_FOR_SLAUGHTER_LABEL
+            elif (self.path_of_the_warrior is not None
+                    and self.path_of_the_warrior.wound_ones_apply(self.active_squad)):
+                # Path of the Warrior's SECOND option - the same plain
+                # automatic 1s re-roll on the other roll.
+                ones_reason = path_of_the_warrior.PATH_OF_THE_WARRIOR_LABEL
             else:
                 ones_reason = None
             if ones and ones_reason is not None and not wound_choice:
@@ -2778,7 +3155,8 @@ class ShootingController:
         own heading already, and a die is 50px wide."""
         if kind == "hit":
             model = self.current_group["pairs"][0][0] if self.current_group else None
-            threshold = crit_hit_threshold(model, target_squad, self.whispering_web)
+            threshold = crit_hit_threshold(model, target_squad, self.whispering_web,
+                                           weapon=weapon)
             labels = []
             if weapon.lethal_hits:
                 labels.append("LETHAL HIT")
@@ -2822,6 +3200,88 @@ class ShootingController:
         [LETHAL HITS]/[SUSTAINED HITS]/[DEVASTATING WOUNDS] one - the grants
         are what decide that, and they are all conditional."""
         weapon = bonded_heroes_adjusted_weapon(pairs[0][1], pairs, target_squad)
+        # The Anhrathe grants, all keyword or characteristic changes that the
+        # hit/wound steps read off the returned weapon:
+        #   Piratical Hero      [SUSTAINED HITS 1] while Prince Yriel leads
+        #   Faolchu             [IGNORES COVER] on the bearer's unit (ranged only)
+        #   Piratical Raiders   [LETHAL HITS] + [PRECISION] vs the marked unit
+        #   Fury of the Void    +1 STRENGTH vs a riven unit - a characteristic,
+        #                       not a modifier, so it must reach the weapon
+        #                       BEFORE the wound threshold is computed
+        weapon = corsair_abilities.piratical_hero_adjusted_weapon(weapon, self.active_squad)
+        weapon = corsair_abilities.faolchu_adjusted_weapon(weapon, self.active_squad)
+        if self.piratical_raiders is not None:
+            weapon = self.piratical_raiders.adjusted_weapon(
+                weapon, self.active_squad, target_squad)
+        if self.fury_of_the_void is not None:
+            weapon = self.fury_of_the_void.adjusted_weapon(
+                weapon, self.active_squad, target_squad)
+        # The Leystalker's Long Rifle prints [DEVASTATING WOUNDS] restricted to
+        # non-MONSTER/VEHICLE targets. Applied here rather than as a flat flag,
+        # because both the wound step and _crit_note() read it off the weapon
+        # this chain returns - see game/conditional_devastating_wounds.py.
+        weapon = conditional_devastating_wounds.adjusted_weapon(weapon, target_squad)
+        # The Spiritseer's Spirit Mark: [SUSTAINED HITS 1] on the marked
+        # FRIENDLY unit's weapons, but only against the marked ENEMY unit -
+        # the pair is the rule, and granting it to the friendly unit alone
+        # would be a strictly larger ability. In the adjuster chain rather
+        # than at the wound step because _crit_note() has to know at ROLL
+        # time whether a critical die is a [SUSTAINED HITS] one.
+        if self.spirit_mark is not None:
+            weapon = spiritseer.spirit_mark_adjusted_weapon(
+                weapon, self.spirit_mark, self.active_squad, target_squad)
+        # The Vibro Cannon Platform's Sonic Destruction: +1 to S, AP AND D for
+        # each OTHER friendly platform that already fired its vibro cannon at
+        # this same target this phase. Here rather than at the wound step
+        # because the save roll reads this weapon's AP and the damage step
+        # reads its Damage - only the adjuster chain delivers all three at
+        # once. The ledger it counts is fed at _begin_resolution(), which is
+        # the moment target AND weapon are both first known.
+        if self.sonic_destruction is not None:
+            weapon = self.sonic_destruction.adjusted_weapon(
+                weapon, pairs[0][0] if pairs else None, target_squad,
+                reactive=self._reactive)
+        # Kauyon's Patient Hunter and Mont'ka's Killing Blow - the two T'au
+        # detachments whose rule is a battle-round window plus an army-wide
+        # keyword grant. Both are here rather than at the wound step because
+        # _crit_note() has to know at ROLL time whether a critical die is a
+        # [SUSTAINED HITS] or [LETHAL HITS] one. Mutually exclusive in practice
+        # (a player has one detachment), but each gates on its own config
+        # setting rather than on the other being absent.
+        # The T'au detachment Stratagems that adjust a weapon. Experimental
+        # Ammunition and Experimental Modifications only touch S/AP, so their
+        # place in the chain is free; Guided Fire grants [LETHAL HITS] and so
+        # MUST be here rather than at the wound step, because _crit_note()
+        # reads the keyword at ROLL time.
+        weapon = epc_experimental_ammunition.adjusted_weapon(weapon, self.active_squad)
+        weapon = aux_experimental_modifications.adjusted_weapon(weapon, self.active_squad)
+        weapon = aux_guided_fire.adjusted_weapon(
+            weapon, self.active_squad, target_squad, self._all_squads_for_auras())
+        weapon = kauyon.adjusted_weapon(weapon, self.active_squad, self.turn_tracker)
+        # Kauyon's Point-Blank Ambush: +1 AP against a target within 9", so
+        # it needs the pairs (to measure from the shooters) and the target.
+        weapon = kauyon_point_blank_ambush.adjusted_weapon(
+            weapon, self.active_squad, pairs, target_squad)
+        # Mont'ka's Focused Fire: +1 AP against the one enemy the unit was
+        # locked onto. Same mark as the targeting restriction below, so the
+        # bonus and its cost cannot come apart.
+        weapon = montka_focused_fire.adjusted_weapon(
+            weapon, self.active_squad, target_squad)
+        weapon = montka.adjusted_weapon(
+            weapon, self.active_squad, self.turn_tracker,
+            target_squad=target_squad, greater_good=self.greater_good)
+        # Through Unity, Devastation (Kauyon) and Coordinated Exploitation
+        # (Mont'ka) - the two Enhancements that turn one Observer action into a
+        # phase-long [LETHAL HITS]/[SUSTAINED HITS 1] on every Guided attack.
+        # Here rather than at the wound step for the same reason their
+        # detachment rules are: _crit_note() reads both keywords at ROLL time.
+        weapon = enh_guided_keyword_grants.adjusted_weapon(
+            weapon, self.active_squad, target_squad, self.greater_good)
+        # Retaliation Cadre's Prototype Weapon System: the keyword the bearer
+        # chose when this activation started, on THE BEARER's weapons only -
+        # hence the model, not the squad. pairs[0] is exact because the choice
+        # is part of _attack_key().
+        weapon = enh_prototype_weapon_system.adjusted_weapon(weapon, pairs[0][0])
         # War Walkers' Crystalline Targeting: "improve the Armour Penetration
         # characteristic of that attack by 1" against a unit they marked. Like
         # Bonded Heroes above it only ever touches AP, so its position among
@@ -2834,10 +3294,27 @@ class ShootingController:
         weapon = drive_by_dakka_adjusted_weapon(weapon, pairs, target_squad)
         weapon = arrokon_adjusted_weapon(weapon, pairs, target_squad)
         weapon = bladestorm_adjusted_weapon(weapon, pairs, target_squad)
+        # Blitzing Firepower is Bladestorm with a fixed 12" instead of half
+        # range, so it sits directly beside it and takes the same shape.
+        weapon = warhost_blitzing_firepower.adjusted_weapon(weapon, pairs, target_squad)
         weapon = nova_charge_adjusted_weapon(weapon, pairs)
         weapon = hand_of_asuryan_adjusted_weapon(weapon, pairs)
         weapon = psychic_communion.psychic_communion_adjusted_weapon(weapon, pairs)
         weapon = ammo_runt_adjusted_weapon(weapon, self.active_squad)
+        # Kroot Farstalkers' Pech'ra: [IGNORES COVER] on the whole unit's
+        # ranged weapons, unconditionally once taken - the simplest grant
+        # in this chain, and ranged-only by its own printed wording.
+        weapon = bounty_hunters_module.pechra_adjusted_weapon(weapon, self.active_squad)
+        # The Vespid Strain Leader's Oversight Drone: the same keyword, but
+        # spent once per battle and lasting only the phase.
+        weapon = oversight_drone_module.adjusted_weapon(weapon, self.active_squad)
+        # Kroot Farstalkers' Bounty Hunters: [LETHAL HITS] and [PRECISION]
+        # against the one enemy unit chosen at the start of the battle. In
+        # the chain rather than at the wound step because _crit_note() must
+        # know at ROLL time that a critical die is a [LETHAL HITS] one.
+        if self.bounty_hunters is not None:
+            weapon = self.bounty_hunters.adjusted_weapon(
+                weapon, self.active_squad, target_squad)
         # Doomsday Ark's Overwhelming Obliteration: [DEVASTATING WOUNDS] on
         # its doomsday cannon alone, until the end of a turn it Remained
         # Stationary in. Weapon-specific, unlike every other grant here.
@@ -2850,6 +3327,46 @@ class ShootingController:
         # Awakened Dynasty's Protocol of the Sudden Storm: [ASSAULT] on ranged
         # weapons until the end of the turn.
         weapon = protocol_sudden_storm.adjusted_weapon(weapon, self.active_squad)
+        # Armoured Warhost's Skilled Crews: the same keyword granted to a
+        # whole faction's vehicles for the whole battle. Beside its
+        # Necron twin because they do the same thing to the same field.
+        weapon = skilled_crews.adjusted_weapon(weapon, self.active_squad)
+        # Guardian Battlehost's Blades of Asuryan: [PISTOL] on this unit's
+        # ranged weapons for the phase. In the chain, like every keyword
+        # grant, because _crit_note() reads the returned weapon at roll time.
+        weapon = guardian_blades_of_asuryan.adjusted_weapon(weapon, self.active_squad)
+        # Focused Firepower improves this unit's AP by 1 for the phase. In
+        # the chain because the Save roll reads the AP off the weapon this
+        # returns - anywhere else and the change never reaches the roll.
+        weapon = windrider_focused_firepower.adjusted_weapon(weapon, self.active_squad)
+        # Seer's Eye runs LAST: it undoes every WORSENING modifier to AP and
+        # Damage by comparing this chain's own output against the printed
+        # class, so anything added above is inside what it can ignore.
+        weapon = aspect_doom_inescapable.adjusted_weapon(weapon, self.active_squad)
+        weapon = aspect_preternatural_precision.adjusted_weapon(
+            weapon, self.active_squad)
+        weapon = conclave_seers_eye.adjusted_weapon(
+            weapon, self.active_squad, target_squad)
+        # Warrior Focus runs LAST for the same reason Seer's Eye does: it
+        # undoes worsening S/AP/Damage modifiers by comparing this chain's own
+        # output against the printed class, so everything above is inside what
+        # it can ignore.
+        weapon = enh_assassins_eye.adjusted_weapon(
+            weapon, self.active_squad, target_squad)
+        # Seersight Strike's [ANTI-X] and Psychic Destroyer's +1 Damage, both
+        # per BEARER - hence the attack-key terms beside them.
+        weapon = enh_psychic_weapons.adjusted_weapon(weapon, pairs[0][0] if pairs else None)
+        weapon = aspect_warrior_focus.adjusted_weapon(weapon, self.active_squad)
+        # Death Lord's Chosen's Mortarion's Teachings: [ASSAULT] AND [HEAVY] on
+        # ranged weapons, until the end of the PHASE (Sudden Storm above grants
+        # only [ASSAULT], and until the end of the TURN).
+        weapon = dlc_mortarions_teachings.adjusted_weapon(weapon, self.active_squad)
+        # The Malignant Plaguecaster's Gift of Contagion: [SUSTAINED HITS 1]
+        # while he leads this unit AND the target is Afflicted. Its text says
+        # "an attack", not "a ranged attack", so game/fight.py reads the same
+        # module - and it is in the chain, not the wound step, because
+        # _crit_note() reads the keyword off the returned weapon at ROLL time.
+        weapon = gift_of_contagion.adjusted_weapon(weapon, self.active_squad, target_squad)
         # Exemplars of Mont'ka's "is it the closest eligible target" answer
         # comes from the target-selection snapshot, never recomputed here -
         # see game/exemplars_of_montka.py.
@@ -2864,6 +3381,17 @@ class ShootingController:
         return [s for s in self._hit_target_squads_this_activation
                 if weapon_name in self._hit_weapon_names_this_activation.get(id(s), ())]
 
+    def models_lost_this_activation(self, target_squad):
+        """How many models `target_squad` has lost since this activation first
+        hit it.
+
+        Zero for a unit this activation never hit, which is the honest answer:
+        the question is only ever asked about a unit that WAS hit."""
+        before = self._living_when_first_hit.get(id(target_squad))
+        if before is None:
+            return 0
+        return max(0, before - _living_count(target_squad))
+
     def _handle_hit_results(self, hits, crits, weapon, target_squad, weapon_label):
         """Shared continuation after the hit count is known - whether from
         an actual hit roll or (rule 24.37, [TORRENT]) with no roll at all."""
@@ -2874,8 +3402,25 @@ class ShootingController:
             # that already knows a target_squad was actually hit (as
             # opposed to just targeted), regardless of shooting type/weapon.
             self._hit_target_squads_this_activation.add(target_squad)
+            # How many models that unit still had when it was FIRST hit this
+            # activation. Path of the Outcast's Eldritch Suppression asks "was
+            # a model in that enemy unit destroyed BY THOSE ATTACKS", and there
+            # is no other way to answer it afterwards: remove_dead_models()
+            # runs once per frame, so at the end of the activation a corpse may
+            # be from this activation or from the last one. Recorded once, on
+            # the first hit, beside the hit itself.
+            self._living_when_first_hit.setdefault(
+                id(target_squad), _living_count(target_squad))
             self._hit_weapon_names_this_activation.setdefault(
                 id(target_squad), set()).add(weapon.name)
+            # The Kroot Lone-Spear's Advanced Scouting: "each time this model
+            # makes a ranged attack THAT HITS an enemy unit". Same reason this
+            # lives here as Suppression Volley one line up - this is the one
+            # place that knows a target was actually hit rather than merely
+            # targeted. The controller ignores the call unless the shooter
+            # really has the ability, so it is made unconditionally.
+            if self.advanced_scouting is not None:
+                self.advanced_scouting.record_hit(self.active_squad, target_squad)
             # Rule 19.04's trailing clause: if the last model of a component
             # of an attached unit is destroyed by an attack, the ability it
             # was conferring "applies until the attacking unit has resolved
@@ -2997,43 +3542,7 @@ class ShootingController:
         where an Aspect Shrine token is offered against the roll that stands -
         the wound-step twin of _apply_sustained_hits() above, and for the same
         reason: it must land before criticals are turned into anything."""
-        if self._offer_aspect_shrine_wound(weapon, target_squad, target_profile, weapon_label, wounds, crits):
-            return
         self._resolve_wounds_now(weapon, target_squad, target_profile, weapon_label, wounds, crits)
-
-    def _offer_aspect_shrine_wound(self, weapon, target_squad, target_profile, weapon_label, wounds, crits):
-        """See _offer_aspect_shrine_hit(). The failure count is derived the
-        same exact way: _wound_dice_count is how many hits went into this
-        group's wound roll, which no re-roll changes."""
-        if self.decision_manager is None or self.current_group is None or self._aspect_shrine_wound_offered:
-            return False
-        squad = self.active_squad
-        pairs = self.current_group.get("pairs") or ()
-        model = pairs[0][0] if pairs else None
-        no_effect = 0 if self._wound_dice_count is None else max(0, self._wound_dice_count - wounds)
-        source, change = _unmodified_six_source(
-            "wound_change", squad, model, weapon, wounds, crits, no_effect)
-        if change is None:
-            return False
-        self._aspect_shrine_wound_offered = True
-        new_wounds, new_crits, _new_no_effect, what = change
-
-        def spend():
-            source.spend(squad)
-            self._log(
-                f"{weapon_label}: {source.ACCEPT_LABEL} - one wound roll counts as an unmodified 6 "
-                f"({wounds} wound(s) of which {crits} critical -> {new_wounds} of which {new_crits})."
-            )
-            self._resolve_wounds_now(weapon, target_squad, target_profile, weapon_label, new_wounds, new_crits)
-
-        def keep():
-            self._resolve_wounds_now(weapon, target_squad, target_profile, weapon_label, wounds, crits)
-
-        self.decision_manager.request(
-            squad.owner, source.prompt_for(squad, weapon_label, what, "wound"),
-            [(source.ACCEPT_LABEL, spend), ("Keep the roll", keep)],
-        )
-        return True
 
     def _resolve_wounds_now(self, weapon, target_squad, target_profile, weapon_label, wounds, crits):
         """Shared tail end of wound resolution, reachable either after an
@@ -3107,8 +3616,28 @@ class ShootingController:
         Currently one source - Beast Snagga Boyz' Monster Hunters (see
         game/monster_hunters.py). Unlike the wound side it takes no `weapon`
         argument: no hit-roll re-roll here comes from a weapon keyword."""
+        # Mont'ka's Pinpoint Counter-Offensive: "you can re-roll the Hit
+        # roll" against the unit that destroyed one of yours, for the rest
+        # of the battle. "An attack", so game/fight.py reads it too.
+        if (self.pinpoint_counter_offensive is not None
+                and self.pinpoint_counter_offensive.applies(self.active_squad, target_squad)):
+            return montka_pinpoint_counter_offensive.PINPOINT_NAME
+
         if monster_hunters.applies(self.active_squad, target_squad):
             return monster_hunters.MONSTER_HUNTERS_REROLL_LABEL
+        # Firesight Team's Precise Targeting - the first source here whose
+        # condition is a MARK on the target rather than a keyword or a
+        # distance, and it needs no new state: Spotted is already what the
+        # T'au army rule sets. Ordinary failures-or-whole shape, so it is
+        # deliberately NOT registered in game/reroll_scope.py.
+        if precise_targeting_module.applies(self.active_squad, target_squad, self.greater_good):
+            return precise_targeting_module.PRECISE_TARGETING_LABEL
+        # The Kroot Lone-Spear's Advanced Scouting - the same mark-on-the-target
+        # shape, but the mark was placed by a DIFFERENT unit (his) and is read
+        # by every other KROOT unit in the army.
+        if self.advanced_scouting is not None \
+                and self.advanced_scouting.applies(self.active_squad, target_squad):
+            return advanced_scouting_module.ADVANCED_SCOUTING_LABEL
         # Fire Dragons' Assured Destruction - the only other source, and the
         # first that is phase-restricted ("in YOUR Shooting phase"), which is
         # why it is the one that reads the turn tracker.
@@ -3136,6 +3665,36 @@ class ShootingController:
         if destroyer_cult.hard_wired_offers_full_reroll(
                 self.active_squad, target_squad, self._eligible_target_squads(), self.objectives):
             return destroyer_cult.HARD_WIRED_LABEL
+        # Crisis Fireknife Battlesuits' Fireknife - the same two-clause
+        # shape, and the condition is the TARGET's Starting Strength.
+        if fireknife.offers_full_reroll(self.active_squad, target_squad):
+            return fireknife.FIREKNIFE_LABEL
+        # The Sky Ray's Velocity Tracker - an ordinary "you can re-roll the
+        # Hit roll", so deliberately NOT a reroll_scope source.
+        if velocity_tracker_module.applies(self.active_squad, target_squad):
+            return velocity_tracker_module.VELOCITY_TRACKER_LABEL
+        # The Lokhust Lord's Driven by Hatred. Deliberately NOT one of the
+        # ones-or-whole sources above it: its text is the ordinary "you can
+        # re-roll the Hit roll", with no automatic-1s clause to be an
+        # alternative to. It is also the only source here that is per MODEL,
+        # hence the group form of the predicate.
+        if destroyer_cult.driven_by_hatred_applies_to_group(pairs, target_squad):
+            return destroyer_cult.DRIVEN_BY_HATRED_LABEL
+        # Corsair Voidreavers' Reavers of the Void. Like Fireknife it is a
+        # two-clause source, so it is a "reason" only while its WHOLE-roll
+        # half is live - i.e. while the target stands on an objective. The
+        # base clause is the automatic 1s below, which apply regardless.
+        if reavers_of_the_void.offers_full_reroll(
+                self.active_squad, target_squad, self.objectives):
+            return reavers_of_the_void.REAVERS_OF_THE_VOID_LABEL
+        # The Wraithlord's Fated Hero: "re-roll a Hit roll of 1 AND re-roll a
+        # Wound roll of 1" against a unit with the keyword it chose at the
+        # start of the battle. Both rolls, so it appears at FOUR sites - the
+        # hit and wound reasons in this file and in the other attack step.
+        # Per MODEL, like Driven by Hatred above it, hence the group form.
+        if (self.fated_hero is not None
+                and self.fated_hero.applies_to_group(pairs, target_squad)):
+            return fated_hero_module.FATED_HERO_LABEL
         if swift_demise.applies(self.active_squad) and swift_demise.is_closest_target(
                 self.active_squad, target_squad, self._eligible_target_squads()):
             return swift_demise.SWIFT_DEMISE_LABEL
@@ -3279,6 +3838,16 @@ class ShootingController:
         must actually be standing on the objective's terrain footprint),
         not the looser 3" is_within_range_of_objective() - see its own
         docstring for the user correction behind that distinction."""
+        # Mont'ka's Combat Debarkation: "re-roll the Wound roll" against
+        # THE CLOSEST enemy unit. Closest is asked of
+        # game/exemplars_of_montka.py, which already settled that it is
+        # measured edge to edge and fixed at target selection (10.02).
+        if montka_combat_debarkation.is_active(self.active_squad):
+            closest = exemplars_of_montka.closest_eligible_target(
+                self.active_squad, self._eligible_target_squads())
+            if montka_combat_debarkation.applies(self.active_squad, target_squad, closest):
+                return montka_combat_debarkation.COMBAT_DEBARKATION_NAME
+
         if weapon.twin_linked:
             return "[TWIN-LINKED]"
         if squad_has_breach_and_clear(self.active_squad) and is_on_objective(target_squad, self.objectives):
@@ -3312,6 +3881,41 @@ class ShootingController:
         # half is live; the base clause is the automatic re-roll of 1s.
         if implacable_eradication.offers_full_reroll(self.active_squad, target_squad, self.objectives):
             return implacable_eradication.IMPLACABLE_ERADICATION_LABEL
+        # The Lokhust Lord's Driven by Hatred covers BOTH rolls, so it appears
+        # here as well as in _hit_reroll_reason() - the only source in this
+        # engine that does. Per model, like Storm of Silence above.
+        if destroyer_cult.driven_by_hatred_applies_to_group(pairs, target_squad):
+            return destroyer_cult.DRIVEN_BY_HATRED_LABEL
+        # The Wraithlord's Fated Hero: "re-roll a Hit roll of 1 AND re-roll a
+        # Wound roll of 1" against a unit with the keyword it chose at the
+        # start of the battle. Both rolls, so it appears at FOUR sites - the
+        # hit and wound reasons in this file and in the other attack step.
+        # Per MODEL, like Driven by Hatred above it, hence the group form.
+        if (self.fated_hero is not None
+                and self.fated_hero.applies_to_group(pairs, target_squad)):
+            return fated_hero_module.FATED_HERO_LABEL
+        # Yvraine's Herald of Ynnead: "you CAN re-roll a Wound roll of 1"
+        # against the unit she marked at the start of the Fight phase, for
+        # every AELDARI unit in her army rather than just her own. Resolved
+        # automatically like Fated Hero above: a bare optional re-roll of 1s
+        # has no downside - a 1 always fails - so a prompt would have exactly
+        # one right answer (error class 5). NOT a game/reroll_scope.py entry;
+        # the printed text has no "instead", so the ones-or-whole offer does
+        # not apply and offering "failures only" would re-roll 2s it never
+        # allows.
+        if (self.herald_of_ynnead is not None
+                and self.herald_of_ynnead.grants(self.active_squad, target_squad)):
+            return ynnari_abilities.HERALD_OF_YNNEAD_LABEL
+        # Guardian Battlehost's Warding Salvoes: the condition is on the
+        # TARGET, so it is asked per attack rather than at purchase - the
+        # same shape Reavers of the Void and Implacable Eradication have.
+        if guardian_warding_salvoes.offers_reroll(self.active_squad, target_squad, self.objectives):
+            return guardian_warding_salvoes.WARDING_SALVOES_NAME
+        # Death from on High: "you can re-roll the Wound roll" - the WHOLE
+        # roll, and its WHEN names both this phase and the other one, so it is
+        # read from both chains.
+        if windrider_death_from_on_high.offers_reroll(self.active_squad):
+            return windrider_death_from_on_high.DEATH_FROM_ON_HIGH_NAME
         return None
 
     def _wound_reroll_is_full(self, weapon, target_squad):
@@ -3357,6 +3961,12 @@ class ShootingController:
             "Breach and Clear", sunforge.SUNFORGE_REROLL_LABEL,
             assured_destruction.ASSURED_DESTRUCTION_LABEL, FIRE_SUPPORT_LABEL,
             storm_of_silence.STORM_OF_SILENCE_LABEL,
+            # The Lokhust Lord's Driven by Hatred - "you can re-roll the Wound
+            # roll", the same wording, so the same whole-roll scope. It is NOT
+            # in game/reroll_scope.py: it has no automatic-1s clause for the
+            # whole roll to be an alternative TO, so the ordinary
+            # failures-or-whole offer is the right one.
+            destroyer_cult.DRIVEN_BY_HATRED_LABEL,
         )
 
     def _twin_linked_choice_needed(self, weapon, no_effect, target_squad):
@@ -3545,6 +4155,16 @@ class ShootingController:
             )
             if sunforge.applies(self.active_squad, target_squad):
                 damage_reroll = sunforge.damage_reroll_offer(**common)
+            elif structural_collapse.applies(self.active_squad, weapon):
+                # MANDATORY, not an offer: "re-roll a Damage roll of 1" has no
+                # "you can". The face is derived from the notation because the
+                # D-cannon's Damage is D6+2, so a die of 1 reads as a total of
+                # 3 - see game/structural_collapse.py.
+                damage_reroll = DamageRerollOffer(
+                    structural_collapse.STRUCTURAL_COLLAPSE_LABEL,
+                    automatic_faces=structural_collapse.STRUCTURAL_COLLAPSE_AUTOMATIC_FACES,
+                    notation=weapon.damage_notation, **common,
+                )
             elif assured_destruction.applies(self.active_squad, target_squad, self.turn_tracker):
                 # Two abilities, one die, and a die is never re-rolled twice -
                 # so whichever applies builds the single offer. They cannot
@@ -3555,16 +4175,9 @@ class ShootingController:
                 )
         # The Farseer's Branching Fates can SET a Damage roll instead of
         # re-rolling it - a separate collaborator on the same die.
-        damage_override = None
-        if weapon.damage_notation is not None and branching_fates.available(self.active_squad):
-            damage_override = branching_fates.BranchingFatesDamageOffer(
-                squad=self.active_squad, decision_manager=self.decision_manager,
-                game_log=self.game_log, owner=self.active_squad.owner, weapon_name=weapon.name,
-            )
         self.damage_session = DamageAllocationSession(
             rolls, weapon, target_squad, dice_manager=self.dice_manager, log=self._log, priority_group=priority_group,
             stealth_drones=self.stealth_drones, waaagh=self.waaagh, damage_reroll=damage_reroll,
-            damage_override=damage_override,
         )
         self.damage_session.on_resumed = self._make_damage_resume_hook(self.damage_session, rolls)
         self.pending_step = "allocate"
@@ -3786,6 +4399,23 @@ class ShootingController:
         self.mortal_wound_session = None
         self._actually_finish_squad()
 
+    def _all_squads_for_auras(self):
+        """Every unit with a live model on the board, deduplicated.
+
+        Only the aura half of Auxiliary Cadre's Localised Stealth Projectors
+        needs it, and only at the end of an activation - so it is derived here
+        rather than kept as another list to maintain. `id()`-keyed because a
+        Squad is not hashable-by-value and two tokens of one unit must not
+        yield it twice."""
+        by_id = {}
+        for token in self.all_tokens:
+            squad = getattr(token, "squad", None)
+            if squad is None or id(squad) in by_id:
+                continue
+            if any(not m.is_dead() for m in squad.models):
+                by_id[id(squad)] = squad
+        return list(by_id.values())
+
     def _note_ranged_attack(self):
         """Rule 13.09 (Hidden): record that this unit made a ranged attack, in
         its owner's own turn-number terms, so status_effects.is_hidden() stops
@@ -3816,6 +4446,16 @@ class ShootingController:
         strip Hidden off a unit that never fired a shot."""
         if self.turn_tracker is None or self.active_squad is None:
             return
+        # Advanced Acquisition Cadre's Expert Fieldcraft: "those ranged attacks
+        # do not prevent your unit from being hidden". Suppressing the write IS
+        # the rule - Hidden has no second record. Placed inside this method so
+        # BOTH callers see it; gating only the normal end would leave cancel()
+        # stripping Hidden, which is precisely half of the bug this method's
+        # docstring above was written for.
+        if hidden_after_shooting.keeps_hidden(
+                self.active_squad, reactive=self._reactive,
+                all_squads=self._all_squads_for_auras()):
+            return
         self.last_ranged_attack_turn[self.active_squad] = self.turn_tracker.turn_number_for(self.active_squad.owner)
 
     def _actually_finish_squad(self):
@@ -3827,6 +4467,17 @@ class ShootingController:
         # Shooting activation (15.09) closes its window too.
         for hit_squad in self._hit_target_squads_this_activation:
             attached_units.end_attack_sequence(hit_squad)
+        # The gunships' Targeting Array is spent per ACTIVATION, so its
+        # ledger closes at the same instant 19.04's window does - the one
+        # canonical "this unit has resolved all of its attacks" moment.
+        if self.targeting_array is not None:
+            self.targeting_array.end_activation(self.active_squad)
+        # "...until that friendly unit HAS SHOT".
+        far_reaching_doom.end_shooting(self.active_squad)
+        if self.prototype_weapon_system is not None:
+            self.prototype_weapon_system.end_activation(self.active_squad)
+        if self.unmasking_suite is not None:
+            self.unmasking_suite.end_activation(self.active_squad)
         # Rule 15.08/15.09: a reactive Snap Shooting activation doesn't use
         # up the unit's real Shooting-phase activation - last_ranged_attack_turn
         # (rule 13.09, Hidden) still updates though, since it genuinely was
@@ -3850,6 +4501,60 @@ class ShootingController:
         self._reset_target_snapshots()
         self.state = IDLE
         self._finish_activation()
+
+    def unmodified_six_context(self):
+        """(squad, model, weapon) for the roll this controller currently has
+        on the table, or None when it has no weapon group open.
+
+        Read by game/unmodified_six_controller.py, which needs all three: the
+        MODEL because both abilities exclude one ("excluding CHARACTER models"
+        for an Aspect Shrine token, "excluding SUPPORT WEAPON models" for
+        Branching Fates), and the WEAPON because whether a critical is worth
+        buying depends on it ([SUSTAINED HITS]/[LETHAL HITS] on a hit,
+        [DEVASTATING WOUNDS] on a wound - see game/unmodified_six.py).
+
+        The representative model of the weapon group is the one the old prompt
+        judged from too: a joined character carries its own datasheet's
+        weapons, so it lands in its own attack group rather than sharing one.
+
+        The ADJUSTED weapon, not pairs[0][1]: whether a critical buys anything
+        depends on conditional grants. Bladestorm hands the Dire Avengers'
+        catapult [SUSTAINED HITS] within half range, and reading the printed
+        profile would mean the button never appeared in exactly the case where
+        the token is worth spending. _adjusted_weapon() is the one place those
+        grants are applied, and what every other downstream reader uses."""
+        if self.current_group is None:
+            return None
+        pairs = self.current_group.get("pairs") or ()
+        if not pairs:
+            return None
+        target_squad = self.current_group.get("target_squad")
+        return (self.active_squad, pairs[0][0], self._adjusted_weapon(pairs, target_squad))
+
+    def unmodified_six_damage_context(self):
+        """(squad, model, notation_roll) when a DAMAGE roll for this
+        controller's current weapon group is on the table, or None.
+
+        Separate from unmodified_six_context() because a Damage roll is a
+        different shape: not a die that succeeds or fails but a rolled AMOUNT,
+        and only the Farseer's Branching Fates covers it at all.
+
+        The MODEL handed over is the weapon group's representative ATTACKER,
+        the same one the hit/wound hook uses - the printed clause is
+        "excluding SUPPORT WEAPON models" about the model making the attack.
+        The prompt this replaced passed the model that was taking the wound
+        instead; harmless today (no SUPPORT WEAPON datasheet exists here) but
+        the wrong model to ask, so it is not carried over."""
+        session = self.damage_session
+        if session is None or self.current_group is None:
+            return None
+        roll = getattr(session, "pending_damage_roll", None)
+        if roll is None or not roll.is_pending:
+            return None
+        pairs = self.current_group.get("pairs") or ()
+        if not pairs:
+            return None
+        return (self.active_squad, pairs[0][0], roll)
 
     def _log(self, message):
         if self.game_log is not None:

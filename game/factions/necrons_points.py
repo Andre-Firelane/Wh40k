@@ -44,6 +44,27 @@ NECRONS_POINTS = {
          PointsTier({1: 90}, from_unit=2)],
         leads=("Canoptek Wraiths", "Immortals", "Necron Warriors"),
     ),
+    # Neither this nor the Skorpekh Lord is in the user's 13-entry army list -
+    # both were added on their own, so there is no list column to disagree with.
+    "Lokhust Lord": UnitPoints(
+        [PointsTier({1: 70})],
+        # Both wargear choices (nanoscarab amulet / resurrection orb, and the
+        # Lord's blade) are printed without a price, so they are free upgrades
+        # rather than untranscribed ones - stated because a missing wargear
+        # number and a genuinely free option look identical from here.
+        leads=("Lokhust Destroyers", "Lokhust Heavy Destroyers"),
+    ),
+    # Not in the user's 13-entry army list - added on its own ("Lege die
+    # einheit an / Skorpekh Lord"), so there is no list column to disagree
+    # with here.
+    "Skorpekh Lord": UnitPoints(
+        [PointsTier({1: 90}, to_unit=2),
+         PointsTier({1: 100}, from_unit=3)],
+        # The narrowest LEADER line of any Necron character here: the other
+        # four each lead two or three datasheets, this one leads exactly the
+        # unit it is a bigger version of.
+        leads=("Skorpekh Destroyers",),
+    ),
 
     # --- Battleline -------------------------------------------------------
     "Necron Warriors": flat_points({10: 80, 20: 190}),              # the list says 200 for 20

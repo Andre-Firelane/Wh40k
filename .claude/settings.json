@@ -8,7 +8,8 @@
       "Bash(awk '/^class .*Profile/{cls=$0} /oc = /{print NR\": \"cls\" -> \"$0}' game/units.py)",
       "Bash(python \"C:\\\\Users\\\\Andre\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-Andre-Desktop-WH40\\\\d91c1e94-117a-44e9-95d4-e0290109b38a\\\\scratchpad\\\\test_pathfinding_wall.py\")",
       "PowerShell(python test_pregame.py)",
-      "Bash(cd \"c:/Users/Andre/Desktop/WH40\" && grep -rn \"_maybe_resolve_decision\" ai/agent_driver.py | head; echo ---; sed -n '/def _maybe_resolve_decision/,/^def \\\\|^    def [a-z]/p' ai/agent_driver.py | head -60)"
+      "Bash(cd \"c:/Users/Andre/Desktop/WH40\" && grep -rn \"_maybe_resolve_decision\" ai/agent_driver.py | head; echo ---; sed -n '/def _maybe_resolve_decision/,/^def \\\\|^    def [a-z]/p' ai/agent_driver.py | head -60)",
+      "Bash(PYTHONIOENCODING=utf-8 python -c ' *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Andre\\Desktop\\WH40\\ai"

@@ -1,6 +1,8 @@
 import pygame
 
-from game import charge, config, consolidate, crushing_impact, epic_challenge, explosives, fall_back, fight, firing_deck, formations, greater_good, loadout, movement, overwatch, path_of_the_outcast, pregame, setup, shooting, sprites
+from game import warhost_fire_and_fade
+from game import windrider_overflight
+from game import charge, config, consolidate, crushing_impact, epic_challenge, explosives, fall_back, fight, fire_and_fade, firing_deck, formations, greater_good, loadout, movement, overwatch, path_of_the_outcast, pregame, setup, shooting, sprites
 from game.ingress import SHORTENED_BLADE_MIN_ENEMY_DISTANCE_IN
 from game.squad import is_at_half_strength
 from game.turn import PHASE_MOVEMENT, PHASE_SHOOTING, PHASE_CHARGE, PHASE_FIGHT
@@ -25,6 +27,19 @@ ACTION_REQUIRED_BG_COLOR = (35, 20, 10)
 ACTION_REQUIRED_TEXT_COLOR = (255, 255, 255)
 COHERENCY_ACCENT_COLOR = (200, 20, 20)      # matches renderer.COHERENCY_REMOVAL_COLOR
 DAMAGE_CHOICE_ACCENT_COLOR = (255, 210, 0)  # matches renderer.DAMAGE_CHOICE_COLOR
+# Pile In still outstanding (12.03). Its own orange rather than a borrowed
+# shade: it is neither an error (ERROR_COLOR red) nor a "click a highlighted
+# model" prompt (DAMAGE_CHOICE yellow, which is paired with a renderer colour
+# this has no counterpart for - nothing is highlighted on the board here).
+PILE_IN_ACCENT_COLOR = (255, 170, 40)
+# "Change a die to an unmodified 6" (Aspect Shrine / Branching Fates). Aeldari
+# blue-white: it is a friendly, deliberate spend rather than a warning, and it
+# must not read as the pile-in orange right above it.
+UNMODIFIED_SIX_ACCENT_COLOR = (140, 210, 255)
+PILE_IN_BOX_BG_COLOR = (38, 26, 10)
+# Cap on how many unit names one player's line lists before it collapses to
+# "+N more" - the panel is 220px wide and an engaged blob runs deep.
+PILE_IN_NAMES_SHOWN = 4
 
 
 class ActionPanel:
@@ -52,13 +67,28 @@ class ActionPanel:
         battle_focus_pool=None,
         # Appended rather than slotted in beside arrokon_controller: main.py's
         # draw() call passes everything above POSITIONALLY.
-        presentiment_controller=None, fate_inescapable_controller=None,
-        unshrouded_truth_controller=None,
         sudden_storm_controller=None,
         conquering_tyrant_controller=None,
         hungry_void_controller=None,
         path_of_the_outcast_controller=None,
+        fire_and_fade_controller=None,
+        overflight_controller=None,
+        warhost_fire_and_fade_controller=None,
+        targeting_array_controller=None,
         secondary_mission_controller=None,
+        unmodified_six_controller=None,
+        # Death Lord's Chosen - the three a human buys proactively. Appended
+        # BY KEYWORD: this chain is positional up to battle_focus_pool, and
+        # inserting a parameter mid-signature has silently shifted every
+        # argument after it before.
+        blooming_pestilence_controller=None,
+        grim_reapers_controller=None,
+        mortarions_teachings_controller=None,
+        # ONE parameter for every proactive detachment Stratagem, instead of one
+        # per Stratagem. See game/proactive_stratagems.py: the T'au detachments
+        # alone add nineteen, and this chain is positional for most of its
+        # length. A controller joins the list and needs no edit here.
+        proactive_stratagems=None,
     ):
         surface.fill(config.PANEL_BG_COLOR, rect)
         pygame.draw.rect(surface, config.PANEL_BORDER_COLOR, rect, width=2)
@@ -79,14 +109,20 @@ class ActionPanel:
             tactical_acumen_controller,
             flickerjump_controller,
             battle_focus_pool,
-            presentiment_controller=presentiment_controller,
-            fate_inescapable_controller=fate_inescapable_controller,
-            unshrouded_truth_controller=unshrouded_truth_controller,
             sudden_storm_controller=sudden_storm_controller,
             conquering_tyrant_controller=conquering_tyrant_controller,
             hungry_void_controller=hungry_void_controller,
+            blooming_pestilence_controller=blooming_pestilence_controller,
+            grim_reapers_controller=grim_reapers_controller,
+            mortarions_teachings_controller=mortarions_teachings_controller,
+            proactive_stratagems=proactive_stratagems,
             path_of_the_outcast_controller=path_of_the_outcast_controller,
+            fire_and_fade_controller=fire_and_fade_controller,
+            overflight_controller=overflight_controller,
+            warhost_fire_and_fade_controller=warhost_fire_and_fade_controller,
+            targeting_array_controller=targeting_array_controller,
             secondary_mission_controller=secondary_mission_controller,
+            unmodified_six_controller=unmodified_six_controller,
         )
         self._draw_global_toolbar(surface, rect, movement_controller, setup_controller)
 
@@ -104,8 +140,6 @@ class ActionPanel:
         flickerjump_controller=None,
         battle_focus_pool=None,
         # Appended: draw() passes everything above positionally.
-        presentiment_controller=None, fate_inescapable_controller=None,
-        unshrouded_truth_controller=None,
         sudden_storm_controller=None,
         conquering_tyrant_controller=None,
         hungry_void_controller=None,
@@ -114,10 +148,27 @@ class ActionPanel:
         # THIS signature - the three-stage chain half-wired, which crashes every
         # frame. See main.py's own warning about this call chain.
         path_of_the_outcast_controller=None,
+        fire_and_fade_controller=None,
+        overflight_controller=None,
+        warhost_fire_and_fade_controller=None,
+        targeting_array_controller=None,
         # Appended BY KEYWORD like everything above it - this three-stage call
         # chain is positional up to battle_focus_pool, and inserting a
         # parameter mid-signature has silently shifted every later one before.
         secondary_mission_controller=None,
+        unmodified_six_controller=None,
+        # Death Lord's Chosen - the three a human buys proactively. Appended
+        # BY KEYWORD: this chain is positional up to battle_focus_pool, and
+        # inserting a parameter mid-signature has silently shifted every
+        # argument after it before.
+        blooming_pestilence_controller=None,
+        grim_reapers_controller=None,
+        mortarions_teachings_controller=None,
+        # ONE parameter for every proactive detachment Stratagem, instead of one
+        # per Stratagem. See game/proactive_stratagems.py: the T'au detachments
+        # alone add nineteen, and this chain is positional for most of its
+        # length. A controller joins the list and needs no edit here.
+        proactive_stratagems=None,
     ):
         """The old draw() body, verbatim - one big state dispatch with an
         early return per screen (setup/firing-deck/damage-choice/dice-roll/
@@ -212,7 +263,9 @@ class ActionPanel:
             return
 
         if dice_manager is not None and dice_manager.is_pending:
-            self._draw_command_reroll(surface, rect, dice_manager, command_reroll_controller)
+            self._draw_command_reroll(surface, rect, dice_manager, command_reroll_controller,
+                                      unmodified_six_controller=unmodified_six_controller,
+                                      targeting_array_controller=targeting_array_controller)
             return
 
         button_style.draw_panel_header(surface, rect, "Actions", self.header_font)
@@ -321,13 +374,20 @@ class ActionPanel:
             tactical_acumen_controller,
             flickerjump_controller,
             battle_focus_pool,
-            presentiment_controller=presentiment_controller,
-            fate_inescapable_controller=fate_inescapable_controller,
-            unshrouded_truth_controller=unshrouded_truth_controller,
             sudden_storm_controller=sudden_storm_controller,
             conquering_tyrant_controller=conquering_tyrant_controller,
             hungry_void_controller=hungry_void_controller,
+            blooming_pestilence_controller=blooming_pestilence_controller,
+            grim_reapers_controller=grim_reapers_controller,
+            mortarions_teachings_controller=mortarions_teachings_controller,
+            proactive_stratagems=proactive_stratagems,
             path_of_the_outcast_controller=path_of_the_outcast_controller,
+            fire_and_fade_controller=fire_and_fade_controller,
+            overflight_controller=overflight_controller,
+            warhost_fire_and_fade_controller=warhost_fire_and_fade_controller,
+            targeting_array_controller=targeting_array_controller,
+            secondary_mission_controller=secondary_mission_controller,
+            unmodified_six_controller=unmodified_six_controller,
         )
 
     def _draw_global_toolbar(self, surface, rect, movement_controller, setup_controller=None):
@@ -413,10 +473,21 @@ class ActionPanel:
             surface.blit(line_surf, (box_rect.x + 10, text_y))
             text_y += ERROR_LINE_HEIGHT
 
-    def _draw_command_reroll(self, surface, rect, dice_manager, command_reroll_controller):
-        """Rule 15.02 (Command Re-roll, Core Stratagem): offered while a
-        dice roll is pending, if it's one of the reroll-eligible roll kinds
-        and the active player can still afford/use it this phase."""
+    def _draw_command_reroll(self, surface, rect, dice_manager, command_reroll_controller,
+                             unmodified_six_controller=None,
+                             targeting_array_controller=None):
+        """Everything that can still be done to the roll on the table: rule
+        15.02's Command Re-roll, and the "change a die to an unmodified 6"
+        abilities (Aspect Shrine tokens, the Farseer's Branching Fates).
+
+        The latter used to be a DecisionManager prompt raised the instant the
+        roll was acknowledged - user: "momentan werde ich bei aeldari jedes mal
+        gefragt... nach jedem wurf. kann das nicht eine option im linken panel
+        sein, statt eines overlays? command reroll funktioniert ja auch so."
+        So they live here, in exactly that shape: a button, then pick the die.
+
+        Both die-selection modes take over the whole screen while they are
+        open, because in both the only useful click is on the dice display."""
         button_style.draw_panel_header(surface, rect, "Actions", self.header_font)
         button_width = rect.width - 2 * BUTTON_MARGIN
 
@@ -436,6 +507,28 @@ class ActionPanel:
             self._buttons.append((cancel_rect, command_reroll_controller.cancel_selection))
             return
 
+        if unmodified_six_controller is not None and unmodified_six_controller.selecting_die:
+            text_y = self._draw_message_box(
+                surface, rect, button_width, text_y,
+                ["Click a die on the dice display to change it to an unmodified 6."],
+                config.PANEL_TEXT_COLOR, UNMODIFIED_SIX_ACCENT_COLOR,
+            )
+            cancel_rect = pygame.Rect(rect.x + BUTTON_MARGIN, text_y, button_width, BUTTON_HEIGHT)
+            cancel_rect = self._draw_button(surface, cancel_rect, "Cancel", accent="danger")
+            self._buttons.append((cancel_rect, unmodified_six_controller.cancel_selection))
+            return
+
+        if targeting_array_controller is not None and targeting_array_controller.selecting_die:
+            text_y = self._draw_message_box(
+                surface, rect, button_width, text_y,
+                ["Click a highlighted die on the dice display to re-roll it."],
+                config.PANEL_TEXT_COLOR, config.PANEL_BORDER_COLOR,
+            )
+            cancel_rect = pygame.Rect(rect.x + BUTTON_MARGIN, text_y, button_width, BUTTON_HEIGHT)
+            cancel_rect = self._draw_button(surface, cancel_rect, "Cancel Re-roll", accent="danger")
+            self._buttons.append((cancel_rect, targeting_array_controller.cancel_selection))
+            return
+
         if command_reroll_controller is not None and command_reroll_controller.can_use():
             reroll_rect = pygame.Rect(rect.x + BUTTON_MARGIN, text_y, button_width, BUTTON_HEIGHT)
             reroll_rect = self._draw_button(
@@ -443,6 +536,34 @@ class ActionPanel:
             )
             self._buttons.append((reroll_rect, command_reroll_controller.start))
             text_y = reroll_rect.bottom + BUTTON_GAP
+
+        # A free single-die re-roll for the duration of a shooting
+        # activation: the same shape of button as Command Re-roll above,
+        # without the CP. The LABEL comes from the controller because two
+        # datasheet abilities share this button - the gunships' Targeting
+        # Array and the Fire Prism's Crystal Matrix - and the panel should
+        # not have to know which. See game/activation_reroll.py.
+        if targeting_array_controller is not None and targeting_array_controller.can_use():
+            array_rect = pygame.Rect(rect.x + BUTTON_MARGIN, text_y, button_width, BUTTON_HEIGHT)
+            array_rect = self._draw_button(
+                surface, array_rect,
+                targeting_array_controller.panel_label() or "Targeting Array",
+                accent="confirm",
+            )
+            self._buttons.append((array_rect, targeting_array_controller.start))
+            text_y = array_rect.bottom + BUTTON_GAP
+
+        # One button per ability that could change a die of THIS roll. The
+        # controller decides which those are; the panel just draws them, so a
+        # third such ability needs no change here.
+        if unmodified_six_controller is not None:
+            for source, _squad, _model in unmodified_six_controller.available_sources():
+                source_rect = pygame.Rect(rect.x + BUTTON_MARGIN, text_y, button_width, BUTTON_HEIGHT)
+                source_rect = self._draw_button(
+                    surface, source_rect, unmodified_six_controller.label_for(source), accent="confirm",
+                )
+                self._buttons.append((source_rect, lambda s=source: unmodified_six_controller.start(s)))
+                text_y = source_rect.bottom + BUTTON_GAP
 
         self._draw_message_box(
             surface, rect, button_width, text_y, ["Click elsewhere to accept the roll."],
@@ -1032,6 +1153,52 @@ class ActionPanel:
         self._buttons.append((epic_rect, lambda: epic_challenge_controller.start(fight_controller.fighting_squad)))
         return button_y + epic_rect.height + BUTTON_GAP
 
+    def _draw_pile_in_pending(self, surface, rect, button_width, pile_in_controller, text_y):
+        """Who the Fight step is still waiting on for Pile In (12.03), BY NAME.
+
+        User: "ich finde es manchmal schwierig zu erkennen, dass ich noch mit
+        allen einheiten pile in machen muss, bevor die KI weitermacht."
+        Measured before changing anything: this spot printed exactly one
+        sentence - "Both players must resolve Pile In (move or skip) for every
+        eligible unit before the Fight step can begin." True, and useless: it
+        names no unit, no side and no next step, so a game waiting on the
+        HUMAN reads identically to one waiting on the AI. That is the whole
+        report.
+
+        Grouped by owner and listed by name rather than filtered down to "your
+        units": the panel has no notion of which player is the human, and
+        inventing one here would be a second copy of a fact main.py already
+        owns (its human_players wiring). Squad names carry the owner's digit
+        as their first character - the same identifier the turn banner, the
+        turn plan and every log line use - so "Player 1: 1 Storm Guardians 1"
+        answers "is it me?" without this file having to assume anything. It
+        also stays correct if the human ever plays Player 2.
+
+        In a box rather than as loose text: this is a thing to DO, and it sat
+        in the same flat grey as the phase chatter around it."""
+        pending = pile_in_controller.squads_pending_pile_in()
+        by_owner = {}
+        for squad in pending:
+            by_owner.setdefault(squad.owner, []).append(squad.name)
+
+        lines = [f"Pile In pending for {len(pending)} unit(s) - the Fight step cannot begin until "
+                 f"each one has piled in or skipped (12.03)."]
+        for owner in sorted(by_owner):
+            names = by_owner[owner]
+            # Capped, because this is a 220px column and an engaged blob can
+            # be several units deep. The count above always tells the truth,
+            # so a capped list never hides that something is outstanding.
+            shown = names[:PILE_IN_NAMES_SHOWN]
+            if len(names) > PILE_IN_NAMES_SHOWN:
+                shown.append(f"+{len(names) - PILE_IN_NAMES_SHOWN} more")
+            lines.append(f"{owner}: {', '.join(shown)}")
+        lines.append("Select one on the battlefield, then Pile In or Skip Pile In.")
+
+        return self._draw_message_box(
+            surface, rect, button_width, text_y, lines,
+            config.PANEL_TEXT_COLOR, PILE_IN_ACCENT_COLOR, bg_color=PILE_IN_BOX_BG_COLOR,
+        )
+
     def _draw_fight_step_status(self, surface, rect, button_width, fight_controller, pile_in_controller, start_y=None):
         """Phase-wide Fight status (whose turn to select, or the Begin
         Fight Step / Pass buttons) - returns the y position right after
@@ -1041,8 +1208,8 @@ class ActionPanel:
         text_y = rect.y + 40 if start_y is None else start_y
         if fight_controller.state == fight.NOT_STARTED:
             if pile_in_controller is not None and pile_in_controller.has_pending_squads():
-                hint = "Both players must resolve Pile In (move or skip) for every eligible unit before the Fight step can begin."
-                return self._draw_text(surface, rect, hint, text_y, gap=0)
+                return self._draw_pile_in_pending(
+                    surface, rect, button_width, pile_in_controller, text_y)
             text_y = self._draw_text(surface, rect, "Pile In resolved for every eligible squad.", text_y, gap=0)
             begin_rect = pygame.Rect(rect.x + BUTTON_MARGIN, text_y + 10, button_width, BUTTON_HEIGHT)
             begin_rect = self._draw_button(surface, begin_rect, "Begin Fight Step", accent="confirm")
@@ -1403,12 +1570,29 @@ class ActionPanel:
         flickerjump_controller=None,
         battle_focus_pool=None,
         # Appended, not slotted in: draw() forwards everything above positionally.
-        presentiment_controller=None, fate_inescapable_controller=None,
-        unshrouded_truth_controller=None,
         sudden_storm_controller=None,
         conquering_tyrant_controller=None,
         hungry_void_controller=None,
         path_of_the_outcast_controller=None,
+        fire_and_fade_controller=None,
+        overflight_controller=None,
+        warhost_fire_and_fade_controller=None,
+        targeting_array_controller=None,
+        # Appended by keyword like everything above - see draw()'s own warning.
+        secondary_mission_controller=None,
+        unmodified_six_controller=None,
+        # Death Lord's Chosen - the three a human buys proactively. Appended
+        # BY KEYWORD: this chain is positional up to battle_focus_pool, and
+        # inserting a parameter mid-signature has silently shifted every
+        # argument after it before.
+        blooming_pestilence_controller=None,
+        grim_reapers_controller=None,
+        mortarions_teachings_controller=None,
+        # ONE parameter for every proactive detachment Stratagem, instead of one
+        # per Stratagem. See game/proactive_stratagems.py: the T'au detachments
+        # alone add nineteen, and this chain is positional for most of its
+        # length. A controller joins the list and needs no edit here.
+        proactive_stratagems=None,
     ):
         squad = movement_controller.selected_squad
         turn_tracker = movement_controller.turn_tracker
@@ -1464,6 +1648,29 @@ class ActionPanel:
             # neither ever happened - the move looked confirmed and left the
             # active player stranded on the reacting side.
             is_path_of_the_outcast = movement_controller.move_mode == path_of_the_outcast.PATH_OF_THE_OUTCAST_MOVE_MODE
+            # The Kroot Lone-Spear's Fire and Fade - Tactical Acumen's twin
+            # (a post-shooting Normal move whose charge lock is likewise
+            # conditional on the move actually being confirmed), so it needs
+            # its own branch for exactly the same reason.
+            is_fire_and_fade = movement_controller.move_mode == fire_and_fade.FIRE_AND_FADE_MOVE_MODE
+            # Windrider Host's Overflight - the THIRD reactive move (see
+            # MovementController.REACTIVE_MOVE_MODES). Its printed WHEN says
+            # "the end of THE Fight phase", which belongs to nobody, so the
+            # move can be taken in the opponent's turn; like Path of the
+            # Outcast it therefore holds active_player while the move is open
+            # and needs its own branch to hand it back. Nothing else about it
+            # is special - it locks nothing out, so without that hand-off the
+            # generic confirm_move() would have done.
+            is_overflight = movement_controller.move_mode == windrider_overflight.OVERFLIGHT_MOVE_MODE
+            # Warhost's Fire and Fade - NOT reactive (its WHEN is "your
+            # Shooting phase", so the mover is the turn owner and select()
+            # accepts it). It needs a branch only because its two locks -
+            # charge AND embark - are applied "if it does", i.e. only once the
+            # move is actually confirmed. Same reason as Tactical Acumen and
+            # the Kroot ability of the same printed name.
+            is_warhost_fire_and_fade = (
+                movement_controller.move_mode
+                == warhost_fire_and_fade.WARHOST_FIRE_AND_FADE_MOVE_MODE)
             confirm_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
             confirm_rect = self._draw_button(surface, confirm_rect, "Confirm", accent="confirm")
             if is_charge:
@@ -1482,6 +1689,12 @@ class ActionPanel:
                 confirm_callback = torchstar_controller.confirm_move
             elif is_tactical_acumen and tactical_acumen_controller is not None:
                 confirm_callback = tactical_acumen_controller.confirm_move
+            elif is_fire_and_fade and fire_and_fade_controller is not None:
+                confirm_callback = fire_and_fade_controller.confirm_move
+            elif is_overflight and overflight_controller is not None:
+                confirm_callback = overflight_controller.confirm_move
+            elif is_warhost_fire_and_fade and warhost_fire_and_fade_controller is not None:
+                confirm_callback = warhost_fire_and_fade_controller.confirm_move
             else:
                 confirm_callback = movement_controller.confirm_move
             self._buttons.append((confirm_rect, confirm_callback))
@@ -1533,6 +1746,12 @@ class ActionPanel:
                 cancel_callback = battle_focus_pool.cancel_reactive_move
             elif is_path_of_the_outcast and path_of_the_outcast_controller is not None:
                 cancel_callback = path_of_the_outcast_controller.cancel_move
+            elif is_fire_and_fade and fire_and_fade_controller is not None:
+                cancel_callback = fire_and_fade_controller.cancel_move
+            elif is_overflight and overflight_controller is not None:
+                cancel_callback = overflight_controller.cancel_move
+            elif is_warhost_fire_and_fade and warhost_fire_and_fade_controller is not None:
+                cancel_callback = warhost_fire_and_fade_controller.cancel_move
             elif is_torchstar and torchstar_controller is not None:
                 cancel_callback = torchstar_controller.cancel_move
             elif is_tactical_acumen and tactical_acumen_controller is not None:
@@ -1567,19 +1786,21 @@ class ActionPanel:
             # refuses when nothing this unit could shoot at has 6+ models, so
             # the tier below is guaranteed non-zero whenever the button shows.
             can_arrokon_now = arrokon_controller is not None and arrokon_controller.can_use(squad)
-            # Seer Council's two PROACTIVE stratagems. Both are bought by the
-            # owning player at a moment of their own choosing, so they are
-            # buttons rather than DecisionManager break points - the same shape
-            # as Arro'kon and The Torchstar Gambit.
-            can_presentiment_now = (
-                presentiment_controller is not None and presentiment_controller.can_use(squad)
+            # Every proactive detachment Stratagem on offer for this unit, as
+            # (label, callback). Asked once here rather than per Stratagem so
+            # the panel never learns their names - see
+            # game/proactive_stratagems.py.
+            detachment_stratagem_buttons = (
+                proactive_stratagems.buttons_for(squad)
+                if proactive_stratagems is not None else []
             )
-            can_fate_inescapable_now = (
-                fate_inescapable_controller is not None and fate_inescapable_controller.can_use(squad)
-            )
-            can_unshrouded_truth_now = (
-                unshrouded_truth_controller is not None and unshrouded_truth_controller.can_use(squad)
-            )
+            # Seer Council's three proactive Stratagems used to be three more
+            # parameters here, each repeated at all three stages of this
+            # signature chain - they simply predate
+            # game/proactive_stratagems.py. They are on the registry now, so
+            # they arrive in detachment_stratagem_buttons above like every
+            # other one, and the "nothing to do here" hint below finally
+            # accounts for them.
             arrokon_tier = arrokon_controller.best_available_tier(squad) if can_arrokon_now else 0
             can_crushing_impact_now = crushing_impact_controller is not None and crushing_impact_controller.can_use(squad)
             # War Horde's Unbridled Carnage: can_use() already refuses for a
@@ -1604,6 +1825,22 @@ class ActionPanel:
             )
             can_hungry_void_now = (
                 hungry_void_controller is not None and hungry_void_controller.can_use(squad)
+            )
+            # The three Death Lord's Chosen Stratagems a human buys proactively.
+            # The other three are deliberately not offered here: Undying Spite
+            # and Sickening Impact are REACTIVE (they arrive as a
+            # DecisionManager prompt at their own moment), and Signal Pox needs
+            # a LORD OF VIRULENCE model, which no datasheet here has.
+            can_blooming_pestilence_now = (
+                blooming_pestilence_controller is not None
+                and blooming_pestilence_controller.can_use(squad)
+            )
+            can_grim_reapers_now = (
+                grim_reapers_controller is not None and grim_reapers_controller.can_use(squad)
+            )
+            can_mortarions_teachings_now = (
+                mortarions_teachings_controller is not None
+                and mortarions_teachings_controller.can_use(squad)
             )
             # Warp Spiders' Flickerjump: same "has to be pressed before the
             # move" reason as 'Ere We Go above - MovementController reads the
@@ -1774,6 +2011,29 @@ class ActionPanel:
                 self._buttons.append((torchstar_rect, lambda: torchstar_controller.use(squad)))
                 button_y += torchstar_rect.height + BUTTON_GAP
 
+            # Rule 16.01 ACTIONS (game/actions.py). One button per action this
+            # unit could start right now, one per legal target - so you pick
+            # the UNIT by selecting it and the target by which button you
+            # press, exactly like every other thing a unit can do.
+            #
+            # Deliberately NOT a DecisionManager prompt: an action is something
+            # a unit does on its turn, not an interruption. The first version
+            # opened a prompt chain at the start of the Shooting phase and
+            # marched the player through the eligible units in name order,
+            # which meant you could say whether to act but never with whom.
+            for action_label, action_def, action_target in (
+                secondary_mission_controller.available_actions_for(squad)
+                if secondary_mission_controller is not None else ()
+            ):
+                action_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
+                action_rect = self._draw_button(surface, action_rect, action_label, accent="confirm")
+                self._buttons.append((
+                    action_rect,
+                    lambda a=action_def, sq=squad, t=action_target:
+                        secondary_mission_controller.start_action(a, sq, t),
+                ))
+                button_y += action_rect.height + BUTTON_GAP
+
             if can_arrokon_now:
                 # The tier is on the label rather than left to be worked out
                 # from the target's model count - same reasoning as the
@@ -1786,37 +2046,15 @@ class ActionPanel:
                 self._buttons.append((arrokon_rect, lambda: arrokon_controller.use(squad)))
                 button_y += arrokon_rect.height + BUTTON_GAP
 
-            if can_presentiment_now:
-                presentiment_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
-                presentiment_rect = self._draw_button(
-                    surface, presentiment_rect, "Presentiment of Dread (1 CP)", accent="stratagem",
-                )
-                self._buttons.append((presentiment_rect, lambda: presentiment_controller.use(squad)))
-                button_y += presentiment_rect.height + BUTTON_GAP
-
-            if can_fate_inescapable_now:
-                # Both halves on the label, so the trade is readable without
-                # opening the rules - same reasoning as Arro'kon's tier above.
-                fate_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
-                fate_rect = self._draw_button(
-                    surface, fate_rect,
-                    "Fate Inescapable (1 CP) - [IGNORES COVER], crit wounds AP+1",
-                    accent="stratagem",
-                )
-                self._buttons.append((fate_rect, lambda: fate_inescapable_controller.use(squad)))
-                button_y += fate_rect.height + BUTTON_GAP
-
-            if can_unshrouded_truth_now:
-                # The label says what happens next, because what happens next is
-                # a board click the player has to know is coming.
-                unshrouded_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
-                unshrouded_rect = self._draw_button(
-                    surface, unshrouded_rect,
-                    "Unshrouded Truth (1 CP) - into Reserves, then place it now",
-                    accent="stratagem",
-                )
-                self._buttons.append((unshrouded_rect, lambda: unshrouded_truth_controller.use(squad)))
-                button_y += unshrouded_rect.height + BUTTON_GAP
+            # The detachment Stratagems. Each one's own can_use() carries its
+            # printed WHEN, so a Movement-phase Stratagem simply does not
+            # appear here during Shooting - one loop, right phase, no phase
+            # knowledge in the panel.
+            for _label, _use in detachment_stratagem_buttons:
+                _rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
+                _rect = self._draw_button(surface, _rect, _label, accent="stratagem")
+                self._buttons.append((_rect, _use))
+                button_y += _rect.height + BUTTON_GAP
 
             if can_crushing_impact_now:
                 crushing_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
@@ -1868,6 +2106,42 @@ class ActionPanel:
                 )
                 self._buttons.append((void_rect, lambda: hungry_void_controller.use(squad)))
                 button_y += void_rect.height + BUTTON_GAP
+
+            # Grim Reapers shares Hungry Void's window exactly ("has not been
+            # selected to fight this phase"), so it sits next to it.
+            if can_grim_reapers_now:
+                reapers_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
+                reapers_rect = self._draw_button(
+                    surface, reapers_rect,
+                    "Grim Reapers (1 CP) - re-roll Hit rolls (not vs MONSTER/VEHICLE)",
+                    accent="stratagem",
+                )
+                self._buttons.append((reapers_rect, lambda: grim_reapers_controller.use(squad)))
+                button_y += reapers_rect.height + BUTTON_GAP
+
+            if can_mortarions_teachings_now:
+                teach_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
+                teach_rect = self._draw_button(
+                    surface, teach_rect,
+                    "Mortarion's Teachings (1 CP) - ranged weapons gain [ASSAULT] and [HEAVY]",
+                    accent="stratagem",
+                )
+                self._buttons.append(
+                    (teach_rect, lambda: mortarions_teachings_controller.use(squad)))
+                button_y += teach_rect.height + BUTTON_GAP
+
+            # "Start of ANY phase", so unlike the two above it is offered in
+            # every phase this panel draws a unit in.
+            if can_blooming_pestilence_now:
+                bloom_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
+                bloom_rect = self._draw_button(
+                    surface, bloom_rect,
+                    'Blooming Pestilence (1 CP) - +3" Contagion Range this phase',
+                    accent="stratagem",
+                )
+                self._buttons.append(
+                    (bloom_rect, lambda: blooming_pestilence_controller.use(squad)))
+                button_y += bloom_rect.height + BUTTON_GAP
 
             if can_unbridled_carnage_now:
                 carnage_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
@@ -1941,6 +2215,10 @@ class ActionPanel:
                 and not can_flickerjump_now
                 and not can_sudden_storm_now and not can_conquering_tyrant_now
                 and not can_hungry_void_now
+                and not can_blooming_pestilence_now
+                and not can_grim_reapers_now
+                and not can_mortarions_teachings_now
+                and not detachment_stratagem_buttons
                 and turn_tracker is not None
             ):
                 if turn_tracker.phase == PHASE_MOVEMENT and squad in movement_controller.moved_squad_ids:

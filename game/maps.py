@@ -24,6 +24,7 @@ they all see the selected map. It is deliberately a one-shot at startup, not
 something to call again mid-game.
 """
 
+from game import shapes
 from game.deployment import DeploymentZone
 from game.terrain import LIGHT, Obstacle, ruin, ruin_l
 
@@ -38,7 +39,7 @@ class BattleMap:
         self.name = name
         self.width_in = width_in
         self.height_in = height_in
-        self.zones = zones          # [(owner, [(x_in, y_in, width_in, height_in), ...]), ...]
+        self.zones = zones          # [(owner, rects_or_Shape), ...] - see build()
         self._terrain = terrain     # callable(state) -> adds terrain areas + objectives
         self.player1 = player1      # Player1Deployment
         self.player2 = player2      # Player2Deployment
@@ -91,8 +92,16 @@ class BattleMap:
     def build(self, state):
         """Adds this map's deployment zones, terrain areas and objectives to
         `state`. Call once, after apply_to_config()."""
-        for owner, rects in self.zones:
-            state.add_deployment_zone(DeploymentZone(owner, rects))
+        for owner, spec in self.zones:
+            # A zone is written either as axis-aligned rectangles (the form the
+            # two big boards use) or as a game/shapes.py Shape - which is what
+            # a diagonal, rotated or holed zone needs. One line here, because
+            # DeploymentZone answers every question from a signed distance
+            # either way.
+            if isinstance(spec, shapes.Shape):
+                state.add_deployment_zone(DeploymentZone(owner, shape=spec))
+            else:
+                state.add_deployment_zone(DeploymentZone(owner, spec))
         self._terrain(state, self)
 
 
@@ -603,77 +612,168 @@ MAP2 = BattleMap(
 
 
 # ---------------------------------------------------------------------------
-# Map 3 - a small, deliberately awkward test board.
+# Map 3 - 60"x44" landscape, built from the layout the user supplied as
+# Sprites/Map3.png (2400x1760 px, i.e. exactly 40 px per inch).
 #
-# Not a layout copied from anywhere: 30"x30" with four units a side, built so a
-# whole turn takes seconds and so that the geometries the AI keeps failing on
-# are all present at once instead of having to be waited for on a full board.
-# Each piece below is one of those reported failures, with the log entry it
-# comes from named at its own definition.
+# It REPLACES the old 30"x30" test board of the same key (User: "map3
+# ersetzen"). What that board was for - a whole turn in seconds, and every
+# awkward geometry present at once - is gone with it; see CLAUDE.md for what
+# moved where.
 #
-# The one rule the layout follows: every awkward feature has a way round it.
-# A board where a unit genuinely cannot get through would make every failure
-# look the same, and the whole point is to tell "the AI could not solve this"
-# apart from "this was not solvable".
+# Measured, not eyeballed, and every number below is a measurement:
+#
+#   * The board is 60"x44": the source image's aspect ratio is exactly 15:11
+#     and its deployment zones sit exactly on the half-board lines.
+#   * The layout has the same 180-degree rotational symmetry map 1 and map 2
+#     have. Only the north/west half is measured here; the other half is its
+#     mirror through the board centre, so a single noisy measurement cannot
+#     make the two halves disagree. Checked before writing this: every
+#     measured piece finds its mirror within 0.1" and 1.4 degrees.
+#   * FOUR of the eighteen pieces stand at an angle (37.0 and -52.5 degrees,
+#     each twice). Unlike map 2, they are built AT THAT ANGLE -
+#     game/terrain.py's Obstacle takes angle_deg since the rotation work, so
+#     the straightening map 2 needed is no longer the price of using this
+#     engine's geometry.
+#   * Every footprint is ONE clean rectangle (User: "ignoriere
+#     unregelmaessigkeiten wie schutt. mache saubere rechtecke draus. und alle
+#     footprints sollen rechtecke sein"). The source art draws irregular
+#     rubble spilling past each footprint's edge; the measurement fits the
+#     rectangle to the piece and discards the spill, which is why the fitted
+#     rectangle covers 93-98% of each piece's drawn pixels rather than 100%.
+#     A piece is only built ROTATED when it really is a turned rectangle,
+#     which is decided by how much of its minimum-area box it fills (102% for
+#     a true one against 66% for a wedge) - see the central pair below.
+#
+# The DEPLOYMENT ZONES are the reason the shape work came first: each is a
+# board QUADRANT with a 9" circle around the board centre cut out of it. That
+# is not expressible as axis-aligned rectangles at all - see game/shapes.py's
+# module docstring for the measurement that killed the rectangle approximation
+# (a grav tank cannot be deployed anywhere in a 16-strip staircase of one).
+# The 9" is measured: 355 px in BOTH zones independently, i.e. 8.88", against
+# the "9"" the source image annotates - the 0.12" is the dashed line's width.
+#
+# Player 2 keeps the LOW-Y corner, as on both other maps, so nothing else in
+# the scene has to know which map it is. The source image tints that corner
+# blue and this engine draws Player 1 blue, so the rendered colours are the
+# other way round from the picture; that is a palette, not a layout.
 # ---------------------------------------------------------------------------
 
-MAP3_WIDTH_IN = 30.0
-MAP3_HEIGHT_IN = 30.0
+MAP3_WIDTH_IN = 60.0
+MAP3_HEIGHT_IN = 44.0
+# The circle bitten out of both deployment zones, centred on the board.
+MAP3_CENTRE_HOLE_RADIUS_IN = 9.0
+
+
+def _map3_mirror(x_in, y_in):
+    """The same piece 180 degrees around the board centre - the symmetry the
+    measured layout actually has."""
+    return MAP3_WIDTH_IN - x_in, MAP3_HEIGHT_IN - y_in
+
+
+def _map3_zone(x_side, y_side):
+    """One quadrant of the board minus the centre circle, as a shape.
+
+    `x_side`/`y_side` are +1 or -1 and pick the quadrant: +1 keeps the high
+    side of that axis. The four board edges are included as half-planes so the
+    shape is bounded - without them it reports no bounding box and every
+    caller that samples it (the renderer's outline, the AI's candidate grid)
+    would have to fall back to the whole board."""
+    cx, cy = MAP3_WIDTH_IN / 2, MAP3_HEIGHT_IN / 2
+    return shapes.Intersection([
+        shapes.HalfPlane(x_side, 0.0, x_side * cx),
+        shapes.HalfPlane(0.0, y_side, y_side * cy),
+        shapes.Outside(shapes.Disc(cx, cy, MAP3_CENTRE_HOLE_RADIUS_IN)),
+        shapes.HalfPlane(1.0, 0.0, 0.0),
+        shapes.HalfPlane(-1.0, 0.0, -MAP3_WIDTH_IN),
+        shapes.HalfPlane(0.0, 1.0, 0.0),
+        shapes.HalfPlane(0.0, -1.0, -MAP3_HEIGHT_IN),
+    ])
 
 
 def _map3_terrain(state, battle_map):
     cx, cy = battle_map.center
 
-    # 1. THE CORRIDOR. Two walls exactly 3.0" apart, inner face to inner face.
-    #    From the reported Warbikers, who cannot cross Dense terrain (13.06)
-    #    and whose 0.98" bases mean three abreast need 5.9": they have to go
-    #    through in single file or go round. Measured on map 2's own NE ruin,
-    #    the gap that stopped them was 3.5".
-    state.add_terrain_area([Obstacle(x_in=7.5, y_in=15.0, width_in=0.6, height_in=10.0)])
-    state.add_terrain_area([Obstacle(x_in=11.1, y_in=15.0, width_in=0.6, height_in=10.0)])
+    def barricade(x_in, y_in, width_in, height_in, angle_deg=0.0):
+        """A piece with barricade markings and no rubble on it: a LIGHT
+        footprint only, nothing that blocks sight or movement. Same reading
+        map 2 uses for its own gold-braced pieces."""
+        return [Obstacle(x_in=x_in, y_in=y_in, width_in=width_in, height_in=height_in,
+                         category=LIGHT, angle_deg=angle_deg)]
 
-    # 2. THE BAY, open only toward Player 2's own edge. Drive in from the north
-    #    and the far end is closed - the "nach Sueden offene Bucht" the
-    #    Warbikers sat in for two turns in logs/game_20260808_213013.log,
-    #    where every angle that made progress pointed into a wall.
-    state.add_terrain_area([Obstacle(x_in=22.3, y_in=14.0, width_in=0.6, height_in=6.6)])
-    state.add_terrain_area([Obstacle(x_in=27.7, y_in=14.0, width_in=0.6, height_in=6.6)])
-    state.add_terrain_area([Obstacle(x_in=25.0, y_in=17.0, width_in=6.0, height_in=0.6)])
+    def rubble_ruin(x_in, y_in, width_in, height_in, angle_deg=0.0,
+                    h_wall_fraction=None, v_wall_fraction=None):
+        """A piece whose art carries green rubble/structure: built as a ruin
+        with our own L-wall layout (two partial doorless walls facing the
+        board centre), the same rule map 1 and map 2 follow. The walls turn
+        with the footprint - see game/terrain.py's l_walls()."""
+        return ruin_l(x_in=x_in, y_in=y_in, width_in=width_in, height_in=height_in,
+                      facing_x=cx, facing_y=cy, angle_deg=angle_deg,
+                      h_wall_fraction=h_wall_fraction, v_wall_fraction=v_wall_fraction)
 
-    # 3. THE DOOR, 5" wide - passable by a 2.10"-based Kill Rig or Battlewagon
-    #    (which need 4.2") and by anything smaller, but only just. Central, and
-    #    the middle objective sits on it, so it is worth contesting rather than
-    #    just an obstacle.
-    centre = state.add_terrain_area(
-        ruin(x_in=17.0, y_in=15.0, width_in=6.0, height_in=6.0, door_width=5.0))
-    state.add_objective(centre, name="Central Objective")
+    def both(build, x_in, y_in, *args, **kwargs):
+        """The measured piece AND its mirror. Returns the two terrain areas so
+        a caller can hang an objective on either."""
+        mx, my = _map3_mirror(x_in, y_in)
+        return (state.add_terrain_area(build(x_in, y_in, *args, **kwargs)),
+                state.add_terrain_area(build(mx, my, *args, **kwargs)))
 
-    # 4. THE OPEN FLANK. Nothing at all west of x=7.2, which is 7.2" of clear
-    #    ground - wide enough for the widest base in either army. Every unit
-    #    always has a legal way forward, so a unit that does not move has no
-    #    excuse.
+    # -- the two big ruins on the diagonal, each carrying an objective -------
+    # Measured (9.59, 11.88), 11.14 x 6.92 at 37.1 degrees.
+    nw_ruin, se_ruin = both(rubble_ruin, 9.59, 11.88, 11.14, 6.92, angle_deg=37.1)
+    state.add_objective(nw_ruin, name="Objective Northwest")
+    state.add_objective(se_ruin, name="Objective Southeast")
 
-    # Home objectives, one per zone, each on a piece of terrain to stand in.
-    p2_home = state.add_terrain_area(
-        ruin_l(x_in=8.0, y_in=4.5, width_in=6.0, height_in=4.0, facing_x=cx, facing_y=cy))
+    # -- the two home ruins, one inside each deployment zone -----------------
+    # Measured (44.10, 6.67), 11.10 x 6.95, square to the board.
+    p2_home, p1_home = both(rubble_ruin, 44.10, 6.67, 11.10, 6.95)
     state.add_objective(p2_home, name="P2 Home Objective")
-    p1_home = state.add_terrain_area(
-        ruin_l(x_in=22.0, y_in=25.5, width_in=6.0, height_in=4.0, facing_x=cx, facing_y=cy))
     state.add_objective(p1_home, name="P1 Home Objective")
+
+    # -- the two central pieces, inside the circle both zones give up --------
+    # Measured (35.87, 20.22), 7.48 x 10.85, SQUARE to the board. These are the
+    # pair the 9" hole exists for: both sit in No Man's Land despite standing
+    # in a quadrant that is otherwise somebody's deployment zone.
+    #
+    # UPRIGHT, and that is a correction the user had to point out. The art
+    # draws these two as WEDGES, and fitting each its minimum-area rectangle
+    # laid a long thin 11.5 x 5.75 block diagonally through the wedge at 57
+    # degrees - the tightest rectangle around the shape, and not the shape
+    # anyone reads it as. The two readings are told apart by FILL: a genuinely
+    # rotated rectangle fills its minimum-area box (measured 102-103% here,
+    # over 100% because the fit is trimmed at the 2nd/98th percentile), a wedge
+    # only two thirds of it (66%). Where the fill says "wedge", the upright box
+    # wins.
+    east_ruin, west_ruin = both(rubble_ruin, 35.87, 20.22, 7.48, 10.85)
+    state.add_objective(east_ruin, name="Objective East")
+    state.add_objective(west_ruin, name="Objective West")
+
+    # -- the rubble pieces flanking the centre line --------------------------
+    both(rubble_ruin, 31.65, 9.00, 3.10, 3.70)
+    both(rubble_ruin, 28.55, 9.10, 2.80, 3.90)
+
+    # -- barricades: gold bracing, no rubble, so no walls --------------------
+    both(barricade, 25.88, 6.03, 2.05, 5.65)             # tall cross-braced bar
+    both(barricade, 19.84, 11.21, 5.89, 3.79, angle_deg=-52.5)
+    # The long flank band. Measured as ONE 9.55 x 2.65 piece: the first pass
+    # split it into three because the erosion that separates touching pieces
+    # cut this one apart as well, and the halves then landed asymmetrically.
+    both(barricade, 50.08, 21.38, 9.55, 2.65)
+    # The green container, and the piece the first pass MISSED ENTIRELY: its
+    # art has no grey ground under it, and that pass masked only grey. The
+    # mask now takes green and gold as terrain in their own right.
+    both(barricade, 43.90, 16.85, 2.00, 7.00)
 
 
 MAP3 = BattleMap(
     key="map3",
-    name="Test board (30\"x30\", small armies)",
+    name="Crucible (60\"x44\", corner deployment)",
     width_in=MAP3_WIDTH_IN,
     height_in=MAP3_HEIGHT_IN,
-    # 8" deep each, leaving 14" of no man's land - close enough that the armies
-    # meet in the first turn or two, which is the whole point of a quick board.
-    # Player 2 keeps the low-y edge, as on both other maps, so nothing else in
-    # the scene has to know which map it is.
+    # Corner quadrants with the middle 9" bitten out - see _map3_zone(). The
+    # first map whose zones are not rectangles at all.
     zones=[
-        ("Player 2", [(15.0, 4.0, 30.0, 8.0)]),
-        ("Player 1", [(15.0, 26.0, 30.0, 8.0)]),
+        ("Player 2", _map3_zone(x_side=1.0, y_side=-1.0)),   # high x, low y
+        ("Player 1", _map3_zone(x_side=-1.0, y_side=1.0)),   # low x, high y
     ],
     terrain=_map3_terrain,
     # No hand-placed positions: this map is only ever played through rule
@@ -682,89 +782,10 @@ MAP3 = BattleMap(
     player1=Player1Deployment(squads=[], devilfish=(0.0, 0.0)),
     player2=Player2Deployment(gretchin=[], stormboyz=[], warbikers=[],
                               boyz1=[], trukks=[], deff_dread=[]),
-    # Four units a side, chosen as the ones that actually fail: the 22-model
-    # mob and the Meganobz are the two worst units in the movement logs, the
-    # Battlewagon is a 2.10" base that has to find the door or the flank, and
-    # the Warbikers cannot cross Dense terrain at all.
-    #
-    # Four units a side, and the four SLOTS are the same whichever list is
-    # picked, because they are what map 3 exists to stress (see the map's own
-    # docstring: a 3" corridor, a bay open only to its own edge, a 5" door, a
-    # 7.2" flank):
-    #
-    #   1. the big attached blob most likely to expose a movement problem
-    #   2. an elite melee or gunline unit to shoot back with
-    #   3. a VEHICLE, which cannot cross Dense terrain at all
-    #   4. a unit that needs open ground WITHOUT the VEHICLE keyword - the
-    #      shape _needs_open_ground() exists for
-    #
-    # "{p}" is the owner's digit, filled in by roster_for() - see BattleMap's
-    # own note on why these are keyed by ARMY and not by player.
-    army_roster={
-        # The Aeldari half was re-picked when the roster went from T'au to
-        # Aeldari, keeping the same intent: something to shoot back with, an
-        # anti-tank answer to a Battlewagon, a vehicle of its own, and the unit
-        # most likely to expose a movement problem - which is the 14-model
-        # attached blob rather than a 10-model gunline.
-        #
-        # The anti-tank slot was the Fire Dragons until the list revision
-        # dropped them; the Dark Reapers inherit it on the same grounds, their
-        # Reaper Launcher being the S10/AP-2 answer left in the roster to a T10
-        # Battlewagon. Picked by that measurement rather than by being the
-        # nearest name.
-        "aeldari": {
-            "{p} Guardian Defenders 1 + Farseer + Warlock Conclave",
-            "{p} Dark Reapers 1",
-            "{p} Falcon 1",
-            "{p} Wraithguard 1",
-        },
-        "orks": {
-            "{p} Boyz 1 + Warboss + Painboy",
-            "{p} Meganobz 1 + Warboss in Mega Armour",
-            "{p} Battlewagon 1",
-            "{p} Warbikers 1",
-        },
-        # The T'au slots, measured against the others rather than picked by
-        # eye - a slot is only a fair substitute if it poses the same geometry:
-        # the Devilfish is 4.20" across, exactly the Battlewagon's and the
-        # Doomsday Ark's (none of the three fits this map's 3" corridor), and
-        # the Crisis Sunforges are 1.96", exactly the Warbikers' (1.89" for the
-        # Lokhusts) and likewise unable to cross Dense terrain - which is what
-        # _needs_open_ground() actually asks, rather than the VEHICLE keyword.
-        #
-        # The blob slot is the weakest match and is named as such: the Breacher
-        # Team plus its Cadre Fireblade is 11 models, against 22 Boyz and 21
-        # Necron Warriors. It is simply the largest unit this list has. It also
-        # rides in the Devilfish, the way the Meganobz ride in the Battlewagon,
-        # so the transport is in the roster for two reasons.
-        "tau": {
-            "{p} Breacher Team 1 + Cadre Fireblade",
-            "{p} Strike Team 1",
-            "{p} Devilfish 1",
-            "{p} Crisis Sunforge Battlesuits 1 + Commander Farsight",
-        },
-        "necrons": {
-            # 21 models, the largest blob in any of the three lists - a harder
-            # version of the Boyz slot rather than a like-for-like one.
-            "{p} Necron Warriors 1 + Technomancer",
-            "{p} Lychguard 1 + Overlord",
-            "{p} Doomsday Ark 1",
-            # Six MOUNTED bases: all the movement problems of a vehicle and
-            # none of its keywords, which is exactly what the Warbikers were
-            # picked for.
-            "{p} Lokhust Destroyers 1",
-            #
-            # MEASURED after the base-size pass, because a slot is only a fair
-            # substitute if it poses the same geometry: the Doomsday Ark is now
-            # 4.20" across and so is the Battlewagon (neither fits this map's
-            # 3" corridor), and the Lokhust Destroyers are 1.89" against the
-            # Warbikers' 1.96". The lists stress this board the same way,
-            # which is what makes a movement result on one comparable to the
-            # other.
-        },
-    },
+    # A full-size board fields the full army, like map 1 and map 2. The old
+    # 30"x30" board carried a four-units-a-side roster because it was small;
+    # nothing about this one wants that.
 )
-
 
 MAPS = {m.key: m for m in (MAP1, MAP2, MAP3)}
 DEFAULT_MAP_KEY = MAP1.key

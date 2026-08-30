@@ -27,6 +27,8 @@ class UnitProfile:
     character = False  # the CHARACTER keyword - matters for save-roll wound allocation (05.03)
     monster = False  # the MONSTER keyword - matters for hazard rolls (06.03)
     vehicle = False  # the VEHICLE keyword - matters for hazard rolls (06.03)
+    epic_hero = False  # the EPIC HERO keyword. Purely descriptive - its printed consequence ("only one of these in your army") is a Muster Armies rule, and there is no army-building flow to enforce it (see CLAUDE.md's Spaeter-Liste). Declared here rather than left as an ad-hoc attribute so `profile.epic_hero` is safe to read
+    mounted = False  # the MOUNTED keyword. Descriptive today: no rule in this engine reads it, but it is what distinguishes e.g. the Kroot Lone-Spear and the Lokhust Lord from their INFANTRY siblings, and a keyword test that guessed from the base size would be wrong
     walker = False  # the WALKER keyword - rule 15.11 (Heroic Intervention): lets an otherwise-pure-VEHICLE unit qualify alongside CHARACTER; see HeroicInterventionController._has_walker(). No other rule in this engine reads it yet (unlike AIRCRAFT/TITANIC, which remain pure no-op carve-outs since no datasheet has needed them)
     infantry = False  # the INFANTRY keyword - matters for moving through Dense terrain (13.06)
     beasts = False  # the BEASTS keyword - matters for moving through Dense terrain (13.06)
@@ -53,7 +55,7 @@ class UnitProfile:
     molten_form = False  # the Avatar of Khaine's own ability: each attack allocated to this model has its Damage characteristic halved (rounding up). The first halving in this engine - see game/molten_form.py, which also records why mortal wounds are not halved
     bloody_handed = False  # the Avatar of Khaine's own aura: friendly AELDARI units within 6" add 1 to Advance and Charge rolls. Folded with War Horde's 'Ere We Go in game/roll_bonus.py, which is the one place the two roll sites ask - see game/bloody_handed.py
     diviner_of_futures = False  # Eldrad Ulthran's own ability: +1 CP at the start of your Command phase while he is on the battlefield. Goes through command_points.gain_cp(), so the user's +1-bonus-CP-per-battle-round house rule applies - see game/diviner_of_futures.py
-    support_weapon = False  # the SUPPORT WEAPON keyword - read by game/branching_fates.py's exclusion. No SUPPORT WEAPON datasheet exists here yet
+    support_weapon = False  # the SUPPORT WEAPON keyword - read by game/branching_fates.py's and game/word_of_the_phoenix.py's exclusions. Set by the three Aeldari platform profiles
     psychic_communion = False  # Warlock Conclave's own ability: each Warlock's Destructor gains +1 A and +1 S per other friendly AELDARI PSYKER model within 6" of it, max +2 - see game/psychic_communion.py
     protect = False  # Warlock Conclave's own ability: while a FARSEER leads the unit, attacks targeting it subtract 1 from the Wound roll - see game/protect.py
     farseer = False  # the FARSEER keyword - read by game/protect.py. Kept separate from `psyker` because Protect names this keyword specifically: the Farseer and Eldrad Ulthran are FARSEER, while the Warlock Conclave is PSYKER but not
@@ -62,7 +64,58 @@ class UnitProfile:
     tactical_acumen = False  # Asurmen's own ability: while he is leading a unit, that unit may make a 6" Normal move after it shoots, at the cost of its charge - see game/tactical_acumen.py
     hand_of_asuryan = False  # Asurmen's own ability: once per battle, his Bloody Twins gains Damage 3, [ANTI-INFANTRY 5+] and [DEVASTATING WOUNDS] until end of phase - see game/hand_of_asuryan.py
     war_construct = False  # Wraithguard's own ability: this unit may shoot in a turn in which it Fell Back - the same 09.07 exception Crisis Starscythe's Battlesuit Support System grants, read at game/shooting.py's available_shooting_types()
-    psychic_guidance = False  # Wraithguard's own ability: while within 12" of a friendly AELDARI PSYKER model, Ld becomes 6+ and every attack gets +1 to Hit - see game/psychic_guidance.py
+    psychic_guidance = False  # Wraithguard's/Wraithblades' own ability: while within 12" of a friendly AELDARI PSYKER model, Ld becomes 6+ and every attack gets +1 to Hit - see game/psychic_guidance.py
+    psychic_guidance_characteristics = False  # the Wraithlord's variant of the same printed name: Ld becomes 6+ and the BS/WS characteristics of this model's weapons improve by 1, rather than the Hit ROLL being modified - see game/psychic_guidance.py
+    malevolent_souls = False  # Wraithblades' own ability: a model destroyed by a MELEE attack that has not fought this phase stays up on a 3+, strikes back, and is then removed - see game/malevolent_souls.py
+    support_weapon_toughness = False  # Support Weapon Platforms' "Support Weapon": while the model's unit contains one or more OTHER models, it has Toughness 3 - folded into game/squad.py's attached_unit_toughness(), next to the Gretchin Runtherd override that answers the same question
+    cannot_embark = False  # "cannot embark within a TRANSPORT" printed on the model itself (Support Weapon Platforms, and any unit one has joined) - read by game/transport.py
+    structural_collapse = False  # the D-cannon Platform's own ability: re-roll a Damage roll of 1 with its D-cannon - see game/structural_collapse.py
+    monofilament_snare = False  # the Shadow Weaver Platform's own ability: a hit enemy unit is snared and bleeds mortal wounds when it moves - see game/monofilament_snare.py
+    sonic_destruction = False  # the Vibro Cannon Platform's own ability: S/AP/D improve by 1 per OTHER friendly platform that shot the same target this phase - see game/sonic_destruction.py
+    reavers_of_the_void = False  # Corsair Voidreavers' own ability: automatic re-roll of Hit rolls of 1, or the WHOLE roll instead against a target in range of an objective - see game/reavers_of_the_void.py
+    piratical_raiders = False  # Corsair Voidscarred's own ability: [LETHAL HITS] and [PRECISION] against one enemy unit chosen at the start of the battle - see game/piratical_raiders.py
+    channeller_stones = False  # the Soul Weaver's wargear: once per turn the first failed save in its unit takes Damage 0 - see game/channeller_stones.py
+    raid_and_run = False  # Corsair Skyreavers' own ability: a D3+3" Normal or Fall Back move at the end of the Fight phase - see game/raid_and_run.py
+    aethersense = False  # Kharseth's own ability: enemy Reserves cannot arrive within 12" of this model - see game/aethersense.py
+    fury_of_the_void = False  # Kharseth's own ability: a unit his gun hits is RIVEN, and Aeldari attacks against it get +1 Strength - see game/fury_of_the_void.py
+    piratical_hero = False  # Prince Yriel's own ability: while leading, the unit's attacks get [SUSTAINED HITS 1] and +1 to Hit - see game/piratical_hero.py
+    prince_of_corsairs = False  # Prince Yriel's own ability: redeploy up to three AELDARI units after both armies have deployed - see game/prince_of_corsairs.py
+    hallucinogen_grenades = False  # the Starfangs' own ability: grant Stealth to a friendly AELDARI INFANTRY unit for the opponent's Shooting phase - see game/hallucinogen_grenades.py
+    mistshield = False  # Corsair wargear: the bearer has a 4+ invulnerable save - read by game/invulnerable_save.py
+    faolchu = False  # Corsair wargear: ranged weapons in the bearer's unit have [IGNORES COVER] - see game/faolchu.py
+    on_the_hunt = False  # the Dragon Knights' own ability: a Fall Back move does not stop them shooting or charging - the FOURTH printed wording of that exception, read at the same gates as Battlesuit Support System
+    agile_reach = False  # the Dragon Knights' own ability: an UNENGAGED model within 3" of an enemy engaged with its unit may still target that enemy - see game/agile_reach.py
+    drakolithe = False  # Dragon Knights' and the Leystalker's own ability: a token-limited reactive mortal wound when an enemy ends a move within 8" - see game/drakolithe.py
+    blade_of_the_clans = False  # the Clanblade's own ability: its unit's melee attacks have [SUSTAINED HITS 1] - see game/blade_of_the_clans.py
+    cornered_prey = False  # the Clanblade's own ability: an enemy falling back from it must use Desperate Escape - see game/cornered_prey.py
+    panicked_quarry = False  # the Leystalker's own ability: a non-MONSTER/VEHICLE unit it hit takes a Battle-shock test at -1 - see game/battle_shock_after_shooting.py
+    elemental_ensnarement = False  # the Stonesinger's own ability: an enemy MONSTER/VEHICLE unit is ENSNARED (-2" M, and cannot be pinned) - see game/elemental_ensnarement.py
+    aspect_training = False  # the Autarch's own ability: it gains Fights First while leading HOWLING BANSHEES, and Infiltrators/Scouts 7"/Stealth while leading STRIKING SCORPIONS - see game/aspect_training.py
+    superlative_strategist = False  # the Autarch's own ability: while leading a unit, re-roll its Advance rolls and any roll made for it during an Agile Manoeuvre - see game/superlative_strategist.py
+    path_of_command = False  # both Autarchs' own ability: once per battle round, reduce by 1CP the cost of a Stratagem used on this model's unit - see game/path_of_command.py
+    indomitable_strength_of_will = False  # the Autarch Wayleaper's own ability: spending a Battle Focus token on an Agile Manoeuvre for the led unit refunds it on a 3+ - see game/indomitable_strength_of_will.py
+    harvester_of_souls = False  # Maugan Ra's own ability: when the led unit fires everything at one target, nearby enemy units are struck by explosive debris - see game/harvester_of_souls.py
+    face_of_death = False  # Maugan Ra's own ability: a unit he hits takes a Battle-shock test at -1 - see game/face_of_death.py
+    runes_of_fortune = False  # the standalone Warlock's own ability: an enemy charge that selects this unit as a target subtracts 2 from the Charge roll - see game/runes_of_fortune.py
+    spiritseer_lone_operative = False  # the Spiritseer's own ability: Lone Operative while within 3" of a friendly WRAITH CONSTRUCT unit - see game/spiritseer.py
+    spirit_mark = False  # the Spiritseer's own ability: one friendly WRAITH CONSTRUCT unit gains [SUSTAINED HITS 1] against one marked enemy unit - see game/spiritseer.py
+    tears_of_isha = False  # the Spiritseer's own ability: return a destroyed model to, or heal, a friendly WRAITH CONSTRUCT unit each Command phase - see game/spiritseer.py
+    misfortune = False  # the Farseer Skyrunner's own ability: a marked enemy unit subtracts 1 from ITS OWN Wound rolls - see game/misfortune.py
+    crystal_matrix = False  # the Fire Prism's own ability: one Hit-roll re-roll AND one Wound-roll re-roll per shooting activation - see game/crystal_matrix.py
+    monofilament_web = False  # the Night Spinner's own ability: a unit its doomweaver hit is PINNED (-2 Move, -2 Charge) until the start of your next turn - see game/monofilament_web.py
+    harassment_fire = False  # the Vypers' own ability: a unit they hit is SUPPRESSED (-1 to its Hit rolls) - the same status Suppression Volley applies, see game/suppression.py
+    fated_hero = False  # the Wraithlord's own ability: one of INFANTRY/MONSTER/MOUNTED/VEHICLE is chosen at the start of the battle, and attacks against a unit with it re-roll Hit and Wound rolls of 1 - see game/fated_hero.py
+    # --- The Ynnari triumvirate (see game/ynnari_abilities.py and its two
+    # stateful siblings). Declared HERE rather than only on the three
+    # profiles because attached_units.leader_ability() reads the flag with a
+    # bare getattr() - an undeclared name is an AttributeError on whatever
+    # model happens to be checked first, not a False.
+    way_of_the_blade = False  # The Visarch: while LEADING, that unit has Fights First (24.13) - folded into squad_has_fights_first()
+    yvraines_champion = False  # The Visarch: while LEADING, the OTHER CHARACTER models in that unit have Feel No Pain 4+
+    word_of_the_phoenix = False  # Yvraine: while LEADING, a Command-phase 2+ returns up to D3+1 destroyed bodyguards - see game/word_of_the_phoenix.py
+    herald_of_ynnead = False  # Yvraine: a start-of-Fight-phase mark; friendly AELDARI re-roll a Wound roll of 1 against it until the end of the phase
+    inevitable_death = False  # The Yncarne: once in each opponent's turn it teleports to where a destroyed friendly AELDARI unit fell - see game/inevitable_death.py
+    ethereal_form = False  # The Yncarne: regains up to D3 lost wounds each time it destroys an enemy unit
     wraith_construct = False  # the WRAITH CONSTRUCT keyword - a TRANSPORT counts each such model as 2 (Falcon's printed line), see game/transport.py's _model_capacity_cost()
     fire_support = False  # the Falcon's own ability: after this model shoots, one enemy unit it hit is marked, and units that disembarked from it this turn may re-roll Wound rolls against that unit until end of turn - see game/fire_support.py
     assured_destruction = False  # Fire Dragons' own ability: in YOUR Shooting phase, a ranged attack against a MONSTER or VEHICLE unit may re-roll its Hit roll, its Wound roll and its Damage roll - see game/assured_destruction.py
@@ -78,6 +131,34 @@ class UnitProfile:
     markerlight = False  # the MARKERLIGHT keyword - see game/greater_good.py's marked_by_markerlight()
     battlesuit = False  # the BATTLESUIT keyword - matters for the Retaliation Cadre detachment's Bonded Heroes rule, see game/retaliation_cadre.py
     starflare_ignition_system = False  # the "Starflare Ignition System" Enhancement (user-supplied, 20 pts) is on THIS model - see game/starflare_ignition.py. Per-model rather than per-unit because an Enhancement is given to one model (game/factions/detachment.py's Enhancement docstring: granting one means setting the matching field on that model's own UnitProfile instance, which build_squad() creates fresh per model), even though its EFFECT is on the bearer's whole unit
+    # --- T'au Empire detachment Enhancements ---------------------------
+    # One flag per engine-wired Enhancement, marking the model (or, for the
+    # two "unit only" ones, every model of the unit) that bears it. Set only
+    # by game/enhancements.py's grant(), which owns the printed BEARER
+    # restriction, the points and the log line; the registry there names the
+    # module that reads each flag. Per-model rather than per-unit because an
+    # Enhancement is given to one model (game/factions/detachment.py's
+    # Enhancement docstring), even where its EFFECT covers the bearer's whole
+    # unit - and because rule 19.04 then means "the bearer died, the unit no
+    # longer has it" for free.
+    internal_grenade_racks = False  # Retaliation Cadre - see game/enh_internal_grenade_racks.py
+    prototype_weapon_system = False  # Retaliation Cadre - see game/enh_prototype_weapon_system.py
+    puretide_engram_neurochip = False  # Retaliation Cadre - see game/enh_puretide_neurochip.py. NOT Commander Farsight's "Puretide's Teachings" (game/puretide.py), which is a different rule printed under a similar name - named after its own Enhancement, per this repo's rename-a-lying-name rule
+    exemplar_of_the_kauyon = False  # Kauyon - see game/enh_exemplars.py
+    precision_of_the_patient_hunter = False  # Kauyon - see game/enh_precision_patient_hunter.py
+    solid_image_projection_unit = False  # Kauyon - see game/enh_solid_image_projection.py
+    through_unity_devastation = False  # Kauyon - see game/enh_guided_keyword_grants.py
+    coordinated_exploitation = False  # Mont'ka - see game/enh_guided_keyword_grants.py
+    exemplar_of_the_montka = False  # Mont'ka - see game/enh_exemplars.py
+    strategic_conqueror = False  # Mont'ka - see game/enh_strategic_conqueror.py
+    strike_swiftly = False  # Mont'ka - see game/enh_strike_swiftly.py
+    thermoneutronic_projector = False  # Experimental Prototype Cadre - see game/enh_prototype_weapons.py
+    plasma_accelerator_rifle = False  # Experimental Prototype Cadre - see game/enh_prototype_weapons.py
+    supernova_launcher = False  # Experimental Prototype Cadre - see game/enh_prototype_weapons.py
+    negation_emitters = False  # Advanced Acquisition Cadre - see game/enh_negation_emitters.py. Unit-level: every model of the STEALTH BATTLESUITS unit carries it
+    unmasking_suite = False  # Advanced Acquisition Cadre - see game/enh_unmasking_suite.py. Unit-level, like negation_emitters above
+    student_of_kauyon = False  # Auxiliary Cadre - see game/enh_student_of_kauyon.py
+    admired_leader = False  # Auxiliary Cadre - see game/enh_admired_leader.py
     orks = False  # this model is an Orks-Faction model - matters for the War Horde detachment's Get Stuck In rule, see game/war_horde.py. No generic per-model Faction tracking exists in this engine (same documented gap as Bonded Heroes' own "is this T'au Empire" note in game/retaliation_cadre.py); unlike `battlesuit` there's no existing keyword this could piggyback on, so it's its own dedicated flag
     gretchin = False  # the GRETCHIN keyword - matters for the Runtherd ability's "if it contains one or more Gretchin models" check, see UnitProfile.runtherd_shares_gretchin_toughness/squad.py's attached_unit_toughness()
     runtherd_shares_gretchin_toughness = False  # Gretchin datasheet's own "Runtherd" ability (user-supplied, not a core rule, confusingly named the same as the model line it affects): while its unit contains 1+ living Gretchin models, this model's own Toughness counts as 2 for wound-roll purposes - see squad.py's attached_unit_toughness()
@@ -86,6 +167,8 @@ class UnitProfile:
     grenades = False  # the GRENADES keyword - same as explosives for 15.05's "EXPLOSIVES/GRENADES" target
     deadly_demise = None  # Deadly Demise X value (rule 24.08), None = no ability
     deadly_demise_notation = None  # game/dice_notation.py's DiceNotation, e.g. D3() for a printed "Deadly Demise D3" - None means `deadly_demise` above is a real fixed X, used as-is; when set, `deadly_demise` is just a documentation leftover and the actual mortal-wound count is rolled for real by game/deadly_demise.py's DeadlyDemiseController once the D6 detonation roll succeeds
+    feel_no_pain_vs_mortal_wounds = "-"  # Broadside Battlesuits' "Advanced Armour": a Feel No Pain threshold that applies ONLY against mortal wounds - the first conditional FNP source here, folded into game/feel_no_pain.py's current_feel_no_pain() behind its `mortal` flag; see game/advanced_armour.py
+    fireknife = False  # Crisis Fireknife Battlesuits' own ability: automatic re-roll of ranged Hit rolls of 1, upgraded to the whole roll against a target at its Starting Strength - a ones-or-whole source, so it registers in game/reroll_scope.py; see game/fireknife.py
     feel_no_pain = "-"  # Feel No Pain X+ threshold (rule 24.12), "-" = no ability, same convention as invulnerable_save
     fights_first = False  # the Fights First core ability (rule 24.13) - permanent, datasheet-granted (see squad_has_fights_first(); distinct from Squad.fights_first, rule 11.04's temporary post-charge grant)
     transport = False  # the TRANSPORT keyword - rule 18.01, matters together with transport_capacity
@@ -157,6 +240,40 @@ class UnitProfile:
     volley_fire = False  # Cadre Fireblade's own "Volley Fire" ability (user-supplied, not a core rule): while this model is LEADING a unit (19.01), add 1 to the Attacks characteristic of ranged weapons equipped by models in that unit - a leader ability granted to the whole attached unit, unlike every other flag here, so it is read with squad_has_volley_fire() rather than unit_wide_ability(); see game/volley_fire.py
     crack_shot = False  # Cadre Fireblade's own "Crack Shot" ability (user-supplied, not a core rule): each time this model makes a ranged attack, on a Critical Wound, that attack has an Armour Penetration characteristic of -3 (a flat override, not a modifier) - see game/crack_shot.py
 
+    # --- Aeldari detachment Enhancements ---
+    # One flag per Enhancement, read by the game/enh_*.py module named
+    # beside it. Same shape as the T'au block above.
+
+    aspect_of_murder = False  # Aspect of Murder (Aspect Host) - see game/enh_*.py
+    mantle_of_wisdom = False  # Mantle of Wisdom (Aspect Host) - see game/enh_*.py
+    shimmerstone = False  # Shimmerstone (Aspect Host) - see game/enh_*.py
+    strategic_savant = False  # Strategic Savant (Aspect Host) - see game/enh_*.py
+    craftworlds_champion = False  # Craftworld's Champion (Guardian Battlehost) - see game/enh_*.py
+    ethereal_pathway = False  # Ethereal Pathway (Guardian Battlehost) - see game/enh_*.py
+    protector_of_the_paths = False  # Protector of the Paths (Guardian Battlehost) - see game/enh_*.py
+    breath_of_vaul = False  # Breath of Vaul (Guardian Battlehost) - see game/enh_*.py
+    phoenix_gem = False  # Phoenix Gem (Warhost) - see game/enh_*.py
+    timeless_strategist = False  # Timeless Strategist (Warhost) - see game/enh_*.py
+    gift_of_foresight = False  # Gift of Foresight (Warhost) - see game/enh_*.py
+    psychic_destroyer = False  # Psychic Destroyer (Warhost) - see game/enh_*.py
+    firstdrawn_blade = False  # Firstdrawn Blade (Windrider Host) - see game/enh_*.py
+    mirage_field = False  # Mirage Field (Windrider Host) - see game/enh_*.py
+    seersight_strike = False  # Seersight Strike (Windrider Host) - see game/enh_*.py
+    echoes_of_ulthanesh = False  # Echoes of Ulthanesh (Windrider Host) - see game/enh_*.py
+    light_of_clarity = False  # Light of Clarity (Spirit Conclave) - see game/enh_*.py
+    stave_of_kurnous = False  # Stave of Kurnous (Spirit Conclave) - see game/enh_*.py
+    rune_of_mists = False  # Rune of Mists (Spirit Conclave) - see game/enh_*.py
+    higher_duty = False  # Higher Duty (Spirit Conclave) - see game/enh_*.py
+    spirit_stone_of_raelyth = False  # Spirit Stone of Raelyth (Armoured Warhost) - see game/enh_*.py
+    guiding_presence = False  # Guiding Presence (Armoured Warhost) - see game/enh_*.py
+    camouflaged_snipers = False  # Camouflaged Snipers (Path Of The Outcast) - see game/enh_*.py
+    assassins_eye = False  # Assassins' Eye (Path Of The Outcast) - see game/enh_*.py
+    lucid_eye = False  # Lucid Eye (Seer Council) - see game/enh_*.py
+    runes_of_warding = False  # Runes of Warding (Seer Council) - see game/enh_*.py
+    stone_of_eldritch_fury = False  # Stone of Eldritch Fury (Seer Council) - see game/enh_*.py
+    torc_of_morai_heg = False  # Torc of Morai-Heg (Seer Council) - see game/enh_*.py
+
+
     # --- Necrons (game/factions/necrons.py) ---
     noble = False  # the NOBLE keyword - matters because Lychguard's Guardian Protocols names it specifically ("while a NOBLE model is leading this unit"), the same reason `farseer` above is kept separate from `psyker`; see game/guardian_protocols.py
     reanimation_protocols = False  # the NECRONS army rule: at the end of your Command phase, every unit with this on the battlefield heals D3 wounds, and the core "heal" rule (02.02.04) turns surplus into REVIVED destroyed models (01.02.03) - see game/reanimation_protocols.py
@@ -168,11 +285,41 @@ class UnitProfile:
     optimised_for_slaughter = False  # Lokhust Heavy Destroyers' own ability: re-roll a Wound roll of 1, with the enmitic exterminator against non-MONSTER/VEHICLE and the gauss destructor against MONSTER/VEHICLE - a per-WEAPON condition, unlike the flags above - see game/destroyer_cult.py
     whirling_onslaught = False  # Skorpekh Destroyers' own ability: re-roll a melee Hit roll of 1, or the whole Hit roll if this unit made a Charge move this turn - see game/destroyer_cult.py
     guardian_protocols = False  # Lychguard's own ability: while a NOBLE model leads this unit, subtract 1 from the Wound roll of any attack whose Strength exceeds this unit's Toughness - mechanically the Wave Serpent Shield, so it reads the same _wound_modifiers(strength=) hook; see game/guardian_protocols.py
+    driven_by_hatred = False  # Lokhust Lord's own ability: each time THIS MODEL attacks a Below Half-strength unit, both the Hit and the Wound roll may be re-rolled - the fourth DESTROYER CULT re-roll and the only per-MODEL one; see game/destroyer_cult.py
+    nanoscarab_amulet = False  # Lokhust Lord wargear: Feel No Pain 5+ on the BEARER. A per-token grant set by the Gear item, so this default only exists to keep getattr honest; see game/feel_no_pain.py
+    united_in_destruction = False  # Skorpekh Lord's own ability: while this model leads a unit, melee weapons equipped by models in that unit gain [LETHAL HITS] - a FightController._adjusted_weapon() chain entry; see game/united_in_destruction.py
+    crimson_harvest = False  # Skorpekh Lord's own ability: each time this model ends a Charge move, one enemy unit in Engagement Range suffers D3 (or D3+3 on a 6) mortal wounds - fired from ChargeController.on_charge_move_finished; see game/mortal_wound_abilities.py
     my_will_be_done = False  # Overlord's own ability: once per battle round, reduce by 1 the CP cost of a Stratagem targeting this model's unit - a StratagemController.cost_discounts collaborator, see game/my_will_be_done.py
     damage_reduction = 0  # "subtract N from the Damage characteristic of that attack" as a flat per-model reduction (Overlord's Implacable Resilience, Void Dragon's Necrodermis - both print N=1); 0 = no such ability. Mortal wounds are excluded, exactly as game/molten_form.py's halving is; see game/damage_reduction.py
-    harbinger_of_destruction = False  # Plasmancer's own ability: while this model is LEADING a unit (19.01), ranged attacks by that unit score a Critical Hit on an unmodified 5+ - a leader ability, so read with attached_units.leader_ability(); see game/crit_hit.py
+    leading_ranged_crit_on_5 = False  # while this model is LEADING a unit (19.01), ranged attacks by that unit score a Critical Hit on an unmodified 5+ - a leader ability, so read with attached_units.leader_ability(). TWO datasheets print this under two names (Plasmancer "Harbinger of Destruction", Lokhust Lord "Destroyer Cult"), which is why the flag is named for the mechanic; see game/crit_hit.py
     living_lightning = False  # Plasmancer's own ability: in your Shooting phase, one enemy unit within 18" and visible takes four D6, 1 mortal wound per 4+ - see game/mortal_wound_abilities.py
     rites_of_reanimation = False  # Technomancer's own ability: while this model is LEADING a unit (19.01), models in that unit have Feel No Pain 5+ - one more fold in game/feel_no_pain.py's current_feel_no_pain()
+    armour_hunter = False  # Hammerhead Gunship's own ability: +1 to the Hit roll against a MONSTER or VEHICLE - the HIT half of Tank Hunters and nothing else, so it is its own flag read by the same modifier helper; see game/armour_hunter.py
+    targeting_array = False  # Hammerhead and Sky Ray Gunships' own ability: once per shooting activation, re-roll ONE Hit or ONE Wound die - a single-die re-roll like rule 15.02's Command Re-roll, with a panel button instead of CP; see game/targeting_array.py
+    velocity_tracker = False  # Sky Ray Gunship's own ability: re-roll the Hit roll against a target that can FLY - a ShootingController._hit_reroll_reason() entry; see game/velocity_tracker.py
+    drone_harassment = False  # Piranhas' own ability: at the end of your Movement phase, one enemy unit within 12" must take a Battle-shock test; see game/drone_harassment.py
+    loping_pounce = False  # Kroot Hounds' own ability: while it is active (set at the start of its owner's Command phase when a friendly KROOT INFANTRY unit is within 6"), this unit may declare a charge in a turn in which it Advanced - the THIRD source of that exception, after Waaagh! and Full Throttle, read at the same gate in game/charge.py; see game/loping_pounce.py
+    hunting_hounds = False  # Kroot Hounds' own ability: while within 12" of a friendly KROOT CHARACTER model, this model's Objective Control is 1 instead of its printed 0 - read by game/objectives.py; see game/hunting_hounds.py
+    airborne_agility = False  # Vespid Stingwings' own ability: at the end of the opponent's turn, a unit not in Engagement Range may take itself off the board into Strategic Reserves; see game/airborne_agility.py
+    kroot_packmates = False  # Krootox Riders' own ability: a reactive shooting activation restricted to the unit that just attacked a nearby KROOT INFANTRY unit - a ShootingController.start_reactive_shooting() consumer, the same shape as Vengeful Stars; see game/kroot_packmates.py
+    kroot_linebreakers = False  # Krootox Rampagers' own ability: mortal wounds and a Battle-shock test on ending a Charge move - a ChargeController.on_charge_move_finished consumer, the same hook as the Skorpekh Lord's Crimson Harvest; see game/kroot_linebreakers.py
+    bounty_hunters = False  # Kroot Farstalkers' own ability: one enemy unit chosen at the start of the battle takes [LETHAL HITS] and [PRECISION] from this unit's attacks; see game/bounty_hunters.py
+    pechra = False  # Kroot Farstalkers' Pech'ra wargear: ranged weapons in the BEARER'S UNIT gain [IGNORES COVER]; see game/bounty_hunters.py
+    oversight_drone = False  # Vespid Strain Leader's Oversight Drone wargear: once per battle, [IGNORES COVER] on the unit's ranged weapons until the end of the phase; see game/oversight_drone.py
+    failure_is_not_an_option = False  # Ethereal's own ability: while this model is LEADING a unit (19.01), models in that unit have Feel No Pain 5+ - one more fold in game/feel_no_pain.py's current_feel_no_pain(), the twin of rites_of_reanimation below; see game/failure_is_not_an_option.py
+    coordinated_leadership = False  # Ethereal's own ability: at the end of your Command phase, roll one D6 - on a 4+ you gain 1CP; see game/coordinated_leadership.py
+    structural_analyser = False  # Darkstrider's own ability: while this model is LEADING a unit, +1 to the Wound roll for that unit's ranged attacks - a ShootingController._wound_modifiers() entry; see game/structural_analyser.py
+    precise_targeting = False  # Firesight Team's own ability: re-roll the Hit roll against a Spotted unit (game/greater_good.py's is_spotted) - a ShootingController._hit_reroll_reason() entry; see game/precise_targeting.py
+    advanced_scouting = False  # Kroot Lone-Spear's own ability: an enemy unit this model's ranged attack HIT may be re-rolled against by every other KROOT model this turn; see game/advanced_scouting.py
+    fire_and_fade = False  # Kroot Lone-Spear's own ability: a 6" Normal move after shooting, at the cost of this turn's charge - a MovementController.start_post_shooting_move() consumer, the twin of Asurmen's Tactical Acumen; see game/fire_and_fade.py
+    enforcer_commander = False  # Commander in Enforcer Battlesuit's own ability: while this model is LEADING a unit, worsen by 1 the AP of every ranged attack targeting that unit - a game/damage_resolution.py save-threshold entry, the same slot as Ramshackle but Rugged; see game/enforcer_commander.py
+    agile_combatant = False  # Commander Shadowsun's own ability: this MODEL is eligible to shoot in a turn in which it Fell Back - the per-model form of battlesuit_support_system above; see game/shooting.py's can_shoot()
+    hero_of_the_empire = False  # Commander Shadowsun's own aura: friendly T'AU EMPIRE units within 6" re-roll ranged Hit rolls of 1 - one more automatic-1s source in game/shooting.py; see game/hero_of_the_empire.py
+    advanced_guardian_drone = False  # Commander Shadowsun's own wargear: -1 to the Wound roll for ranged attacks that target THE BEARER. The per-MODEL form of guardian_drone above, which is unit-wide - see game/drones.py
+    ritual_butchery = False  # Kroot Flesh Shaper's own ability: while this model is LEADING a unit (19.01), melee weapons equipped by models in that unit gain [SUSTAINED HITS 1] - a FightController._adjusted_weapon() chain entry, the twin of united_in_destruction above; see game/ritual_butchery.py
+    rites_of_feasting = False  # Kroot Flesh Shaper's own ability: while this model is LEADING a unit, models in that unit have Feel No Pain 6+, improved to 5+ for the rest of the battle once that unit has destroyed an enemy unit in the Fight phase - one more fold in game/feel_no_pain.py's current_feel_no_pain(); see game/rites_of_feasting.py
+    war_leader = False  # Kroot War Shaper's own ability: once per battle round, reduce by 1 the CP cost of a Stratagem targeting this model's unit - a StratagemController.cost_discounts collaborator, the same shape as my_will_be_done above; see game/war_leader.py
+    root_of_honour = False  # Kroot War Shaper's own ability: once per battle, at the start of any phase, one friendly Battle-shocked KROOT unit within 12" stops being Battle-shocked - see game/root_of_honour.py
     technomancer_repair = False  # Technomancer's own ability: at the end of your Movement phase, one friendly NECRONS model within 6" regains up to D3 lost wounds, once per model per turn - see game/technomancer.py
     matter_absorption = False  # Void Dragon's own ability: at the start of your Shooting phase, one enemy VEHICLE unit within 12" takes D3 mortal wounds on a 2+, and this model regains up to that many lost wounds - see game/mortal_wound_abilities.py
     enslaved_star_god = False  # Void Dragon's own "Enslaved Star God": "this model cannot be your WARLORD". A documented NO-OP - this engine has no Warlord concept at all, the same status as the "ignore vertical distance" abilities
@@ -180,6 +327,25 @@ class UnitProfile:
     mechanical_augmentation = 0  # Illuminor Szeras's own Aura, in inches (printed 3", grows to a maximum of 12"): a friendly NECRONS BATTLELINE unit within this range improves its attacks' AP by 1 and worsens the AP of attacks targeting it by 1; 0 = no such aura - see game/mechanical_augmentation.py
     mechanical_augmentation_max = 0  # the ceiling the aura can grow to, in inches (printed 12") - paired with the flag above so the growth rule has a bound to read rather than a literal
     atomic_energy_manipulator = 0  # Illuminor Szeras's own ability, in inches (printed 3"): at the end of the Fight phase, if this model destroyed one or more models this phase, add this much to its Mechanical Augmentation range for the rest of the battle - see game/mechanical_augmentation.py
+
+    # --- Death Guard (game/factions/death_guard.py) ---
+    nurgles_gift = False  # the DEATH GUARD army rule "Nurgle's Gift (Aura)": an enemy unit within this model's Contagion Range (6"/9"/12" by battle round) is Afflicted - -1 Toughness plus the chosen Plague. Carried by EVERY Death Guard model, so it doubles as this engine's "is this a DEATH GUARD model" test for the aura; see game/nurgles_gift.py and game/plagues.py
+    curse_of_the_walking_pox = False  # Poxwalkers' own ability: each time a POXWALKER model destroys a non-MONSTER/VEHICLE enemy model, one destroyed Poxwalker returns to the unit after it resolves its attacks - see game/curse_of_the_walking_pox.py
+    destroyer_hive = False  # Typhus' own ability: while this model is LEADING a unit, melee attacks targeting that unit subtract 1 from the Hit roll - a leader ability, so read with attached_units.leader_ability(); see game/destroyer_hive.py
+    eater_plague = False  # Typhus' own PSYCHIC ability: one enemy unit within 18" and visible suffers D6 (or D3+3 on a 6) mortal wounds, and on a 1 his OWN unit suffers D3 - see game/mortal_wound_abilities.py
+    gift_of_contagion = False  # Malignant Plaguecaster's own ability: while LEADING a unit, that unit's attacks against an Afflicted target have [SUSTAINED HITS 1] - see game/gift_of_contagion.py
+    pestilent_fallout = False  # Malignant Plaguecaster's own ability: after it shoots, one hit enemy INFANTRY unit is enfeebled (-2" Move) until the end of the opponent's next turn - see game/pestilent_fallout.py
+    death_guard_defenders = False  # Daemon Prince's own ability: while within 3" of a friendly DEATH GUARD INFANTRY unit, this model has Lone Operative - a CONDITIONAL form of `lone_operative`, resolved at read time exactly like `illuminor`; see game/death_guard_defenders.py
+    fevered_strategist = False  # Daemon Prince's own ability: once per battle round, reduce by 1 the CP cost of a Stratagem targeting a friendly DEATH GUARD unit within 12" - a StratagemController.cost_discounts collaborator like My Will Be Done; see game/fevered_strategist.py
+    miasma_of_pestilence = False  # Daemon Prince's own Aura: a friendly DEATH GUARD unit within 6" has the Benefit of Cover against ranged attacks - see game/miasma_of_pestilence.py
+    lethal_ichor = False  # Chaos Spawn's own ability: each melee attack allocated to this unit may cost the attacking unit a mortal wound on a 4+, up to six dice per attacking unit - see game/lethal_ichor.py
+    silent_bodyguard = False  # Deathshroud Terminators' own ability: a CHARACTER model leading this unit has Feel No Pain 4+ - one more fold in game/feel_no_pain.py's current_feel_no_pain()
+    death_approaches = False  # Deathshroud Terminators' own ability: their Deep Strike may be set up more than 6" from an Afflicted enemy unit and more than 8" from any other, instead of the usual 9" - see game/death_approaches.py
+    scuttling_walker = False  # Defiler's own ability: it moves through models and terrain, may pass through Engagement Range without ending there, and auto-passes Desperate Escape - see game/scuttling_walker.py
+    barrage_of_filth = False  # Defiler's own ability: after it shoots, one hit enemy unit cannot have the Benefit of Cover until the end of the phase - the seventh consumer of on_squad_finished_shooting; see game/barrage_of_filth.py
+    hovering_death = False  # Foetid Bloat-drone's own ability: eligible to shoot and declare a charge in a turn in which it Fell Back - see game/hovering_death.py
+    tank_hunters_ranged_only = False  # Myphitic Blight-hauler's "Tank Hunters": the SAME +1 Hit/+1 Wound against MONSTER/VEHICLE as `tank_hunters` above, but its printed text adds "in your Shooting phase" where the Ork version has no phase clause - so a separate flag rather than a reuse, or this model would silently get the bonus with its Gnashing Maw too. See squad.py's tank_hunters_modifiers()
+    spore_laced_shock_waves = False  # Plagueburst Crawler's own ability: its Plagueburst mortar rolls a D6 for the target and every enemy unit within 3" of it (+1 if Afflicted), and each 6+ takes D3 mortal wounds - see game/spore_laced_shock_waves.py
 
     @property
     def can_move_through_dense_terrain(self):
@@ -1136,6 +1302,565 @@ class LongQuillProfile(KrootCarnivoreProfile):
     a Kroot pistol in addition to the rank-and-file's own loadout."""
     name = "Long-quill"
     squad_leader = True
+
+
+class KrootShaperProfile(UnitProfile):
+    """The stat line the Flesh / Trail / War Shaper datasheets SHARE.
+
+    All three print exactly M7" T3 Sv6+ W3 Ld7+ OC1 on a 32mm base, the same
+    four core abilities (Infiltrators, Leader, Scouts 7", Stealth), and the
+    same KROOT SHAPER keywords - so this is a base class the three subclass,
+    rather than three copies that would drift the first time one is corrected.
+    Each subclass adds only its own name and its own datasheet's abilities.
+
+    WS/BS are not in the M/T/Sv/W/Ld/OC table (the same convention as every
+    other T'au datasheet here). Every one of their weapon rows prints WS2+ and
+    BS4+, so both live here and no weapon needs a per-weapon override - the
+    contrast is Darkstrider next door, whose two rows disagree.
+
+    Like Kroot Carnivores and for the same reason (they are auxiliaries, and
+    the keyword is simply not printed on the datasheet), these do NOT get
+    for_the_greater_good or MARKERLIGHT.
+
+    base_radius_in is NOT an assumption here: the datasheets print 32mm."""
+    base_radius_in = 0.63   # 32 mm printed base
+    movement_in = 7
+    weapon_skill = "2+"
+    ballistic_skill = "4+"
+    toughness = 3
+    wounds = 3
+    leadership = "7+"
+    armor_save = "6+"
+    oc = 1
+    character = True
+    infantry = True
+    kroot = True            # the KROOT keyword - see UnitProfile's own note
+    infiltrators = True     # rule 24.20
+    stealth = True          # rule 24.33
+    scouts = 7.0            # "Scouts 7\"" - rule 24.31, read by game/scouts.py
+    leader = True           # "Leader: Kroot Carnivores, Kroot Farstalkers" - the pairing is read off the points list's own `leads` table by game/attached_units.py's can_attach()
+
+
+class KrootFleshShaperProfile(KrootShaperProfile):
+    """Datasheet: Kroot Flesh Shaper (T'au Empire).
+
+    Both of its abilities are the "while this model is leading a unit" form
+    (24.22), so both are read through attached_units.leader_ability() and both
+    bring 19.04's grace window with them."""
+    name = "Kroot Flesh Shaper"
+    ritual_butchery = True   # this datasheet's own ability, see game/ritual_butchery.py
+    rites_of_feasting = True  # this datasheet's own ability, see game/rites_of_feasting.py
+
+
+class KrootTrailShaperProfile(KrootShaperProfile):
+    """Datasheet: Kroot Trail Shaper (T'au Empire).
+
+    Neither of its two abilities is engine-wired, and both are recorded as
+    missing on the datasheet's abilities_text (and asserted in
+    test_kroot_shapers.py) so that adding either is a visible change:
+
+    - Trail Finding is a REACTIVE move in the opponent's Movement phase,
+      triggered by an enemy unit ENDING a move within 8". This engine has the
+      reactive-move machinery (MovementController.REACTIVE_MOVE_MODES) but no
+      "an enemy just finished a move" hook to hang the offer on - every
+      existing reactive move keys off an attack or a charge.
+    - Kroot Ambush redeploys two units after deployment and may put them into
+      Strategic Reserves regardless of the 50% cap. That is a new step in the
+      Pre-game Sequence (03.01), not an ability on a unit."""
+    name = "Kroot Trail Shaper"
+
+
+class KrootWarShaperProfile(KrootShaperProfile):
+    """Datasheet: Kroot War Shaper (T'au Empire)."""
+    name = "Kroot War Shaper"
+    war_leader = True      # this datasheet's own ability, see game/war_leader.py
+    root_of_honour = True  # this datasheet's own ability, see game/root_of_honour.py
+
+
+class EtherealProfile(UnitProfile):
+    """Datasheet: Ethereal (T'au Empire) - an INFANTRY CHARACTER with a printed
+    invulnerable save, unlike Cadre Fireblade next door.
+
+    WS/BS: the datasheet prints ONE weapon row (Honour stave, WS4+) and no
+    ranged weapon at all, so ballistic_skill is never read. It is set to the
+    4+ his drones would use rather than left at the class default, so a drone
+    granted by his own wargear menu shoots at a real number.
+
+    Note the Ld6+ - better than the 7+ every other T'au infantry model here
+    prints, which is the whole point of an Ethereal."""
+    name = "Ethereal"
+    base_radius_in = 0.787          # 40 mm printed base
+    movement_in = 6
+    weapon_skill = "4+"
+    ballistic_skill = "4+"
+    toughness = 3
+    wounds = 3
+    leadership = "6+"
+    armor_save = "5+"
+    invulnerable_save = "5+"        # printed INSV 5+
+    oc = 1
+    character = True
+    infantry = True
+    for_the_greater_good = True
+    leader = True                   # "Leader: Breacher Team, Strike Team"
+    failure_is_not_an_option = True  # see game/failure_is_not_an_option.py
+    coordinated_leadership = True    # see game/coordinated_leadership.py
+
+
+class DarkstriderProfile(UnitProfile):
+    """Datasheet: Darkstrider (T'au Empire) - EPIC HERO.
+
+    THE FIRST T'AU MODEL WHOSE TWO WEAPON ROWS DISAGREE about skill: the Shade
+    prints BS2+ while his close combat weapon prints WS4+. So the profile
+    carries the melee value and the Shade carries a per-weapon
+    `ballistic_skill` override - the arrangement The Twin Lance introduced and
+    the exact opposite of the Kroot Shapers above, whose rows all agree."""
+    name = "Darkstrider"
+    base_radius_in = 0.63           # 32 mm printed base
+    movement_in = 7
+    weapon_skill = "4+"
+    ballistic_skill = "4+"          # overridden to 2+ by the Shade's own row
+    toughness = 3
+    wounds = 3
+    leadership = "7+"
+    armor_save = "4+"
+    oc = 1
+    character = True
+    infantry = True
+    epic_hero = True
+    markerlight = True              # the MARKERLIGHT keyword
+    for_the_greater_good = True
+    infiltrators = True             # rule 24.20
+    scouts = 7.0                    # "Scouts 7\"" - rule 24.31
+    leader = True                   # "Leader: Pathfinder Team"
+    structural_analyser = True      # see game/structural_analyser.py
+    # Jammer Array ("enemy units set up from Reserves cannot be set up within
+    # 12\" of this model") is NOT wired: it is a constraint on the OPPONENT's
+    # Reserves placement (20.04), and no ability in this engine has ever
+    # restricted where the other player may arrive. Recorded on the datasheet's
+    # abilities_text and asserted in test_tau_characters.py.
+
+
+class FiresightMarksmanProfile(UnitProfile):
+    """Datasheet: Firesight Team (T'au Empire).
+
+    ONE MODEL, despite the plural name: the datasheet's own Designer's Note
+    says the Marksman and his two sniper drones "are treated as a single model
+    for all rules purposes" and that the drones "do not count as models for any
+    rules purposes". So the drones are not ModelLines, and their guns are the
+    single Longshot pulse rifles row - which is why that weapon's name is
+    plural.
+
+    The two ranged rows disagree (rifles BS4+, pulse pistol BS3+), so the
+    pistol carries no override and the profile takes the rifles' 4+ - the
+    pistol keeps the 3+ its own existing class already prints... which it does
+    not, so the profile takes the 4+ and the pistol is handled the same way
+    every other shared PulsePistolProfile is. The one row that genuinely
+    disagrees with the profile is the melee weapon (WS5+), which carries its
+    own override."""
+    name = "Firesight Marksman"
+    base_radius_in = 0.787          # 40 mm printed base
+    movement_in = 6
+    weapon_skill = "4+"             # the melee row prints 5+ and overrides it
+    ballistic_skill = "4+"
+    toughness = 3
+    wounds = 4
+    leadership = "7+"
+    armor_save = "4+"
+    oc = 3
+    character = True
+    infantry = True
+    markerlight = True
+    for_the_greater_good = True
+    infiltrators = True             # rule 24.20
+    stealth = True                  # rule 24.33
+    lone_operative = 12.0           # rule 24.24, the printed default range
+    precise_targeting = True        # see game/precise_targeting.py
+
+
+class KrootLoneSpearProfile(UnitProfile):
+    """Datasheet: Kroot Lone-Spear (T'au Empire) - the roster's only MOUNTED
+    model outside the Aeldari jetbikes.
+
+    base_radius_in is the EQUAL-AREA circle of the printed 90 x 52 mm oval,
+    the same conversion the Ghostkeel (105 x 70) and Riptide (120 x 92) already
+    use: sqrt(45 * 26) = 34.2 mm radius. Not a table-size decision - the
+    printed base is simply not round."""
+    name = "Kroot Lone-Spear"
+    base_radius_in = 1.3466         # equal-area circle of the 90 x 52 mm oval
+    movement_in = 12
+    weapon_skill = "3+"             # Kalamandra's bite prints 4+ and overrides it
+    ballistic_skill = "3+"          # the blast javelin prints 4+ and overrides it
+    toughness = 5
+    wounds = 6
+    leadership = "7+"
+    armor_save = "5+"
+    oc = 2
+    character = True
+    mounted = True
+    kroot = True
+    stealth = True                  # rule 24.33
+    scouts = 7.0                    # "Scouts 7\"" - rule 24.31
+    lone_operative = 12.0           # rule 24.24
+    advanced_scouting = True        # see game/advanced_scouting.py
+    fire_and_fade = True            # see game/fire_and_fade.py
+
+
+class EnforcerCommanderProfile(UnitProfile):
+    """Datasheet: Commander in Enforcer Battlesuit (T'au Empire).
+
+    The slow, armoured Commander: M8" and Sv2+ where the Coldstar is M12"/3+.
+    No printed invulnerable save - he can BUY one with the shield generator,
+    which is why that wargear item sets it rather than the profile."""
+    name = "Commander in Enforcer Battlesuit"
+    base_radius_in = 1.181          # 60 mm printed base
+    movement_in = 8
+    weapon_skill = "4+"             # battlesuit fists' own row
+    ballistic_skill = "3+"
+    toughness = 5
+    wounds = 6
+    leadership = "7+"
+    armor_save = "2+"
+    oc = 2
+    character = True
+    vehicle = True
+    walker = True
+    fly = True
+    battlesuit = True
+    deep_strike = True              # rule 24.09
+    for_the_greater_good = True
+    leader = True                   # "Leader: the four Crisis Battlesuit datasheets"
+    enforcer_commander = True       # see game/enforcer_commander.py
+
+
+class CommanderShadowsunProfile(UnitProfile):
+    """Datasheet: Commander Shadowsun (T'au Empire) - EPIC HERO.
+
+    INFANTRY, not VEHICLE, unlike every other Commander here - which is what
+    lets her have Infiltrators and Stealth at all, and is printed on her own
+    Keywords line.
+
+    Her two drones are wargear she always carries rather than a menu, so their
+    abilities are profile flags rather than Gear items - see the datasheet."""
+    name = "Commander Shadowsun"
+    base_radius_in = 0.984          # 50 mm printed base
+    movement_in = 10
+    weapon_skill = "4+"             # battlesuit fists' own row
+    ballistic_skill = "2+"          # every ranged row but the pulse pistol
+    toughness = 4
+    wounds = 6
+    leadership = "6+"
+    armor_save = "3+"
+    invulnerable_save = "5+"        # printed INSV 5+
+    oc = 1
+    character = True
+    infantry = True
+    fly = True
+    epic_hero = True
+    battlesuit = True
+    for_the_greater_good = True
+    infiltrators = True             # rule 24.20
+    stealth = True                  # rule 24.33
+    lone_operative = 12.0           # rule 24.24
+    agile_combatant = True          # see game/agile_combatant.py
+    hero_of_the_empire = True       # see game/hero_of_the_empire.py
+    advanced_guardian_drone = True  # her own wargear, see game/drones.py
+    # Command-link Drone ("while a friendly T'AU EMPIRE unit is within 6" of
+    # the bearer, each time you select that unit as the target of a Stratagem,
+    # roll one D6: on a 5+, you gain 1CP") is NOT wired: StratagemController
+    # has no per-use hook a listener could hang a roll on, and adding one is a
+    # change to the Stratagem flow rather than to this datasheet. Recorded on
+    # the datasheet's abilities_text and asserted in test_tau_characters.py.
+    # Supreme Commander ("if this model is in your army, it must be your
+    # WARLORD") is a documented NO-OP - this engine has no Warlord concept at
+    # all, the same status as the Void Dragon's Enslaved Star God.
+
+
+class KrootHoundProfile(UnitProfile):
+    """Datasheet: Kroot Hounds (T'au Empire).
+
+    OC 0 - one of the very few models here with no Objective Control at all,
+    which is exactly what Hunting Hounds below exists to fix.
+
+    NOTE THE LEADERSHIP: 8+ on their own datasheet, but 7+ on the two hounds
+    printed inside a Kroot Farstalkers unit (FarstalkerHoundProfile below). One
+    number, two datasheets, so two classes - a shared one would have to be
+    wrong for one of them."""
+    name = "Kroot Hound"
+    base_radius_in = 0.561          # 28.5 mm printed base
+    movement_in = 12
+    weapon_skill = "3+"
+    ballistic_skill = "4+"          # never read - they carry no ranged weapon
+    toughness = 3
+    wounds = 1
+    leadership = "8+"
+    armor_save = "6+"
+    oc = 0
+    beasts = True                   # the BEASTS keyword - also 13.06's terrain exemption
+    kroot = True
+    stealth = True                  # rule 24.33
+    scouts = 7.0                    # "Scouts 7\"" - rule 24.31
+    loping_pounce = True            # this datasheet's own ability, see game/loping_pounce.py
+    hunting_hounds = True           # this datasheet's own ability, see game/hunting_hounds.py
+
+
+class FarstalkerHoundProfile(KrootHoundProfile):
+    """The two Kroot Hounds printed inside a Kroot Farstalkers unit.
+
+    Leadership 7+ rather than 8+, and NEITHER of the Kroot Hounds datasheet's
+    two abilities - the Farstalkers datasheet prints its own (Bounty Hunters)
+    and says nothing about Loping Pounce or Hunting Hounds. Subclassing and
+    turning both off is what keeps that visible; a fresh copy of the stat line
+    would let the two drift."""
+    name = "Kroot Hound (Farstalker)"
+    leadership = "7+"
+    loping_pounce = False
+    hunting_hounds = False
+
+
+class VespidStingwingProfile(UnitProfile):
+    """Datasheet: Vespid Stingwings (T'au Empire).
+
+    INFANTRY and FLY but NOT for_the_greater_good and NOT MARKERLIGHT - the
+    Keywords line prints neither, the same auxiliary status the Kroot have."""
+    name = "Vespid Stingwing"
+    base_radius_in = 0.561          # 28.5 mm printed base
+    movement_in = 12
+    weapon_skill = "4+"
+    ballistic_skill = "4+"
+    toughness = 4
+    wounds = 1
+    leadership = "7+"
+    armor_save = "4+"
+    oc = 1
+    infantry = True
+    fly = True
+    deep_strike = True              # rule 24.09
+    airborne_agility = True         # this datasheet's own ability, see game/airborne_agility.py
+
+
+class VespidStrainLeaderProfile(VespidStingwingProfile):
+    """Identical stat line; only this model may take the Oversight Drone."""
+    name = "Vespid Strain Leader"
+    squad_leader = True
+
+
+class KrootoxProfile(UnitProfile):
+    """The stat line Krootox Riders and Krootox Rampagers SHARE - printed
+    identically on both (M7" T6 Sv5+ W5 Ld7+ OC2 on a 50mm base), so a base
+    class rather than two copies. Everything that differs between the two
+    datasheets is its own ability and its own weapons."""
+    base_radius_in = 0.984          # 50 mm printed base
+    movement_in = 7
+    weapon_skill = "3+"
+    ballistic_skill = "4+"
+    toughness = 6
+    wounds = 5
+    leadership = "7+"
+    armor_save = "5+"
+    oc = 2
+    mounted = True
+    kroot = True
+    grenades = True
+    scouts = 7.0                    # "Scouts 7\"" - rule 24.31
+
+
+class KrootoxRiderProfile(KrootoxProfile):
+    name = "Krootox Rider"
+    kroot_packmates = True          # this datasheet's own ability, see game/kroot_packmates.py
+
+
+class KrootoxRampagerProfile(KrootoxProfile):
+    name = "Krootox Rampager"
+    kroot_linebreakers = True       # this datasheet's own ability, see game/kroot_linebreakers.py
+
+
+class KrootFarstalkerProfile(UnitProfile):
+    """Datasheet: Kroot Farstalkers (T'au Empire) - the rank and file.
+
+    A THREE-LINE unit with only TWO printed stat rows: the Kill-broker shares
+    the Farstalkers' row (differing only in base size, 32mm against 28.5mm),
+    and the two Kroot Hounds have their own."""
+    name = "Kroot Farstalker"
+    base_radius_in = 0.561          # 28.5 mm printed base
+    movement_in = 7
+    weapon_skill = "3+"
+    ballistic_skill = "4+"
+    toughness = 3
+    wounds = 1
+    leadership = "7+"
+    armor_save = "6+"
+    oc = 1
+    infantry = True
+    kroot = True
+    grenades = True
+    infiltrators = True             # rule 24.20
+    stealth = True                  # rule 24.33
+    bounty_hunters = True           # this datasheet's own ability, see game/bounty_hunters.py
+
+
+class KrootKillBrokerProfile(KrootFarstalkerProfile):
+    """Same printed stat row as the Farstalkers, on a bigger base - the one
+    characteristic the datasheet gives him of his own."""
+    name = "Kroot Kill-broker"
+    base_radius_in = 0.63           # 32 mm printed base
+    squad_leader = True
+
+
+class BroadsideShasUiProfile(UnitProfile):
+    """Datasheet: Broadside Battlesuits (T'au Empire).
+
+    THE ONLY BATTLESUIT HERE WITHOUT FLY - its Keywords line prints VEHICLE,
+    WALKER, BATTLESUIT and nothing else, which together with M5" makes it the
+    slowest thing in the T'au list by a wide margin. Not an omission: it is a
+    heavy weapons platform, and the missing keyword is what says so.
+
+    Advanced Armour is Feel No Pain 4+ **against mortal wounds only**, which is
+    a narrower grant than any other FNP source in this engine - see
+    `feel_no_pain_vs_mortal_wounds` below."""
+    name = "Broadside Shas'ui"
+    base_radius_in = 1.181          # 60 mm printed base
+    movement_in = 5
+    weapon_skill = "5+"             # crushing bulk's own row
+    ballistic_skill = "4+"
+    toughness = 6
+    wounds = 8
+    leadership = "7+"
+    armor_save = "2+"
+    oc = 2
+    vehicle = True
+    walker = True
+    battlesuit = True
+    for_the_greater_good = True
+    feel_no_pain_vs_mortal_wounds = "4+"   # "Advanced Armour" - see game/feel_no_pain.py
+
+
+class BroadsideShasVreProfile(BroadsideShasUiProfile):
+    """Identical stat line - the datasheet prints one row for the whole unit,
+    like Kroot Carnivores. Only the composition names him separately."""
+    name = "Broadside Shas'vre"
+    squad_leader = True
+
+
+class CrisisFireknifeShasUiProfile(UnitProfile):
+    """Datasheet: Crisis Fireknife Battlesuits (T'au Empire).
+
+    The same chassis as the Starscythe and Sunforge suits (M10" T5 Sv3+ W4
+    Ld7+ OC2 on a 50mm base) - the third of the three Crisis variants, and the
+    one three separate LEADER lines have been naming since before it existed.
+
+    Weapon Support System is printed as a UNIT ability here, not as wargear:
+    "each time a MODEL IN THIS UNIT makes a ranged attack". So it is the
+    profile's own ignores_hit_modifiers, the same field the Riptide's
+    identically-named wargear uses - which is exactly why that field is named
+    after the EFFECT and not after either datasheet."""
+    name = "Crisis Fireknife Shas'ui"
+    base_radius_in = 0.984          # 50 mm printed base
+    movement_in = 10
+    weapon_skill = "5+"             # battlesuit fists' own row
+    ballistic_skill = "4+"
+    toughness = 5
+    wounds = 4
+    leadership = "7+"
+    armor_save = "3+"
+    oc = 2
+    vehicle = True
+    walker = True
+    fly = True
+    battlesuit = True
+    deep_strike = True              # rule 24.09
+    for_the_greater_good = True
+    ignores_hit_modifiers = True    # "Weapon Support System", printed as a unit ability here
+    fireknife = True                # this datasheet's own ability, see game/fireknife.py
+
+
+class CrisisFireknifeShasVreProfile(CrisisFireknifeShasUiProfile):
+    """Identical stat line; only the composition names him separately."""
+    name = "Crisis Fireknife Shas'vre"
+    squad_leader = True
+
+
+class HammerheadGunshipProfile(UnitProfile):
+    """Datasheet: Hammerhead Gunship (T'au Empire).
+
+    The same hull as the Sky Ray below (M10" T10 Sv3+ W14 Ld7+ OC3 on a 60mm
+    flying base, Damaged at 1-5) - two datasheets on one chassis, which is why
+    the Sky Ray subclasses this one.
+
+    base_radius_in is the same 2.1" every grav-tank here uses: the printed base
+    is 60mm, but the Falcon was raised to a table size by user decision and the
+    Devilfish and Wave Serpent already share it. Same hull, same footprint."""
+    name = "Hammerhead Gunship"
+    base_radius_in = 2.1            # printed 60mm; the established grav-tank table size
+    movement_in = 10
+    weapon_skill = "5+"             # armoured hull's own row
+    ballistic_skill = "4+"
+    toughness = 10
+    wounds = 14
+    leadership = "7+"
+    armor_save = "3+"
+    oc = 3
+    vehicle = True
+    fly = True
+    for_the_greater_good = True
+    damaged_threshold = 5           # "Damaged: 1-5 wounds remaining" - see game/shooting.py
+    deadly_demise = 3               # documentation only - see deadly_demise_notation below
+    deadly_demise_notation = D3()   # "Deadly Demise D3", rule 24.08
+    armour_hunter = True            # this datasheet's own ability, see game/armour_hunter.py
+    targeting_array = True          # this datasheet's own ability, see game/targeting_array.py
+
+
+class SkyRayGunshipProfile(HammerheadGunshipProfile):
+    """Datasheet: Sky Ray Gunship (T'au Empire) - the Hammerhead's hull with a
+    missile rack instead of a railgun.
+
+    Every characteristic is identical, so it subclasses rather than repeating
+    them; what differs is the MARKERLIGHT keyword and which of the two
+    re-roll abilities it prints (Velocity Tracker rather than Armour
+    Hunter)."""
+    name = "Sky Ray Gunship"
+    markerlight = True              # the MARKERLIGHT keyword - see game/greater_good.py
+    armour_hunter = False
+    velocity_tracker = True         # this datasheet's own ability, see game/velocity_tracker.py
+
+
+class PiranhaProfile(UnitProfile):
+    """Datasheet: Piranhas (T'au Empire) - the fast skimmer.
+
+    M14" is the fastest thing in the T'au list, and Scouts 9" is the longest
+    Scout move in this engine (every other one is 7" or 8")."""
+    name = "Piranha"
+    # TABLE SIZE, not the printed one - a user decision (2026-08-30: "die
+    # piranhas sind zu gross, die sollten in etwa nur 2/3 so gross sein wie
+    # devil fish"), and the fifth of its kind after the Falcon, the Wave
+    # Serpent, the Defiler and the three MOUNTED jetbikes.
+    #
+    # The datasheet prints a 60 mm flying base and so does the Devilfish, so
+    # the printed sizes really are identical and 2.1 was faithful to them; what
+    # they do not capture is that a Piranha is a fraction of the hull a
+    # Devilfish is. Two thirds of the Devilfish's 4.20" is 2.80" across, which
+    # is close enough to a 70 mm base to be a plausible table size in its own
+    # right.
+    #
+    # This is a GAMEPLAY number, not a cosmetic one: edge_distance() reads the
+    # radius, so Engagement Range, model overlap, coherency and formation
+    # packing all move with it - the direction wanted here, since a Piranha on
+    # a Devilfish's footprint is exactly the shape this terrain handles worst.
+    base_radius_in = 1.4            # printed 60 mm; 2/3 of the Devilfish's 4.20" table size
+    movement_in = 14
+    weapon_skill = "5+"             # armoured hull's own row
+    ballistic_skill = "4+"
+    toughness = 7
+    wounds = 7
+    leadership = "7+"
+    armor_save = "4+"
+    oc = 2
+    vehicle = True
+    fly = True
+    for_the_greater_good = True
+    scouts = 9.0                    # "Scouts 9\"" - rule 24.31, the longest here
+    deadly_demise = 1               # "Deadly Demise 1", rule 24.08 - a flat 1, so no notation
+    drone_harassment = True         # this datasheet's own ability, see game/drone_harassment.py
 
 
 class StealthShasUiProfile(UnitProfile):
@@ -2099,7 +2824,14 @@ class WraithguardProfile(UnitProfile):
     oc = 1
     infantry = True
     wraith_construct = True         # WRAITH CONSTRUCT - two transport slots each
-    battle_focus = True             # Aeldari army rule - see game/battle_focus.py
+    # NO battle_focus. MEASURED against the printed datasheet: this one has no
+    # FACTION line at all, where every Aeldari sheet that HAS the army rule
+    # prints "FACTION: **Battle Focus**". Six datasheets were setting it
+    # wrongly - the three WRAITH CONSTRUCTs and the three SUPPORT WEAPON
+    # platforms - and on the wraiths it did real harm: Spirit Conclave's
+    # Spirit Guides aura exists to GRANT them Battle Focus while they stand
+    # within 12" of an ASURYANI PSYKER, and a unit that already had it
+    # permanently made that whole half of the detachment rule a no-op.
     war_construct = True            # see game/shooting.py's available_shooting_types()
     psychic_guidance = True         # see game/psychic_guidance.py
 
@@ -2117,6 +2849,10 @@ class AsurmenProfile(UnitProfile):
     # its unit and carries no CHARACTER keyword.
     character = True
     name = "Asurmen"
+    epic_hero = True                # the EPIC HERO keyword. Printed on the datasheet and never set here,
+                                    # which left rule 15.03 (Epic Challenge) inert for it and, later,
+                                    # [ANTI-EPIC HERO] unable to see it - found when the Visarch's
+                                    # mythic stance became the first weapon to name that keyword.
     base_radius_in = 0.787          # 40 mm printed base
     movement_in = 7
     weapon_skill = "2+"
@@ -2144,6 +2880,10 @@ class JainZarProfile(UnitProfile):
     # its unit and carries no CHARACTER keyword.
     character = True
     name = "Jain Zar"
+    epic_hero = True                # the EPIC HERO keyword. Printed on the datasheet and never set here,
+                                    # which left rule 15.03 (Epic Challenge) inert for it and, later,
+                                    # [ANTI-EPIC HERO] unable to see it - found when the Visarch's
+                                    # mythic stance became the first weapon to name that keyword.
     base_radius_in = 0.787          # 40 mm printed base
     movement_in = 8
     weapon_skill = "2+"
@@ -2178,6 +2918,10 @@ class LhykhisProfile(UnitProfile):
     # its unit and carries no CHARACTER keyword.
     character = True
     name = "Lhykhis"
+    epic_hero = True                # the EPIC HERO keyword. Printed on the datasheet and never set here,
+                                    # which left rule 15.03 (Epic Challenge) inert for it and, later,
+                                    # [ANTI-EPIC HERO] unable to see it - found when the Visarch's
+                                    # mythic stance became the first weapon to name that keyword.
     base_radius_in = 0.787          # 40 mm printed base
     movement_in = 12
     weapon_skill = "2+"
@@ -2211,6 +2955,10 @@ class AvatarOfKhaineProfile(UnitProfile):
     # its unit and carries no CHARACTER keyword.
     character = True
     name = "Avatar of Khaine"
+    epic_hero = True                # the EPIC HERO keyword. Printed on the datasheet and never set here,
+                                    # which left rule 15.03 (Epic Challenge) inert for it and, later,
+                                    # [ANTI-EPIC HERO] unable to see it - found when the Visarch's
+                                    # mythic stance became the first weapon to name that keyword.
     base_radius_in = 1.575          # 80 mm printed base - the largest here
     movement_in = 10
     weapon_skill = "2+"
@@ -2310,6 +3058,10 @@ class EldradUlthranProfile(UnitProfile):
     # its unit and carries no CHARACTER keyword.
     character = True
     name = "Eldrad Ulthran"
+    epic_hero = True                # the EPIC HERO keyword. Printed on the datasheet and never set here,
+                                    # which left rule 15.03 (Epic Challenge) inert for it and, later,
+                                    # [ANTI-EPIC HERO] unable to see it - found when the Visarch's
+                                    # mythic stance became the first weapon to name that keyword.
     base_radius_in = WarlockProfile.base_radius_in  # his printed 32 mm base already equals the Warlock's, so this changes no number - pinned against that profile because the user asked for the two to match (see FarseerProfile), which makes the coupling explicit instead of a coincidence of two literals
     movement_in = 7
     weapon_skill = "2+"
@@ -2576,6 +3328,10 @@ class BaharrothProfile(UnitProfile):
     # its unit and carries no CHARACTER keyword.
     character = True
     name = "Baharroth"
+    epic_hero = True                # the EPIC HERO keyword. Printed on the datasheet and never set here,
+                                    # which left rule 15.03 (Epic Challenge) inert for it and, later,
+                                    # [ANTI-EPIC HERO] unable to see it - found when the Visarch's
+                                    # mythic stance became the first weapon to name that keyword.
     base_radius_in = 0.787          # 40 mm printed base
     movement_in = 14
     weapon_skill = "2+"
@@ -2676,6 +3432,652 @@ class FueganProfile(UnitProfile):
     unquenchable_resolve = True     # see game/unquenchable_resolve.py
 
 
+# --- Wraith Constructs ------------------------------------------------------
+
+
+class WraithbladeProfile(UnitProfile):
+    """The Wraithguard chassis rebuilt for melee: same Sv2+/W3, same worst-in-
+    the-engine Ld8+, but T6->T6 kept and the gun traded for blades.
+
+    Deliberately pinned against WraithguardProfile in the test rather than
+    against literals - the two are the same printed construct in two roles, and
+    a change to one that silently misses the other is the drift worth catching."""
+    name = "Wraithblade"
+    base_radius_in = 0.787          # 40 mm printed base
+    movement_in = 6
+    weapon_skill = "4+"
+    ballistic_skill = "4+"          # no ranged weapon, carried for completeness
+    toughness = 6
+    wounds = 3
+    leadership = "8+"
+    armor_save = "2+"
+    oc = 1
+    infantry = True
+    wraith_construct = True         # WRAITH CONSTRUCT - two transport slots each
+    # NO battle_focus. MEASURED against the printed datasheet: this one has no
+    # FACTION line at all, where every Aeldari sheet that HAS the army rule
+    # prints "FACTION: **Battle Focus**". Six datasheets were setting it
+    # wrongly - the three WRAITH CONSTRUCTs and the three SUPPORT WEAPON
+    # platforms - and on the wraiths it did real harm: Spirit Conclave's
+    # Spirit Guides aura exists to GRANT them Battle Focus while they stand
+    # within 12" of an ASURYANI PSYKER, and a unit that already had it
+    # permanently made that whole half of the detachment rule a no-op.
+    psychic_guidance = True         # see game/psychic_guidance.py
+    malevolent_souls = True         # see game/malevolent_souls.py
+
+
+class WraithlordProfile(UnitProfile):
+    """A one-model MONSTER WALKER: T10/Sv2+/W10, and the only Aeldari model in
+    this engine that picks an enemy keyword to hate at the start of the battle.
+
+    Its base is the printed 60 mm and stays there: it is a walker, not a
+    grav-tank, so unlike the Falcon and the Wave Serpent it does not take the
+    2.1 table size - the same call WarWalkerProfile records."""
+    name = "Wraithlord"
+    base_radius_in = 1.181          # 60 mm printed base
+    movement_in = 8
+    weapon_skill = "4+"
+    ballistic_skill = "4+"
+    toughness = 10
+    wounds = 10
+    leadership = "8+"
+    armor_save = "2+"
+    oc = 3
+    monster = True
+    walker = True
+    wraith_construct = True         # WRAITH CONSTRUCT
+    # NO battle_focus. MEASURED against the printed datasheet: this one has no
+    # FACTION line at all, where every Aeldari sheet that HAS the army rule
+    # prints "FACTION: **Battle Focus**". Six datasheets were setting it
+    # wrongly - the three WRAITH CONSTRUCTs and the three SUPPORT WEAPON
+    # platforms - and on the wraiths it did real harm: Spirit Conclave's
+    # Spirit Guides aura exists to GRANT them Battle Focus while they stand
+    # within 12" of an ASURYANI PSYKER, and a unit that already had it
+    # permanently made that whole half of the detachment rule a no-op.
+    deadly_demise = 1               # "Deadly Demise 1", rule 24.08 - a flat 1, so no notation
+    fated_hero = True               # see game/fated_hero.py
+    # The Wraithlord's Psychic Guidance is NOT the Wraithguard/Wraithblade one:
+    # it improves the BS and WS characteristics of this model's weapons by 1,
+    # where theirs adds 1 to the Hit roll. In this engine both end up adjusting
+    # the same threshold, but they are separate printed effects and are kept as
+    # separate flags so that a future rule which distinguishes "improve the
+    # characteristic" from "modify the roll" has something to distinguish.
+    psychic_guidance_characteristics = True   # see game/psychic_guidance.py
+
+
+# --- Support Weapon Platforms -----------------------------------------------
+
+
+class SupportWeaponPlatformProfile(UnitProfile):
+    """The chassis the D-cannon, Shadow Weaver and Vibro Cannon platforms all
+    print: M7"/T6/Sv4+/W5/Ld7+/OC1 on a 40 mm base, WS/BS 3+, and the same two
+    shared abilities.
+
+    A BASE CLASS rather than three copies, because the assurance worth making
+    about these three is that they AGREE - which cannot be written down in
+    three independent profiles. Same call the Kroot Shapers record. What each
+    subclass adds is its own heavy gun and its own second ability, which is the
+    entire difference between the three datasheets.
+
+    They are SUPPORT models (24.34), not LEADERs: "Support Artillery" lets one
+    join a GUARDIAN DEFENDERS unit at Declare Battle Formations. That is the
+    SUPPORT attachment role this engine already has, so the pairing is declared
+    the ordinary way - UnitPoints.supports in game/factions/aeldari_points.py."""
+    base_radius_in = 0.787          # 40 mm printed base
+    movement_in = 7
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 6
+    wounds = 5
+    leadership = "7+"
+    armor_save = "4+"
+    oc = 1
+    infantry = True
+    support = True                  # the SUPPORT keyword, rule 24.34 - see game/attached_units.py
+    # NO battle_focus. MEASURED against the printed datasheet: this one has no
+    # FACTION line at all, where every Aeldari sheet that HAS the army rule
+    # prints "FACTION: **Battle Focus**". Six datasheets were setting it
+    # wrongly - the three WRAITH CONSTRUCTs and the three SUPPORT WEAPON
+    # platforms - and on the wraiths it did real harm: Spirit Conclave's
+    # Spirit Guides aura exists to GRANT them Battle Focus while they stand
+    # within 12" of an ASURYANI PSYKER, and a unit that already had it
+    # permanently made that whole half of the detachment rule a no-op.
+    support_weapon_toughness = True  # "Support Weapon": T3 while in a unit with other models - see game/squad.py
+    # The SUPPORT WEAPON keyword itself. Etappe 2 put it on the three platform
+    # DATASHEETS but never on their profiles, so the flag below sat at False
+    # everywhere and game/branching_fates.py's "excluding SUPPORT WEAPON
+    # models" clause could not fire on the very datasheets it was waiting for.
+    # Yvraine's Word of the Phoenix is the second reader of the same clause,
+    # which is what made the gap visible.
+    support_weapon = True
+    cannot_embark = True            # "This model, and any unit it is joined to, cannot embark within a TRANSPORT."
+
+
+class DCannonPlatformProfile(SupportWeaponPlatformProfile):
+    name = "D-cannon Platform"
+    structural_collapse = True      # see game/structural_collapse.py
+
+
+class ShadowWeaverPlatformProfile(SupportWeaponPlatformProfile):
+    name = "Shadow Weaver Platform"
+    monofilament_snare = True       # see game/monofilament_snare.py
+
+
+class VibroCannonPlatformProfile(SupportWeaponPlatformProfile):
+    name = "Vibro Cannon Platform"
+    sonic_destruction = True        # see game/sonic_destruction.py
+
+
+# --- Fire Prism / Night Spinner / Vypers ------------------------------------
+
+
+class AeldariGunTankProfile(UnitProfile):
+    """The Fire Prism and Night Spinner are one hull with two guns bolted on:
+    M14"/T9/Sv3+/W12/Ld7+/OC3, Deadly Demise D3, the same DAMAGED bracket, and
+    FLY/FRAME. A base class for the same reason the Support Weapon Platforms
+    have one - the assurance worth writing down is that they AGREE.
+
+    Base: the printed 60 mm flying base is NOT used. Both are the Falcon's
+    grav-tank hull, and the standing table size for that hull in this project
+    is 2.1 (the user's call, matched to the Devilfish; the Falcon and the Wave
+    Serpent already carry it). Pinned against the Falcon in the test rather
+    than against the literal, so the four cannot drift apart."""
+    base_radius_in = 2.1            # matched to FalconProfile/WaveSerpentProfile, not the printed 60 mm
+    movement_in = 14
+    weapon_skill = "4+"             # only the wraithbone hull, which prints 4+
+    ballistic_skill = "3+"
+    toughness = 9
+    wounds = 12
+    leadership = "7+"
+    armor_save = "3+"
+    oc = 3
+    vehicle = True
+    fly = True
+    battle_focus = True             # Aeldari army rule - see game/battle_focus.py
+    deadly_demise = 3               # documentation leftover - deadly_demise_notation is what is rolled
+    deadly_demise_notation = D3()   # "Deadly Demise D3", rule 24.08
+    damaged_threshold = 4           # "DAMAGED: 1-4 WOUNDS REMAINING" - -1 to Hit
+
+
+class FirePrismProfile(AeldariGunTankProfile):
+    name = "Fire Prism"
+    crystal_matrix = True           # see game/crystal_matrix.py
+
+
+class NightSpinnerProfile(AeldariGunTankProfile):
+    name = "Night Spinner"
+    monofilament_web = True         # see game/monofilament_web.py
+
+
+class VyperProfile(UnitProfile):
+    """A light two-model skimmer, and the only one of the three that is NOT the
+    grav-tank hull - so it keeps its own converted base rather than the 2.1.
+
+    Its 105 x 70 mm oval takes the equal-AREA circle conversion this file uses
+    everywhere, which is the same oval the Ghostkeel prints; pinned against it
+    in the test so the two conversions cannot disagree."""
+    name = "Vyper"
+    base_radius_in = 1.69           # 105 x 70 mm oval -> equal-area circle, as GhostkeelProfile
+    movement_in = 14
+    weapon_skill = "4+"             # only the wraithbone hull, which prints 4+
+    ballistic_skill = "3+"
+    toughness = 6
+    wounds = 6
+    leadership = "7+"
+    armor_save = "3+"
+    oc = 2
+    vehicle = True
+    fly = True
+    battle_focus = True             # Aeldari army rule - see game/battle_focus.py
+    deadly_demise = 1               # "Deadly Demise 1", rule 24.08 - a flat 1, so no notation
+    harassment_fire = True          # see game/suppression.py - the SAME "suppressed" status Suppression Volley applies
+
+
+# --- The three standalone Asuryani psykers -----------------------------------
+
+
+class LoneWarlockProfile(WarlockProfile):
+    """The standalone "Warlock" datasheet, which is NOT the Warlock Conclave's
+    model even though both print a model called Warlock on the same statline.
+
+    Inherits the statline so the two cannot drift; overrides exactly what the
+    two datasheets print differently:
+      * the Conclave prints PROTECT, this one does not;
+      * this one prints RUNES OF FORTUNE, the Conclave does not;
+      * this one is an ordinary SUPPORT attachment, where the Conclave's line
+        is modelled as a JOIN that occupies no leader slot (see
+        game/attached_units.py) - so `joins_without_leader_slot` is switched
+        back OFF here. An inherited flag left standing would give this datasheet
+        a restriction-free join its own text does not print, which is exactly
+        the inheritance trap the Sky Ray's `armour_hunter` records."""
+    protect = False
+    joins_without_leader_slot = False
+    leader = False
+    support = True                  # its CORE line reads Support, not Leader
+    runes_of_fortune = True         # see game/runes_of_fortune.py
+
+
+class SpiritseerProfile(UnitProfile):
+    """The WRAITH CONSTRUCT support psyker: no invulnerable-save-piercing gun,
+    a witch staff, and three abilities that all point at wraith units."""
+    name = "Spiritseer"
+    base_radius_in = 0.492          # 25 mm printed base
+    movement_in = 7
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 3
+    wounds = 3
+    leadership = "6+"
+    armor_save = "6+"
+    oc = 1
+    invulnerable_save = "4+"
+    infantry = True
+    character = True
+    psyker = True
+    stealth = True                  # its CORE line
+    battle_focus = True             # Aeldari army rule - see game/battle_focus.py
+    spiritseer_lone_operative = True  # conditional Lone Operative near WRAITH CONSTRUCTs - see game/spiritseer.py
+    spirit_mark = True              # see game/spiritseer.py
+    tears_of_isha = True            # see game/spiritseer.py
+
+
+class FarseerSkyrunnerProfile(UnitProfile):
+    """The Farseer on a jetbike. MOUNTED, so it takes the 45 mm table size the
+    other three jetbike datasheets share rather than its printed 32 mm - the
+    standing user decision, pinned against them in the test."""
+    name = "Farseer Skyrunner"
+    base_radius_in = 0.886          # 45 mm on the table; printed base is 32 mm
+    movement_in = 14
+    weapon_skill = "2+"
+    ballistic_skill = "3+"
+    toughness = 4
+    wounds = 5
+    leadership = "6+"
+    armor_save = "6+"
+    oc = 2
+    invulnerable_save = "4+"
+    mounted = True
+    fly = True
+    character = True
+    psyker = True
+    farseer = True                  # the FARSEER keyword - read by game/protect.py
+    leader = True                   # its CORE line
+    battle_focus = True             # Aeldari army rule - see game/battle_focus.py
+    branching_fates = True          # see game/branching_fates.py - the same ability the foot Farseer prints
+    misfortune = True               # see game/misfortune.py
+
+
+# --- Autarchs and Maugan Ra --------------------------------------------------
+
+
+class AutarchProfile(UnitProfile):
+    """The Aspect Warriors' commander: T3/Sv3+/W4 with a 4+ invulnerable, and
+    the widest LEADER line in the faction - seven datasheets."""
+    name = "Autarch"
+    base_radius_in = 0.630          # 32 mm printed base
+    movement_in = 7
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 3
+    wounds = 4
+    leadership = "6+"
+    armor_save = "3+"
+    oc = 1
+    invulnerable_save = "4+"
+    infantry = True
+    character = True
+    leader = True
+    battle_focus = True             # Aeldari army rule - see game/battle_focus.py
+    aspect_training = True          # see game/aspect_training.py
+    superlative_strategist = True   # see game/superlative_strategist.py
+    path_of_command = True          # see game/path_of_command.py
+
+
+class AutarchWayleaperProfile(UnitProfile):
+    """The same commander with a jump pack: M14", DEEP STRIKE, and a Battle
+    Focus token economy of his own instead of the re-rolls.
+
+    NOT a subclass of AutarchProfile, deliberately: the two share a statline in
+    everything but Movement, and every one of their three named abilities
+    differs. Inheriting would mean switching off more than it kept - the
+    inverse of the LoneWarlockProfile case, where inheritance earned its
+    keep."""
+    name = "Autarch Wayleaper"
+    base_radius_in = 0.630          # 32 mm printed base
+    movement_in = 14
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 3
+    wounds = 4
+    leadership = "6+"
+    armor_save = "3+"
+    oc = 1
+    invulnerable_save = "4+"
+    infantry = True
+    character = True
+    jump_pack = True
+    fly = True
+    leader = True
+    deep_strike = True              # its CORE line
+    battle_focus = True             # Aeldari army rule - see game/battle_focus.py
+    indomitable_strength_of_will = True   # see game/indomitable_strength_of_will.py
+    path_of_command = True          # see game/path_of_command.py
+
+
+class MauganRaProfile(UnitProfile):
+    """The Phoenix Lord of the Dark Reapers, on the shared Phoenix Lord chassis
+    (T3/Sv2+/W5/Ld6+/OC1/Inv4+) that Asurmen, Jain Zar, Baharroth, Lhykhis and
+    Fuegan all print - pinned against them in the test rather than against
+    literals, for the same reason Fuegan's T3 is."""
+    name = "Maugan Ra"
+    base_radius_in = 0.787          # 40 mm, like the other foot Phoenix Lords
+    movement_in = 7
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 3
+    wounds = 5
+    leadership = "6+"
+    armor_save = "2+"
+    oc = 1
+    invulnerable_save = "4+"
+    infantry = True
+    character = True
+    epic_hero = True
+    leader = True
+    battle_focus = True             # Aeldari army rule - see game/battle_focus.py
+    harvester_of_souls = True       # see game/harvester_of_souls.py
+    face_of_death = True            # see game/face_of_death.py
+
+
+# --- Exodites ----------------------------------------------------------------
+
+
+class ExoditeProfile(UnitProfile):
+    """The drakesteed all four Exodite datasheets ride: M10"/T5/Sv4+/W4/OC2 on
+    a 75 x 42 mm oval, MOUNTED and MOBILE.
+
+    Only the Clanblade's Leadership differs (6+ against 7+), which is why that
+    one characteristic is overridden below rather than the whole statline being
+    written four times.
+
+    Base: the 75 x 42 mm oval takes the equal-AREA circle conversion this file
+    uses for every oval - r = sqrt(37.5 * 21) = 28.06 mm ~= 1.105"."""
+    base_radius_in = 1.105          # 75 x 42 mm oval -> equal-area circle
+    movement_in = 10
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 5
+    wounds = 4
+    leadership = "7+"
+    armor_save = "4+"
+    oc = 2
+    mounted = True
+    mobile = True                   # the MOBILE keyword - already read by [ANTI-MOBILE]
+    battle_focus = True             # Aeldari army rule - see game/battle_focus.py
+
+
+class DragonKnightProfile(ExoditeProfile):
+    name = "Dragon Knight"
+    on_the_hunt = True              # the FOURTH printed wording of the Fall Back exception - see game/shooting.py
+    agile_reach = True              # see game/agile_reach.py
+    drakolithe = True               # see game/drakolithe.py
+
+
+class ClanbladeProfile(ExoditeProfile):
+    name = "Clanblade"
+    leadership = "6+"               # the one characteristic that differs from the chassis
+    character = True
+    leader = True                   # its CORE line
+    blade_of_the_clans = True       # see game/blade_of_the_clans.py
+    cornered_prey = True            # see game/cornered_prey.py
+
+
+class LeystalkerProfile(ExoditeProfile):
+    name = "Leystalker"
+    character = True
+    lone_operative = 12.0           # its CORE line, rule 24.24 - printed outright, unlike the Spiritseer's conditional grant
+    scouts = 9.0                    # its CORE line, rule 24.31
+    stealth = True                  # its CORE line, rule 24.33
+    panicked_quarry = True          # see game/battle_shock_after_shooting.py
+    drakolithe = True               # see game/drakolithe.py
+
+
+class StonesingerProfile(ExoditeProfile):
+    name = "Stonesinger"
+    character = True
+    psyker = True
+    support = True                  # its CORE line
+    elemental_ensnarement = True    # see game/elemental_ensnarement.py
+
+
+# --- Anhrathe (Corsairs) -----------------------------------------------------
+
+
+class CorsairProfile(UnitProfile):
+    """The Corsair foot chassis: M7"/T3/Sv4+/W1/Ld7+ on a 28.5 mm base, with
+    Scouts 7" as a CORE line on every Anhrathe datasheet here.
+
+    OC differs between the two foot squads (Voidreavers 2, Voidscarred 1), so
+    that is the one characteristic a subclass overrides."""
+    base_radius_in = 0.561          # 28.5 mm printed base
+    movement_in = 7
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 3
+    wounds = 1
+    leadership = "7+"
+    armor_save = "4+"
+    oc = 2
+    infantry = True
+    scouts = 7.0                    # its CORE line, rule 24.31
+    battle_focus = True             # Aeldari army rule - see game/battle_focus.py
+
+
+class CorsairVoidreaverProfile(CorsairProfile):
+    name = "Corsair Voidreaver"
+    reavers_of_the_void = True      # see game/reavers_of_the_void.py
+
+
+class VoidreaverFelarchProfile(CorsairVoidreaverProfile):
+    name = "Voidreaver Felarch"
+    squad_leader = True
+
+
+class CorsairVoidscarredProfile(CorsairProfile):
+    name = "Corsair Voidscarred"
+    oc = 1                          # the one characteristic that differs from the chassis
+    piratical_raiders = True        # see game/piratical_raiders.py
+
+
+class VoidscarredFelarchProfile(CorsairVoidscarredProfile):
+    name = "Voidscarred Felarch"
+    squad_leader = True
+
+
+class ShadeRunnerProfile(CorsairVoidscarredProfile):
+    name = "Shade Runner"
+
+
+class SoulWeaverProfile(CorsairVoidscarredProfile):
+    name = "Soul Weaver"
+    channeller_stones = True        # see game/channeller_stones.py
+
+
+class WaySeekerProfile(CorsairVoidscarredProfile):
+    name = "Way Seeker"
+    psyker = True
+
+
+class CorsairSkyreaverProfile(CorsairProfile):
+    """The jump-pack Corsairs: faster, lighter armour, and one less OC."""
+    name = "Skyreaver"
+    movement_in = 12
+    armor_save = "5+"
+    oc = 1
+    jump_pack = True
+    fly = True
+    deep_strike = True              # its CORE line
+    raid_and_run = True             # see game/raid_and_run.py
+
+
+class SkyreaverFelarchProfile(CorsairSkyreaverProfile):
+    name = "Skyreaver Felarch"
+    squad_leader = True
+
+
+class KharsethProfile(UnitProfile):
+    """An ANHRATHE EPIC HERO and PSYKER who leads the Corsair squads."""
+    name = "Kharseth"
+    base_radius_in = 0.630          # 32 mm printed base
+    movement_in = 7
+    weapon_skill = "2+"
+    ballistic_skill = "3+"
+    toughness = 3
+    wounds = 4
+    leadership = "6+"
+    armor_save = "6+"
+    oc = 1
+    invulnerable_save = "4+"
+    infantry = True
+    character = True
+    epic_hero = True
+    psyker = True
+    leader = True
+    scouts = 7.0                    # its CORE line
+    battle_focus = True
+    aethersense = True              # see game/aethersense.py
+    fury_of_the_void = True         # see game/fury_of_the_void.py
+
+
+class PrinceYrielProfile(UnitProfile):
+    """The other Corsair EPIC HERO - no psyker, a much better save, and the
+    two abilities that make him a list-building piece."""
+    name = "Prince Yriel"
+    base_radius_in = 0.787          # 40 mm printed base
+    movement_in = 7
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 3
+    wounds = 5
+    leadership = "6+"
+    armor_save = "3+"
+    oc = 1
+    invulnerable_save = "4+"
+    infantry = True
+    character = True
+    epic_hero = True
+    leader = True
+    scouts = 7.0                    # its CORE line
+    battle_focus = True
+    piratical_hero = True           # see game/piratical_hero.py
+    prince_of_corsairs = True       # see game/prince_of_corsairs.py
+
+
+class StarfangProfile(UnitProfile):
+    """The Anhrathe skimmer. Same 105 x 70 oval as the Vyper, so it takes the
+    same converted radius - pinned against it rather than against a literal."""
+    name = "Starfang"
+    base_radius_in = 1.69           # 105 x 70 mm oval -> equal-area circle, as VyperProfile
+    movement_in = 14
+    weapon_skill = "4+"
+    ballistic_skill = "3+"
+    toughness = 6
+    wounds = 6
+    leadership = "7+"
+    armor_save = "3+"
+    oc = 2
+    vehicle = True
+    fly = True
+    scouts = 7.0                    # its CORE line
+    deadly_demise = 1               # "Deadly Demise 1", rule 24.08 - a flat 1, so no notation
+    battle_focus = True
+    hallucinogen_grenades = True    # see game/hallucinogen_grenades.py
+
+
+# --- The Ynnari triumvirate --------------------------------------------------
+
+
+class YvraineProfile(UnitProfile):
+    """Emissary of Ynnead. Her 75 x 42 mm oval is the Exodite drakesteed's, so
+    it takes the same converted radius - pinned against it rather than a
+    literal."""
+    name = "Yvraine"
+    base_radius_in = 1.105          # 75 x 42 mm oval -> equal-area circle, as ExoditeProfile
+    movement_in = 8
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 3
+    wounds = 4
+    leadership = "6+"
+    armor_save = "6+"
+    oc = 1
+    invulnerable_save = "4+"
+    infantry = True
+    character = True
+    epic_hero = True
+    psyker = True
+    leader = True
+    battle_focus = True             # Aeldari army rule - see game/battle_focus.py
+    word_of_the_phoenix = True      # see game/ynnari_abilities.py
+    herald_of_ynnead = True         # see game/ynnari_abilities.py
+
+
+class TheVisarchProfile(UnitProfile):
+    """Yvraine's champion, and a SUPPORT model rather than a LEADER - which is
+    what lets him join a unit she is already attached to."""
+    name = "The Visarch"
+    base_radius_in = 0.630          # 32 mm printed base
+    movement_in = 8
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 3
+    wounds = 5
+    leadership = "6+"
+    armor_save = "2+"
+    oc = 1
+    invulnerable_save = "4+"
+    infantry = True
+    character = True
+    epic_hero = True
+    support = True                  # its CORE line
+    battle_focus = True
+    # His printed SUPPORT line adds "even if YVRAINE has already been attached
+    # to it" - the same shape Eldrad's own line has, and the same flag, because
+    # the engine's question is identical: may this model join a unit that
+    # already has a leader?
+    joins_warlock_led_unit = True
+    way_of_the_blade = True         # see game/ynnari_abilities.py
+    yvraines_champion = True        # see game/ynnari_abilities.py
+
+
+class TheYncarneProfile(UnitProfile):
+    """The avatar of Ynnead: a T10/W12 MONSTER that teleports to its own
+    army's dead."""
+    name = "The Yncarne"
+    base_radius_in = 1.575          # 80 mm printed base
+    movement_in = 10
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 10
+    wounds = 12
+    leadership = "6+"
+    armor_save = "2+"
+    oc = 3
+    invulnerable_save = "4+"
+    monster = True
+    character = True
+    epic_hero = True
+    fly = True
+    psyker = True
+    daemon = True
+    deep_strike = True              # its CORE line
+    deadly_demise = 3               # documentation leftover - deadly_demise_notation is what is rolled
+    deadly_demise_notation = D3()   # "Deadly Demise D3", rule 24.08
+    battle_focus = True
+    inevitable_death = True         # see game/ynnari_abilities.py
+    ethereal_form = True            # see game/ynnari_abilities.py
+
+
 # ===========================================================================
 # Necrons - see game/factions/necrons.py
 #
@@ -2774,7 +4176,7 @@ class PlasmancerProfile(UnitProfile):
     character = True
     leader = True
     reanimation_protocols = True
-    harbinger_of_destruction = True  # see game/crit_hit.py
+    leading_ranged_crit_on_5 = True  # printed here as "Harbinger of Destruction"; see game/crit_hit.py
     living_lightning = True          # see game/mortal_wound_abilities.py
 
 
@@ -2857,6 +4259,36 @@ class SkorpekhDestroyerProfile(UnitProfile):
     whirling_onslaught = True       # see game/destroyer_cult.py
 
 
+class SkorpekhLordProfile(UnitProfile):
+    name = "Skorpekh Lord"
+    # THE FOURTH DESTROYER-CULT DATASHEET, and it takes the same table size as
+    # the other three on the user's standing instruction ("alle Destroyer
+    # sollen die gleiche Groesse haben"). Printed 60 mm, so this is a
+    # reduction, exactly like the two Lokhust sheets. It matters more here than
+    # there: he LEADS Skorpekh Destroyers, so under 19.01 he is merged into
+    # their unit and stands shoulder to shoulder with 50 mm bases - a 60 mm
+    # Lord inside a 50 mm squad is where the mismatch would actually be seen.
+    base_radius_in = 0.984          # printed 60 mm, table size 50 mm (the Skorpekh size)
+    movement_in = 8
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 7
+    wounds = 7
+    leadership = "6+"
+    armor_save = "3+"
+    oc = 2
+    invulnerable_save = "4+"
+    infantry = True
+    character = True
+    leader = True                   # rule 24.22 - the pairing itself is UnitPoints.leads
+    reanimation_protocols = True
+    # NOTE: NOT noble. His printed keywords are INFANTRY, CHARACTER, DESTROYER
+    # CULT, SKORPEKH LORD, NECRONS - the Overlord is the roster's only NOBLE,
+    # so leading a unit with this model does NOT switch on Guardian Protocols.
+    united_in_destruction = True    # see game/united_in_destruction.py
+    crimson_harvest = True          # see game/mortal_wound_abilities.py
+
+
 class LokhustDestroyerProfile(UnitProfile):
     name = "Lokhust Destroyer"
     # ALL THREE DESTROYER DATASHEETS SHARE ONE TABLE SIZE - the Skorpekh
@@ -2876,6 +4308,35 @@ class LokhustDestroyerProfile(UnitProfile):
     fly = True
     reanimation_protocols = True
     hard_wired_for_destruction = True   # see game/destroyer_cult.py
+
+
+class LokhustLordProfile(UnitProfile):
+    name = "Lokhust Lord"
+    # The Destroyer table size again, for the same reason as the Skorpekh Lord
+    # ("alle Destroyer sollen die gleiche Groesse haben"): printed 60 mm, and
+    # he leads Lokhust Destroyers or Lokhust Heavy Destroyers, so under 19.01
+    # he stands inside a squad of 50 mm bases.
+    base_radius_in = 0.984          # printed 60 mm, table size 50 mm (the Skorpekh size)
+    movement_in = 8
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 6
+    wounds = 6
+    leadership = "6+"
+    armor_save = "3+"
+    oc = 2
+    invulnerable_save = "4+"
+    # MOUNTED, not INFANTRY - the only Necron character here that is, and the
+    # reason the Skorpekh Lord and this one cannot share a keyword test.
+    mounted = True
+    fly = True
+    character = True
+    leader = True                   # rule 24.22 - the pairing itself is UnitPoints.leads
+    reanimation_protocols = True
+    # NOT noble, like the Skorpekh Lord: the Overlord remains the roster's only
+    # NOBLE, so leading with this model does not switch on Guardian Protocols.
+    leading_ranged_crit_on_5 = True  # printed here as "Destroyer Cult"; see game/crit_hit.py
+    driven_by_hatred = True         # see game/destroyer_cult.py
 
 
 class LokhustHeavyDestroyerProfile(UnitProfile):
@@ -2965,3 +4426,278 @@ class CtanShardOfTheVoidDragonProfile(UnitProfile):
     enslaved_star_god = True        # "cannot be your WARLORD" - a documented no-op, this engine has no Warlord
     deadly_demise = 6               # documentation leftover only, see deadly_demise_notation below
     deadly_demise_notation = D6()   # "Deadly Demise D6"
+
+
+# ---------------------------------------------------------------------------
+# Death Guard - see game/factions/death_guard.py
+#
+# EVERY profile here carries nurgles_gift = True. That is not decoration: the
+# army rule is printed on every Death Guard datasheet, so the flag doubles as
+# this engine's "is this a DEATH GUARD model" test for the aura, and
+# game/death_lords_chosen.py falls back to it for a squad built without a
+# datasheet. A new Death Guard profile that forgets it is invisible to the
+# whole faction.
+#
+# TWO BASE SIZES ARE DECISIONS RATHER THAN TRANSCRIPTIONS, both stated here so
+# nobody "corrects" them later:
+#
+#   * DEFILER: the printed base is 160 mm, which would be a radius of 3.15" -
+#     half again as large as anything else in this engine. It plays at 2.1"
+#     instead, the size the Battlewagon, Kill Rig, Falcon, Devilfish, Wave
+#     Serpent and Doomsday Ark all use. USER DECISION, and the third of its
+#     kind after the Falcon (matched to the Devilfish) and the three jetbikes
+#     (brought to 45 mm) - so BOTH numbers are named here and on the line
+#     itself, to stop anyone "correcting" it back later. It is a gameplay
+#     number, not a cosmetic one: edge_distance() reads it, so Engagement
+#     Range, overlap, coherency and formation packing all move with it.
+#   * PLAGUEBURST CRAWLER: its datasheet prints NO base at all (it has the
+#     FRAME keyword). 2.1" is chosen as the engine's established big-vehicle
+#     size rather than invented from the model's hull, so it sits alongside the
+#     Battlewagon and the Doomsday Ark it plays like.
+# ---------------------------------------------------------------------------
+
+
+class PlagueMarineProfile(UnitProfile):
+    """Statline shared by the Plague Champion below - only squad_leader and the
+    default loadout differ, which is why the Champion subclasses this."""
+    name = "Plague Marine"
+    base_radius_in = 0.63  # 32 mm
+    movement_in = 5
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 6
+    wounds = 2
+    leadership = "6+"
+    armor_save = "3+"
+    oc = 2
+    infantry = True
+    nurgles_gift = True  # the DEATH GUARD army rule - see game/nurgles_gift.py
+
+
+class PlagueChampionProfile(PlagueMarineProfile):
+    name = "Plague Champion"
+    squad_leader = True
+
+
+class PoxwalkerProfile(UnitProfile):
+    """Sv 7+ - no armour save any AP can improve, and the worst in this engine.
+    Its survivability is entirely the Feel No Pain 5+."""
+    name = "Poxwalker"
+    base_radius_in = 0.5  # 25 mm
+    movement_in = 5
+    weapon_skill = "5+"
+    ballistic_skill = "5+"
+    toughness = 4
+    wounds = 1
+    leadership = "8+"
+    armor_save = "7+"
+    oc = 1
+    infantry = True
+    infiltrators = True          # "CORE: Infiltrators" (24.20)
+    feel_no_pain = "5+"          # "CORE: Feel No Pain 5+" (24.12)
+    nurgles_gift = True
+    curse_of_the_walking_pox = True  # this datasheet's own ability - see game/curse_of_the_walking_pox.py
+
+
+class TyphusProfile(UnitProfile):
+    name = "Typhus"
+    base_radius_in = 0.984  # 50 mm
+    movement_in = 5
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 7
+    wounds = 6
+    leadership = "6+"
+    armor_save = "2+"
+    invulnerable_save = "4+"
+    oc = 1
+    infantry = True
+    character = True
+    psyker = True
+    leader = True
+    deep_strike = True
+    nurgles_gift = True
+    destroyer_hive = True  # this model's own ability: while LEADING, melee attacks targeting his unit are -1 to Hit - see game/destroyer_hive.py
+    eater_plague = True    # this model's own PSYCHIC ability: one enemy unit within 18" and visible takes D6 (or D3+3 on a 6) mortal wounds, and a 1 hurts his OWN unit - see game/mortal_wound_abilities.py
+
+
+class MalignantPlaguecasterProfile(UnitProfile):
+    """No invulnerable save at all, unlike every other character in this list -
+    checked rather than assumed, since a PSYKER without one is unusual."""
+    name = "Malignant Plaguecaster"
+    base_radius_in = 0.63  # 32 mm
+    movement_in = 5
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 6
+    wounds = 4
+    leadership = "6+"
+    armor_save = "3+"
+    oc = 1
+    infantry = True
+    character = True
+    psyker = True
+    leader = True
+    nurgles_gift = True
+    gift_of_contagion = True   # while LEADING, that unit's attacks against an Afflicted target gain [SUSTAINED HITS 1] - see game/gift_of_contagion.py
+    pestilent_fallout = True   # after this model shoots, one hit enemy INFANTRY unit is enfeebled (-2" Move) - see game/pestilent_fallout.py
+
+
+class DaemonPrinceOfNurgleProfile(UnitProfile):
+    """T12/W10/Sv2+/Inv4+ - the toughest single model in this engine. It has NO
+    Leader line at all: Death Guard Defenders is what protects it instead."""
+    name = "Daemon Prince of Nurgle"
+    base_radius_in = 1.18  # 60 mm
+    movement_in = 8
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 12
+    wounds = 10
+    leadership = "6+"
+    armor_save = "2+"
+    invulnerable_save = "4+"
+    oc = 3
+    monster = True
+    character = True
+    deadly_demise = 3  # documentation leftover only, see deadly_demise_notation - same convention as the Devilfish
+    deadly_demise_notation = D3()  # "Deadly Demise D3"
+    nurgles_gift = True
+    death_guard_defenders = True   # within 3" of a friendly DEATH GUARD INFANTRY unit, this model has Lone Operative - see game/death_guard_defenders.py
+    fevered_strategist = True      # once per battle round, -1 CP on a Stratagem targeting a friendly DEATH GUARD unit within 12" - see game/fevered_strategist.py
+    miasma_of_pestilence = True    # a friendly DEATH GUARD unit within 6" has the Benefit of Cover against ranged attacks - see game/miasma_of_pestilence.py
+
+
+class ChaosSpawnProfile(UnitProfile):
+    name = "Chaos Spawn"
+    base_radius_in = 0.984  # 50 mm
+    movement_in = 8
+    weapon_skill = "4+"
+    ballistic_skill = "4+"
+    toughness = 7
+    wounds = 4
+    leadership = "7+"
+    armor_save = "4+"
+    oc = 1
+    beasts = True
+    deadly_demise = 1        # "Deadly Demise 1" - a flat 1, so no notation
+    feel_no_pain = "5+"
+    scouts = 6.0             # "Scouts 6\"" (24.31)
+    nurgles_gift = True
+    lethal_ichor = True      # each melee attack allocated to this unit may cost the attacker a mortal wound - see game/lethal_ichor.py
+
+
+class DeathshroudTerminatorProfile(UnitProfile):
+    name = "Deathshroud Terminator"
+    base_radius_in = 0.787  # 40 mm
+    movement_in = 5
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 7
+    wounds = 4
+    leadership = "6+"
+    armor_save = "2+"
+    invulnerable_save = "4+"
+    oc = 1
+    infantry = True
+    deep_strike = True
+    nurgles_gift = True
+    silent_bodyguard = True   # a CHARACTER leading this unit has Feel No Pain 4+ - see game/feel_no_pain.py
+    death_approaches = True   # its Deep Strike may arrive 6" from an Afflicted enemy unit and 8" from any other - see game/death_approaches.py
+
+
+class DeathshroudChampionProfile(DeathshroudTerminatorProfile):
+    name = "Deathshroud Champion"
+    squad_leader = True
+
+
+class DefilerProfile(UnitProfile):
+    """W18 and OC5 are both the largest in this engine. Its base is a table
+    size, not the printed one - see the section header."""
+    name = "Defiler"
+    base_radius_in = 2.1  # printed 160 mm (r 3.15"); TABLE size 2.1", matched to the Battlewagon/Falcon - user decision, see the section header
+    movement_in = 12
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 11
+    wounds = 18
+    leadership = "6+"
+    armor_save = "3+"
+    invulnerable_save = "5+"
+    oc = 5
+    vehicle = True
+    walker = True
+    damaged_threshold = 6  # "Damaged: 1-6 Wounds Remaining" -> -1 to this model's own Hit rolls
+    deadly_demise = 6      # documentation leftover only, see deadly_demise_notation
+    deadly_demise_notation = D6()  # "Deadly Demise D6"
+    nurgles_gift = True
+    scuttling_walker = True  # moves through models and terrain; may pass through Engagement Range but not end there - see game/scuttling_walker.py
+    barrage_of_filth = True  # after this model shoots, one hit enemy unit loses the Benefit of Cover until the end of the phase - see game/barrage_of_filth.py
+
+
+class FoetidBloatDroneProfile(UnitProfile):
+    name = "Foetid Bloat-drone"
+    base_radius_in = 1.18  # 60 mm
+    movement_in = 10
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 9
+    wounds = 10
+    leadership = "6+"
+    armor_save = "3+"
+    invulnerable_save = "5+"
+    oc = 3
+    vehicle = True
+    fly = True
+    deadly_demise = 3
+    deadly_demise_notation = D3()
+    nurgles_gift = True
+    hovering_death = True  # eligible to shoot and declare a charge in a turn it Fell Back - see game/hovering_death.py
+
+
+class MyphiticBlightHaulerProfile(UnitProfile):
+    name = "Myphitic Blight-hauler"
+    base_radius_in = 1.575  # 80 mm
+    movement_in = 10
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 9
+    wounds = 10
+    leadership = "6+"
+    armor_save = "3+"
+    invulnerable_save = "5+"
+    oc = 3
+    vehicle = True
+    deadly_demise = 3
+    deadly_demise_notation = D3()
+    nurgles_gift = True
+    # Its ability is printed under the SAME NAME as the Tankbustas' - "Tank
+    # Hunters", +1 to Hit and +1 to Wound against MONSTER/VEHICLE - but with
+    # one extra clause: "IN YOUR SHOOTING PHASE". The Ork version has no phase
+    # restriction and applies in melee too. So this is a SEPARATE flag rather
+    # than a reuse of tank_hunters: sharing it would silently hand this model
+    # the bonus with its Gnashing Maw as well. The narrower reading is also the
+    # safe one - it cannot grant more than the printed text does. See
+    # squad.py's tank_hunters_modifiers().
+    tank_hunters_ranged_only = True
+
+
+class PlagueburstCrawlerProfile(UnitProfile):
+    """Its datasheet prints no base at all (the FRAME keyword); see the section
+    header for why 2.1" was chosen."""
+    name = "Plagueburst Crawler"
+    base_radius_in = 2.1  # no printed base - the engine's big-vehicle size
+    movement_in = 10
+    weapon_skill = "4+"
+    ballistic_skill = "3+"
+    toughness = 10
+    wounds = 12
+    leadership = "6+"
+    armor_save = "2+"
+    invulnerable_save = "5+"
+    oc = 3
+    vehicle = True
+    damaged_threshold = 4  # "Damaged: 1-4 Wounds Remaining" -> -1 to this model's own Hit rolls
+    deadly_demise = 3
+    deadly_demise_notation = D3()
+    nurgles_gift = True
+    spore_laced_shock_waves = True  # its Plagueburst mortar showers the target and everything within 3" - see game/spore_laced_shock_waves.py

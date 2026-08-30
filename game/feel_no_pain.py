@@ -1,8 +1,15 @@
+from game.advanced_armour import advanced_armour_feel_no_pain
 from game.doks_toolz import doks_toolz_feel_no_pain
+from game.failure_is_not_an_option import failure_is_not_an_option_feel_no_pain
+from game.nanoscarab_amulet import nanoscarab_amulet_feel_no_pain
+from game.rites_of_feasting import rites_of_feasting_feel_no_pain
 from game.rites_of_reanimation import rites_of_reanimation_feel_no_pain
+from game.silent_bodyguard import silent_bodyguard_feel_no_pain
 from game.stim_injectors import stim_injectors_feel_no_pain
 from game.thresholds import parse_threshold
 from game.waaagh import effective_feel_no_pain
+from game import armoured_layered_wards
+from game import ynnari_abilities
 
 
 def _better_threshold(a, b):
@@ -20,7 +27,7 @@ def _better_threshold(a, b):
     return a if ta <= tb else b
 
 
-def current_feel_no_pain(model, waaagh=None):
+def current_feel_no_pain(model, waaagh=None, mortal=False):
     """Every Feel No Pain source that currently applies to this model, resolved
     to the single best threshold: the model's own printed value, Meganobz'
     Waaagh!-conditional Krumpin' Time, Retaliation Cadre's Stim Injectors
@@ -34,7 +41,41 @@ def current_feel_no_pain(model, waaagh=None):
     best = _better_threshold(best, doks_toolz_feel_no_pain(model))
     # The Necron Technomancer's Rites of Reanimation - the Painboy's Dok's
     # Toolz under another name, and folded in exactly the same way.
-    return _better_threshold(best, rites_of_reanimation_feel_no_pain(model))
+    best = _better_threshold(best, rites_of_reanimation_feel_no_pain(model))
+    # The Lokhust Lord's nanoscarab amulet. The first source here that is a
+    # per-TOKEN wargear grant rather than a unit-wide or aura one - "the
+    # BEARER has the Feel No Pain 5+ ability" - which changes nothing about
+    # the folding, only about who it reaches.
+    best = _better_threshold(best, nanoscarab_amulet_feel_no_pain(model))
+    # The Deathshroud Terminators' Silent Bodyguard - the MIRROR of Rites of
+    # Reanimation above: printed on the bodyguards, protecting the leader
+    # rather than the other way round. At 4+ it is the best threshold any
+    # source here grants, which the fold handles without a precedence rule.
+    best = _better_threshold(best, silent_bodyguard_feel_no_pain(model))
+    # The Kroot Flesh Shaper's Rites of Feasting - Rites of Reanimation with a
+    # second gear (6+, improved to 5+ for the rest of the battle once the unit
+    # has destroyed an enemy unit in the Fight phase). The WORSE of the two
+    # thresholds is what makes this fold worth having: a Deathshroud bodyguard
+    # keeps its own 4+ rather than being dragged down to 6+, which is exactly
+    # what "never worse than printed" is for.
+    best = _better_threshold(best, rites_of_feasting_feel_no_pain(model))
+    # The Ethereal's Failure Is Not an Option - the THIRD datasheet to print
+    # Rites of Reanimation's exact sentence, and folded identically.
+    best = _better_threshold(best, failure_is_not_an_option_feel_no_pain(model))
+    # The Broadsides' Advanced Armour - the first CONDITIONAL source here:
+    # Feel No Pain 4+ against MORTAL WOUNDS only. `mortal` is set by
+    # MortalWoundAllocationSession alone, so every other caller keeps the
+    # default and keeps meaning what it did.
+    best = _better_threshold(best, advanced_armour_feel_no_pain(model, mortal))
+    # The Visarch's Yvraine's Champion - the first source that reaches only the
+    # OTHER CHARACTERS in its unit, which is why the predicate takes a model
+    # and reads three separate printed words rather than a single flag.
+    best = _better_threshold(best, ynnari_abilities.yvraines_champion_feel_no_pain(model))
+    # Armoured Warhost's Layered Wards - the SECOND conditional source after
+    # Advanced Armour, and the first bought rather than printed, so its flag
+    # sits on the Squad. Same `mortal` gate, one more fold.
+    return _better_threshold(
+        best, armoured_layered_wards.layered_wards_feel_no_pain(model, mortal))
 
 
 class FeelNoPainRoll:
@@ -56,14 +97,14 @@ class FeelNoPainRoll:
     Cadre's Stim Injectors needs no such threading: it is a flag on the unit,
     so it reaches every damage source that builds a FeelNoPainRoll at all."""
 
-    def __init__(self, model, amount, dice_manager, log=None, waaagh=None):
+    def __init__(self, model, amount, dice_manager, log=None, waaagh=None, mortal=False):
         self.model = model
         self.amount = amount
         self.dice_manager = dice_manager
         self.log = log
         self.is_pending = False
         self.reduced_amount = amount
-        self._threshold = parse_threshold(current_feel_no_pain(model, waaagh))
+        self._threshold = parse_threshold(current_feel_no_pain(model, waaagh, mortal))
         if self._threshold is not None and amount > 0 and dice_manager is not None:
             self.is_pending = True
             dice_manager.roll(

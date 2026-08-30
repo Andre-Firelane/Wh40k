@@ -57,32 +57,3 @@ def gain(failures, successes, crits, crit_matters):
         return "success"
     return None
 
-
-def hit_change(weapon, hits, crits, misses):
-    """What changing one die of this HIT roll would buy, or None.
-
-    Returns (new_hits, new_crits, what) so the caller can say what happened."""
-    what = gain(misses, hits, crits, crit_matters_on_hit(weapon))
-    if what is None:
-        return None
-    if what == "failure":
-        return hits + 1, crits + 1, what
-    return hits, crits + 1, what
-
-
-def wound_change(weapon, wounds, crits, no_effect):
-    """The same for a WOUND roll: (new_wounds, new_crits, new_no_effect, what)."""
-    what = gain(no_effect, wounds, crits, crit_matters_on_wound(weapon))
-    if what is None:
-        return None
-    if what == "failure":
-        return wounds + 1, crits + 1, no_effect - 1, what
-    return wounds, crits + 1, no_effect, what
-
-
-def describes(what, step):
-    """The half-sentence a prompt uses to say what the change buys."""
-    if what == "failure":
-        return "a miss becomes a critical hit" if step == "hit" else "a failed wound becomes a critical wound"
-    return ("an ordinary hit becomes a critical hit" if step == "hit"
-            else "an ordinary wound becomes a critical wound")
