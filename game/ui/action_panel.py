@@ -1,6 +1,7 @@
 import pygame
 
 from game import warhost_fire_and_fade
+from game import enh_higher_duty
 from game import windrider_overflight
 from game import charge, config, consolidate, crushing_impact, epic_challenge, explosives, fall_back, fight, fire_and_fade, firing_deck, formations, greater_good, loadout, movement, overwatch, path_of_the_outcast, pregame, setup, shooting, sprites
 from game.ingress import SHORTENED_BLADE_MIN_ENEMY_DISTANCE_IN
@@ -73,6 +74,7 @@ class ActionPanel:
         path_of_the_outcast_controller=None,
         fire_and_fade_controller=None,
         overflight_controller=None,
+        higher_duty_controller=None,
         warhost_fire_and_fade_controller=None,
         targeting_array_controller=None,
         secondary_mission_controller=None,
@@ -119,6 +121,7 @@ class ActionPanel:
             path_of_the_outcast_controller=path_of_the_outcast_controller,
             fire_and_fade_controller=fire_and_fade_controller,
             overflight_controller=overflight_controller,
+            higher_duty_controller=higher_duty_controller,
             warhost_fire_and_fade_controller=warhost_fire_and_fade_controller,
             targeting_array_controller=targeting_array_controller,
             secondary_mission_controller=secondary_mission_controller,
@@ -150,6 +153,7 @@ class ActionPanel:
         path_of_the_outcast_controller=None,
         fire_and_fade_controller=None,
         overflight_controller=None,
+        higher_duty_controller=None,
         warhost_fire_and_fade_controller=None,
         targeting_array_controller=None,
         # Appended BY KEYWORD like everything above it - this three-stage call
@@ -384,6 +388,7 @@ class ActionPanel:
             path_of_the_outcast_controller=path_of_the_outcast_controller,
             fire_and_fade_controller=fire_and_fade_controller,
             overflight_controller=overflight_controller,
+            higher_duty_controller=higher_duty_controller,
             warhost_fire_and_fade_controller=warhost_fire_and_fade_controller,
             targeting_array_controller=targeting_array_controller,
             secondary_mission_controller=secondary_mission_controller,
@@ -1576,6 +1581,7 @@ class ActionPanel:
         path_of_the_outcast_controller=None,
         fire_and_fade_controller=None,
         overflight_controller=None,
+        higher_duty_controller=None,
         warhost_fire_and_fade_controller=None,
         targeting_array_controller=None,
         # Appended by keyword like everything above - see draw()'s own warning.
@@ -1662,6 +1668,9 @@ class ActionPanel:
             # is special - it locks nothing out, so without that hand-off the
             # generic confirm_move() would have done.
             is_overflight = movement_controller.move_mode == windrider_overflight.OVERFLIGHT_MOVE_MODE
+            # Spirit Conclave's Higher Duty - reactive in the same way, so it
+            # needs the same hand-back branch. See game/enh_higher_duty.py.
+            is_higher_duty = movement_controller.move_mode == enh_higher_duty.HIGHER_DUTY_MOVE_MODE
             # Warhost's Fire and Fade - NOT reactive (its WHEN is "your
             # Shooting phase", so the mover is the turn owner and select()
             # accepts it). It needs a branch only because its two locks -
@@ -1693,6 +1702,8 @@ class ActionPanel:
                 confirm_callback = fire_and_fade_controller.confirm_move
             elif is_overflight and overflight_controller is not None:
                 confirm_callback = overflight_controller.confirm_move
+            elif is_higher_duty and higher_duty_controller is not None:
+                confirm_callback = higher_duty_controller.confirm_move
             elif is_warhost_fire_and_fade and warhost_fire_and_fade_controller is not None:
                 confirm_callback = warhost_fire_and_fade_controller.confirm_move
             else:
@@ -1750,6 +1761,8 @@ class ActionPanel:
                 cancel_callback = fire_and_fade_controller.cancel_move
             elif is_overflight and overflight_controller is not None:
                 cancel_callback = overflight_controller.cancel_move
+            elif is_higher_duty and higher_duty_controller is not None:
+                cancel_callback = higher_duty_controller.cancel_move
             elif is_warhost_fire_and_fade and warhost_fire_and_fade_controller is not None:
                 cancel_callback = warhost_fire_and_fade_controller.cancel_move
             elif is_torchstar and torchstar_controller is not None:

@@ -29,7 +29,7 @@ are handed in rather than reached for, so this module stays a pure question and
 the controller keeps owning the state.
 """
 
-from game import advanced_acquisition_cadre, auxiliary_cadre
+from game import advanced_acquisition_cadre, auxiliary_cadre, enh_camouflaged_snipers
 
 
 def keeps_hidden(squad, reactive=False, all_squads=()):
@@ -42,5 +42,11 @@ def keeps_hidden(squad, reactive=False, all_squads=()):
     if squad is None or reactive:
         return False
     if advanced_acquisition_cadre.shooting_keeps_hidden(squad):
+        return True
+    # Path of the Outcast's Camouflaged Snipers - the THIRD source, and the
+    # first that is an Enhancement rather than a detachment rule. It changes
+    # nothing at the single call site in game/shooting.py, which is what this
+    # module exists for.
+    if enh_camouflaged_snipers.applies(squad):
         return True
     return auxiliary_cadre.stealth_projector_covers(squad, all_squads)

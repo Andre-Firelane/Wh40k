@@ -42,6 +42,7 @@ meaning what it did.
 """
 
 from game import death_guard_defenders, illuminor, spiritseer
+from game import enh_spirit_stone_of_raelyth
 
 #: (predicate, range) for every CONDITIONAL grant. A source is a pair, not a
 #: subclass: what it shares is the question, not any behaviour.
@@ -55,6 +56,11 @@ SOURCES = (
      spiritseer.SPIRITSEER_LONE_OPERATIVE_RANGE_IN),
     (death_guard_defenders.grants_lone_operative,
      death_guard_defenders.DEATH_GUARD_DEFENDERS_LONE_OPERATIVE_RANGE_IN),
+    # Armoured Warhost's Spirit Stone of Raelyth - the FOURTH, and the first
+    # that is an Enhancement rather than a printed datasheet ability. Same
+    # sentence, same signature, one more entry.
+    (enh_spirit_stone_of_raelyth.grants_lone_operative,
+     enh_spirit_stone_of_raelyth.SPIRIT_STONE_RANGE_IN),
 )
 
 

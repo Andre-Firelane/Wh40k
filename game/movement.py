@@ -155,6 +155,13 @@ class MovementController:
         # Council's Isha's Fury on it, the same generalisation
         # on_squad_finished_shooting and target_reactions already got.
         self.on_move_finished = []
+        # ...and its mirror, fired as a move BEGINS, with the squad. Armoured
+        # Warhost's Spirit Stone of Raelyth is the first thing that needs it:
+        # its heal is "at the START or end of this unit's move", and only the
+        # end of one had a seam. Hung on _begin_move(), the single shared entry
+        # all ten move types pass through, so it cannot be half-wired the way a
+        # hook per move-starter could.
+        self.on_move_started = []
         # Fired when a SCOUT move (24.32) ends, by confirm OR cancel, with the
         # squad. Its own hook rather than a place in on_move_finished above,
         # because that list is deliberately restricted to Normal/Advance/Fall
@@ -274,6 +281,11 @@ class MovementController:
         self.flying_this_move = False
         self.desperate_escape_this_move = False
         self.surge_target = None
+        # The move has now BEGUN, and every field it depends on is set - so a
+        # listener that wants to act "at the start of this unit's move" sees a
+        # consistent controller. Fired last for that reason.
+        for listener in (self.on_move_started or ()):
+            listener(self.selected_squad)
 
     def start_move(self):
         if not self.can_make_move(self.selected_squad):
@@ -418,7 +430,7 @@ class MovementController:
     #: the open move at all; then for Rangers' Path of the Outcast, when the gate
     #: looked but compared against the string "battle_focus" only.
     REACTIVE_MOVE_MODES = frozenset({"battle_focus", "path_of_the_outcast",
-                                     "raid_and_run", "overflight"})
+                                     "raid_and_run", "overflight", "higher_duty"})
 
     def start_battle_focus_move(self, squad, max_distance, move_mode="battle_focus"):
         """A reactive Normal move of an already-rolled distance, taken in the

@@ -9,6 +9,7 @@ from game.stim_injectors import stim_injectors_feel_no_pain
 from game.thresholds import parse_threshold
 from game.waaagh import effective_feel_no_pain
 from game import armoured_layered_wards
+from game import enh_runes_of_warding
 from game import ynnari_abilities
 
 
@@ -27,7 +28,8 @@ def _better_threshold(a, b):
     return a if ta <= tb else b
 
 
-def current_feel_no_pain(model, waaagh=None, mortal=False):
+def current_feel_no_pain(model, waaagh=None, mortal=False, psychic=False,
+                         devastating=False):
     """Every Feel No Pain source that currently applies to this model, resolved
     to the single best threshold: the model's own printed value, Meganobz'
     Waaagh!-conditional Krumpin' Time, Retaliation Cadre's Stim Injectors
@@ -74,8 +76,17 @@ def current_feel_no_pain(model, waaagh=None, mortal=False):
     # Armoured Warhost's Layered Wards - the SECOND conditional source after
     # Advanced Armour, and the first bought rather than printed, so its flag
     # sits on the Squad. Same `mortal` gate, one more fold.
-    return _better_threshold(
+    best = _better_threshold(
         best, armoured_layered_wards.layered_wards_feel_no_pain(model, mortal))
+    # Seer Council's Runes of Warding - the first source here with THREE
+    # conditions rather than one, and the reason `psychic` and `devastating`
+    # exist alongside `mortal`. Each is set by exactly one caller: the mortal
+    # path, the damage session that knows the weapon, and the devastating
+    # session respectively - so every other caller keeps the defaults and
+    # keeps meaning what it did.
+    return _better_threshold(
+        best, enh_runes_of_warding.feel_no_pain(
+            model, mortal=mortal, psychic=psychic, devastating=devastating))
 
 
 class FeelNoPainRoll:
@@ -97,14 +108,16 @@ class FeelNoPainRoll:
     Cadre's Stim Injectors needs no such threading: it is a flag on the unit,
     so it reaches every damage source that builds a FeelNoPainRoll at all."""
 
-    def __init__(self, model, amount, dice_manager, log=None, waaagh=None, mortal=False):
+    def __init__(self, model, amount, dice_manager, log=None, waaagh=None, mortal=False,
+                 psychic=False, devastating=False):
         self.model = model
         self.amount = amount
         self.dice_manager = dice_manager
         self.log = log
         self.is_pending = False
         self.reduced_amount = amount
-        self._threshold = parse_threshold(current_feel_no_pain(model, waaagh, mortal))
+        self._threshold = parse_threshold(current_feel_no_pain(
+            model, waaagh, mortal, psychic=psychic, devastating=devastating))
         if self._threshold is not None and amount > 0 and dice_manager is not None:
             self.is_pending = True
             dice_manager.roll(

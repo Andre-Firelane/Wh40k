@@ -423,8 +423,12 @@ class DamageAllocationSession:
                     self._notify_resumed()
                 return
             amount = reroll.total
+        # psychic=: this session is the only one that holds the WEAPON, so it
+        # is the one place that can answer whether this was a Psychic Attack -
+        # rule 24.29's keyword. Seer Council's Runes of Warding asks it.
         fnp = FeelNoPainRoll(model, self._reduced_damage(model, amount), self.dice_manager,
-                             log=self.log, waaagh=self.waaagh)
+                             log=self.log, waaagh=self.waaagh,
+                             psychic=bool(getattr(self.weapon, "psychic", False)))
         if fnp.is_pending:
             self.pending_fnp = fnp
             self._fnp_model = model
@@ -503,7 +507,8 @@ class DamageAllocationSession:
 
         comment)."""
         fnp = FeelNoPainRoll(model, self._reduced_damage(model, amount), self.dice_manager,
-                             log=self.log, waaagh=self.waaagh)
+                             log=self.log, waaagh=self.waaagh,
+                             psychic=bool(getattr(self.weapon, "psychic", False)))
         if fnp.is_pending:
             self.pending_fnp = fnp
             self._fnp_model = model
@@ -738,7 +743,20 @@ class DevastatingWoundAllocationSession:
             self._advance()
 
     def _apply(self, model):
-        fnp = FeelNoPainRoll(model, self.damage, self.dice_manager, log=self.log, waaagh=self.waaagh)
+        # devastating=True: this session IS the [DEVASTATING WOUNDS] path, so
+        # it is the one place that can answer what Runes of Warding's third
+        # clause asks.
+        #
+        # NOTE what is deliberately NOT passed here: mortal=True. The printed
+        # rules resolve a devastating wound AS a mortal wound, so Advanced
+        # Armour and Layered Wards arguably ought to apply against these too -
+        # they do not today. That gap is PRE-EXISTING and named rather than
+        # closed here (a user decision): flipping it would silently change two
+        # other datasheets' rules, which is a separate call from building this
+        # Enhancement. Runes of Warding carries its own flag so it does not
+        # depend on how that is settled.
+        fnp = FeelNoPainRoll(model, self.damage, self.dice_manager, log=self.log,
+                             waaagh=self.waaagh, devastating=True)
         if fnp.is_pending:
             self.pending_fnp = fnp
             self._fnp_model = model

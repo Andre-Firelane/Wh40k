@@ -141,10 +141,12 @@ class SpiritMarkController:
     One per battle. Keyed by both sides, because the grant only applies where
     they meet - see the module docstring."""
 
-    def __init__(self, decision_manager=None, game_log=None, all_tokens=None):
+    def __init__(self, decision_manager=None, game_log=None, all_tokens=None,
+                 auto_players=()):
         self.decision_manager = decision_manager
         self.game_log = game_log
         self.all_tokens = all_tokens if all_tokens is not None else []
+        self.auto_players = set(auto_players)
         self._pairs = {}            # player -> set of (id(friendly), id(enemy))
         self._used_this_turn = set()   # players who have already used it this turn
 
@@ -200,6 +202,57 @@ class SpiritMarkController:
         a Guide/Doom mark, which is why this is its own reset point."""
         self._pairs.pop(player, None)
         self._used_this_turn.discard(player)
+
+    # --- the offer -------------------------------------------------------
+    # THIS HALF WAS BUILT AND NEVER FED. mark(), available(), the two candidate
+    # lists and start_of_movement_phase() all existed and were unit-tested, but
+    # nothing in main.py ever called them - so in a real game the mark could
+    # never be placed and the read half above was dead code. The eighth
+    # instance of that class in this repo, and the reason the wiring is pinned
+    # in the suite rather than merely the predicates.
+    #
+    # "WHEN THIS MODEL STARTS OR ENDS A MOVE" is the same pair of moments
+    # Spirit Stone of Raelyth needs, which is what MovementController's
+    # on_move_started/on_move_finished now provide.
+
+    def on_move_started(self, squad):
+        return self.offer(squad)
+
+    def on_move_finished(self, squad):
+        return self.offer(squad)
+
+    def offer(self, bearer_squad, visible_to=None):
+        """"select one friendly WRAITH CONSTRUCT unit ... and one enemy unit
+        visible to this model" - two choices, chained."""
+        if not self.available(bearer_squad):
+            return False
+        friends = self.friendly_candidates(bearer_squad)
+        enemies = self.enemy_candidates(bearer_squad, visible_to=visible_to)
+        if not friends or not enemies:
+            return False
+        if (bearer_squad.owner in self.auto_players
+                or self.decision_manager is None):
+            return False           # no AI path (standing Aeldari rule)
+        self.decision_manager.request(
+            bearer_squad.owner,
+            "%s: which friendly WRAITH CONSTRUCT unit gains [SUSTAINED HITS 1]?"
+            % SPIRIT_MARK_LABEL,
+            [(f.name, (lambda x=f: self._pick_enemy(bearer_squad, x, enemies)))
+             for f in friends]
+            + [("Do not use it", lambda: False)],
+        )
+        return True
+
+    def _pick_enemy(self, bearer_squad, friendly_squad, enemies):
+        if len(enemies) == 1:
+            return self.mark(bearer_squad, friendly_squad, enemies[0])
+        self.decision_manager.request(
+            bearer_squad.owner,
+            "%s: against which enemy unit?" % SPIRIT_MARK_LABEL,
+            [(e.name, (lambda x=e: self.mark(bearer_squad, friendly_squad, x)))
+             for e in enemies],
+        )
+        return True
 
 
 def spirit_mark_adjusted_weapon(weapon, controller, attacking_squad, target_squad):

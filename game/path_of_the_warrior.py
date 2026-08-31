@@ -41,6 +41,7 @@ never worth less. A prompt nobody answers would stall the loop, which is the
 """
 
 from game import aeldari_detachments
+from game import enh_mantle_of_wisdom
 
 PATH_OF_THE_WARRIOR_LABEL = "Path of the Warrior"
 
@@ -112,6 +113,11 @@ class PathOfTheWarriorController:
         this, and the phase in the key is what keeps them independent."""
         if not eligible(squad) or self.chosen_for(squad) is not None:
             return False
+        # Aspect Host's Mantle of Wisdom grants BOTH options, so there is
+        # nothing to choose - asking anyway would present a limit that no
+        # longer exists. See game/enh_mantle_of_wisdom.py.
+        if enh_mantle_of_wisdom.applies(squad):
+            return False
         if squad.owner in self.auto_players or self.decision_manager is None:
             # The hit roll comes first and a miss never reaches the wound roll,
             # so re-rolling 1s there is never the worse half of the trade.
@@ -127,10 +133,18 @@ class PathOfTheWarriorController:
 
     # --- what the two attack steps read ----------------------------------
 
+    # Mantle of Wisdom is folded in HERE, at this rule's own answer, rather
+    # than at the four places the answer is read - see that module's docstring
+    # for why. "Both of the abilities", so both questions say yes.
+
     def hit_ones_apply(self, squad):
+        if enh_mantle_of_wisdom.applies(squad):
+            return True
         return self.chosen_for(squad) == HIT
 
     def wound_ones_apply(self, squad):
+        if enh_mantle_of_wisdom.applies(squad):
+            return True
         return self.chosen_for(squad) == WOUND
 
     def reset_phase(self):

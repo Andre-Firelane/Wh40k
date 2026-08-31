@@ -62,6 +62,9 @@ class FireOverwatchController:
     def __init__(self, stratagem_controller, shooting_controller, all_tokens=None, turn_tracker=None, game_log=None):
         self.stratagem_controller = stratagem_controller
         self.shooting_controller = shooting_controller
+        # Guardian Battlehost's Protector of the Paths, injected by main.py.
+        # None means nobody plays that detachment.
+        self.protector_of_the_paths = None
         self.all_tokens = all_tokens if all_tokens is not None else []
         self.turn_tracker = turn_tracker
         self.game_log = game_log
@@ -158,6 +161,10 @@ class FireOverwatchController:
         self.shooting_controller.start_snap_shooting(squad, on_finished=lambda: self._on_shot_finished(mover))
 
     def _on_shot_finished(self, mover):
+        # Protector of the Paths' better threshold lasts only "while resolving
+        # THAT Stratagem" - this is where that ends.
+        if self.protector_of_the_paths is not None:
+            self.protector_of_the_paths.clear_activation()
         if self.turn_tracker is not None and mover is not None:
             self.turn_tracker.set_active(mover)
         self._mover = None

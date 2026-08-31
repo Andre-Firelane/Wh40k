@@ -1,4 +1,4 @@
-"""The Damage-roll re-roll offer, as a DamageAllocationSession collaborator.
+"""The "you can re-roll the result" offer for a DICE-NOTATION roll.
 
 Extracted from game/sunforge.py, which owned it while Crisis Sunforge
 Battlesuits were the only ability granting one. Fire Dragons' Assured
@@ -11,6 +11,18 @@ Nothing about the offer was ever Sunforge-specific except the label in its
 prompt, so `label` is now a parameter and the class itself says nothing about
 which ability opened it - matching DamageAllocationSession, which likewise
 knows nothing about that.
+
+AND THE SAME MOVE AGAIN, ONE LEVEL UP. This was game/damage_reroll.py until
+Guardian Battlehost's Breath of Vaul arrived: it re-rolls the ATTACKS
+characteristic of a flamer, which is the same dice-notation roll and the same
+"you can re-roll the result" offer, just not a Damage one. A module named
+after the first KIND of roll it served is the wrong home for the second - the
+same rename crit_ap.py -> critical_wound_split.py got for the same reason.
+
+So the only Damage-specific thing left, the word in the prompt, is a parameter
+too (`roll_name`), defaulting to "Damage" so every existing caller is
+unchanged. game/damage_reroll.py stays as a re-export, which keeps ONE
+definition.
 """
 
 
@@ -24,8 +36,11 @@ class DamageRerollOffer:
 
     def __init__(self, label, decision_manager=None, dice_manager=None, game_log=None,
                  owner=None, weapon_name="", prompt_suffix="", automatic_faces=(),
-                 notation=None):
+                 notation=None, roll_name="Damage"):
         self.label = label          # the ability's own name, for the prompt and the log
+        # Which roll this is, for the prompt and the log - "Damage" or
+        # "Attacks". The rest of the class does not care which.
+        self.roll_name = roll_name
         self.decision_manager = decision_manager
         self.dice_manager = dice_manager
         self.game_log = game_log
@@ -94,18 +109,18 @@ class DamageRerollOffer:
         if self.decision_manager is None or not self.can_offer():
             return False
         options = [
-            (f"{self.label}: re-roll the Damage roll ({total})", lambda: self._chose(on_resolved, True)),
-            (f"Keep the Damage roll ({total})", lambda: self._chose(on_resolved, False)),
+            (f"{self.label}: re-roll the {self.roll_name} roll ({total})", lambda: self._chose(on_resolved, True)),
+            (f"Keep the {self.roll_name} roll ({total})", lambda: self._chose(on_resolved, False)),
         ]
         suffix = f" {self.prompt_suffix}" if self.prompt_suffix else ""
         self.decision_manager.request(
             self.owner,
-            f"{self.weapon_name}: {self.label} - re-roll the Damage roll{suffix}?",
+            f"{self.weapon_name}: {self.label} - re-roll the {self.roll_name} roll{suffix}?",
             options,
         )
         return True
 
     def _chose(self, on_resolved, reroll):
         if reroll and self.game_log is not None:
-            self.game_log.add(f"{self.label}: re-rolling {self.weapon_name}'s Damage roll.")
+            self.game_log.add(f"{self.label}: re-rolling {self.weapon_name}'s {self.roll_name} roll.")
         on_resolved(reroll)

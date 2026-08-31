@@ -184,6 +184,11 @@ class PregameController:
         # start(pregame_controller, on_done) and returns True if it took over
         # (a prompt is on screen); on_done resumes this queue.
         self.prebattle_steps = []
+        # ...and the same idea one step EARLIER: abilities whose printed timing
+        # is "in the Deploy Armies step", which therefore have to land before
+        # the deployment order and the placement rules are read. Ordered, for
+        # the same reason prebattle_steps is.
+        self.deploy_armies_steps = []
         self._prebattle_queue = []
         # Kauyon's Solid-image Projection Unit fires "after both players have
         # deployed their armies", which is BEFORE Determine First Turn - so it
@@ -366,6 +371,14 @@ class PregameController:
         self._set_deploy_order(opponent)
 
     def _set_deploy_order(self, first_to_place):
+        # "IN THE DEPLOY ARMIES STEP" - resolved just BEFORE it, which is the
+        # last moment such a grant can still change anything. Rule 24.20's
+        # INFILTRATORS decides both WHERE a unit may be placed and WHEN (they
+        # deploy last), and both are read from here on, so a grant made after
+        # this point would be carried and never used. Same ordering trap the
+        # Scouts grants meet one step later; see game/enh_ethereal_pathway.py.
+        for step in self.deploy_armies_steps:
+            step.start(self)
         self.state = DEPLOYING
         self.active_player = first_to_place
         self._sync_turn_tracker()

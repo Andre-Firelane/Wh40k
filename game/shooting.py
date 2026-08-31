@@ -23,7 +23,7 @@ from game import crystalline_targeting
 from game import wave_serpent_shield
 from game.fire_support import FIRE_SUPPORT_LABEL
 from game.hand_of_asuryan import hand_of_asuryan_adjusted_weapon
-from game.damage_reroll import DamageRerollOffer
+from game.notation_reroll import DamageRerollOffer
 from game.weapons import NON_MONSTER_VEHICLE
 from game import conditional_devastating_wounds
 from game import corsair_abilities
@@ -61,6 +61,12 @@ from game import defend_at_all_costs
 from game import guardian_blades_of_asuryan
 from game import guardian_shield_nodes
 from game import guardian_warding_salvoes
+from game import enh_breath_of_vaul
+from game import enh_guiding_presence
+from game import enh_mirage_field
+from game import enh_protector_of_the_paths
+from game import enh_rune_of_mists
+from game import enh_shimmerstone
 from game import enh_assassins_eye
 from game import enh_psychic_weapons
 from game import aspect_doom_inescapable
@@ -691,6 +697,14 @@ class ShootingController:
         # Mont'ka's Pinpoint Counter-Offensive, for the hit re-roll. None
         # means nobody plays that detachment.
         self.pinpoint_counter_offensive = None
+        # Armoured Warhost's Guiding Presence, for the hit step. Its mark
+        # lives on the controller (it is per PLAYER, not per squad), so this
+        # is a collaborator rather than a flag. None means nobody plays it.
+        self.guiding_presence = None
+        # Guardian Battlehost's Protector of the Paths, for the Snap Shooting
+        # threshold. The DISCOUNT object itself, because the latch that says
+        # which activation is the free one lives on it.
+        self.protector_of_the_paths = None
         self.one_shot_used = set()  # rule 24.26: (model.id, id(weapon)) pairs already fired - persists for the whole battle, never reset
         # Shroud Runners' Target Acquisition needs to know WHICH weapon hit,
         # not just which unit - "hit by one or more of those attacks made with
@@ -2101,6 +2115,49 @@ class ShootingController:
         total_attacks += volley_fire_extra_attacks(pairs)
         self._continue_resolution_with_attacks(weapon, total_attacks)
 
+    def _after_attacks_reroll(self, weapon, group, total, again):
+        """Resumes the Attacks step once Breath of Vaul's offer is answered.
+
+        The melee-free twin of DamageAllocationSession._after_damage_reroll(),
+        and it works the same way: `again` means throw the dice once more as a
+        brand new, VISIBLE dice_manager roll marked is_reroll=True - not a
+        silent recomputation - so it lands back in _pending_attacks_roll and
+        comes through the "attacks" branch again once acknowledged. It cannot
+        loop, because is_reroll marks every index of the roll as spent and the
+        offer's can_offer() then declines.
+
+        NAMED SIMPLIFICATION: the printed text is "each time you roll", i.e.
+        per flamer, and this engine rolls all of a group's Attacks dice in ONE
+        DiceNotationRoll (count=len(pairs)). So two flamers get one offer that
+        re-rolls both dice rather than two separate offers. That follows from
+        the existing group roll, not from this card, and Storm Guardians can
+        field at most two flamers, so the gap is one die's worth of choice."""
+        if again:
+            reroll = DiceNotationRoll(
+                weapon.attacks_notation, count=len(group["pairs"]),
+                dice_manager=self.dice_manager,
+                label=f"Attacks ({enh_breath_of_vaul.BREATH_OF_VAUL_LABEL} re-roll): "
+                      f"{group['weapon_label']}",
+                roll_kind=ATTACKS_ROLL, log=self._log, is_reroll=True,
+                target_name=group["target_squad"].name,
+                attacker_squad=self.active_squad, target_squad=group["target_squad"],
+            )
+            if reroll.is_pending:
+                self._pending_attacks_roll = reroll
+                self.pending_step = "attacks"
+                return
+            total = reroll.total
+        self._finish_attacks_roll(weapon, group, total)
+
+    def _finish_attacks_roll(self, weapon, group, total):
+        """The shared tail of the Attacks step - reached whether or not a
+        re-roll was offered, taken or declined."""
+        total_attacks = total + extra_attack_dice(
+            weapon, group["target_squad"], group["weapon_key"],
+            self.split_fire, self.assignments, group["pairs"],
+        )
+        self._continue_resolution_with_attacks(weapon, total_attacks)
+
     def _continue_resolution_with_attacks(self, weapon, total_attacks):
         """Shared tail of _begin_resolution(), reached directly (a plain
         fixed-int Attacks characteristic, the overwhelmingly common case) or
@@ -2156,7 +2213,14 @@ class ShootingController:
         unmodified hit roll of 6, irrespective of the attacking weapon's BS
         characteristic"."""
         if self.shooting_type == SNAP_SHOOTING:
-            return 6
+            # Guardian Battlehost's Protector of the Paths is the FIRST thing
+            # that changes 15.09's flat 6. It is an OVERRIDE here rather than a
+            # modifier because 15.09 also ignores every modifier - a Modifier
+            # would be correctly thrown away by the very rule this is meant to
+            # beat. None means nothing applies and the printed 6 stands.
+            override = enh_protector_of_the_paths.snap_hit_threshold(
+                self.protector_of_the_paths, self.active_squad, self.objectives)
+            return override if override is not None else 6
         shooter_model, weapon = group["pairs"][0]
         if self.shooting_type == INDIRECT_SHOOTING and weapon.indirect_fire:
             stationary = (
@@ -2328,6 +2392,18 @@ class ShootingController:
         if kauyon.hit_modifiers_ignored(
                 self.active_squad, target_squad, self.turn_tracker, self.greater_good):
             modifiers = [m for m in modifiers if m.amount <= 0]
+        # Windrider Host's Mirage Field. DEFENDER-side, and it says "an
+        # attack" rather than "a ranged attack", so game/fight.py carries the
+        # same two lines - one printed word apart from Shimmerstone below.
+        if enh_mirage_field.applies(target_squad):
+            modifiers.append(Modifier(enh_mirage_field.MIRAGE_FIELD_PENALTY,
+                                      enh_mirage_field.MIRAGE_FIELD_LABEL))
+        # Armoured Warhost's Guiding Presence - ATTACKER-side, and a BONUS, so
+        # a negative amount. Held as a per-player mark, hence the controller.
+        if (self.guiding_presence is not None
+                and self.guiding_presence.applies(self.active_squad)):
+            modifiers.append(Modifier(enh_guiding_presence.GUIDING_PRESENCE_BONUS,
+                                      enh_guiding_presence.GUIDING_PRESENCE_LABEL))
         if weapon.psychic:
             # Rule 24.29 ([PSYCHIC]): "you can ignore any or all modifiers...
             # to the hit roll" - always rational to drop every WORSENING
@@ -2443,6 +2519,12 @@ class ShootingController:
             modifiers.append(Modifier(
                 wave_serpent_shield.WAVE_SERPENT_SHIELD_PENALTY,
                 wave_serpent_shield.WAVE_SERPENT_SHIELD_LABEL))
+        # Aspect Host's Shimmerstone. DEFENDER-side like the shield above, and
+        # RANGED-only: the one printed word that keeps it out of game/fight.py,
+        # where its Etappe-3 sibling Mirage Field does appear.
+        if enh_shimmerstone.applies(target_squad):
+            modifiers.append(Modifier(enh_shimmerstone.SHIMMERSTONE_PENALTY,
+                                      enh_shimmerstone.SHIMMERSTONE_LABEL))
         # Lychguard's Guardian Protocols - the same S > T comparison and the
         # same positive sign as the shield above, differing only in its
         # "while a NOBLE model is leading this unit" clause. See
@@ -2699,6 +2781,14 @@ class ShootingController:
         # sit on opposite sides of this function.
         if miasma_of_pestilence.applies(target_squad, self.all_tokens):
             return True
+        # Spirit Conclave's Rune of Mists - the first cover grant here with a
+        # DISTANCE, and an INVERTED one: cover applies "unless the attacking
+        # model is within 18". It fits without a new parameter because this
+        # function is already asked per SHOOTER, which is what "the attacking
+        # model" needs. Rule 10.02 then freezes the answer for the whole
+        # activation, like every other cover source.
+        if enh_rune_of_mists.grants_cover(shooter_model, target_squad):
+            return True
         for model in target_squad.models:
             keyword_in_area = (
                 (model.profile.infantry or model.profile.beasts or model.profile.swarm)
@@ -2819,10 +2909,27 @@ class ShootingController:
             total = self._pending_attacks_roll.total
             self._pending_attacks_roll = None
             raw_weapon = group["pairs"][0][1]
-            total_attacks = total + extra_attack_dice(
-                raw_weapon, target_squad, group["weapon_key"], self.split_fire, self.assignments, group["pairs"],
-            )
-            self._continue_resolution_with_attacks(raw_weapon, total_attacks)
+            # Guardian Battlehost's Breath of Vaul: "each time you roll to
+            # determine the number of attacks made with a flamer ... you can
+            # re-roll the result". The FIRST re-roll offer on an Attacks roll -
+            # Damage rolls have had one since Sunforge, and that machinery
+            # turned out to be generic apart from the word in its prompt (see
+            # game/notation_reroll.py). A True return means the answer arrives
+            # later through the callback, so this must not carry on.
+            if enh_breath_of_vaul.attacks_reroll_applies(self.active_squad, raw_weapon):
+                offer = DamageRerollOffer(
+                    enh_breath_of_vaul.BREATH_OF_VAUL_LABEL,
+                    decision_manager=self.decision_manager, dice_manager=self.dice_manager,
+                    game_log=self.game_log, owner=self.active_squad.owner,
+                    weapon_name=raw_weapon.name, roll_name="Attacks",
+                    notation=raw_weapon.attacks_notation,
+                )
+                if offer.maybe_offer(
+                    total,
+                    lambda again, w=raw_weapon, g=group, t=total: self._after_attacks_reroll(w, g, t, again),
+                ):
+                    return
+            self._finish_attacks_roll(raw_weapon, group, total)
             return
 
         target_profile = allocation_target_profile(target_squad)
@@ -4165,6 +4272,13 @@ class ShootingController:
                     automatic_faces=structural_collapse.STRUCTURAL_COLLAPSE_AUTOMATIC_FACES,
                     notation=weapon.damage_notation, **common,
                 )
+            elif enh_breath_of_vaul.damage_reroll_applies(self.active_squad, weapon):
+                # Breath of Vaul's fusion-gun half. Unlike every other entry
+                # in this chain it asks nothing about the TARGET - "a Damage
+                # roll for a model equipped with a fusion gun in that unit" is
+                # a question about what the shooter is holding.
+                damage_reroll = DamageRerollOffer(
+                    enh_breath_of_vaul.BREATH_OF_VAUL_LABEL, **common)
             elif assured_destruction.applies(self.active_squad, target_squad, self.turn_tracker):
                 # Two abilities, one die, and a die is never re-rolled twice -
                 # so whichever applies builds the single offer. They cannot

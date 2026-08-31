@@ -58,6 +58,18 @@ from game.movement import MovementController
 from game import neocapacitor_shields, render_resolution, rites_of_feasting, scene_io
 from game import ynnari_abilities
 from game.ynnari_abilities import HeraldOfYnneadController
+from game.enh_echoes_of_ulthanesh import EchoesOfUlthaneshController
+from game.enh_ethereal_pathway import EtherealPathwayStep
+from game.enh_firstdrawn_blade import FirstdrawnBladeStep
+from game.enh_higher_duty import HigherDutyController
+from game.enh_phoenix_gem import PhoenixGemController
+from game.enh_gift_of_foresight import GiftOfForesightDiscount
+from game.enh_guiding_presence import GuidingPresenceController
+from game.enh_lucid_eye import LucidEyeController
+from game.enh_protector_of_the_paths import ProtectorOfThePathsDiscount
+from game.enh_torc_of_morai_heg import TorcOfMoraiHegSurcharge
+from game.enh_rune_of_mists import RuneOfMistsController
+from game.enh_spirit_stone_of_raelyth import SpiritStoneOfRaelythController
 from game.path_of_the_warrior import PathOfTheWarriorController
 from game.shepherds_of_the_dead import ShepherdsOfTheDeadController
 from game.word_of_the_phoenix import WordOfThePhoenixController
@@ -882,6 +894,17 @@ def main(map_key=None):
             model, x, y, squad=model.squad,
         ),
     )
+    # Warhost's Phoenix Gem is the same shape with a different roll - built
+    # beside its twin and given the same placement predicate for the same
+    # reason (position_valid() does not cover Engagement Range; the module
+    # checks that half itself).
+    phoenix_gem_controller = PhoenixGemController(
+        game_state=state, dice_manager=dice_manager, game_log=game_log,
+        all_tokens=state.tokens,
+        position_valid=lambda model, x, y: setup_controller.position_valid(
+            model, x, y, squad=model.squad,
+        ),
+    )
     grot_orderly_controller = GrotOrderlyController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
         game_state=state, auto_players=("Player 2",),
@@ -1013,6 +1036,25 @@ def main(map_key=None):
     stave_of_kurnous_controller = StaveOfKurnousController(
         game_state=state, decision_manager=decision_manager, game_log=game_log,
         auto_players=("Player 2",))
+    # Rune of Mists - the THIRD carrier of that same Command-phase sentence,
+    # and the one that does NOT print the TITANIC exclusion above.
+    rune_of_mists_controller = RuneOfMistsController(
+        game_state=state, decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",))
+    # The two "target the bearer's unit with <NAMED> for 0CP" Enhancements -
+    # one shared class, two names. Protector of the Paths is kept in a local
+    # because its SECOND clause (the Snap Shooting threshold) reads the latch
+    # this object holds.
+    protector_of_the_paths_discount = ProtectorOfThePathsDiscount(
+        turn_tracker=turn_tracker, game_log=game_log)
+    stratagem_controller.cost_discounts.append(protector_of_the_paths_discount)
+    stratagem_controller.cost_discounts.append(
+        GiftOfForesightDiscount(turn_tracker=turn_tracker, game_log=game_log))
+    # The FIRST surcharge - the mirror list, for making an OPPONENT's
+    # Stratagem dearer. See game/enh_torc_of_morai_heg.py.
+    stratagem_controller.cost_surcharges.append(
+        TorcOfMoraiHegSurcharge(game_state=state, turn_tracker=turn_tracker,
+                                game_log=game_log))
     atomic_energy_controller = AtomicEnergyManipulatorController(game_log=game_log)
     # The third cost_discounts collaborator, after Puretide and Strands of Fate.
     stratagem_controller.cost_discounts.append(
@@ -1088,7 +1130,8 @@ def main(map_key=None):
     # The Spiritseer's Spirit Mark and Tears of Isha. Two abilities, one
     # datasheet, and both reach WRAITH CONSTRUCT units by range.
     spirit_mark_controller = SpiritMarkController(
-        decision_manager=decision_manager, game_log=game_log, all_tokens=state.tokens)
+        decision_manager=decision_manager, game_log=game_log, all_tokens=state.tokens,
+        auto_players=("Player 2",))
     tears_of_isha_controller = TearsOfIshaController(
         dice_manager=dice_manager, decision_manager=decision_manager,
         game_log=game_log, game_state=state, all_tokens=state.tokens,
@@ -1152,6 +1195,27 @@ def main(map_key=None):
     # Swooping Hawks' Grenade Pack Flyover - the THIRD consumer of
     # on_move_finished and the SECOND of on_ingress_resolved, which is why both
     # of those hooks are lists now.
+    # Spirit Stone of Raelyth's heal is "at the START or end of this unit's
+    # move", so it is the first listener on BOTH hooks. on_move_started is new
+    # and exists for exactly this - see game/movement.py's _begin_move().
+    spirit_stone_controller = SpiritStoneOfRaelythController(
+        game_state=state, decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",))
+    movement_controller.on_move_started.append(spirit_stone_controller.on_move_started)
+    movement_controller.on_move_finished.append(spirit_stone_controller.on_move_finished)
+    # The Spiritseer's Spirit Mark: "when this model STARTS OR ENDS a move" -
+    # the same pair of moments, and the half of that controller that was built
+    # but never fed until now.
+    movement_controller.on_move_started.append(spirit_mark_controller.on_move_started)
+    movement_controller.on_move_finished.append(spirit_mark_controller.on_move_finished)
+    # Spirit Conclave's Higher Duty reacts to an ENEMY ending a move - the
+    # first enemy-side consumer of this hook, and what closes the Trail Finding
+    # trigger gap CLAUDE.md records.
+    higher_duty_controller = HigherDutyController(
+        game_state=state, movement_controller=movement_controller,
+        decision_manager=decision_manager, turn_tracker=turn_tracker,
+        game_log=game_log, auto_players=("Player 2",), all_tokens=state.tokens)
+    movement_controller.on_move_finished.append(higher_duty_controller.on_move_finished)
     movement_controller.on_move_finished.append(wraith_form_controller.on_move_finished)
     movement_controller.on_move_finished.append(
         internal_grenade_racks_controller.on_move_finished)
@@ -1654,6 +1718,9 @@ def main(map_key=None):
     fire_overwatch_controller = FireOverwatchController(
         stratagem_controller, shooting_controller, all_tokens=state.tokens, turn_tracker=turn_tracker, game_log=game_log,
     )
+    # Protector of the Paths' better Snap Shooting threshold lasts only "while
+    # resolving that Stratagem", and this is what ends it.
+    fire_overwatch_controller.protector_of_the_paths = protector_of_the_paths_discount
     transport_controller = TransportController(
         setup_controller, state, state.tokens, movement_controller, ingress_controller, dice_manager,
         game_log=game_log, turn_tracker=turn_tracker, board_width_in=board.width_in, board_height_in=board.height_in,
@@ -2309,6 +2376,20 @@ def main(map_key=None):
         turn_tracker=turn_tracker, auto_players=("Player 2",))
     fight_controller.path_of_the_warrior = path_of_the_warrior_controller
     shooting_controller.path_of_the_warrior = path_of_the_warrior_controller
+    # Armoured Warhost's Guiding Presence: chosen at the start of its owner's
+    # Shooting phase and read by the hit step, so it is built here beside the
+    # other Aeldari detachment collaborators - after shooting_controller,
+    # which it is assigned onto. `visible` is the real line-of-sight test the
+    # card prints ("select one VISIBLE friendly ... unit"); the same callable
+    # Seer's Eye takes.
+    guiding_presence_controller = GuidingPresenceController(
+        game_state=state, decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",),
+        visible=lambda observer, other: line_of_sight.has_line_of_sight(
+            observer, other, state.obstacles, state.tokens, state.terrain_areas),
+    )
+    shooting_controller.guiding_presence = guiding_presence_controller
+    shooting_controller.protector_of_the_paths = protector_of_the_paths_discount
     # Spirit Conclave's Shepherds of the Dead: Vengeful Dead tokens, read by
     # BOTH roll steps in BOTH attack controllers, plus a Battle Focus aura.
     shepherds_of_the_dead_controller = ShepherdsOfTheDeadController(
@@ -2439,6 +2520,10 @@ def main(map_key=None):
     indomitable_controller = IndomitableStrengthOfWillController(
         battle_focus=battle_focus_pool, game_log=game_log)
     battle_focus_pool.indomitable = indomitable_controller
+    # Timeless Strategist counts a bearer riding in a transport that is on the
+    # battlefield - the same source game/secondary_missions.py takes for the
+    # same question.
+    battle_focus_pool.set_embarked_source(lambda: state.embarked_squads)
     shooting_controller.on_squad_finished_shooting.append(battle_focus_pool.offer_fade_back)
     # TWO reactors on one slot now, so it becomes an ordered pair rather than
     # a single callable. The squad is captured ONCE and handed to both - the
@@ -2467,6 +2552,20 @@ def main(map_key=None):
     # exists. Whose army has the detachment is a setting, not a derivation -
     # see config.SEER_COUNCIL_PLAYERS.
     fate_dice_pool = strands_of_fate.FateDicePool(game_log=game_log)
+    # Seer Council's Lucid Eye edits that pool directly - a Fate die's FACE is
+    # which Stratagem it pays for, so +-1 REPLACES an entry rather than adding
+    # a bonus on top. Built here, after the pool it reads.
+    lucid_eye_controller = LucidEyeController(
+        game_state=state, fate_pool=fate_dice_pool,
+        decision_manager=decision_manager, game_log=game_log,
+        auto_players=("Player 2",))
+    # Windrider Host's Echoes of Ulthanesh - the deployment ZONES are the real
+    # condition, so it gets the shapes rather than a board half.
+    echoes_of_ulthanesh_controller = EchoesOfUlthaneshController(
+        game_state=state, command_points=command_points, turn_tracker=turn_tracker,
+        game_log=game_log,
+        zones={z.owner: (z, next((o for o in state.deployment_zones if o.owner != z.owner), None))
+               for z in getattr(state, "deployment_zones", []) or []})
     stratagem_controller.cost_discounts.append(fate_dice_pool)
     # War Horde's Unbridled Carnage - proactive (Fight phase, bought before a
     # unit is selected to fight), so like The Arro'kon Protocol it needs no
@@ -2893,6 +2992,7 @@ def main(map_key=None):
         # returning model is on the battlefield for anything that reads the
         # board at this boundary.
         unquenchable_resolve_controller.resolve_end_of_phase()
+        phoenix_gem_controller.resolve_end_of_phase()
         # Shroud Runners' Target Acquisition: "until the end of the phase".
         target_acquisition_controller.reset_phase()
         # War Walkers' Crystalline Targeting: its AP effect is "until the end
@@ -3306,6 +3406,10 @@ def main(map_key=None):
             misfortune_controller.start_of_command_phase(turn_tracker.turn_owner)
             # Tears of Isha is once per unit per TURN, so its ledger clears here.
             tears_of_isha_controller.reset_turn()
+            # Belt and braces: the per-MOVE ledger is already cleared by
+            # on_move_started, so this only matters if a move was abandoned
+            # without ever starting another.
+            spirit_stone_controller.reset_turn()
             # Eldrad Ulthran's Doom: the same duration, so the same instant.
             doom_controller.start_of_command_phase(turn_tracker.turn_owner)
             # Eldrad Ulthran's Diviner of Futures: "at the start of your
@@ -3327,6 +3431,9 @@ def main(map_key=None):
                 turn_tracker,
             )
         if turn_tracker.phase == PHASE_MOVEMENT:
+            # "Until the start of your next Movement phase" - Spirit Mark's own
+            # reset, one phase later than a Guide/Doom mark.
+            spirit_mark_controller.start_of_movement_phase(turn_tracker.turn_owner)
             movement_controller.reset_movement_phase()
             ingress_controller.reset_movement_phase()
             transport_controller.reset_movement_phase()
@@ -3439,7 +3546,10 @@ def main(map_key=None):
             # ...and Light of Clarity, on the same clock and through the same
             # shared machine.
             light_of_clarity_controller.begin_command_phase(turn_tracker.turn_owner)
+            echoes_of_ulthanesh_controller.begin_command_phase(turn_tracker.turn_owner)
+            lucid_eye_controller.begin_command_phase(turn_tracker.turn_owner)
             stave_of_kurnous_controller.begin_command_phase(turn_tracker.turn_owner)
+            rune_of_mists_controller.begin_command_phase(turn_tracker.turn_owner)
         if phase_before == PHASE_COMMAND:
             # Reanimation Protocols: "at the end of your Command phase, each
             # friendly unit with this ability that is on the battlefield
@@ -3486,6 +3596,12 @@ def main(map_key=None):
             # once-per-unit memo; the mark itself is turn-scoped.
             auxiliary_cadre_controller.reset_phase()
             auxiliary_cadre_controller.offer_at_start_of_shooting_phase(turn_tracker.turn_owner)
+            # Guiding Presence is re-selected every Shooting phase, so the
+            # previous mark is cleared and a new one offered in the same
+            # breath - the same instant, and for the same printed reason, as
+            # the two above.
+            guiding_presence_controller.reset_phase()
+            guiding_presence_controller.offer_at_start_of_shooting_phase(turn_tracker.turn_owner)
         if phase_before == PHASE_SHOOTING:
             greater_good_controller.reset_shooting_phase()
             # The Vespid Oversight Drone's grant is "until the end of the
@@ -3751,6 +3867,11 @@ def main(map_key=None):
             # from under it would strand turn_tracker.active_player on the
             # reacting player (only _finish() hands it back).
             or path_of_the_outcast_controller.is_busy
+            # Spirit Conclave's Higher Duty holds active_player exactly the
+            # same way while its reactive move is open, so it needs the same
+            # guard - the third report of this class was a move the phase
+            # change walked straight over.
+            or higher_duty_controller.is_busy
             # The Secondary Mission deck still owes the human a prompt (cash a
             # completed card in, or discard one for CP). Opened at the end of a
             # turn, so without this the next phase could roll over the top of a
@@ -4034,6 +4155,19 @@ def main(map_key=None):
         # deterministically (see game/fated_hero.py), so there is no ai/ path and
         # no prompt that could stall the pregame.
         pregame_controller.prebattle_steps.append(fated_hero_controller)
+        # Windrider Host's Firstdrawn Blade grants Scouts, so it has Strike
+        # Swiftly's ordering constraint exactly: it must precede the Scouts
+        # step it feeds. Nothing is asked - the card names the bearer's own
+        # unit - so it resolves inline.
+        pregame_controller.prebattle_steps.insert(0, FirstdrawnBladeStep(
+            game_state=state, game_log=game_log))
+        # Armoured Warhost's Ethereal Pathway grants INFILTRATORS, whose timing
+        # is a step EARLIER: rule 24.20 decides both where a unit may be placed
+        # and when, and both are read from the Deploy Armies step on. So it
+        # goes in deploy_armies_steps, not here.
+        pregame_controller.deploy_armies_steps.append(EtherealPathwayStep(
+            game_state=state, decision_manager=decision_manager,
+            game_log=game_log, auto_players=("Player 2",)))
         # Kauyon's Solid-image Projection Unit fires "after both players have
         # deployed", which is EARLIER than Resolve Pre-battle Abilities - so it
         # is its own hook rather than a member of the list above.
@@ -5156,6 +5290,10 @@ def main(map_key=None):
             # Noting it here rather than there is what keeps "the first time this
             # model is destroyed" honest about which phase the death was in.
             unquenchable_resolve_controller.notify_destroyed([dead])
+            # Phoenix Gem, noted in the same sweep and for the same reason -
+            # which phase the death happened in is not reconstructable later.
+            phoenix_gem_controller.notify_model_destroyed(
+                getattr(dead, "squad", None), dead)
             # Shepherds of the Dead: "each time an ASURYANI PSYKER model from
             # your army is destroyed BY AN ENEMY UNIT, that enemy unit gains a
             # Vengeful Dead token". Per MODEL, so it is fed from this loop
@@ -5580,6 +5718,7 @@ def main(map_key=None):
             path_of_the_outcast_controller=path_of_the_outcast_controller,
             fire_and_fade_controller=fire_and_fade_controller,
             overflight_controller=overflight_controller,
+            higher_duty_controller=higher_duty_controller,
             warhost_fire_and_fade_controller=warhost_fire_and_fade_controller,
             targeting_array_controller=targeting_array_controller,
             # An open "click a unit on the board" request from a Secondary

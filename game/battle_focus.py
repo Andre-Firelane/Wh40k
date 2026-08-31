@@ -66,6 +66,7 @@ no ai/agent_driver.py path and none is wanted.
 """
 
 from game import attached_units  # no imports of its own, so this cannot cycle
+from game import enh_timeless_strategist
 from game import config
 from game import martial_grace
 from game.turn import PHASE_MOVEMENT, PHASE_FIGHT, PHASE_SHOOTING  # game/turn.py imports nothing, so this cannot cycle
@@ -260,6 +261,10 @@ class BattleFocusPool:
         # reserve yet when the controllers are built). Self-healing on
         # purpose - a caller cannot forget a step that does not exist.
         self._squads_provider = squads_provider
+        #: Optional, and only Timeless Strategist reads it: "or any TRANSPORT
+        #: it is embarked within is on the battlefield". None means "nothing is
+        #: embarked", which is what a headless harness gets.
+        self._embarked_provider = None
         self.dice_manager = dice_manager
         self.decision_manager = decision_manager
         self.fight_controller = fight_controller
@@ -290,6 +295,17 @@ class BattleFocusPool:
         self.players = tuple(players)
         self.tokens = {player: 0 for player in self.players}
         self._granted_round = None
+
+    def set_embarked_source(self, source):
+        """The same shape game/secondary_missions.py takes for the same
+        question - main.py hands it `lambda: state.embarked_squads`."""
+        self._embarked_provider = source
+
+    def _board_squads(self):
+        return list(self._squads_provider()) if self._squads_provider else []
+
+    def _embarked_squads(self):
+        return list(self._embarked_provider()) if self._embarked_provider else []
 
     def _derive_players(self):
         """Fill in self.players from the squads provider, if it can yet."""
@@ -329,7 +345,17 @@ class BattleFocusPool:
             # added here rather than inside tokens_for_battle_size(), which
             # answers a question about the battle size and would have handed
             # the extra token to both armies.
-            self.tokens[player] = amount + martial_grace.extra_tokens_for(player)
+            # Warhost's Timeless Strategist is the SECOND source of an extra
+            # token, and unlike Martial Grace above it is conditional on where
+            # a specific MODEL is - so it takes the board rather than just the
+            # player. Two terms rather than one shared helper, because they
+            # answer differently shaped questions and only happen to add to
+            # the same number.
+            self.tokens[player] = (
+                amount
+                + martial_grace.extra_tokens_for(player)
+                + enh_timeless_strategist.extra_tokens_for(
+                    player, self._board_squads(), self._embarked_squads()))
         self._granted_round = battle_round
         self._log(
             f"Battle Focus: {', '.join(self.players)} receive {amount} token(s) "

@@ -29,6 +29,7 @@ from game import defend_at_all_costs
 from game import guardian_shield_nodes
 from game import guardian_warding_salvoes
 from game import critical_wound_split
+from game import enh_mirage_field
 from game import enh_aspect_of_murder
 from game import aspect_warrior_focus
 from game import conclave_blades_from_beyond
@@ -2328,6 +2329,12 @@ class FightController:
         # Destroyer Hive is defender-side: it worsens attacks against the
         # marked unit, so it takes the target.
         modifiers.extend(destroyer_hive.hit_modifiers(target_squad))
+        # Windrider Host's Mirage Field. Its card says "an attack", not "a
+        # ranged attack" - so unlike Shimmerstone it reaches this phase, and
+        # that single word is the whole reason these two are wired differently.
+        if enh_mirage_field.applies(target_squad):
+            modifiers.append(Modifier(enh_mirage_field.MIRAGE_FIELD_PENALTY,
+                                      enh_mirage_field.MIRAGE_FIELD_LABEL))
         # LAST, because it REMOVES modifiers rather than adding one: the
         # Aspect Host detachment's Warrior Focus lets its units ignore any or
         # all Hit-roll modifiers, resolved automatically the way rule 24.29

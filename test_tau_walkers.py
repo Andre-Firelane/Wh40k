@@ -338,8 +338,14 @@ ck.true("...and it names itself when it is the reason",
 _fnp_src = open("game/feel_no_pain.py", encoding="utf-8").read()
 ck.true("Advanced Armour is folded into current_feel_no_pain()",
         "advanced_armour_feel_no_pain(model, mortal)" in _fnp_src)
+# The PARAMETER, not the whole signature line: this pinned the exact text and
+# went red when Seer Council's Runes of Warding added two more conditions
+# beside it - a real change to the fold, but not to what this checks. Asked of
+# the live function so the check survives the next one too.
+import inspect as _inspect  # noqa: E402
+from game.feel_no_pain import current_feel_no_pain as _cfnp  # noqa: E402
 ck.true("...and the fold takes the mortal flag through",
-        "def current_feel_no_pain(model, waaagh=None, mortal=False):" in _fnp_src)
+        _inspect.signature(_cfnp).parameters["mortal"].default is False)
 
 # ART ARRIVED - this block pinned the absence until it did. At the MODEL, so a
 # key naming a file that is not on disk fails here rather than passing.
