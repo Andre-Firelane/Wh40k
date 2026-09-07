@@ -32,20 +32,8 @@ from game.weapons import MELEE, RANGED  # noqa: E402
 c = tk.Checks("T'au detachment rules")
 
 
-class settings_as:
-    def __init__(self, **values):
-        self.values = values
-
-    def __enter__(self):
-        self.old = {k: getattr(config, k) for k in self.values}
-        for key, value in self.values.items():
-            setattr(config, key, value)
-        return self
-
-    def __exit__(self, *exc):
-        for key, value in self.old.items():
-            setattr(config, key, value)
-
+# The one definition lives in testkit - eight suites had their own copy.
+settings_as = tk.settings_as
 
 ON = dict(EXPERIMENTAL_PROTOTYPE_CADRE_PLAYERS=("Player 1",))
 OFF = dict(EXPERIMENTAL_PROTOTYPE_CADRE_PLAYERS=())

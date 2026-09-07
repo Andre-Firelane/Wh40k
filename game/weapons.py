@@ -1,4 +1,4 @@
-from game.dice_notation import D3, D6
+from game.dice_notation import D3, D6, describe
 
 #: A sentinel keyword for the NEGATED form of [ANTI-X], which no ordinary
 #: keyword entry can express: the Stonesinger prints "ANTI-non-MONSTER/VEHICLE
@@ -63,6 +63,116 @@ class WeaponProfile:
     # weapon is where the flag actually belongs (same shape as
     # devastating_wounds above, which is the closest core-rule analogue).
     hold_still = False       # Painboy's "Hold Still and Say 'Aargh!'" - each critical WOUND this weapon scores against a non-VEHICLE unit inflicts D6 mortal wounds on it, on top of the attack itself; see game/hold_still.py
+
+
+def anti_entries(weapon):
+    """WeaponProfile.anti as a uniform sequence of (keyword, threshold).
+
+    It may be written either as a single tuple - ("VEHICLE", 4) - or as a
+    tuple of those, for a weapon that prints more than one [ANTI-X] at once
+    (the Beastboss's Beast Snagga klaw and Beastchoppa each carry
+    Anti-Monster 4+ AND Anti-Vehicle 4+). The single form is detected by its
+    second element being an int, which no nested form can be.
+
+    Lives here, beside the field it reads, because two consumers now ask the
+    same question: game/shooting.py's _wound_crit_threshold() (which one
+    applies against THIS target) and printed_keywords() below (how the whole
+    set is spelled on the card). shooting.py re-exports it, so there is one
+    definition rather than two that can drift apart."""
+    anti = weapon.anti
+    if anti is None:
+        return ()
+    if len(anti) == 2 and isinstance(anti[1], int):
+        return (anti,)
+    return tuple(anti)
+
+
+#: (attribute, printed spelling) for every keyword that is a plain on/off flag.
+#: The ones carrying a VALUE (anti/blast/cleave/melta/rapid_fire/
+#: sustained_hits) are spelled in printed_keywords() below, because their
+#: printed form is not a constant.
+_FLAG_KEYWORDS = (
+    ("assault", "ASSAULT"),
+    ("close_quarters", "CLOSE-QUARTERS"),
+    ("devastating_wounds", "DEVASTATING WOUNDS"),
+    ("devastating_wounds_vs_non_monster_vehicle", "DEVASTATING WOUNDS: non-MONSTER/VEHICLE"),
+    ("extra_attacks", "EXTRA ATTACKS"),
+    ("hazardous", "HAZARDOUS"),
+    ("heavy", "HEAVY"),
+    ("ignores_cover", "IGNORES COVER"),
+    ("indirect_fire", "INDIRECT FIRE"),
+    ("lance", "LANCE"),
+    ("lethal_hits", "LETHAL HITS"),
+    ("one_shot", "ONE SHOT"),
+    ("pistol", "PISTOL"),
+    ("precision", "PRECISION"),
+    ("psychic", "PSYCHIC"),
+    ("torrent", "TORRENT"),
+    ("twin_linked", "TWIN-LINKED"),
+)
+
+
+def printed_keywords(weapon):
+    """This weapon's keywords, spelled and ordered the way its datasheet
+    prints them: ["ASSAULT", "RAPID FIRE 1", "TWIN-LINKED"].
+
+    Reported: "in den weapon info tabellen im overlay fehlen die keywords (zb
+    twin linked oder sustained hits)". The hover datacard's weapon tables drew
+    Range/A/BS/S/AP/D and stopped there, so the half of a weapon row that
+    decides how it actually behaves - [TORRENT] means no Hit roll at all,
+    [TWIN-LINKED] a re-roll, [DEVASTATING WOUNDS] wounds that skip the save -
+    was on no screen anywhere in the game.
+
+    THE ONE DEFINITION of "how is this weapon's keyword column printed",
+    living beside the flags it reads rather than in the card that first needed
+    it: a second consumer (a tooltip, the loadout list, a future weapon
+    picker) asks the same question and must get the same answer.
+
+    ALPHABETICAL, because that is the printed order - measured, not assumed:
+    of the 35 distinct multi-keyword rows in rules/*.md, all 35 are sorted.
+    Sorting the spelled-out strings reproduces it (BLAST < DEVASTATING WOUNDS
+    < INDIRECT FIRE), so the card matches the sheet a player is holding.
+
+    Read off the object it is given, exactly as printed_characteristic() in
+    game/ui/unit_datacard.py does: on a model's own weapon instance that is
+    the printed row, and a caller that hands it a runtime-adjusted copy gets
+    that copy's answer, which is what such a caller is asking for.
+
+    NOT included: `hold_still`. Its own comment in WeaponProfile says why -
+    it is printed as a UNIT ability whose condition happens to name one
+    weapon, not as a keyword in that weapon's keyword column. Painboy's
+    printed row is empty there, and inventing an entry would be the card
+    claiming something the datasheet does not say. The same holds for the
+    three datasheet-specific weapon abilities this engine deliberately does
+    not model (Dead Choppy, Snagged, Linked Fire) - each is documented as
+    unmodeled where its weapon is defined, and printing them would promise a
+    rule that no code enforces.
+    """
+    printed = []
+    for keyword, threshold in anti_entries(weapon):
+        printed.append("ANTI-%s %d+" % (keyword, threshold))
+    for attribute, spelling in _FLAG_KEYWORDS:
+        if getattr(weapon, attribute, False):
+            printed.append(spelling)
+    # Plain [BLAST] carries no X on the printed sheet; this engine stores it
+    # as X=1 (see WeaponProfile.blast), so 1 prints bare. Nothing sets a
+    # higher value today, but a printed "[BLAST 2]" would still be honest.
+    if weapon.blast:
+        printed.append("BLAST" if weapon.blast == 1 else "BLAST %d" % weapon.blast)
+    for attribute, spelling in (("cleave", "CLEAVE"), ("melta", "MELTA"),
+                                ("rapid_fire", "RAPID FIRE")):
+        value = getattr(weapon, attribute, 0)
+        if value:
+            printed.append("%s %d" % (spelling, value))
+    # [SUSTAINED HITS X] is the one valued keyword whose X can itself be a
+    # die (the Avatar of Khaine prints "[SUSTAINED HITS D3]"), in which case
+    # the int beside the notation is only a grouping placeholder - the same
+    # trap printed_characteristic() exists for in the A/S/D columns.
+    if weapon.sustained_hits_notation is not None:
+        printed.append("SUSTAINED HITS %s" % describe(weapon.sustained_hits_notation))
+    elif weapon.sustained_hits:
+        printed.append("SUSTAINED HITS %d" % weapon.sustained_hits)
+    return sorted(printed)
 
 
 class BolterProfile(WeaponProfile):
@@ -995,6 +1105,17 @@ class PulsePistolProfile(WeaponProfile):
     pistol = True
 
 
+class PulsePistolBs3Profile(PulsePistolProfile):
+    """The same printed row with its own BS. Strike/Breacher/Pathfinder Teams
+    print the pulse pistol at 4+ - their models' own skill, so those inherit
+    it from the profile as usual - but the Firesight Team (a BS4+ model) and
+    Commander Shadowsun (a BS2+ model) both print it at 3+, which their
+    wielders' skill cannot produce in either direction. Hence a per-weapon
+    override rather than a change to the shared class, which would have made
+    the other three wrong."""
+    ballistic_skill = "3+"
+
+
 class PulseRifleProfile(WeaponProfile):
     name = "Pulse Rifle"
     weapon_type = RANGED
@@ -1905,8 +2026,14 @@ class ShardstormBurstSystemProfile(WeaponProfile):
 
 
 class XvPulsePistolProfile(WeaponProfile):
-    """Ranged half. [RAPID FIRE 2] (24.30) doubles down within half range;
-    [PISTOL] (24.27) lets it fire out of Engagement Range."""
+    """Ranged half. [RAPID FIRE 2] (24.30) doubles down within half range.
+
+    NOT [PISTOL], despite the name - the printed keyword column of
+    rules/tau_empire/The Twin Lance.md reads "rapid fire 2" and nothing else,
+    while the Shardstorm burst system one row above does print "pistol". The
+    flag sat here (with a docstring reasoning from the weapon's name that it
+    "lets it fire out of Engagement Range") until the keyword sweep put the
+    two columns side by side."""
     name = "XV Pulse Pistol"
     weapon_type = RANGED
     range_in = 12
@@ -1915,7 +2042,6 @@ class XvPulsePistolProfile(WeaponProfile):
     ap = -1
     damage = 2
     rapid_fire = 2
-    pistol = True
 
 
 class XvPulsePistolMeleeProfile(WeaponProfile):
@@ -2876,6 +3002,15 @@ class PowerSwordProfile(WeaponProfile):
     damage = 1
 
 
+class VoidscarredPowerSwordProfile(PowerSwordProfile):
+    """Same printed NAME and same S/AP/D, one more Attack: Corsair Voidscarred
+    print this row at A3 where Storm Guardians and Corsair Voidreavers print
+    it at A2. The recipe's "same name, different numbers" case, so it inherits
+    and overrides only the number that differs - which is also what keeps the
+    two pinned against each other instead of against literals."""
+    attacks = 3
+
+
 # --- Striking Scorpions (Aeldari), see game/factions/aeldari.py ---
 # The Shuriken Pistol is shared with Storm Guardians above - same printed row,
 # so it is reused rather than duplicated.
@@ -3364,11 +3499,19 @@ class WraithcannonProfile(WeaponProfile):
     weapon_type = RANGED
     range_in = 18
     attacks = 1
-    ballistic_skill = "4+"
+    ballistic_skill = "4+"  # the WRAITHGUARD row; Corsair Voidreavers print 3+, see VoidreaverWraithcannonProfile
     strength = 14
     ap = -4
     damage = 4  # preview/grouping placeholder only - damage_notation is what is rolled
     damage_notation = D6(1)
+
+
+class VoidreaverWraithcannonProfile(WraithcannonProfile):
+    """Same printed row, its own BS: Corsair Voidreavers print the wraithcannon
+    at 3+, the Wraithguard at 4+. Inherits everything and overrides only the
+    number that differs, so the two stay pinned to each other."""
+    ballistic_skill = "3+"
+
 
 
 class DScytheProfile(WeaponProfile):
@@ -3454,7 +3597,13 @@ class SilentDeathProfile(WeaponProfile):
     ap = -2
     damage = 1
     assault = True
-    anti = ("INFANTRY", 3)
+    # NO [ANTI-INFANTRY 3+]: that keyword is the BLADE of Destruction's alone.
+    # It sat here too until the keyword sweep put both rows beside their
+    # printed ones - the two rows' keywords really do look swapped on the
+    # page, which is what put it here in the first place (see the note in
+    # test_jain_zar.py), but the scraped keyword column of
+    # rules/aeldari/Jain Zar.md prints "assault" on this row and
+    # "anti-infantry 3+" on the melee one.
 
 
 class BladeOfDestructionProfile(WeaponProfile):
@@ -3536,6 +3685,11 @@ class EldritchStormProfile(WeaponProfile):
     name = "Eldritch Storm"
     weapon_type = RANGED
     range_in = 24
+    # Printed BS 3+ on BOTH datasheets that carry it, while the Farseer and
+    # the Farseer Skyrunner are 2+ with every other weapon they hold - so it
+    # is a real per-weapon override, not the wielder's own skill. Without it
+    # the gun hit on 2+.
+    ballistic_skill = "3+"
     attacks = 3  # preview/grouping placeholder only - attacks_notation is what is rolled
     attacks_notation = D6()
     strength = 6
@@ -3743,10 +3897,14 @@ ReaperLauncherStarshotProfile.overcharge_profile = ReaperLauncherStarswarmProfil
 
 
 class DarkReaperMissileLauncherStarshotProfile(WeaponProfile):
-    """Same name as the Falcon's Missile Launcher and different numbers (D6
-    where that one is D3), so its own class - the recipe's "check whether a
-    same-named weapon already exists with DIFFERENT numbers" step, here with
-    the answer yes."""
+    """Same printed name as the Falcon's Missile Launcher and genuinely its own
+    row - but NOT for the reason this docstring used to give. It claimed "D6
+    where that one is D3"; both are printed D6, and the flat `damage = 6` that
+    sat here (the old "keep the die's max value" convention) was what made the
+    two look different. What actually separates them is the Dark Reapers'
+    printed [IGNORES COVER] - and the Exarch's own 2+ against the Falcon's 3+.
+    Corrected when rules/aeldari/*.md was put side by side with the engine;
+    until then the Exarch's launcher dealt a guaranteed 6 for a printed D6."""
     name = "Missile Launcher - Starshot"
     weapon_type = RANGED
     range_in = 48
@@ -3754,7 +3912,8 @@ class DarkReaperMissileLauncherStarshotProfile(WeaponProfile):
     ballistic_skill = "2+"
     strength = 10
     ap = -2
-    damage = 6
+    damage = 3  # preview/grouping placeholder only - damage_notation is what is rolled
+    damage_notation = D6()
     ignores_cover = True
 
 
@@ -4929,11 +5088,17 @@ class BileSpurtProfile(WeaponProfile):
 
 
 class MissileLauncherFragProfile(WeaponProfile):
-    """The Myphitic Blight-hauler's. Its keyword column really is empty for
-    this row - checked against the frag/krak pair, where only the krak carries
-    [LETHAL HITS]. Distinct from the Defiler's HEAVY missile launcher, which
-    prints different numbers under a different name."""
+    """The Myphitic Blight-hauler's. Distinct from the Defiler's HEAVY
+    missile launcher, which prints different numbers under a different name.
+
+    This docstring used to claim the opposite of what the sheet prints ("its
+    keyword column really is empty for this row ... only the krak carries
+    [LETHAL HITS]"). The printed pair is the other way round: the FRAG row
+    carries [BLAST] and the krak row carries nothing. Both halves are fixed;
+    kept as a note because a comment asserting a checked fact is exactly what
+    stops the next reader from checking it."""
     name = "Missile Launcher - frag"
+    blast = 1  # plain [BLAST] is X=1, see WeaponProfile.blast
     weapon_type = RANGED
     range_in = 48
     attacks = 3  # preview/grouping placeholder only
@@ -4952,7 +5117,11 @@ class MissileLauncherKrakProfile(WeaponProfile):
     ap = -2
     damage = 3  # preview/grouping placeholder only
     damage_notation = D6()
-    lethal_hits = True
+    # NO [LETHAL HITS]: this row's keyword column is empty on the printed
+    # sheet. The pair was transcribed the wrong way round - it is the FRAG
+    # half that carries a keyword ([BLAST]), and the sibling profile's
+    # docstring said the opposite in as many words until the keyword sweep
+    # put both rows beside their printed ones.
 
 
 class MultiMeltaProfile(WeaponProfile):
@@ -5029,6 +5198,7 @@ class EctoplasmaDestructorProfile(WeaponProfile):
     strength = 12
     ap = -3
     damage = 3
+    blast = 1  # plain [BLAST] is X=1, see WeaponProfile.blast - missing until the keyword sweep; the printed row is "blast, lethal hits" and the Defiler's other two D6-attack guns already carried it
     lethal_hits = True
 
 
@@ -5918,9 +6088,17 @@ class PairedHekatariiBladesProfile(WeaponProfile):
     name = "Paired Hekatarii Blades"
     weapon_type = MELEE
     range_in = 2
-    attacks = 5
+    attacks = 4
+    # [TWIN-LINKED] (24.38) - re-roll the Wound roll. Found by the keyword
+    # sweep in test_weapon_characteristics.py section 5: the printed row
+    # carries it and this profile did not, so the blades were re-rolling
+    # nothing at all.
+    twin_linked = True
+    # Printed WS 2+, where the Shade Runner herself is 3+ - a real per-weapon
+    # override, the same shape as the Power Klaw's own worse one.
+    weapon_skill = "2+"
     strength = 3
-    ap = -1
+    ap = -2
     damage = 1
 
 

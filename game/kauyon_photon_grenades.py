@@ -33,7 +33,7 @@ sources in one place. This one joins the charger-side total, so that
 reconciliation keeps working without a third rule about it.
 """
 
-from game import kauyon, tau_detachments
+from game import ai_mode, kauyon, tau_detachments
 from game.attached_units import unit_has_datasheet_keyword
 from game.stratagems import Stratagem
 from game.turn import PHASE_CHARGE
@@ -60,7 +60,7 @@ class PhotonGrenadesController:
         self.battle_shock_controller = battle_shock_controller
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = tuple(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._stratagem = Stratagem(
             name=PHOTON_GRENADES_NAME, cp_cost=PHOTON_GRENADES_CP, effect=self._apply,
             # Each enemy charge is its own window, so rule 15.01's
@@ -90,6 +90,22 @@ class PhotonGrenadesController:
                 continue
             if not unit_has_datasheet_keyword(squad, GRENADES_KEYWORD):
                 continue
+            # NOT while it is inside a TRANSPORT. The reaction chain hands every
+            # reactor the SAME target list, captured once when the charge was
+            # declared - and Combat Embarkation sits on that very chain, so by
+            # the time this runs the unit named as a charge target may be in a
+            # vehicle. Reported: "Photon granades Stratagem soll nicht gehen,
+            # wenn embarked".
+            #
+            # is_engaged() below is NOT a stand-in for this: embark() takes the
+            # models out of game_state.tokens but LEAVES their coordinates
+            # alone, so an embarked unit reads as perfectly un-engaged.
+            # Checking the live board as well catches a unit wiped out in the
+            # same frame, which remove_dead_models() has not swept yet.
+            if getattr(squad, "embarked_in", None) is not None:
+                continue
+            if not any(getattr(t, "squad", None) is squad for t in self.all_tokens):
+                continue
             if squad.is_engaged(self.all_tokens):
                 continue
             if not self.stratagem_controller.can_use(squad.owner, self._stratagem, [squad]):
@@ -115,7 +131,7 @@ class PhotonGrenadesController:
             f"{PHOTON_GRENADES_NAME} ({PHOTON_GRENADES_CP} CP): {charging_squad.name} is "
             f"charging - dazzle it (Battle-shock test, and -"
             f"{PHOTON_GRENADES_CHARGE_PENALTY} to its Charge roll)?",
-            [(f"Use on {squad.name}", (lambda s=squad: self._accept(s)))
+            [(f"Use on {squad.name}", (lambda s=squad: self._accept(s)), squad)
              for squad in candidates]
             + [("Decline", self._decline)],
         )

@@ -99,13 +99,19 @@ PROBES = [
 
     ("the Paired Hekatarii Blades are A5/AP-1 at the wielder's WS again",
      "test_weapon_characteristics.py", "game/weapons.py",
-     [("    attacks = 4\n"
-       "    # Printed WS 2+, where the Shade Runner herself is 3+ - a real per-weapon\n"
+     [('    name = "Paired Hekatarii Blades"\n'
+       "    weapon_type = MELEE\n"
+       "    range_in = 2\n"
+       "    attacks = 4",
+       '    name = "Paired Hekatarii Blades"\n'
+       "    weapon_type = MELEE\n"
+       "    range_in = 2\n"
+       "    attacks = 5"),
+      ("    # Printed WS 2+, where the Shade Runner herself is 3+ - a real per-weapon\n"
        "    # override, the same shape as the Power Klaw's own worse one.\n"
        '    weapon_skill = "2+"\n'
        "    strength = 3\n"
        "    ap = -2",
-       "    attacks = 5\n"
        "    strength = 3\n"
        "    ap = -1")]),
 

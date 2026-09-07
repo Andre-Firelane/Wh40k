@@ -40,22 +40,8 @@ from game.weapons import MELEE, RANGED  # noqa: E402
 c = tk.Checks("T'au doctrines: Kauyon and Mont'ka")
 
 
-class settings_as:
-    """Set the detachment config tuples for one block and restore them."""
-
-    def __init__(self, **values):
-        self.values = values
-
-    def __enter__(self):
-        self.old = {k: getattr(config, k) for k in self.values}
-        for key, value in self.values.items():
-            setattr(config, key, value)
-        return self
-
-    def __exit__(self, *exc):
-        for key, value in self.old.items():
-            setattr(config, key, value)
-
+# The one definition lives in testkit - eight suites had their own copy.
+settings_as = tk.settings_as
 
 class Turn:
     def __init__(self, battle_round):
@@ -246,6 +232,109 @@ with settings_as(MONTKA_PLAYERS=()):
 c.true("the shared WeaponProfile was never mutated",
        not GUN.assault and not GUN.lethal_hits)
 
+
+# --- 4b. Mont'ka reaches the rule-10.05 Advance gate ----------------------
+print("\n4b. Mont'ka: [ASSAULT] at the Advance gate, not only in the chain")
+
+# THE DEFECT THIS PINS. [ASSAULT] is read in two unrelated places, and section
+# 4 above only ever exercised one of them:
+#   * montka.adjusted_weapon() - the damage maths, which section 4 measures.
+#   * coldstar.weapon_has_assault(), reached from
+#     shooting.available_shooting_types(), and the ONLY thing that decides
+#     whether a unit that Advanced may shoot at all (rule 10.05). That is the
+#     entire reason [ASSAULT] is granted.
+# Killing Blow reached the first and not the second, because its condition is a
+# battle round and weapon_has_assault() is handed only (weapon, squad). It was
+# recorded as a known gap justified by "no shipped army list fields Mont'ka" -
+# which stopped being true when the tau_montka roster was added. Measured on
+# that roster before the fix: 102 of its 151 ranged weapons refused.
+#
+# The condition arrives as Squad.montka_killing_blow, stamped by
+# refresh_killing_blow(). So there are three things to hold apart, and a test
+# that checks only the first would pass with the flag never fed:
+#   1. the reader honours the flag,
+#   2. the stamper sets it from the real round window,
+#   3. main.py actually calls the stamper.
+from game import coldstar, shooting  # noqa: E402
+
+with settings_as(MONTKA_PLAYERS=("Player 1",)):
+    # 1. THE READER. Set by hand, so this measures weapon_has_assault() and
+    # nothing else.
+    tau.montka_killing_blow = True
+    c.true("the Advance gate sees Killing Blow's [ASSAULT]",
+           coldstar.weapon_has_assault(GUN, tau))
+    tau.montka_killing_blow = False
+    c.true("...and without the flag it does not (the reported gap)",
+           not coldstar.weapon_has_assault(GUN, tau))
+    c.true("a melee weapon is never granted it",
+           BLADE is None or not coldstar.weapon_has_assault(BLADE, tau))
+
+    # 2. THE STAMPER, across the whole window and both its edges. Driven
+    # through refresh_killing_blow() rather than by assignment, so the round
+    # question is answered by the same is_active() the adjuster chain uses -
+    # a literal (1, 2, 3) here would be a second copy of a window
+    # game/tau_detachments.py owns, and would silently drop the Exemplar of the
+    # Mont'ka's fourth round at this gate only.
+    for rnd in (1, 2, 3):
+        montka.refresh_killing_blow([tau], Turn(rnd))
+        c.true("round %d stamps the flag" % rnd, tau.montka_killing_blow)
+        c.true("...so the Advance gate grants [ASSAULT] in round %d" % rnd,
+               coldstar.weapon_has_assault(GUN, tau))
+    for rnd in (4, 5):
+        montka.refresh_killing_blow([tau], Turn(rnd))
+        c.true("round %d does not" % rnd, not tau.montka_killing_blow)
+        c.true("...and the Advance gate refuses in round %d" % rnd,
+               not coldstar.weapon_has_assault(GUN, tau))
+
+    # The stamp is a REFRESH, not a latch: a unit stamped inside the window
+    # must lose it when the window closes. Without this the flag would be
+    # write-once and Killing Blow would run for the rest of the battle.
+    montka.refresh_killing_blow([tau], Turn(2))
+    montka.refresh_killing_blow([tau], Turn(5))
+    c.true("the stamp is re-derived each time, not latched",
+           not tau.montka_killing_blow)
+
+    # END TO END through the real rule-10.05 gate: a unit that Advanced is
+    # offered Assault Shooting only because this grant reaches it.
+    class _Advanced:
+        def __init__(self, squad):
+            self.advanced_squad_ids = {squad}
+
+    _tokens = list(tau.models) + list(orks.models)
+    montka.refresh_killing_blow([tau], Turn(2))
+    _with = shooting.available_shooting_types(tau, _tokens, _Advanced(tau))
+    montka.refresh_killing_blow([tau], Turn(5))
+    _without = shooting.available_shooting_types(tau, _tokens, _Advanced(tau))
+    c.true("an Advanced unit is offered Assault Shooting inside the window",
+           "Assault" in _with)
+    c.true("...and is offered none outside it (the reported behaviour)",
+           "Assault" not in _without)
+
+with settings_as(MONTKA_PLAYERS=()):
+    montka.refresh_killing_blow([tau], Turn(2))
+    c.true("without the detachment the flag is never stamped",
+           not tau.montka_killing_blow)
+
+# An Ork unit is never stamped, whoever else fields Mont'ka.
+with settings_as(MONTKA_PLAYERS=("Player 2",)):
+    montka.refresh_killing_blow([orks], Turn(2))
+    c.true("a non-T'au unit is never stamped", not orks.montka_killing_blow)
+
+# 3. THE FEED. Sections 1 and 2 pass with a flag nothing ever sets - "gebaut,
+# aber nie GEFUETTERT", the class this repo has been caught by six times. Only
+# the source can answer it, and it is asked as the guarded CALL rather than as
+# a mention, so a line in a docstring or a commented-out call cannot satisfy it.
+_MAIN_SRC = io.open("main.py", encoding="utf-8").read()
+c.true("main.py imports the module that owns the stamp",
+       "from game import montka" in _MAIN_SRC
+       or "from game import montka," in _MAIN_SRC)
+c.true("main.py stamps the flag on every phase change",
+       "montka.refresh_killing_blow(_detachment_squads, turn_tracker)" in _MAIN_SRC)
+# ...and it is stamped BEFORE anything in that block could read it, next to the
+# other Mont'ka per-phase work rather than in some later branch.
+c.true("...in the per-phase reset block, beside the other Mont'ka resets",
+       _MAIN_SRC.find("montka.refresh_killing_blow(")
+       < _MAIN_SRC.find("aggressive_mobility_controller.reset_phase("))
 
 # --- 5. The two together --------------------------------------------------
 print("\n5. The mirror")

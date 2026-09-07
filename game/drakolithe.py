@@ -35,6 +35,7 @@ Spite and the Monofilament Snare give: no decision hangs on the die itself, and
 an enemy moves many times a turn. Reported in the log instead.
 """
 from game.squad import ENGAGEMENT_RANGE_IN, edge_distance
+from game import ai_mode
 
 DRAKOLITHE_LABEL = "Drakolithe"
 
@@ -67,7 +68,7 @@ class DrakolitheController:
         self.game_log = game_log
         self.game_state = game_state
         self.all_tokens = all_tokens if all_tokens is not None else []
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self.mortal_wound_sessions = []
 
     def _is_engaged(self, squad):

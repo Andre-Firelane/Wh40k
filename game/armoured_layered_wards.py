@@ -34,7 +34,7 @@ THE AI DECLINES. Standing Aeldari instruction, so an owner in auto_players
 never buys it and no prompt can stall the loop.
 """
 
-from game import aeldari_detachments, skilled_crews
+from game import aeldari_detachments, ai_mode, skilled_crews
 from game.stratagems import Stratagem
 
 LAYERED_WARDS_NAME = "Layered Wards"
@@ -86,7 +86,7 @@ class LayeredWardsController:
         self.stratagem_controller = stratagem_controller
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._stratagem = Stratagem(
             name=LAYERED_WARDS_NAME, cp_cost=LAYERED_WARDS_CP, effect=self._grant,
             # "Any phase, when a friendly unit SUFFERS a mortal wound" - a unit

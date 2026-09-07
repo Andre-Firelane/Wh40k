@@ -124,16 +124,52 @@ def weapon_has_assault(weapon, squad):
         return False
     if squad is None:
         return False
-    # Three independent grants now, and the RANGED gate above is right for all
-    # of them: Star Engines and Skilled Crews both say "ranged".
+    # Four independent grants now, and the RANGED gate above is right for all
+    # of them: Star Engines, Skilled Crews and Sudden Storm all say "ranged".
     #
     # Skilled Crews HAS to be read here and not only in the adjuster chain.
     # [ASSAULT] is what lets a unit shoot after Advancing (24.04), and that is
     # decided by this function, not by the damage maths - a grant that reached
     # only the chain would look wired while failing to do the one thing the
-    # detachment is bought for. Imported inside the function: game/coldstar.py
-    # is reached very early from game/squad.py's own import, and
-    # game/skilled_crews.py pulls game.factions through aeldari_detachments.
-    from game import skilled_crews
+    # detachment is bought for.
+    #
+    # Protocol of the Sudden Storm is the fourth grant, and it is here because
+    # that warning came true: it reached only the adjuster chain, so a Necron
+    # unit that bought the Stratagem, Advanced, and then could not shoot -
+    # which is the ONE thing 1 CP was paid for - reported by a player
+    # ("ich konnte nach dem vorruecken nicht mehr schiessen mit den necron
+    # kriegern"). available_shooting_types() asks THIS function whether an
+    # Advanced unit still has an Assault option, and it never saw the flag.
+    #
+    # Mortarion's Teachings is the fifth, found by the same probe in the same
+    # session and broken the same way - its OWN docstring says "[ASSAULT]
+    # (10.05) lets a unit that Advanced still shoot", which is exactly what it
+    # could not do.
+    #
+    # Mont'ka's Killing Blow is the SIXTH, and it was named here as a "known
+    # gap" for exactly as long as the claim "no shipped army list fields
+    # Mont'ka" was true. That stopped being true when the tau_montka roster was
+    # added, and the comment outlived the fact - which is the failure mode a
+    # NAMED gap has and a set difference does not. Measured on that roster in
+    # rounds 1-3 before the fix: Killing Blow is active for all 14 of its units
+    # and grants [ASSAULT] to 102 of their 151 ranged weapons, of which this
+    # gate could see NONE. Three of those units were offered no shooting type
+    # at all after Advancing.
+    #
+    # It reads a FLAG rather than its own condition, unlike the four above: the
+    # rule is gated on the battle round and this function is handed only
+    # (weapon, squad), so montka.refresh_killing_blow() stamps
+    # Squad.montka_killing_blow once per phase change from the same is_active()
+    # the adjuster chain uses. One condition, two read paths - not two
+    # conditions. See game/montka.py.
+    #
+    # Imported inside the function: game/coldstar.py is reached very early
+    # from game/squad.py's own import, and game/skilled_crews.py pulls
+    # game.factions through aeldari_detachments (protocol_sudden_storm reaches
+    # it too, via game/awakened_dynasty.py).
+    from game import (dlc_mortarions_teachings, montka, protocol_sudden_storm,
+                      skilled_crews)
     return (squad_has_coldstar_commander(squad) or battle_focus.grants_assault(squad)
-            or skilled_crews.applies(squad))
+            or skilled_crews.applies(squad) or protocol_sudden_storm.is_active(squad)
+            or dlc_mortarions_teachings.is_active(squad)
+            or montka.grants_assault(squad))

@@ -49,7 +49,7 @@ that already swung does not get to swing again by dying.
 THE AI DECLINES (standing Aeldari instruction).
 """
 
-from game import aeldari_detachments, aspect_shrine, detachment_gate
+from game import aeldari_detachments, ai_mode, aspect_shrine, detachment_gate
 from game.fight_after_death import FightAfterDeath
 from game.stratagems import Stratagem
 from game.turn import PHASE_FIGHT
@@ -93,7 +93,7 @@ class ToTheirFinalBreathController:
         self.turn_tracker = turn_tracker
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         #: id(squad) -> whether a token was spent on THIS usage. The value is
         #: what the +1 reads, so it cannot be a plain set.
         self._active = {}

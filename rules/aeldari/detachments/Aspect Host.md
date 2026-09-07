@@ -1,6 +1,6 @@
 # Aspect Host
 
-**Aeldari** - 3 DP detachment
+**Aeldari** - 3 DP detachment - Force Disposition: Priority Assets
 
 Source: <https://wahapedia.ru/wh40k11ed/factions/aeldari/>
 
@@ -8,7 +8,6 @@ Source: <https://wahapedia.ru/wh40k11ed/factions/aeldari/>
 
 ### Path of the Warrior
 
-The teachings of Khaine’s martial aspects are diverse and highly specialised, each completely lethal in its own nuanced fashion.
 Each time an ASPECT WARRIORS or AVATAR OF KHAINE unit from your army is selected to shoot or fight, select one of the following abilities for it to gain until the end of the phase:
 
 - Each time a model in this unit makes an attack, re-roll a Hit roll of 1.
@@ -18,25 +17,17 @@ Each time an ASPECT WARRIORS or AVATAR OF KHAINE unit from your army is selected
 
 ### Aspect of Murder - 15 pts
 
-Khaine is a murderous deity, and many of his aspects channel this element of his nature to some degree. Combining these teachings renders this warrior a truly fearsome assassin.
-
 AUTARCH or AUTARCH WAYLEAPER model only. Add 1 to the Damage characteristic of melee weapons equipped by the bearer, and those weapons have the [precision] ability.
 
 ### Mantle of Wisdom - 20 pts
-
-This ritual relic marks the bearer out as one who has walked the Path of Command for ages untold and whose understanding of all things martial borders on the preternatural.
 
 AUTARCH or AUTARCH WAYLEAPER model only. While the bearer is leading an ASPECT WARRIORS unit, each time that unit is selected to shoot or fight, until the end of the phase, models in that unit gain both of the abilities from the Path of the Warrior Detachment rule.
 
 ### Shimmerstone - 10 pts
 
-This simple and elegant gem conceals complex technology based on Dire Avenger shimmershields, its protective aegis extending across the bearer and those who fight at their side.
-
 AUTARCH or AUTARCH WAYLEAPER model only. While the bearer is leading an ASPECT WARRIORS unit, each time a ranged attack targets that unit, subtract 1 from the Wound roll.
 
 ### Strategic Savant - 10 pts
-
-A commander who knows with absolute certainty which strategic goals must be achieved, this warrior can appraise the battlefield at a glance.
 
 AUTARCH or AUTARCH WAYLEAPER model only. While the bearer is leading an ASPECT WARRIORS unit, add 1 to the Objective Control characteristic of models in that unit.
 
@@ -45,8 +36,6 @@ AUTARCH or AUTARCH WAYLEAPER model only. While the bearer is leading an ASPECT W
 ### WARRIOR FOCUS - 1CP
 
 *Aspect Host – Battle Tactic Stratagem*
-
-So absolute is the focus of these warriors in battle that nothing can distract them or stay their blows.
 
 **WHEN:** Your Shooting phase or the Fight phase.
 
@@ -58,8 +47,6 @@ So absolute is the focus of these warriors in battle that nothing can distract t
 
 *Aspect Host – Strategic Ploy Stratagem*
 
-As champions and defenders of a dying race, these warriors fight furiously to the very end.
-
 **WHEN:** Fight phase, just after an enemy unit has selected its targets.
 
 **TARGET:** One ASPECT WARRIORS or AVATAR OF KHAINE unit from your army that was selected as the target of one or more of the attacking unit’s attacks.
@@ -69,8 +56,6 @@ As champions and defenders of a dying race, these warriors fight furiously to th
 ### SKYBORNE SANCTUARY - 1CP
 
 *Aspect Host – Strategic Ploy Stratagem*
-
-The Aeldari excel in striking swiftly then leaping back into the safety of their skimming transports.
 
 **WHEN:** End of the Fight phase.
 
@@ -82,8 +67,6 @@ The Aeldari excel in striking swiftly then leaping back into the safety of their
 
 *Aspect Host – Battle Tactic Stratagem*
 
-Cast with the force of a thunderbolt, the Avatar's weapon strikes the foe with meteoric force.
-
 **WHEN:** Your Shooting phase.
 
 **TARGET:** One AVATAR OF KHAINE model from your army that has not been selected to shoot this phase.
@@ -94,8 +77,6 @@ Cast with the force of a thunderbolt, the Avatar's weapon strikes the foe with m
 
 *Aspect Host – Battle Tactic Stratagem*
 
-Analysing their targets' weaknesses with incredible skill, the Aeldari fire for lethal effect.
-
 **WHEN:** Your Shooting phase.
 
 **TARGET:** One ASPECT WARRIORS unit from your army that has not been selected to shoot this phase.
@@ -105,8 +86,6 @@ Analysing their targets' weaknesses with incredible skill, the Aeldari fire for 
 ### KHAINE’S VENGEANCE - 1CP
 
 *Aspect Host – Strategic Ploy Stratagem*
-
-Embodying the rage of Khaine himself, these warriors press home their attack and strike down those cowards who seek to flee their fury.
 
 **WHEN:** Your opponent’s Movement phase, just after an enemy unit (excluding MONSTERS and VEHICLES) is selected to Fall Back.
 

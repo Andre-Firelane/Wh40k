@@ -39,23 +39,8 @@ SPECS = {name: spec for name, spec in E.ENHANCEMENTS.items()
          if spec.detachment in AELDARI_DETACHMENTS}
 
 
-class settings_as:
-    """config constants are real module globals; a test that left one set would
-    change what every later test measures."""
-
-    def __init__(self, **values):
-        self.values = values
-
-    def __enter__(self):
-        self.old = {k: getattr(config, k) for k in self.values}
-        for key, value in self.values.items():
-            setattr(config, key, value)
-        return self
-
-    def __exit__(self, *exc):
-        for key, value in self.old.items():
-            setattr(config, key, value)
-
+# The one definition lives in testkit - eight suites had their own copy.
+settings_as = tk.settings_as
 
 ALL_SETTINGS = sorted({spec.setting for spec in E.ENHANCEMENTS.values()})
 
@@ -998,8 +983,19 @@ c.true("...pulls the crits OUT of the normal save",
 c.true("...and resolves them after [DEVASTATING WOUNDS] has taken its share",
        before(_fight_src, "self._begin_devastating_wounds(weapon, target_squad)",
               "self._begin_crit_split_save()"))
-c.true("...asking the precision question against the SPLIT weapon",
-       "if self._precision_choice_needed(split_weapon, target_squad):" in _fight_src)
+# The precision question used to be asked inline in this branch. It now goes
+# through _continue_after_save(), the one continuation the acknowledged and the
+# skipped-Save paths share (see test_impossible_save_skip.py) - so the
+# assurance is in two halves: this branch hands over the SPLIT weapon, and the
+# continuation asks the precision question of whatever weapon it was handed.
+# Pinned as the two call expressions rather than as one literal statement,
+# which is what made the old line brittle to a refactor that changed nothing.
+c.true("...handing the SPLIT weapon to the shared post-save continuation",
+       "self._continue_after_save(rolls, split_weapon, target_squad, weapon_label, group)"
+       in _fight_src)
+_cont = _fight_src.split("def _continue_after_save(")[1][:900]
+c.true("...and that continuation asks the precision question against the weapon it was given",
+       "self._precision_choice_needed(weapon, target_squad)" in _cont)
 
 with only("SPIRIT_CONCLAVE_PLAYERS"):
     _sk_scene = tk.fight_scene(D["Wraithblades"], D["Guardian Defenders"],
@@ -1779,7 +1775,14 @@ c.true("MovementController declares on_move_started",
 c.true("...fired from _begin_move, the shared entry",
        "for listener in (self.on_move_started or ()):" in
        _move_src.split("def _begin_move")[1].split("def start_move")[0])
-c.eq("...which every move type goes through", _move_src.count("self._begin_move("), 10)
+# Ten until Retro-thrusters' Fall Back half was fixed: it used to delegate to
+# start_fall_back_move(), which is gated on the Movement phase, so at the end of
+# the Fight phase where the ability fires it returned early and NO move was ever
+# opened - the half never worked, and this hook could not fire for it. It calls
+# _begin_move() directly now, like the Normal half beside it. A count rather
+# than a floor on purpose: a new path that skips the shared entry has to be
+# noticed, and a >= would let one through.
+c.eq("...which every move type goes through", _move_src.count("self._begin_move("), 11)
 
 # WIRING - both hooks, or the card only half works.
 c.true("main.py builds the Spirit Stone controller",
@@ -2468,6 +2471,178 @@ for _name, _mod in sorted(_MODULE_FOR.items()):
 _ai_src = io.open("ai/agent_driver.py", encoding="utf-8").read()
 c.eq("no Enhancement module is imported by the AI",
      [m for m in set(_MODULE_FOR.values()) if m in _ai_src], [])
+
+
+# --- 7. every one of the 28 is grantable, and grant() is what makes it live --
+print("--- 7. grant() ---")
+
+# The sections above prove the RULES work. They cannot prove an Enhancement is
+# ever GIVEN to anybody - and section 9 measures that no shipped army list ever
+# gives one, so is_active() is False for all 28 in a real game. That makes this
+# the only place the grant path is exercised at all.
+#
+# The bearer is FOUND rather than transcribed: a table of "which datasheet
+# carries which Enhancement" is a second copy of spec.can_bear(), and the copy
+# is what drifts.
+
+def _find_bearer(spec):
+    """The first Aeldari unit with a model this Enhancement may be given to."""
+    for _sheet_name in sorted(D):
+        try:
+            squad = tk.build(D[_sheet_name], HUMAN, name="1 %s 1" % _sheet_name)
+        except Exception:
+            continue
+        if any(spec.can_bear(m, squad) for m in squad.models):
+            return _sheet_name, squad
+    return None, None
+
+
+_no_bearer, _not_active, _wrong_points, _still_active, _not_refused = [], [], [], [], []
+for _ename, _spec in sorted(SPECS.items()):
+    _sheet, _squad = _find_bearer(_spec)
+    if _squad is None:
+        _no_bearer.append(_ename)
+        continue
+    _before_points = _squad.points
+    with only(_spec.setting):
+        E.grant(_squad, _ename)
+        if not E.is_active(_squad, _ename):
+            _not_active.append(_ename)
+        if _before_points is not None and _squad.points != _before_points + _spec.points:
+            _wrong_points.append((_ename, _squad.points, _before_points))
+        # 19.04 IN THE SAME FRAME. remove_dead_models() runs once per frame, so
+        # a model that died this frame is still in squad.models - the reading
+        # is "a LIVING model still has it", not "the list still holds it".
+        _was = [(m, m.current_wounds) for m in _squad.models]
+        for _m in _squad.models:
+            _m.current_wounds = 0
+        if E.is_active(_squad, _ename):
+            _still_active.append(_ename)
+        for _m, _w in _was:
+            _m.current_wounds = _w
+    # ...and the DETACHMENT is what makes it live, not the grant. has() still
+    # answers yes; is_active() must not. Two separate questions, because a
+    # test that only asks has() passes with the gate deleted.
+    with none_fielded():
+        if E.is_active(_squad, _ename) or not E.has(_squad, _ename):
+            _not_refused.append(_ename)
+
+c.eq("every Aeldari Enhancement has a legal bearer among the built datasheets",
+     _no_bearer, [])
+c.eq("...and grant() really makes each one active", _not_active, [])
+c.eq("...and moves the unit's points by exactly its cost", _wrong_points, [])
+c.eq("...and a wiped-out bearer stops it in the SAME frame", _still_active, [])
+c.eq("...while the detachment being off leaves has() true and is_active() false",
+     _not_refused, [])
+c.eq("...for all 28 of them", len(SPECS), 28)
+
+# grant() REFUSES rather than guessing. Both refusals matter: a silently
+# dropped Enhancement turns up much later as "the rule never triggers".
+_spec7 = SPECS["Lucid Eye"]
+_sheet7, _squad7 = _find_bearer(_spec7)
+try:
+    E.grant(_squad7, "Lucid Eye")
+    E.grant(_squad7, "Lucid Eye")
+    c.true("granting the same Enhancement twice is refused", False)
+except ValueError:
+    c.true("granting the same Enhancement twice is refused", True)
+_wrong7 = tk.build(D["Guardian Defenders"], HUMAN, name="1 Guardian Defenders 9")
+try:
+    E.grant(_wrong7, "Lucid Eye")
+    c.true("...and so is a bearer the printed line does not allow", False)
+except ValueError:
+    c.true("...and so is a bearer the printed line does not allow", True)
+
+
+# --- 8. the five that ask the player something -----------------------------
+print("--- 8. the prompts ---")
+
+# Five Enhancement modules open a DecisionManager prompt of their own; the rest
+# are passive adjustments. The difference is worth pinning: an Enhancement that
+# should ask and does not is the "bought and did nothing" shape, and one that
+# asks when it should not is a prompt nobody can explain.
+_PROMPTING = sorted(m for m in set(_MODULE_FOR.values())
+                    if "decision_manager.request" in
+                    io.open("game/%s.py" % m, encoding="utf-8").read())
+c.eq("exactly five Enhancement modules raise a prompt of their own",
+     len(_PROMPTING), 5)
+c.eq("...and they are the ones with a choice to make", _PROMPTING,
+     ["enh_ethereal_pathway", "enh_guiding_presence", "enh_higher_duty",
+      "enh_lucid_eye", "enh_spirit_stone_of_raelyth"])
+
+# NOT ONE OF THEM IS A PANEL BUTTON. An Enhancement is not bought during the
+# battle - it is paid for in the list - so none may join the proactive
+# Stratagem registry. A set difference rather than a spot check: a future one
+# that becomes a button has to force a decision here instead of appearing
+# silently among the nineteen Stratagems.
+_with_panel_label = sorted(m for m in set(_MODULE_FOR.values())
+                           if "def panel_label(" in
+                           io.open("game/%s.py" % m, encoding="utf-8").read())
+c.eq("no Enhancement module offers itself as a panel button", _with_panel_label, [])
+_main_src9 = io.open("main.py", encoding="utf-8").read()
+c.eq("...and none is on the proactive Stratagem registry",
+     [m for m in sorted(set(_MODULE_FOR.values()))
+      if ("proactive_stratagems.add(%s" % m) in _main_src9], [])
+
+
+# --- 9. the dormancy, measured and NAMED -----------------------------------
+print("--- 9. dormant by roster ---")
+
+# NO SHIPPED ARMY LIST BUYS AN AELDARI ENHANCEMENT. All 28 are built, wired and
+# tested above, and from here not one of them is ever live in a real game - the
+# same "dormant by construction" state the Experimental Prototype Cadre trio
+# was in until a T'au list equipped their guns.
+#
+# Named rather than left to be rediscovered, and deliberately NOT fixed by
+# inventing roster content: which Enhancements a list buys is the list's own
+# statement, and the Aeldari list the user supplied buys none.
+from game import army_lists as _al  # noqa: E402
+
+_al_src = io.open("game/army_lists.py", encoding="utf-8").read()
+c.eq("the eight Aeldari detachments print 28 Enhancements", len(SPECS), 28)
+# COUNTED AS CALLS, not as text: army_lists.py mentions enhancements.grant()
+# in the wrapper's own docstring, so a substring count reports two - the
+# "a guard that matches its own explanation" trap this repo has met three
+# times before.
+import ast as _ast  # noqa: E402
+
+_al_calls = [n for n in _ast.walk(_ast.parse(_al_src))
+             if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)
+             and n.func.attr == "grant"
+             and isinstance(n.func.value, _ast.Name)
+             and n.func.value.id == "enhancements"]
+c.eq("...and army_lists.py grants none itself any more",
+     len(_al_calls), 0)
+# Army lists are DATA now (armies/*.json), so this is asked of the loaded list
+# rather than grepped out of a builder's source - which is both the stronger
+# question and the only one that still has an answer. game/army_roster.py is the
+# single place a grant happens, for every list alike.
+_ar_src = io.open("game/army_roster.py", encoding="utf-8").read()
+_ar_calls = [n for n in _ast.walk(_ast.parse(_ar_src))
+             if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)
+             and n.func.attr == "grant"
+             and isinstance(n.func.value, _ast.Name)
+             and n.func.value.id == "enhancements"]
+c.eq("...the ONE builder grants in exactly two places (a unit and its leaders)",
+     len(_ar_calls), 2)
+_aeldari_roster = _al.get("aeldari").roster
+c.eq("...while the shipped Aeldari list asks for no Enhancement at all",
+     [e.enhancement for e in _aeldari_roster if e.enhancement]
+     + [l.enhancement for e in _aeldari_roster for l in e.leaders if l.enhancement], [])
+
+# THE SECOND HALF OF THE SAME GAP, and the heavier one: the shipped list
+# declares two of the eight detachments, so six of them - and every Enhancement
+# and Stratagem they carry - cannot be reached in a real game at all.
+_declared = set(_al.get("aeldari").detachments)
+c.eq("the shipped Aeldari list declares two of the eight detachments",
+     (len(_declared), len(AELDARI_DETACHMENTS)), (2, 8))
+_reachable = sorted(n for n, s in SPECS.items() if s.detachment in _declared)
+c.eq("...so only these six Enhancements belong to a fielded detachment",
+     len(_reachable), 6)
+c.eq("...and not even those six are ever granted",
+     [n for n in _reachable
+      if n in [e.enhancement for e in _aeldari_roster]
+      + [l.enhancement for e in _aeldari_roster for l in e.leaders]], [])
 
 
 c.finish()

@@ -136,6 +136,12 @@ SQUAD_FLAGS_EXCLUDED = {
     "battle_shocked": "already in the snapshot's per-squad entry",
     "afflicted": "re-stamped every frame by NurglesGiftController.refresh()",
     "afflicted_plague": "re-stamped every frame by NurglesGiftController.refresh()",
+    # Not a paid-for grant like star_engines_active above, which IS saved: this
+    # is derived state. main()'s per-phase block re-stamps it from the turn
+    # tracker and the detachment setting, both of which the snapshot already
+    # carries, so saving it would store a cache the next phase change
+    # overwrites - and a stale one could only ever disagree with the rule.
+    "montka_killing_blow": "re-derived every phase change by montka.refresh_killing_blow()",
     "nova_charge_grants": "keyed by model.id and weapon instance id - neither survives a rebuild",
     "attached_ability_grace": "rule 19.04's window, open only inside an attack sequence",
     # A Token, not a scalar, so it is captured by name below rather than

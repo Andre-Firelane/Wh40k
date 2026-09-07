@@ -24,6 +24,7 @@ import io
 import os
 import re
 import sys
+import unicodedata
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -418,6 +419,189 @@ for folder, name in [("necrons", "Pantheon of Woe"), ("aeldari", "Corsair Coteri
         os.path.join("rules", folder, "detachments", "%s.md" % F.safe_filename(name)))
     check("%s's oddly-titled enhancements section is still found" % name,
           "## Enhancements" in text and text.count("### ") >= 4)
+
+# --- 5b. the FORCE DISPOSITION on every detachment heading -----------------
+# Wahapedia prints it as an ICON in the same heading span the DP cost comes
+# from, so page_headings() - which strips the tags to build its title - throws
+# it away. It is read in a second pass over the raw heading html.
+#
+# This is checked at the PARSER and at the RENDERER, not only in the written
+# files: a probe that stopped render_detachment() emitting the line changed
+# nothing in a suite that only ever read rules/ (those files are already on
+# disk), which made the check green against a broken scraper.
+if CACHE_READY:
+    # The FACTION INDEX page, not the datasheets page page() serves - the
+    # detachments (and so their dispositions) live only on the former.
+    _fd_seen, _fd_missing = 0, []
+    _faction_pages = {slug: F.fetch_faction(slug, offline=True)
+                      for _f, slug, _x in F.FACTIONS}
+    for folder, slug, _faction in F.FACTIONS:
+        _rules, _dets = F.parse_faction_page(_faction_pages[slug])
+        for det in _dets:
+            _fd_seen += 1
+            if not det.get("force_disposition"):
+                _fd_missing.append("%s/%s" % (folder, det["name"]))
+    check("every detachment on every faction page parses a Force Disposition",
+          _fd_seen >= 56 and not _fd_missing, "%d seen, missing: %s"
+          % (_fd_seen, _fd_missing[:3]))
+    # Wahapedia's detachment FILTER list spells Kauyon with a Cyrillic o
+    # (U+043E); the HEADING spells it in Latin. Reading the heading is what
+    # keeps rules/tau_empire/detachments/Kauyon.md addressable at all.
+    _tau_fd = F.heading_force_dispositions(_faction_pages["t-au-empire"])
+    check("the heading pass finds Kauyon under its LATIN spelling",
+          "Kauyon2DP" in _tau_fd and _tau_fd["Kauyon2DP"] == "Reconnaissance",
+          str(sorted(_tau_fd)[:3]))
+    # ...and the renderer actually emits it.
+    _rendered = F.render_detachment(
+        "T'au Empire", "t-au-empire",
+        {"name": "Kauyon", "dp": 2, "force_disposition": "Reconnaissance",
+         "rule": [], "enhancements": [], "stratagems": []})
+    check("render_detachment() writes the Force Disposition beside the DP",
+          "**T'au Empire** - 2 DP detachment - Force Disposition: Reconnaissance"
+          in _rendered)
+    # A detachment whose page states none must not grow an empty tail.
+    _bare = F.render_detachment(
+        "T'au Empire", "t-au-empire",
+        {"name": "Nameless", "dp": 1, "force_disposition": "",
+         "rule": [], "enhancements": [], "stratagems": []})
+    check("...and omits it entirely when the page states none",
+          "**T'au Empire** - 1 DP detachment\n" in _bare
+          and "Force Disposition" not in _bare)
+
+# --- 5c. no flavour, no worked examples -----------------------------------
+# User, after a game spent reading the army rules in the panel: "keine
+# hintergrund info texte und example texte in den armeeregeln bitte. nur
+# reine regeltexte."
+#
+# Wahapedia marks both itself - ShowFluff is the class its own show/hide-fluff
+# toggle hangs on, redExample is the worked example printed under a rule - so
+# this is measured against the CACHED PAGES rather than against a handful of
+# quoted lore sentences. A pin naming three paragraphs goes green the moment a
+# fourth appears.
+#
+# THREE LEVELS, and section 5b above is why: a suite that only reads rules/
+# stays green against a broken scraper, because those files are already on
+# disk. So the renderer and the stratagem parser are driven directly too.
+
+
+def _fluff_key(text):
+    """A line folded to a comparison key - the same folding this file already
+    uses for names, so markdown emphasis and curly quotes cannot make a lore
+    paragraph look like a different string than the one on the page."""
+    text = unicodedata.normalize("NFKD", text)
+    return re.sub(r"[^a-z0-9]+", "", text.lower())
+
+
+_FLUFF_HTML = (
+    re.compile(r'<(p|div)[^>]*class="[^"]*\bShowFluff\b[^"]*"[^>]*>(.*?)</\1>', re.S),
+    re.compile(r'<div[^>]*class="[^"]*\bredExample\b[^"]*"[^>]*>(.*?)</div>', re.S),
+)
+
+print("\n5c. Flavour and worked examples are not rule text")
+
+# -- the renderer itself ---------------------------------------------------
+check("to_markdown() drops a ShowFluff lore paragraph",
+      F.to_markdown('<p class="ShowFluff legend2">Lore about dying gods.</p>'
+                    '<div>If your Army Faction is X, do the thing.</div>')
+      == "If your Army Faction is X, do the thing.")
+check("to_markdown() drops a redExample block",
+      F.to_markdown('<div>If your Army Faction is X, do the thing.</div>'
+                    '<div class="redExample"><b>Example:</b> A unit of three.</div>')
+      == "If your Army Faction is X, do the thing.")
+# The counterpart: it must not have become a parser that drops everything.
+check("...while ordinary prose in the same shape survives",
+      F.to_markdown('<p class="legend2">Kept.</p><div>Also kept.</div>')
+      == "Kept.\n\nAlso kept.")
+
+if CACHE_READY:
+    _pages = {slug: F.fetch_faction(slug, offline=True) for _f, slug, _x in F.FACTIONS}
+
+    # -- the stratagem legend, which SKIP_CLASSES cannot reach --------------
+    # It is lifted out of the page by its own regex, so the class never gets
+    # near the renderer; it has to be left unread in STRATAGEM_FIELDS instead.
+    _detachments = F.parse_faction_page(_pages["aeldari"])[1]
+    _strats = [s for d in _detachments for s in d["stratagems"]]
+    check("stratagems still parse off the page", len(_strats) >= 60,
+          "%d found" % len(_strats))
+    check("no stratagem carries a legend field any more",
+          all("legend" not in s for s in _strats))
+    check("...and every one still carries its WHEN/TARGET/EFFECT",
+          all("WHEN:" in s["text"] for s in _strats))
+    check("...and its printed type line, which is NOT flavour",
+          all(s["type"] for s in _strats))
+
+    # -- the written corpus ------------------------------------------------
+    _fluff = set()
+    for _folder, _slug, _x in F.FACTIONS:
+        for _pattern in _FLUFF_HTML:
+            for _match in _pattern.finditer(_pages[_slug]):
+                _key = _fluff_key(re.sub("<[^>]+>", "", _match.group(_match.lastindex)))
+                if len(_key) > 40:
+                    _fluff.add(_key)
+    # Without this, the absence check below would pass on an empty harvest.
+    check("the flavour harvest is not empty", len(_fluff) >= 400,
+          "%d blocks" % len(_fluff))
+
+    _corpus_files = sorted(glob.glob(os.path.join("rules", "*", "army_rules.md"))
+                           + glob.glob(os.path.join("rules", "*", "detachments", "*.md"))
+                           + glob.glob(os.path.join("rules", "*", "*.md")))
+    _leaks = []
+    for _path in _corpus_files:
+        for _line in io.open(_path, encoding="utf-8"):
+            _key = _fluff_key(_line)
+            if len(_key) > 40 and _key in _fluff:
+                _leaks.append("%s: %s" % (_path, _line.strip()[:70]))
+    check("no flavour or example paragraph reaches the corpus",
+          not _leaks, "%d leaks, first: %s" % (len(_leaks), _leaks[:1]))
+
+# -- the controls ----------------------------------------------------------
+# Each pairs a removed paragraph with the rule that stood beside it, because
+# "the lore is gone" is also true of a corpus that lost the rule with it.
+_ael = corpus_text_path(os.path.join("rules", "aeldari", "army_rules.md"))
+check("Battle Focus lost its lore paragraph",
+      "In war, as in all things" not in _ael)
+check("...and kept the rule that followed it",
+      "If your Army Faction is ASURYANI, at the start of the battle round" in _ael
+      and all(name in _ael for name in
+              ("SWIFT AS THE WIND", "FLITTING SHADOWS", "STAR ENGINES",
+               "SUDDEN STRIKE", "OPPORTUNITY SEIZED", "FADE BACK"))
+      # Six printed Agile Manoeuvres, plus the one the Errata section quotes
+      # back - errata are rule changes and are deliberately kept.
+      and _ael.count("TRIGGER:") == 7 and _ael.count("EFFECT:") == 7)
+
+_nec = corpus_text_path(os.path.join("rules", "necrons", "army_rules.md"))
+check("Reanimation Protocols lost its worked example",
+      "Example:" not in _nec)
+check("...and kept the rule it was illustrating",
+      "that unit **heals** D3 wounds" in _nec)
+
+# Death Guard is the case where lore and rule alternate line by line: each of
+# the three Plagues prints one sentence of flavour above its own effect.
+_dg = corpus_text_path(os.path.join("rules", "death_guard", "army_rules.md"))
+check("every Plague lost its flavour line",
+      "This horrifying affliction" not in _dg
+      and "Limbs shuddering with fever palsy" not in _dg
+      and "Victims of this insidious ailment" not in _dg)
+check("...and all three Plagues kept their name and their effect",
+      all(name in _dg for name in
+          ("Skullsquirm Blight", "Rattlejoint Ague", "Scabrous Soulrot"))
+      and "Worsen the Save characteristic" in _dg)
+
+_seer_md = corpus_text_path(
+    os.path.join("rules", "aeldari", "detachments", "Seer Council.md"))
+check("a detachment rule and its enhancements lost their lore",
+      "Though future sight is not a precise art" not in _seer_md
+      and "This helm houses a psychocrystalline weave" not in _seer_md)
+check("a stratagem lost its legend but kept its subtitle and its text",
+      "The seer plucks fate to find the foe" not in _seer_md
+      and "*Seer Council" in _seer_md and "**WHEN:** Command phase." in _seer_md)
+
+# -- source guards ---------------------------------------------------------
+check("ShowFluff and redExample are skipped by name",
+      'SKIP_CLASSES = (' in src and '"ShowFluff"' in src and '"redExample"' in src)
+check("the stratagem legend is not even parsed",
+      "str11Legend" not in src.split("STRATAGEM_FIELDS")[1].split("\n)")[0])
+
 
 check("a short faction page aborts the run too",
       "MIN_DETACHMENTS_PER_FACTION" in src)

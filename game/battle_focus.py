@@ -268,6 +268,12 @@ class BattleFocusPool:
         self.dice_manager = dice_manager
         self.decision_manager = decision_manager
         self.fight_controller = fight_controller
+        #: Sudden Strike's second window - see can_sudden_strike(). Attached
+        #: by main.py after construction rather than taken here, because
+        #: ConsolidateController is built later in main() and assigning a
+        #: collaborator before its own constructor has run is a mistake this
+        #: file has already made three times (CLAUDE.md error class 23).
+        self.consolidate_controller = None
         self.all_tokens = all_tokens
         # Opportunity Seized needs "a unit that STARTED THE PHASE within
         # Engagement Range of that enemy unit" - which is not a question the
@@ -507,10 +513,27 @@ class BattleFocusPool:
     def can_sudden_strike(self, squad):
         """TRIGGER: an eligible unit is selected to fight.
 
-        Bought BEFORE the unit is selected, like War Horde's Unbridled
-        Carnage, and gated on the same predicate that stratagem uses - a unit
-        that cannot fight this phase never makes the Pile-in or Consolidation
-        move this improves, so offering it would sell a guaranteed nothing.
+        TWO windows, and the second one is a decision of the user's
+        ("ich kann mich ja auch 6 zoll consolidaten. das wird mir aber nicht
+        angeboten beim consolidate"), not a transcription:
+
+          1. BEFORE the unit is selected to fight - the printed trigger,
+             widened backwards the same way War Horde's Unbridled Carnage is
+             bought before the unit fights, and gated on the same predicate.
+          2. BEFORE that unit makes its Consolidation move.
+
+        Why the second one is not just laxness about the printed trigger:
+        this engine resolves 12.03 Pile In as its own step BEFORE any unit is
+        selected to fight, and 12.07/12.08 Consolidation as its own step
+        AFTER the whole Fight step. So the one printed trigger moment sits
+        BETWEEN the two moves the effect names, and taken literally it would
+        arrive too late for the Pile-in half and force the Consolidation half
+        to be paid for blind. Window 1 already existed for the first of
+        those; window 2 is the same fix for the second. Measured before
+        changing anything: with the enemy destroyed and the next one 4.5"
+        away, a unit that had not pre-bought the manoeuvre got NO
+        consolidation offered at all (determine_mode() -> None) and no way
+        left to buy the 6" that would have opened it.
 
         WHEN is the bare "Fight phase", not "your Fight phase": that phase is
         shared and alternates between both players (12.04), the reading
@@ -521,13 +544,55 @@ class BattleFocusPool:
             return False
         if getattr(squad, "sudden_strike_active", False):
             return False  # already up on this unit
-        fight = self.fight_controller
-        if fight is not None:
-            if squad in fight.fought_squad_ids or fight.fighting_squad is squad:
-                return False
-            if not fight.is_eligible_to_fight(squad):
-                return False
+        if not (self._before_fighting(squad) or self._before_consolidating(squad)):
+            return False
         return self.can_use(squad.owner, SUDDEN_STRIKE, squad)
+
+    def _before_fighting(self, squad):
+        """Sudden Strike window 1: this unit still has its fight activation
+        ahead of it. A unit that cannot fight this phase never makes the
+        Pile-in move this improves, so offering it here would sell a
+        guaranteed nothing.
+
+        No fight controller at all (headless probes, the older tests) means
+        timing is the caller's business, the same convention
+        _own_movement_phase() uses for a missing turn tracker."""
+        fight = self.fight_controller
+        if fight is None:
+            return True
+        if squad in fight.fought_squad_ids or fight.fighting_squad is squad:
+            return False
+        return fight.is_eligible_to_fight(squad)
+
+    def _before_consolidating(self, squad):
+        """Sudden Strike window 2: this unit still owes a Consolidation move.
+
+        "Still owes one" is asked of ConsolidateController.can_consolidate()
+        rather than re-derived here - it is already the one definition of
+        that (eligible to fight this phase, Fight step over, has not
+        consolidated yet), and a second copy is exactly the drift this repo
+        keeps consolidating away.
+
+        Two refusals on top, both "never offer what buys nothing":
+
+        * A consolidation move already under way. start_consolidate() hands
+          the budget to MovementController when the move BEGINS, so a token
+          spent after that would not lengthen it - it would only set a flag
+          nothing re-reads. (The panel cannot reach this state anyway; it
+          draws the move-in-progress buttons instead. The refusal is here so
+          the predicate means what it says for every other caller.)
+        * Nothing reachable even at 6". determine_mode() is asked with the
+          manoeuvre's range handed in, which is precisely "would this token
+          open a consolidation for this unit" - the case that prompted the
+          change is a mode of None at 3" and ENGAGING at 6"."""
+        cons = self.consolidate_controller
+        if cons is None or not cons.can_consolidate(squad):
+            return False
+        mover = self.movement_controller
+        if (mover is not None and mover.move_mode == "consolidate"
+                and mover.selected_squad is squad):
+            return False
+        return cons.determine_mode(squad, reach=SUDDEN_STRIKE_RANGE_IN) is not None
 
     def use_sudden_strike(self, squad):
         """EFFECT: until the end of the phase, this unit's Pile-in and
@@ -626,17 +691,22 @@ class BattleFocusPool:
         # and the "callback" ends up being the string "callback".
         options = [
             (f"{manoeuvre}: {squad.name} makes a D6+1\" Normal move",
-             (lambda s=squad: self._perform_reactive(s, manoeuvre)))
+             (lambda s=squad: self._perform_reactive(s, manoeuvre)), squad)
             for squad in candidates
         ]
         # is_stratagem stays False: this is a datasheet/army rule spending its
         # own token, not rule 15.01 spending CP - the distinction the overlay
-        # colours its heading by.
+        # colours its heading by. is_battle_focus is the positive half of that
+        # same distinction: the heading gets Battle Focus' own turquoise
+        # instead of the plain gold, matching ActionPanel's manoeuvre buttons
+        # (user: "colorcode fuer agile manouvers ... soll aber tuerkis sein.
+        # (buttons, ueberschriften)").
         options.append(("Decline", None))
         self.decision_manager.request(
             player,
             f"{manoeuvre} ({because}) - spend 1 Battle Focus token?",
             options,
+            is_battle_focus=True,
         )
         return True
 

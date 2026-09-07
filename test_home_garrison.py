@@ -167,7 +167,11 @@ def board(map_key):
     return state
 
 
-for map_key, want in (("map1", 17.1), ("map2", 14.8), ("map3", 15.9)):
+# map3 reads 16.8, up from 15.9: its two central objectives were slid 1.2"
+# toward the board centre so their footprints clear the deployment zones
+# (see game/maps.py), and one of that pair IS the nearest objective to a
+# home objective. The number is measured off the board, not set.
+for map_key, want in (("map1", 17.1), ("map2", 14.8), ("map3", 16.8)):
     state = board(map_key)
     zones = getattr(state, "deployment_zones", ())
     for owner in ("Player 1", "Player 2"):
@@ -356,7 +360,7 @@ def reported_board():
     state = GameState()
     battle_map.build(state)
     built = []
-    army_lists.build_necrons(OWNER, lambda sq, *a, **kw: built.append(sq), state=state)
+    army_lists.get("necrons").build(OWNER, lambda sq, *a, **kw: built.append(sq), state=state)
     squads, state.tokens = {}, []
     for squad in built:
         spot = REPORTED.get(squad.name)

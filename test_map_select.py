@@ -164,11 +164,66 @@ c.true("it is not done before anything is picked", not screen.done)
 c.eq("tile_at finds the tile under the cursor", screen.tile_at(tiles[1].rect.center), 1)
 c.eq("tile_at outside every tile is None", screen.tile_at((2, 2)), None)
 
+# TWO BEATS. User: "momentan geschieht die auswahl schon, wenn man draufklickt.
+# ich haette gerne ein auswahl highlight + button. also erst auswaehlen, dann
+# wird die entsprechende kachel gehighlightet und dann auf den auswahl button
+# unten druecken." A click must no longer end the screen.
 screen.handle_event(
     pygame.event.Event(pygame.MOUSEBUTTONDOWN, {"pos": tiles[2].rect.center, "button": 1}),
     SCREEN_RECT)
-c.true("clicking a tile picks that map", screen.done)
-c.eq("...and it is the one clicked", screen.chosen.key, tiles[2].battle_map.key)
+c.true("clicking a tile does NOT end the screen", not screen.done)
+c.eq("...it selects it", screen.selected.key, tiles[2].battle_map.key)
+c.eq("...and nothing is chosen yet", screen.chosen, None)
+
+# Reversible: a second click moves the selection instead of committing the
+# first one.
+screen.handle_event(
+    pygame.event.Event(pygame.MOUSEBUTTONDOWN, {"pos": tiles[0].rect.center, "button": 1}),
+    SCREEN_RECT)
+c.eq("clicking another tile moves the selection", screen.selected.key, tiles[0].battle_map.key)
+c.true("...and still has not chosen", not screen.done)
+
+# The button only exists once something is picked - the same convention the
+# pager follows, so there is never a dead control on screen.
+_empty = MapSelectScreen()
+_empty.draw(pygame.Surface(SCREEN_RECT.size), (2, 2))
+c.eq("no confirm button before anything is selected", _empty.footer.confirm, None)
+c.eq("...and no label for one either", _empty.confirm_label, None)
+
+_surface = pygame.Surface(SCREEN_RECT.size)
+screen.draw(_surface, (2, 2))
+c.true("a confirm button appears once a map is selected", screen.footer.confirm is not None)
+c.true("...and it names the pick", tiles[0].battle_map.name in screen.confirm_label)
+
+screen.handle_event(
+    pygame.event.Event(pygame.MOUSEBUTTONDOWN,
+                       {"pos": screen.footer.confirm.center, "button": 1}),
+    SCREEN_RECT)
+c.true("pressing Confirm ends the screen", screen.done)
+c.eq("...with the selected map", screen.chosen.key, tiles[0].battle_map.key)
+
+# Confirm with nothing picked is a no-op, not an advance.
+_bare = MapSelectScreen()
+c.eq("confirm with no selection does nothing", _bare.confirm(), False)
+c.true("...and the screen stays open", not _bare.done)
+
+# ENTER is the keyboard half of the same button - and it is not a shortcut
+# past the first beat.
+_keyed = MapSelectScreen()
+_keyed.handle_event(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_RETURN}), SCREEN_RECT)
+c.true("ENTER with nothing selected does nothing", not _keyed.done)
+_keyed.layout(SCREEN_RECT)
+_keyed.select(_keyed.tiles[1].battle_map)
+_keyed.handle_event(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_RETURN}), SCREEN_RECT)
+c.true("ENTER confirms a selection", _keyed.done)
+c.eq("...with the selected map", _keyed.chosen.key, _keyed.tiles[1].battle_map.key)
+
+# The one-call API is unchanged, for callers driving the screen without a mouse.
+_direct = MapSelectScreen()
+_direct.layout(SCREEN_RECT)
+c.true("choose() still selects and commits in one call",
+       _direct.choose(_direct.tiles[1].battle_map))
+c.true("...ending the screen", _direct.done)
 
 hover = MapSelectScreen()
 hover.layout(SCREEN_RECT)
@@ -254,6 +309,100 @@ c.eq("a partial page draws at the full page's tile width",
 
 
 # --------------------------------------------------------------------------
+# 4b. The selection highlight, and the footer that now carries a fourth button
+# --------------------------------------------------------------------------
+print("\n=== 4b. selection highlight ===")
+
+# THREE distinct looks, measured on pixels. Hover and selected must not merely
+# differ from plain - they must differ from EACH OTHER, or the highlight says
+# "the cursor is here" instead of "this is your answer", which is the whole
+# point of the change.
+FRAME_RECT = pygame.Rect(20, 20, 300, 200)
+
+
+def _frame_pixels(**kwargs):
+    surf = pygame.Surface((360, 240))
+    surf.fill((0, 0, 0))
+    ts.draw_tile_frame(surf, FRAME_RECT, **kwargs)
+    return {surf.get_at((x, y))[:3]
+            for x in range(FRAME_RECT.x, FRAME_RECT.right, 3)
+            for y in range(FRAME_RECT.y, FRAME_RECT.bottom, 3)}
+
+
+plain_px = _frame_pixels()
+hover_px = _frame_pixels(hovered=True)
+sel_px = _frame_pixels(selected=True)
+c.true("a hovered tile differs from a plain one", plain_px != hover_px)
+c.true("a selected tile differs from a plain one", plain_px != sel_px)
+c.true("...and from a hovered one", sel_px != hover_px)
+c.true("the selected tile carries the selection colour",
+       ts.TILE_BORDER_SELECTED_COLOR in sel_px)
+c.true("...which a hovered tile does not",
+       ts.TILE_BORDER_SELECTED_COLOR not in hover_px)
+# A selected tile still brightens under the cursor rather than going dead.
+c.true("a selected tile still responds to hover",
+       _frame_pixels(selected=True, hovered=True) != sel_px)
+
+# Colour alone is not enough - the badge is what survives a colour-blind
+# reader, who otherwise has only the border WIDTH to go on.
+badge_surf = pygame.Surface((360, 240))
+badge_surf.fill((0, 0, 0))
+badge_rect = ts.draw_selected_badge(badge_surf, FRAME_RECT, ts.make_fonts())
+c.true("the SELECTED badge is inside its tile", FRAME_RECT.contains(badge_rect))
+c.true("...and actually paints something",
+       any(badge_surf.get_at((x, y))[:3] != (0, 0, 0)
+           for x in range(badge_rect.x, badge_rect.right)
+           for y in range(badge_rect.y, badge_rect.bottom)))
+
+# The footer returns a RECORD, not a tuple. It used to be a tuple that one
+# caller sliced (`draw_footer(...)[1:]`), so a fourth button would have handed
+# that caller the wrong rectangles - CLAUDE.md error class 22.
+buttons = ts.FooterButtons()
+c.eq("an unused footer control is None",
+     (buttons.back, buttons.prev, buttons.next, buttons.confirm), (None,) * 4)
+c.true("the footer record cannot be read positionally",
+       not hasattr(buttons, "__getitem__"))
+c.true("...nor grown a field by accident", hasattr(ts.FooterButtons, "__slots__"))
+for name, src in (("army_select", army_src), ("map_select", map_src)):
+    c.true(f"{name} stores the footer as one record",
+           "self.footer = ts.draw_footer(" in src)
+    c.true(f"{name} reads its buttons by name",
+           "self.footer.confirm" in src and "self.footer.prev" in src)
+    # The slice and the tuple unpacking that used to be here are exactly what
+    # a fourth button would have broken silently.
+    c.true(f"{name} has no leftover positional footer unpacking",
+           "draw_footer(" in src and ")[1:]" not in src
+           and "self.prev_rect" not in src and "self.next_rect" not in src
+           and "self.back_rect" not in src)
+
+# All four footer controls on the NARROWEST window this game is run at, with
+# every one of them present. Overlapping buttons would make one unclickable.
+narrow = pygame.Rect(0, 0, 1280, 720)
+narrow_surf = pygame.Surface(narrow.size)
+crowded = ts.draw_footer(narrow_surf, narrow, ts.make_fonts(), 0, 3,
+                         back_label="Back", confirm_label="Confirm: Something")
+present = [r for r in (crowded.back, crowded.prev, crowded.next, crowded.confirm) if r]
+c.eq("a crowded footer draws all four controls", len(present), 4)
+c.eq("...and none of them overlap",
+     [(i, j) for i, a in enumerate(present) for j, b in enumerate(present)
+      if i < j and a.colliderect(b)], [])
+c.true("...and all of them stay inside the window",
+       all(narrow.contains(r) for r in present))
+
+# The confirm label names the pick, so it grows with the longest real name.
+# Every one of them has to stay inside the window at the narrowest size.
+from game import army_lists as _al  # noqa: E402
+
+overflow = []
+for _name in [m.name for m in ALL_MAPS] + [e.name for e in _al.ARMY_LISTS]:
+    got = ts.draw_footer(narrow_surf, narrow, ts.make_fonts(), 0, 1,
+                         confirm_label=f"Confirm: {_name}")
+    if not narrow.contains(got.confirm):
+        overflow.append(_name)
+c.eq("no real map or army name pushes the confirm button off screen", overflow, [])
+
+
+# --------------------------------------------------------------------------
 # 5. Wiring - the order, which only main.py can get wrong
 # --------------------------------------------------------------------------
 print("\n=== 5. wiring ===")
@@ -269,16 +418,40 @@ def _line_of(pattern):
 c.true("main() runs the map screen", "MapSelectScreen(default=config.MAP).run(screen)" in main_src)
 c.true("...gated on config.MAP_SELECT",
        "if map_key is None and config.MAP_SELECT and not config.LOAD_SCENE:" in main_src)
-c.true("...and abandoning it closes the program",
-       re.search(r"map_key = MapSelectScreen[^\n]*\n\s*if map_key is None:\s*\n\s*pygame\.quit\(\)"
-                 r"\s*\n\s*return", main_src) is not None)
+# Abandoning the screen still ends the program, but it now SAYS so rather than
+# doing it: main() is one battle and run() is the application, so the screen's
+# refusal travels back as the menu's own QUIT answer and run() closes the
+# window. The check moved with it and got stronger - it also pins that main()
+# never calls pygame.quit() itself, i.e. that exactly ONE function owns the
+# window's lifetime. Without that second half, a future edit could put a
+# pygame.quit() back inside a battle and leave run()'s loop flipping a dead
+# display.
+c.true("...and abandoning it answers the menu's QUIT",
+       re.search(r"map_key = MapSelectScreen[^\n]*\n\s*if map_key is None:"
+                 r"(\s*\n\s*#[^\n]*)*\s*\n\s*return game_menu_module\.QUIT",
+                 main_src) is not None)
+# Counted as STATEMENTS, not as mentions: main() carries a comment explaining
+# why it no longer calls this, and a plain .count() reads that comment as a
+# second closer. CLAUDE.md error class 24 - a wiring guard has to look at the
+# call, not at the name.
+_quit_calls = [n for n, line in enumerate(main_src.splitlines())
+               if line.strip() == "pygame.quit()"]
+c.eq("exactly one place closes the window", len(_quit_calls), 1)
+c.true("...and it is run(), which is above main()",
+       _quit_calls[0] < main_src[:main_src.index("def main(map_key=None):")].count("\n"))
 
-display_line = _line_of(r"screen = pygame\.display\.set_mode")
+display_line = _line_of(r"screen = pygame\.display\.get_surface\(\)")
+menu_line = _line_of(r"GameMenu\(save_path=")
 map_line = _line_of(r"MapSelectScreen\(default=config\.MAP\)")
 apply_line = _line_of(r"battle_map = maps\.apply_to_config")
 army_line = _line_of(r"ArmySelectScreen\(defaults=armies\)")
 build_line = _line_of(r"army_lists\.get\(armies\[owner\]\)\.build\(")
 c.true("the window exists before the map screen is shown", display_line < map_line)
+# The menu is a fourth rung on the front of this ladder: it is answered before
+# the battlefield is picked, because "Resume" decides the map from the file
+# rather than from the screen.
+c.true("the menu is answered before the map screen", menu_line < map_line)
+c.true("...and after the window exists", display_line < menu_line)
 c.true("the map is chosen before the board is built", map_line < apply_line)
 c.true("the board is built before the armies are chosen", apply_line < army_line)
 c.true("the armies are chosen before any unit is built", army_line < build_line)

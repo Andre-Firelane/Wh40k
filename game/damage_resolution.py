@@ -78,6 +78,49 @@ def displayed_save_threshold(model, weapon, waaagh=None):
     return min(reachable) if reachable else None
 
 
+#: The die value a skipped Save roll stands in for. Rule 05.04's "an
+#: unmodified 1 always inflicts damage" makes it the one face whose outcome is
+#: fixed no matter what the thresholds are, so a save that was never rolled is
+#: resolved as if it had come up 1 - identical result, no invented dice.
+AUTO_FAILED_SAVE = 1
+
+
+def save_is_impossible(target_squad, weapon, waaagh=None):
+    """True when NO living model of `target_squad` could pass a Save roll
+    against `weapon` - i.e. every one of them needs more than a D6 can show.
+
+    User report: "Save Rolls, die man gar nicht bestehen kann, sollten auch
+    gar nicht gewuerfelt werden. Manchmal werden da 6en gewuerfelt, die dann
+    aber rot sind." A Multi-melta (AP-4) against a Sv3+ Windrider with no
+    invulnerable save needs a 7+; every die in that roll is red before it is
+    thrown, and the panel step asks the defender to acknowledge a decision
+    that does not exist.
+
+    ASKED OF EVERY MODEL, and that is the whole care in this function. The
+    roll sites size their dice panel off displayed_save_threshold() for ONE
+    representative model (allocation_target_model()), which is the
+    one-representative shortcut CLAUDE.md warns about - but
+    DamageAllocationSession._advance() re-derives save_thresholds() PER MODEL
+    as it allocates, so a unit whose bodyguards need a 7+ can still hold a
+    character with an invulnerable save who does not. Skipping on the
+    representative would silently delete that model's save. Skipping only
+    when the whole unit is out of reach cannot: there is no allocation order
+    in which any die of this roll could have saved anything.
+
+    Deliberately not folded into displayed_save_threshold(): that answers
+    "what number does the panel colour by" for one model, this answers "may
+    the roll be skipped entirely" for a unit. Same numbers, different
+    questions, and only the second one may ever remove a roll."""
+    models = [m for m in getattr(target_squad, "models", ()) or () if not m.is_dead()]
+    if not models:
+        return False
+    for model in models:
+        threshold = displayed_save_threshold(model, weapon, waaagh)
+        if threshold is not None and threshold <= 6:
+            return False
+    return True
+
+
 def _select_candidates(group):
     """Rule 05.04 step 1: models that have already lost wounds must be chosen
     from, if any exist in the group; otherwise every living model in the

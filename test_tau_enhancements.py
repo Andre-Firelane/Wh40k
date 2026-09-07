@@ -17,12 +17,19 @@ Structure:
  10. source guards (wiring that no behaviour test can see)
 """
 
+import ast
+import os
+import collections
 import io
+import json
 
 import testkit as tk
+from game import army_io
 from game import config
 from game import enhancements as E
+from game import enh_prototype_weapons as prototype_weapons
 from game.factions import build_squad
+from game.factions import tau_empire as t
 from game.factions.tau_empire import (CADRE_FIREBLADE, COMMANDER_FARSIGHT,
                                       COMMANDER_IN_COLDSTAR_BATTLESUIT, CRISIS_FIREKNIFE,
                                       CRISIS_STARSCYTHE, GHOSTKEEL_BATTLESUIT,
@@ -33,22 +40,8 @@ from game.factions.tau_empire import (CADRE_FIREBLADE, COMMANDER_FARSIGHT,
 c = tk.Checks("T'au detachment Enhancements")
 
 
-class settings_as:
-    """Set config constants for one block and put them back - config is a
-    module, so a test that forgets is a test that poisons every later one."""
-
-    def __init__(self, **values):
-        self.values = values
-
-    def __enter__(self):
-        self.old = {k: getattr(config, k) for k in self.values}
-        for k, v in self.values.items():
-            setattr(config, k, v)
-
-    def __exit__(self, *exc):
-        for k, v in self.old.items():
-            setattr(config, k, v)
-
+# The one definition lives in testkit - eight suites had their own copy.
+settings_as = tk.settings_as
 
 ALL_SETTINGS = sorted({spec.setting for spec in E.ENHANCEMENTS.values()})
 
@@ -626,8 +619,16 @@ _pregame_src = io.open("game/pregame.py", encoding="utf-8").read()
 c.true("the redeploy hook runs inside _finish_deployment()",
        "if self.redeploy_step is not None and not self._redeploy_done:" in _pregame_src)
 c.true("...and BEFORE the first-turn roll-off, which is what the printed timing says",
-       before(_pregame_src, "self.redeploy_step.start(self, self._finish_deployment)",
+       before(_pregame_src, "self.redeploy_step.start(self, resume)",
               "if SCOUTS_BEFORE_FIRST_TURN_ROLLOFF:"))
+# The hand-off is one-shot AND its result is read. A step may resume the
+# sequence by calling the continuation and still answer "nothing to do" (four
+# shipped ones do), and without the second test this hook starts a SECOND
+# first-turn roll-off - which then starts the battle a second time and pays a
+# second Command phase of Primary VP. See game/pregame.py's Resume.
+c.true("...and the hand-off cannot run the rest of the sequence twice",
+       "resume = Resume(self._deployment_finished)" in _pregame_src
+       and "or resume.fired" in _pregame_src)
 # Measured rather than pinned on the prose: an owner that answers its own
 # prompts declines outright, so the step hands straight back and the pre-game
 # carries on. See the module docstring for why there is deliberately no
@@ -711,6 +712,53 @@ with only("KAUYON_PLAYERS"):
     # exactly how a second first-turn roll-off happens.
     c.eq("the caller is NOT resumed - the deployment flow will reach it", _resumed, [])
 
+# TWO STEPS, so the unit is chosen on the BOARD. It used to be one prompt
+# listing every unit TWICE (once per destination), which game/unit_pick.py
+# rightly refuses - a click says "this unit" and cannot pick between two
+# fates. Reported: "Solid Image Projection Unit - ich will die Einheit auf dem
+# Schlachtfeld waehlen, nicht aus einer Liste".
+from game import unit_pick as _up  # noqa: E402
+from game.decision import DecisionManager  # noqa: E402
+
+_sip3 = GameState()
+_sip_b3 = build(COMMANDER_IN_COLDSTAR_BATTLESUIT, name="Bearer3", owner="Player 2")
+E.grant(_sip_b3, "Solid-image Projection Unit")
+tk.line_up(_sip_b3, x=10.0, y=10.0)
+_v3 = build(STRIKE_TEAM, name="Victim3", owner="Player 2")
+tk.line_up(_v3, x=20.0, y=10.0, spacing=0.9)
+for _s in (_sip_b3, _v3):
+    for _m in _s.models:
+        _sip3.add_token(_m)
+
+with only("KAUYON_PLAYERS"):
+    _dec3 = DecisionManager()
+    step3 = SIP.SolidImageProjectionStep(game_state=_sip3, decision_manager=_dec3,
+                                         game_log=tk.Log(), auto_players=())
+    step3._pregame = _RedeployPregame()
+    c.true("step one opens a prompt", step3._offer("Player 2"))
+    _labels3 = [o["label"] for o in _dec3.options]
+    c.eq("...naming every eligible unit exactly ONCE",
+         sorted(l for l in _labels3 if l != "No more"), ["Bearer3", "Victim3"])
+    c.true("...tagged with their squads, so it is answerable on the board",
+           all(o["squad"] is not None for o in _dec3.options if o["label"] != "No more"))
+    _pick3 = _up.pending(_dec3, _sip3.tokens)
+    c.true("game/unit_pick.py accepts it as a board pick", _pick3 is not None)
+    c.eq("...offering exactly the eligible units",
+         sorted(s.name for s in _pick3.squads), ["Bearer3", "Victim3"])
+
+    # Step two: the fate, as an ordinary list - the two destinations are not units.
+    c.true("clicking the unit opens the destination question",
+           _pick3.pick(_v3) and _dec3.is_pending)
+    c.eq("...with both printed outcomes",
+         [o["label"] for o in _dec3.options],
+         ["Set up again elsewhere", "Into Strategic Reserves"])
+    c.true("...and they are NOT tagged - an objective/fate is not a unit",
+           all(o["squad"] is None for o in _dec3.options))
+    _dec3.choose(1)
+    c.eq("choosing Strategic Reserves records that fate",
+         [(sq.name, dest) for sq, dest in step3.chosen["Player 2"] if sq is not None],
+         [("Victim3", SIP.RESERVES)])
+
 
 # --- 5. Mont'ka -----------------------------------------------------------
 print("\n5. Mont'ka")
@@ -732,6 +780,24 @@ with only("MONTKA_PLAYERS"):
     c.true("...but not in round 5 - it is 'the fourth as well', not 'onwards'",
            not montka.is_active(_mk_unit, _Round(5)))
     c.true("...and it still has rounds 1-3", montka.is_active(_mk_unit, _Round(1)))
+
+    # AND THE WIDENING SURVIVES THE FLAG. Killing Blow's [ASSAULT] half reaches
+    # rule 10.05 through Squad.montka_killing_blow, because
+    # game/coldstar.py's weapon_has_assault() is handed only (weapon, squad)
+    # and cannot ask a round question. That stamp has to be derived from the
+    # same is_active() the checks above use: written against the printed
+    # KILLING_BLOW_ROUNDS instead, it would drop this Enhancement's fourth
+    # round at the Advance gate ONLY - the damage chain would still grant
+    # [ASSAULT] in round 4 while the unit was refused permission to shoot after
+    # Advancing, which is one rule with two readers disagreeing.
+    montka.refresh_killing_blow([_mk_unit, _plain], _Round(4))
+    c.true("the Exemplar's fourth round reaches the Advance gate too",
+           montka.grants_assault(_mk_unit))
+    c.true("...while a plain unit's window has already closed",
+           not montka.grants_assault(_plain))
+    montka.refresh_killing_blow([_mk_unit], _Round(5))
+    c.true("...and round 5 closes it for the bearer as well",
+           not montka.grants_assault(_mk_unit))
 
 # --- Coordinated Exploitation ---
 _ce_leader = build(COMMANDER_IN_COLDSTAR_BATTLESUIT, name="CE", owner="Player 2")
@@ -1087,82 +1153,409 @@ class fielding:
         self.entry.detachments = self.old
 
 
-class granting:
-    """Populate game/army_lists.py's Enhancement table for one block.
+# The 2026-09-05 roster buys SIX Enhancements across its two declared
+# detachments, where the roster before it bought none. So this section drives
+# the REAL list rather than a table written here - which is what the previous
+# version had to do, and said so.
+_squads = army_lists.preview_squads("tau", "Player 1")
+_granted = sorted(n for s in _squads for n in E.granted_names(s))
+c.eq("the list hands out six Enhancements", _granted, [
+    "Exemplar of the Kauyon",
+    "Negation Emitters",
+    "Precision of the Patient Hunter",
+    "Solid-image Projection Unit",
+    "Through Unity, Devastation",
+    "Unmasking Suite",
+])
+c.eq("...and the Kauyon table says exactly those",
+     sorted(army_lists.get("tau").enhancement_names()), _granted)
 
-    The 2026-08-30 T'au roster buys NO Enhancement - it names none, and every
-    character in it is priced at base cost. So the MECHANISM (one Enhancement
-    per declared detachment, bearer found by datasheet, points on the squad,
-    answerable at preview time before anything reaches config) is driven with a
-    table written here rather than through the roster. That is deliberate: a
-    section that only asserted "the list grants nothing" would go quiet exactly
-    where the grant used to be tested."""
+# WHICH unit carries which. This is the half a datasheet lookup cannot do:
+# there are TWO Cadre Fireblades taking different Enhancements, and TWO
+# identical Stealth Battlesuits teams of which only the first takes one.
+_bearer = {}
+for _s in _squads:
+    for _n in E.granted_names(_s):
+        _bearer[_n] = _s.name
+c.eq("the first Fireblade carries Through Unity, Devastation",
+     _bearer["Through Unity, Devastation"], "1 Breacher Team 1 + Cadre Fireblade")
+c.eq("...and the SECOND carries Precision of the Patient Hunter",
+     _bearer["Precision of the Patient Hunter"], "1 Breacher Team 2 + Cadre Fireblade")
+c.eq("the Commander carries Exemplar of the Kauyon, on the unit he leads",
+     _bearer["Exemplar of the Kauyon"],
+     "1 Crisis Sunforge Battlesuits 1 + Commander in Coldstar Battlesuit")
+c.eq("the Ethereal carries Solid-image Projection Unit",
+     _bearer["Solid-image Projection Unit"], "1 Ethereal 1")
+c.eq("only the FIRST Stealth team carries Negation Emitters",
+     _bearer["Negation Emitters"], "1 Stealth Battlesuits 1")
+c.eq("the Ghostkeel carries Unmasking Suite",
+     _bearer["Unmasking Suite"], "1 Ghostkeel Battlesuit 1")
 
-    def __init__(self, table):
-        self.table = table
+# TWO of them are on the model, four on... no: two are UNIT-level and four are
+# model-level, and a model-level one has to land on the right MODEL after the
+# 19.01 merge - by then the Fireblade is one of eleven.
+_models = [m.profile.name for s in _squads
+           for m in E.enhancement_models(s, "Through Unity, Devastation")]
+c.eq("a model-level Enhancement lands on the character, not the bodyguard",
+     _models, ["Cadre Fireblade"])
 
-    def __enter__(self):
-        self.old = army_lists._TAU_LIST_ENHANCEMENTS
-        army_lists._TAU_LIST_ENHANCEMENTS = dict(self.table)
+# The points are the units' plus the Enhancements'.
+c.eq("...and their points are on the army", sum(s.points or 0 for s in _squads), 2165)
 
-    def __exit__(self, *exc):
-        army_lists._TAU_LIST_ENHANCEMENTS = self.old
+# THE DETACHMENT GATES IT, which is what closes starflare_ignition.py's old
+# limitation: the same units under a detachment the list does not declare hold
+# their Enhancement but it does nothing.
+# is_active() reads the CONFIG constants, which preview_squads() deliberately
+# never writes - that separation is the whole reason the grant reads the list
+# instead. So the config is set the way a battle sets it, and put back.
+
+army_lists.apply_to_config({"Player 1": "tau", "Player 2": "tau"})
+_live_now = [n for s in _squads for n in E.granted_names(s) if E.is_active(s, n)]
+c.eq("under the declared pair, all six are active", sorted(_live_now), _granted)
+with fielding(["Mont'ka"]):
+    army_lists.apply_to_config({"Player 1": "tau", "Player 2": "tau"})
+    _live = [n for s in _squads for n in E.granted_names(s) if E.is_active(s, n)]
+    c.eq("...and under a detachment the list does not field, none of them is",
+         _live, [])
+army_lists.apply_to_config({"Player 1": "tau", "Player 2": "tau"})
+
+# An Enhancement this list may not buy is refused when the list is LOADED, not
+# granted and then quietly inert. This replaces a hand-maintained whitelist that
+# only knew the names some T'au builder happened to mention; the check now reads
+# the Enhancement's own detachment against the ones the list declares, so it
+# covers every faction and cannot fall behind a new list.
+_bad = {"format": 1, "key": "probe", "name": "Probe",
+        "faction_keyword": "T'AU EMPIRE", "detachments": ["Mont'ka"],
+        "roster": [{"datasheet": "Cadre Fireblade", "color": [1, 2, 3],
+                    "enhancement": "Exemplar of the Kauyon"}]}
+_problems = army_io.parse(_bad, "probe.json")[1]
+c.true("an Enhancement from a detachment the list does not field is refused",
+       any("does not field" in p for p in _problems))
+# The far more likely mistake, and the one a NameError used to catch: a typo.
+_typo = dict(_bad, detachments=["Kauyon"],
+             roster=[dict(_bad["roster"][0], enhancement="Exemplar of the Kauyonn")])
+c.true("...and a misspelt Enhancement is refused too",
+       any("not an engine-wired Enhancement" in p
+           for p in army_io.parse(_typo, "probe.json")[1]))
 
 
-def granted_for(names, table):
-    with fielding(names), granting(table):
-        squads = army_lists.preview_squads("tau", "Player 1")
-        return sorted(n for s in squads for n in E.granted_names(s)), \
-            sum(s.points or 0 for s in squads)
+# --- 9b. The SECOND T'au list ---------------------------------------------
+print("\n9b. The Mont'ka list")
+
+# REPLACED 2026-09-06 by the roster the user exported from the app ("Tau -
+# RC 1k", 1975 points). It used to BE the Kauyon roster with a different
+# Enhancement table; it now shares fourteen of twenty-one entries with it,
+# which is not a shared roster, so it has its own builder.
+_mk = army_lists.preview_squads("tau_montka", "Player 1")
+_mk_granted = sorted(n for s in _mk for n in E.granted_names(s))
+c.eq("the Mont'ka list hands out ONE", _mk_granted, ["Strategic Conqueror"])
+c.eq("...which is Mont'ka's own",
+     E.get("Strategic Conqueror").setting, "MONTKA_PLAYERS")
+c.eq("it totals its printed 1975", sum(s.points or 0 for s in _mk), 1975)
+c.eq("18 list entries become 14 units", len(_mk), 14)
+c.eq("...over 69 models", sum(len(s.models) for s in _mk), 69)
+
+# THE BEARER MOVED from a Cadre Fireblade to the Commander in Coldstar, and it
+# is pinned at the MODEL: after 19.01 his unit holds four, and "the unit
+# carries it" would pass with it on a Starscythe suit.
+_mk_bearers = [(s.name, m) for s in _mk
+               for m in E.enhancement_models(s, "Strategic Conqueror")]
+c.eq("exactly one model carries it", len(_mk_bearers), 1)
+_mk_unit, _mk_model = _mk_bearers[0] if _mk_bearers else ("(nobody)", None)
+c.eq("...in the unit the Coldstar leads", _mk_unit,
+     "1 Crisis Starscythe Battlesuits 1 + Commander in Coldstar Battlesuit")
+c.true("...and it is the Coldstar himself",
+       _mk_model is not None and "Coldstar" in _mk_model.profile.name)
+c.eq("exactly one unit in the list carries one",
+     sum(1 for s in _mk if E.granted_names(s)), 1)
+# The two Fireblades take nothing, which the export says by pricing them at
+# their base 50. They are merged now, so read the LEADER COMPONENT - the squad
+# total is the Breachers' 90 plus theirs.
+_mk_fireblades = [c_ for s in _mk for c_ in attached_units.leader_components(s)
+                  if c_.datasheet.name == "Cadre Fireblade"]
+c.eq("both Cadre Fireblades are in the list at their base 50",
+     [c_.points for c_ in _mk_fireblades], [50, 50])
+
+# THREE OF MONT'KA'S FOUR ENHANCEMENTS LOSE THEIR ONLY CARRIER. Named rather
+# than left to be rediscovered: they are built, wired and tested, and from here
+# no shipped list fields them - the same "dormant by construction" state the
+# Experimental Prototype Cadre trio was in before a list equipped their guns.
+_MONTKA_ENHANCEMENTS = sorted(n for n, s in E.ENHANCEMENTS.items()
+                              if s.setting == "MONTKA_PLAYERS")
+c.eq("Mont'ka prints four Enhancements", len(_MONTKA_ENHANCEMENTS), 4)
+c.eq("...and this list now fields exactly one of them",
+     sorted(set(_MONTKA_ENHANCEMENTS) - set(_mk_granted)),
+     ["Coordinated Exploitation", "Exemplar of the Mont'ka", "Strike Swiftly"])
+
+# TWO ATTACHMENTS (19.01), and this is the first roster in the project whose
+# source STATES them - the export prints an "Attached Units" heading with each
+# model's role, rather than leaving it to a sentence from the user.
+_mk_pairs = sorted(
+    (attached_units.bodyguard_components(s)[0].datasheet.name,
+     attached_units.leader_components(s)[0].datasheet.name)
+    for s in _mk
+    if attached_units.leader_components(s) and attached_units.bodyguard_components(s))
+c.eq("four units are attached, and nothing else is", _mk_pairs, [
+    ("Breacher Team", "Cadre Fireblade"),
+    ("Breacher Team", "Cadre Fireblade"),
+    ("Crisis Starscythe Battlesuits", "Commander in Coldstar Battlesuit"),
+    ("Crisis Sunforge Battlesuits", "Commander Farsight"),
+])
+# THE TWO FIREBLADES ARE THE USER'S CALL AGAINST THE EXPORT (2026-09-06: "bei
+# der Tau Montka liste sollen die fireblades die breacher anfuehren"), which
+# prints them under CHARACTERS and prices its Breacher Teams at the un-led 90.
+# It costs NOTHING - attach() sums the components - so the army total cannot
+# see it and only the unit count and these pairings move. That is exactly why
+# they are pinned here rather than left to the total.
+c.true("each Breacher Team is 11 models at 140 once its Fireblade joins",
+       [(len(s.models), s.points) for s in _mk if "Breacher" in s.name]
+       == [(11, 140), (11, 140)])
+# DARKSTRIDER is the one character still standing alone, and that is a LIST
+# decision rather than a rules one: his own printed LEADER line names the
+# Pathfinder Team, so attach() would take him.
+# next(...) with no default would CRASH the suite for a probe that removes him
+# rather than turning it red, and a crash hides which check broke.
+_mk_ds = next((s for s in _mk if "Darkstrider" in s.name), None)
+c.true("Darkstrider is in the list", _mk_ds is not None)
+c.eq("...standing alone",
+     attached_units.is_attached_unit(_mk_ds) if _mk_ds else "(absent)", False)
+c.eq("...though his datasheet would let him lead the Pathfinders",
+     attached_units.leadable_unit_names(_mk_ds) if _mk_ds else None,
+     ("Pathfinder Team",))
+
+# EACH BREACHER TEAM RIDES ITS OWN DEVILFISH. preview_squads() throws the
+# destination away, so this drives the builder's register callback directly -
+# the hint is the only thing that says who is in which transport, and a wrong
+# pairing (both teams into one Devilfish) is silent everywhere else.
+_mk_reg = []
+army_lists.get("tau_montka").build(
+    "Player 1",
+    lambda s, d=pregame.DEPLOY, transport=None: _mk_reg.append(
+        (s.name, d, transport.squad.name if transport is not None else None)))
+c.eq("each Breacher Team is declared into its own Devilfish",
+     [(n, t) for n, d, t in _mk_reg if d == pregame.EMBARK],
+     [("1 Breacher Team 1 + Cadre Fireblade", "1 Devilfish 1"),
+      ("1 Breacher Team 2 + Cadre Fireblade", "1 Devilfish 2")])
+c.true("...and nothing else is declared anywhere but the board",
+       all(d == pregame.DEPLOY for n, d, _t in _mk_reg if "Breacher" not in n))
+
+# THE PATHFINDER TEAM is the one entry that needed a datasheet change: its
+# Shas'ui carries the semi-automatic grenade launcher, and the option was only
+# ever offered on the rank and file - while the comment above the datasheet
+# claimed both lines. A `choices` entry naming a (line, option) pair the
+# datasheet does not have is DROPPED SILENTLY, so the build came out one weapon
+# short and correctly priced, which is the shape that survives review.
+_mk_pf = next(s for s in _mk if "Pathfinder" in s.name)
+_mk_shasui = _mk_pf.models[0]
+c.true("the Pathfinder Shas'ui carries the grenade launcher",
+       any("Grenade Launcher" in w.name for w in _mk_shasui.weapons))
+c.true("...and keeps his pulse carbine, because the option is an ADDITION",
+       any(w.name == "Pulse Carbine" for w in _mk_shasui.weapons))
+c.eq("...while three of the nine trade theirs for an Ion rifle",
+     sum(1 for m in _mk_pf.models for w in m.weapons if "Ion Rifle" in w.name), 3)
+c.eq("...which is what makes it 100 rather than the bare 85",
+     _mk_pf.points, 100)
+
+# THE DRONES, which the export names model by model and which NOTHING ELSE
+# HERE CAN CATCH: every one of them is free, so a wrong drone leaves the unit
+# total, the army total and the weapon count untouched. Three of these moved
+# against the roster this replaces - the Breacher Shas'ui (Gun -> Shield), the
+# Coldstar (Marker+Shield -> two Shields) and the second Fireblade (bare -> two
+# Gun Drones) - and an A/B probe that put one back was SILENT until this block
+# existed.
+_mk_gear = {}
+for _s in _mk:
+    for _m in _s.models:
+        if _m.gear_names:
+            _mk_gear.setdefault(_m.profile.name, []).append(sorted(_m.gear_names))
+c.eq("the export's drones, model by model",
+     {k: sorted(v) for k, v in sorted(_mk_gear.items())}, {
+         "Breacher Fire Warrior Shas'ui": [["Guardian Drone", "Shield Drone"]] * 2,
+         "Broadside Shas'ui": [["Missile Drone", "Missile Drone",
+                                "Seeker Missile", "Twin Plasma Rifle"]] * 2,
+         "Broadside Shas'vre": [["Missile Drone", "Missile Drone",
+                                 "Seeker Missile", "Twin Plasma Rifle"]],
+         "Cadre Fireblade": [["Gun Drone", "Gun Drone"]] * 2,
+         # Not only drones: the Coldstar's "up to three of the following" menu
+         # is Gear too, so his two added burst cannons and cyclic ion blaster
+         # are recorded here alongside the drones. They used to be one bundled
+         # wargear option, which is why this line was drones-only before.
+         "Commander in Coldstar Battlesuit": [["Burst Cannon", "Burst Cannon",
+                                               "Cyclic Ion Blaster",
+                                               "Shield Drone", "Shield Drone"]],
+         "Crisis Starscythe Shas'ui": [["Gun Drone", "Shield Drone"]] * 2,
+         "Crisis Starscythe Shas'vre": [["Marker Drone", "Shield Drone"]],
+         "Crisis Sunforge Shas'ui": [["Gun Drone", "Shield Drone"]] * 2,
+         "Crisis Sunforge Shas'vre": [["Marker Drone", "Shield Drone"]],
+         "Pathfinder Shas'ui": [["Grav-inhibitor Drone", "Gun Drone", "Gun Drone"]],
+         "Stealth Shas'ui": [["Homing Beacon"]] * 2,
+         "Stealth Shas'vre": [["Gun Drone", "Marker Drone"]] * 2,
+     })
 
 
-# What the roster as supplied does: nothing, and its points are its units'.
-_names, _points = granted_for(["Kauyon", "Advanced Acquisition Cadre"],
-                              army_lists._TAU_LIST_ENHANCEMENTS)
-c.eq("the supplied list hands out no Enhancement - it names none", _names, [])
-c.eq("...so its 2030 pts are its units and nothing else", _points, 2030)
-c.eq("...and the table says so by being empty", army_lists._TAU_LIST_ENHANCEMENTS, {})
+# --- 9c. RETIRED --------------------------------------------------------
+# The Prototypes list (Auxiliary Cadre + Experimental Prototype Cadre) was
+# removed on user request ("diese liste kann weg"), and this block went with
+# it. What it proved is not lost: the Recon list fields Experimental Prototype
+# Cadre too and buys two of its three weapon Enhancements, so their upgrades
+# are still exercised below. What DID go dormant with it is named rather than
+# quietly dropped - Death Trap (see test_force_dispositions.py) and the two
+# Enhancements no list buys any more (section 13).
 
-# The mechanism, driven with a table of its own.
-_TABLE = {
-    "Kauyon": ("Exemplar of the Kauyon", "Cadre Fireblade"),
-    "Advanced Acquisition Cadre": ("Negation Emitters", "Stealth Battlesuits"),
-    "Auxiliary Cadre": ("Admired Leader", "Cadre Fireblade"),
-    "Retaliation Cadre": ("Starflare Ignition System", "Riptide Battlesuit"),
-}
-c.eq("a declared detachment hands out its Enhancement",
-     granted_for(["Kauyon"], _TABLE)[0], ["Exemplar of the Kauyon"])
-c.eq("...and one the list does not declare hands out nothing",
-     granted_for(["Mont'ka"], _TABLE)[0], [])
-c.eq("two declared detachments hand out two Enhancements",
-     granted_for(["Kauyon", "Advanced Acquisition Cadre"], _TABLE)[0],
-     ["Exemplar of the Kauyon", "Negation Emitters"])
-c.eq("...and the points land on the army",
-     granted_for(["Kauyon", "Advanced Acquisition Cadre"], _TABLE)[1], 2030 + 20 + 15)
+# --- 9d. The FOURTH T'au list, and the pricing it corrected ---------------
+print("\n9d. The Retaliation Cadre list")
 
-# The bearer is the right unit, not just "somebody" - and _find_by_datasheet()
-# sees through 19.01, which is the half that is easy to get wrong: by the time
-# the grant runs, the Cadre Fireblade is INSIDE a Breacher Team.
-with fielding(["Kauyon"]), granting(_TABLE):
-    _sq = army_lists.preview_squads("tau", "Player 1")
-    _bearers = [m.profile.name for s in _sq
-                for m in E.enhancement_models(s, "Exemplar of the Kauyon")]
-    c.eq("Exemplar of the Kauyon lands on a Cadre Fireblade merged into his unit",
-         _bearers, ["Cadre Fireblade"])
-    c.eq("...whose unit is the Breacher Team he leads",
-         [s.name for s in _sq if E.granted_names(s)],
-         ["1 Breacher Team 1 + Cadre Fireblade"])
-with fielding(["Advanced Acquisition Cadre"]), granting(_TABLE):
-    _sq = army_lists.preview_squads("tau", "Player 1")
-    c.eq("Negation Emitters lands on the Stealth Battlesuits",
-         [s.name for s in _sq if E.granted_names(s)], ["1 Stealth Battlesuits 1"])
+# User: "jetzt noch retaliation cadre Liste zusaetzlich". The only T'au list
+# that does NOT share the other three's roster - no Breachers, no Devilfish,
+# no Ethereal, no Fireblades - so it has its own builder.
+_rc = army_lists.preview_squads("tau_retaliation", "Player 1")
+_rc_granted = sorted(n for s in _rc for n in E.granted_names(s))
+c.eq("it hands out ONE Enhancement", _rc_granted, ["Starflare Ignition System"])
+c.eq("...which is Retaliation Cadre's own",
+     E.get("Starflare Ignition System").setting, "RETALIATION_CADRE_PLAYERS")
+c.eq("it totals its printed 1965", sum(s.points or 0 for s in _rc), 1965)
 
-# A bearer the roster does not field is skipped rather than crashing - the
-# documented legal outcome (Experimental Prototype Cadre had it before this
-# roster, and any table entry naming a unit that left has it now).
-c.eq("an Enhancement whose bearer is not in the list hands out nothing",
-     granted_for(["Mont'ka"],
-                 {"Mont'ka": ("Exemplar of the Mont'ka", "Commander Farsight")})[0], [])
+
+# FOUR ATTACHMENTS (19.01), every one of them named by the user rather than
+# guessed: "Farsight in die Flamer Starsythe / Burst Cannon Coldstar in die
+# Burst Cannon Starsysthe / Missile Pod Enforcer in die Fireknife / Fusion
+# Enforcer in die Sunforge". All three commanders may lead all three Crisis
+# datasheets, so nothing in the rules picks between them - the pairing is a
+# LIST fact and is pinned by the WEAPONS, which is how the user named them.
+def _weapon_names(models):
+    return {w.name for m in models for w in m.weapons}
+
+
+_pairs = {}
+for _s in _rc:
+    _leaders = attached_units.leader_components(_s)
+    _bodies = attached_units.bodyguard_components(_s)
+    if _leaders and _bodies:
+        _pairs[(_bodies[0].datasheet.name,
+                _leaders[0].datasheet.name)] = (_weapon_names(_bodies[0].starting_models),
+                                                _weapon_names(_leaders[0].starting_models))
+
+
+def _pair(body, leader):
+    """The two weapon sets of one pairing, or two EMPTY sets if that pairing
+    was never formed. Indexing the dict directly would make a probe that
+    removes an attachment CRASH the suite rather than turn it red, and this
+    repo has recorded that failure enough times to have a rule about it."""
+    return _pairs.get((body, leader), (set(), set()))
+
+
+c.eq("four units are attached, and nothing else is",
+     sorted(_pairs), [
+         ("Crisis Fireknife Battlesuits", "Commander in Enforcer Battlesuit"),
+         ("Crisis Starscythe Battlesuits", "Commander Farsight"),
+         ("Crisis Starscythe Battlesuits", "Commander in Coldstar Battlesuit"),
+         ("Crisis Sunforge Battlesuits", "Commander in Enforcer Battlesuit"),
+     ])
+# The two Starscythe units are the SAME datasheet and differ only in their
+# guns, so a leader put on the wrong one is invisible to a name check.
+_body, _lead = _pair("Crisis Starscythe Battlesuits", "Commander Farsight")
+c.true("Farsight joins the FLAMER Starscythe", "T'au Flamer" in _body
+       and "Burst Cannon" not in _body)
+_body, _lead = _pair("Crisis Starscythe Battlesuits", "Commander in Coldstar Battlesuit")
+c.true("the Coldstar joins the BURST CANNON Starscythe", "Burst Cannon" in _body
+       and "T'au Flamer" not in _body)
+c.true("...and he is the burst-cannon Coldstar himself",
+       "High-output Burst Cannon" in _lead and "Burst Cannon" in _lead)
+# Likewise the two Enforcers: one datasheet, told apart only by its support
+# slots, so the pairing has to be read off the guns on both sides.
+_body, _lead = _pair("Crisis Fireknife Battlesuits", "Commander in Enforcer Battlesuit")
+c.true("the MISSILE POD Enforcer joins the Fireknife",
+       "Missile Pod" in _lead and "Fusion Blaster" not in _lead
+       and "Missile Pod" in _body)
+_body, _lead = _pair("Crisis Sunforge Battlesuits", "Commander in Enforcer Battlesuit")
+c.true("the FUSION Enforcer joins the Sunforge",
+       "Fusion Blaster" in _lead and "Missile Pod" not in _lead
+       and "Fusion Blaster" in _body)
+
+# The Enhancement rides with the missile-pod Enforcer into the Fireknife. It
+# is pinned at the MODEL, not the unit: after 19.01 the squad holds four
+# models, and "the unit carries it" would pass with it on a Fireknife suit.
+_bearers = [(s.name, m) for s in _rc
+            for m in E.enhancement_models(s, "Starflare Ignition System")]
+c.eq("its one Enhancement is carried by exactly one model", len(_bearers), 1)
+_bearer_unit, _bearer_weapons = (_bearers[0][0], _weapon_names([_bearers[0][1]])) \
+    if _bearers else ("(nobody)", set())
+c.eq("...in the unit the missile-pod Enforcer leads", _bearer_unit,
+     "1 Crisis Fireknife Battlesuits 1 + Commander in Enforcer Battlesuit")
+c.true("...and by the Enforcer himself, not one of his Fireknife suits",
+       "Missile Pod" in _bearer_weapons and "Twin Pulse Carbine" not in _bearer_weapons)
+
+# THE TWIN LANCE is the one character left standing alone, and that is its
+# DATASHEET rather than a forgotten pairing: it prints no LEADER line, so
+# leadable_unit_names() is empty and can_attach() would refuse every unit.
+_twin = next(s for s in _rc if "Twin Lance" in s.name)
+c.eq("The Twin Lance stands alone", attached_units.is_attached_unit(_twin), False)
+c.eq("...because its datasheet leads nothing",
+     attached_units.leadable_unit_names(_twin), ())
+c.eq("sixteen list entries become twelve units", len(_rc), 12)
+c.eq("...with the same 57 models either way",
+     sum(len(s.models) for s in _rc), 57)
+
+# THREE POINTS CORRECTIONS came out of transcribing it, and each is pinned
+# against the CORPUS rather than against a literal, so a GW update moves them.
+_corpus = io.open("rules/tau_empire/The Twin Lance.md", encoding="utf-8").read()
+c.true("The Twin Lance prints 230, which is what the engine now charges",
+       "| YOUR UNIT COSTS | 2 models | 230 |" in _corpus)
+c.eq("...and it does", t.THE_TWIN_LANCE.points_for(0, unit_index=1), 230)
+_corpus = io.open("rules/tau_empire/Crisis Starscythe Battlesuits.md", encoding="utf-8").read()
+c.true("Crisis Starscythe prints 100 / 110, not the 90 / 100 transcribed before",
+       "| YOUR 1ST TO 2ND UNITS COST | 3 models | 100 |" in _corpus
+       and "| YOUR 3RD + UNIT COSTS | 3 models | 110 |" in _corpus)
+
+# THE PER-WEAPON PRICE. The list prices the SAME datasheet twice, which is the
+# measurement that settles it: 130 with six T'au flamers, 100 with none.
+# Read off the BODYGUARD COMPONENT, not the merged squad - both Starscythe
+# units now carry an 80-point commander, and Squad.points is the sum of the
+# two. The component keeps its own price for exactly this kind of question.
+# It falls back to the squad when there is no component, so that a probe which
+# removes the attachments turns the checks below RED instead of crashing here.
+_ss = []
+for _s in _rc:
+    if "Starscythe" not in _s.name:
+        continue
+    _bodies = attached_units.bodyguard_components(_s)
+    _points = _bodies[0].points if _bodies else _s.points
+    _models = _bodies[0].starting_models if _bodies else _s.models
+    _ss.append((_points, sum(1 for m in _models for w in m.weapons
+                             if w.name == "T'au Flamer")))
+_ss.sort()
+c.eq("two Starscythe units, one all flamers and one none", _ss, [(100, 0), (130, 6)])
+c.eq("...so each flamer costs 5 on a base of 100",
+     (_ss[1][0] - _ss[0][0]) // _ss[1][1], 5)
+# ...and the printed DEFAULT, which carries three, therefore costs 115 - the
+# number the old "per swap" reading could not produce.
+c.eq("the printed default carries three and costs 115",
+     tk.build_squad(t.CRISIS_STARSCYTHE, "Player 1", name="x").points, 115)
+
+# ONLY TWO DATASHEETS ARE AFFECTED, and that is measured rather than asserted:
+# for every other priced option the printed default carries none of the weapon,
+# so per-swap and per-weapon agree. A third would have to be added on purpose.
+_per_weapon = []
+for _fac in (t.TAU_EMPIRE,):
+    for _ds in _fac.datasheets.values():
+        if getattr(_ds.points, "per_weapon", None):
+            _per_weapon.append(_ds.name)
+c.eq("exactly two datasheets price per weapon", sorted(_per_weapon),
+     ["Crisis Fireknife Battlesuits", "Crisis Starscythe Battlesuits"])
+c.true("...and neither charges the swap as well, which would double it",
+       not any(o.points for ds_name in _per_weapon
+               for o in (t.TAU_EMPIRE.datasheets[ds_name].wargear_options or ())))
+
+
+def _roster_signatures(key):
+    """One canonical string per roster entry of armies/<key>.json, ignoring the
+    `id` (which only exists so a passenger can name its carrier) and any `note`
+    (prose, not part of the list). Two entries with the same signature are the
+    same declaration."""
+    data = json.load(io.open("armies/%s.json" % key, encoding="utf-8"))
+    return [json.dumps({k: v for k, v in entry.items() if k not in ("id", "note")},
+                       sort_keys=True)
+            for entry in data["roster"]]
 
 
 # --- 10. Source guards ----------------------------------------------------
@@ -1171,9 +1564,37 @@ print("\n10. Source guards")
 # The grant reads the LIST's declared detachments, not config - preview_squads()
 # builds the army screen's tile before anything is applied to config.
 _army_src = io.open("game/army_lists.py", encoding="utf-8").read()
-c.true("the grant reads the list's own detachments",
-       "for detachment in get(TAU_ARMY).detachments:" in _army_src)
-c.true("...and not the config constants",
+# The grant happens where the units are BUILT, because that is the only place
+# that can tell two Cadre Fireblades apart - a lookup by datasheet finds the
+# first of each. And it still never reads config: preview_squads() builds the
+# army screen's tile before anything is applied there, so a config-driven grant
+# would make the screen's points disagree with the battle's.
+_roster_src = io.open("game/army_roster.py", encoding="utf-8").read()
+c.true("the grant runs at the build site",
+       "enhancements.grant(squad, entry.enhancement)" in _roster_src)
+c.true("...for the leaders too - a list may field more than one",
+       "enhancements.grant(leader_squad, spec.enhancement)" in _roster_src)
+c.true("...and BEFORE the merge, while the character is still his own squad",
+       _roster_src.find("PASS 2 - Enhancements") < _roster_src.find("PASS 3 - 19.01"))
+# EVERY LIST IS ITS OWN FILE, which inverts what this block used to assert.
+# Kauyon and the Prototypes list were once ONE _build_tau_roster() with a
+# different Enhancement table each, and the pair that proved the split is gone -
+# the Prototypes list was retired on user request. So the claim is now made
+# against the four that remain: no two of them share anything but a faction, and
+# nothing in army_lists.py builds a roster at all.
+#
+# The reason the duplication was accepted when the pair existed still stands and
+# is worth keeping written down: an army list is a DECLARATION, not code, and
+# under the shared builder editing the Kauyon Pathfinders silently edited the
+# Prototypes list too - coupling shaped like a bug.
+_tau_keys = [e.key for e in army_lists.lists_for("T'AU EMPIRE")]
+c.eq("the T'au ship four lists, each its own file", len(_tau_keys), 4)
+c.true("...and every one of them is on disk",
+       all(os.path.exists("armies/%s.json" % k) for k in _tau_keys))
+c.true("no list is built by a function in army_lists.py any more",
+       not [n for n in ast.walk(ast.parse(_army_src))
+            if isinstance(n, ast.FunctionDef) and n.name.startswith("build_")])
+c.true("...without reading the config constants",
        "player_has_detachment" not in _army_src)
 
 # Every one of the nineteen has a module that cites its printed rule, and gates
@@ -1219,8 +1640,14 @@ for _call in (
     "stratagem_controller.on_targets_chosen.append(\n        puretide_neurochip_controller.on_targets_chosen)",
     "admired_leader_controller.begin_command_phase(turn_tracker.turn_owner)",
     "enh_strategic_conqueror.offer(",
-    "enh_prototype_weapons.apply_all(state.all_squads(), game_log=game_log)",
-    "_student_of_kauyon_step.start(_player_squads(state, _owner), _owner)",
+    # _all_squads(), NOT state.all_squads()/_player_squads(): at Declare Battle
+    # Formations those read three containers that register_unit() deliberately
+    # leaves empty while PREGAME_DEPLOYMENT is on, so both of these steps used
+    # to be handed NOTHING and quietly upgraded/granted nothing at all.
+    # Reported: "experimental cadre waffen upgrades greifen alle nicht".
+    "enh_prototype_weapons.apply_all(",
+    "_all_squads(state, pregame_controller), game_log=game_log)",
+    "[s for s in _all_squads(state, pregame_controller) if s.owner == _owner]",
     # Prince Yriel's Prince of Corsairs fires at the SAME instant, and
     # PregameController has one redeploy_step slot - so main.py now chains the
     # two. What this pin has always been about is that Solid-image REACHES that
@@ -1249,5 +1676,268 @@ _driver = io.open("ai/agent_driver.py", encoding="utf-8").read()
 _leaks = [n for n in E.ENHANCEMENTS if n.lower() in _driver.lower()]
 c.eq("no Enhancement has an AI path in ai/agent_driver.py", _leaks, [])
 c.true("...and no enh_* module is imported there", "enh_" not in _driver)
+
+_SHOOTING_PATH = os.path.join("game", "shooting.py")
+
+
+# --- 11. The two that were only ever pinned by SUBSTRING -------------------
+print("\n11. Through a real ShootingController")
+
+# WHAT THIS CLOSES. Everything above drives rule modules and controllers
+# directly, which is the right level for a rule - but two of the nineteen
+# reach the engine through seams no direct call exercises, and for those the
+# only evidence was a string:
+#
+#     "enh_precision_patient_hunter.hit_bonus(model)" in _shooting_src
+#     "enh_prototype_weapon_system.attack_key(model)" in _shooting_src
+#
+# A substring holds while the call sits behind a condition that is never true,
+# while its result is discarded, and while _attack_key() groups the models back
+# together anyway. So this section builds a REAL ShootingController and asks
+# what it actually did - the same step the panel matrix is for the Stratagems.
+from game.shooting import ShootingController  # noqa: E402
+from game.dice import DiceManager  # noqa: E402
+from game.decision import DecisionManager  # noqa: E402
+from game.factions.orks import BOYZ  # noqa: E402
+from game import enh_precision_patient_hunter as PPH2  # noqa: E402
+from game import enh_prototype_weapon_system as PWS2  # noqa: E402
+from game.turn import PHASES, PHASE_SHOOTING, TurnTracker  # noqa: E402
+
+HUMAN2 = "Player 1"
+
+
+def _shoot_scene(bearer_sheet, name):
+    """A real controller over a real board: bearer at 10,10 and an enemy 8"
+    away - in range, out of Engagement Range."""
+    unit = tk.line_up(build(bearer_sheet, owner=HUMAN2, name=name), 10.0, 10.0)
+    foe = tk.line_up(build(BOYZ, owner="Player 2", name="2 Boyz 1"), 10.0, 18.0)
+    tokens = list(unit.models) + list(foe.models)
+    tracker = TurnTracker(first_player=HUMAN2)
+    tracker.phase_index = PHASES.index(PHASE_SHOOTING)
+    tracker.turn_owner = HUMAN2
+    tracker.active_player = HUMAN2
+    # ROUND 3. Precision of the Patient Hunter's wound half is "from the third
+    # battle round onwards", so a scene at round 2 would measure the rule
+    # correctly withholding it and read as a missing wire.
+    tracker.battle_round = 3
+    # BY KEYWORD, all of it: ShootingController's first positional is
+    # `obstacles`, not the token list. Handing it the tokens works right up
+    # until something asks for line of sight, and then a Token is asked for
+    # its .max_x - so a positional call here reads as a plausible scene and
+    # falls over the first time cover is computed.
+    ctrl = ShootingController(obstacles=[], game_log=tk.Log(),
+                              player_name=HUMAN2, dice_manager=DiceManager(),
+                              turn_tracker=tracker, all_tokens=tokens,
+                              decision_manager=DecisionManager())
+    return unit, foe, ctrl
+
+
+# --- Precision of the Patient Hunter, through _hit_modifiers() -------------
+# "+1 to the Hit roll" is a BETTER roll, so game/modifiers.py's convention
+# makes it a NEGATIVE adjustment to the threshold. Measured as the threshold
+# the controller really computes, not as the Modifier object the rule returns:
+# a rule that emitted the right object into a chain nothing reads would pass
+# the second and fail the first.
+_pph_unit, _pph_foe, _pph_ctrl = _shoot_scene(CADRE_FIREBLADE, "1 Cadre Fireblade 1")
+_pph_model = _pph_unit.models[0]
+_pph_weapon = next(w for w in _pph_model.weapons if getattr(w, "range_in", 0))
+
+
+def _group(model, weapon, target):
+    """The shape _hit_modifiers() reads: it takes the GROUP rule 04.03 rolls
+    together, not a loose (model, weapon, target) triple."""
+    return {"pairs": [(model, weapon)], "target_squad": target,
+            "shooter_squad": model.squad}
+
+
+with only("KAUYON_PLAYERS", players=(HUMAN2,)):
+    _g = _group(_pph_model, _pph_weapon, _pph_foe)
+    _before = _pph_ctrl._hit_modifiers(_g)
+    E.grant(_pph_unit, "Precision of the Patient Hunter", model=_pph_model)
+    _after = _pph_ctrl._hit_modifiers(_g)
+    _delta = sum(m.amount for m in _after) - sum(m.amount for m in _before)
+    c.eq("Precision reaches the real controller's hit modifiers", _delta, -1)
+    c.true("...and it is labelled, so a die can say where the bonus came from",
+           any("Precision" in (m.source or "") for m in _after))
+
+    # The same rule also feeds the WOUND step through the same module, and a
+    # fix wired to one and not the other is the shape this audit keeps finding.
+    # _wound_modifiers() reads the REPRESENTATIVE shooter off current_group,
+    # so the group has to be set the way a real activation sets it.
+    # active_squad AND current_group: _wound_modifiers() reads the first for
+    # the attacking unit and picks the representative shooter off the second.
+    _pph_ctrl.active_squad = _pph_unit
+    _pph_ctrl.current_group = _g
+    _wafter = _pph_ctrl._wound_modifiers(_pph_foe)
+    c.true("...and the wound step picks it up too",
+           any("Precision" in (m.source or "") for m in _wafter))
+    _pph_ctrl.current_group = None
+    _pph_ctrl.active_squad = None
+
+# THE GROUPING HALF, which is the one a substring cannot check at all. The
+# bonus is PER MODEL, and rule 04.03 groups identical attacks together - so
+# _attack_key() has to put a bearer in a DIFFERENT group from its squadmates,
+# or the group would resolve at one threshold for models that do not share one.
+from game.shooting import _attack_key  # noqa: E402
+
+# THE SHIPPED BEARER, not a constructed one. The printed BEARER line is
+# "T'AU EMPIRE model only" plus CHARACTER, so a plain Strike Team cannot carry
+# it - and the unit that CAN is one with a character leading squadmates, which
+# is exactly the shape the grouping question is about. The `tau` list already
+# puts it on a Cadre Fireblade leading a Breacher Team, so this drives that.
+_pph2_unit = next(s for s in army_lists.preview_squads("tau", "Player 1")
+                  if E.has(s, "Precision of the Patient Hunter"))
+_pph2_bearer = E.bearer_models(_pph2_unit, "Precision of the Patient Hunter")[0]
+_pph2_other = next(m for m in _pph2_unit.models if m is not _pph2_bearer)
+
+# INSIDE the detachment context: applies() goes through is_active(), which asks
+# whether the owner actually fields Kauyon - and preview_squads() deliberately
+# writes no config. Outside it every model reads bonus 0, which looks exactly
+# like a rule that never reached _attack_key().
+with only("KAUYON_PLAYERS", players=("Player 1",)):
+    c.true("the shipped bearer really leads squadmates", len(_pph2_unit.models) > 1)
+    c.true("...and it is a CHARACTER, as the printed BEARER line demands",
+           _pph2_bearer.profile.character)
+    c.eq("the bearer carries the hit bonus", PPH2.hit_bonus(_pph2_bearer), 1)
+    c.eq("...and its squadmates do not", PPH2.hit_bonus(_pph2_other), 0)
+    c.true("...so their attacks fall into DIFFERENT groups under rule 04.03",
+           _attack_key(_pph2_bearer, _pph2_bearer.weapons[0])
+           != _attack_key(_pph2_other, _pph2_other.weapons[0]))
+
+# ...and with the detachment off, the split disappears - the counter-proof that
+# the two keys above differ BECAUSE of the Enhancement and not because a
+# Fireblade and a Fire Warrior carry different guns anyway.
+with none_fielded():
+    c.eq("without Kauyon the bearer carries no bonus",
+         PPH2.hit_bonus(_pph2_bearer), 0)
+    _key_off = _attack_key(_pph2_bearer, _pph2_bearer.weapons[0])
+with only("KAUYON_PLAYERS", players=("Player 1",)):
+    _key_on = _attack_key(_pph2_bearer, _pph2_bearer.weapons[0])
+# THE DECISIVE ONE: the SAME model and the SAME weapon, keyed with the
+# detachment on and off. The comparison against a squadmate above could pass
+# because a Fireblade and a Fire Warrior carry different guns; this cannot -
+# nothing changes between the two lines except whether the Enhancement is live.
+c.true("the Enhancement itself is what changes the bearer's group key",
+       _key_on != _key_off)
+
+# --- Prototype Weapon System, through the activation window ----------------
+# Its choice lives on the TOKEN for one activation, so there are three things
+# to see and a substring sees none of them: the window opens, the adjusted
+# weapon really carries the chosen keyword, and the window closes again.
+_pws_unit, _pws_foe, _pws_ctrl = _shoot_scene(COMMANDER_IN_COLDSTAR_BATTLESUIT,
+                                              "1 Commander in Coldstar Battlesuit 1")
+_pws_model = _pws_unit.models[0]
+_pws_weapon = next(w for w in _pws_model.weapons if getattr(w, "range_in", 0))
+with only("RETALIATION_CADRE_PLAYERS", players=(HUMAN2,)):
+    E.grant(_pws_unit, "Prototype Weapon System", model=_pws_model)
+    c.true("no choice is standing before the unit is selected to shoot",
+           getattr(_pws_model, "prototype_weapon_choice", None) is None)
+    _pws_model.prototype_weapon_choice = PWS2.LETHAL_HITS
+    _adj = PWS2.adjusted_weapon(_pws_weapon, _pws_model)
+    c.true("the chosen keyword lands on the weapon the shooting step uses",
+           _adj.lethal_hits and not _pws_weapon.lethal_hits)
+    c.true("...on a COPY, so the shared profile is never mutated",
+           _adj is not _pws_weapon)
+    # And the grouping half again: the choice is per model.
+    c.true("the bearer's attacks carry its choice into the group key",
+           PWS2.attack_key(_pws_model) != PWS2.attack_key(_pws_foe.models[0]))
+
+
+# --- 12. What each shipped list SAYS it buys, against what LANDS ------------
+print("\n12. The four lists: file against reality")
+
+# Newly possible after the army-list rework: ArmyList.enhancement_names() reads
+# what the roster FILE buys, while E.granted_names() reads what actually ended
+# up on a model. Either one alone is half an answer - a list that names an
+# Enhancement nothing grants looks fine from the file, and a grant nobody asked
+# for looks fine from the board. Set equality per list is the whole assertion,
+# and it needs no table here to drift.
+# DERIVED, not written down: a list arriving or being retired should cost this
+# block nothing. A hardcoded tuple here is the same shape of second copy the
+# army-list rework existed to remove, and it would fail as a KeyError - which is
+# a crash, not a diagnosable check.
+_TAU_LIST_KEYS = tuple(e.key for e in army_lists.lists_for("T'AU EMPIRE"))
+_all_granted = set()
+for _key in _TAU_LIST_KEYS:
+    _entry = army_lists.get(_key)
+    _said = sorted(_entry.enhancement_names())
+    _landed = sorted(n for s in army_lists.preview_squads(_key, "Player 1")
+                     for n in E.granted_names(s))
+    _all_granted |= set(_landed)
+    c.eq("%s grants exactly what its roster file buys" % _key, _landed, _said)
+    c.true("...and every one of them is a registered Enhancement" % (),
+           all(n in E.ENHANCEMENTS for n in _landed))
+
+c.true("the four lists between them really buy something", len(_all_granted) > 0)
+
+
+# --- 13. The seven no shipped list buys ------------------------------------
+print("\n13. Dormant by roster, named rather than assumed")
+
+# DORMANT BY CONSTRUCTION, not broken: every one of the nineteen is wired and
+# tested above, and these seven simply have no carrier on the table. Which
+# Enhancements a list buys is the LIST's statement, so this is pinned as a
+# measured fact rather than "fixed" by inventing roster content - the same
+# treatment the Experimental Prototype Cadre trio had before a list bought its
+# three weapons, and the same the Aeldari twenty-eight have now.
+#
+# DERIVED, not transcribed: the dormant set is the registry minus what section
+# 12 measured. A hand-written list of seven names would be a second copy of a
+# fact that already exists, and it would go stale the moment a list bought one.
+# Scoped to the T'AU nineteen through TAU_SPECS - the same scoping section 1
+# uses. ALL_SETTINGS spans every faction in the registry, so filtering on it
+# would sweep the Aeldari twenty-eight in here as well and this section would
+# be reporting a different fact than its heading claims.
+_TAU_NAMES = set(TAU_SPECS)
+_tau_dormant = sorted(_TAU_NAMES - _all_granted)
+
+c.eq("nine of the nineteen T'au Enhancements have no carrier", len(_tau_dormant), 9)
+c.eq("...and these are they", _tau_dormant, sorted([
+    "Admired Leader", "Coordinated Exploitation", "Exemplar of the Mont'ka",
+    "Internal Grenade Racks", "Prototype Weapon System",
+    "Puretide Engram Neurochip", "Strike Swiftly", "Student of Kauyon",
+    "Supernova Launcher"]))
+c.eq("...so ten DO have one", len(_TAU_NAMES) - len(_tau_dormant), 10)
+
+# Each with its reason, and the reason is checkable rather than remembered.
+_by_det = {}
+for _n in _tau_dormant:
+    _by_det.setdefault(E.get(_n).detachment, []).append(_n)
+c.eq("three are Retaliation Cadre's, whose list buys only Starflare",
+     sorted(_by_det.get("Retaliation Cadre", [])),
+     ["Internal Grenade Racks", "Prototype Weapon System",
+      "Puretide Engram Neurochip"])
+c.eq("three are Mont'ka's, dropped when that roster was replaced",
+     sorted(_by_det.get("Mont'ka", [])),
+     ["Coordinated Exploitation", "Exemplar of the Mont'ka", "Strike Swiftly"])
+# TWO went dormant together when the Prototypes list was retired: its Ethereal
+# carried Admired Leader and one of its three Coldstars the Supernova Launcher.
+# The Recon list fields Experimental Prototype Cadre too and buys the other two
+# weapon Enhancements, so only the Launcher lost its bearer there.
+c.eq("two are Auxiliary Cadre's - no list fields a Kroot Shaper, and the "
+     "Ethereal that carried Admired Leader went with the Prototypes list",
+     sorted(_by_det.get("Auxiliary Cadre", [])),
+     ["Admired Leader", "Student of Kauyon"])
+c.eq("...and one is Experimental Prototype Cadre's, for the same reason",
+     sorted(_by_det.get("Experimental Prototype Cadre", [])), ["Supernova Launcher"])
+c.true("...which is what its BEARER line asks for",
+       "KROOT SHAPER" in E.get("Student of Kauyon").bearer_text)
+
+# Dormant is about the ROSTER, not the wiring: each of the seven still grants
+# and still activates when a unit that can bear it is given one by hand. Without
+# this the section above would read as "seven are broken".
+for _n in _tau_dormant:
+    _spec = E.get(_n)
+    # "KROOT SHAPER model only" wants a Shaper; "excluding KROOT SHAPER
+    # models" wants anything but one - and a substring test for "KROOT SHAPER"
+    # reads them as the same requirement, which picks the one model the second
+    # forbids.
+    _sheet = (KROOT_FLESH_SHAPER
+              if _spec.bearer_text.startswith("KROOT SHAPER")
+              else COMMANDER_IN_COLDSTAR_BATTLESUIT)
+    _u = build(_sheet, owner="Player 2", name="dormant %s" % _n)
+    E.grant(_u, _n)
+    with only(_spec.setting):
+        c.true("%s is dormant by roster, not by wiring" % _n, E.is_active(_u, _n))
 
 c.finish()

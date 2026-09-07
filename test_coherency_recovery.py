@@ -357,7 +357,13 @@ ok("the AI does not answer a removal that belongs to the other player",
    and enf.pending_squad is boyz)
 
 # Wiring: it has to be checked BEFORE _is_blocked(), or it can never run.
-src = inspect.getsource(agent_driver.take_one_action)
+#
+# _take_one_action, not take_one_action: the public name is now a thin wrapper
+# that absorbs an unreachable agent (see ai/connection.py), so the body this
+# claim is about moved one function down. Reading the wrapper instead would
+# make this check pass on an empty search - which is what it did the moment
+# the wrapper appeared.
+src = inspect.getsource(agent_driver._take_one_action)
 ok("take_one_action() resolves the removal before _is_blocked()",
    "if _maybe_resolve_coherency_removal(" in src
    and src.index("if _maybe_resolve_coherency_removal(") < src.index("if _is_blocked("))

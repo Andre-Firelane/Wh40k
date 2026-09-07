@@ -2,7 +2,7 @@ import pygame
 
 from game import config
 from game.missions import PRIMARY_MISSION_NAME, PRIMARY_MISSION_TEXT
-from game.ui.text_utils import draw_wrapped_text, wrapped_text_height
+from game.ui.text_utils import draw_wrapped_text, split_paragraphs, wrapped_text_height
 
 # Layout. A card is now a full-width HORIZONTAL bar, stacked with the others
 # and expanding its HEIGHT on hover - user: "Aendere das Layout vielleicht noch
@@ -16,8 +16,27 @@ from game.ui.text_utils import draw_wrapped_text, wrapped_text_height
 # title rendered rotated 90 degrees because a sliver is too narrow to read
 # horizontally. That does not scale - four cards already took 648px of height,
 # and a Secondary hand has no size limit at all.
-CARD_WIDTH = 250
-BAR_HEIGHT = 28           # a collapsed card: one readable title row
+#
+# WIDTH and TEXT SIZE are both up from the first version (250px / FONT_SIZE-4),
+# and the info block is laid out in two real columns - user: "auch auf den
+# missionskarten. die sind gerade sehr schwer lesbar. die sollten etwas
+# aufgeraeumter und besser lesbarer sein."
+#
+# The measured cause was not the size alone. The info rows were single strings
+# with their value pushed across by spaces ("WHEN     end of your turn"), which
+# only lines up in a monospace font - and config.FONT_NAME is None, pygame's
+# proportional default ("WWWW" 37px, "iiii" 12px). On top of that wrap_text()
+# splits on spaces, so the one row long enough to wrap (measured 323px against
+# a 226px card) lost its indent entirely and read as a new sentence. Hence
+# info_rows(): the label gets its own column and the value wraps inside the
+# other one, so a wrapped continuation still lines up under its own value.
+#
+# Widened again for the SCORING TABLE (user: "vielleicht eine kleine tablle /
+# Was | Wann | VP"). Three columns need the room: the WHEN column carries "end
+# of your Command phase, round 2 onward", and squeezing that into 150px turned
+# every row into four lines.
+CARD_WIDTH = 360
+BAR_HEIGHT = 30           # a collapsed card: one readable title row
 BAR_GAP = 4               # normal gap between two bars
 MIN_BAR_OVERLAP_STEP = 12  # shingled: the least of a bar that stays visible when the hand is too tall to lay out flat
 BOTTOM_MARGIN = 26        # gap between the lowest bar and the left panel's own bottom edge
@@ -27,6 +46,17 @@ SLIDE_LERP = 0.25         # per-frame interpolation factor toward the hover targ
 CARD_PADDING = 12
 TITLE_GAP = 4
 BODY_GAP = 6
+LINE_SPACING = 3          # extra leading inside a wrapped paragraph
+INFO_LABEL_WIDTH = 78     # left column of the info block
+INFO_COLUMN_GAP = 6
+INFO_ROW_GAP = 3
+RULE_INSET = 2            # how far a separator line sits inside the padding
+# The scoring table: WHAT | WHEN | VP. VP is right-aligned in a fixed column so
+# the numbers line up as a column of numbers, which is the point of a table.
+SCORE_WHAT_WIDTH = 76
+SCORE_VP_WIDTH = 52
+SCORE_HEADER_GAP = 3
+PARAGRAPH_GAP = 5         # between two sentences of the printed prose
 TEXT_REVEAL_MARGIN = 6    # below (bar + this) don't bother rendering the body mid-slide
 
 CARD_BG_COLOR = (14, 20, 30)
@@ -38,6 +68,8 @@ CARD_READY_COLOR = (140, 245, 160)   # a Secondary whose cash-in prompt is open 
 CARD_TIMING_COLOR = (135, 160, 185)  # muted: WHEN a Secondary is checked, not a claim that it is met
 CARD_DETAIL_COLOR = (255, 205, 120)  # a card's WHEN DRAWN choice (which objective, which unit)
 CARD_INFO_COLOR = (150, 195, 225)    # the facts the printed prose does not carry - timing, action, draw clause
+CARD_INFO_LABEL_COLOR = (120, 155, 185)  # the label column, one step back from its own value
+TITLE_RULE_COLOR = (52, 70, 90)      # hairline between the metadata, the printed text, and the detail
 
 # Same fixed per-player identity color as the objective-control markers on the
 # board (renderer.py's OBJECTIVE_COLORS) - duplicated here rather than
@@ -62,7 +94,7 @@ SECONDARY = "Secondary"
 
 class _MissionCard:
     def __init__(self, player, category, title, text, status=None, status_color=None,
-                 detail=None, info=()):
+                 detail=None, info=(), scoring=()):
         self.player = player       # whose progress this card is about
         self.category = category   # "Primary"/"Secondary"
         self.title = title
@@ -73,11 +105,16 @@ class _MissionCard:
         # body. Not appended to `text`: wrap_text() splits on spaces, so an
         # embedded newline would not start a new line at all.
         self.detail = detail
-        # Short "LABEL  value" rows shown above the body - see
-        # SecondaryMissionCard.info_lines(). The timing is the one that was
+        # (LABEL, value) rows shown above the body - see
+        # SecondaryMissionCard.info_rows(). The timing is the one that was
         # genuinely missing: it lives on the collapsed bar, so opening a card
         # used to HIDE it.
-        self.info = list(info)
+        self.info = [tuple(row) for row in info]
+        # (WHAT, WHEN, VP) triples - the little rate card. Its own list rather
+        # than three-column `info` rows, because these are a different KIND of
+        # row: `info` is one-off facts about the card, this repeats per scoring
+        # box and is the only place the VP appear outside the prose.
+        self.scoring = [tuple(row) for row in scoring]
         self.height = float(BAR_HEIGHT)    # animated, collapsed by default
 
 
@@ -115,14 +152,17 @@ class MissionCardsOverlay:
     def __init__(self):
         self.title_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE - 1, bold=True)
         self.category_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE - 5, bold=True)
-        self.body_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE - 4)
+        self.body_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE - 3)
+        self.info_label_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE - 5, bold=True)
         self.status_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE - 4, bold=True)
         self._cards = []          # rebuilt every frame from live state - see _build_cards()
         self._heights = {}        # card key -> animated height, so it survives the rebuild
+        self._last_content_bottom = None  # y the last expanded card's content really reached
 
     # ------------------------------------------------------------- contents
 
-    def _build_cards(self, player, mission_controller, secondary_controller):
+    def _build_cards(self, player, mission_controller, secondary_controller,
+                     primary_controller=None):
         """One bar per mission actually in play for `player`, built from live
         state rather than from a hard-coded list: the hand changes every round,
         so a fixed card list would go stale the moment a card is drawn or
@@ -131,10 +171,38 @@ class MissionCardsOverlay:
         primary_points = 0
         if mission_controller is not None:
             primary_points = mission_controller.primary_points.get(player, 0)
-        cards.append(_MissionCard(
-            player, PRIMARY, PRIMARY_MISSION_NAME, PRIMARY_MISSION_TEXT,
-            status=f"{primary_points} pts", status_color=CARD_SCORE_COLOR,
-        ))
+        # WHICH Primary is on the strip depends on the player: whoever runs a
+        # Force Disposition Primary (config.PRIMARY_MISSION_CARD_PLAYERS) sees
+        # that card, everyone else still sees "Hold the Line". Read off the
+        # controller rather than off the module constants, because the answer
+        # is a property of the army list and changes with it.
+        #
+        # A Primary bar carries the same detail line and info rows a Secondary
+        # does. It needs them more, in fact: its several boxes each have their
+        # own instant and round band, and none of that survives into the
+        # paragraph of prose below.
+        #
+        # `primary_controller.player == player` is not belt and braces: the
+        # strip's own `player` falls back through the Secondary deck and then
+        # through config, so the two CAN differ - and showing one player's
+        # mission under the other's heading is worse than showing none.
+        owns_it = (primary_controller is not None
+                   and primary_controller.player == player
+                   and primary_controller.plays_card)
+        mission = primary_controller.mission if owns_it else None
+        if owns_it and mission:
+            cards.append(_MissionCard(
+                player, PRIMARY, mission.name, mission.text,
+                status=f"{primary_points} pts", status_color=CARD_SCORE_COLOR,
+                detail=primary_controller.detail(),
+                info=mission.info_rows(),
+                scoring=mission.scoring_rows(),
+            ))
+        else:
+            cards.append(_MissionCard(
+                player, PRIMARY, PRIMARY_MISSION_NAME, PRIMARY_MISSION_TEXT,
+                status=f"{primary_points} pts", status_color=CARD_SCORE_COLOR,
+            ))
         if secondary_controller is None:
             return cards
         # A Secondary's bar shows WHEN it is checked ("end of your turn"), and
@@ -164,7 +232,7 @@ class MissionCardsOverlay:
                 player, SECONDARY, card.name, card.text,
                 status=status, status_color=color,
                 detail=secondary_controller.detail_for(card),
-                info=card.info_lines(),
+                info=card.info_rows(),
             ))
         return cards
 
@@ -216,29 +284,100 @@ class MissionCardsOverlay:
             for card, top in zip(cards, tops)
         ]
 
+    def _line_height(self):
+        """Leading inside a wrapped paragraph. Up from +2 to +LINE_SPACING:
+        the body font grew, and tightly-set small text over a dark card is
+        most of what "schwer lesbar" describes."""
+        return self.body_font.get_height() + LINE_SPACING
+
+    def _info_value_width(self):
+        return CARD_WIDTH - 2 * CARD_PADDING - INFO_LABEL_WIDTH - INFO_COLUMN_GAP
+
+    def _info_height(self, card):
+        """Height of the two-column info block, measured against the SAME
+        wrapping _draw_info() uses - a value that needs two lines has to push
+        the body down, not be drawn over it."""
+        if not card.info:
+            return 0
+        line_height = self._line_height()
+        height = 0
+        for label, value in card.info:
+            rows = max(
+                wrapped_text_height(self.body_font, value, self._info_value_width(),
+                                    line_height=line_height),
+                line_height,
+            )
+            height += rows + INFO_ROW_GAP
+        return height
+
+    def _score_when_width(self):
+        return (CARD_WIDTH - 2 * CARD_PADDING - SCORE_WHAT_WIDTH - SCORE_VP_WIDTH
+                - 2 * INFO_COLUMN_GAP)
+
+    def _scoring_height(self, card):
+        """Height of the WHAT | WHEN | VP table, measured against the SAME
+        wrapping _draw_scoring() uses - the WHEN cell is the one that wraps, and
+        a row measured as one line while it draws three overruns everything
+        below it."""
+        if not card.scoring:
+            return 0
+        line_height = self._line_height()
+        height = self.info_label_font.get_height() + SCORE_HEADER_GAP
+        for _what, when, _vp in card.scoring:
+            height += max(
+                wrapped_text_height(self.body_font, when, self._score_when_width(),
+                                    line_height=line_height),
+                line_height,
+            ) + INFO_ROW_GAP
+        return height
+
+    def _paragraphs(self, card):
+        """The printed text as separate sentences. LOSSLESS - see
+        text_utils.split_paragraphs(); not one word changes, they are only set
+        as separate blocks so the scoring clauses can be told apart."""
+        return split_paragraphs(card.text)
+
+    def _prose_height(self, card):
+        text_width = CARD_WIDTH - 2 * CARD_PADDING
+        line_height = self._line_height()
+        paragraphs = self._paragraphs(card)
+        height = sum(wrapped_text_height(self.body_font, p, text_width,
+                                         line_height=line_height)
+                     for p in paragraphs)
+        return height + PARAGRAPH_GAP * max(0, len(paragraphs) - 1)
+
     def _full_height(self, card):
         """The height this card wants when expanded - measured from its own
         wrapped text, so a long mission does not get clipped and a short one
         does not leave a hole."""
         text_width = CARD_WIDTH - 2 * CARD_PADDING
-        line_height = self.body_font.get_height() + 2
-        height = (BAR_HEIGHT + BODY_GAP
-                  + wrapped_text_height(self.body_font, card.text, text_width,
-                                        line_height=line_height))
-        for line in card.info:
-            height += wrapped_text_height(self.body_font, line, text_width,
-                                          line_height=line_height)
+        line_height = self._line_height()
+        height = BAR_HEIGHT + BODY_GAP
+        # Both blocks end with a trailing INFO_ROW_GAP inside their own height,
+        # and the drawing spends it as part of the run-up to the separator rule
+        # (`y += BODY_GAP - INFO_ROW_GAP`, then the rule, then BODY_GAP). Adding
+        # two full BODY_GAPs here instead double-counted it and left the card
+        # 3px too tall per block - harmless on screen, but it means the
+        # prediction and the drawing disagree, and that is the one thing this
+        # layout cannot afford (see _last_content_bottom).
+        block_gap = BODY_GAP + BODY_GAP - INFO_ROW_GAP
         if card.info:
-            height += BODY_GAP
+            # info block, then a separator rule
+            height += self._info_height(card) + block_gap
+        if card.scoring:
+            # scoring table, then a separator rule before the printed prose
+            height += self._scoring_height(card) + block_gap
+        height += self._prose_height(card)
         if card.detail:
-            height += BODY_GAP + wrapped_text_height(
+            height += BODY_GAP + BODY_GAP + wrapped_text_height(
                 self.body_font, card.detail, text_width, line_height=line_height)
         return float(height + CARD_PADDING)
 
     # ---------------------------------------------------------------- draw
 
     def draw(self, surface, left_panel_rect, mission_controller=None,
-             secondary_controller=None, player=None, mouse_pos=None):
+             secondary_controller=None, player=None, mouse_pos=None,
+             primary_controller=None):
         """`player` defaults to the secondary controller's own player, else to
         the first player configured for the card deck, else Player 1 - so the
         strip always shows somebody's Primary even with the deck switched off
@@ -250,7 +389,8 @@ class MissionCardsOverlay:
                 deck_players = config.SECONDARY_MISSION_CARD_PLAYERS
                 player = deck_players[0] if deck_players else "Player 1"
 
-        cards = self._build_cards(player, mission_controller, secondary_controller)
+        cards = self._build_cards(player, mission_controller, secondary_controller,
+                                  primary_controller)
         # Carry each card's animated height across the per-frame rebuild, and
         # drop the entries of cards that have left the hand so the dict cannot
         # grow for the whole battle.
@@ -337,25 +477,109 @@ class MissionCardsOverlay:
             body_y = rect.y + BAR_HEIGHT
             pygame.draw.line(surface, border_color,
                              (rect.x + CARD_PADDING, body_y), (rect.right - CARD_PADDING, body_y))
+            line_height = self._line_height()
             y = body_y + BODY_GAP
-            for line in card.info:
-                y = draw_wrapped_text(
-                    surface, self.body_font, line, CARD_INFO_COLOR,
-                    text_x, y, text_width,
-                    line_height=self.body_font.get_height() + 2,
-                )
             if card.info:
+                y = self._draw_info(surface, rect, text_x, y, card, line_height)
+                # A rule between the metadata and the PRINTED text. Without it
+                # the two run together as one block of prose, which is what
+                # made the card hard to skim: a player looking for "when does
+                # this score" had to read the mission text to find out where
+                # the answer stopped.
+                y += BODY_GAP - INFO_ROW_GAP
+                pygame.draw.line(
+                    surface, TITLE_RULE_COLOR,
+                    (rect.x + CARD_PADDING + RULE_INSET, y),
+                    (rect.right - CARD_PADDING - RULE_INSET, y))
                 y += BODY_GAP
-            y = draw_wrapped_text(
-                surface, self.body_font, card.text, CARD_TEXT_COLOR,
-                text_x, y, text_width,
-                line_height=self.body_font.get_height() + 2,
-            )
-            if card.detail:
-                draw_wrapped_text(
-                    surface, self.body_font, card.detail, CARD_DETAIL_COLOR,
-                    text_x, y + BODY_GAP, text_width,
-                    line_height=self.body_font.get_height() + 2,
+            if card.scoring:
+                y = self._draw_scoring(surface, rect, text_x, y, card, line_height)
+                y += BODY_GAP - INFO_ROW_GAP
+                pygame.draw.line(
+                    surface, TITLE_RULE_COLOR,
+                    (rect.x + CARD_PADDING + RULE_INSET, y),
+                    (rect.right - CARD_PADDING - RULE_INSET, y))
+                y += BODY_GAP
+            # The printed text, one block per sentence. Same words, set apart -
+            # user: "so im fliesstext ist die information sehr unuebersichtlich".
+            for index, paragraph in enumerate(self._paragraphs(card)):
+                if index:
+                    y += PARAGRAPH_GAP
+                y = draw_wrapped_text(
+                    surface, self.body_font, paragraph, CARD_TEXT_COLOR,
+                    text_x, y, text_width, line_height=line_height,
                 )
+            if card.detail:
+                y += BODY_GAP
+                pygame.draw.line(
+                    surface, TITLE_RULE_COLOR,
+                    (rect.x + CARD_PADDING + RULE_INSET, y),
+                    (rect.right - CARD_PADDING - RULE_INSET, y))
+                y = draw_wrapped_text(
+                    surface, self.body_font, card.detail, CARD_DETAIL_COLOR,
+                    text_x, y + BODY_GAP, text_width, line_height=line_height,
+                )
+            # Where the content actually ended. _full_height() predicts this
+            # BEFORE drawing, and if the two disagree the card silently clips
+            # its own last line - the failure this layout is most exposed to,
+            # because a wrapped info value changes the height of everything
+            # below it. Recorded rather than recomputed so a test can compare
+            # the prediction against the drawing.
+            self._last_content_bottom = y
 
         surface.set_clip(prev_clip)
+
+    def _draw_info(self, surface, rect, text_x, y, card, line_height):
+        """The metadata block as two real columns: LABEL on the left, value
+        wrapped in its own column on the right.
+
+        This replaces space-padded single strings, which never lined up (the
+        default font is proportional) and whose one long row lost its indent
+        entirely when it wrapped. Now a wrapped continuation stays inside the
+        value column, so the block reads as a table."""
+        value_x = text_x + INFO_LABEL_WIDTH + INFO_COLUMN_GAP
+        value_width = self._info_value_width()
+        for label, value in card.info:
+            label_surf = self.info_label_font.render(label, True, CARD_INFO_LABEL_COLOR)
+            # Baselines: the label font is smaller than the value font, so it
+            # is nudged down to sit on the value's first line rather than
+            # floating above it.
+            surface.blit(label_surf, (
+                text_x, y + max(0, (self.body_font.get_height()
+                                    - self.info_label_font.get_height()) // 2)))
+            end_y = draw_wrapped_text(
+                surface, self.body_font, value, CARD_INFO_COLOR,
+                value_x, y, value_width, line_height=line_height,
+            )
+            y = max(end_y, y + line_height) + INFO_ROW_GAP
+        return y
+
+    def _draw_scoring(self, surface, rect, text_x, y, card, line_height):
+        """The WHAT | WHEN | VP table, with a header row.
+
+        The header is what makes it read as a table rather than as three more
+        metadata rows - and the VP column is right-aligned in a fixed column so
+        the numbers form a column of numbers, which is the entire reason for
+        pulling them out of the prose."""
+        when_x = text_x + SCORE_WHAT_WIDTH + INFO_COLUMN_GAP
+        vp_right = rect.right - CARD_PADDING
+
+        for label, x in (("WHAT", text_x), ("WHEN", when_x)):
+            surface.blit(self.info_label_font.render(label, True, CARD_INFO_LABEL_COLOR), (x, y))
+        vp_head = self.info_label_font.render("VP", True, CARD_INFO_LABEL_COLOR)
+        surface.blit(vp_head, (vp_right - vp_head.get_width(), y))
+        y += self.info_label_font.get_height() + SCORE_HEADER_GAP
+        pygame.draw.line(surface, TITLE_RULE_COLOR,
+                         (text_x, y - 2), (vp_right, y - 2))
+
+        for what, when, vp in card.scoring:
+            what_surf = self.body_font.render(what, True, CARD_INFO_COLOR)
+            surface.blit(what_surf, (text_x, y))
+            end_y = draw_wrapped_text(
+                surface, self.body_font, when, CARD_TIMING_COLOR,
+                when_x, y, self._score_when_width(), line_height=line_height,
+            )
+            vp_surf = self.body_font.render(vp, True, CARD_SCORE_COLOR)
+            surface.blit(vp_surf, (vp_right - vp_surf.get_width(), y))
+            y = max(end_y, y + line_height) + INFO_ROW_GAP
+        return y

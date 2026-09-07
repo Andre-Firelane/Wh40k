@@ -219,13 +219,27 @@ planning_i = main_src.rindex("if ai_memory.is_planning:")
 planning_body = main_src[planning_i:main_src.index("pygame.display.flip()", planning_i)]
 c.true("planning badge pulses (it is redrawn every frame)", "pulse=True" in planning_body)
 c.true("planning badge dims the panels too", "dim_rects=ai_busy_dim_rects" in planning_body)
-# AUTO-PLAY is a MODE, not a wait, and no longer a badge at all - User: "das
-# Riesenlabel brauchen wir nicht ... als Riesenlabel brauchen wir nur das
-# Claude is thinking".
-autoplay_body = planning_body[planning_body.index("elif ai_auto_play:"):]
-c.eq("AUTO-PLAY draws the dot", autoplay_body.count("draw_auto_play_dot("), 1)
-c.eq("...and no badge of its own", autoplay_body.count("ai_busy_badge.draw("), 0)
-c.eq("...and never dims the panels", autoplay_body.count("dim_rects="), 0)
+# The AI MODE is not a wait and not a badge - it is a switch, drawn every
+# frame in both states, OUTSIDE the busy-badge chain. It used to be an `elif`
+# on that chain, which is how it came to be drawn only while it was on.
+switch_body = planning_body[planning_body.index("draw_ai_mode_toggle("):]
+c.eq("the switch is not a badge", switch_body.count("ai_busy_badge.draw("), 0)
+c.eq("...and never dims the panels", switch_body.count("dim_rects="), 0)
+c.eq("the old auto-play dot is gone for good",
+     main_src.count("draw_auto_play_dot("), 0)
+c.eq("...and so is the local flag it was drawn from",
+     main_src.count("ai_auto_play ="), 0)
+# Drawn unconditionally: an `elif` here is exactly what made the control
+# invisible - and therefore unclickable - in the state you need it in.
+# Not merely "outside the elif": the assignment itself must be a bare call.
+# An A/B probe wrote `ai_toggle_rect = ai_mode.enabled() and draw_ai_mode_toggle(`
+# and this section stayed green - a control that is only drawn while it is on
+# is a control you cannot click to turn on, which is the whole defect.
+c.true("the switch is drawn unconditionally",
+       re.search(r"\n\s*ai_toggle_rect = draw_ai_mode_toggle\(", main_src) is not None)
+c.true("the switch is not a branch of the busy-badge chain",
+       "elif" not in planning_body[planning_body.index("ai_busy_badge.draw("):
+                                   planning_body.index("draw_ai_mode_toggle(")])
 
 # The two big badges share one corner, and the thinking flash lands on top of
 # an already-drawn frame - so it must stand down while the planning badge is up
@@ -252,41 +266,101 @@ badge_src = io.open("game/ui/ai_busy_badge.py", encoding="utf-8").read()
 c.true("the badge uses it too", "button_style.draw_glow(" in badge_src)
 
 
-# --------------------------------------------------- 6. the AUTO-PLAY dot
-section("6. AUTO-PLAY dot")
+# ------------------------------------------------- 6. the AI-MODE switch
+section("6. AI mode switch")
 
-from game.ui.ai_busy_badge import AUTO_PLAY_DOT_RADIUS, draw_auto_play_dot
+# User: "auesserdem waere ein toggle in der oberflaeche gut fuer den KI Modus.
+# vielleicht dort, wo jetzt der rote punkt ist." It replaced a dot that was
+# only drawn while the mode was ON - so there was nothing to click to turn it
+# back on, which is the defect a light has and a switch does not.
+from game.ui.ai_busy_badge import (  # noqa: E402
+    AI_TOGGLE_LABEL, AI_TOGGLE_WIDTH, ai_mode_toggle_rect, draw_ai_mode_toggle,
+)
+
+toggle_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE, bold=True)
 
 surf = fresh_surface()
-center = draw_auto_play_dot(surf, BOARD)
+on_rect = draw_ai_mode_toggle(surf, BOARD, True, toggle_font, mouse_pos=(-99, -99))
 
-c.true("dot sits in the board's TOP-RIGHT corner",
-       center[0] > BOARD.centerx and center[1] < BOARD.centery)
+c.true("the switch sits in the board's TOP-RIGHT corner",
+       on_rect.centerx > BOARD.centerx and on_rect.centery < BOARD.centery)
 c.true("...inside the board, not under a side panel",
-       BOARD.collidepoint(center) and not RIGHT.collidepoint(center) and not LEFT.collidepoint(center))
-c.true("dot is actually red", surf.get_at(center)[0] > 150 and surf.get_at(center)[1] < 100)
+       BOARD.contains(on_rect) and not RIGHT.colliderect(on_rect)
+       and not LEFT.colliderect(on_rect))
 
-# The whole point of moving it: the flashed badge draws over an already-drawn
-# frame, so the two must not be able to share pixels.
+# DRAWN IN BOTH STATES - the whole reason it is a switch and not a light.
+off_surf = fresh_surface()
+off_rect = draw_ai_mode_toggle(off_surf, BOARD, False, toggle_font, mouse_pos=(-99, -99))
+c.eq("...and in exactly the same place when it is OFF", off_rect, on_rect)
+
+
+def _ink(surface, rect):
+    return sum(1 for x in range(rect.x, rect.right) for y in range(rect.y, rect.bottom)
+               if surface.get_at((x, y))[:3] != (0, 0, 0))
+
+
+c.true("something is drawn when the mode is ON", _ink(surf, on_rect) > 100)
+c.true("...and when it is OFF too", _ink(off_surf, off_rect) > 100)
+
+# The two states must be TELLABLE APART, and not by colour alone: the knob
+# slides to the other side of its track, which is the one cue that survives a
+# greyscale print. Measured as "which half of the row carries more ink", the
+# same way test_toggle_switches.py argues it for the left panel's switches.
+def _grey_halves(surface, rect):
+    left = right = 0
+    for x in range(rect.x, rect.right):
+        for y in range(rect.y, rect.bottom):
+            r, g, b = surface.get_at((x, y))[:3]
+            grey = (r * 299 + g * 587 + b * 114) // 1000
+            if x < rect.centerx:
+                left += grey
+            else:
+                right += grey
+    return left, right
+
+
+on_left, on_right = _grey_halves(surf, on_rect)
+off_left, off_right = _grey_halves(off_surf, off_rect)
+c.true("ON and OFF differ in GREYSCALE, not only in colour",
+       abs((on_right - on_left) - (off_right - off_left)) > 500)
+c.true("...because the knob moves to the right when it is on",
+       on_right - on_left > off_right - off_left)
+
+# Opposite corners from the flashed badge, which is drawn on top of an
+# already-finished frame - the reason the label became a corner mark at all.
 badge_rect = badge.draw(surf, "Claude is considering a Command Re-roll...", BOARD)
-dot_rect = pygame.Rect(0, 0, (AUTO_PLAY_DOT_RADIUS + 8) * 2, (AUTO_PLAY_DOT_RADIUS + 8) * 2)
-dot_rect.center = center
-c.true("dot cannot overlap the busy badge", not badge_rect.colliderect(dot_rect))
+c.true("the switch cannot overlap the busy badge", not badge_rect.colliderect(on_rect))
 c.true("...and it is small - the old label was a full-width badge",
-       dot_rect.width < badge_rect.width // 4)
+       on_rect.width < badge_rect.width // 2)
+c.eq("...and it is the width the module states", on_rect.width, AI_TOGGLE_WIDTH)
 
-# It is a mode light that stays on for whole turns, so it must not blink: two
-# draws a moment apart have to look identical.
-import time as _time
+# It is a mode, on for whole turns, so it must not blink: two draws a moment
+# apart have to look identical.
+import time as _time  # noqa: E402
 
 surf_a = fresh_surface()
-draw_auto_play_dot(surf_a, BOARD)
+draw_ai_mode_toggle(surf_a, BOARD, True, toggle_font, mouse_pos=(-99, -99))
 _time.sleep(0.25)
 surf_b = fresh_surface()
-draw_auto_play_dot(surf_b, BOARD)
-c.true("the dot does not blink",
-       all(surf_a.get_at((center[0] + dx, center[1])) == surf_b.get_at((center[0] + dx, center[1]))
-           for dx in range(-AUTO_PLAY_DOT_RADIUS, AUTO_PLAY_DOT_RADIUS + 1)))
+draw_ai_mode_toggle(surf_b, BOARD, True, toggle_font, mouse_pos=(-99, -99))
+c.true("the switch does not blink",
+       all(surf_a.get_at((x, on_rect.centery)) == surf_b.get_at((x, on_rect.centery))
+           for x in range(on_rect.x, on_rect.right)))
+
+# The label has to FIT, or the switch says nothing about what it switches.
+c.eq("its label is one line at this width",
+     len(button_style.wrap_text(toggle_font, AI_TOGGLE_LABEL.upper(),
+                                AI_TOGGLE_WIDTH)), 1)
+
+# The rect the caller hit-tests is the rect that was drawn - the switch steps
+# down out of the MENU button's way, so a second computation of that geometry
+# is how a control ends up clickable somewhere it is not drawn.
+blocker = pygame.Rect(BOARD.right - 90, BOARD.y + 8, 80, 30)
+stepped = draw_ai_mode_toggle(fresh_surface(), BOARD, True, toggle_font,
+                              mouse_pos=(-99, -99), avoid_rects=(blocker,))
+c.eq("a blocked switch reports where it actually went",
+     stepped, ai_mode_toggle_rect(BOARD, toggle_font, avoid_rects=(blocker,)))
+c.true("...which is below the blocker", stepped.top >= blocker.bottom)
 
 
 c.finish()

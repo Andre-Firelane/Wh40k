@@ -36,7 +36,24 @@ from game.proactive_stratagems import ProactiveStratagems  # noqa: E402
 
 c = tk.Checks("Aeldari detachment Stratagems")
 D = ae.AELDARI.datasheets
+
+
 HUMAN = "Player 1"
+
+
+def armed(ctrl, player=HUMAN):
+    """Open an end-of-Fight-phase reaction window by hand.
+
+    These Stratagems' printed WHEN is a phase BOUNDARY, and main.py runs those
+    offers AFTER turn_tracker.advance_phase() - so the clock already reads the
+    next phase and a live `phase == PHASE_FIGHT` test could never hold (it
+    made Wall of Mirrors a guaranteed no-op and stopped Cost of Victory
+    offering at all). The window is now opened by the controller's own offer;
+    a test that drives can_use()/use() directly has to open it the same way.
+    See game/phase_window.py.
+    """
+    ctrl._window.arm(player)
+    return ctrl
 
 DETACHMENT_FILES = {
     "Aspect Host": 6,
@@ -49,24 +66,8 @@ DETACHMENT_FILES = {
 }
 
 
-class settings_as:
-    """config constants are real module globals; a test that left one set would
-    change what every later test measures."""
-
-    def __init__(self, **values):
-        self.values = values
-
-    def __enter__(self):
-        self.old = {k: getattr(config, k) for k in self.values}
-        for key, value in self.values.items():
-            setattr(config, key, value)
-        return self
-
-    def __exit__(self, *exc):
-        for key, value in self.old.items():
-            setattr(config, key, value)
-
-
+# The one definition lives in testkit - eight suites had their own copy.
+settings_as = tk.settings_as
 
 def before(src, first, second):
     """`first` appears in `src`, and appears before `second`.
@@ -1122,11 +1123,11 @@ with settings_as(**GB_ON):
     _cv = gcv.CostOfVictoryController(strat(), game_state=_gs3,
                                       turn_tracker=turn_at(PHASE_FIGHT),
                                       all_tokens=list(_cv_unit.models), game_log=tk.Log())
-    c.true("it can be used", _cv.can_use(_cv_unit))
+    c.true("it can be used", armed(_cv).can_use(_cv_unit))
     c.eq("three destroyed models are returnable", len(gcv.returnable_models(_cv_unit)), 3)
 
     _before3 = len(_cv_unit.models)
-    c.true("buying it works", _cv.use(_cv_unit))
+    c.true("buying it works", armed(_cv).use(_cv_unit))
     c.eq("...and the destroyed models are back in the unit",
          len(_cv_unit.models), _before3 + 3)
     c.eq("...off the destroyed list", len(_cv_unit.destroyed_models), 0)
@@ -1151,12 +1152,44 @@ with settings_as(**GB_ON):
         strat(), game_state=_GS3(list(_stuck3.models) + list(_near3.models)),
         turn_tracker=turn_at(PHASE_FIGHT),
         all_tokens=list(_stuck3.models) + list(_near3.models))
-    c.true("an engaged unit cannot use it", not _cv_fresh.can_use(_stuck3))
+    c.true("an engaged unit cannot use it", not armed(_cv_fresh).can_use(_stuck3))
+
+    # THE BOUNDARY ITSELF, in main.py's order: advance_phase() FIRST, offer
+    # SECOND. Everything above drives can_use()/use() with the clock parked on
+    # the Fight phase, which is a moment that never actually happens - and a
+    # live `phase == PHASE_FIGHT` test passes there while being a guaranteed
+    # no-op in the real game. This is the only shape that can tell them apart.
+    _cv_b_unit = sq("Guardian Defenders")
+    tk.line_up(_cv_b_unit, 20.0, 20.0, spacing=1.2)
+    for _m in list(_cv_b_unit.models)[:2]:
+        _m.current_wounds = 0
+        _cv_b_unit.models.remove(_m)
+        _cv_b_unit.destroyed_models.append(_m)
+    _gs_b = _GS3(_cv_b_unit.models)
+    _tt_b = TurnTracker(first_player="Player 2")
+    while _tt_b.phase != PHASE_FIGHT:
+        _tt_b.advance_phase()
+    _dec_b = DecisionManager()
+    _cv_b = gcv.CostOfVictoryController(
+        strat(), game_state=_gs_b, turn_tracker=_tt_b,
+        all_tokens=list(_cv_b_unit.models), decision_manager=_dec_b,
+        game_log=tk.Log())
+    _mover_before = _tt_b.turn_owner          # main.py:3166
+    _tt_b.advance_phase()                     # main.py:3187
+    _cv_b.reset_phase()                       # main.py's per-phase reset block
+    _cv_b.offer_at_end_of_fight_phase([_cv_b_unit], _mover_before)
+    c.true("the boundary really opens the offer", _dec_b.is_pending)
+    c.eq("...to the side whose OPPONENT just fought", _dec_b.player, HUMAN)
+    c.true("...even though the clock already reads the next phase",
+           _tt_b.phase != PHASE_FIGHT)
+    _dec_b.choose(0)
+    c.true("...and accepting really withdraws the unit",
+           _cv_b_unit in _gs_b.reserves)
     c.true("...while the same unit clear of the enemy could",
-           gcv.CostOfVictoryController(
+           armed(gcv.CostOfVictoryController(
                strat(), game_state=_GS3(list(_stuck3.models)),
                turn_tracker=turn_at(PHASE_FIGHT),
-               all_tokens=list(_stuck3.models)).can_use(_stuck3))
+               all_tokens=list(_stuck3.models))).can_use(_stuck3))
 
     # "every destroyed GUARDIANS model" - not an attached character's corpse.
     _led3 = sq("Guardian Defenders")
@@ -1639,28 +1672,83 @@ with settings_as(**WH_ON):
 
     _ov = wov.OverflightController(strat(), turn_tracker=turn_at(PHASE_SHOOTING),
                                    decision_manager=None, game_log=tk.Log())
+    # THREE THINGS USED TO BE WRONG HERE AND THIS SECTION SAW NONE OF THEM,
+    # because it drove can_use() with the clock parked on a phase and called
+    # reset_phase() itself - neither of which is what main.py does. The offer
+    # runs AFTER advance_phase() and AFTER the per-phase reset block, so the
+    # live clock reads the NEXT phase and the ledger the old code cleared was
+    # exactly the one the offer was about to read.
+    #
     # "destroyed one or more enemy units this phase" - recorded, because it
-    # cannot be recovered once the dead unit is gone.
-    c.true("no kill, no offer", not _ov.can_use(_riders4))
+    # cannot be recovered once the dead unit is gone. The LIVE ledger fills
+    # during the phase; reset_phase() ROTATES it into the ending-phase one,
+    # which is what can_use() reads.
     _ov.notify_unit_destroyed(_enemy4, _riders4)
-    c.true("...and a kill this phase makes it buyable", _ov.can_use(_riders4))
+    c.true("a kill goes into the live ledger",
+           _ov.destroyed_a_unit_this_phase(_riders4))
     c.true("...but a friendly-fire report is ignored",
            not _ov.notify_unit_destroyed(sq("Windriders"), _riders4))
+    _ov.reset_phase()                          # main.py's per-phase reset block
+    c.true("...the reset ROTATES rather than clears - the live ledger empties",
+           not _ov.destroyed_a_unit_this_phase(_riders4))
+    c.true("...while the kills of the ENDING phase survive for the offer",
+           _ov.destroyed_a_unit_in_the_ending_phase(_riders4))
+    armed(_ov)
+    c.true("...so an armed window makes it buyable", _ov.can_use(_riders4))
     _ov.reset_phase()
-    c.true("...and the ledger is per PHASE", not _ov.can_use(_riders4))
+    c.true("...and one boundary later the ledger really is gone",
+           not _ov.destroyed_a_unit_in_the_ending_phase(_riders4))
 
-    _ov.notify_unit_destroyed(_enemy4, _riders4)
-    _ov.turn_tracker.turn_owner = "Player 2"
-    _ov.turn_tracker.active_player = "Player 2"
+    # A DEATH THE SWEEP CANNOT ATTRIBUTE IS DEFERRED, NOT DROPPED. main.py
+    # passes `shooting_controller.active_squad or fight_controller.
+    # fighting_squad`, and that is None whenever the LAST weapon group of an
+    # activation wipes a unit - the ordinary way a Windrider unit kills.
+    _ov2 = wov.OverflightController(strat(), turn_tracker=turn_at(PHASE_SHOOTING),
+                                    decision_manager=None, game_log=tk.Log())
+    _ov2.notify_unit_destroyed(_enemy4, None)
+    c.true("a killerless death credits nobody yet",
+           not _ov2.destroyed_a_unit_this_phase(_riders4))
+    c.true("...and settling it against the attacker credits them",
+           _ov2.credit_owed_kills(_riders4))
+    c.true("...really credits them", _ov2.destroyed_a_unit_this_phase(_riders4))
+    c.true("...but only once - the owed list is drained",
+           not _ov2.credit_owed_kills(_spears4))
+    _ov3 = wov.OverflightController(strat(), turn_tracker=turn_at(PHASE_SHOOTING),
+                                    decision_manager=None, game_log=tk.Log())
+    _ov3.notify_unit_destroyed(sq("Windriders"), None)
+    c.true("...and a killerless FRIENDLY death still credits nobody",
+           not _ov3.credit_owed_kills(_riders4))
+    _ov3.notify_unit_destroyed(_enemy4, None)
+    _ov3.reset_phase()
+    c.true("...while an uncredited death does not outlive its phase",
+           not _ov3.credit_owed_kills(_riders4))
+
+    # THE TWO BOUNDARIES, IN main.py's REAL ORDER. `phase_before` and
+    # `ending_player` are captured BEFORE advance_phase(); the owner rule
+    # lives in the offer because can_use() is answered frames later.
+    def _ov_at(phase_before, ending_player, squads=(_riders4,)):
+        _tt = turn_at(PHASE_COMMAND, owner=ending_player)   # the clock has moved on
+        _dec = DecisionManager()
+        _c = wov.OverflightController(strat(), turn_tracker=_tt,
+                                      decision_manager=_dec, game_log=tk.Log())
+        _c.notify_unit_destroyed(_enemy4, _riders4)
+        _c.reset_phase()
+        opened = _c.offer_at_end_of_phase(set(squads), phase_before, ending_player)
+        return opened, _dec
+
+    _opened, _dec4 = _ov_at(PHASE_SHOOTING, HUMAN)
+    c.true("the Shooting boundary opens the offer, clock already on Command",
+           _opened and _dec4.is_pending)
+    c.eq("...for the player whose Shooting phase just ended", _dec4.player, HUMAN)
     c.true("not at the end of the OPPONENT'S Shooting phase",
-           not _ov.can_use(_riders4))
-    _ov.turn_tracker = turn_at(PHASE_FIGHT)
-    _ov.turn_tracker.turn_owner = "Player 2"
-    _ov.turn_tracker.active_player = "Player 2"
+           not _ov_at(PHASE_SHOOTING, "Player 2")[0])
+    # "the end of THE Fight phase" - it belongs to nobody, so the unit is
+    # offered it even when the phase that ended was the opponent's.
+    _opened_f, _dec4f = _ov_at(PHASE_FIGHT, "Player 2")
     c.true("...but yes at the end of THE Fight phase, in the opponent's turn",
-           _ov.can_use(_riders4))
-    _ov.turn_tracker = turn_at(PHASE_MOVEMENT)
-    c.true("...and never at a Movement phase boundary", not _ov.can_use(_riders4))
+           _opened_f and _dec4f.player == HUMAN)
+    c.true("...and never at a Movement phase boundary",
+           not _ov_at(PHASE_MOVEMENT, HUMAN)[0])
 
 # WHICH IS WHY IT IS A REACTIVE MOVE. A mode missing from this set is one the
 # AI walks straight over - reported twice in this repo, in the same words.
@@ -1781,10 +1869,22 @@ c.true("Daring Riders resolves its lock from the arrival",
        "daring_riders_controller.notify_arrival)" in _main4)
 c.true("Overflight is fed from the death sweep",
        "overflight_controller.notify_unit_destroyed(" in _main4)
-c.true("...and offered at BOTH phase boundaries its WHEN names",
-       "if phase_before in (PHASE_SHOOTING, PHASE_FIGHT):" in _main4
-       and "overflight_controller.offer_at_end_of_phase(" in _main4)
-c.true("...and its kill ledger is cleared per phase",
+c.true("...and its owed deaths are settled from BOTH post-attack hooks",
+       _main4.count("overflight_controller.credit_owed_kills(") == 2)
+# The offer no longer carries a `phase_before in (...)` gate of its own: the
+# controller owns its WHEN, and is handed the two facts it cannot read at this
+# seam because advance_phase() has already run. It used to read
+# turn_tracker.phase and .turn_owner itself, and was therefore never offered.
+_ov_offer = _main4.split("overflight_controller.offer_at_end_of_phase(", 1)
+c.eq("...and there is exactly one offer site", len(_ov_offer), 2)
+_ov_args = _ov_offer[1].split(")", 1)[0] + _ov_offer[1].split(")", 1)[1][:40]
+c.true("...and offered at BOTH phase boundaries its WHEN names, by parameter",
+       "phase_before" in _ov_args and "mover_before" in _ov_args)
+c.true("...with no live clock read left in its can_use()",
+       "turn_tracker.phase" not in
+       io.open("game/windrider_overflight.py", encoding="utf-8").read()
+       .split("def can_use", 1)[1].split("def offer_at_end_of_phase", 1)[0])
+c.true("...and its kill ledger is rotated per phase",
        "overflight_controller.reset_phase()" in _main4)
 
 for _mod in ("windrider_wind_of_blades", "windrider_focused_firepower",
@@ -1961,6 +2061,16 @@ with settings_as(**WA_ON):
         fight_controller=_FightStub5(), all_tokens=_sky_tokens,
         turn_tracker=turn_at(PHASE_FIGHT), decision_manager=DecisionManager(),
         game_log=tk.Log())
+    # THE WINDOW IS THE GATE, NOT THE CLOCK - and this line is the fix. This
+    # section used to park the clock on PHASE_FIGHT and drive can_use()
+    # straight, which is a moment that never exists at the real offer: main.py
+    # runs it AFTER advance_phase(), and Fight is the last phase, so the clock
+    # has rolled round to Command. Both printings were therefore never offered
+    # at all, and this section stayed green throughout. Same finding-about-the
+    # -test CLAUDE.md records for Cost of Victory.
+    c.true("a closed window refuses, even with the clock parked on Fight",
+           not _ss.can_use(_avengers5))
+    armed(_ss)
     c.true("an unengaged eligible unit near a transport can buy it",
            _ss.can_use(_avengers5))
     # THE TWO OVERRIDES ARE PASSED, not re-derived - 18.02's "after a Normal
@@ -1981,21 +2091,56 @@ with settings_as(**WA_ON):
     c.true("...nor one with no transport it could embark within",
            not _ss.can_use(_avengers5))
     _emb.ok = True
-    _ss.turn_tracker = turn_at(PHASE_SHOOTING)
-    c.true("...and never outside the Fight phase", not _ss.can_use(_avengers5))
-    # "END OF THE FIGHT PHASE" - it belongs to nobody, so both players qualify.
-    _ss.turn_tracker = turn_at(PHASE_FIGHT, owner="Player 2")
-    c.true("...but yes in the opponent's turn, since the phase belongs to nobody",
-           _ss.can_use(_avengers5))
-    _ss.turn_tracker = turn_at(PHASE_FIGHT)
+    # The window is PER PLAYER: an offer opened for the opponent is not one
+    # this unit may answer.
+    _ss.reset_phase()
+    armed(_ss, "Player 2")
+    c.true("...nor one whose window was opened for the other player",
+           not _ss.can_use(_avengers5))
+    armed(_ss)
+    c.true("...while an armed one lets it through again", _ss.can_use(_avengers5))
+    # THE RESET, MEASURED BEFORE THE PURCHASE. After use() rule 15.01 refuses a
+    # second buy this phase, so a reset check placed after it passes whether
+    # the window closed or not - the masking this file has hit three times.
+    _ss.reset_phase()
+    c.true("...and reset_phase() closes the window again",
+           not _ss.can_use(_avengers5))
+    armed(_ss)
     c.true("buying it works", _ss.use(_avengers5))
     c.eq("...and the unit really embarks", len(_emb.embarked), 1)
+
+    # THE BOUNDARY, DRIVEN IN main.py's REAL ORDER - the shape of Cost of
+    # Victory's section above, which is the one that already had this fix.
+    _tt_sky = TurnTracker(first_player="Player 2")
+    while _tt_sky.phase != PHASE_FIGHT:
+        _tt_sky.advance_phase()
+    _dec_sky = DecisionManager()
+    _emb_sky = _EmbarkStub()
+    _ss_b = sky.SkyborneSanctuaryController(
+        strat(), martial_grace.SETTING, transport_controller=_emb_sky,
+        fight_controller=_FightStub5(), all_tokens=_sky_tokens,
+        turn_tracker=_tt_sky, decision_manager=_dec_sky, game_log=tk.Log())
+    _tt_sky.advance_phase()                   # main.py:3225
+    _ss_b.reset_phase()                       # main.py's per-phase reset block
+    c.true("the clock really has rolled past Fight by then",
+           _tt_sky.phase != PHASE_FIGHT)
+    c.true("the boundary really opens the offer",
+           _ss_b.offer_at_end_of_fight_phase([_avengers5]))
+    c.true("...and a prompt is standing", _dec_sky.is_pending)
+    # "END OF THE FIGHT PHASE" - it belongs to nobody, so the offer goes to
+    # the unit's own owner and NOT only to the side whose phase just ended.
+    c.eq("...for the unit's own owner, since the phase belongs to nobody",
+         _dec_sky.player, HUMAN)
+    _dec_sky.choose(0)
+    c.eq("...and accepting really embarks it", len(_emb_sky.embarked), 1)
 with settings_as(**WA_OFF):
+    # ARMED, so the refusal is the DETACHMENT's and not the window's - the
+    # negative would otherwise pass with the gate deleted.
     c.true("no detachment, no offer",
-           not sky.SkyborneSanctuaryController(
+           not armed(sky.SkyborneSanctuaryController(
                strat(), martial_grace.SETTING, transport_controller=_EmbarkStub(),
                fight_controller=_FightStub5(), all_tokens=_sky_tokens,
-               turn_tracker=turn_at(PHASE_FIGHT)).can_use(_avengers5))
+               turn_tracker=turn_at(PHASE_FIGHT))).can_use(_avengers5))
 
 
 # --- 5c. Feigned Retreat --------------------------------------------------
@@ -2245,18 +2390,22 @@ with settings_as(**WA_ON):
         all_tokens=list(_wt_squad.models) + list(_enemy5.models),
         board_width_in=60.0, board_height_in=44.0,
         decision_manager=DecisionManager(), game_log=tk.Log())
-    c.true("an unengaged INFANTRY unit near an edge can buy it", _wt.can_use(_wt_squad))
+    c.true("an unengaged INFANTRY unit near an edge can buy it",
+           armed(_wt).can_use(_wt_squad))
     c.true("...but a VEHICLE cannot - it names INFANTRY",
            not wwt.eligible_unit(_walker5))
     tk.line_up(_enemy5, 31.0, 4.0, spacing=1.2)
-    c.true("...nor an engaged one", not _wt.can_use(_wt_squad))
+    c.true("...nor an engaged one", not armed(_wt).can_use(_wt_squad))
     tk.line_up(_enemy5, 50.0, 40.0, spacing=1.2)
     tk.line_up(_wt_squad, 30.0, 22.0, spacing=1.2)
-    c.true("...nor one away from every edge", not _wt.can_use(_wt_squad))
+    c.true("...nor one away from every edge", not armed(_wt).can_use(_wt_squad))
     tk.line_up(_wt_squad, 30.0, 4.0, spacing=1.2)
-    _wt.turn_tracker = turn_at(PHASE_SHOOTING)
-    c.true("...and never outside the Fight phase", not _wt.can_use(_wt_squad))
-    _wt.turn_tracker = turn_at(PHASE_FIGHT)
+    # The WHEN is the window its own offer opened, NOT turn_tracker.phase:
+    # this offer is made after advance_phase(), so the clock always reads the
+    # next phase by then. An unarmed controller refuses whatever the clock says.
+    _wt._window.close()
+    c.true("...and never outside the window its offer opened",
+           not _wt.can_use(_wt_squad))
     # "End of your OPPONENT'S Fight phase" - the offer goes to whoever is NOT
     # the ending player, the trap this engine has now met four times.
     c.true("the opponent's Fight phase offers it",
@@ -2603,11 +2752,22 @@ with settings_as(**SC_ON):
 # --- 6c. Wraithbone Armour ------------------------------------------------
 c.eq("1 CP", cwa.WRAITHBONE_ARMOUR_CP, 1)
 c.eq("it subtracts 1 from Damage", cwa.WRAITHBONE_ARMOUR_REDUCTION, 1)
-# The corpus artefacts, transcribed rather than tidied.
+# The corpus artefact, transcribed rather than tidied.
 _sc_md = io.open("rules/aeldari/detachments/Spirit Conclave.md", encoding="utf-8").read()
 c.true("the printed text really does close with a square bracket",
        "(excluding TITANIC units]" in _sc_md)
-c.true("...and really does read 'be/ies'", "be/ies" in _sc_md)
+# The page's other typo here - "be/ies" for "belies" - lived in this
+# Stratagem's LEGEND, and legends are flavour: they stopped being scraped when
+# the reader was cut down to rules text only ("keine hintergrund info texte
+# und example texte in den armeeregeln bitte"). Flipped rather than deleted,
+# because it is now the thing worth pinning: this Stratagem's corpus entry
+# holds its name, its type line and its WHEN/TARGET/EFFECT, and no lore.
+c.true("the legend that carried the other typo is gone with the flavour",
+       "be/ies" not in _sc_md)
+c.true("...while the Stratagem keeps everything that IS rule text",
+       "### WRAITHBONE ARMOUR - 1CP" in _sc_md
+       and "Battle Tactic Stratagem*" in _sc_md
+       and _sc_md.count("**WHEN:**") == _sc_md.count("**TARGET:**") == 6)
 
 with settings_as(**SC_ON):
     _wa = cwa.WraithboneArmourController(
@@ -2841,8 +3001,53 @@ with settings_as(**SC_ON):
     _cs.on_dice_acknowledged()
     c.true("...and a mortal wound session is opened",
            _cs.mortal_wound_session is not None)
-    c.true("...for the two 6s among [6, 6, 1]",
-           getattr(_cs.mortal_wound_session, "remaining", 2) in (2, 1, 0))
+    # THE TWO 6s AMONG [6, 6, 1] REALLY LAND. This used to read
+    #     getattr(..., "remaining", 2) in (2, 1, 0)
+    # which is how much was ORDERED, not how much ARRIVED - and it passed
+    # while NOTHING was ever applied: the shared session parks on
+    # pending_choice for any multi-model target and nobody drained it. Six
+    # abilities across four factions shared that hole; see the rule 06.02 note
+    # in game/mortal_wound_abilities.py.
+    c.eq("...and the target's owner is asked which model takes them",
+         len(_cs.pending_damage_choice or []), len(_enemy6.models))
+    _wounds_before = sum(m.current_wounds for m in _enemy6.models)
+    _guard6 = 0
+    while _cs.pending_damage_choice and _guard6 < 10:
+        _cs.choose_damage_model(_cs.pending_damage_choice[0])
+        _guard6 += 1
+    c.eq("...for the two 6s among [6, 6, 1], really applied",
+         _wounds_before - sum(m.current_wounds for m in _enemy6.models), 2)
+    c.true("...and the session is closed afterwards",
+           _cs.mortal_wound_session is None)
+
+    # THE FEEL NO PAIN LEG, which nothing exercised until this line. Every
+    # subclass's on_dice_acknowledged() opens with `if self._pending is None:
+    # return False`, and by the time a session exists that slot is already
+    # clear - so an FNP roll's acknowledgement never reached the session and
+    # the allocation stalled there instead. Driven here because a probe that
+    # cannot bite is a hole, not a clean bill of health.
+    _fnp_before = [(m.profile, m.profile.feel_no_pain) for m in _enemy6.models]
+    try:
+        for _m6 in _enemy6.models:                         # shared class attrs
+            _m6.profile.feel_no_pain = "4+"
+        _dice6b = _Dice6([6, 6, 1])
+        _cs2 = ccs.CrushingStridesController(
+            dice_manager=_dice6b, decision_manager=DecisionManager(),
+            game_log=tk.Log(), game_state=_st6, stratagem_controller=strat(),
+            turn_tracker=turn_at(PHASE_CHARGE))
+        _cs2._use(_wblades6, _enemy6)
+        _cs2.on_dice_acknowledged()
+        _cs2.choose_damage_model((_cs2.pending_damage_choice or [None])[0])
+        c.true("a Feel No Pain roll parks the session mid-allocation",
+               _cs2.mortal_wound_session is not None
+               and _cs2.mortal_wound_session.pending_fnp is not None)
+        _cs2.on_dice_acknowledged()
+        c.true("...and acknowledging that roll really moves it on",
+               _cs2.mortal_wound_session is None
+               or _cs2.mortal_wound_session.pending_fnp is None)
+    finally:
+        for _prof, _was in _fnp_before:
+            _prof.feel_no_pain = _was
 
 
 # --- 6g. wiring -----------------------------------------------------------
@@ -3292,6 +3497,29 @@ with settings_as(**AH_ON):
     _enemy7.battle_shocked = False
     c.true("buying it works", _kv.use(_enemy7, HUMAN))
     c.true("...and it opens a hazard step", _kv.is_busy)
+
+    # THE STEP RESOLVES. This section used to stop at is_busy, and is_busy is
+    # in main.py's phase-advance gate - so an unresolved step froze the phase
+    # for good. Nothing in the event chain could resolve it: neither
+    # on_dice_acknowledged() nor pending_damage_choice was wired anywhere.
+    # Built, blocking and unclickable - a hard hang rather than a silent
+    # no-op, which is why the whole cycle is driven here.
+    _wounds7 = sum(m.current_wounds for m in _enemy7.models)
+    _kv.on_dice_acknowledged()                # the batch of hazard rolls
+    c.true("...whose failed rolls put the pick to the victim's owner",
+           bool(_kv.pending_damage_choice))
+    _guard7 = 0
+    while _kv.is_busy and _guard7 < 20:
+        if _kv.pending_damage_choice:
+            _kv.choose_damage_model(_kv.pending_damage_choice[0])
+        else:
+            _kv.on_dice_acknowledged()        # a Feel No Pain leg, if any
+        _guard7 += 1
+    c.true("...and every 1 among [1, 1, 1, 1, 1] really costs a wound",
+           sum(m.current_wounds for m in _enemy7.models) < _wounds7)
+    c.true("...and the controller stops blocking the phase advance",
+           not _kv.is_busy)
+    c.true("...with nothing left to pick", _kv.pending_damage_choice is None)
 
 # "EXCLUDING MONSTERS AND VEHICLES" is a real exclusion here.
 c.true("a VEHICLE is not an eligible victim",

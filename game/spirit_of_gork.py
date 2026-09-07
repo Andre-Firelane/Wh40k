@@ -56,6 +56,7 @@ import copy
 
 from game.squad import edge_distance
 from game.weapons import MELEE
+from game import ai_mode
 
 SPIRIT_OF_GORK_RANGE_IN = 12.0
 SPIRIT_OF_GORK_STRENGTH_BONUS = 1
@@ -102,7 +103,7 @@ class SpiritOfGorkController:
         self.decision_manager = decision_manager
         self.game_log = game_log
         self.all_tokens = all_tokens if all_tokens is not None else []
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._pending = None      # context while the D6 is on the table
         self._pending_mortal = None  # context while the D3 mortal-wound roll is
         self._resolved_this_phase = set()
@@ -202,7 +203,7 @@ class SpiritOfGorkController:
             if self.decision_manager is None:
                 return False
             options = [
-                (f"Spirit of Gork -> {t.name}", (lambda t=t: self._begin_roll(rig, t)))
+                (f"Spirit of Gork -> {t.name}", (lambda t=t: self._begin_roll(rig, t)), t)
                 for t in sorted(targets, key=self._strength_key)
             ]
             options.append(("Decline", lambda: None))

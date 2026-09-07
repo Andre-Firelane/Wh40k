@@ -5923,3 +5923,1997 @@ ein Stellvertreter dafuer.
 
 Volle Regression **153 Suiten, ~12805 Pruefungen, 152 gruen / 0 rot / 1 bekannt**, alle sechs
 Smokes, drei `--neutralize`-Gegenproben rot, `selfplay.py map2` unter allen drei Biomen.
+
+---
+
+# 2026-09-04 — Zwei Bugmeldungen aus einer Partie: Sudden Storm und Heroic Intervention
+
+**Gemeldet:**
+1. "Stratagem 'Protocoll of the sudden storm' scheint nicht funktioniert zu haben. ich konnte nach
+   dem vorrücken nicht mehr schießen mit den necron kriegern."
+2. "ich habe heroic intervention benutzt mit dem avatar, aber die cp scheinen nicht abgezogen
+   geworden zu sein."
+
+Der Log der Partie ist `logs/game_20260903_212846.log` (104 kB, 21:28-22:53, map3 "Crucible",
+Arena-Biom, Aeldari als Player 1 / Mensch gegen Necrons als Player 2 / KI). BEIDE gemeldeten
+Vorgänge stehen darin, was die Untersuchung überhaupt erst billig gemacht hat — Meldung 1 an
+Zeile 651-655, Meldung 2 an Zeile 422-424.
+
+## Meldung 1 — echt, und schlimmer als gemeldet
+
+### Reproduktion aus dem Log, vor jeder Änderung
+
+Zeile 651-655:
+
+```
+Player 2 spends 1 CP.
+Player 2 uses Protocol of the Sudden Storm.
+Protocol of the Sudden Storm: 2 Necron Warriors 1 + Technomancer's ranged weapons have
+  [ASSAULT] until the end of the turn and can re-roll Advance rolls this phase.
+Player 2 has 2 Necron Warriors 1 + Technomancer advance (D6: 6).
+Player 2 moved 2 Necron Warriors 1 + Technomancer.
+```
+
+Und in der darauffolgenden Schussphase feuert von Player 2 nur der Doomsday Ark. Das war die eine
+Stelle, an der ich mich hätte irren können, also wurde sie nachgerechnet statt überflogen: die
+Zeile lautet `Gauss Flayer Array hit roll [20 Würfel]`, und **Gauss Flayer ARRAY ist die Waffe des
+Doomsday Ark, nicht die Gauss Flayer der Krieger** — 2 Arrays × (5 Attacks + 5 Rapid Fire) = 20.
+Die 20 Krieger haben nicht geschossen.
+
+Der User schreibt "ich konnte", spielt aber Player 1; gemeint ist ersichtlich der beobachtete
+Vorgang auf dem Brett der KI. Für die Diagnose macht das keinen Unterschied — die Regel ist
+spielerunabhängig, und ein Mensch mit Necrons hätte exakt dasselbe erlebt.
+
+### Die Ursache: [ASSAULT] hat zwei Leser, und der wichtigere kannte den Grant nicht
+
+`game/coldstar.py`s `weapon_has_assault()` las drei Grants: Coldstar Commander, Star Engines
+(Battle Focus) und Skilled Crews. **Protocol of the Sudden Storm stand nicht darin.** Der Grant
+erreichte ausschließlich `ShootingController._adjusted_weapon()` — die Schadens-Mathematik.
+
+Was daran teuer ist: `shooting.available_shooting_types()` fragt an Zeile 578
+`weapon_has_assault(w, squad)`, und das ist das EINZIGE, was entscheidet, ob eine Einheit, die
+Advanced hat, überhaupt eine Schussoption bekommt (10.05). Ohne Treffer dort ist `types == []` —
+die Einheit darf gar nicht schießen. Also war das eine, wofür 1 CP bezahlt wird, genau das, was
+nicht passierte.
+
+**Der Docstring der Funktion hatte das AUSGESCHRIEBEN**, für Skilled Crews:
+
+> Skilled Crews HAS to be read here and not only in the adjuster chain. [ASSAULT] is what lets a
+> unit shoot after Advancing (24.04) ... a grant that reached only the chain would look wired
+> while failing to do the one thing the detachment is bought for.
+
+Eine Warnung, die nur beim ersten Träger steht, wird beim zweiten nicht gelesen. Das ist die
+eigentliche Lehre und steht jetzt als Ausbau von Fehlerklasse 10 in CLAUDE.md.
+
+### Die Sonde hat zwei weitere Träger derselben Fehlform gefunden
+
+Ein `grep "assault = True" game/*.py` liefert genau vier Module. Eine Probe, die JEDEN davon an
+BEIDEN Lesern misst (Kette und Tor), meldete vor dem Fix **4/9**:
+
+| Grant | Adjuster-Kette | `weapon_has_assault()` |
+|---|---|---|
+| Skilled Crews | ✓ | ✓ |
+| Protocol of the Sudden Storm | ✓ | **✗** (gemeldet) |
+| Mortarion's Teachings | ✓ | **✗** |
+| Mont'ka Killing Blow | ✓ | **✗** |
+
+Mortarion's Teachings' eigener Docstring sagt wörtlich "[ASSAULT] (10.05) lets a unit that
+Advanced still shoot" — dieselbe Zusage, dieselbe Nichteinlösung. Es steht im ausgelieferten
+Death-Guard-Roster.
+
+**Zwei eigene Sondenfehler dabei, beide von der Sonde selbst gefunden:**
+1. Die erste Fassung nahm `models[0].weapons[0]`. Beim Strike Team ist das die *Close Combat
+   Weapon* — eine NAHKAMPFwaffe, die beide Leser korrekt ablehnen. Mont'ka meldete deshalb
+   zunächst auch in der Kette einen Fehlschlag, was eine falsche Diagnose gewesen wäre. Jetzt
+   wird die erste RANGED-Waffe genommen.
+2. Der `montka`-Zweig brauchte `config.MONTKA_PLAYERS` und einen `battle_round` im Fenster 1-3;
+   ohne beides hätte die Sonde einen No-op gemessen und wäre grün gewesen.
+
+### Was behoben ist und was BENANNT stehen bleibt
+
+Sudden Storm und Mortarion's Teachings sind je ein Squad-Flag, also je ein Term in derselben
+Disjunktion. Beide behoben, beide durch A/B an der Quelle belegt.
+
+**Mont'ka bleibt offen, und das ist eine Entscheidung mit Begründung, kein Vergessen.** Seine
+Bedingung ist `tau_detachments.doctrine_active(squad, SETTING, ROUNDS, turn_tracker)` — sie
+braucht die Schlachtrunde, und `weapon_has_assault(weapon, squad)` bekommt keinen Tracker. Ihn
+nachzureichen heißt: optionales `turn_tracker=` an `weapon_has_assault()`, an
+`available_shooting_types()`, an `_weapon_eligible_for_type()` UND an `_attack_groups()` — und
+letzteres hat **elf** Aufrufstellen auf dem heißesten Schusspfad der Engine.
+
+Entscheidend für die Entscheidung war die Messung, dass eine HALBE Fädelung SCHLECHTER wäre als
+der Status quo: Zeile 578 (`has_assault`) allein zu versorgen würde Assault Shooting ANBIETEN,
+und `_attack_groups(squad, ASSAULT_SHOOTING)` würde danach null berechtigte Waffen liefern — eine
+Sackgasse statt einer verpassten Gelegenheit. Dazu: kein ausgeliefertes Roster fieldet Mont'ka
+(die T'au-Liste spielt Kauyon + Advanced Acquisition Cadre), es ist also dormant.
+
+### Der Wächter ist eine Mengendifferenz, kein Verhaltenstest
+
+Ein Verhaltenstest kann einen FÜNFTEN Grant nicht sehen, weil es ihn noch nicht gibt.
+`test_event_chain_wiring.py` Abschnitt 7 sweept deshalb `game/*.py` nach `assault = True` und
+verlangt von jedem Fund, in `weapon_has_assault()`s Rumpf genannt zu sein. Mont'ka steht als
+dokumentierte Ausnahme in einer `_ASSAULT_GRANT_GAPS`-Menge — muss aber trotzdem NAMENTLICH im
+Funktionsrumpf vorkommen, sonst könnte die Lücke stillschweigend aus der Dokumentation fallen.
+Plus eine Nicht-Vakuum-Zeile (`len(_grantors) >= 4`), damit ein kaputter Sweep nicht durch
+Nichtstun besteht.
+
+A/B: Vor-Fix-Welt → 44/46, und die zwei roten Zeilen nennen `protocol_sudden_storm` und
+`dlc_mortarions_teachings` beim Namen.
+
+### Im echten Spiel belegt — und die Harness-Grenze wurde dabei zur Konstruktionsvorgabe
+
+`verify_sudden_storm_wiring.py` fährt `selfplay.py`s echte `main()`-Schleife per `runpy` (die
+dokumentierte Falle: ein blosses `import selfplay` führt wegen des `__main__`-Guards NICHTS aus
+und meldet wahrheitsgetreu aussehende Nullen).
+
+Erster Versuch, rein passiv gezählt: **4000 Frames → granted 1, advanced_and_offered 0,
+advanced_and_blocked 0.** Also gar keine Beobachtung. Auf 14 000 Frames erhöht: unverändert 0.
+Das ist die in CLAUDE.md dokumentierte MockAgent-Grenze in Reinform — die Kombination "gekauft
+UND advanced UND geschossen" kommt schlicht nicht zustande, und ein passiver Zähler hätte 0
+gemeldet und wie ein bestandener Test ausgesehen.
+
+Die Sonde stellt die Advance-Tatsache deshalb SELBST her, im Moment des Kaufs, und fragt die
+ECHTE Modulfunktion gegen die ECHTE Tokenliste des laufenden Spiels:
+
+```
+[spy] 2 Necron Warriors 1 + Technomancer bought Sudden Storm; if it Advances -> ['Assault']
+```
+
+— die Einheit des Berichts, auf dem echten Brett. A/B mit der **faithful** Vor-Fix-Welt (nur das
+TOR ist blind, die Kette gewährt weiter — `is_active()` ganz zu neutralisieren hätte beide
+Hälften gebrochen und etwas Schwächeres bewiesen als den gemeldeten Fehler):
+
+```
+[spy] 2 Necron Warriors 1 + Technomancer bought Sudden Storm; if it Advances -> []
+```
+
+## Meldung 2 — reproduziert NICHT; die CP werden korrekt abgezogen
+
+Der Verdacht war berechtigt: `grep -rl "heroic_intervention" test_*.py` kam **leer** zurück — zu
+Regel 15.11 gab es keinen einzigen Test. Das ist exakt die Ausgangslage, aus der 15.12
+(Counteroffensive) als 2-CP-No-op ausgeliefert wurde.
+
+Die Messung widerlegt ihn trotzdem, an zwei unabhängigen Belegen:
+
+**(a) Der Log.** Zeile 422-424 zeigt `Player 1 spends 1 CP.` direkt vor
+`Player 1 uses Heroic Intervention.`. Ein Log-Parser, der über die ganze Schlacht rechnet und an
+den fünf `now has N CP`-Zeilen verankert, die der Log selbst druckt, geht **ohne Abweichung** auf:
+
+```
+   96 ANCHOR  Player 1 = 4   (Diviner of Futures)
+  472 OK      computed 4 vs logged 4
+  767 OK      computed 3 vs logged 3
+ 1020 OK      computed 3 vs logged 3
+ 1250 OK      computed 3 vs logged 3
+```
+
+Zusätzlich hat JEDE `spends`-Zeile des Laufs eine passende `uses`-Zeile; die einzigen
+Ausnahmen sind `spends 0 CP` (Strands of Fate bzw. My Will Be Done, die den Preis auf 0 senken).
+
+**(b) Der echte Controller.** Neu `test_heroic_intervention.py` (**35/35**, vier Abschnitte)
+treibt `HeroicInterventionController` gegen ein echtes CP-Konto, einen echten
+`StratagemController` und einen echten `ChargeController`. Alle Ledger-Behauptungen halten: 1 CP
+beim Annehmen, dem REAGIERENDEN Spieler belastet, GENAU EINMAL (der Modus-Prompt ist eine zweite
+Entscheidung und kassiert nicht erneut), nichts beim Anbieten, nichts beim Ablehnen, kein zweiter
+Kauf in derselben Phase.
+
+**A/B: mit entferntem `use()`-Aufruf fallen 6 von 35** — die Suite WÜRDE den gemeldeten Fehler
+fangen, wenn es ihn gäbe.
+
+### Die zweite Hälfte der Suite ist der eigentliche Gewinn
+
+`active_player`. 15.11 läuft AUSSERHALB der Phase des Reagierenden, `offer()` dreht
+`active_player` also um, und jeder Ausgang muss zurückdrehen. Ein vergessener Pfad ließe den
+Reagierenden für den Rest der Schlacht aktiv — und `game/command_reroll.py` belastet CP gegen
+`active_player`, der NÄCHSTE Command Re-roll ginge also aufs falsche Konto. **Das ist die Form,
+die als "die CP stimmen nicht" auffiele**, und damit die plausibelste Erklärung, falls der User
+wirklich etwas gesehen hat. Alle drei Ausgänge sind einzeln gemessen — Ablehnen, beendeter
+Charge, und der deklarierte aber nie ausgeführte Charge (zu kurzer 2W6, dann Cancel; der
+häufigste Ausgang) — und alle drei stellen korrekt wieder her.
+
+### Zwei eigene Bühnenfehler
+
+1. Die erste Bühne setzte die Einheiten 4.0" auseinander. Bei 1.575" Avatar-Radius plus 0.63"
+   Immortal sind das 1.795" Kantenabstand — **INNERHALB** 03.04s Engagement Range, also war der
+   Avatar `is_engaged` und schlicht nicht berechtigt. 15 von 30 Prüfungen fielen aus einem Grund,
+   der mit 15.11 nichts zu tun hatte. Jetzt 5.0" (= 2.8" Kante), und die Bühne **assertiert ihre
+   eigenen zwei Schranken**, statt sie zu glauben.
+2. `ChargeController` nimmt kein `decision_manager`, `MovementController` kein `all_tokens` als
+   erstes Positionsargument — beide Signaturen wurden geraten statt nachgeschlagen.
+
+## Prozess-Notizen
+
+- **Bash-Heredoc-Falle zum wiederholten Mal** (Fehlerklasse 21): `cat > test_x.py <<'PY'` mit
+  Apostrophen und Anführungszeichen im Docstring bricht mit `unexpected EOF while looking for
+  matching`. Solche Texte gehören über Write/Edit. Beim zweiten Anlauf sofort Write benutzt.
+- **`test_unit_selection.py` fiel während der Regression** ("a label plate is drawn clear above
+  every ring (0 px)"). **NICHT dieser Arbeit zuzuordnen, belegt statt vermutet:** mit
+  `git stash push -- game/coldstar.py` (also meiner einzigen Produktivänderung zurückgenommen)
+  fällt sie identisch; `game/renderer.py` trug einen sekundenaktuellen Zeitstempel und 558
+  uncommittete Zeilen, und mit `renderer.py` auf HEAD stürzt die Suite ganz ab
+  (`'Renderer' object has no attribute 'draw_selection'`). Eine parallele Sitzung baut dort
+  gerade.
+- **`test_event_chain_wiring.py` meldete EINMAL 45/46 und danach wieder 46/46.** Sein Abschnitt 1b
+  sweept jede Datei in `game/` — eine halb geschriebene Datei der Parallelsitzung erzeugt einen
+  transienten Treffer. Fehlerklasse 19/20: erst WIEDERHOLEN, dann suchen.
+
+## Zahlen
+
+- `test_awakened_dynasty.py` 82 → **89/89** (neuer Abschnitt 4b)
+- `test_death_guard_stratagems.py` 129 → **135/135**
+- `test_event_chain_wiring.py` 38 → **46/46** (neuer Abschnitt 7)
+- `test_heroic_intervention.py` **35/35** (neu — vorher gab es zu 15.11 gar keinen Test)
+- Volle Regression **172 Suiten, ~15135 Prüfungen, 170 grün / 1 fremd rot / 1 bekannt**
+- `smoke_pregame.py map2`, `smoke_setup_screens.py`, `smoke_log_input.py map2` alle exit 0
+- `selfplay.py map2` 4000 Frames exit 0; `verify_sudden_storm_wiring.py` in beiden Richtungen
+
+---
+
+## 2026-09-04 — Feedback nach dem letzten Spiel: drei Punkte
+
+User, in einer Meldung: Spielerfarben sollen konstant bleiben (P1 grün, P2 rot); das
+Squad-Namensschild auf dem Brett stört und soll als Kasten mit Sprite+Name oben in die linke
+Spalte; die Volks-Kacheln der Vorspiel-Auswahl verschwenden Platz und sollen ein Grid bilden,
+damit die Paginierung später einsetzt. Verdichtet in CLAUDE.md unter "Spielerfarbe zurück auf
+GRÜN", "Einheiten-Auswahl ist erstklassig" und "Volk zuerst, dann Liste".
+
+**1. Farben.** Reproduziert an der Quelle: `_token_color()` verglich `squad.owner` gegen
+`turn_tracker.active_player`. Der Fehler ist die Wahl des Feldes — `active_player` ist laut
+`game/turn.py`s eigenem Docstring das transiente "wessen Entscheidung ist das gerade", das bei
+jedem Verteidiger-Save flippt. Fix: `TOKEN_TEAM_COLORS`, nach Owner gekeyt wie
+`DEPLOYMENT_ZONE_LINE_COLORS` seit jeher. Der Parameter wurde ENTFERNT statt ignoriert (toter
+Positionsparameter in einer positionell gerufenen `draw()` = Fehlerklasse 22 auf Abruf); sechs
+Aufrufstellen nachgezogen. **A/B IM ECHTEN SPIEL** (1200 Frames `selfplay.py map2`, Spion an
+`_token_color`): nachher je Spieler GENAU EINE Farbe; mit dem alten Rumpf bekommen BEIDE Spieler
+BEIDE Farben. Neu `test_player_colors.py` 23/23 + `ab_player_colors.py` (5 Sonden). Die erste
+Fassung von Sonde 1 tauschte nur die SIGNATUR und ließ den Owner-Lookup stehen — änderte also
+keinen Pixel und kippte nur 2 Prüfungen; als halbe Sonde (Fehlerklasse 16) erkannt und auf den
+echten Vor-Fix-Rumpf umgestellt, danach 16/23.
+
+**2. Auswahl-Kasten.** `Renderer._draw_selection_label()` bleibt bestehen, wird von
+`draw_selection()` aber nicht mehr gerufen — `draw_placement_identity()` benutzt es weiter, weil
+das eine andere Frage ist. Neu `ActionPanel._draw_selection_header()`, gerufen aus `draw()` über
+dem Dispatch (wie `_draw_global_toolbar()`), das den Dispatch mit einem VERKÜRZTEN Rect weiterfüttert
+— eine Kante statt vierzig `rect.y + 40`. Die Dopplung im Bewegungszweig ist raus. Zwei eigene
+Testfehler von den Sonden gefunden: Indizieren in eine in der Vor-Fix-Welt leere Liste (Suite
+stürzte ab statt rot zu werden) und ein `str.index()`-Wächter — vierte bzw. fünfte Instanz
+derselben Lehren. Neu `test_selection_header.py` 29/29 + `ab_selection_header.py` (10 Sonden, ganze
+Vor-Fix-Welt 15/29). Zwei Pins in `test_unit_selection.py` umgedreht, mit ihrer Bandgeometrie.
+Zusätzlich im echten Spiel geprüft, dass der Kasten NIE während einer Platzierung offensteht (0 von
+1200 Frames) — sonst stünden zwei verschiedene Einheiten übereinander.
+
+**3. Volks-Grid.** Vorher gemessen: 11 % Bandfüllung bei 1920×1080, zwei Seiten für fünf Völker.
+`ts.tile_rects()` bricht jetzt um, `rows_that_fit()`/`Paged.fit_grid()`/`ts.grid_block()` sind neu;
+für die zwei Ein-Reihen-Screens über 672 Layouts als byte-identisch belegt. Kapazität 2-4 → 8-28
+Kacheln/Seite. Karten wachsen bis zur Höhe einer Karte mit `FACTION_LOGO_MAX_PX`-Badge, das Badge
+wächst mit (aus dem Rect zurückgeleitet), Block vertikal zentriert. Sechs Pins in Abschnitt 7b
+waren zu Recht rot — und der Befund über den Test ist der bessere: sie standen unter der
+Überschrift "Paginierung gehört STEP TWO" und trieben ausnahmslos Schritt EINS. Aufgeteilt: 7b
+Listen, 7c Völker. Neu `many_factions(n)`, `ab_faction_grid.py` (9 Sonden). Sonde 7 (Badge folgt
+der Kartenhöhe nicht) biss zuerst NICHT — Fehlerklasse 24: die Badge-Prüfung sampelte ein Band, das
+auch den NAMEN erfasste, und bestand deshalb mit auf 72 px festgenageltem Badge. Auf eine
+badge-breite Spalte und den VERTIKALEN Umfang umgestellt, danach beißt sie.
+
+**Bash-Heredoc-Falle zum wiederholten Mal:** ein Patch mit Apostrophen im Kommentartext zerlegte
+ein `python - <<'PYEOF'`. Solche Texte gehören über Write, nicht über Heredoc — steht so in
+CLAUDE.md und ist trotzdem wieder passiert.
+
+---
+
+# 2026-09-04 (2) — Der Army-Rules-Leser: lesbar, scrollbar, zwei Links
+
+**Gemeldet:**
+
+> der Text hinter See Army Rules ist noch schwer lesbar. Beispiel aeldari. es fehlt an
+> überschriften, ansätzen, fett geschriebenen Namen. mach den Text besser lesbar. außerdem
+> könnte ich das Fenster nicht scrollen. beim scrollen ging das Fenster wieder zu. außerdem
+> sollten dort 2 links sein einer für Spieler 1 und einer für Spieler 2
+
+Drei Anliegen — und drei verschiedene Ursachen, von denen nur eine dort saß, wo sie aussah.
+
+## Das Mausrad: die einzige Stelle im Repo ohne `event.button`-Prüfung
+
+`army_rules_overlay.py:130` lautete `if event.type == pygame.MOUSEBUTTONDOWN:` → `dismiss()`.
+pygame liefert fürs Mausrad aus 1.x-Kompatibilität **zusätzlich** zu `MOUSEWHEEL` ein
+`MOUSEBUTTONDOWN` mit Button 4/5. Eine Rastung kam also als ZWEI Events an: sie scrollte und
+schloss im selben Frame — und weil `dismiss()` `scroll` nullt, war der Leser überhaupt nicht
+scrollbar. Das ist wörtlich „ich konnte das Fenster nicht scrollen. beim scrollen ging das
+Fenster wieder zu".
+
+`army_select.py:733`, `game_menu.py:252`, `map_select.py:332` und jeder Notice-Zweig in
+`main.py:4839` gaten alle auf `event.button == 1`. Eine Ein-Zeilen-Abweichung.
+
+**Reproduziert vor jeder Änderung**, mit dem echten Event-PAAR: `4/4` nach dem Fix, `2/4` davor,
+und die zwei roten Zeilen waren „one wheel notch scrolls it" und „it is STILL OPEN afterwards".
+
+**Ich lag mit der ersten Hypothese daneben, und der User hat sie korrigiert.** Ich hatte auf den
+Klick auf die 5 px breite Scrollleiste getippt und vorgeschlagen, Klicks INNERHALB des Fensters
+nicht mehr schließen zu lassen (plus X-Knopf, plus ziehbare Scrollleiste). Die Antwort:
+*„Klick soll Fenster schließen. Aber das Mausrad nicht. Bisher schließt auch das Mausrad das
+Fenster. Das sollen 2 verschiedene Eingaben sein."* Damit war die Diagnose exakt bestätigt UND
+der Umfang halbiert: kein X-Knopf, keine ziehbare Leiste, und der gepinnte Test „a click closes
+it, including inside the panel itself" bleibt gültig. **Der beauftragte Design-Review empfahl
+genau das Gegenteil** (er kannte die Rückfrage nicht) und wurde in diesem Punkt verworfen.
+
+**Warum 58 grüne Prüfungen das nicht sahen:** sie schicken alle ein NACKTES `MOUSEWHEEL`. Das
+Paar, das die Hardware liefert, kam in keiner vor. Steht jetzt als Harness-Falle in CLAUDE.md.
+
+## Der Text: die Struktur wurde beim PARSEN vernichtet, nicht beim Zeichnen
+
+Ich bin zuerst davon ausgegangen, das sei ein Styling-Problem im Overlay. Es war eines eine
+Ebene tiefer: `_strip_markdown()` löscht jedes `**`, `### ` fällt zu Prosa zusammen, und die
+`""`-Trenner warf `_paragraph_blocks()` weg. Der Leser bekam für Aeldari Battle Focus **26 nicht
+unterscheidbare Strings** und malte sie alle gleich.
+
+**Gemessen, welche Struktur der Korpus überhaupt trägt** (2380 Zeilen über 61 Dateien):
+885 `LABEL:`-Zeilen (9 verschiedene Labels, 0 Fehltreffer), 1148 Zeilen mit Inline-Fett (48 %!),
+107 Bullets, 31 bare-ALL-CAPS-Überschriften, 24 flachgedrückte Tabellenzeilen.
+
+**Die Feasibility-Frage war die einzige, die zählte:** kann `army_rule_text()` eine PROJEKTION
+einer getypten API werden, ohne dass sich ein Byte bewegt? `ab_rules_text_projection.py` spielt
+den alten Parser wörtlich nach und diffed über **181 Abschnitte in 61 Dateien: 0 Abweichungen**,
+dazu 0 verlustbehaftete Run-Splits. Erst danach war der Rest sicher — `test_rules_text.py` (65/65)
+und `abilities_for()` blieben unangetastet.
+
+**Zwei eigene Fehler dabei, beide von der Sonde gefunden:**
+1. Mein erstes `_flatten()` hatte ein `and out[-1]`-Truthy-Gate, das die `""`-Trenner ÜBERLEBEN
+   ließ. Der Originalparser überschreibt sie (der Join läuft gegen den leeren String) — also war
+   meine „sauberere" Fassung nicht byte-identisch. Das Verhalten ist bewusst wörtlich
+   nachgebaut, mit einem Kommentar, warum die fehlende Prüfung kein Versehen ist: der LESER holt
+   die Absatzstruktur aus `starts_block`, ohne dass die flache Sicht sich bewegt.
+2. Der `_appends`-Fall: im Originalparser sind NUR `### ` und `- ` append-only; eine
+   bare-ALL-CAPS-Zeile ist für den Leser eine Überschrift, war für den Join aber gewöhnliche
+   Prosa. Ohne dieses Flag wären 181 Abschnitte gedriftet.
+
+**`wrap_runs()` musste zweimal korrigiert werden, beide Male durch Messung gegen `wrap_text()`:**
+- Erste Fassung summierte Pro-Wort-Breiten und packte messbar MEHR auf die Zeile —
+  `size(a) + size(b) != size(a+b)`. Jetzt wird pro SAME-FONT-SEGMENT als ganzer String gemessen.
+- Zweite Fassung ließ nachlaufende Leerzeichen in der Zeile stehen. Danach: **444 Vergleiche
+  (5 Armeeregeln × 6 Breiten), 0 Abweichungen.**
+
+## Die dritte Ursache, die niemand genannt hatte: 151 Zeichen pro Zeile
+
+Der beauftragte Design-Review fand sie, und die Nachmessung bestätigte sie: das Panel nahm 62 %
+des Schirms und gab dem Text jeden Pixel — 937 px bei 1600×900, bei 6.19 px mittlerer
+Zeichenbreite **151 Zeichen pro Zeile** (angenehm: 45–90), Durchschuss 1.18. Kein Fett und keine
+Überschrift rettet eine Zeile, deren Anfang das Auge nicht wiederfindet. `MAX_TEXT_WIDTH = 560`
+deckelt die SPALTE (Panel 992 → 615 px), Durchschuss 13 → 17 px.
+
+Das ist die Sorte Ursache, die man nur findet, wenn man die Zahl ausrechnet statt auf den
+Screenshot zu schauen.
+
+## Zwei Links — und eine umgekehrte Entscheidung, die dokumentiert bleibt
+
+Auf Rückfrage: **je nur diese Armee**. Das kehrt das lauteste Argument des Modul-Docstrings um
+(„BOTH ARMIES, not just the reader's"). Das Argument bleibt gültig und wird anders eingelöst:
+die gegnerische Regel ist weiter EINEN Klick entfernt, unter IHRER Kachel. Gemessen: beide
+zusammen 1232 px in einem 662-px-Fenster; die Necron-Hälfte allein braucht **gar kein Scrollen**.
+Der Test prüft zusätzlich, dass die VEREINIGUNG beider Links weiter beide Armeen abdeckt — damit
+die Umkehrung eine Umsortierung bleibt und kein Verlust.
+
+**Mein „das Label überrennt das Panel um 3 px" war falsch, und der Test hat es gefangen.** Zwei
+„see army rules" hätten nebeneinander sehr wohl gepasst (166 px in einer 200-px-Spalte). Die
+bindende Schranke ist die ZENTRIERUNG: ein Link sitzt mittig unter einer `LOGO_BOX`-Kachel, deren
+Mitte 29 px von der Panelkante steht, darf also höchstens 58 px breit sein — „see army rules" ist
+83 px und hinge 12 px über JEDE Seite. Erst die Prüfung gegen das echte Panel (statt gegen die
+240-px-Fixture des Tests) hat den Denkfehler sichtbar gemacht.
+
+`handle_army_rules_click()` → **`army_rules_player_at()`**: der Rückgabewert ist jetzt der
+SPIELER statt `bool`. Den Namen zu behalten und nur die Bedeutung zu ändern wäre die stille
+Drift, gegen die Fehlerklasse 11 existiert.
+
+## Im echten Spiel belegt — und zwei Harness-Fallen unterwegs
+
+`verify_army_rules_links.py` klickt beide Links in `selfplay.py`s echter `main()`-Schleife, genau
+an den Koordinaten, die das Panel gemeldet hat:
+
+```
+links the panel drew    : ['Player 1', 'Player 2']
+clicked Player 1 -> reader shows ['Player 1'] (48 blocks)
+clicked Player 2 -> reader shows ['Player 2'] (10 blocks)
+OPEN AFTER A WHEEL NOTCH: True  (scrolled to 48)
+```
+
+`--neutralize` (Vor-Fix-Welt): **`False  (scrolled to 0)`** — das gemeldete Verhalten.
+
+**Die Sonde brauchte zwei Anläufe, beide lehrreich:**
+1. Sie meldete zuerst **0 Klicks bei gezeichneten Links** — also einen wahrheitsgetreu
+   aussehenden Nullbefund. `selfplay.py` ERSETZT `pygame.event.get` beim Import; mein vorher
+   installierter Wrapper war schlicht überschrieben. Sie hängt sich jetzt im ersten Panel-Frame
+   ein, wenn selfplays Pump schon steht.
+2. Danach meldete sie „nach dem Rad geschlossen" — aber selfplay klickt pro Frame SELBST mit
+   Button 1 aufs Brett, und einer davon schloss den Leser. Sie ERSETZT jetzt die Events der
+   gemessenen Frames, statt sie zu ergänzen. Ohne das hätte ich den eigenen Fix für kaputt
+   gehalten.
+
+Dazu die dritte, alte: die Klick-Frames sind RELATIV zu dem Frame geplant, in dem die Links
+zuerst erscheinen — feste Framenummern feuern vor dem Vorspiel und ergeben wieder eine stille Null.
+
+## Angesehen, nicht nur gerechnet
+
+Die Beschwerde ist visuell, also wurde das Ergebnis gerendert und angeschaut (Aeldari und Orks):
+Überschriften in Gold mit Haarlinie, `TRIGGER:`/`EFFECT:` blau mit hängendem Einzug, Inline-Fett
+auf `Normal`/`Advance`/`Fall Back move`, Tabellenwerte in einer Spalte, Bullets mit hängendem
+Einzug — und die Ork-Armeeregel zeigt Flavourtext und Regel jetzt als ZWEI Absätze statt als
+einen 480-Zeichen-Block (die Fusion, die der Originalparser erzeugt und die die getypte Sicht
+nebenbei auflöst).
+
+## Zahlen
+
+- `test_army_rules_overlay.py` 58 → **105/105** (neue Abschnitte 6-9)
+- `test_faction_badges.py` **63/63** nachgezogen
+- `test_rules_text.py` **65/65** unverändert (der Beweis, dass die Projektion nicht driftet)
+- Neu `ab_army_rules_reader.py`: **7 A/B-Sonden, alle beißend**; `ab_rules_text_projection.py`:
+  181 Abschnitte, 0 Abweichungen
+- Volle Regression **173 Suiten, ~15252 Prüfungen, 172 grün / 0 rot / 1 bekannt**
+- `run_tests.py --smoke` komplett grün
+
+---
+
+# 2026-09-04 (3) — Das Reichweiten-Lineal ringt nur noch das angeklickte Modell
+
+**Gemeldet:** *"die Aura Funktion zeigt momentan für jedes Modell im Squad die Aura an. wenn ich
+ein spezifisches Modell anklicke soll nur die Aura dieses Modells angezeigt werden."*
+
+Eine Verfeinerung der eigenen früheren Vorgabe („es sollen immer nur die auren der ausgewählten
+Modelle angezeigt werden"), die ich damals als „die ganze gewählte Einheit" umgesetzt hatte.
+
+## Warum die alte Fassung die falsche Frage beantwortete
+
+`draw_range_aura()` lief über `squad.models` und vereinigte einen Ring pro Modell. Bei einem
+20-Krieger-Blob ist das eine Decke über dem halben Brett. **Die Vereinigung beantwortet „könnte
+IRGENDWER von uns das erreichen"** — und das ist selten die Frage: eine Waffenreichweite, eine
+Aura, ein Charge gehören EINEM Modell, gemessen von dort, wo es steht.
+
+Gemessen an einer 10-Modell-Einheit auf einem 40×40-Brett: **6035 getönte Stichproben für die
+Einheit gegen 2219 für ein Modell.**
+
+## Der Anker war schon da — mit einer Falle
+
+`game/selection.py` führt `model` als „the exact model clicked; anchor for the LOS check". Also
+war die Antwort nicht zu erfinden, nur weiterzureichen.
+
+**Aber `selected_squad` kann OHNE Anker geschrieben werden.** `MovementController.
+start_scout_move()` und `game/torchstar_gambit.py` schreiben das Feld direkt (die
+Property-Weiterleitung in `selection.py` schreibt genau das aus). Gemessen:
+
+```
+after writing selected_squad directly (scout-move path):
+  squad : other
+  anchor: 1 Necron Warriors 1  <- a DIFFERENT squad
+```
+
+Ein naives Lesen von `selected_model` hätte das Lineal also auf eine Einheit gesetzt, die niemand
+angesehen hat — schlechter als die Decke, die es ersetzt. Der Renderer prüft deshalb
+`model.squad is squad` und fällt sonst auf die Einheit zurück; damit bleiben die zwei
+Direktschreiber-Pfade unverändert statt still leer zu werden.
+
+## Zwei eigene Fehler, beide von den Sonden gefunden
+
+**1. Ein Verdrahtungs-Pin, der nie in die Datei kam.** Mein `str.replace` für die Testzeile
+`"model=movement_controller.selected_model" in main_src` schlug wegen Escaping im Heredoc still
+fehl. Die Suite war grün, der Pin fehlte — und die A/B-Sonde „main.py reicht den Anker nicht
+weiter" meldete **NO BITE, 58/58**. Ohne die Sonde wäre die Verdrahtung ungeprüft geblieben.
+Zum wiederholten Mal die Heredoc-Falle (Fehlerklasse 21) und zum wiederholten Mal die Lehre:
+**eine Sonde, die NICHT beißt, ist ein Befund über den TEST.**
+
+**2. Die Laufzeit-Sonde maß zweimal nichts.** Erste Fassung: einen synthetischen Brettklick auf
+die Pixelposition eines Modells posten. Ergebnis in BEIDEN Welten „ringt 1 von 1" — ein einzelner
+Doomsday Ark, also eine Aussage, die im gefixten wie im kaputten Zustand wahr ist. Drei Ursachen,
+alle real:
+- die Koordinate wurde EINMAL aufgenommen und Dutzende Frames später geklickt; bis dahin steht
+  etwas anderes dort,
+- `MovementController.can_select()` lehnt fremde Einheiten außerhalb ihres Zuges ab,
+- und ein Klick trifft ohnehin, was auf dem Pixel liegt, nicht was gemeint war.
+
+Zweite Fassung (Koordinaten pro Frame auffrischen, bis zu acht Klicks): weiterhin beide Läufe auf
+demselben Ein-Modell-Panzer.
+**Dritte Fassung, und die richtige:** dieselben Einstiegspunkt treiben, den der Klick treibt —
+`MovementController.select(model)` auf ein Modell einer Mehr-Modell-Einheit, gegriffen aus einem
+Per-Frame-Hook auf `Renderer.draw_move_range()`, dem main() den echten Controller reicht. Damit
+bleibt die Verdrahtung (main() → Renderer) unter Test und nur das Rauschen fällt weg. Die Sonde
+meldet einen Ein-Modell-Treffer jetzt ausdrücklich als **INCONCLUSIVE** statt als Bestehen — der
+Grund, warum die ersten beiden Fassungen wie Erfolge aussahen.
+
+Ergebnis in der echten `main()`-Schleife, auf DERSELBEN Einheit in beiden Läufen:
+
+```
+FIXED       : picked one model of 1 Dark Reapers 1 (5 models) -> RULER RANG 1 of 5
+NEUTRALIZED : picked one model of 1 Dark Reapers 1 (5 models) -> RULER RANG 5 of 5
+```
+
+## Zahlen
+
+- `test_aura_ruler.py` 49 → **59/59** (neuer Abschnitt 4b)
+- Neu `ab_aura_one_model.py`: **3 A/B-Sonden, alle beißend**
+- Neu `verify_aura_one_model.py` (Laufzeit, beide Richtungen)
+- Volle Regression **176 Suiten, ~15392 Prüfungen, 175 grün / 0 rot / 1 bekannt**
+- `run_tests.py --smoke` komplett grün
+
+---
+
+# 2026-09-04 (4) — Detachment-Stratagems: im Leser und als Dwell-Tooltip
+
+**Gemeldet:** *"was noch fehlt sind die Infos zu den detachment stratagems. die gehören zum einen
+in die Army Rules overlays. zum anderen sollte das stratagems vollständig angezeigt werden wenn
+man ein paar Sekunden über einen stratagems Knopf hovert."*
+
+Zwei Hälften, eine Quelle. Der `## Stratagems`-Abschnitt jeder Detachment-Datei war beim Bau des
+Lesers AUSDRÜCKLICH übersprungen worden — `detachment_rule_text()`s Docstring sagt es wörtlich:
+"those are pages of text that belong on a screen of their own". Das ist jetzt dieser Screen.
+
+## Was gemessen wurde, bevor etwas gebaut wurde
+
+- **283 Einfach-Sternchen-Läufe** im Korpus, ALLE ganzzeilig (0 inline), ALLE in
+  `## Stratagems`-Abschnitten, die bis dahin niemand las. Damit war belegt, dass ein
+  `subtitle`-Kind keine bestehende Ausgabe bewegen kann — und die Identitäts-Sonde hat es danach
+  bestätigt (181 Abschnitte, 0 Abweichungen).
+- **36 Stratagems** über die fünf ausgelieferten Listen.
+- **Die Namensauflösung**, und das war die einzige Stelle mit echtem Risiko: das Panel kürzt
+  Namen, damit sie auf 220 px passen. Über alle 36 gemessen: fünf Core-Stratagems haben gar keinen
+  Detachment-Eintrag (richtig — kein Tooltip), und jeder gekürzte Name („Sudden Storm" für
+  `PROTOCOL OF THE SUDDEN STORM`, „Arro'kon Protocol" für `THE ARRO'KON PROTOCOL`) hat **genau
+  EINEN** Suffix-Kandidaten. Erst danach war die Suffix-Regel vertretbar, und sie **verweigert bei
+  Mehrdeutigkeit** statt zu raten: die falschen Regeln anzuzeigen ist schlimmer als keine, weil
+  nichts auf dem Schirm sagen würde, dass es die falschen sind.
+
+## Die 27. Extraktion, am zweiten Konsumenten
+
+`game/ui/rules_body.py`. „Wie werden gedruckte Regeln gesetzt" lag in der Mitte des Lesers,
+solange er der einzige Setzer war; der Tooltip ist der zweite. Beim Leser blieb, was Tatsachen
+über ein modales Fenster sind — Panel, Scrim, Scrollen, Kopfzeile, Blockbau. Die Konstanten sind
+Re-Exporte, damit jeder Pixel-Test per Konstruktion grün bleibt.
+
+**Belegt statt gehofft:** `test_army_rules_overlay.py` blieb während der ganzen Extraktion grün
+(105 → 106), und die eine rote Zeile war meine EIGENE Zusicherung „nur TRIGGER und EFFECT" — die
+Stratagems bringen WHEN/TARGET/RESTRICTIONS mit, also ist die Zeile ehrlich nachgezogen statt
+aufgeweicht.
+
+## Der Tooltip
+
+Aufgezeichnet wird in `_draw_button()` selbst — eine Zeile deckt alle SIEBZEHN
+`accent="stratagem"`-Stellen ab und jede künftige. In einer EIGENEN Liste neben `self._buttons`,
+weil `handle_click()` die als `(rect, callback)` entpackt; sie zu verbreitern bräche jeden Klick
+im Panel.
+
+Gezeichnet aus `main()`, nicht aus dem Panel: der Missionsstreifen fährt von der Panelkante über
+das Brett aus und malte über einen früher im Frame gezeichneten Kasten. Neben der Datacard geerbt
+er außerdem deren Modal-Unterdrückung — `_modal_up` ist jetzt EIN Ausdruck, den beide lesen, und
+`test_fight_end_turn_warning.py`s Gate-Zähler ging deshalb zu Recht 3 → 4.
+
+## Drei Befunde über den TEST, alle von den Sonden
+
+1. **Zwei Sonden ließen die Suite ABSTÜRZEN statt rot zu werden** — Indizieren in eine leere
+   Liste, `.name` auf None, `Rect.contains(None)`. Fünfte, sechste und siebte Instanz derselben
+   Lehre in diesem Repo. Jetzt über Guards, also rot mit Namen.
+2. **Die Rect-Identitäts-Sonde biss zuerst nicht.** Ich hatte `!=` gegen `is not` getauscht und
+   erwartet, dass die Suite kippt — sie blieb grün, weil meine Bühne ein interniertes
+   String-Literal wiederverwendete. Das echte Panel baut seine Labels als f-Strings, also ist der
+   Name jeden Frame ein NEUES Objekt. Die Bühne baut ihn jetzt zur Laufzeit, und die Sonde beißt.
+3. Zusammen: **10 A/B-Sonden, alle beißend, keine mit Absturz.**
+
+## Die Laufzeit-Sonde brauchte vier Anläufe, und jeder war ein echter Befund
+
+1. **„no Stratagem button was ever drawn"** — der MockAgent-Lauf wählt fast nie eine
+   Menscheinheit, und ohne Auswahl zeichnet das Panel keine Stratagem-Knöpfe.
+2. Auswahl erzwungen → Knopf da, aber **der Cursor traf ihn nur 5 von 243 Polls**: die Rects
+   werden jeden Frame neu gelegt, und ich hatte sie einmal gefangen. (Dieselbe Staleness wie bei
+   der Aura-Sonde eine Sitzung vorher.)
+3. Rects pro Frame aufgefrischt → **Tooltip öffnete trotzdem nie**: der Dwell braucht 1400 ms
+   ohne offenen Prompt, und die KI öffnet alle paar Frames einen — was der Tooltip zu Recht
+   unterdrückt.
+4. Dwell vorgealtert (nur wenn der Cursor WIRKLICH auf einem Knopf steht) → **`'Forewarned'
+   (NECRONS) -> 0 printed blocks`**. Das war kein Sondenfehler, sondern die Sonde, die einen
+   echten Denkfehler vorführt: sie spritzte ein AELDARI-Stratagem auf eine NECRON-Einheit, und die
+   Suche fand korrekt nichts. Der injizierte Knopf trägt jetzt ein Stratagem, das die Armee dieser
+   Einheit wirklich hat.
+
+Endstand: **`'Sudden Storm' (NECRONS) -> 6 printed blocks, drawn=True`** — und das ist zugleich
+der SUFFIX-Treffer im echten Lauf. `--neutralize`: `never opened`.
+
+**Die drei Zutaten, die der Harness nicht selbst herstellt**, sind im Sondenkopf einzeln benannt
+statt stillschweigend gefälscht: eine gewählte Einheit, ein diese Phase nutzbares Stratagem, und
+ein Dwell ohne offenen Prompt. Alles danach ist echt.
+
+## Fremder Fehlschlag, sauber zugeordnet
+
+`test_primary_missions.py` fiel mit `the two distances are identical to the last bit: got
+6.133946527318272, want ...279` — map3s Gleichstand der zwei mittleren Objectives, 7e-15
+daneben. **Deterministisch, also keine Flake.** `game/maps.py` trug einen fünf Minuten alten
+Zeitstempel und 80 uncommittete Zeilen, deren Kommentare eine User-Meldung zitieren, die nicht
+meine ist ("die beiden mittleren objectives ragen in die austellungszonen"). **A/B belegt:** mit
+`git stash push -- game/maps.py` (also der Parallelsitzung zurückgenommen) meldet die Suite
+**264/264**. Nichts an meinem Änderungssatz berührt Geometrie.
+
+## Zahlen
+
+- Neu `test_stratagem_tooltip.py` (**70/70**, sechs Abschnitte)
+- Neu `ab_stratagem_tooltip.py` (**10 A/B-Sonden, alle beißend**)
+- Neu `verify_stratagem_tooltip.py` (Laufzeit, beide Richtungen)
+- Neu `game/ui/rules_body.py` (27. Extraktion) und `game/ui/stratagem_tooltip.py`
+- `test_army_rules_overlay.py` 105 → **106/106**, `test_fight_end_turn_warning.py` **47/47**
+- `ab_rules_text_projection.py`: 181 Abschnitte, **0 Abweichungen, 0 lossy**
+- Volle Regression **177 Suiten, ~15486 Prüfungen, 175 grün / 1 fremd rot / 1 bekannt**
+- `run_tests.py --smoke` komplett grün
+
+---
+
+# 2026-09-04 (5) — "Connection lost" statt Absturz
+
+**Gemeldet:** *"momentan stürzt das Spiel ab, wenn KI Modus an ist und die Verbindung verloren geht
+oder api Fehler oder Guthaben leer. besser wäre eine Meldung 'Connection lost' und das Spiel geht
+aber ohne KI weiter."*
+
+## Reproduziert, bevor etwas geändert wurde
+
+Ein Agent, der beim ersten Aufruf `anthropic.APIConnectionError` wirft, durch `selfplay.py`s echte
+`main()`-Schleife: `CRASHED OUT OF main(): APIConnectionError`, **0 Frames danach**.
+
+Beim Nachsehen zeigte sich, dass die halbe Absicherung längst da war: der PLANNER fängt seit
+Langem `Exception` und spielt die Runde ungeplant weiter, mit dem Kommentar „the whole point is to
+not crash the game". Der taktische `agent.decide()`-Aufruf war ungeschützt. Fehlerklasse 10 in
+ihrer stillsten Form — dieselbe Frage, an einer von zwei Stellen beantwortet.
+
+## Erst am Agenten gebaut, dann an die richtige Grenze verschoben
+
+Die erste Fassung wickelte die zwei API-Methoden in `ai/claude_agent.py` ein. Die Reproduktion
+stürzte danach **weiter ab** — sie benutzt `MockAgent`, und der war nicht eingewickelt.
+
+Das war kein Sondenfehler, sondern der Beweis für die richtige Platzierung: `agent` ist ein
+INTERFACE (`ai/base.py`), und nur den Anthropic-Client abzusichern lässt jede andere
+Implementierung das Spiel weiter töten. Also liegt der Fang jetzt an `connection.ask()`, der einen
+Grenze zwischen Engine und Agent — **genau drei Aufrufstellen**, im Test gezählt, damit eine
+vierte nicht ungeschützt dazukommen kann.
+
+## Was bewusst NICHT gefangen wird
+
+`take_one_action()` fängt **ausschließlich `AIUnavailable`**. Ein `except Exception` dort wäre der
+bequeme Fix und der falsche: ein Bug in einem Handler würde zu einer KI, die stillschweigend
+aufhört zu spielen — viel schwerer zu bemerken als ein Traceback, und niemand würde es als Bug
+melden. Die A/B-Sonde, die genau diese Verbreiterung vornimmt, muss rot werden; das ist die
+tragende Prüfung der ganzen Suite.
+
+Umgekehrt ist `connection.ask()` selbst bewusst ein `except Exception` — eine Liste von
+anthropic-Klassen ließe den fünften Typ weiter krachen, was der gemeldete Fehler ist. `describe()`
+nennt dafür jeden unerwarteten Typ beim Namen, statt ihn als „no connection" zu verkleiden: sonst
+schickt ein Agent-Bug jemanden zum Router.
+
+## Ein Latch, kein Retry
+
+Bei Auto-Play fragt die Schleife den Agenten mehrmals pro Sekunde. Ein Wiederversuch machte aus
+einer toten Verbindung einen Strom von Timeouts, jeder ein hängender Frame — die Sonde meldet
+dementsprechend **1** versuchten Aufruf, nicht Hunderte. Der ERSTE Fehler gewinnt auch bei der
+Begründung: jeder weitere ist seine Folge.
+
+## Die Vorbedingung, die vorher geprüft wurde
+
+„Ohne KI weiter" wäre ein eingefrorenes Spiel, wenn nur die KI die Phasen ihres Zuges
+weiterschalten könnte. Der „Next Phase"-Zweig ist NICHT auf den Turn-Owner gegatet — geprüft,
+bevor der Rest entworfen wurde.
+
+## Drei Befunde über den TEST, alle von den Sonden
+
+1. Zwei Sonden ließen die Suite ABSTÜRZEN statt rot zu werden (ein `AIUnavailable`, das aus dem
+   Test heraus entkam; ein `str.index()` auf einen Namen, den die Sonde gerade entfernt hatte).
+   Achte und neunte Instanz dieser Lehre hier.
+2. Ein Verdrahtungs-Pin prüfte den Teilstring `ai_offline_overlay.show(...)` — der ein
+   `if False and ...` überlebt. Die Sonde „main() never announcing it" meldete deshalb **NO BITE**
+   bei 50/50. Er pinnt jetzt die ganze Anweisung.
+
+## Im echten Spiel belegt
+
+| | gefixt | `--neutralize` |
+|---|---|---|
+| Absturz aus `main()` | nein | `APIConnectionError` |
+| offline gelatcht | True (`no connection to the API`) | False |
+| Meldung erhoben | 1× | 0× |
+| Frames NACH dem Ausfall | **919** | **0** |
+
+## Zwei fremde Fehlschläge, beide sauber zugeordnet
+
+Die Parallelsitzung war während dieser Arbeit sehr aktiv:
+
+1. **`test_home_garrison.py`** (`map3: Player 1 needs 15.9" of reach: got 16.8`) — `game/maps.py`
+   trug einen drei Minuten alten Zeitstempel und uncommittete Arbeit an map3s Objectives. Schon in
+   der Sitzung davor A/B-belegt: mit `maps.py` auf HEAD ist die betroffene Suite grün.
+2. **`test_aeldari_detachment_stratagems.py`** (`...and really does read 'be/ies'`) — der KORPUS
+   selbst wurde neu gescraped: **62 Dateien, -1092 Zeilen**, und die Flavourtexte sind
+   verschwunden (darunter die Zeile mit dem transkribierten Tippfehler, auf den dieser Pin zeigt).
+   `rules/aeldari/detachments/Spirit Conclave.md` trug einen Zeitstempel aus demselben Fenster.
+   **Diese Arbeit liest `rules/` nur, sie schreibt nie hinein.**
+   **Gegengeprüft, weil es meine frische Stratagem-Arbeit hätte brechen können:** alle **36**
+   Stratagems der fünf ausgelieferten Listen lesen sich unverändert, nur ohne Flavourtext
+   (`Forewarned` 5 → 4 Zeilen). `test_stratagem_tooltip.py` bleibt 70/70.
+
+Beides nicht angefasst — es ist die laufende Arbeit einer anderen Sitzung, und ihre Pins gehören
+ihr.
+
+## Zahlen
+
+- Neu `ai/connection.py`, `game/ui/ai_offline_overlay.py`
+- Neu `test_ai_offline.py` (**50/50**), `ab_ai_offline.py` (**9 Sonden, alle beißend**),
+  `verify_ai_offline.py` (Laufzeit, beide Richtungen)
+- `test_coherency_recovery.py` nachgezogen (**32/32**): sein `inspect.getsource(take_one_action)`
+  las nach der Umbenennung den dünnen Wrapper statt des Rumpfes — ein Wächter, der auf einer
+  leeren Suche bestanden hätte.
+- Volle Regression **178 Suiten, ~15561 Prüfungen, 175 grün / 2 fremd rot / 1 bekannt**
+- `run_tests.py --smoke` komplett grün
+
+
+# 2026-09-04 (6) — "nur reine regeltexte": Lore und Beispiele raus
+
+**Gemeldet nach einer Partie:** *"keine hinterrund info texte und example texte in den
+armeeregeln bitte. nur reine regeltexte."*
+
+## Was der Leser wirklich zeigte
+
+Gemessen, bevor irgendetwas angefasst wurde. Jede Armeeregel öffnete mit einem Absatz Lore
+("In war, as in all things, the Aeldari bring the full might of their intellect..."), drei der
+fünf zusätzlich in ihren Unterabschnitten — Death Guard mit EINER Zeile über jeder der drei
+Plagues, also nicht nur oben —, jedes Stratagem mit seinem Legend, jedes Enhancement mit seinem,
+und Reanimation Protocols mit einem sechszeiligen Rechenbeispiel.
+
+Der Anteil, gegen den Korpus aus `HEAD` gemessen, über alle fünf Listen:
+
+| Liste | Blöcke vorher/nachher | Wörter vorher/nachher | Lore |
+|---|---|---|---|
+| Aeldari | 108 / 96 | 1545 / 1219 | 326 Wörter |
+| Orks | 47 / 39 | 792 / 561 | 231 |
+| Necrons | 47 / 38 | 949 / 615 | 334 |
+| T'au | 78 / 66 | 1339 / 1030 | 309 |
+| Death Guard | 69 / 57 | 995 / 712 | 283 |
+| **gesamt** | **349 / 296** | **5620 / 4137** | **1483 Wörter = 26 %** |
+
+Ein Viertel jedes Wortes im Leser — und damit ein Viertel des Scrollwegs — war Lore oder
+Beispiel.
+
+## Wo der Fix hingehört, und wo nicht
+
+**Nicht in den Leser.** Der zeigt, was auf der Platte liegt; ein Filter dort müsste RATEN, welcher
+Absatz Lore ist, und die Prosa gibt das nicht her (Death Guards Plague-Zeilen stehen zwischen
+zwei Regelzeilen). Ein Marker, dem der Leser trauen könnte, wäre ohnehin im Scraper zu schreiben —
+also gleich dort verwerfen.
+
+**Und geraten werden muss gar nichts: Wahapedia markiert beides selbst.** `ShowFluff` ist die
+Klasse, an der die Seite ihren eigenen Fluff-Schalter hängt; `redExample` das durchgerechnete
+Beispiel. Beide sind jetzt Einträge in `SKIP_CLASSES`, neben dem Errata-Umschalter, den dieselbe
+Datei schon aus demselben Grund verwirft ("Text, der kein Regeltext ist").
+
+**Eine Ausnahme, und sie braucht einen zweiten Griff:** der Stratagem-LEGEND wird per eigener
+Regex aus der Seite gehoben, die Klasse erreicht den Renderer also nie. Er wird deshalb gar nicht
+erst gelesen — kein `legend` mehr in `STRATAGEM_FIELDS`, keine Ausgabe in `render_detachment()`.
+Der Untertitel (`*Seer Council - Battle Tactic Stratagem*`) bleibt: das ist die Typ-Zeile, keine
+Lore.
+
+## Was der Diff sagt
+
+62 Dateien, **-1092 Zeilen**, und **0 Datenblätter** — die tragen in ihren Ability-Abschnitten
+gar keine Lore, die Hover-Datacard ist also unberührt. Jede entfernte Zeile ist gegen die
+gecachten Seiten zurückverfolgt: **545 von 545** sind ein geernteter `ShowFluff`- oder
+`redExample`-Block; die restlichen 57 Zeilen des Diffs sind die ältere Force-Disposition-Zeile
+plus das Abrufdatum. Gegenprobe in die andere Richtung: **0** Fluff-Zeilen bleiben im Korpus.
+
+## Getestet
+
+- `test_datasheet_rules.py` 89 → **108/108**, neuer Abschnitt 5c. Er misst gegen die GECACHTEN
+  SEITEN statt gegen drei zitierte Lore-Sätze: jeder `ShowFluff`/`redExample`-Block der fünf
+  Seiten wird geerntet (982) und muss im Korpus fehlen. Ein Pin, der drei Absätze benennt, wird
+  beim vierten grün.
+  - **DREI Ebenen**, weil Abschnitt 5b genau das gelehrt hat: eine Suite, die nur `rules/` liest,
+    bleibt gegen einen kaputten Scraper grün (die Dateien liegen ja schon da). Also werden
+    `to_markdown()` und `parse_stratagems()` zusätzlich direkt gefahren.
+  - **Jede Prüfung ist ein PAAR** — der verschwundene Absatz plus die Regel, die daneben stand.
+    "Die Lore ist weg" stimmt auch für einen Korpus, der die Regel mitgenommen hat.
+- `test_army_rules_overlay.py` 106 → **122/122**, neuer Abschnitt 1b: dieselbe Aussage dort, wo
+  der User sie trifft — auf den Blöcken, die das Panel bekommt, für alle fünf Listen.
+- Neu **`ab_rules_no_fluff.py`: 4 A/B-Sonden an der QUELLE, alle beißend** (ShowFluff zurück →
+  102/108 + 116/122; redExample → 104 + 120; Stratagem-Legend → 104 + 121; die ganze Vor-Fix-Welt
+  → **97 + 113**). Sie REGENERIEREN den Korpus je Sonde und stellen ihn per `finally` wieder her:
+  eine Sonde, die nur den Scraper anfasst, ließe die Suiten die schon reparierten Dateien lesen
+  und meldete einen sauberen Durchgang gegen einen kaputten Parser (Fehlerklasse 16).
+
+## Vier eigene Fehler, alle von den eigenen Prüfungen gefangen
+
+1. `to_markdown('<p>Kept.</p><div>Also kept.</div>')` gibt `"Kept.\n\nAlso kept."` — zwei
+   Blocktags in Folge erzeugen eine LEERZEILE. Meine Erwartung stand auf einem `\n`.
+2. Die Stratagem-Zählung lief über `chunks(page, 2)` und fing damit die Core-Rules-Tooltipblöcke
+   der Seite mit ("NORMAL MOVE09.05") — 121 statt 78. Sie fragt jetzt `parse_faction_page()`,
+   also dieselbe Frage, die der Korpus-Schreiber stellt.
+3. `TRIGGER:` kommt in Aeldaris Armeeregel **sieben** mal vor, nicht sechs: sechs gedruckte Agile
+   Manoeuvres plus die eine, die der Errata-Abschnitt zurückzitiert. Errata sind Regeländerungen
+   und bleiben ausdrücklich stehen.
+4. Der Anker der dritten A/B-Sonde war nicht eindeutig (`if item["text"]:` steht zweimal in
+   `render_detachment()` — einmal für Enhancements, einmal für Stratagems). Die Sonde bricht
+   jetzt laut ab, statt die falsche Stelle zu patchen.
+
+## Ein fremder Pin, zu Recht rot
+
+`test_aeldari_detachment_stratagems.py` hielt den Tippfehler **"be/ies"** der Seite fest. Der
+stand im LEGEND von Wraithbone Armour und ist mit der Lore gegangen. Umgedreht statt gelöscht: er
+prüft jetzt, dass der Legend weg ist UND dass Name, Typ-Zeile und die sechs WHEN/TARGET-Paare
+stehen. Der zweite Artefakt-Pin derselben Datei ("(excluding TITANIC units]") steht im TARGET und
+gilt unverändert.
+
+## Im echten Spiel belegt
+
+- `verify_army_rules_links.py map2`: beide Links öffnen ihre eigene Armee (98 bzw. 39 Blöcke),
+  eine echte Radrastung scrollt statt zu schließen, ESC schließt.
+- `verify_stratagem_tooltip.py map2`: `'Sudden Storm' (NECRONS) -> 5 printed blocks` statt der
+  früheren **6** — die eine Zeile weniger IST der entfallene Legend.
+
+## Zahlen
+
+- Volle Regression **178 Suiten, ~15578 Prüfungen, 177 grün / 0 rot / 1 bekannt**
+- `run_tests.py --smoke`: alle acht Smokes grün
+
+**KORREKTUR (nachgetragen):** hier stand, `test_crit_labels.py`s Fehlschlag
+(`NameError: name '_row_gap' is not defined`) gehöre einer PARALLELEN Sitzung am Würfelpanel.
+Das war eine Fehlzuordnung — `_row_gap` und `_crit_label_lines` sind die Namen, die der
+UNMITTELBAR FOLGENDE Eintrag (Würfelpanel-Überlauf) selbst einführt: es war ein halb angewandter
+eigener Edit, nicht eine fremde Datei. Fehlerklasse 20 ist real und hat diese Sitzungen mehrfach
+zu Recht getroffen, aber sie ist auch die bequemste Erklärung für einen Fehlschlag, den man
+gerade selbst verursacht hat. **Regel daraus: bevor ein Fehlschlag „fremd" heißt, prüfen, ob die
+genannten SYMBOLE aus der eigenen laufenden Arbeit stammen** — ein Zeitstempel allein sagt nur,
+dass jemand die Datei angefasst hat, nicht wer.
+
+---
+
+# Sitzung 2026-09-04 — das Würfelpanel: Überlauf und laute Crit-Labels
+
+**Gemeldet:** *"die würfel fliegen optisch aus dem würfelpanel wenn es zu viele werden. die größe
+des würfelpanels muss sich anpassen. außerdem hätte ich die Labels für crits bei lethal oder
+sustained gerne etwas auffälliger."*
+
+## Reproduktion — gegen die eigene Backdrop-Rect, nicht gegen eine Nachrechnung
+
+`DicePanel` zeichnet zwei Dinge, die es beide schon aufschreibt: `last_backdrop_rect` (für die
+Ausweichlogik des KI-Badges) und `_die_rects` (fürs Klick-Routing des Command Re-roll). Also musste
+nichts nachgerechnet werden — man fragt das Panel, wohin es die Dinge wirklich gelegt hat.
+
+10 Würfel mit einem Crit-Label, Panel 640 px breit:
+
+```
+row width : 734 px      backdrop : 640 px
+leftmost die  : 47 px links VOR dem Panel
+rightmost die : 47 px rechts DAHINTER
+```
+
+Ohne Crit-Label: 0 px. Der Fehler braucht also ein Label, und Labels treten genau bei den großen
+Salven auf ([SUSTAINED HITS], [LETHAL HITS]) — also bei vielen Würfeln, wie gemeldet.
+
+## Ursache: EINE Zahl, zweimal ausgerechnet
+
+```python
+# draw()                      -> wie viele passen in eine Reihe
+max_per_row = max(1, (text_max_width + DICE_GAP) // (DICE_SIZE + DICE_GAP))
+# _draw_dice_row()            -> wie weit stehen sie auseinander
+gap = CRIT_LABEL_DICE_GAP if (crit_labels and revealed) else DICE_GAP
+```
+
+`DICE_GAP` ist 12, `CRIT_LABEL_DICE_GAP` war 26. Die Zählung ging von der schmalen Reihe aus, das
+Setzen benutzte die breite. Fehlerklasse 10 in ihrer sichtbarsten Form — zwei Stellen, dieselbe
+Frage, zwei Antworten, und das Ergebnis hängt aus dem Panel heraus.
+
+## Der Fix, und warum er die Zahl MISST statt sie zu setzen
+
+`_row_gap(dice_manager, revealed)` ist die eine Definition, gelesen von der Zählung UND vom Setzen.
+Die naheliegende Fassung wäre gewesen, `CRIT_LABEL_DICE_GAP` an beiden Stellen zu lesen — das hätte
+den Überlauf behoben und einen zweiten, kleineren Fehler stehengelassen: **26 war ein Schätzwert
+für eine Breite, die von der Schrift abhängt.** Gemessen:
+
+| Label | Plakette | nötiger Abstand | alter Abstand |
+|---|---:|---:|---:|
+| `LETHAL HIT` | 82 px | 32 | 26 |
+| `SUSTAINED HIT` | 103 px | 37 | 26 |
+| `DEVASTATING WOUND` | 131 px | 65 | 26 |
+
+Bei „DEVASTATING WOUND" standen zwei Plaketten also 10 px INEINANDER. Jetzt
+`Plakettenbreite − DICE_SIZE + CRIT_LABEL_SEPARATION`, an derselben Schrift gemessen, mit der
+gezeichnet wird — und weil die Schrift in derselben Änderung von 11 auf 13 wuchs, wäre eine
+Konstante sofort wieder falsch gewesen.
+
+**Die Withholding-Regel bleibt und ist eine eigene Prüfung:** solange die Würfel rollen, ist der
+Abstand der schmale. Andernfalls verriete die SPATIONIERUNG, welche Würfel kritisch sind, bevor
+das Ergebnis aufgedeckt ist. Das war schon so; die Sonde, die es entfernt, kippt.
+
+## Die zweite Hälfte: das Panel darf wachsen
+
+Ein enger gestellter Abstand allein reicht nicht — bei sehr vielen Würfeln stapeln sich die Reihen
+nach unten. Gemessen mit dem Fix, aber ohne Wachstum:
+
+```
+60 Würfel:  11 px UNTER dem Brettbereich
+80 Würfel: 131 px darunter
+```
+
+`MAX_PANEL_WIDTH = 640` bleibt trotzdem die BEVORZUGTE Breite, weil sie eine ausdrückliche
+User-Entscheidung ist (*"das panel sollte vielleicht nicht über die gesamte breite gehen"*). Sie
+hört nur auf, eine harte Grenze zu sein, wenn die Höhe sonst reißt — und in die Breite zu gehen ist
+die einzige Art, dieselben Würfel auf weniger Reihen zu verteilen.
+
+`_panel_width()` wächst deshalb in ganzen WÜRFELN (ein Bruchteil eines Würfels kauft keine Reihe)
+und nur so weit, bis das Höhenbudget hält:
+
+| Würfel | Breite | unter dem Brett |
+|---:|---:|---:|
+| 12 | 640 | 0 |
+| 40 | 640 | 0 |
+| 60 | 944 | 0 |
+| 80 | 1248 | 0 |
+
+Die ältere Zusicherung (*"das würfel overlay darf nicht über die seiten panels gehen"*) hält dabei:
+das Wachstum ist auf `bounds_rect` geklammert, das genau der Brettbereich zwischen den Panels ist.
+
+## Die Crit-Labels
+
+Vorher: 11-px-Goldschrift lose auf dem dunklen Panel — das Leiseste auf dem Bildschirm, an den
+Würfeln, die am meisten bedeuten. Jetzt eine gefüllte, angefaste Plakette in kräftigem Gold mit
+DUNKLER fetter 13-px-Schrift — derselbe Kontrastgriff, den die Erfolgswürfel schon benutzen (dunkle
+Augen auf heller Fläche), statt einer zweiten Bildsprache. `button_style.chamfer_points()` liefert
+die Form, es gibt also keinen zweiten Fasen-Algorithmus.
+
+**EINE Plakette pro WÜRFEL, nicht pro Zeile:** ein zweizeiliges Label ist EINE Aussage; zwei
+gestapelte Platten läsen sich als zwei Labels.
+
+## Zwei eigene Fehler, beide von den Sonden gefunden
+
+1. **Die „eine Platte pro ZEILE"-Sonde biss zuerst nicht** (Fehlerklasse 24). Grund: bei 13 px
+   passt JEDES der vier gedruckten Labels auf eine Zeile, der zweizeilige Fall kam im Test also gar
+   nicht vor — die Prüfung konnte nicht unterscheiden. Sie erzwingt ihn jetzt mit einem eigens
+   konstruierten langen Label, und die Zeile „trotzdem EINE Plakette, nur höher" kippt.
+2. Die Panelbreiten-Prüfung stand zuerst nur in einer Richtung („wächst bei 80 Würfeln") und wäre
+   auch auf einem Panel bestanden, das IMMER über die volle Breite geht — also genau auf der
+   Fassung, die die User-Entscheidung verletzt. Die Gegenprobe („eine gewöhnliche Salve behält
+   640") ist die zweite Sonde, und sie beißt.
+
+## Im echten Spiel — mit benannter Grenze
+
+Ein Spion durch `selfplay.py map2` (3000 Frames): **14 Panel-Zeichnungen mit Würfeln, 0 px
+Überstand, 0 px unter dem Brettbereich**. Aber: **keine einzige davon mit Crit-Labels, und die
+größte Salve war EIN Würfel.** Der MockAgent erreicht die großen Würfe nicht — die dokumentierte
+Harness-Grenze. Ein zweiter Lauf mit erzwungenen Crit-Labels an `DiceManager.roll` änderte daran
+nichts, weil die WÜRFELZAHL das ist, was fehlt.
+
+Der gemeldete Fall ruht deshalb auf der Suite — die dafür das ECHTE `DicePanel` auf eine echte
+Surface mit echten Schriften zeichnet und die gezeichneten Rechtecke ausmisst. **Bei einer reinen
+ANSICHT ohne Engine-Kopplung ist das die richtige Ebene**; die Live-Läufe dieses Repos sind für die
+andere Frage da („kommt der Aufruf überhaupt an"), und die ist hier durch die 14 Zeichnungen
+beantwortet.
+
+## Zahlen
+
+- `test_crit_labels.py` 24 → **55/55** (Abschnitt 4 der Überlauf, Abschnitt 5 die Plakette auf
+  Pixeln)
+- neu `ab_dice_panel.py`: **8 A/B-Sonden, alle beißend**; die erste meldet den Bericht wörtlich
+  (`10 dice WITH a crit label stay inside the panel: got 38`)
+- Volle Regression **178 Suiten, ~15610 Prüfungen, 177 grün / 0 rot / 1 bekannt**
+- `run_tests.py --smoke`: alle acht Smokes grün
+
+
+# 2026-09-04 — Einheiten auf dem Brett wählen, überall
+
+**Gemeldet:** *"Immer wenn man eine einheit auf dem schlachtfeld wählen muss (zb wall of mirrors)
+will ich die einheit nicht aus einer liste wählen, sondern auf dem schlachtfeld. Wie bei
+overwatch."*
+
+## Was zuerst gemessen wurde
+
+Der Umfang, statt ihn zu schätzen. Ein AST-Lauf über `game/` fand **143 `decision_manager.request()`-
+Aufrufe**; davon nennen **56** in ihren Optionen EINHEITEN (der Rest sind Ja/Nein-Angebote,
+Objectives, Karten, Modelle, Waffen, Wurf-Wiederholungen). Der gemeldete Fall — Wall of Mirrors —
+ist einer von 56, nicht ein Einzelfall.
+
+Und: die Maschinerie existierte bereits, aber an genau EINE Fähigkeit gebunden. Burden of Trust
+hatte ein `pending_pick`-Dict im `SecondaryMissionController`, einen eigenen Zweig in `main.py`s
+Event-Kette, einen eigenen Panel-Screen und einen eigenen Term in `_board_gesture_blocked`.
+
+## Zwei verworfene Entwürfe, beide aus gemessenem Grund
+
+**(1) Ein eigener `UnitPickController` mit eigener Queue.** Der naheliegende Bau, und er schuldete
+sofort Antworten auf Fragen, die `DecisionManager` längst beantwortet: wer blockiert den
+Phasenwechsel, wer besitzt den Klick, wenn zwei Dinge offen sind — und vor allem, wie
+`ai/agent_driver.py`s `_maybe_resolve_decision()` eine Option erreicht. Das tut es über den
+INDEX in `decision_manager.options`; eine Wahl außerhalb dieser Queue wäre für die KI unsichtbar
+und sie stallte auf einem Prompt, den sie nicht sieht. Also: ein Brett-Pick ist keine neue Art von
+Pending, sondern eine ANSICHT auf eine anstehende Entscheidung.
+
+**(2) Ein `squads=[...]`-Parallelargument an `request()`.** Die erste Fassung, und die gefährliche:
+56 Aufrufstellen hätten je zwei Listen von Hand ausrichten müssen. Eine Fehlausrichtung kracht
+nicht, sie löst einen Klick auf Einheit A in den Callback von Einheit B auf — still. Ersetzt durch
+ein DREI-Tupel `(label, callback, squad)`, in dem die Einheit neben ihrem eigenen Callback sitzt.
+Da gibt es nichts auszurichten.
+
+## Was gebaut wurde
+
+`game/unit_pick.py` (28. Extraktion) beantwortet EINE Frage: *ist diese Entscheidung durch einen
+Klick beantwortbar, und welche Einheit steht hinter welcher Option?* Vier Leser: `main.py`s
+Klick-Zweig, das linke Panel, das Brett-Highlight, das Decision-Overlay.
+
+**Die zwei Absagen sind der eigentliche Inhalt.** `pending()` gibt `None` zurück — der Prompt
+bleibt die gewohnte Liste —, wenn eine getaggte Einheit nicht auf dem Brett steht oder zweimal
+angeboten wird. Beides ist real: Rapid Ingress bietet Einheiten aus den Strategic Reserves an
+(kein Token zum Anklicken) UND listet eine Einheit mit Homing Beacon zweimal; Solid-image
+Projection bietet jede Einheit zweimal an (Redeploy oder Reserven). Ohne diese Wächter wartete das
+Spiel auf einen Klick, der nie kommen kann — Fehlerklasse 25, die einzige Klasse hier, die ein
+harter Deadlock ist. Der Wächter ist GENERISCH, also fällt eine künftige Fähigkeit von selbst
+zurück statt sich auf eine Notiz an ihrer Aufrufstelle zu verlassen.
+
+Die Umstellung der 56 Stellen lief über einen AST-Transformer, der die Schleifenvariable an der
+vom Parser gelieferten Endposition des Tupels einfügt — kein Regex, mehrzeilige Tupel gratis.
+
+## Der Fehler, den die parallele Sitzung fast eingebaut hätte
+
+Der Transformer wurde zuerst über ZEILENNUMMERN adressiert. Zwischen dem Auflisten und dem
+Anwenden verschob eine parallel laufende Sitzung vier Dateien um je eine Zeile (sie fügt gerade
+`from game import ai_mode` ein). Vier Dateien meldeten „edited 0", was auffiel — aber dieselbe
+Verschiebung hätte genauso gut die FALSCHE Comprehension treffen können. Der Transformer matcht
+seither über den QUELLTEXT der Comprehension. Jede der 56 Änderungen wurde danach im Diff einzeln
+angesehen.
+
+## Burden of Trust ist mit umgezogen
+
+Zwei Mechanismen für eine Frage sind die Drift, die dieses Repo laufend konsolidiert — und der
+Panel-Screen, die Klick-Route und das Highlight hätten sonst doppelt existiert. `pending_pick`,
+`pick_is_eligible()`, `choose_picked_unit()` und `skip_pick()` sind ersatzlos weg;
+`request_unit_pick()` ist eine Delegation. Die Karte GEWINNT dabei etwas: ihr alter Screen hielt
+im eigenen Docstring fest, dass „nothing on the board itself marks which units qualify" — jetzt
+tut es das.
+
+## Drei Befunde über den TEST
+
+1. Der Verdrahtungs-Pin prüfte den Teilstring `pick.pick(clicked.squad)`, und der überlebt ein
+   `if False:`. Die Sonde „main.py zurück auf Overlay-only" biss deshalb NICHT. Er pinnt jetzt die
+   ganze geführte Anweisung. Dieselbe Lehre wie der Docstring-Match und der `if False and ...`-Pin,
+   beide schon in CLAUDE.md verzeichnet.
+2. Drei Sonden ließen die Suiten ABSTÜRZEN statt rot zu werden (Indizieren in ein `None`
+   gewordenes `pending()`-Ergebnis) — neunte bis elfte Instanz. Beide Suiten haben jetzt ein
+   `safe()` und fangen die Panel-Durchfall-`AttributeError`, sodass eine Sonde ROT meldet und
+   nennt, welche Zusicherung verloren ging.
+3. Der Zähl-Pin „das Panel zeichnet genau einen Ausweg" maß in Wahrheit die globale Toolbar mit
+   (3 statt 1). Er ist jetzt eine DIFFERENZ gegen denselben Screen ohne Ausweg.
+
+## Die Harness-Falle
+
+`smoke_unit_pick.py` meldete zuerst 6000 Frames und ein leeres `_main_locals()`. Ursache: die zwei
+Vorspiel-SCREENS fahren eigene Event-Schleifen, deren Frames kein `turn_tracker` haben — der Pump
+wurde von der Kartenauswahl leergesaugt und `main()` nie erreicht. `config.MAP_SELECT = False`
+plus `ARMY_SELECT = False`, wie jeder andere Smoke es tut.
+
+## Zahlen
+
+- neu `game/unit_pick.py`, `test_unit_pick.py` (**67/67**), `ab_unit_pick.py` (**11 Sonden, alle
+  beißend**; die ganze Vor-Fix-Welt kippt 17 von 67), `smoke_unit_pick.py` (**6/6**, 45 Frames)
+- `test_mission_unit_pick.py` **65/65** umgeschrieben, `test_secondary_missions.py` **553/553**
+- 56 Aufrufstellen in ~50 Modulen getaggt; 4 dokumentiert ausgenommen
+- Volle Regression **179 Suiten, ~15720 Prüfungen, 178 grün / 0 rot / 1 bekannt**
+- `run_tests.py --smoke`: alle neun Smokes grün (inkl. `selfplay.py map2 1500`)
+- `smoke_unit_pick.py map2`: `1 Dark Reapers 1 (5 living models)`, Panel-Screen gezeichnet,
+  **5 von 5 Modellen geringt**, Overlay deckt das Brett nicht ab, ECHTER Klick löst auf.
+  `--neutralize` kippt alle sechs.
+
+
+# 2026-09-04 (7) — "obwohl KI Modus aus war": ein Schalter, drei Berichte
+
+Drei Meldungen aus EINER Partie, und alle drei hängen an demselben Satz.
+
+## Bericht 1 — der eigentliche
+
+*"Protokoll of undying legions wurde wieder automatisch ausgeführt, obwohl KI Modus aus war."*
+
+**Der Log beantwortet es in zwei Zeilen** (`logs/game_20260904_174253.log`):
+
+```
+Zeile   8:  Player 2: auto-play ON (Shift+A).
+Zeile  17:  Player 2: auto-play OFF (Shift+A).
+Zeile 174:  Player 2 spends 1 CP.
+Zeile 175:  Player 2 uses Protocol of the Undying Legions.
+```
+
+Dazwischen stellt der Mensch **alle acht Player-2-Einheiten von Hand auf** (die `[deploy]`-Zeilen
+der Aufstellungs-KI hören bei Zeile 17 auf) — Kanal eins stand also wirklich still. Kanal zwei, die
+~83 `auto_players`-Gates, hörte auf gar nichts.
+
+**Erste Diagnose war „es gibt gar keinen KI-Schalter"** — `config.AI_MODE_SELECT` steht in der
+Config, hat aber keinen Leser, und `game/ui/ai_mode_select.py` existiert nicht. Also gefragt, ob der
+Schalter gebaut werden soll. **Die Antwort war die Korrektur:** *"das ist für mich das gleiche.
+KI - Modus ist autoplay, erkennbar am roten punkt."* Ein Begriff, ein Schalter.
+
+## Wie ein Schalter ~83 eingefrorene Gates erreicht
+
+Jeder Controller normalisiert `auto_players` in seinem EIGENEN `__init__` — bewusst, damit sich
+unter ihm nichts ändern kann. 83 Konstruktoren live umzubauen wäre also gegen das Design gewesen.
+
+**Die Lösung ist die Trennung von MITGLIEDERN und MITGLIEDSCHAFT.** Alle ~90 Lesestellen fragen
+`x in self.auto_players`. Also bleibt die Menge eingefroren und der `in`-Test wird lebendig:
+`ai_mode.players()` gibt eine Sicht zurück, deren `__contains__` den Modus mitfragt.
+
+- **80 Schreibstellen** mechanisch umgestellt (`set(...)`/`tuple(...)` → `ai_mode.players(...)`).
+- **Null Lesestellen** angefasst.
+- **`ai_players` in `main()` ist selbst diese Sicht** — damit gatet derselbe Schalter auch die zwei
+  KI-Treiber, weil beide mit `if not ai_players: return` beginnen und die Sicht bei ausgeschaltetem
+  Modus leer liest. Die Einzelschritt-Taste „A" stirbt gratis mit; das ist gewollt („aus ist aus").
+
+**Eigener Fehler beim mechanischen Lauf:** in acht Modulen landete der eingefügte Import IM
+DOCSTRING (die Heuristik suchte die letzte Importzeile der ersten 90 Zeilen und fand bei einem
+langen Modul-Docstring keine). `compileall` merkt das nicht — der Text ist ja gültig. Gefunden von
+der Suite (`NameError: name 'ai_mode' is not defined`), repariert über `ast`, und danach als
+Prüfung festgehalten: jedes Gate muss `ai_mode` als ECHTEN Import haben, nicht bloß im Text.
+
+**Default-Frage zuerst falsch entschieden.** Modul-Default auf `False` gesetzt → 18 Suiten rot, die
+`auto_players=(AI,)` reichen und automatische Auflösung erwarten. Richtig ist: der Default ist AN
+(ohne UI sagen die Mitglieder alles), und `main()` setzt AUS, genau dort wo `ai_auto_play = False`
+stand.
+
+## Bericht 2 — Rapid Ingress, und der ist NICHT der KI-Modus
+
+*"Ich habe im letzten spiel als player 2 rapid ingress für den shard of the voiddragen verwendet,
+konnte aber danach keine einheit platzieren."*
+
+Der Poll, der eine getragene Reserve-Karte verfallen lässt, warf sie weg, sobald die Phase nicht
+Bewegung ist. **15.07s Fenster ist per Definition nicht in der Bewegungsphase** — es geht auf,
+während die gegnerische Bewegungsphase ENDET, also nach `advance_phase()`. Im Log: Fenster in
+Zeile 259, direkt nach „Player 1: Shooting phase begins", ungenutzt geschlossen in Zeile 313.
+
+Der Wächter hatte recht (ohne ihn schmuggelt der nächste Brettklick eine Ankunft außer der Reihe
+herein), er war nur zu breit. Ausnahme jetzt für GENAU die eine Einheit, für die ein Fenster offen
+ist — nicht für „irgendein Fenster ist offen", was jede andere Reserve-Einheit auf dem Rücken eines
+fremden Stratagems hereingelassen hätte. Als Gegenprobe mitgepinnt.
+
+**Die KI war davon nie betroffen:** sie erreicht ihre Reserven über `ai/deployment_ai.py`, nie über
+diesen Pick. Deshalb konnte das nur einem Menschen passieren — und deshalb hat es so lange gelebt.
+
+## Bericht 3 — die Sackgasse vor der Aufstellung
+
+*"ohne angeschalteten KI-Modus geht es direkt vor beginn der aufstellung nicht weiter. es gibt
+keinen knopf mit dem man den roll für attacker/defender auslösen könnte."*
+
+Der Roll-off war nie das Problem: er beginnt von selbst, sobald BEIDE Owner ihre Formations erklärt
+haben. Was nicht passieren konnte, war Player 2s Erklärung — `finish_formations_for()` hatte genau
+EINEN Aufrufer im ganzen Repo (`ai/deployment_ai.py`), und das Panel las
+`pregame_controller.human_player`, den SINGULAR, der bei `"Player 1"` steht, weil `main()` nie
+einen übergeben hat.
+
+`human_player` → `human_players` an allen fünf Stellen, plus das Panel, das jetzt jeden
+menschlichen Owner der Reihe nach durchgeht und ihn benennt, sobald mehr als einer dran ist. Das
+war der in CLAUDE.md als offen geführte „zweite Teil" der KI-Weichen-Arbeit; er ist damit zu.
+`PregameController.human_player` bleibt als weiterleitende Property stehen, weil acht Harnesses
+darüber die Aufstellung treiben.
+
+## Getestet
+
+- `test_ai_mode.py` 29 → **61/61**, `test_pregame.py` 125 → **138/138**,
+  `test_ai_busy_badge.py` 62 → **63/63**, `test_line_drag.py` 146 → **150/150**,
+  `test_game_menu.py` **139/139**, `test_scouts_human.py` **32/32** nachgezogen
+- Neu **`ab_ai_mode_switch.py`: 8 A/B-Sonden an der QUELLE, alle beißend**
+- Neu **`verify_ai_mode_switch.py`** — durch die ECHTE `main()`-Schleife: Klick auf den gezeichneten
+  Schalter kippt den Modus, und der LIVE gebaute Controller antwortet für `2 Canoptek Wraiths 1`
+  (die Einheit aus dem Bericht) mit `mode ON: cp 5->4` gegen `mode OFF: prompt, cp 5->5`.
+  `--neutralize` reproduziert den Bericht wörtlich.
+- Volle Regression **179 Suiten, ~15738 Prüfungen, 178 grün / 0 rot / 1 bekannt**, alle neun Smokes
+
+## Drei Befunde über den TEST (Fehlerklasse 24)
+
+1. Die Sonde „der Schalter wird nur im EIN-Zustand gezeichnet" schrieb
+   `ai_toggle_rect = ai_mode.enabled() and draw_ai_mode_toggle(` — und die Suite blieb grün, weil
+   der Pin nur fragte, ob ein `elif` fehlt. Er verlangt jetzt einen NACKTEN Aufruf.
+2. Die Sonde „der Klick-Zweig ist tot" schrieb `and False and ...` statt den Zweig zu löschen. Die
+   ehrliche Vor-Fix-Welt ist „es gibt keinen Zweig", und so geschrieben beißt sie.
+3. Die Laufzeit-Sonde maß zuerst zweimal dasselbe: nach dem EIN-Durchgang steht ein D3 aus, und
+   `can_use()` lehnt währenddessen ab — der AUS-Durchgang wäre also aus einem Grund abgelehnt
+   worden, der mit dem Modus nichts zu tun hat, und hätte wie ein Bestehen ausgesehen. Ebenso
+   musste sie CP nachlegen: die echte KI hatte ihre längst ausgegeben.
+
+## Fremde Fehlschläge, nicht dieser Arbeit zugeordnet (Fehlerklasse 20)
+
+`test_secondary_missions.py` / `test_unit_pick.py` fielen mitten in den Läufen mit
+`AttributeError: 'SecondaryMissionController' object has no attribute 'pending_pick'` —
+`game/secondary_missions.py` trug dabei sekundenaktuelle Zeitstempel und einen −362/+179-Refactor.
+Eine parallele Sitzung baut dort gerade um; einzeln nachgefahren ist die Suite grün.
+
+
+# 2026-09-04 — Das Fraktionslogo aufs Zug-Banner
+
+**Gemeldet:** *"es gibt ja den promt, der anzeigt, wer jetzt am zug ist. 'Player 2, Turn 1' baue
+dort bitte auch das fraktions Logo ein."*
+
+## Warum das eine Extraktion wurde und kein Zweizeiler
+
+Eine Fraktionskachel ist mehr, als sie aussieht: Rahmen, Aktiv-Glow als doppelter Ring, Kunst
+zentriert und eingepasst, Monogramm-Rückfall für ein Volk ohne Logodatei, und eine
+Schriftgrößen-SUCHE für dieses Monogramm (ein fettes Zweizeichen-Wort ist breiter als hoch, eine
+aus der Kachelhöhe abgeleitete Größe läuft seitlich über). Das alles lag in
+`game/ui/game_status_panel.py`, solange das Panel die einzige Stelle war, die eine zeichnet.
+
+Das Banner ist der zweite Konsument, also `game/ui/faction_badge.py` (29.) — mit
+Re-Exporten im Panel statt eines Imports an jeder Benutzungsstelle, damit dessen 63 Pixel-Prüfungen
+per Konstruktion unverändert bleiben. Sie sind es (63/63, keine Anpassung).
+
+**Die Kachel nimmt eine RECT, keine Größe.** Genau deshalb kann das Banner 76 px wählen, wo das
+Panel 58 hat: die 58 sind für eine 200-px-Spalte bemessen, das Banner steht in der Bildschirmmitte
+mit 460 px Boxbreite und ist einen Klick lang zu sehen. Nur die Schrift wird gesucht, eine größere
+Kachel kostet also nichts.
+
+## Die Layout-Entscheidung
+
+ÜBER der Überschrift, zentriert. Nicht daneben: `button_style.draw_panel_header()` zeichnet eine
+Leiste über die volle Boxbreite — es gibt keine Seite, auf die eine Kachel passt, ohne die Leiste
+zu überlagern oder sie kürzer zu machen als jede andere Überschrift im Spiel. Verschoben wird die
+Überschrift dadurch, dass ihr ein Rect gereicht wird, das unter der Kachel beginnt; sie muss von
+Badges nichts wissen.
+
+**Reserviert wird nur, was auch etwas zeigt.** Ohne Fraktion (handgebaute Squad ohne Datenblatt)
+ist das Banner exakt so hoch wie vorher — ein leeres gerahmtes Quadrat liest sich als Kunst, die
+nicht geladen hat.
+
+**`dismiss()` lässt Keyword UND Pfad los.** Das ist keine Kosmetik: ein behaltenes Logo landete auf
+dem NÄCHSTEN Banner, also im Zug des anderen Spielers, mit dem Wappen der falschen Armee.
+
+## Eine Ableitung, zwei Leser
+
+`main.py` hatte „wer spielt welches Volk" als Inline-Ausdruck im Zeichenblock. Jetzt
+`current_player_factions()` mit `nonlocal` — gelesen vom Panel und vom Banner. Zwei Kopien sind der
+Weg, auf dem die eine mit einem halbfertigen Vorspiel-Roster antwortet, während die andere sich
+längst gesetzt hat (`player_factions` wird bewusst so lange neu abgeleitet, bis es beide Armeen
+sieht).
+
+## Der Befund über den Test
+
+Die A/B-Sonde „der Logopfad wird nie nachgeschlagen" biss ZUERST NICHT. Grund: nichts in der Suite
+unterschied KUNST von MONOGRAMM — beides ist Tinte in der Kachel, und zwei verschiedene Völker
+rendern so oder so verschieden. Ein Banner, das brav „NE" statt des Necron-Wappens zeigt, wäre
+durchgegangen. Jetzt wird dasselbe Volk zweimal gerendert und ihm einmal nur die Kunst weggenommen.
+
+## Zahlen
+
+- neu `game/ui/faction_badge.py`, `test_turn_start_overlay.py` (**36/36**) — zu diesem Overlay gab
+  es vorher GAR KEINEN Test —, `ab_turn_start_badge.py` (**10 Sonden, alle beißend**, beide Suiten),
+  `verify_turn_badge.py`
+- `test_faction_badges.py` **63/63** ohne eine Anpassung
+- Volle Regression **180 Suiten, ~15774 Prüfungen, 179 grün / 0 rot / 1 bekannt**
+- **Im echten Spiel:** `Player 1 -> 'AELDARI', 'Aeldari Logo.jpg'`, `Player 2 -> 'NECRONS',
+  'Necron Logo.png'`, Kachel 76 px, `artwork=True`. `--neutralize`: `faction None, art None`,
+  0 gezeichnete Kacheln.
+
+
+# 2026-09-04 — Die Kantenlinien der Aufstellungszonen so dick wie die inneren
+
+**Gemeldet:** *"bei den Aufstellungszonen gibt es an den spielfeldrändern sehr dicke Linien. können
+die genau so dick sein wie die innenliegenden Linien?"*
+
+## Die Änderung ist eine Zeile, die Sorgfalt liegt woanders
+
+`BOARD_EDGE_LINE_WIDTH = DEPLOYMENT_ZONE_LINE_WIDTH` — **abgeleitet, nicht zweimal hingeschrieben.**
+Gleichheit IST die Bitte, und zwei getrennt gepflegte Zahlen sind genau der Weg, auf dem sie
+aufhört zu gelten, sobald jemand die eine nachjustiert. Der Name bleibt, weil es weiter zwei ROLLEN
+sind (Zonengrenze / eigene Brettkante) und eine spätere Trennung das dann auch sagen muss.
+
+Gemessen, 1920×1080: map2 Kantenband **5.92 → 2.78 px** (exakt die Kontur), map1 4.30 → 2.06,
+1280×720/map2 3.79 → 1.90.
+
+## Warum das nichts kaputtmacht
+
+Die alte Begründung für die dickere Linie war „Zuordnung der Spielfeldkanten": welche Brettkante
+wem gehört, sei eine gröbere Aussage als wo die Zone endet. Diese Information hängt aber gar nicht
+an der DICKE — sie hängt an der FARBE der Linie und an ihrer ANWESENHEIT (eine Kante, die niemandem
+gehört, bekommt gar keine Linie). Das steht jetzt so im Quelltext und im Test.
+
+## Zwei fremde Pins, zu Recht rot
+
+1. „das Kantenband ist das dickere der beiden" → jetzt „exakt gleich dick".
+2. Ein Vergleich einer gemessenen Pixelzeile gegen die Konstante. Der ging gut, solange die
+   Konstante eine ganze 5 war; mit 2.4 vergleicht er einen Int gegen einen Float. Prüft jetzt gegen
+   `_ring_width()`, also gegen die wirklich gezeichnete Breite.
+
+Dazu neu: die Basisring-Schranke („dicker als der Ring, den der User schon als lesbar akzeptiert
+hat") steht jetzt AUCH fürs Kantenband ausdrücklich da, statt aus der heutigen Gleichheit zu
+folgen — falls die zwei je wieder getrennt werden, ist das die Latte, die die dünnere noch nehmen
+muss.
+
+## Ein Befund vor dem Ausliefern
+
+Die naheliegende Prüfung, dass die zwei Konstanten wirklich EINE sind, wäre
+`BOARD_EDGE_LINE_WIDTH is DEPLOYMENT_ZONE_LINE_WIDTH` gewesen. Das ist eine **Tautologie**:
+CPython faltet gleiche Float-Konstanten eines Moduls zu EINEM Objekt, `2.4 is 2.4` über zwei
+getrennte Zuweisungen ist also True — die Prüfung bestünde für genau die Kopie, die sie verbieten
+soll. Vor dem Schreiben gemessen (`exec` auf zwei Zuweisungen), und die Prüfung geht jetzt an den
+QUELLTEXT. Zweite Instanz derselben Form nach dem Paletten-Vergleich in `test_biomes.py`.
+
+## Zahlen
+
+- `test_deployment_zone_markings.py` 50 → **58/58**
+- neu `ab_zone_edge_width.py`: **4 A/B-Sonden, alle beißend** — das fette Kantenband zurück
+  (55/58), dieselbe Breite als KOPIE statt Ableitung (57/58), eine um 0.2 abweichende Breite
+  (55/58), und die ungeskalierte Originalfassung (53/58)
+- Volle Regression **180 Suiten, ~15782 Prüfungen, 179 grün / 0 rot / 1 bekannt**
+- `selfplay.py map2` und `smoke_pregame.py map2` grün — keine Formalie, `game/renderer.py` läuft
+  pro Frame
+
+# 2026-09-04 — "36 VP vor dem ersten Zug": zwei Fehler, die sich multipliziert haben
+
+**Gemeldet:** *"der erste zug ging noch nicht los und der gegner spieler 2 hat schon 36 VP. da
+stimmt was nicht"* — und im selben Zug nachgeschoben: *"außerdem sollte man im ersten zug noch keine
+vp für objectives bekommen. erst ab zug 2."*
+
+## Was das Log des Users sagte
+
+`logs/game_20260904_213744.log`, Zeilen 46-97. 36 = **2 × 18**, und die zwei 18er stehen wörtlich
+da — zweimal `Player 2 scores 18 Primary point(s) (controls 3 objective(s))`, jedes mit seinem
+eigenen `Gain Core CP` davor, beide vor irgendeiner Bewegung. Darüber, noch auffälliger:
+
+    Player 2 set up 2 Poxwalkers 2.
+    Pre-battle: deployment complete.
+    Pre-battle: deployment complete.
+    Pre-battle: roll off to decide who takes the first turn (rule 03.01).
+    Pre-battle: deployment complete.
+    Pre-battle: roll off to decide who takes the first turn (rule 03.01).
+    Pre-battle: roll off to decide who takes the first turn (rule 03.01).
+
+Dreimal "Aufstellung fertig", dreimal der Erste-Zug-Roll-off, und danach der komplette
+Schlachtstart-Block (`Player 1 fields 9 units...`) zweimal.
+
+## Die Reihenfolge C,C,R,C,R,R hat mich zuerst in die Irre geführt
+
+`_finish_deployment()` loggt C und ruft danach `_begin_first_turn_rolloff()`, das R loggt — die zwei
+können gar nicht auseinandergerissen werden. Ich habe eine Weile Threads verdächtigt und den
+GameLog auf Pufferung geprüft (keine: `open(..., "a")`, sofortiger `write`). **Falsch abgebogen; die
+Erklärung ist REKURSION, und der Weg dahin war nicht Nachdenken, sondern Messen.**
+
+Ein Probe-Skript, das `selfplay.py`s echte `main()`-Schleife per `runpy` fährt und für jeden Aufruf
+einen abgeschnittenen Stack mitschreibt, hat es in einem Lauf beantwortet:
+
+    === finish_deployment      pregame.py:475 _finish_deployment
+                               main.py:4592 _RedeployChain.start
+                               main.py:4602 _run
+                               main.py:4600 _run
+                               prince_of_corsairs.py:140 start
+                               main.py:4599 <lambda>
+                               main.py:4597 _run
+
+Also: `_finish_deployment` reicht sich selbst als `on_done` in die Redeploy-Kette, ein Glied der
+Kette RUFT dieses `on_done` und gibt danach **False** zurück ("nichts zu tun"), und der Aufrufer
+läuft deshalb ein zweites Mal weiter. Dieselbe Form ein zweites Mal in
+`_run_next_prebattle_step()`, mit `enh_strike_swiftly` und `fated_hero` als Auslösern — daher die
+drei Scouts-Queues und die drei `_begin_battle()`.
+
+Gemessen, vor jeder Änderung, im echten Lauf:
+`{'finish_deployment': 3, 'begin_battle': 3, 'prebattle': 1, 'scouts_start': 3}`.
+
+## Der eigentliche Befund: ein Vertrag mit zwei ausgelieferten Lesarten
+
+`enh_solid_image_projection.py`s `_apply()` schreibt die eine Lesart wörtlich aus:
+
+> *"calling on_done AND returning False would run _finish_deployment() twice, and the second run
+> would start a second first-turn roll-off."*
+
+`test_wraith_constructs.py` PINNT die andere, an `fated_hero`:
+
+> *"the pre-battle step needs no prompt for an AI-owned model" → `start(...) is False`*
+> *"...and it hands control back, or the pregame would stall" → `len(_done) == 1`*
+
+Beide Zeilen sind gut gemeint, beide sind ausgeliefert, und sie widersprechen sich. **Vier
+Schritte** folgen der zweiten Lesart (`fated_hero`, `enh_strike_swiftly`, `prince_of_corsairs`, der
+terminale Zweig von `main.py`s `_RedeployChain`); genau EINER (`_apply`) der ersten.
+
+Deshalb wurde NICHT an den vier Schritten gedreht — das hätte einen fremden Pin zu Recht rot
+gemacht, für null Gewinn. `game/pregame.py` bekommt `Resume`: eine Fortsetzung, die höchstens
+einmal feuert und sich merkt, dass sie es getan hat. Beide Treiber und `main.py`s Kette lesen
+`fired` zusätzlich zum Rückgabewert, damit beide Lesarten richtig sind und ein fünfter Schritt es
+nicht erneut brechen kann.
+
+Dazu `_begin_battle()` idempotent (`state == DONE` → return) — nicht als Ersatz, sondern als
+Backstop: `on_battle_start` verteilt Core CP und wertet die Primary der ersten Command-Phase, das
+darf nicht zweimal zahlen, wer immer dort ankommt.
+
+Und die Fortsetzung des Redeploy-Hakens ist jetzt `_deployment_finished`, nicht `_finish_deployment`
+— ein Schritt, der zurückgibt, hat die Aufstellung nicht ein zweites Mal beendet und soll das nicht
+protokollieren.
+
+## Die zweite Bitte war fast schon gebaut
+
+"Keine VP für Objectives in Runde 1" — **alle fünf Force-Disposition-Karten drucken ihre
+Objective-Boxen bereits als "2ND ROUND ONWARD"**. Hold the Line war die einzige Primary im Spiel,
+die noch für das Brett zahlte, wie es nach der Aufstellung stand. Also
+`PRIMARY_FIRST_SCORING_ROUND = 2`, im Test gegen `primary_missions.SECOND_ROUND_ONWARD` gepinnt
+statt gegen ein Literal.
+
+`battle_round` bekam bewusst KEINEN Default (dieselbe Begründung wie bei `_detectable_models()`:
+der Default wäre exakt der Fehler, den er verhindern soll), also sind die drei `main.py`-Aufrufe
+und rund zehn Testaufrufe nachgezogen. Beide KI-Prompts sagen die Bande jetzt mit — der Planner
+wägt Boden gegen Kills mit genau dieser Arithmetik ab.
+
+**Benannte Ausnahme:** Battlefield Dominances "MORE OBJ"-Box ist "Rounds 1-2" GEDRUCKT und bleibt.
+Eine transkribierte Regel gewinnt gegen diese.
+
+## Ein Befund über den TEST, den die Sonden erzwungen haben
+
+Sonde 2 (nur der Prebattle-Treiber zurück auf die alte Form) biss zuerst nicht: der doppelt
+gelaufene Treiber ist hinter `_begin_battle()`s Idempotenz-Guard **unsichtbar** — die Schlacht
+startet trotzdem nur einmal. Ein Test, der nur den Schlachtstart zählt, hätte die Sonde für
+harmlos erklärt und den kaputten Treiber ausgeliefert. `test_pregame.py`s Abschnitt 9 zählt
+deshalb die HAND-BACKS selbst (`finish_prebattle_abilities`), nicht nur ihr Ergebnis.
+
+## Zahlen
+
+- `test_pregame.py` 138 → **149/149** (neuer Abschnitt 9)
+- `test_standard_missions.py` 33 → **44/44** (neuer Abschnitt 1b, beide Seiten der Rundengrenze)
+- neu `ab_pregame_starts_once.py`: **9 A/B-Sonden, alle beißend**; die ganze Vor-Fix-Welt kippt
+  5 von 149, erste rote Zeile
+  `the battle starts exactly ONCE -- ['Player 1', 'Player 1', 'Player 1']`
+- neu `verify_pregame_starts_once.py`: durch die ECHTE `main()`-Schleife **1/1/1/1/1** und keine
+  Primary-VP in Runde 1; `--neutralize` meldet 3 Aufstellungs-Abschlüsse, 3 Roll-offs,
+  3 Scouts-Queues, 2-3 Schlachtstarts und Zahlungen in Runde 1
+- ein fremder Pin zu Recht rot: `test_tau_enhancements.py` pinnte den Wortlaut
+  `self.redeploy_step.start(self, self._finish_deployment)` — genau die sichtbare Änderung, für
+  die er gesetzt war; er prüft jetzt zusätzlich, dass die Hand-off-Prüfung einschaltig ist
+- Volle Regression **181 Suiten, ~15873 Prüfungen, 180 grün / 0 rot / 1 bekannt**
+
+
+# 2026-09-04 — "lead save": Schaden auf dem falschen Modell, und niemand hatte gehandelt
+
+Zwei Sätze, zwei ganz verschiedene Ursachen — und der erste war nicht das, wonach er klingt.
+
+## Report 1 reproduziert, und zwar am EIGENEN Save des Users
+
+`scenes/scene_20260904_214638.json` lag noch da (map3, necrons vs death guard, Schussphase). Die
+Zeile, um die es geht:
+
+    1 Skorpekh Destroyers 1 + Skorpekh Lord   board   1 models   wounds=[5]
+
+Ein Modell, 5 Wunden. Der Skorpekh Lord hat 7, ein Destroyer 3 — es ist also der LORD auf 5/7.
+Diese Datei in einen frisch gebauten Roster geladen ergab:
+
+    RESTORED   : [('Skorpekh Destroyer', 5, 3)]
+    casualties : ['Skorpekh Destroyer', 'Skorpekh Destroyer', 'Skorpekh Lord']
+    models restored ABOVE their maximum wounds: 1
+
+Ein Destroyer auf **5/3** — mehr als sein Maximum, also aus Spielersicht unverwundet — und der Lord
+als Leiche. Der Schaden war die ganze Zeit in der Datei; er landete nur auf dem falschen Modell.
+
+**Die Ursache ist eine ZIP.** Ein Snapshot hält die ÜBERLEBENDEN in ihrer Live-Reihenfolge, die
+Szene beim Laden hält die Einheit wie GEBAUT. `restore()` paarte sie positionell und schnitt den
+Rest HINTEN ab (`squad.models[:len(models)]`). 19.01 stellt den Charakter ans ENDE der Liste — also
+traf es systematisch jede Attached Unit, und immer den Charakter.
+
+Auf der Aeldari/Necron-Sonde: 1 von 20 Einheiten wich ab, und die Abweichung war
+`model[10]: ('Farseer', 4) -> ('Guardian Defender', 4)`.
+
+## Report 2 reproduziert
+
+`json.load` auf denselben Save: `['armies', 'command_points', 'format', 'map', 'missions',
+'squads', 'turn']`. Kein Abschnitt über Aktivierungen, keiner über die Squad-Flags. Nachgemessen:
+`shot`/`moved`/`advanced`/`stationary` — alle vier `saved in the file? NO`.
+
+**Warum es nie auffiel:** der AUTOSAVE läuft an der Rundengrenze, und dort ist per Konstruktion
+jedes dieser Register leer. Genau dasselbe Argument, mit dem die Missions-Arbeit ihre
+zug-gebundenen Felder weglassen durfte. F9 und "Save Game" sind nicht an der Rundengrenze.
+
+## Die Entscheidung, die am meisten Zeit gekostet hat
+
+Für Report 2 wollte ich zuerst dem Repo-Muster folgen: `save_state()`/`load_state()` auf jedem
+Controller, wie die Mission-Controller es tun. Dagegen entschieden, und die Begründung steht im
+Modulkopf: bei den Missionen trägt jeder Controller eine ANDERE Art Zustand, und "was ist hier
+zug-gebunden" ist wirklich eine Tatsache über seine Regeln. Hier sind es ACHT identische Antworten
+(Menge von Einheiten / Dict nach Einheit). Was tatsächlich schiefgeht, ist ein NEUNTES Register,
+das jemand hinzufügt und niemand einträgt — und das fängt eine Tabelle plus Quell-Wächter, acht
+verstreute Methoden nicht. Also `game/activation_state.py`.
+
+Zweite Entscheidung: die 22 Squad-Flags kommen mit, nicht nur die Controller-Register. `ere_we_go_active`
+& Co. sind mit CP bzw. einem Battle-Focus-Token BEZAHLT; ein Save mitten im Zug, der sie wegwirft,
+kassiert zweimal. Die Liste ist erschöpfend gegen `Squad.__init__` geprüft, und jedes ausgelassene
+Feld trägt seinen Grund als Datum (nicht als Kommentar), damit der Wächter ihn lesen kann.
+
+## Der Wounds-Clamp: was für die Dateien bleibt, die schon auf der Platte liegen
+
+Die per-Modell-Identität rettet nur Dateien, die AB JETZT geschrieben werden. Für die alten bleibt
+die positionelle Zuordnung — aber ein Modell darf wenigstens nicht ÜBER seinem Maximum zurückkommen.
+Vorher geprüft, ob der Clamp je etwas Legitimes kostet: die Shield Drone erhöht `profile.wounds`
+MIT, jeder Heal-Pfad geht durch ein `min(profile.wounds, ...)`. Der Skorpekh Destroyer des Users
+kommt danach auf 3/3 statt 5/3.
+
+## Vier Sonden, die zuerst nicht bissen — alle Befunde über den TEST
+
+1. **Die wichtigste.** Meine erste Sonde zu "Modell-Identität ignoriert" stellte nur PASS 1 ab
+   (Zeile + Waffen) und ließ PASS 2 (nur Zeile) laufen. Damit findet die Suche den Lord immer noch,
+   und die Sonde meldete NO-OP. Fehlerklasse 16 in Reinform: eine halbe Vor-Fix-Welt beweist nichts.
+   Jetzt streift die Sonde die Identität AUS DEN GESPEICHERTEN EINTRÄGEN — was zugleich exakt der
+   Zustand jeder Datei ist, die schon existiert.
+2. **Der Waffen-Fall kam zufällig richtig heraus.** Storm Guardians: ich hatte fünf einfache
+   Gardisten getötet und dann geprüft, ob die Spezialwaffen zurückkommen. Sie kommen zurück — auch
+   mit reinem Namens-Matching, weil `build_squad()` die Spezialwaffen auf die ERSTEN Modelle legt
+   und die überlebt hatten. Jetzt stirbt der Fusion-Schütze, der Flamer-Träger wird zum ersten
+   überlebenden "Storm Guardian", und Namens-Matching gibt ihm die falsche Waffe.
+3. **Drei Sonden ließen die Suite ABSTÜRZEN statt rot zu werden** — Indizieren in eine leer
+   gewordene Liste, `data["activation"]["controllers"]` auf einem Dict ohne den Schlüssel, und
+   `str.index()` in einem Reihenfolge-Wächter. **Sechste bis achte Instanz** derselben Lehre in
+   diesem Repo. Jetzt gepolsterte Kopie, `.get()` und `find()`.
+4. Eine vierte Sonde war schlicht kaputt (ihr Anker stand zweimal in `game/pile_in.py`, einmal im
+   Konstruktor und einmal in `reset_fight_phase()`) und meldete sich selbst als PROBE BROKEN.
+
+Danach: **13/13 Sonden beißen.**
+
+## Der Ordnungs-Fallstrick, den ich fast gebaut hätte
+
+`restore_activation()` gehört NACH `begin_battle()`. Der räumt `set_up_this_turn` auf JEDER Einheit
+ab (18.02 — sonst dürfte die frisch aufgestellte Armee in Runde 1 nicht einsteigen), also wäre die
+Flagge sofort wieder weg. Genau derselbe Fallstrick, den `restore_turn()` und `restore_missions()`
+schon tragen. Eigene A/B-Sonde, die den Aufruf davor schiebt.
+
+## Zahlen
+
+- neu `game/activation_state.py`, neu `test_scene_activation.py` (**66/66**),
+  neu `ab_scene_activation.py` (**13 Sonden, alle beißend**), neu `verify_save_load.py`
+- `test_scene_io.py` 73 → **75/75** — Abschnitt 3s Überschrift versprach "verliert seinen SCHWANZ",
+  was aufgehört hat zu stimmen
+- Volle Regression **181 Suiten, ~15873 Prüfungen, 180 grün / 0 rot / 1 bekannt**,
+  `run_tests.py --smoke` mit allen neun schweren Skripten grün
+- **Im ECHTEN Spiel belegt:** zwei `main()`-Läufe über `selfplay.py`s echte Schleife. Gefixt kommt
+  `1 Windriders 1 + Warlock Skyrunners` als **Warlock Skyrunner** zurück, der Avatar hat schon
+  geschossen und darf nicht nochmal ziehen; `--neutralize` liefert einen **Windrider**, `shot=False`,
+  `can_move=True`, `charged_this_turn=False` — den Bericht wörtlich.
+
+## Ein Flake, benannt statt zugeordnet
+
+Der `--smoke`-Lauf meldete einmal 3 rote Prüfungen in `test_tau_enhancements.py`. Einzeln
+nachgefahren: **252/252**. Volle Regression davor und danach: je 180 grün / 0 rot. Der dokumentierte
+`__pycache__`-Rennfall unter dem Parallel-Runner (Fehlerklasse 19) — meine A/B-Sonden schreiben und
+stellen Quelldateien im Sekundentakt wieder her, deshalb löscht `ab_scene_activation.py` den Cache
+zwischen den Durchgängen selbst.
+
+## Benannte Grenze
+
+Ein Save, der VOR dieser Änderung geschrieben wurde, trägt keine Modell-Identität und lässt sich
+nicht vollständig reparieren — der Skorpekh Destroyer des Users steht danach auf 3/3 statt 5/3, aber
+es ist immer noch der falsche Überlebende. Und ein Snapshot stellt weiter ein GESETZTES Brett
+wieder her, nie eine halbfertige Aktivierung: `nova_charge_grants`, `attached_ability_grace`,
+`fired_weapon_types` und `ActionController.states` sind namentlich draußen.
+
+
+# 2026-09-05 — "obwohl ich necrons spiele": die letzte versteckte Automatik
+
+**Gemeldet:** *"Einheiten wurde automatisch platziert bei protocol of the undying legion, obwohl
+ich necrons spiele. da scheint sich noch eine automatismus zu verstecken, der nur bei KI greifen
+soll."*
+
+Die KI-Weichen-Arbeit vom Vortag hatte `ReturnPlacementController` gebaut und an
+`ReanimationProtocolsController` verdrahtet. Der Bericht sagt, dass das nicht reichte — und er hat
+recht: **`reanimation_protocols.reanimate()` hat DREI Aufrufer**, und nur einer hatte den Placer
+bekommen. Fehlerklasse 9 in Reinform (der Trichter ist nicht immer der, der so aussieht).
+
+- **Reproduziert vor jeder Änderung, beide Türen, beide Seiten.** Ein Mensch, der Undying Legions
+  kauft, bekommt seine Modelle zurück und `setup.state` bleibt `idle` — identisch zur KI. Dasselbe
+  über den Resurrection Orb. Danach `placing` für den Menschen, `idle` für die KI.
+- **`placer=None` als Default ist ein STILLER Fehlerpfad**, und genau deshalb hat es überlebt: ein
+  vergessener Aufrufer sieht von innen richtig aus und tut das Alte. Beide Aufrufer reichen jetzt
+  `placer=self.placer` durch; `main.py` gibt dem einen den Placer im Konstruktor
+  (`UndyingLegionsController(..., placer=return_placement_controller)`) und dem anderen per
+  Attributzuweisung, weil er VOR dem Placer gebaut wird (Fehlerklasse 23).
+- **Der Wächter ist eine MENGENDIFFERENZ an der Quelle** (`test_return_placement.py` Abschnitt 7):
+  jeder `reanimate()`-Aufruf außerhalb seines eigenen Moduls muss `placer=` mitgeben, und `main.py`
+  muss dem zugehörigen Controller einen geben — in BEIDEN Formen, die die Konstruktionsreihenfolge
+  erzwingt. Ein Verhaltenstest kann die VIERTE Tür nicht sehen, weil es sie noch nicht gibt.
+- **Die eigene A/B-Sonde hat den ersten Wächter widerlegt** (Fehlerklasse 24):
+  `"placer=return_placement_controller," in MAIN_SRC` ist schon wahr, weil Curse of the Walking Pox
+  es ebenfalls übergibt — die Zeile blieb also grün, während Undying Legions unverdrahtet war.
+  Jetzt per AST über den AUFRUFAUSDRUCK.
+- **Im ECHTEN Spiel belegt:** `verify_undying_legions_placement.py` nimmt die LIVE von `main()`
+  gebauten Controller aus dessen eigenem Frame und meldet
+  `placement opened for the human: True (placing 1 of 5)` gegen `--neutralize`s `False (0 of 5)` —
+  den Bericht wörtlich.
+
+
+# 2026-09-05 — Der Advance-Reroll fragte, bis man ja sagte
+
+**Gemeldet:** *"im letzten spiel wurde ich immer wieder gerfagt, ob ich den advance resollen will
+mit den destroyern. es war eine schleife bis ich inh gererollt habe."*
+
+- **Zwei Quellen, EIN Wurf, keine Buchführung.** Sudden Storm und Superlative Strategist bieten
+  beide einen Advance-Reroll an, und beide werden pro Frame gefragt, solange
+  `DiceManager.pending_values` steht. "Nein" ist keine Antwort, die irgendwo landet — der nächste
+  Frame fragt dieselbe Frage. Erst ein JA räumt den Wurf weg, deshalb endete die Schleife genau
+  dann.
+- **`DiceManager.claim_reroll_offer(source)` ist die eine Antwort darauf**, wer für DIESEN Wurf
+  schon gefragt hat; `_reroll_offers` wird in `roll()` geleert, also ist die Lebensdauer der Wurf
+  selbst und nicht eine Phase. Ein zweiter Anbieter bekommt weiterhin sein eigenes Fenster — nur
+  keiner ein zweites.
+- **Nebenbefund, fünfte Instanz der Klasse:** `protocol_sudden_storm.maybe_offer_advance_reroll()`
+  war gebaut, unit-getestet und wurde von `main.py` NIE gerufen; sein eigener Docstring platzierte
+  es NACH `acknowledge()`, wo `reroll_die()` grundsätzlich ablehnt. Beide Anbieter laufen jetzt
+  aus EINER Stelle VOR `acknowledge()`.
+- **Im ECHTEN Spiel belegt:** `verify_advance_reroll_loop.py` meldet **1 Prompt** je Advance-Wurf,
+  `--neutralize` **130**. Der `__pycache__`-Rennfall hat unterwegs einmal 0 statt 130 gemeldet —
+  Cache löschen, nicht bisecten (Fehlerklasse 19).
+
+
+# 2026-09-05 — Das Platzierungs-Overlay kannte 09.02 nicht
+
+**Gemeldet:** *"immer wenn man Einheiten platzieren muss, zb durch Reanimation, muss man in
+coherency platzieren. dementsprechend muss auch das overlay sein. im Moment geht das über die ganze
+map?"* — und auf Rückfrage: **"Beides: Anzeige und Klemmung"**, **"Nur Rückkehr-Platzierungen"**.
+
+- **Die Regel galt schon, nur beim CONFIRM.** Eine Teilplatzierung durfte überall hin und wurde am
+  Ende abgelehnt — genau die Form, die dieses Repo als Fehlerklasse 8 führt (ein Kandidat, der
+  nicht alle Bedingungen kennt, die der Confirm prüft).
+- **`Squad.coherency_probe(models, moving)` ist ein VORBERECHNETER Test, kein Sweep pro Punkt:** es
+  zerlegt den Rest der Einheit EINMAL in Zusammenhangskomponenten, und ein Punkt ist genau dann
+  kohärent, wenn er JEDE davon berührt. Damit ist die Frage pro Kandidat eine Handvoll
+  Distanzvergleiche statt eines Graphenlaufs — nötig, weil das Overlay ein adaptiv verfeinertes
+  Raster über das ganze Brett legt.
+- **NUR bei `is_partial`**, also nur dort, wo Modelle zu einer stehenden Einheit dazukommen. Eine
+  volle Aufstellung setzt alle Modelle und regelt ihre Kohärenz selbst; den Term dort einzuschalten
+  hätte das erste Modell jeder Einheit unplatzierbar gemacht.
+
+
+# 2026-09-05 — Der Baserand ist die Grenze, nicht der Basemittelpunkt
+
+**Gemeldet als Frage** (*"erkläre warum es der Base Mittelpunkt ist und nicht der Rand"*), und
+meine erste Erklärung war die falsche — ich habe über Minkowski-Dilatation geredet, während der
+User über EINE geteilte Grenzlinie sprach. Seine Korrektur ist die Diagnose:
+
+> *"wir haben doch schon eine Grenze festgelegt. die Base der Modelle darf diese Grenze nicht
+> überschreiten. und basittelpunkt führt ja dazu dass größere Modelle näher randürfen als kleine.
+> das ist ja eigentlich falsch."*
+
+- **Und sie hat einen Fehler aufgedeckt, den ich am Tag zuvor selbst eingebaut hatte.** Das Overlay
+  malte EINE Maske für die ganze Einheit und nahm dafür den GRÖSSTEN Radius — konservativ, solange
+  das Prädikat monoton in der Basisgröße ist. Mit dem Kohärenz-Term ist es das nicht mehr: gemessen
+  waren **8.6 sq.in nur für das große Modell legal**, das Overlay hat sie für alle gemalt.
+- **Der Umbau macht die Grenze basisunabhängig:** `setup.base_edge_zones()` wertet das Prädikat bei
+  Radius **0** aus (per try/finally auf `token.radius_in`), die gezeichnete Linie ist also die eine
+  Grenze — und jedes Modell hält denselben Abstand zu ihr, unabhängig davon, wie groß seine Base
+  ist. Zwei Ebenen: die harte Sperrzone plus ein BAND, das zeigt, wie weit die eigene Base noch
+  hineinragen darf.
+- **Zwei eigene Testfehler, beide gemessen statt geraten:** die Radius-Prüfung lief, BEVOR
+  irgendeine Abfrage stattfand (`keep_out()` nullt den Radius nur für die Dauer eines AUFRUFS), und
+  der Basisgrößen-Vergleich benutzte ein FREMDES Modell — was ändert, welche Squadmates als "die
+  anderen" zählen, der Unterschied kam also aus dem falschen Grund. Jetzt dasselbe Modell mit
+  getauschtem Radius, plus ein Punkt genau an der Bandkante.
+
+
+# 2026-09-05 — Vier T'au-Listen an einem Tag
+
+Vier vom User gelieferte Roster, nacheinander: **Kauyon + Advanced Acquisition Cadre (2165)**
+ersetzt den 2026-08-30-Roster, dann **Mont'ka (2150)**, **Auxiliary Cadre + Experimental Prototype
+Cadre (2310)** und **Retaliation Cadre (1965)** als zusätzliche Listen. Verdichtet in CLAUDE.md
+unter `## Die T'au-Liste (2026-09-05)` und den drei `### Die ZWEITE/DRITTE/VIERTE`-Abschnitten;
+hier die Sitzungserzählung.
+
+- **Die ersten drei teilen 21 Einträge Modell für Modell**, also EIN Builder mit einer
+  Enhancement-Tabelle als Parameter statt dreier Roster-Kopien. Die vierte teilt ihn nicht (keine
+  Breacher, keine Devilfish, kein Ethereal, keine Fireblades) und bekam einen eigenen — eine
+  Tabelle für einen Roster, der nichts gemeinsam hat, wäre nur eine Verkleidung.
+- **Die ersten Listen dieses Projekts, die ENHANCEMENTS kaufen.** Der Mechanismus war seit dem
+  T'au-Nachzug gebaut, verdrahtet und wurde ausschließlich mit einer eigenen Testtabelle gefahren,
+  weil kein Roster eins nannte.
+- **Zwei per Konstruktion dormante Dinge sind dabei live geworden**, und in beiden Fällen war der
+  ROSTER der Grund, nicht die Verdrahtung: Experimental Prototype Cadres drei Enhancements (kein
+  Modell trug T'au Flamer, Plasma Rifle oder Airbursting Fragmentation Projector) und **zwei der
+  fünf Primary Missions** — Death Trap mit der Prototypes-Liste, Unstoppable Force mit der
+  Retaliation-Cadre-Liste. Damit spielt jede der fünf ein ausgeliefertes Roster.
+- **Eine dokumentierte Preisentscheidung ist umgekehrt worden, und die Evidenz kam aus der vierten
+  Liste selbst:** sie preist dasselbe Crisis-Starscythe-Datenblatt **zweimal** — 130 mit sechs
+  T'au Flamern, 100 mit keinem. `points.py` hatte aus "sonst würde der gedruckte Default mehr
+  kosten als die gedruckte Einheit" geschlossen, ein "per <Waffe>"-Preis meine nur den ZWEITEN
+  Flamer. Die Prämisse war, dass die gedruckte Zahl der Preis des Defaults ist; sie ist es nicht.
+  `UnitPoints.per_weapon` ist der zweite Topf, gemessen betroffen sind **genau zwei Datenblätter**.
+- **Zwei Transkriptionsfehler nebenbei gefunden** (Crisis Starscythe 90/100 statt 100/110,
+  The Twin Lance 220 statt 230) — beide gegen den KORPUS gepinnt statt gegen Literale, damit ein
+  GW-Update sie bewegt.
+- **Zwei eigene Fehler beim Bauen, beide von den eigenen Prüfungen gefangen:** der
+  Pathfinder-Granatwerfer landete auf einem Rail-Rifle-Modell (Ergänzungen starten bei Modell 0 —
+  jetzt beide Optionen nach Modell-INDEX adressiert), und `_per_weapon_cost` berechnete zuerst
+  NICHTS, weil mein Ausschlussfilter jeden bepreisten Eintrag übersprang und beide Optionen
+  bepreist waren.
+- **Ein Wächter matchte seine eigene Definition:** `_army_src.count("_build_tau_roster(owner,
+  register,")` fand auch die `def`-Zeile. Jetzt an der eingerückten AUFRUFSTELLE verankert.
+- **CLAUDE.md hat sich meine eigene Edit-Falle eingefangen:** `s.index("## Die T'au-Liste
+  (2026-08-30)")` traf eine QUERVERWEIS-Zeile und überschrieb ~35 Zeilen der Armeezusammenfassung.
+  Aus `git show HEAD:CLAUDE.md` wiederhergestellt und sauber neu angewandt. Ein Anker, der auch als
+  Verweis im Fließtext vorkommt, ist kein Anker.
+
+
+---
+
+## 2026-09-07 — Vier Präsentations-Meldungen: rote Declines, sichtbare Rückkehrer, größere Schrift, ein Hauptmenü-Hintergrund
+
+Vier Bitten in einer Nachricht, alle Oberfläche, drei davon mit einem echten Befund darunter.
+
+**1. "Decline Buttons auch in den overlays rot einfärben."** Der Farbcode war nie strittig —
+`button_style.py` schreibt seit Langem aus, dass Rot "diese Taste bricht ab / lehnt ab" heißt, und
+das linke Panel hält sich an 26 Stellen daran. Was fehlte, war die modale Box: `DecisionOverlay`
+malte jede Option im selben Grau, also war ausgerechnet die Stelle, an der eine Entscheidung
+FÄLLT, die einzige ohne Farbcode. Erwogen und verworfen: ein viertes Slot im Options-Tupel, an
+~100 Aufrufstellen von Hand gesetzt — ein vergessenes Flag macht nichts rot, der Knopf bleibt
+grau, der Fehler ist exakt der heutige und verrottet still. Stattdessen ein Prädikat auf das
+LABEL (`game/decline_option.py`), gemessen an einem AST-Sweep über alle literalen Options-Labels
+in `game/`: 47 verschiedene, davon 16 Absagen in einem geschlossenen Wortschatz. Der Wächter ist
+die MENGENDIFFERENZ gegen diese 16, in beide Richtungen — eine neue Schreibweise von "nein" wird
+rot, und eine echte Zwei-Wege-Wahl, die versehentlich rot gemalt würde, ebenfalls.
+
+**2. "Widerbeleben — ich kann nicht erkennen, welche einheiten gerade zurückgekommen sind."**
+Strukturell, nicht eine fehlende Farbe: eine Rückkehr setzt ein, zwei Modelle in eine Einheit, die
+schon steht, und die einzige Markierung war der Umriss um die GANZE Einheit — für die zwanzig
+Überlebenden genauso wahr. Neu ist ein weißer DOPPELring pro zurückkehrendem Modell plus eine
+Plakette, die sie zählt und über IHNEN hängt statt über der Einheit. Weiß, weil jede andere
+Brettmarkierung schon einen Farbton besitzt; doppelt, weil ein einzelner Ring sich vom
+Auswahl-Umriss nur in der Farbe unterscheidet.
+Der Testaufbau musste die zwei Modelle FREISTELLEN: `tk.line_up()` packt Basen 1.4" auseinander,
+enger als die Ringe breit sind — die erste Fassung maß Ringe, die dem Nachbarn gehörten, und
+meldete "ein Überlebender ist markiert" plus "drei Ringe statt zwei".
+`test_unit_selection.py`s Quell-Pin auf die eine Aufrufzeile ist zu Recht gebrochen und prüft
+jetzt den AUFRUFAUSDRUCK per AST.
+
+**3. "Die Font im Main Menu und Auswahl screen darf viel größer sein."** Eine Schriftmenge, drei
+Screens. Die interessante Arbeit war nicht das Vergrößern, sondern herauszufinden, WELCHE der
+umgebenden Kästen wirklich mitwachsen mussten — und das haben die A/B-Sonden entschieden, nicht
+das Auge. Erst wuchsen `HEADER_HEIGHT` (104 → 124), `FOOTER_HEIGHT`, `CONFIRM_BUTTON_WIDTH`,
+`PANEL_WIDTH` und `ENTRY_HEIGHT` gemeinsam; dann bissen vier ihrer Sonden nicht. Ergebnis:
+`HEADER_HEIGHT` **zurück auf 104** (die Leiste trägt die größere Schrift ohnehin, und jeder Pixel
+kommt aus dem Kachelband), `ENTRY_HEIGHT` bleibt bei 58 aber ist als reine Spacing-Wahl
+ausgeschrieben (`draw_button()` wächst eine zu kurze Zeile selbst), und für Fußzeile und
+Panelbreite wurde die PRÜFUNG geschärft, bis sie das misst, wofür die Zahlen wirklich da sind:
+die Luft unter den Knöpfen (`FOOTER_CLEARANCE_PX`) und dass eine ungebrochene, zentrierte Notiz
+nicht über den Panelrahmen läuft.
+**Nebenbefund, vorbestehend:** die Hinweiszeile der Kartenauswahl lief unter die Biom-Reihe. Sie
+ist kein fester String (sie nennt die gewählte Karte), der Crucible-Hinweis misst 608 px schon in
+der ALTEN Größe, und die Reihe beginnt bei 1280 px bei 616 — mit dem vierten Biom war die
+Überlappung längst da. Der Kommentar an `BIOME_BUTTON_WIDTH` behauptete das Gegenteil und war beim
+Schreiben wahr. Jetzt kürzt `ts.ellipsised()`, und der Platz wird aus `biome_layout()` ABGELEITET.
+
+**4. "main-manu-background.jpg als hintergrund im hauptmenü setzen."** Die Datei lag in
+`Sprites/Death Guard/` — das wird nicht "korrigiert", der Ordner gewinnt hier wie überall, und die
+Schreibweise "manu" ebenfalls (eine Sonde, die sie "richtig" schreibt, löst auf nichts auf).
+Cover statt Fit, ein Schleier darüber, und der In-Battle-Host bleibt beim eingefrorenen Brett.
+
+**Prozessnotizen dieser Sitzung.**
+- **`git stash push` hat kurzzeitig neue Dateien verschwinden lassen.** Dieses Repo hat einen
+  großen GESTAGTEN Changeset; `stash` nimmt den Index mit, also verschwanden die neu angelegten
+  Dateien. `stash pop` hat alles zurückgebracht, aber die Lehre steht: **hier nicht stashen, um
+  "ist das vorbestehend?" zu beantworten** — dafür eine Sonde bauen.
+- **Fehlerklasse 19 zweimal getroffen**: `verify_return_placement.py` meldete direkt nach den
+  Edits einmal FAIL, zwei Läufe später zweimal PASS. Erst wiederholen, dann suchen.
+- **Und derselbe Probe-Lauf hatte ein zu kurzes Framebudget** (1200): die erste Command-Phase des
+  Menschen wird damit gar nicht erreicht, die Sonde meldete "0 Aktivierungen" und las sich wie ein
+  Fehler des Gemessenen statt wie ein zu kurzer Lauf. Default jetzt 3000.
+- **Bash-Heredoc-Falle dreimal**: ein escapetes Newline in einem Ersetzungsmuster und ein
+  Apostroph in einem `<<'PY'`-Block. Solche Texte über Write/Edit schreiben — steht seit Langem in CLAUDE.md.
+
+### Nachtrag desselben Tages: Titel, Unterschriften, und ein Kachel-Kopf, der sich selbst überlagerte
+
+Drei kleine Bitten am Bild:
+
+- **Titel** `WARHAMMER 40,000` → `WARHAMMER 40K AI SIMULATOR`. Versalien, weil dieselbe Leiste die
+  zwei anderen Vorspiel-Screens trägt.
+- **Die Unterschriften unter den Menü-Knöpfen sind weg**, samt `NOTE_GAP`/`NOTE_COLOR`/
+  `DISABLED_NOTE_COLOR` und dem vierten Feld in `entries()`. Benannte Folge, im Test festgehalten:
+  Resume nennt den zu ladenden Spielstand nicht mehr, und ein ausgegrautes Resume nennt den Grund
+  nicht mehr. `save_note` bleibt, weil es das Eignungs-Tor ist und nie nur eine Unterschrift war.
+  Damit sind `PANEL_WIDTH` und `ENTRY_HEIGHT` beide reine Spacing-Wahlen — die Notizen waren das
+  Einzige, was je an die Panelbreite stieß.
+- **"Oben überlagert sich text"** war der interessante Fund: der Kopf einer Armeelisten-Kachel
+  hatte ZWEI Meinungen darüber, wie viele Zeilen er hat. Der Name wurde umbrochen, die Höhe nahm
+  flache vier Zeilen an, und die anderen drei Zeilen wurden gar nicht umbrochen — also schob ein
+  zweizeiliger Name alles in die Summenzeile, und eine lange Detachment-Zeile lief seitlich in die
+  Nachbarkachel. Dazu, unabhängig davon, ein zu kleiner Schlussterm (feste 18 gegen die größere
+  Label-Schrift), der die Summe über die Armeeregel malte. `_header_blocks()` ist jetzt die eine
+  Definition, gelesen von der Höhe und vom Zeichnen; die Höhe ist der Worst Case über die Seite.
+  **352 Prüfungen sahen keinen der beiden Fehler**, weil nie etwas den Kopf gemessen hatte —
+  jetzt tut es Abschnitt 7d, und zwar bei 1920×1080, weil erst dort vier Kacheln nebeneinander
+  stehen und die Kachel schmal genug wird.
+
+**Und ein fremder Fehlschlag mitten im Lauf, korrekt nicht mir zugeordnet:** `test_tau_enhancements.py`
+fiel mit "1960 statt 1975" und der Mont'ka-Roster meldete 14 statt 16 Einheiten, während
+`game/army_lists.py` einen sekundenaktuellen Zeitstempel trug — eine PARALLELE Sitzung baute gerade
+an dieser Liste (Fireblades in die Breacher). Nach ihrem Abschluss ist die Suite von selbst wieder
+grün. Vor der Ursachensuche prüfen, wem ein Fehlschlag gehört — und **nicht `git stash`** benutzen,
+um das herauszufinden: dieses Repo hat einen großen gestagten Changeset, `stash` nimmt den Index
+mit, und die neu angelegten Dateien verschwanden kurzzeitig.
+
+
+## Aus CLAUDE.md ausgelagert (2026-09-07)
+
+Diese 17 datierten Sitzungseintraege standen faelschlich unter der Ueberschrift
+`## Spaeter-Liste (bewusst zurueckgestellt)` am Dateiende von CLAUDE.md. Sie sind
+Sitzungserzaehlung und gehoeren nach der eigenen Pflegeregel dieser Datei hierher.
+Woertlich uebernommen, nichts gekuerzt.
+
+- **Sprites für alle zehn bis dahin kunstlosen Einheiten verdrahtet, plus fünfundzwanzigstes und sechsundzwanzigstes Aeldari-Datenblatt: War Walkers und Wave Serpent** (User: "habe mittlerweile sprites für alle neuen einheiten hochgeladen / jetzt / war walker / wave serpent").
+  - **Die zehn Sprites sind zehn Tabellenzeilen, und die acht "kein Sprite"-Pins sind umgedreht** — genau der Zweck, zu dem sie gesetzt wurden: jede der acht Suiten hielt ausdrücklich fest, dass keine Kunst gemappt ist, damit ein späteres Hinzufügen eine SICHTBARE Änderung ist. Sie prüfen jetzt das Gegenteil, und zwar **am Modell statt an der Tabelle** — ein Schlüssel, der auf keine Datei auf der Platte auflöst, ist genau der Fehler, den ein Blick in die Map nicht sieht. Wo Dateiname und Datenblattname auseinandergehen, gewinnt die DATEI (`Warlock Sky Runner` gegen `Warlock Skyrunners`, `Windrider`/`Ranger` singular gegen den pluralen Datenblattnamen, `War Walker` gegen `War Walkers`) — dieselbe Entscheidung, die `Warpspider`, `JainZar` und `Eldrad Ultran` schon festhalten: dieses Modul beugt sich dem Ordner, statt Umbenennungen zu verlangen.
+    - **A/B gemessen statt behauptet:** mit einer entfernten Mapping-Zeile fallen genau die zwei Prüfungen dieses Datenblatts (`76/78`), mit ihr wieder `78/78`.
+    - Die drei Exarch-Linien (Dark Reapers, Shining Spears, Swooping Hawks) teilen sich die Kunst ihrer Einheit — als eigene Testzeile festgehalten, weil "der Exarch bekommt dieselbe Datei" sonst wie ein Versehen aussieht statt wie das Fehlen einer eigenen.
+    - **Die Storm-Guardian-Waffenvarianten brauchten NULL Codeänderung** und wurden nur nachgeprüft (User: "storm guardians passen so von den sprites her. das wurde in einer anderen session schon erledigt."): die `"<key> - <waffe>"`-Konvention greift von selbst, sobald die Dateien da sind — Flamer, Fusion Gun und Power Sword lösen alle drei auf, jeweils nur auf den Modellen, die die Waffe tatsächlich tragen. `Fuegan.png` liegt ebenfalls im Ordner und bleibt ungenutzt: dafür gibt es kein Datenblatt.
+  - **Vorbestehende Lücke, die dieses Paar erst live gemacht hat:** `MissileLauncherSunburstProfile` trug kein `blast`, obwohl der gedruckte NAME "missile launcher - sunburst **blast**" lautet — und die Namensspalte ist bei Wahapedia die verlässliche Hälfte (die Keyword-Zelle kommt für diese Zeile auf jedem Datenblatt leer zurück, inzwischen der ~13. Fall desselben Rendering-Artefakts). Die eigene Kopie der Dark Reapers setzte das Keyword bereits, die beiden hätten sich also widersprochen. Jetzt fielden **drei** Datenblätter diese Zeile.
+  - **Sechs neue Waffen, und fünf davon sind Unterklassen statt Wiederholungen:** JEDE Waffe des Wave Serpent ist eine Waffe, die es schon gab, plus [TWIN-LINKED] — `TwinBrightLance`, `TwinScatterLaser`, `TwinShurikenCannon`, `TwinStarcannon` und das `TwinMissileLauncher`-Modus-Paar erben deshalb, damit eine Änderung an den geteilten Zahlen die Twin-Version erreicht. Im Test paarweise gegen die Basisklasse geprüft (gleiche S/AP/D/Reichweite, Keyword nur oben), weil eine kopierte Klasse einen reinen "hat sie das Keyword"-Test genauso bestünde. Der War Walker brauchte gar keine neue Fernkampfwaffe — seine sechs Zeilen sind die geteilten, unverändert; neu ist nur `WarWalkerFeetProfile` (A3/WS3+/S5), das sich vom Wraithbone Hull (A3/WS4+/S6) in zwei Charakteristiken unterscheidet, also der "gleicher Zeilentyp, andere Zahlen"-Zweig des Rezepts.
+  - **Wave Serpent Shield: der erste verteidigerseitige Wundmodifikator, dessen Bedingung die ATTACKE betrifft statt den Schützen.** Guardian Drone, 'Ard as Nails, Protect und Forewarned fragen alle "wer greift an" oder "wer wird angegriffen"; dieser fragt "ist die Stärke DIESES Angriffs größer als meine Toughness". `_wound_modifiers(target_squad)` bekam dafür ein optionales `strength`, durchgereicht an den drei Aufrufstellen aus derselben `_effective_strength(weapon)`, mit der die Schwelle selbst gebildet wird — eine zweite Quelle für dieselbe Zahl wäre genau die Drift, die dieses Repo laufend konsolidiert. Optional, damit die Aufrufer ohne Angriff in der Hand unverändert dasselbe bedeuten.
+    - **Vorzeichen positiv**, wie jeder Malus hier: `game/modifiers.py`s Konvention justiert die SCHWELLE, und "subtract 1 from the Wound roll" macht den Wurf schwerer.
+    - **Die Toughness kommt aus `attached_unit_toughness()`** und nicht vom Profil — dieselbe Quelle wie die Schwelle, die er modifiziert (19.02). Heute unmöglich relevant (ein VEHICLE ist nicht anschließbar), aber die zwei können sich damit nicht uneinig werden.
+    - **Fernkampf-only ist der gedruckte Text**, nicht eine Vereinfachung: der Test belegt es an der Quelle (`game/fight.py` liest das Modul nirgends) statt eine Nahkampfszene zu konstruieren.
+    - **Gemessen an beiden Seiten der S>T-Linie durch den ECHTEN Controller:** S12 gegen T9 wundet normal auf 3+ und hinter dem Schild auf **4+**; S9 gegen T9 bleibt 4+ (9 ist nicht größer als 9); S4 bleibt 6+. Dazu eine A/B-Sonde, die die Fähigkeit an ihrer Quelle neutralisiert und dieselbe Rechnung auf 3+ zurückfallen lässt — ein reiner Prädikat-Test hätte offen gelassen, ob der Modifikator den Wurf je erreicht.
+  - **Crystalline Targeting ist Target Acquisition in anderer Währung** — siebter Konsument von `on_squad_finished_shooting` und der zweite, dessen Wirkung eine MARKE AUF DEM ZIEL ist statt eines Grants auf dem Schützen ("each time a friendly AELDARI unit makes an attack that targets that enemy unit", also armeeweit). Zwei Unterschiede zum Vorbild, beide im gedruckten Text: kein Waffen-Qualifikator (es braucht also keine Pro-Waffen-Trefferbuchführung), und **"each unit can only be selected for this ability once per turn" ist eine Grenze am ZIEL, nicht an den War Walkers** — ein zweiter War-Walker-Trupp darf seine eigene Fähigkeit weiterhin nutzen, nur nicht auf einer diesen Zug schon gewählten Einheit (eigener Testfall).
+    - **Zwei Lebensdauern, absichtlich verschiedene Uhren:** der AP-Effekt läuft am PHASENENDE ab, das Auswahl-Ledger am ZUGENDE. Beide einzeln gepinnt, weil sie sich leicht zu einer verschmelzen ließen.
+    - "Improve the AP by 1" heißt MEHR negativ (dieselbe Arithmetik wie `game/crit_ap.py`), angewandt als Kopie in der Adjuster-Kette — die geteilte Instanz wird nie mutiert. **Und die Kette ist der richtige Ort und nicht der Wundschritt:** der Rettungswurf liest die AP von genau dieser zurückgegebenen Waffe.
+  - **War-Walker-Wargear: bewusst als MATCHED PAIRS, mit gemessener Begründung.** Der gedruckte Text ist per Kanone ("each model can have EACH shuriken cannon it is equipped with replaced"), ein Walker darf also ein gemischtes Paar tragen. `build_squad()` adressiert MODELLE, nicht Waffenkopien, und ein Tausch gibt jede Kopie der genannten Waffe auf — die vier Optionen sind deshalb als "beide Kanonen für zwei derselben Waffe" geschrieben. Alle vier Ergebnisse sind legale gedruckte Builds, der Default (zwei Kanonen) ebenso; verloren ist nur das gemischte Paar.
+    - **Der Blast Radius der Alternative wurde GEMESSEN, bevor sie verworfen wurde:** über alle 55 Datenblätter beider anderer Fraktionen gibt es genau **zwei** Fälle, in denen eine Option eine Waffe ersetzt, die ein Modell mehrfach trägt (Devilfish 2× Twin Pulse Carbine, Tankbustas' Boss Nob 2× Rokkit Pistol) — Pro-Waffenkopie-Adressierung im Scaffold hätte also den Pfad angefasst, durch den jedes Datenblatt läuft, für genau eine Build-Form. Dieselbe Entscheidung, die Wraithguards Alles-oder-Nichts-Notiz festhält.
+  - **Punkte:** War Walkers flach 85/160 (keine Kopien-Tiers), Wave Serpent gestaffelt 115 für die 1.-3. Einheit und 125 ab der 4. — die Form, die Warp Spiders und Swooping Hawks schon nutzen. Alle Wargear-Optionen beider Datenblätter sind gratis.
+  - **Erwartete Regression, sauber nachgezogen:** `test_avatar_of_khaine.py` pinnte "die größte Base der Fraktion außer dem Falcon", und der Wave Serpent teilt dessen Radius (2.1", der an den Devilfish angeglichene Wert — beide sind derselbe Grav-Panzer-Rumpf). Die Zeile nimmt jetzt BEIDE Grav-Panzer aus, und zwar namentlich statt über ein Keyword: der War Walker ist ebenfalls VEHICLE und behält seine gedruckte 60-mm-Base, gehört also in den Vergleich.
+  - **Getestet:** neues `test_war_walkers.py` (**79/79**) und `test_wave_serpent.py` (**99/99**) — Statlines (inkl. der Base-Umrechnung als nachgerechnete Arithmetik und der Zusicherung, dass der Walker die Grav-Panzer-Größe NICHT nimmt), alle Waffen paarweise gegen ihre Basisklassen, jede Wargear-Form samt Gegenseitigkeit und Trimm-Fall, die Punkte-Tiers, der Transport in fünf Richtungen (5 Fire Dragons passen, 5 Wraithguard belegen 10 von 12 Slots, ein zweiter Trupp obendrauf passt nicht mehr, JUMP PACK und ein zweites Fahrzeug werden abgelehnt), Crystalline Targeting vollständig plus End-to-End durch den echten `ShootingController`, und der Schild wie oben. Volle Regression **89 Suiten, ~5287 Prüfungen, 88 grün / 0 rot / 1 bekannt**, dazu `smoke_pregame.py map2` (0 API-Calls, beide Deckungs-Schranken halten), `smoke_log_input.py map2` und `selfplay.py map2` 2000 Frames — nötig, weil `main.py`, `game/shooting.py`s Wundschritt und `game/sprites.py` angefasst wurden.
+  - **Vier eigene Fehler, alle vom Werkzeug gefangen:** der Import von `attached_unit_toughness` zeigte auf `game.attached_units` statt auf `game.squad` (der Import scheiterte sofort); `Checks` hat nur `eq` und `true`, mein `truthy`/`contains` gab es nie; `tk.shooting_scene()` nimmt zwei Positionsargumente und liefert `shooting`/`target`, nicht `controller`/`defender`; und `choices` ist `{Linie: {Optionsname: Anzahl}}`, kein Liste-von-Namen. Dazu **zum wiederholten Mal die Heredoc-Falle** (Apostrophe in `Wraithguard's`/`model's` zerlegen ein `cat <<'PYEOF'`) — Code- und Prompttexte gehören über Write/Edit, nicht über Bash-Heredoc.
+  - **Arbeitshinweis, gleiche Lage wie in früheren Einträgen:** parallel lief eine zweite Sitzung auf demselben Repo — `smoke_log_input.py` scheiterte einmal mit `NameError: GROUND_TILE_SIZE_IN` in `game/renderer.py`, einer Datei, die diese Arbeit nie angefasst hat und deren Zeitstempel zehn Sekunden alt war. Wiederholung grün. Vor der Ursachensuche prüfen, ob ein Fehlschlag überhaupt der eigenen Änderung gehört.
+  - **Offen und bewusst so:** die gedruckte YNNARI-Hälfte des Transport-Ausschlusses ist nicht modelliert (kein Pro-Modell-Fraktions-Tracking — dieselbe dokumentierte Lücke, die Falcon und Devilfish tragen); das gemischte War-Walker-Waffenpaar, siehe oben; und wie die vierundzwanzig davor stehen beide in keiner Demo-Armee.
+
+- **Siebenundzwanzigstes Aeldari-Datenblatt: Fuegan — eine zehnte Extraktion, und die zweite Fähigkeit überhaupt, die ein Modell ZURÜCKHOLT** (User: "Fuegan").
+  - **`game/weapon_range.py` ist die zehnte Extraktion, und sie war fällig**: "wie weit reicht diese Waffe gerade" gehörte `game/pulse_accelerator.py`, solange nur die Drohne fragte. Burning Lance ist der zweite Konsument derselben Frage — also extrahieren statt sich an ein nach der ersten Fähigkeit benanntes Modul anzuhängen (Fehlerklassen 10 und 11 in einem).
+    - **Und die Extraktion hat einen vorhergesagten Fehler geschlossen.** `game/shooting.py` rief die Drohnenfunktion an GENAU EINER Stelle (dem "erreicht diese Waffe das Ziel"-Test) und trug dort den Kommentar, die beiden HALBdistanz-Stellen ([RAPID FIRE X], [MELTA X]) läsen bewusst weiter die gedruckte Reichweite, *"because no pulse carbine has either keyword — **if one ever does, they need the same treatment**"*. Burning Lance betrifft **[MELTA]-Waffen**. Also ist genau dieser Fall eingetreten, und alle drei Stellen lesen jetzt `weapon_range`. Die Alternative wäre gewesen, den Kommentar stehen zu lassen und den nächsten Leser ihn erneut entdecken zu lassen.
+    - **Gemessen statt behauptet:** ein Ziel auf **6.38"** liegt außerhalb der gedruckten Halbdistanz (6") und innerhalb der verlängerten (9"). Ohne Fuegan Schaden **3**, mit ihm **6** — dieselbe Waffe, dieselbe Szene, durch das echte `melta_adjusted_weapon()`. Ein reiner "ist die Reichweite jetzt 18" -Test hätte die eigentliche Wirkung gar nicht berührt.
+  - **Burning Lance ist die Pulse Accelerator Drone mit zwei Unterschieden, beide im gedruckten Text:** die Drohne nennt eine WAFFE ("pulse carbines", deshalb Namensabgleich, und sie dokumentiert diese Lesart als unsicher), Fuegan nennt ein KEYWORD ("Melta weapons", deshalb `weapon.melta`, nichts zu raten). Und die Bedingung ist 24.22s "while this model is LEADING a unit", gelesen über `attached_units.leader_ability()` — nicht `unit_wide_ability()`, das fragt, ob JEDES Modell die Fähigkeit druckt. Bringt 19.04s Nachlauffenster gratis mit, was hier mehr zählt als sonst: Unquenchable Resolve stellt ihn wieder hin, die Fähigkeit ist also nicht dauerhaft weg.
+    - **Seine eigene Searsong wächst mit** — beide Feuermodi sind [MELTA], und er ist ein Modell dieser Einheit. Das steht so im Text und ist als eigene Zeile gepinnt, weil "models in that unit" leicht als "die Bodyguards" gelesen wird.
+  - **Unquenchable Resolve ist die zweite Fähigkeit, die ein zerstörtes Modell zurückholt** — nach Painboys Grot Orderly, und deshalb lagen beide nötigen Teile schon bereit: `Squad.destroyed_models` (das Token überlebt `remove_dead_models()`, und weil niemand seine Koordinaten zurücksetzt, überlebt auch "wo es zerstört wurde") und `formation_layout.ring_candidates()`, das von einem Punkt aus in konzentrischen Ringen nach außen läuft — also wörtlich "as close as possible".
+    - **Der Unterschied zu Grot Orderly ist die Platzierungsregel: DISTANZ, nicht Kohärenz.** Grot Orderly stellt Bodyguards in eine stehende Einheit zurück und hält 09.02 per Konstruktion; hier nennt der Text einen Ort, und die Form der Einheit hat kein Mitspracherecht. Eine dadurch gebrochene Kohärenz wird auf dem gewöhnlichen Weg beim nächsten Zug repariert.
+    - **"not within Engagement Range" MUSSTE das Modul selbst prüfen.** `SetupController.position_valid()` sagt in seinem eigenen Docstring, dass es Engagement und Kohärenz NICHT abdeckt (die hängen an den Endpositionen eines ganzen Trupps, nicht an einem Punkt). Sich allein darauf zu verlassen hätte ihn direkt in den Nahkampf gestellt — dieselbe Falle, die einmal einen ganzen Trupp im Emergency Disembark gekostet hat (Fehlerklasse 8). Gemessen: mit Feinden auf dem Todesfeld kommt er zurück, außerhalb Engagement Range jedes Feindes, und nicht weiter weg als nötig.
+    - **Am ZUGENDE der Phase, nicht im Moment des Todes** — `remove_dead_models()` läuft einmal pro Frame, und jeder Trigger davor sieht noch Leichen (Fehlerklasse 12). Die Phasengrenze heißt: der Sweep ist fertig, die Feindpositionen, die sein Engagement-Test liest, stehen, und ein Modell, das dieselbe Attacke wie der Rest seiner Einheit getötet hat, wird nach allen anderen behandelt. Der TOD wird trotzdem im Sweep vermerkt und nicht erst an der Grenze — sonst wüsste "the first time this model is destroyed" nicht, in welcher Phase gestorben wurde.
+    - **Vier Hälften von "zurück", alle einzeln geprüft:** in der Tokenliste, in seinem Squad, VON der destroyed-Liste herunter, und mit vollen Wunden. Jede einzelne weggelassen ergibt ein halblebendiges Modell, und nur manche davon fallen sofort auf.
+    - **Nicht optional und niemand zu fragen:** der Text hat kein "you can". Also kein `DecisionManager`-Prompt — der D6 geht beschriftet und mit seiner Schwelle durch den Dice Manager (der Mensch sieht den Wurf, der es entscheidet), die Platzierung ist deterministisch.
+    - **Er kommt in seine EIGENE Einheit zurück.** Unter 19.01 merged diese Engine den Leader in ein Squad, das gestorbene Modell war also ein Modell dieses Squads, und der gedruckte Text sagt nur "set this model back up on the battlefield" — nichts vom Verlassen. Steht die Einheit noch, führt er sie wieder (und Burning Lance läuft weiter); ist sie ausgelöscht, ist er ihr einziges Modell und damit genau das, was "set this model back up" beschreibt.
+  - **"Searsong – lance" ist ein PROFILNAME, nicht [LANCE].** Die Keyword-Zellen kamen wieder durchgehend leer zurück (~14. Fall des Rendering-Artefakts), also gilt die Namensspalte — und dort steht "lance" in derselben Position wie "beam", das eindeutig ein Name ist (und wie "sunburst"/"starshot" beim Missile Launcher). Als eigene Testzeile gepinnt, samt Begründung, damit eine spätere Korrektur eine sichtbare Einzeiler-Änderung ist statt einer stillen.
+  - **T3 wurde gegen VIER Vorgänger geprüft, nicht gegen ein Bauchgefühl.** T3 auf einem Phoenix Lord liest sich wie ein Transkriptionsfehler; Asurmen, Jain Zar, Baharroth und Lhykhis drucken alle dasselbe Chassis (T3/Sv2+/W5/Ld6+/OC1/Inv4+). Der Test vergleicht deshalb mit ihnen statt mit einer Literalzahl — das ist die Zusicherung, die auch bei einer künftigen Änderung noch etwas aussagt.
+  - **Drei neue Waffen:** Searsong Beam (12"/A3/BS2+/S8/AP-3/D2, [ASSAULT] [MELTA 1] [SUSTAINED HITS 2]) mit der Lance (18"/A1/S14/AP-4/D6, [ASSAULT] [MELTA 6]) als Feuermodus — EIN Datenblatteintrag, also wird nur der Beam vergeben, sonst hätte er zwei Kanonen — und die Fire Axe (A6/WS2+/S5/AP-4/D3, keine Keywords). 130 Punkte, führt ausschließlich Fire Dragons, keine Wargear-Optionen.
+  - **`Fuegan.png` lag seit dem letzten Sprite-Schwung ungenutzt im Ordner** — im Wave-Serpent-Eintrag ausdrücklich als "dafür gibt es kein Datenblatt" vermerkt. Jetzt gibt es eins.
+  - **Getestet:** neues `test_fuegan.py` (**90/90**) — Statline gegen die drei anderen Fuß-Phoenix-Lords, alle drei Waffen inkl. der Feuermodus-Struktur und der [LANCE]-Entscheidung, Punkte und die LEADER-Paarung in beide Richtungen, Burning Lance durch den ECHTEN `attach()` (geführt/ungeführt/allein stehend, Melta gegen Nicht-Melta, seine eigene Waffe) plus die Halbdistanz-Wirkung end-to-end durch `melta_adjusted_weapon()`, Unquenchable Resolve vollständig (Wurf 1 gegen 2, die vier Hälften von "zurück", "as close as possible" auf leerem Boden, der Engagement-Ausschluss mit Feinden auf dem Todesfeld, "the first time" beim zweiten Tod, und dass eine Einheit ohne die Fähigkeit nichts schuldet), dazu A/B-Sonden für beide Fähigkeiten. `test_pathfinders.py` (die Pulse-Accelerator-Seite der Extraktion) unverändert **80/80**. Dazu `smoke_pregame.py map2` (0 API-Calls, beide Deckungs-Schranken halten) und `selfplay.py map2` 2000 Frames — nötig, weil `main.py` und `game/shooting.py`s Reichweiten-Stellen angefasst wurden.
+  - **Arbeitshinweis, zum zweiten Mal in Folge:** die parallel laufende zweite Sitzung baut gerade am Renderer. Ihr neues `test_token_base_fill.py` (Datei existierte zu Beginn dieser Arbeit nicht) meldet `nothing is drawn in the band just inside the rim`, während `game/renderer.py` sekundenaktuelle Zeitstempel trägt — **nicht dieser Arbeit zuzuordnen**, keine der beiden Dateien referenziert irgendetwas hiervon. Alle Suiten, die die hier geänderten Dateien berühren, sind einzeln nachgefahren und grün.
+  - **Offen und bewusst so:** wie die sechsundzwanzig davor steht er in keiner Demo-Armee; und die KI hat für ihn keinen Pfad (Aeldari-Vorgabe des Users).
+
+- **Player 1s Liste revidiert: Avatar of Khaine und Fire Dragons raus, Dark Reapers / Rangers / Shining Spears / Shroud Runners / Warlock Skyrunners rein** (User lieferte die vollständige neue Liste). 20 Listeneinträge, **13 Einheiten** nach den fünf Anbindungen, **74 Modelle**, Engine-Summe **1900 pts** gegen die 1930 der Liste.
+  - **Die fünf Anbindungen sind unverändert** und wurden nicht neu erfragt: dieselben fünf Charaktere stehen wieder in der Liste, und die Reihenfolge Farseer-vor-Conclave ist weiterhin regelgetrieben (siehe den Guardian-Defenders-Block). Nur der Bestand drumherum hat sich geändert.
+  - **Der Warlock Skyrunner steht ALLEIN, und das ist eine Aussage, keine Panne.** Seine LEADER-Zeile ist ein JOIN, der ausschließlich Windriders nennt — die Liste fieldet keine. Als eigene Testzeile an der PAARUNGSTABELLE festgehalten (`can_attach()` lehnt ihn bei Guardian Defenders ab), damit "steht allein da" als geprüfte Tatsache dasteht und nicht als vergessene Anbindung.
+  - **Die Shining Spears sind der erste Roster-Eintrag mit Nicht-Waffen-Gear.** Der Exarch listet "Shimmershield, Shuriken Cannon, Star Lance" — drei gedruckte Sätze, aber nicht dreimal dasselbe: Star Lance und Shuriken Cannon sind Waffentäusche (sie geben VERSCHIEDENE Waffen auf, deshalb zusammen nehmbar), das Shimmershield ist eine reine ERGÄNZUNG und liegt als `Gear` vor. Es gehört also in die andere Spalte, und die zwei Gear-Spalten der ARMY-Tabelle werden damit zum ersten Mal überhaupt benutzt — der bisherige Kommentar dort ("kein Aeldari-Datenblatt hier hat Nicht-Waffen-Gear") war ab dieser Liste falsch und ist mitgezogen.
+    - **"Star Lance" steht zweimal im gebauten Loadout und das ist richtig:** die Lanze ist EINE gedruckte Waffe mit einer Fernkampf- UND einer Nahkampfzeile, genau wie die Laser Lance, die sie ersetzt. Im Test als Doppelnennung ausgeschrieben, weil es sonst wie ein Duplikat aussieht.
+  - **Vier der fünf neuen Einheiten sind der gedruckte Default** — Dark Reapers (Reaper Launcher auf allen fünf inklusive Exarch), Rangers und Shroud Runners (die beiden haben überhaupt keine Wargear-Optionen), Warlock Skyrunners (Witchblade, NICHT die Singing Spear der zwei Fuß-Conclaves). **Geprüft statt angenommen:** bei den Dark Reapers ersetzen alle drei Optionen genau den Launcher des Exarchen, ein Irrtum hätte also bedeutet, eine davon zu nehmen; bei Rangers und Shroud Runners assertiert der Test zusätzlich, dass die Optionsliste wirklich leer ist.
+  - **map3s Roster nannte `"1 Fire Dragons 1"` und wäre still leer gelaufen** — ein Name, der auf keine gebaute Einheit passt, fieldet nichts, statt zu krachen. Die Anti-Panzer-Rolle erben die **Dark Reapers**, und zwar nach MESSUNG statt nach Namensähnlichkeit: gegen einen T10-Battlewagon ist ihr Reaper Launcher (S10/AP-2) die stärkste im Roster verbliebene Fernkampfantwort — Shining Spears kommen auf S6, Shroud Runners auf S5, Rangers auf S4. Die Begründung steht bei der Zeile.
+  - **`test_player1_army.py` zum ZWEITEN Mal von genau derselben Falle getroffen** (Fehlerklasse 17): es baut seinen eigenen Roster und meldete nach dem Listenwechsel weiterhin fröhlich "10 units / 63 models / 1865 pts" — grün, während es eine Armee prüfte, die es nicht mehr gibt. Beim ersten Mal (T'au → Aeldari) war es dasselbe. Die Totals sind deshalb jetzt als die Rechnung der LISTE ausgeschrieben (28 Modelle aus den acht einfachen Einheiten plus 46 aus den fünf Attached Units) statt als eine Zahl aus einem früheren Lauf — eine veraltete Erwartung, die bloß widerspricht, wird gefangen; eine, die vom letzten Durchlauf abgeschrieben wurde, nicht.
+    - **Und genau das hat sofort einen eigenen Fehler gefangen:** ich hatte 69 Modelle in den Kommentar geschrieben, es sind 74. Der Test meldete `[74]`, die ausgeschriebene Rechnung zeigte, wo ich mich verzählt hatte.
+  - **Punkte: 12 von 19 Einträgen weichen ab**, und anders als bisher **in beide Richtungen** — Dark Reapers 90 gegen 100, Rangers 55 gegen 60, Shroud Runners 80 gegen 90 und Warlock Skyrunners 45 gegen 55 sind BILLIGER als die Transkription, während Eldrad/Jain Zar/Guardian Defenders/Howling Banshees/Striking Scorpions/Wraithguard/Farseer/Shining Spears teurer sind. Die alte Liste war einseitig teurer, was "die App rundet auf" plausibel machte; das ist damit widerlegt und in der Punktenotiz benannt. Die Transkription wird weiterhin NICHT überschrieben.
+  - **Getestet:** `test_player1_army.py` von 69 auf **81/81** erweitert (die fünf neuen Einheiten Modell für Modell, das Shimmershield am MODELL statt in der Waffenliste, die Gegenprobe dass Rangers/Shroud Runners wirklich optionslos sind, der Alleinstand des Skyrunners an der Paarungstabelle, und die beiden Totals als ausgeschriebene Rechnung). Volle Regression **92 Suiten, ~5410 Prüfungen, 90 grün / 0 eigene rot / 1 bekannt**, dazu `smoke_pregame.py map2` (0 API-Calls, beide Deckungs-Schranken halten), `selfplay.py map2` 2000 Frames und `selfplay.py map3` 400 Frames — letzteres nötig, weil dessen Roster angefasst wurde.
+  - **Arbeitshinweis, dritter Eintrag in Folge:** die parallel laufende zweite Sitzung baut weiter am Renderer und ist mitten in einer Umbenennung (`COVER_TILE_SIZE_IN` → `DENSE_COVER_TILE_SIZE_IN`); `test_ground_texture.py` und `test_token_base_fill.py` fielen deshalb während dieser Läufe durch, `game/renderer.py` trug jeweils sekundenaktuelle Zeitstempel. **Nicht dieser Arbeit zuzuordnen** — alle Suiten, die die hier geänderten Dateien berühren, sind einzeln nachgefahren und grün.
+
+- **Die drei MOUNTED-Jetbike-Einheiten des Rosters auf EINE gemeinsame Tischgröße gebracht: 45 mm** (User: "die shining spears und die shroud runners sind zu groß. 1/4 kleiner. und dann den warlock skyrunner genau so groß machen. der ist zu klein.").
+  - **Shining Spears und Shroud Runners von 60 mm auf 45 mm** (`base_radius_in` 1.181 → 0.886, exakt drei Viertel), **Warlock Skyrunner von 32 mm auf dieselben 45 mm** — also von der anderen Seite auf denselben Wert. 45 mm ist zufällig selbst eine echte Basisgröße, was den Wert nicht bloß als Bruchrechnung dastehen lässt.
+  - **Das ist eine Gameplay-Zahl, nicht nur eine optische.** `edge_distance()` liest den Radius, also verschieben sich Engagement Range, Überlappung, Kohärenz und das Packen der Formation mit. Bei diesen drei ist die Richtung erwünscht: es sind Jetbikes auf einem 60-mm-Fußabdruck gewesen, also genau die Form, die durch dieses Gelände am schlechtesten passt (vgl. den Bewegungsabschnitt: die verbleibende Grenze ist teils physisch). Beim Skyrunner geht es in die andere Richtung, aber von 32 mm aus und für ein einzelnes Modell.
+  - **Zweiter Fall, in dem eine Base von ihrer gedruckten Größe abweicht** — der erste ist der Falcon, den der User an den Devilfish angeglichen haben wollte (und der Wave Serpent, der dessen Wert dann geerbt hat). Dieselbe Art Entscheidung, dieselbe Behandlung: der Kommentar an der Zeile sagt gedruckte Größe UND Tischgröße, damit niemand später "korrigiert".
+  - **Im Test gegen EINANDER gepinnt statt gegen ein Literal** — jede der drei Suiten prüft ihren eigenen Wert und zusätzlich, dass er mit den beiden anderen übereinstimmt. Eine gemeinsame Größe, die nur dreimal separat als Zahl dasteht, driftet beim nächsten Anfassen auseinander; so ist genau die Gemeinsamkeit die Zusicherung.
+  - **Die Windriders wurden NICHT mitgezogen** und behalten ihre gedruckten 32 mm: sie waren nicht Teil der Bitte und stehen in keiner Demo-Armee. Damit passt der Skyrunner erstmals nicht mehr zu dem Jetbike, dem er sich anschließt — die zwei teilten den Wert bis eben. Als eigene Testzeile festgehalten, gerade WEIL eine spätere Angleichung wie eine Aufräumarbeit aussähe.
+  - **Getestet:** `test_shining_spears.py` **71/71**, `test_shroud_runners.py` **68/68**, `test_warlock_skyrunners.py` **55/55**, `test_windriders.py` **59/59** unverändert. Volle Regression **92 Suiten, ~5447 Prüfungen, 91 grün / 0 rot / 1 bekannt**, dazu `smoke_pregame.py map2` (beide Deckungs-Schranken unverändert bei 0.00 gegen 1.80), `selfplay.py map2` 2000 Frames und `smoke_log_input.py map2` — die Smokes hier nicht aus Gewohnheit, sondern weil eine Basisgröße Aufstellung, Platzierung und Bewegung anfasst.
+
+- **Der Fade-Back-Fehler ein zweites Mal, unter anderem Namen: die KI lief über den offenen Path-of-the-Outcast-Zug der Rangers hinweg** (User: "ranger / gleiches problem, wie damals bei fade back. die ki lässt mich nicht bewegen und macht gleich weiter"). **Der User hat die Diagnose gleich mitgeliefert, und sie war exakt richtig.**
+  - **Reproduziert, bevor irgendetwas angefasst wurde** — mit einem offenen Zug des MENSCHEN im Bewegungszug der KI: `battle_focus` → `_is_blocked()` = **True**, `path_of_the_outcast` → **False**. Genau das gemeldete Verhalten, in einer Zeile.
+  - **Die Ursache ist die Form des ersten Fixes, nicht sein Fehlen.** `_is_blocked()`s sechster Fall SAH den offenen Zug bereits — er verglich `move_mode` nur gegen den einen String `"battle_focus"`. Path of the Outcast ist derselbe Zug unter eigenem Modusnamen (der Modus ist ja gerade das, was den Confirm-Button an den zuständigen Controller routet), fiel also durch. Ein hartkodierter Einzelwert an einer Stelle, an der es eine MENGE ist — dieselbe Klasse wie die neun Extraktionen, nur eine Ebene kleiner.
+  - **`MovementController.REACTIVE_MOVE_MODES` ist jetzt die eine Definition**, und sie steht bewusst an `start_battle_focus_move()`: diese Methode ist die EINZIGE Tür, durch die reaktive Züge kommen (Battle Focus' Fade Back/Opportunity Seized und Path of the Outcast rufen sie, Torchstar Gambit und Tactical Acumen gehen über `start_post_shooting_move()` und gehören ausdrücklich NICHT dazu — geprüft, nicht angenommen). Jeder Modus, der dort hineingereicht wird, ist per Konstruktion reaktiv; der Docstring sagt das jetzt als Pflicht.
+  - **Der Wächter gegen eine DRITTE Meldung prüft die QUELLE, nicht das Verhalten:** ein Sweep über `game/*.py` sammelt jeden `move_mode`, der irgendwo an `start_battle_focus_move()` übergeben wird (benannte Konstanten werden aufgelöst, der Default mitgezählt) und verlangt, dass er in der Menge steht. Eine künftige vierte Fähigkeit, die sich nicht einträgt, fällt hier durch statt im Spiel. **A/B belegt:** mit `path_of_the_outcast` aus der Menge entfernt fallen zwei Prüfungen — die Verhaltensprüfung UND der Sweep, der den fehlenden Modus beim Namen nennt (`got ['path_of_the_outcast']`).
+  - **Die Gegenrichtung ist mitgeprüft:** der EIGENE reaktive Zug der KI darf sie nicht blockieren (sie treibt ihn selbst) — sonst wäre der Fix ein Deadlock statt einer Behebung. Gilt für beide Modi.
+  - **Warum nicht pauschal "jeder fremde offene Zug blockiert":** das wäre robuster gegen Vergessen, aber `move_mode` deckt auch Pile-In/Consolidate ab, die in der Fight-Phase beiden Spielern gehören und über einen eigenen Pfad (`_foreign_activation_in_progress()`) laufen. Eine Pauschale hätte dort einen Deadlock riskiert — schlimmer als der gemeldete Fehler. Die benannte Menge plus Quell-Sweep gibt dieselbe Sicherheit ohne das Risiko.
+  - **Getestet:** `test_rangers.py` von 63 auf **72/72** (Abschnitt 5b: nichts offen → KI handelt, Menschzug offen → KI wartet, nach Auflösung wieder frei, eigener Zug der KI blockiert nicht, plus der Quell-Sweep). Volle Regression **92 Suiten, ~5455 Prüfungen, 91 grün / 0 rot / 1 bekannt**, dazu `selfplay.py map2` 2500 Frames und `smoke_pregame.py map2` — die KI-Schleife ist genau das, was geändert wurde, also ist der Selbstspiellauf hier keine Formalie.
+  - **Nebenbefund:** `ai/agent_driver.py` importierte `MovementController` bisher gar nicht (es nannte ihn nur in Kommentaren). Der Import ist ergänzt und erzeugt keinen Zyklus.
+
+- **Der Charge-Wurf zeigt jetzt das Sprite der chargenden Einheit — und das Panel nennt sie nicht mehr "Target"** (User: "wenn charge overlay kommt, also wenn angesagt wird, wer den charge roll macht. da will ich auch ein sprite haben").
+  - **Warum dort bisher kein Sprite stand:** `charge.py` setzte nur `target_name=squad.name`, nie `target_squad` — die Matchup-Zeile des Würfelpanels braucht aber die Einheit selbst, um ihre Kunst aufzulösen. Ein kwarg an zwei Stellen (der normale Wurf und der von Heroic Intervention, 15.11).
+  - **Dabei fiel eine vorbestehende Falschbeschriftung auf, die durch das Sprite erst sichtbar wurde:** die Einheit auf einem Charge-Wurf ist die, die CHARGT, nicht ein Ziel — ihre Ziele sind zu diesem Zeitpunkt noch gar nicht gewählt (sie werden danach aus dem gefiltert, was der Wurf erreicht). Das Panel schrieb trotzdem "Target: 2 Boyz 1". Dasselbe gilt für den Battle-Shock-Test (die Einheit, die ihn ABLEGT).
+    - Neues `DiceManager.subject_label` (Default `"Target"`, also für jeden bestehenden Aufrufer unverändert): das Panel druckt `"{subject_label}: {name}"`. Charge setzt `"Charging"`, Battle-Shock `"Testing"`. Bewusst ein Feld am Wurf statt einer Ableitung aus `roll_kind` im Panel — `target_name` bedeutet je nach Aufrufer etwas anderes, und nur der Aufrufer weiß was.
+  - **Sieben weitere Würfe bekommen ihr Sprite gratis mit**, weil sie ohnehin eine Einheit benennen und ihnen nur `target_squad` fehlte: Isha's Fury, Grav-inhibitor Field, Explosives, Crushing Impact, Flickerjump, Grot Orderly, Battle-Shock. Damit ist die frühere Zusage "Portraits überall, wo von Einheiten gesprochen wird" auch für das Würfelpanel eingelöst und nicht nur für Overlays.
+  - **Getestet:** `test_dice_matchup.py` um Abschnitt 4 erweitert (**45/45**) — der Charge-Wurf über den ECHTEN `ChargeController` (mit der Vorbedingung "der Charge ist wirklich ansagbar", sonst prüfte der Test einen Wurf, der nie stattfand), die Einheit wird mitgeführt, das Label lautet "Charging", es gibt korrekt KEIN Angreifer/Ziel-Paar, und die Zeile erreicht mit Kunst den Bildschirm. Dazu die A/B in die andere Richtung: ein Wurf, der nichts sagt, behält "Target" — sonst wäre der Default stillschweigend mitgeändert worden.
+  - **Regression:** 92 Suiten, ~5465 Prüfungen, 91 grün / 0 rot / 1 bekannt; `smoke_pregame.py map2`, `smoke_log_input.py map2`, `selfplay.py map2`.
+
+- **Das ALT-Lineal war in den meisten Zuständen unerreichbar — fünfte Instanz derselben Verdrahtungsfalle in `main.py`s Event-Kette** (User: "ich kann oft keine entfernungen messen. zb bei overwatch. sorge bitte dafür, dass ich immer entfernungen messen kann. mit alt"). Neue **Fehlerklasse 15** oben, weil dieselbe Falle jetzt "A", Mausrad-Zoom, ESC, die Log-Filter und das Lineal getroffen hat.
+  - **Statisch reproduziert, bevor irgendetwas angefasst wurde:** die ALT-Zweige standen an **43. Stelle** einer `if/elif`-Kette mit 48 Zweigen, hinter 36 Gates auf CONTROLLER-STATE, deren Rümpfe ausschließlich Mausklicks behandeln. Ein solcher Zweig matcht, tut nichts, und die Kette läuft nie weiter — die Taste war weg. Genau die Momente, in denen man misst (Abwehrfeuer, Schadenszuteilung, Entscheidungs-Prompt, offener Würfelwurf), sind die, in denen eines dieser Gates aktiv ist.
+  - **Und das war nur die halbe Ursache.** `InputManager.handle_event()` ist der ALLERLETZTE Zweig derselben Kette und der einzige Schreiber von `mouse_pos_in` und `hovered_token` — den zwei Feldern, aus denen `renderer.draw_measure_tool()` das Lineal zeichnet. In genau denselben Zuständen fror also auch die Zeiger-Verfolgung ein. Nur die Tasten hochzuziehen hätte ein Lineal ergeben, das an der Stelle klebt, an der die Maus zuletzt verfolgt wurde — ein halber Fix, der sich beim Testen wie ein ganzer anfühlt.
+  - **Zwei neue Einstiegspunkte, beide außerhalb der Kette:**
+    - **`InputManager.track_pointer()`** — die eine Definition von "wo ist der Zeiger, worüber schwebt er". `main.py` ruft sie für JEDES `MOUSEMOTION` als schlichtes `if` VOR der Kette; `handle_event()` ruft sie weiterhin selbst, bleibt also allein lauffähig (`test_block_placement.py` treibt die Klasse direkt). **Bewusst kein Zweig IN der Kette:** würde der Vorab-Aufruf das Motion-Event konsumieren, fröre das Ziehen in jedem Zustand ein, in dem die Kette es zu Recht will. Der Doppelaufruf ist gratis, weil die Methode nur zwei Ansichtsfelder schreibt — als Feld-Diff gepinnt statt als Argument stehengelassen (`dragging_token`, `drag_offset`, `pending_move_token`, `group_drag_start_in` bleiben unberührt).
+    - **`InputManager.update_measuring(alt_held)`** — einmal pro Frame, NACH der Event-Schleife, aus `pygame.key.get_mods()`. **Ein Poll statt eines KEYDOWN/KEYUP-Paars, und das ist die eigentliche Antwort auf "immer":** ein Poll kann von keinem Zweig geschluckt werden. Er schließt zusätzlich den Spiegelbild-Fehler, den das Paar hatte — ALT+TAB stellt den KEYUP an ein anderes Fenster zu, das Lineal blieb hängen. Die Flagge wird übergeben statt drinnen gelesen, damit der ÜBERGANG testbar ist: `start_measuring()` macht einen Schnappschuss des Ursprungs, dürfte also nicht jeden Frame neu laufen (sonst zöge der Anker mit dem Cursor mit und das Lineal zeigte dauerhaft 0").
+  - **Gemessen durch die ECHTE `main()`-Schleife, nicht an der Klasse vorbei** (`smoke_measure_tool.py`): in Fire Overwatch, bei anstehendem Decision-Prompt und bei anstehendem Würfelwurf jeweils sieben Zusicherungen — ALT startet, der Zeiger wird überhaupt verfolgt, der Ursprung rastet auf dem Modell unter dem Cursor ein, das ferne Ende folgt, der Ursprung bleibt dabei stehen, es misst weiter solange gehalten wird, Loslassen beendet es. **A/B mit `--neutralize`** (beide Einstiegspunkte stillgelegt = die ganze Vor-Fix-Welt, nicht eine Zeile davon): **18 von 21 Prüfungen kippen**. Die drei, die auch dort bestehen, sind "Loslassen beendet es" — es hatte nie angefangen. Eine Sonde an der Klasse selbst hätte grün gemeldet und nichts über die Verdrahtung ausgesagt, die der ganze Fehler war.
+  - **Der Quell-Wächter ist der Teil, der in jeder Regression mitläuft** (`test_measure_tool.py`, Abschnitt 4): er liest `main.py` und verlangt, dass die Zeiger-Verfolgung VOR dem ersten Zustandsgate steht, der ALT-Poll GANZ AUSSERHALB der Schleife und auf der Einrückung des Frame-Rumpfs (also nicht in eine Bedingung gerutscht), dass beide genau einmal aufgerufen werden, dass in der Kette weder `start_measuring()`/`stop_measuring()` noch `K_LALT`/`K_RALT` zurückkehren, und dass `draw_measure_tool()` unbedingt pro Frame gezeichnet wird. **A/B in beide Richtungen belegt:** den Poll in die Kette zurückgeschoben → 32/33 mit `got 16, want 8`; die Verfolgung zurückgeschoben → 32/33 mit `pointer tracking runs BEFORE the first state gate`.
+  - **Getestet:** neues `test_measure_tool.py` (**34/34**) und `smoke_measure_tool.py map2` (**21/21**, neutralisiert 3/21). Volle Regression **93 Suiten, ~5499 Prüfungen, 92 grün / 0 rot / 1 bekannt**, dazu `smoke_pregame.py map2` (0 API-Calls, beide Deckungs-Schranken halten), `smoke_log_input.py map2` und `selfplay.py map2` 2000 Frames — die Smokes hier nicht aus Gewohnheit, sondern weil `main.py`s Event-Kette selbst der geänderte Gegenstand ist.
+  - **Offen und bewusst so:** das Lineal misst weiterhin nur Mittelpunkt/Kante zweier Punkte auf der Ebene (keine Vertikalität, siehe Später-Liste), und der Zeiger wird auch außerhalb des Bretts in Zoll umgerechnet — die Linie läuft dann eben ins Leere, unverändert zu vorher.
+
+- **Das "Claude is thinking"-Vollbild-Overlay ist weg; die KI-Meldung sitzt jetzt als Eck-Badge auf dem Brett, gedimmt werden die Seitenleisten** (User: "kein dunkles Overlay ... nur links oben in der Ecke ... noch ein bisschen auffälliger ... meinetwegen kann ein Overlay über die Seitenleisten sein, damit man nicht in die Versuchung kommt, irgendwelche Knöpfe drücken zu wollen").
+  - **Die Deckung ist umgedreht**: das BRETT bleibt unangetastet (das ist das Einzige, was man während des KI-Zuges anschauen will), verdeckt werden die zwei Seitenleisten — genau die Flächen, die nichts als Knöpfe sind. `PANEL_DIM_ALPHA = 185`, nicht opak: eine Leiste, die ganz verschwindet, sieht aus wie ein Absturz. Die untere Reserves-Leiste bleibt bewusst frei ("Seitenleisten"), und der Test pinnt die Dim-Menge auf genau `left_panel_rect`/`right_panel_rect`.
+  - **`game/ui/ai_busy_badge.py` ist die EINE Definition** für die Momente, die vorher drei handgezeichnete Rechtecke an derselben Ecke waren (Denk-Flash, Planungswarten, AUTO-PLAY). "Auffälliger" ist als MESSUNG festgehalten statt als Behauptung: gegen eine zur Laufzeit gerenderte Kopie des alten Looks, 41 px gegen 29 px Höhe.
+  - **`pulse=` nur für den Planungs-Badge**, weil nur der jeden Frame neu gezeichnet wird. Der Denk-Flash ist EIN geblitzter Frame vor einem blockierenden Netzaufruf — ein Puls fröre dort auf einer zufälligen Phase ein und bliebe sekundenlang so stehen.
+  - **AUTO-PLAY ist gar kein Badge mehr, sondern ein kleiner roter Punkt in der GEGENÜBERLIEGENDEN Ecke** (`draw_auto_play_dot()`, Brett oben rechts) — User-Folgemeldung: "jetzt überlagern sich die beiden Labels ... dieses AutoPlay-enabled Label kannst du eigentlich weglassen. Ersatz: ein kleiner roter Punkt ... als Riesenlabel brauchen wir nur das Claude is thinking". **Die Ursache der Überlagerung ist strukturell und nicht kosmetisch:** der Denk-Flash wird auf einen FERTIGEN Frame geblittet, und das breitere AUTO-PLAY-Label (414 px) schaute hinter dem schmaleren "Claude is thinking..." (251 px) hervor. Ein kleineres Badge in derselben Ecke hätte das wiederholt; gegenüberliegende Ecken können es per Konstruktion nicht. Der Punkt blinkt bewusst NICHT (er steht ganze Züge lang) und dimmt nichts — mehrere Fenster im KI-Zug gehören wirklich dem Menschen (reaktive Stratagems, Fire Overwatch, Wundzuteilung).
+  - **Dieselbe Überlagerung konnte auch zwischen den zwei GROSSEN Badges auftreten** (Planung und Denken teilen sich die linke Ecke), deshalb steht `show_thinking_overlay()` still, solange `ai_memory.is_planning` läuft: das Planungs-Badge sagt bereits dasselbe, und ein schmaleres Badge über einem breiteren lässt dessen Rest stehen.
+  - **`avoid_rects` löst den Fehler, den die Ecke sonst selbst erzeugt hätte**: das Würfelpanel ist im SELBEN Brettrechteck oben verankert (y=32), und 15.02s Command Re-roll wird entschieden, WÄHREND der Wurf steht — gemessen 56 px Überlappung bei 1920×1080, erheblich mehr bei schmalerem Fenster. Das Badge rutscht dann an der linken Kante nach unten unter den Blocker; nur nach unten, "links oben in der Ecke" beschreibt weiter, wo man hinschaut. Blocker-Quelle ist das neue `DicePanel.last_backdrop_rect`, das **am Anfang jedes `draw()` auf `None` zurückgesetzt** wird (gleiche Lebensdauer wie `_die_rects`) — sonst schiebt ein veralteter Rahmen das Badge um einen Wurf herum, der gar nicht mehr da ist.
+  - **`show_loading_overlay()` behält sein Vollbild-Dim**, und das ist kein Versehen: es ist kein KI-Warten, sondern die direkte Antwort auf einen Klick des MENSCHEN (LOS-Sweeps, Bruchteil einer Sekunde bis ~1 s) — da gibt es nichts zu verfolgen und niemanden auszusperren. Als eigene Testzeile gepinnt, damit ein späteres "Vereinheitlichen" eine sichtbare Änderung ist.
+  - **Elfte Extraktion, klein: `button_style.draw_glow()`** (der Halo stand inline in `draw_button()`, das Badge ist der zweite Konsument); `_chamfer_points()` dabei öffentlich geworden.
+  - **Getestet:** neues `test_ai_busy_badge.py` (**44/44**) in zwei Hälften — Abschnitt 1-3 misst PIXEL auf einer echten Surface, Abschnitt 4 ist der Quell-Wächter auf `main.py`. **A/B in drei Richtungen** (Vollbild-Overlay zurückgebaut → 39/44, Ausweich-Logik entfernt → 43/44, `DicePanel`s Meldung entfernt → 42/44). **Durch die ECHTE `main()`-Schleife belegt** (Sonde über `selfplay.py map3`, 0 API-Calls): 1204 Badge-Aufrufe, in JEDEM davon Brettpixel an drei Stellen unverändert und beide Leisten bei den gedimmten Aufrufen nachweislich dunkler. Volle Regression **101 Suiten, ~6061 Prüfungen, 100 grün / 0 rot / 1 bekannt**, dazu `smoke_log_input.py map2`.
+  - **Arbeitshinweis, vierter Eintrag in Folge:** die parallel laufende zweite Sitzung baut gerade am SCOUTS-Schritt (`game/scouts.py`, `game/movement.py`, neues `test_scouts_human.py`, minutenaktuelle Zeitstempel). `smoke_pregame.py map2` und `smoke_measure_tool.py map2` hängen deshalb in `prebattle_abilities` fest. **Als NICHT dieser Arbeit zugehörig belegt:** mit vollständig zurückgebauter Änderung scheitern beide identisch. `selfplay.py map3` läuft durch, weil map3s Roster keine Scouts-Einheit fieldet.
+
+- **Der Scout Move des MENSCHEN hatte keinen Bestätigen-Knopf — das Vorspiel-Panel schluckte den ganzen Bildschirm** (User: "nach meinem scout move kann ich nicht bestätigen. es gibt keinen knopf").
+  - **Alles andere an diesem Ablauf funktionierte schon**, und genau das machte den Fehler von der Engine-Seite unsichtbar: `game/scouts.py` stellt die Frage, `MovementController` führt den Zug, das Ziehen läuft über `InputManager`, und `main.py`s Event-Kette routet Linksklicks im linken Panel längst an `action_panel.handle_click()`. Es fehlte allein ein GEZEICHNETER Knopf. `_draw_dispatch()`s allererstes Gate übergibt das ganze Panel an `_draw_pregame_ui()`, solange 03.01 läuft, und dessen `PREBATTLE_ABILITIES`-Zweig druckt "Resolving pre-battle abilities..." und sonst nichts — der Zug ließ sich also machen und nie abschließen, und das Vorspiel kam nicht weiter. **Reproduziert, bevor irgendetwas angefasst wurde:** vier Knöpfe im Normalfall gegen zwei (nur die globale Toolbar) mit aktivem Vorspiel.
+  - **Der Fix steht am GATE, nicht im `PREBATTLE_ABILITIES`-Zweig**: "das Vorspiel weicht, solange ein Zug läuft" (`movement_controller.state != movement.MOVING`). Damit ist jeder künftige Vorspiel-Schritt, der einen Zug startet, per Konstruktion abgedeckt. Der Aufstell-Schritt setzt dasselbe Muster von der anderen Seite: er delegiert an `_draw_setup_ui()`, statt Platzierung nachzubauen.
+  - **`MovementController.can_advance()` ist die zwölfte Extraktion, und sie war der Grund, warum der Fix nicht allein reichte.** Der Advance-Knopf hing an einer HANDGEPFLEGTEN Liste verneinter Modi (`not is_charge and not is_pile_in and ...`) — `"scout"` fehlte darin, also hätte das Freilegen des Panels sofort einen Advance angeboten, den 24.32 nicht gewährt (gemessen: der Scout Move wächst von 6.0" auf 7.0"). `move_mode is None` ist die ganze Regel: ein Advance ist eine Entscheidung INNERHALB des eigenen Bewegungsphasen-Zuges, und das ist der einzige Modus ohne Namen. `start_run()` liest dieselbe Antwort, damit die Regel nicht UI-only ist (Fehlerklasse 4). **Nebenwirkung, bewusst und benannt:** damit verlieren auch `battle_focus`, `tactical_acumen`, `path_of_the_outcast` und `retro_thrusters` ihren Advance-Knopf — alle vier drucken "a Normal move", hatten ihn also nie verdient.
+  - **Getestet:** neues `test_scout_move_ui.py` (**30/30**) — der gemeldete Fall durch das ECHTE `ActionPanel` (Confirm und Cancel vorhanden, Advance nicht, und der Confirm feuert wirklich `on_scout_move_finished`, also das, was die Warteschlange fortsetzt), die Gegenprobe dass ohne laufenden Zug keine Bewegungsknöpfe ins Vorspiel lecken, und `can_advance()` für alle elf benannten Modi einzeln plus den Normalfall. **A/B in zwei Richtungen:** das alte Gate zurückgebaut → 24/30; `move_mode is None` aus `can_advance()` entfernt → 16/30. Volle Regression **102 Suiten, ~6099 Prüfungen, 101 grün / 0 rot / 1 bekannt**, dazu `smoke_pregame.py map2`, `smoke_measure_tool.py map2`, `smoke_log_input.py map2` und `selfplay.py map2` — **alle grün, inklusive der beiden, die während der vorigen Sitzungshälfte am SCOUTS-Schritt hingen** (die parallele Sitzung hat `smoke_pregame.py` inzwischen beigebracht, die Frage zu beantworten).
+
+- **Path of the Outcast war TOT VERDRAHTET — der Controller wurde gebaut und nie GEFÜTTERT** (User: "die KI lässt mich mit den Rangern immer noch nicht bewegen. schaust du an der richtigen stelle?" — nein, tat ich nicht: der frühere `REACTIVE_MOVE_MODES`-Fix war richtig, saß aber hinter einem Zug, der nie beginnen konnte).
+  - **Reproduziert vor jeder Änderung:** die Frage erscheint, der D6 wird geworfen, der Mensch bestätigt — und `main.py` sagt es dem Controller nie. `path_of_the_outcast_controller.on_dice_acknowledged()` fehlte in der Bestätigungskette (24 Controller standen dort, dieser nicht), also wurde `_start_move()` nie erreicht und die Einheit nie beweglich. **Dritter Fall dieser Klasse** (nach `VengefulStarsController` und der Mark-Verdrahtung) und genau der, für den `verify_mark_wiring.py` existiert: `test_rangers.py` war grün, weil es `ctrl.on_dice_acknowledged()` selbst aufruft.
+  - **Drei weitere fehlende Enden derselben Verdrahtung**, alle mitgezogen: das Panel kannte den Modus `path_of_the_outcast` gar nicht, also fiel Confirm/Cancel auf den generischen `movement_controller.confirm_move()` durch — `_finish()` lief nie, und `turn_tracker.active_player` wäre auf dem reagierenden Spieler gestrandet; `is_busy` fehlte in der Phasenwechsel-Sperre; und "once per turn" hatte keinen Rücksetzpunkt.
+  - **Der gedruckte Text des Users ersetzt die alte Transkription:** **9"** statt 8" (gemessen, was das öffnet: ein Gegner, der zwischen 8" und 9" endet, wurde vorher ignoriert) und **"Once per turn"**, vorher gar nicht modelliert. Verbraucht wird die Nutzung beim ANNEHMEN, nicht beim Angebot — "Stay put" ist eine Antwort, keine Nutzung. **Eine Klausel der alten Transkription ist bewusst STEHENGEBLIEBEN und im Modul-Docstring markiert:** "not within Engagement Range" fehlt im gelieferten Text, aber ohne sie dürfte eine gebundene Einheit einen NORMAL move aus dem Nahkampf machen, was Kernregel 09.02 niemandem erlaubt (dafür gibt es Fall Back).
+  - **Getestet:** `test_rangers.py` von 72 auf **85/85** — neuer Abschnitt 4b (die 8-9"-Bande gemessen, once-per-turn samt Rücksetzung und "Ablehnen verbraucht nichts") und **4c, der Quell-Wächter auf `main.py`** (Würfelbestätigung, Panel-Übergabe, `is_busy`-Sperre, Rundenreset). Ein Verhaltenstest kann diese Klasse nicht sehen — das ist ja der Punkt.
+
+- **Forewarned wurde angeboten, während der Trefferwurf schon lief** (User: "das ist zu früh. das muss ich davor entscheiden").
+  - **Die Engine-Sequenz war schon richtig**: `FightController` feuert seine `target_reactions` im Zielauswahl-Schritt (12.02), vor jedem Wurf. Falsch war `ai/agent_driver.py`s `_handle_fight()`: es rief `select_to_fight()` und `_resolve_fight_choices()` in EINEM synchronen Aufruf, und der zweite wirft den Trefferwurf. Prompt und Würfel erschienen im selben Frame, und die Antwort konnte den Wurf, für den sie erhoben wurde, nicht mehr erreichen.
+  - **Die Schussphase hatte genau diesen Fix schon** — eine Meldung früher, für Psychic Shield ("bei psychic shield kann ich erst entscheiden, wenn der hit roll schon gewürfelt wird"). Die Nahkampfphase, also Forewarneds Phase, bekam ihn nie. `_defender_is_deciding(fight_controller)` ist jetzt die eine Frage, gestellt an BEIDEN Stellen, die den Zielauswahl-Schritt ausmachen: dem Auto-Pick bei genau einem gebundenen Gegner (der gemeldete, gewöhnliche Fall) und der expliziten Mehrfachauswahl.
+  - **Zurückkehren genügt und lässt nichts halb fertig**: `_is_blocked()` behandelt einen offenen Prompt als harten Stopp, und der bereits vorhandene `CHOOSING_TARGET`/`CHOOSING_WEAPON`-Wiedereinstieg nimmt dieselbe Einheit danach wieder auf.
+  - **Gemessen wird die REIHENFOLGE gegen die Würfel, nicht "ein Prompt kam"**: vor der Antwort null Würfe; nach der Antwort genau einer — und er trägt `[+1 (Forewarned)]`, die Entscheidung hat den Wurf also wirklich erreicht. **A/B:** ohne den Wächter landet der Trefferwurf bei noch offenem Prompt und ohne den Modifikator.
+  - **Getestet:** neues `test_forewarned_timing.py` (**25/25**), inkl. Quell-Wächter für beide Aufrufstellen und dafür, dass die Schussphase ihren eigenen behält.
+
+- **Zwei gemeldete Punkte, die nach Messung KEINE Änderung brauchten** — beide hier festgehalten, damit sie nicht erneut untersucht werden.
+  - **Canoptek Wraiths queren Wände bereits** (User: "lass die Wraiths durch Wände bewegen. als Hausregel."): sie sind `beasts`, also ist `can_move_through_dense_terrain` (13.06) True und `blocks_movement_for()` gibt False zurück — eine Sonde zieht ein Modell durch eine 3" dicke Wand und der Commit wird angenommen. Nicht möglich ist nur das ENDEN auf Dense-Gelände (13.05, gilt für jedes Modell). Nach Rückfrage bestätigt: **Durchlaufen reicht, 13.05 bleibt**.
+  - **Der Advance-Würfelwurf ist nicht verschwunden** (User: "ich sehe den advance würfel wurf nicht mehr"). Drei unabhängige Messungen: ein Differenztest über alle 13 `move_mode`-Werte × `run_used` × Bonus × Würfelmanager findet für einen GEWÖHNLICHEN Zug (`move_mode is None`) keinen erreichbaren Zustand, in dem `can_advance()` und die alte Panel-Bedingung sich unterscheiden; `measure_advance_usage.py` meldet unverändert "units offered an Advance afterwards: 0 -> 6 of 8"; und durch die ECHTE `main()`-Schleife in Player 1s echter Bewegungsphase steht der Knopf da und ein Klick wirft (`label='Advance' values=[5]`). **Was der Fix WIRKLICH entfernt hat**, sind Advance-Knöpfe auf GEWÄHRTEN Zügen — Scout Move, Path of the Outcast, Fade Back/Opportunity Seized, Tactical Acumen, Retro-thrusters. Alle fünf drucken "a Normal move"; ein Advance gehört regeltechnisch nicht dazu.
+
+- **Das Variant-Sprite hing an einer LIVE-Mehrheit statt an einer statischen Tatsache — die Fusion-Gun-Storm-Guardians verloren ihre Kunst mitten in der Schlacht** (User: "die fusion gun storm guardians haben gerade das falsche sprite").
+  - **Reproduziert, bevor irgendetwas angefasst wurde, und die Verdrahtung war NICHT das Problem:** bei voller Stärke löst jedes der 10 Modelle korrekt auf (Flamer/Fusion/Power Sword/plain, alle vier Dateien vorhanden und inhaltlich richtig, im Bild geprüft). Der Fehler braucht VERLUSTE. `_unusual_weapon_names()` fragte, ob die Ladung von der LEBENDEN Mehrheit der Einheit abweicht — sobald 2 plain-Gardisten und 1 Flamer tot sind, stehen Fusion/Sword/plain bei je 2, `Counter.most_common()` bricht den Gleichstand nach MODELLREIHENFOLGE, kürt die Fusion-Ladung zur "Mehrheit" — und die beiden Fusion-Gardisten galten damit als normal und fielen auf `Assault Guardian.png` zurück.
+  - **Die Frage war die falsche.** Die Kunst zeigt die Waffe in der Hand des Modells; ein Tod anderswo in der Einheit kann nicht ändern, welches Bild richtig ist. Ein Dateiname `<key> - <Waffe>.png` beantwortet "dieses Modell trägt eine Waffe, die sein Datenblatt nicht druckt" — eine STATISCHE Tatsache. Neues `_printed_weapon_names()` liest sie am Datenblatt (Komponente bei einer Attached Unit, sonst `squad.datasheet`), gekeyt an der Profil-KLASSE statt am Zeilennamen (der ist freier Text, die Klasse ist die Identität). **Über alle 71 Datenblätter und 140 Modellzeilen geprüft statt angenommen: kein Datenblatt hat zwei Zeilen, die sich eine Profilklasse teilen und verschiedene Waffen drucken** — die Antwort ist also eindeutig. Gecacht, weil `sprite_for()` pro Token pro Frame läuft, und über die Waffen-KLASSEN gelesen (`name` ist Klassenattribut), also wird dabei nichts instanziiert.
+  - **`Squad.unusual_loadout_models()` bleibt unangetastet, und das ist Absicht** — es sind jetzt bewusst zwei verschiedene Fragen, nicht Fehlerklasse 10: der TINT sagt "dieses Modell fällt neben seinen Squadmates auf" (eine lebende, relative Aussage, für ein Highlight richtig), das SPRITE sagt "dieses Modell trägt eine Waffe, die sein Datenblatt nicht druckt". Der frühere Kommentar band beides ausdrücklich aneinander; die Trennung steht jetzt ausgeschrieben. **Der Tint trägt den Gleichstands-Zufall weiterhin** — benannt, nicht ungefragt mitgeändert.
+  - **Rückfall auf die alte Mehrheitswahl, wenn das gedruckte Loadout gar nicht lesbar ist** (eine handgebaute `Squad` hat kein Datenblatt) — jede `testkit.py`-Szene verhält sich unverändert.
+  - **Getestet:** `test_storm_guardians.py` von 83 auf **92/92**, neuer Abschnitt 7b — der exakt gemeldete Zustand, dazu JEDE Verlusttiefe (ein Gleichstand ist von beiden Seiten erreichbar, also hätte das Pinnen nur der gemeldeten Zahl die Nachbarfälle frei driften lassen), der Zustand NACH `remove_dead_models()` (die andere Hälfte derselben Drift, weil ein nicht-angebundenes Squad seine Peers aus `squad.models` las), und die Quelle selbst. **A/B belegt:** den Datenblatt-Pfad entfernt → **88/92**, und die vier roten Zeilen nennen genau `Fusion Gun -> Assault Guardian.png`. Volle Regression **112 Suiten, ~7450 Prüfungen, 111 grün / 0 rot / 1 bekannt**, dazu `smoke_pregame.py map2`, `smoke_log_input.py map2` und `selfplay.py map2` 2000 Frames — die Smokes hier nicht aus Gewohnheit, sondern weil `game/sprites.py` in der Renderkette pro Frame läuft.
+  - **Nebenbefund:** die Weichen-Mechanik bedient heute genau EIN Datenblatt — die drei `Assault Guardian - *.png` sind die einzigen Variant-Dateien im Ordner, und `- Leader` hat gar keine. Das hält das Risiko der Umstellung klein und ist der Grund, warum die Drift so lange unbemerkt blieb.
+
+- **Vierzehntes und fünfzehntes Necron-Datenblatt: Skorpekh Lord und Lokhust Lord** (User: "Lege die einheit an / Skorpekh Lord" … "danach / Lokhust Lord"). Beide sind DESTROYER CULT, beide führen genau die Einheit, deren größere Ausgabe sie sind, und beide stehen in KEINER Demo-Armee — wie die siebenundzwanzig Aeldari-Datenblätter davor.
+  - **Beide nehmen die Destroyer-Tischgröße 0.984" (50 mm) statt ihrer gedruckten 60 mm**, nach der stehenden User-Regel "alle Destroyer sollen die gleiche Größe haben". Hier wiegt sie schwerer als bei den zwei Lokhust-Trupps: ein Lord wird per 19.01 in seine Bodyguards GEMERGT, eine 60-mm-Base mitten in einem 50-mm-Trupp ist also genau die Stelle, an der der Unterschied auffiele. Im Test sind jetzt **alle fünf** Destroyer-Cult-Datenblätter gegeneinander gepinnt, nicht gegen ein Literal.
+  - **Der Skorpekh Lord ist das erste Datenblatt mit einer echten 04.01-WAHL zwischen zwei Nahkampfwaffen.** Flensing Claw (A8/S6/AP-1/D1) und Hyperphase Harvester (A4/S10/AP-3/D3) tragen BEIDE kein [EXTRA ATTACKS] — geprüft statt angenommen, weil eine Viele-Angriffe-Klaue neben einer schweren Waffe fast immer [EXTRA ATTACKS] IST. Ohne das Keyword sind es acht leichte Schwünge ODER vier schwere, und genau das ist die Waffenwahl dieses Datenblatts.
+  - **United In Destruction** ist Spirit of Gorks zweite Hälfte minus einem Grant: [LETHAL HITS] auf die Nahkampfwaffen der GANZEN Einheit, solange er sie führt. Chain-Eintrag in `FightController._adjusted_weapon()` — dort und nicht im Wundschritt, weil `_crit_note()` schon zum WURFZEITPUNKT wissen muss, ob ein kritischer Würfel ein [LETHAL HITS]-Würfel ist. Gelesen über `leader_ability()`, NICHT `unit_wide_ability()` (kein Bodyguard druckt sie), was 19.04s Nachlauffenster gratis mitbringt.
+  - **Crimson Harvest ist die erste Fähigkeit, die an "ends a Charge move" hängt** — und dieser Moment existierte in der Engine nirgends. Neuer Haken `ChargeController.on_charge_move_finished` (eine LISTE, anders als das Einzel-Callable `on_charge_declared` daneben: das hat ein Rückgabewert-Protokoll und braucht genau einen Besitzer, dies ist eine reine Benachrichtigung).
+    - **Er sitzt in `confirm_charge_move()` und ausdrücklich NICHT in `_finish_charge()`** — letzteres läuft auch für einen ABGELEHNTEN Charge und für eine vor dem Zug zerstörte Einheit, und keins von beidem beendet einen Charge-Zug. Gefeuert NACH `_finish_charge()`, damit der Charge abgeschlossen ist, bevor ein Zuhörer einen Würfelwurf darauf öffnet.
+    - **Gemessen an der NAHT, nicht an der Fähigkeit** — und das war nötig: `decline_charge_move()` ruft zuerst `cancel_move()`, der Lord steht dann wieder außer Engagement Range, und die Fähigkeit fiele aus dem FALSCHEN Grund aus. Die erste Fassung des Tests bestand deshalb unter dem Rückschritt; mit mitschreibenden Zuhörern an beiden Pfaden fällt sie. **A/B belegt:** Haken nach `_finish_charge()` verschoben → 2 Prüfungen fallen (vorher nur 1, nämlich der Quell-Wächter).
+    - **Sein D6 hat DREI Ausgänge, nicht zwei** (1 nichts / 2-5 D3 / 6 D3+3), also entscheidet der erste Wurf die GRÖSSE des zweiten und nicht nur, ob es einen gibt. Alle drei Bänder einzeln gemessen — ein Test, der nur 1 und 6 wirft, besteht auch mit der Schwelle als "6+" geschrieben.
+    - **Kein Once-per-Phase-Ledger, und das ist Absicht:** eine Einheit bekommt höchstens einen Charge-Zug pro Phase (`charged_squad_ids`) plus höchstens eine Heroic Intervention (15.11). Der Trigger IST die Grenze; ein Ledger obendrauf würde still den 15.11-Fall abschalten.
+    - Dritter Konsument von `game/mortal_wound_abilities.py`s geteilter Maschinerie (Zielwahl, Prompt/Auto-Split, `MortalWoundAllocationSession`) — die Datei heißt jetzt "drei Fähigkeiten, ein Modul".
+  - **Der Lokhust Lord brachte DREI Zweitträger und damit drei Umbenennungen** — siehe Fehlerklasse 11 oben. Sein Staff of Light ist die Zeile des Overlords bis auf die letzte Charakteristik, sein "Destroyer Cult" ist wörtlich die "Harbinger of Destruction" des Plasmancers, und seine Lord's Blade sind die Zahlen der Overlord's Blade unter anderem Namen.
+  - **Driven by Hatred ist die vierte DESTROYER-CULT-Wiederholung und unterscheidet sich in DREI Dingen gleichzeitig** von ihren drei Geschwistern — jedes davon verschwindet, wenn man das Prädikat wie seine Nachbarn schreibt:
+    - **beide Würfe** (Hit UND Wound), was sonst keine Quelle dieser Engine tut — sie steht deshalb an VIER Stellen (`_hit_reroll_reason`/`_wound_reroll_reason` in beiden Phasen), und eine Verdrahtung, die nur zwei erreicht, sähe von jeder einzelnen aus vollständig richtig aus. Als Zählung gepinnt (`.count(...) == 2` je Datei).
+    - **pro MODELL** ("each time THIS MODEL makes an attack"), nicht pro Einheit. Das Angebot gilt aber einer GRUPPE, also gewährt `driven_by_hatred_applies_to_group()` nur, wenn JEDES Modell der Gruppe sie trägt — bewusst konservativ, denn andersherum würfelte man die Würfel eines Bodyguards auf dem Anspruch des Lords neu.
+    - **KEINE Automatik-1en-Klausel**, also ist sie NICHT in `game/reroll_scope.py` einzutragen. Sie dort zu listen würde dem Spieler ein Nur-1en-Angebot machen, das der gedruckte Text nie gibt. Im Test als ABWESENHEIT geprüft — die einzige Stelle, an der sich das zeigt.
+    - **"Below Half-strength" ist `is_below_half_strength()`** (Appendix, STRIKT kleiner), ausdrücklich nicht `is_at_half_strength()` (at-or-below, das Battle-Shock und Ard as Nails benutzen). Am GRENZFALL gemessen — genau bei der Hälfte greift sie nicht —, weil das die einzige Stelle ist, an der die zwei Definitionen sich unterscheiden. **A/B belegt:** auf die at-or-below-Fassung umgestellt → genau diese Prüfung fällt.
+  - **Nanoscarab Amulet ist die erste FNP-Quelle, die ein reiner Pro-TOKEN-Wargear-Grant ist** ("the BEARER has Feel No Pain 5+"). Ein Lokhust Lord in sechs Destroyers gibt FNP an genau sich selbst — der Unterschied zu Rites of Reanimation nebenan, das "while this model is leading a unit" sagt und jeden Bodyguard deckt. Genau ein weiterer Fold in `current_feel_no_pain()`, wie dessen Docstring es einlädt.
+  - **"One of the following" wird über `gear_slots = 1` erzwungen**, nicht über eine Bedingung in einem der beiden Items — gemessen, indem der Test BEIDE anfordert und einen bekommt. Und der Resurrection Orb bekam eine ZWEITE Effektfunktion: die des Overlords ist auf "hat den Tachyon Arrow abgegeben" gegated, diese nicht. Zwei Funktionen statt einer mit Flag, damit kein Datenblatt still die Bedingung des anderen erbt.
+  - **"This model's staff of light can be replaced with 1 Lord's blade"**: der Staff ist EINE gedruckte Waffe mit einer Fernkampf- UND einer Nahkampfzeile, der Tausch gibt also BEIDE auf — diese Variante hat gar keine Fernkampfwaffe mehr. Gleiche Form wie der Voidscythe-Tausch des Overlords, und als eigene Testzeile ausgeschrieben.
+  - **Beide Sprites lagen schon im Ordner** (`Skorpekh Lord.png`, `Lokhust Lord.png`) — die einzigen zwei Necron-Dateien OHNE das `Necron `-Präfix der anderen dreizehn. Der Ordner gewinnt, wie überall in dieser Tabelle. Die Verschattungsgefahr ist geprüft statt angenommen (`_key_for_name()` liefert beim ERSTEN Substring-Treffer zurück): weder enthält "Skorpekh Lord" den Schlüssel "Skorpekh Destroyers" noch umgekehrt, "Overlord" ist kein Teilstring von "Skorpekh Lord", und "Lokhust Lord" enthält keinen der beiden Lokhust-Trupp-Schlüssel.
+  - **Punkte:** Skorpekh Lord 90 (1.-2. Einheit) / 100 (ab der 3.), Lokhust Lord flach 70. Keiner von beiden steht in der 13-Einträge-Liste des Users, es gibt hier also keine Listenspalte, der man widersprechen könnte.
+  - **Getestet:** neu `test_skorpekh_lord.py` (**72/72**) und `test_lokhust_lord.py` (**66/66**), zusammen mit **acht** A/B-Sonden, von denen jede genau die Prüfungen kippt, die sie soll. Die drei Datenblatt-Zählpins in `test_necron_datasheets.py` (13 → 15) sind genau die sichtbare Einzeiler-Änderung, für die sie gesetzt wurden. Volle Regression **120 Suiten, ~7871 Prüfungen, 119 grün / 0 rot / 1 bekannt**, dazu alle vier Smokes und `selfplay.py map2` 2500 Frames — die Smokes hier nicht aus Gewohnheit, sondern weil `main.py`, `game/charge.py`, `game/fight.py`, `game/shooting.py`, `game/crit_hit.py` und `game/feel_no_pain.py` angefasst wurden, also die Angriffs- und die Schadenskette selbst.
+  - **Arbeitshinweis:** die parallel laufende zweite Sitzung legte mittendrin `test_melee_weapon_groups.py` an (Nahkampf-Waffengruppen, Warpspider-Exarch), das kurzzeitig an einer noch fehlenden Ork-Konstante scheiterte — **nicht dieser Arbeit zuzuordnen**, null Überschneidung, und inzwischen von ihr selbst grün gemacht.
+  - **Offen und bewusst so:** beide stehen in keiner Demo-Armee, und die KI hat für sie keinen eigenen Pfad — Crimson Harvest läuft über `auto_players` (die Zielwahl ist deterministisch nach `damage_value`), die zwei Reroll-/Krit-Grants brauchen gar keine Entscheidung.
+
+- **Player 2s Necron-Liste revidiert: Illuminor Szeras und Lokhust Heavy Destroyers raus, Lokhust Lord / zweiter Plasmancer / Skorpekh Lord rein, eine ZWEITE Immortals-Einheit auf Tesla Carbines** (User lieferte die vollständige neue Liste). **15 Listeneinträge, 9 Einheiten nach SECHS Anbindungen, 68 Modelle**, Engine-Summe **2020 pts** gegen die 2050 der Liste.
+  - **Sechs von sieben Charakteren führen jetzt etwas** (vorher drei von fünf): Overlord → Lychguard, Technomancer → Necron Warriors, Plasmancer → Immortals 1, Plasmancer → Immortals 2, Skorpekh Lord → Skorpekh Destroyers, Lokhust Lord → Lokhust Destroyers. **Nur der C'tan Shard steht allein**, und das ist eine Aussage: er ist der einzige Charakter dieser Liste ohne gedruckte LEADER-Zeile. Damit zahlt **Command Protocols an sechs der neun Einheiten** statt an dreien — die Detachment-Regel ist der eigentliche Gewinner dieser Revision.
+  - **Die zwei Immortals-Einheiten sind der erste Fall im Repo, in dem zwei Kopien EINES Datenblatts verschiedene Wargear tragen.** "10 with Tesla carbine" ist der GANZE Trupp, also ist die Anzahl die Einheitengröße und nicht 1 — der Gegensatz zum Enmitic-Exterminator-Eintrag der alten Liste, wo genau EIN Modell tauschte. Damit leistet `unit_name()`s Kopiennummer zum ersten Mal echte Arbeit: die beiden unterscheiden sich in nichts anderem als ihrem Namen und ihrer Waffe.
+  - **Der Lokhust Lord BEHÄLT seinen Staff of Light** ("Nanoscarab amulet, Staff of light"). Eigene Testzeile, weil seine einzige Waffenoption ihn gegen die Lord's Blade tauschen würde — und der Staff ist EINE gedruckte Waffe mit einer Fernkampf- UND einer Nahkampfzeile, der Tausch ließe ihn also ganz ohne Fernkampfwaffe.
+  - **Die Skorpekh Destroyers nehmen jetzt EINEN Plasmacyte**, wo die alte Liste keinen nahm — also eine Nutzung des [DEVASTATING WOUNDS]-Grants über die ganze Schlacht (die Erlaubnis ist pro Plasmacyte, nicht pro Schlacht).
+  - **Drei fremde Suiten sind daran zerbrochen, und alle drei zu Recht** — genau die sichtbaren Einzeiler-Änderungen, für die ihre Pins gesetzt wurden:
+    - `test_army_select.py` pinnte `(10, 59, 2000)` → `(9, 68, 2020)`; und seine Zeile "ein allein stehender Charakter wird als Charakter geführt" nannte Szeras, der nicht mehr antritt.
+    - `test_over_garrison.py` griff auf `"2 Skorpekh Destroyers 1"` und `"2 Lokhust Destroyers 1"` zu — beide heißen nach der Anbindung anders, und beide sind ein Modell größer. **Nebenbefund, der die Zeile ehrlicher gemacht hat:** ihr Kommentar behauptete, die Skorpekh Destroyers seien ein Assault-Trupp, weil sie "gar keine Fernkampfwaffen" hätten. Der Skorpekh Lord bringt einen Enmitic Annihilator mit — `is_assault_unit()` ist aber eine RATIO und keine Anwesenheitsprüfung, und eine 18"-Waffe auf einem von vier Modellen macht aus Hyperphase-Klingen keine Gunline. Der Trupp bleibt korrekt `assault=True`, die Begründung im Test war nur bis eben nicht von der falschen Lesart unterscheidbar.
+    - `test_take_to_the_skies_policy.py` zählte "sechzehn behalten es" → **fünfzehn**: Szeras war eine eigene FLY-Einheit. Der neu hinzugekommene Lokhust Lord ersetzt sie NICHT, weil er in die Lokhust Destroyers merged, die ohnehin schon flogen — eine Einheitenzahl ist hier also genau das Falsche zum Raten.
+  - **map3s Roster musste mitgezogen werden**: `"{p} Lokhust Destroyers 1"` heißt jetzt `"{p} Lokhust Destroyers 1 + Lokhust Lord"`. `BattleMap.fields()` matcht EXAKT, ein veralteter Name fieldet also nichts.
+    - **Dabei ist eine echte Harness-Schwäche aufgefallen und behoben worden:** `main.py`s Roster-Wächter wirft `SystemExit` mit einer erklärenden Meldung, aber `selfplay.py` fing JEDES `SystemExit` ab und druckte danach "no exception" — über einen Lauf mit **0 Frames**. Ein lauter Wächter, den ausgerechnet der Harness stumm schaltet, der ihn sichtbar machen soll. `selfplay.py` lässt jetzt alles außer seinem EIGENEN `SystemExit(0)` durch (das ist sein MAX_FRAMES-Stopp). **Gemessen:** mit dem veralteten Namen jetzt Exit 1 plus die Wächter-Meldung, vorher Exit 0 und "no exception".
+  - **`test_player2_necron_army.py` fragt die Totals jetzt den ECHTEN Builder** (`army_lists.get("necrons").build(...)`) statt seinen eigenen Roster nachzubauen. Die alte Fassung schrieb die Arithmetik der LISTE aus, um Fehlerklasse 17 zu entgehen — das hilft gegen eine veraltete ZAHL, lässt aber die FORM der Armee als zweite Kopie stehen, die man mitpflegen muss. Die handgebaute Hälfte bleibt für die Pro-Eintrag-Loadouts und wird gegen den Builder verglichen, aber über die FORM (welches Datenblatt führt welches, wie viele Modelle) statt über Namen — die Kopiennummern müssen dort zwangsläufig andere sein.
+  - **Punkte: 10 von 15 Einträgen weichen ab, weiter in BEIDE Richtungen** (Engine 2020, Liste 2050). Fünf stimmen überein (beide Plasmancer, Skorpekh Lord, Technomancer, Canoptek Wraiths). Die Transkription gewinnt unverändert; die Abweichung ist benannt, nicht angeglichen. Der Lokhust Lord ist neu auf der billigeren Seite (70 gegen 80).
+  - **Getestet:** `test_player2_necron_army.py` von 62 auf **76/76** neu geschrieben, `test_army_select.py` **236/236**, `test_over_garrison.py` **61/61**, `test_take_to_the_skies_policy.py` **33/33**. Volle Regression **120 Suiten, ~7886 Prüfungen, 119 grün / 0 rot / 1 bekannt**, dazu alle fünf Smokes und `selfplay.py` auf map2 (2000 Frames) UND map3 (800 Frames) — map3 hier keine Formalie, weil sein Teilroster angefasst wurde.
+
+- **Absturz bei Isha's Fury: `NameError: name 'board_rect' is not defined` — ein Zweig der Event-Kette, den nie etwas erreicht hat, war gegen eine Signatur von vorgestern gebaut** (User: "spiel abgestürzt bei ishas fury").
+  - **Reproduziert, bevor irgendetwas angefasst wurde, und zwar an der QUELLE:** ein AST-Lauf über die ~4000 Zeilen von `main()` sammelt jeden gelesenen freien Namen und vergleicht ihn gegen alles, was dort (oder auf Modulebene) je gebunden wird. Ergebnis: **genau EIN Treffer im ganzen `main()`**, `('board_rect', 3021)` — der gemeldete Absturz, ohne Rateanteil. Der Name der Brettfläche heißt überall sonst `board_rect_screen`.
+  - **Es waren DREI Defekte in ZWEI Zweigen, und der gemeldete war nur der erste, der feuert.** Hinter dem NameError lag ein `token_at_event(state.tokens, event, board, board_rect)` — die alte VIER-Argument-Signatur (heute `(tokens, board, event_pos)`), also der nächste Absturz nach Behebung des ersten. Und beide Zweige hatten **gar keinen Event-Typ-Wächter**, griffen also auch auf einer KEYDOWN nach `event.pos`. Der Nachbarzweig (Grenade Pack Flyover) trug dieselbe Fäule in eigener Ausprägung: `token_at_event(state.tokens, event, camera)` — drei Argumente, aber die falschen, was als `AttributeError: 'Event' object has no attribute 'to_in'` endet statt als TypeError. Beide gemessen, nicht vermutet.
+  - **Die Ursache ist die Unerreichbarkeit selbst, nicht ein Tippfehler.** Diese zwei Zweige laufen NUR, solange genau diese eine Fähigkeit eine Mortal-Wound-Zuteilung schuldet — kein Test im Repo fuhr sie je an (`grep token_at_event test_*.py` war leer, und für keine der beiden Fähigkeiten gab es eine Suite). **Vierte Instanz der "gebaut, aber nie GEFÜTTERT/erreicht"-Klasse** nach `VengefulStarsController`, der Mark-Verdrahtung und Path of the Outcasts fehlender Würfelbestätigung — und wie diese drei nur durch einen QUELL-Wächter zu fangen.
+  - **Der Fix ist die kanonische Form ihrer fünf funktionierenden Geschwister**, nicht eine vierte Variante: Event-Typ + Taste, `board_rect_screen.collidepoint(event.pos)`, dann `token_at_event(state.tokens, board, event.pos)`. Damit sind alle sieben Mortal-Wound-Zweige buchstabengleich.
+  - **Getestet:** neu `test_event_chain_wiring.py` (**11/11**) in drei Abschnitten — (1) der allgemeine, der den Absturz reproduziert: KEIN freier Name in `main()` darf ungebunden sein, plus die Zusicherung, dass `board_rect_screen` der eine Name der Brettfläche ist; (2) jeder `token_at_event()`-Aufruf hat die kanonische FORM, nicht nur die richtige Stelligkeit (`(tokens, event, camera)` ist auch dreistellig und scheitert anders); (3) jeder `pending_damage_choice`-Zweig, der `event.pos` liest, hat seinen MOUSEBUTTONDOWN-Wächter und seine Brett-Prüfung. Abschnitt 1 deckt jede künftige Zeile dieser Funktion ab, nicht nur diese zwei Zweige. **A/B mit der GANZEN Vor-Fix-Welt: 5/11**, und die erste rote Zeile nennt den gemeldeten Absturz wörtlich (`got [('board_rect', 3021)]`); sechs Prüfungen kippen, je zwei pro Defekt. Volle Regression **123 Suiten, ~8031 Prüfungen, 122 grün / 0 rot / 1 bekannt**, dazu alle vier Smokes und `selfplay.py map2` 4000 Frames — hier keine Formalie, weil `main.py`s Event-Kette selbst der geänderte Gegenstand ist.
+  - **Benannt, nicht ungefragt behoben:** die Sperre "starte keinen neuen Deadly-Demise-Wurf / Emergency Disembark, solange noch ein Prompt offen ist" führt eine EIGENE, kürzere Liste als die Phasenwechsel-Sperre daneben (die über `is_busy` vollständig ist). Vier Controller fehlen ihr: `ishas_fury`, `grenade_pack`, `crushing_impact`, `fall_back` — zwei Stellen, dieselbe Frage, zwei Antworten (Fehlerklasse 10). Ein Modell, das an Isha's Fury stirbt, kann damit einen Deadly-Demise-Wurf öffnen, während die Zuteilung noch aussteht. Anderer Fehler als der gemeldete, und er ändert die Prompt-Reihenfolge — deshalb hier vermerkt statt nebenbei mitgeändert.
+
+- **Player 1s Liste erneut revidiert: Shroud Runners raus, Windriders rein — und der Warlock Skyrunner steht zum ersten Mal nicht mehr allein** (User: "tausche bei der aeldari liste die shroud runner mit diesen windridern und packe den warlock skyrunner rein / 3x Windriders (80 pts): 3 with Close Combat Weapon, Shuriken Cannon"). Weiterhin 20 Listeneinträge und **74 Modelle**, aber **12 Einheiten** statt 13 und **1890 pts** statt 1900.
+  - **Die zweite Hälfte der Bitte war schon vorbereitet, ohne dass es jemand geplant hatte.** Die LEADER-Zeile des Skyrunners ist ein JOIN, der ausschließlich WINDRIDERS nennt — er stand bisher allein, weil die Liste keine fieldete, und `test_player1_army.py` hielt genau das als geprüfte Tatsache an der PAARUNGSTABELLE fest ("steht allein da" statt "Anbindung vergessen"). Der Tausch bringt ihm den einzigen Partner, den er überhaupt haben kann; `attach()` würde jeden anderen ablehnen, ein falscher Griff wäre also gescheitert statt still gebaut worden. Wie die zwei Warlock Conclaves nennt dieses JOIN seine EIGENE Grenze statt 19.01s Leader-Slot zu belegen.
+  - **Ein Eintrag weniger auf dem Tisch ist, wie eine Anbindung AUSSIEHT** — nicht eine verlorene Einheit. Die Modellzahl bleibt 74 (3 raus, 3 rein, und `attach()` merged, es fügt nichts hinzu und nimmt nichts weg). Genau diese Verwechslung ist an drei Stellen aufgeschlagen, und alle drei sind dieselbe Lehre: **eine EINHEITENZAHL ist das Falsche zum Raten, wenn gemergt wird.**
+  - **"3 with Close Combat Weapon, Shuriken Cannon" ist die GANZE Einheit, nicht ein Modell-Upgrade** — die 3 ist die Truppgröße. Die Kanone ist einer der zwei Täusche gegen den Twin Shuriken Catapult; der andere (Scatter Laser) teilt sich mit ihm den Cursor, "3 von jedem" hätte sie also über verschiedene Modelle verteilt statt gestapelt. Im Test ist die NICHT genommene Alternative als eigene Zeile geprüft, weil genau daran die falsche Lesart sichtbar würde.
+  - **Der Punkte-Mismatch ist von 12 auf 11 gefallen, und das ist der erste Eintrag dieser Liste, bei dem Engine und User-Liste ÜBEREINSTIMMEN**: beide sagen 80 für 3 Windriders. Die Shroud Runners, die sie ersetzen, waren einer der zwölf Abweichler (Liste 80, Transkription 90) — daher auch die 10 Punkte Differenz in der Armeesumme. Die Transkription wird weiterhin nicht überschrieben.
+  - **`test_player1_army.py` ist zum DRITTEN Mal von Fehlerklasse 17 getroffen worden, und diesmal war die Gegenmaßnahme selbst zu schwach.** Es baut seinen eigenen Roster und blieb GRÜN, während es Shroud Runners und einen allein stehenden Skyrunner prüfte — eine Armee, die es nicht mehr gibt. Beim letzten Mal wurden dagegen die TOTALS als Rechnung der Liste ausgeschrieben; das fängt eine veraltete ZAHL, lässt aber die FORM der Armee als zweite, handgepflegte Kopie stehen — und stale wurde jedes Mal die Form. Abschnitt 5 fragt jetzt den ECHTEN Builder (`army_lists.get("aeldari").build(...)`), genau die Behandlung, die `test_player2_necron_army.py` für dieselbe Falle bekam: die handgebaute Hälfte bleibt für die Pro-Eintrag-Loadouts und wird gegen den Builder über die FORM verglichen (welches Datenblatt führt welches, wie viele Modelle) statt über Namen — die Kopiennummern müssen zwangsläufig andere sein. **Zwei Normalisierungen, und sie sind nicht dieselbe zweimal:** die führende Ziffer ist `unit_name()`s OWNER-Präfix, die nachlaufende die Kopiennummer. **A/B belegt:** mit dem Vor-Tausch-Builder und dem neuen Test fallen zwei Prüfungen (die Form UND die Summe) — die alte Fassung war in genau dieser Welt vollständig grün. Die Modellzahl bleibt in der neutralisierten Welt zufällig richtig, was der Grund ist, warum die FORM die tragende Prüfung ist.
+  - **Drei fremde Pins sind gefallen, alle drei zu Recht:**
+    - `test_army_select.py`: `(13, 74, 1900)` → `(12, 74, 1890)`.
+    - `test_take_to_the_skies_policy.py`: "fünfzehn behalten es" → **vierzehn**. **Zum zweiten Mal aus demselben Grund** — beim Lokhust Lord stand schon im Kommentar, dass eine Einheitenzahl hier das Falsche zum Raten ist. Shroud Runners und Windriders fliegen BEIDE (netto 0), der Skyrunner war eine eigene FLY-Einheit und ist jetzt in ihnen aufgegangen. Der Kommentar führt jetzt beide Schritte auf.
+    - `smoke_setup_screens.py`: "Player 2 fieldet die ganze Aeldari-Liste (13 Einheiten)" → 12. Dieser Smoke spielt die Aeldari als Player **2**, belegt also nebenbei weiter, dass die Liste für jeden Spieler baut. `--neutralize` scheitert unverändert.
+  - **Eine echte VERHALTENSänderung, gemessen statt weggestimmt: die Aeldari-Home-Garnison ist jetzt die RANGERS.** Der Skyrunner war mit 55 Punkten die billigste Einheit im SHOOTER-Band und damit die Wahl; gemergt ist er gar kein designierbarer Kandidat mehr. Gemessen auf map2 (nötige Reichweite 14.8"): die Rangers sind mit 60 Punkten das, was am Boden desselben Bandes übrig bleibt — **5 Punkte teurer für 12" mehr Reichweite** (36" Long Rifle gegen 24"), auf genau dem Objective, für das diese Regel existiert. Die Regel selbst ist unverändert; nur ihr billigster Kandidat ist weg. Auf allen drei Karten dasselbe Ergebnis. **Der Ork-Pin bleibt unberührt**, was weiterhin die Gegenprobe ist.
+    - **Benannt, nicht ungefragt behoben:** die Rangers sind INFILTRATORS (24.20), werden in der Aufstellung also ZULETZT sortiert und geben ihre Sonder-Aufstellung faktisch auf, um auf dem Home Objective zu sitzen. Legal (eine eigene Zone ist für einen Infiltrator ein zulässiger Ort) und kein Fehler, aber eine Qualitätsfrage, die niemand gestellt hat — eine eigene Messreihe wert, kein Nebenbei-Fix.
+  - **Die Basisgrößen-Notiz hat ihre PRÄMISSE verloren und ist deshalb neu geschrieben, nicht stillschweigend eingelöst.** Als die drei Jetbike-Einheiten auf 45 mm gebracht wurden, hielt die Notiz ausdrücklich fest, die Windriders blieben auf ihren gedruckten 32 mm, weil sie "in keiner Demo-Armee" stünden — der Skyrunner passte damit erstmals nicht zu dem Jetbike, dem er sich anschließt, aber nur theoretisch. Jetzt sitzt eine 45-mm-Base wirklich in einem Trupp aus 32-mm-Basen, also genau die Form, die die Skorpekh-Lord-Notiz "die Stelle, an der der Unterschied auffiele" nennt. Das ist eine GAMEPLAY-Zahl (`edge_distance()` liest den Radius, also ziehen Engagement Range, Überlappung, Kohärenz und Formations-Packen mit), deshalb wird sie BENANNT statt aufgeräumt: gemessen funktioniert es (alle 4 Modelle werden aufgestellt, Kohärenz hält über einen ganzen Selbstspiellauf). Der Pin in `test_warlock_skyrunners.py` trägt die neue Lage jetzt im Klartext.
+  - **map3 ist unberührt** — sein Aeldari-Teilroster nennt weder Shroud Runners noch Windriders (Guardian Defenders + Farseer + Conclave, Dark Reapers, Falcon, Wraithguard), geprüft statt angenommen, weil `BattleMap.fields()` EXAKT matcht und ein veralteter Name still nichts fieldet.
+  - **Getestet:** `test_player1_army.py` **89/89** (neu geschrieben, siehe oben), `test_army_select.py` **236/236**, `test_home_garrison.py` **79/79**, `test_take_to_the_skies_policy.py` **33/33**, `test_warlock_skyrunners.py` **55/55**. Volle Regression **123 Suiten, ~8058 Prüfungen, 122 grün / 0 rot / 1 bekannt**, dazu alle fünf Smokes (`smoke_pregame.py` auf map1 UND map2, `smoke_setup_screens.py` inkl. `--neutralize`, `smoke_log_input.py`, `smoke_measure_tool.py`, `smoke_end_turn_warning.py`) und `selfplay.py map2` 2000 Frames. Die Smokes hier keine Formalie: eine Anbindung fasst Aufstellung, Kohärenz und Zielwahl an. **Im echten Spiel belegt:** `[deploy] 1 Windriders 1 + Warlock Skyrunners (shooter) deployed at (9.9,35.9)`, `ist eine Attached Unit (19.01)`, und der Trupp taucht in der Bedrohungsrechnung der KI als Schussbedrohung auf (2.8-4.2/Zug), die Kanonen leisten also wirklich Arbeit.

@@ -195,10 +195,11 @@ rows = []
 real_row = DicePanel._draw_dice_row
 
 
-def row_spy(self, ops, movable, surf, row, y, dm, selecting, pl, pw, entrance_elapsed=None):
+def row_spy(self, ops, movable, surf, row, y, dm, selecting, pl, pw, entrance_elapsed=None,
+            gap=None):
     before = len(movable)
     out = real_row(self, ops, movable, surf, row, y, dm, selecting, pl, pw,
-                   entrance_elapsed=entrance_elapsed)
+                   entrance_elapsed=entrance_elapsed, gap=gap)
     rows.append((len(movable) - before, out - y))
     return out
 
@@ -237,15 +238,172 @@ two_words = dice_row(("DEVASTATING WOUND",), values)
 c.true("the row is drawn at all", len(plain_rows) >= 1)
 c.eq("without labels a row makes one rect per die",
      sum(n for n, _h in plain_rows), len(values))
-c.eq("with a one-line label the two critical dice each get one more rect",
+c.eq("with a label the two critical dice each get one more rect",
      sum(n for n, _h in labelled) - sum(n for n, _h in plain_rows), 2)
 c.true("...and the row grows taller to fit it",
        max(h for _n, h in labelled) > max(h for _n, h in plain_rows))
-c.eq("a label too wide for a die wraps to two lines, so two rects each",
-     sum(n for n, _h in two_words) - sum(n for n, _h in plain_rows), 4)
+# ONE rect per labelled die however many lines the label needs: the label is
+# drawn as a single filled BADGE now (user: "die Labels für crits bei lethal
+# oder sustained gerne etwas auffälliger"), and a two-line label is one plate
+# rather than two stacked ones - two would read as two separate things being
+# said about the same die.
+c.eq("a longer label is still ONE badge per critical die",
+     sum(n for n, _h in two_words) - sum(n for n, _h in plain_rows), 2)
+# A label that REALLY wraps. Every printed one fits on a line at this width,
+# so the two-line case has to be constructed - without it "one badge, however
+# many lines" is never actually exercised, and an A/B that put one plate per
+# line back stayed green.
+_wrapped = dice_row(("SUSTAINED HIT AND DEVASTATING WOUND",), values)
+_panel_for_wrap = DicePanel()
+c.true("the fixture really does wrap to more than one line",
+       len(_panel_for_wrap._crit_label_texts(("SUSTAINED HIT AND DEVASTATING WOUND",))) > 1)
+c.eq("...and it is STILL one badge per die, not one per line",
+     sum(n for n, _h in _wrapped) - sum(n for n, _h in plain_rows), 2)
+c.true("...but a taller one",
+       max(h for _n, h in _wrapped) > max(h for _n, h in labelled))
 
 mid_tumble = dice_row(("LETHAL HIT",), values, reveal=False)
 c.eq("nothing is labelled while the dice are still tumbling",
      sum(n for n, _h in mid_tumble), len(values))
+
+
+# ---------------------------------------------------------------------------
+# 4. the panel HOLDS them - the reported overflow
+# ---------------------------------------------------------------------------
+print("--- 4. nothing escapes the panel ---")
+
+# User: "die würfel fliegen optisch aus dem würfelpanel wenn es zu viele
+# werden. die größe des würfelpanels muss sich anpassen."
+#
+# The cause was one number worked out twice: draw() counted dice per row at
+# DICE_GAP while _draw_dice_row() laid them out at the wider crit-label
+# spacing. Ten dice then measured 734px inside a 640px panel and hung 47px off
+# EACH side. Measured against the panel's OWN backdrop, so this asks where it
+# actually put things rather than re-deriving the layout.
+
+
+def settled(n, labels=(), bounds=None):
+    """A finished roll of `n` sixes, drawn twice - the crit layout is withheld
+    while the dice tumble, so the overflow only exists once revealed."""
+    bounds = bounds or pygame.Rect(220, 0, 1480, 700)
+    dice = DiceManager()
+    dice.roll(count=n, sides=6, label="Gauss Flayer Array hit roll",
+              success_threshold=3, roll_kind=HIT_ROLL, target_name="B",
+              crit_threshold=6 if labels else None, crit_labels=labels)
+    dice.pending_values[:] = [6] * n
+    dice.last_values = dice.pending_values
+    panel = DicePanel()
+    surface = pygame.Surface((bounds.right + 40, bounds.bottom + 100))
+    panel.draw(surface, dice, bounds_rect=bounds)
+    panel._phase = dp.SHOWN
+    panel.draw(surface, dice, bounds_rect=bounds)
+    return panel, bounds
+
+
+def outside(panel):
+    """How far the widest die sticks out of the backdrop, in pixels."""
+    back = panel.last_backdrop_rect
+    if back is None or not panel._die_rects:
+        return None
+    left = min(r.left for _i, r in panel._die_rects)
+    right = max(r.right for _i, r in panel._die_rects)
+    return max(0, back.left - left, right - back.right)
+
+
+for count in (6, 10, 20, 30, 40):
+    panel, _b = settled(count)
+    c.eq(f"{count} plain dice stay inside the panel", outside(panel), 0)
+    panel, _b = settled(count, ("LETHAL HIT",))
+    c.eq(f"{count} dice WITH a crit label stay inside the panel", outside(panel), 0)
+    panel, _b = settled(count, ("DEVASTATING WOUND",))
+    c.eq(f"{count} dice with a LONG crit label stay inside", outside(panel), 0)
+
+# The row length and the spacing are ONE decision now. Asked of the panel
+# directly, because that is the disagreement that put the dice outside.
+_panel = DicePanel()
+_dm = DiceManager()
+_dm.crit_threshold, _dm.crit_labels = 6, ("SUSTAINED HIT",)
+_plain_gap = _panel._row_gap(_dm, revealed=False)
+_crit_gap = _panel._row_gap(_dm, revealed=True)
+c.eq("while the dice tumble the spacing gives nothing away", _plain_gap, dp.DICE_GAP)
+c.true("...and a revealed crit label widens the row", _crit_gap > _plain_gap)
+# DERIVED from the badge, not a constant: the label is as wide as its words.
+c.true("the gap leaves real air between two badges",
+       _crit_gap >= _panel._crit_badge_width(_dm.crit_labels) - dp.DICE_SIZE)
+_long = DiceManager()
+_long.crit_threshold, _long.crit_labels = 6, ("DEVASTATING WOUND",)
+c.true("a longer label opens a wider gap",
+       _panel._row_gap(_long, revealed=True) > _crit_gap)
+
+# The PANEL grows when the dice would not otherwise fit the board area. The
+# preferred width is a user decision ("das panel sollte vielleicht nicht über
+# die gesamte breite gehen"), so an ordinary roll must not move it.
+_narrow = pygame.Rect(220, 0, 1480, 700)
+_small, _b = settled(12, ("LETHAL HIT",), _narrow)
+c.eq("an ordinary roll keeps the preferred width",
+     _small.last_backdrop_rect.width, dp.MAX_PANEL_WIDTH)
+_big, _b = settled(80, ("LETHAL HIT",), _narrow)
+c.true("...and a huge roll widens the panel instead of running off the bottom",
+       _big.last_backdrop_rect.width > dp.MAX_PANEL_WIDTH)
+c.true("...without leaving the board area",
+       _big.last_backdrop_rect.bottom <= _narrow.bottom
+       and _narrow.contains(_big.last_backdrop_rect))
+c.eq("...and still with every die inside it", outside(_big), 0)
+
+
+# ---------------------------------------------------------------------------
+# 5. the labels are LOUD
+# ---------------------------------------------------------------------------
+print("--- 5. the badge ---")
+
+# User: "außerdem hätte ich die Labels für crits bei lethal oder sustained
+# gerne etwas auffälliger." Measured on PIXELS: a check that only asked whether
+# the text was drawn would pass on the quiet version this replaces.
+
+GROUND = (25, 28, 32)
+
+
+def label_band(labels):
+    """Every colour in the strip just under the first row of dice."""
+    dice = DiceManager()
+    dice.roll(count=4, sides=6, label="Hit Roll", success_threshold=3,
+              roll_kind=HIT_ROLL, target_name="B", crit_threshold=6,
+              crit_labels=labels)
+    dice.pending_values[:] = [6, 6, 4, 2]
+    dice.last_values = dice.pending_values
+    panel = DicePanel()
+    bounds = pygame.Rect(0, 0, 960, 700)
+    surface = pygame.Surface((1000, 800))
+    surface.fill(GROUND)
+    panel.draw(surface, dice, bounds_rect=bounds)
+    panel._phase = dp.SHOWN
+    surface.fill(GROUND)
+    panel.draw(surface, dice, bounds_rect=bounds)
+    # The WHOLE panel, not a band under one die: the dice are regrouped into
+    # success/failure blocks once revealed, so "the first die" is not
+    # necessarily a critical one and a narrow band can miss every badge.
+    back = panel.last_backdrop_rect
+    seen = {}
+    for y in range(back.top, back.bottom):
+        for x in range(back.left, back.right):
+            colour = surface.get_at((x, y))[:3]
+            seen[colour] = seen.get(colour, 0) + 1
+    return seen
+
+
+band = label_band(("LETHAL HIT",))
+c.true("the badge is FILLED, not loose text",
+       band.get(dp.CRIT_LABEL_BG_COLOR, 0) > 200)
+c.true("...with its text dark on top of it",
+       any(sum(colour) < 200 for colour in band))
+c.true("...and a lighter edge around it", dp.CRIT_LABEL_BORDER_COLOR in band)
+# The fill has to out-shout the panel it sits on, or none of the above helps.
+_contrast = sum(abs(dp.CRIT_LABEL_BG_COLOR[i] - dp.BACKDROP_COLOR[i]) for i in range(3)) / 3
+c.true("the badge stands well clear of the panel behind it", _contrast > 120)
+c.true("...and its text stands clear of the badge",
+       sum(abs(dp.CRIT_LABEL_BG_COLOR[i] - dp.CRIT_LABEL_COLOR[i]) for i in range(3)) / 3 > 120)
+
+plain = label_band(())
+c.eq("an ordinary die gets no badge at all", plain.get(dp.CRIT_LABEL_BG_COLOR, 0), 0)
 
 c.finish()

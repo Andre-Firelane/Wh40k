@@ -164,7 +164,7 @@ class FocusedFireController:
         self.decision_manager.request(
             squad.owner,
             f"{FOCUSED_FIRE_NAME}: which second unit joins {squad.name}?",
-            [(p.name, (lambda p=p: self._choose_enemy(squad, p))) for p in partners]
+            [(p.name, (lambda p=p: self._choose_enemy(squad, p)), p) for p in partners]
             + [("Cancel", lambda: None)],
         )
         return True
@@ -179,7 +179,7 @@ class FocusedFireController:
             first.owner,
             f"{FOCUSED_FIRE_NAME}: which enemy unit will {first.name} and {second.name} "
             "focus on for the rest of the phase?",
-            [(e.name, (lambda e=e: self._commit(first, second, e))) for e in enemies]
+            [(e.name, (lambda e=e: self._commit(first, second, e)), e) for e in enemies]
             + [("Cancel", lambda: None)],
         )
         return True

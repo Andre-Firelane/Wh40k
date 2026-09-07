@@ -1,6 +1,6 @@
 # Shamblerot Vectorium
 
-**Death Guard** - 2 DP detachment
+**Death Guard** - 2 DP detachment - Force Disposition: Disruption
 
 Source: <https://wahapedia.ru/wh40k11ed/factions/death-guard/>
 
@@ -8,7 +8,6 @@ Source: <https://wahapedia.ru/wh40k11ed/factions/death-guard/>
 
 ### Numberless Horde
 
-No matter how many Poxwalkers the enemy gun down or tear limb-from-limb at close quarters, more groaning mutants keep coming from every side.
 In your Command phase in each of the following battle rounds, depending on your chosen battle size, add a new POXWALKERS unit with a Starting Strength of 10 to your army, in **Strategic Reserves**.
 
 **BATTLE SIZEBATTLE ROUNDS**
@@ -26,25 +25,17 @@ POXWALKERS units from your army gain the BATTLELINE keyword.
 
 ### Witherbone Pipes - 25 pts
 
-This sinister artefact emits a reedy dirge to which Poxwalkers seem drawn and by whose mournful notes they appear energised and lent an echo of purpose.
-
 NOXIOUS BLIGHTBRINGER only. While the bearer is leading a POXWALKERS unit, add 1 to the Objective Control characteristic of models in that unit, and each time that unit takes a Battle-shock or Leadership test, add 1 to that test.
 
 ### Lord of the Walking Pox - 15 pts
-
-Gifted by Nurgle to be forever surrounded by shambling packs of Poxwalkers, this champion has become adept at leading their festering hordes into battle.
 
 DEATH GUARD model only. If the bearer is leading a POXWALKER unit, and is in **Strategic Reserves**, for the purposes of setting up that unit on the battlefield, treat the current battle round as the third battle round.
 
 ### Sorrowsyphon - 10 pts
 
-Parasitising the miserable scraps of soul within nearby Poxwalkers allows this sorcerer to belch even more malignant clouds of murderous foulness.
-
 MALIGNANT PLAGUECASTER only. While the bearer is leading a POXWALKERS unit, add 1 to the Damage characteristic of the bearer’s Plague Wind weapon. Each time the bearer makes one or more attacks with a Plague Wind weapon, after the bearer’s unit has resolved its attacks, D3 **Bodyguard** models from the bearer’s unit are destroyed.
 
 ### Talisman of Burgeoning - 25 pts
-
-This mould-furred talisman is studded with teeth torn from Poxwalkers’ jaws. It bolsters the creatures’ putrid vitality, forcing them to stagger and fight even through grotesque wounds.
 
 DEATH GUARD model only. While the bearer is leading a unit, add 1 to the Toughness characteristic of POXWALKERS models in that unit.
 
@@ -53,8 +44,6 @@ DEATH GUARD model only. While the bearer is leading a unit, add 1 to the Toughne
 ### GRIP OF THE WALKING POX - 1CP
 
 *Shamblerot Vectorium – Strategic Ploy Stratagem*
-
-Those infected by walking pox may fall as though fatally wounded, but they soon rise again.
 
 **WHEN:** Fight phase, just after an enemy unit has selected its targets.
 
@@ -66,8 +55,6 @@ Those infected by walking pox may fall as though fatally wounded, but they soon 
 
 *Shamblerot Vectorium – Strategic Ploy Stratagem*
 
-Hacking a path through a horde of Poxwalkers leaves aggressors coated in infectious matter.
-
 **WHEN:** Fight phase.
 
 **TARGET:** One POXWALKERS unit from your army that was just destroyed. You can target that unit with this Stratagem even though it was just destroyed.
@@ -77,8 +64,6 @@ Hacking a path through a horde of Poxwalkers leaves aggressors coated in infecti
 ### GNAWING HUNGER - 1CP
 
 *Shamblerot Vectorium – Battle Tactic Stratagem*
-
-Gripped by a sudden, monstrous hunger, the Poxwalkers surge forward in a ravenous mass.
 
 **WHEN:** Your Command phase.
 
@@ -90,8 +75,6 @@ Gripped by a sudden, monstrous hunger, the Poxwalkers surge forward in a ravenou
 
 *Shamblerot Vectorium – Strategic Ploy Stratagem*
 
-Another wave of Poxwalkers rises from the battlefield’s carrion heaps.
-
 **WHEN:** The Reinforcements step of your Movement phase.
 
 **TARGET:** One POXWALKERS unit from your army that is in **Strategic Reserves** and that is not an Attached unit.
@@ -102,8 +85,6 @@ Another wave of Poxwalkers rises from the battlefield’s carrion heaps.
 
 *Shamblerot Vectorium – Strategic Ploy Stratagem*
 
-Already dismayed by this living nightmare, the enemy falters before another sudden onslaught.
-
 **WHEN:** Your Charge phase, just after a DEATH GUARD unit from your army ends a **Charge move**.
 
 **TARGET:** That DEATH GUARD unit.
@@ -113,8 +94,6 @@ Already dismayed by this living nightmare, the enemy falters before another sudd
 ### SHAMBLING WALL - 1CP
 
 *Shamblerot Vectorium – Strategic Ploy Stratagem*
-
-Lacking even basic self-preservation instincts, Poxwalkers make excellent walking shields.
 
 **WHEN:** Your opponent’s Shooting phase, just after an enemy unit has selected its targets.
 

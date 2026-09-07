@@ -51,6 +51,7 @@ PREVIEW_BG_COLOR = (6, 10, 16)
 # (they are fixed strings), and the row below is 3*150 + 2*10 + a label, so it
 # clears them by ~380 px even on a 1280-wide window - the narrowest this game
 # is run at. The buttons are vertically centred in the bar.
+BIOME_LABEL = "BIOME"
 BIOME_BUTTON_WIDTH = 150
 BIOME_BUTTON_HEIGHT = 38
 BIOME_BUTTON_GAP = 10
@@ -129,27 +130,53 @@ def map_facts(battle_map):
 
 
 class MapSelectScreen(ts.Paged):
-    """One step: pick the battlefield. `default` only seeds which map the
-    screen opens on; there is nothing to pre-select visually, because a click
-    ends the screen immediately."""
+    """One step: pick the battlefield.
+
+    TWO BEATS, not one. User: "momentan geschieht die auswahl schon, wenn man
+    draufklickt. ich haette gerne ein auswahl highlight + button. also erst
+    auswaehlen, dann wird die entsprechende kachel gehighlightet und dann auf
+    den auswahl button unten druecken." So a click SELECTS - it highlights the
+    tile and raises the confirm button - and only the button commits. Nothing
+    on this screen can be decided by a single stray click any more.
+
+    `default` opens the screen on the page holding that map, so the setting
+    currently in force is on screen without paging to it. It does NOT
+    pre-select: a tile highlighted before the player touched anything would
+    make the highlight mean "this is where you are" instead of "this is your
+    answer", which is the distinction the whole change is about."""
 
     def __init__(self, default=None, battle_maps=None):
         self.init_paging(battle_maps if battle_maps is not None else list(maps.MAPS.values()))
         self.default = default
-        self.chosen = None
+        self.selected = None    # the picked BattleMap, awaiting confirmation
+        self.chosen = None      # set only by confirm()
         self.cancelled = False
         self.hovered_tile = None
         self.tiles = []
-        self.prev_rect = None
-        self.next_rect = None
+        self.footer = ts.FooterButtons()
         self.biome_rects = {}   # biome key -> its button rect, set by layout()
         self.fonts = ts.make_fonts()
         self._facts = {}
+        self._open_on_default()
+
+    def _open_on_default(self):
+        """Start on the page the current setting is on. Best effort: an unknown
+        key just leaves the screen on page 0."""
+        for index, battle_map in enumerate(self.items):
+            if battle_map.key == self.default:
+                self.page = index // max(1, self.tiles_per_page)
+                return
 
     # -- state ------------------------------------------------------------
     @property
     def done(self):
         return self.cancelled or self.chosen is not None
+
+    @property
+    def confirm_label(self):
+        """What the footer button says, or None while nothing is picked - the
+        button is not drawn at all until then."""
+        return f"Confirm: {self.selected.name}" if self.selected is not None else None
 
     def facts(self, battle_map):
         if battle_map.key not in self._facts:
@@ -185,11 +212,32 @@ class MapSelectScreen(ts.Paged):
         config.BIOME = biome_key
         return True
 
-    def choose(self, battle_map):
-        self.chosen = battle_map
+    def select(self, battle_map):
+        """Highlight this map. Reversible: picking another replaces it, and
+        nothing is decided until confirm()."""
+        self.selected = battle_map
         return True
 
+    def confirm(self):
+        """Commit the highlighted map. False when nothing is picked, so the
+        caller can tell a real press from one on empty footer."""
+        if self.selected is None:
+            return False
+        self.chosen = self.selected
+        return True
+
+    def choose(self, battle_map):
+        """Select AND confirm in one call - the programmatic shortcut, for
+        callers driving the screen without a mouse. The two-step click path
+        goes through select() then confirm(); this keeps the old one-call API
+        meaning exactly what it used to."""
+        self.select(battle_map)
+        return self.confirm()
+
     def turn_page(self, delta):
+        """Page, and drop the hover with it. The SELECTION survives, because it
+        is an answer rather than a pointer position - and the confirm button
+        names it, so pressing it from another page is not a surprise."""
         if not super().turn_page(delta):
             return False
         self.hovered_tile = None
@@ -267,6 +315,11 @@ class MapSelectScreen(ts.Paged):
         if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
             self.cancelled = True
             return False
+        if event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+            # The keyboard half of the confirm button. Not a shortcut past the
+            # two beats - it still needs something selected first.
+            self.confirm()
+            return not self.done
         if event.type == pygame.KEYDOWN and event.key in (pygame.K_LEFT, pygame.K_RIGHT):
             self.turn_page(-1 if event.key == pygame.K_LEFT else 1)
             return True
@@ -290,13 +343,21 @@ class MapSelectScreen(ts.Paged):
             if biome_key is not None:
                 self.choose_biome(biome_key)
                 return True
-            for rect, delta in ((self.prev_rect, -1), (self.next_rect, 1)):
+            # The confirm button is asked BEFORE the tiles, for the same
+            # reason the biome row is: it is the control that ends the screen,
+            # and a control that only answers when nothing else matched is one
+            # refactor from never answering.
+            if self.footer.confirm is not None and self.footer.confirm.collidepoint(event.pos):
+                self.confirm()
+                return not self.done
+            for rect, delta in ((self.footer.prev, -1), (self.footer.next, 1)):
                 if rect is not None and rect.collidepoint(event.pos):
                     self.turn_page(delta)
                     return True
             index = self.tile_at(event.pos)
             if index is not None:
-                self.choose(self.tiles[index].battle_map)
+                # SELECTS, it no longer chooses. The button below commits.
+                self.select(self.tiles[index].battle_map)
             return not self.done
         return True
 
@@ -309,13 +370,47 @@ class MapSelectScreen(ts.Paged):
             self.track_pointer(mouse_pos)
         ts.draw_header(
             surface, screen_rect, self.fonts, "CHOOSE THE BATTLEFIELD",
-            "Click a map to play on it. The armies come next.", ACCENT_COLOR,
+            self._hint(), ACCENT_COLOR,
+            # This screen shares the header bar with the biome row, and the
+            # hint names the selected map, so it is not a fixed string - see
+            # ts.draw_header(). The room it has is whatever is left to the left
+            # of the row's own BIOME label.
+            hint_max_width=self._hint_width(screen_rect),
         )
         self._draw_biome_row(surface, screen_rect, mouse_pos)
         for index, tile in enumerate(self.tiles):
-            self._draw_tile(surface, tile, hovered=(index == self.hovered_tile))
-        self.prev_rect, self.next_rect = ts.draw_footer(
-            surface, screen_rect, self.fonts, self.page, self.page_count)[1:]
+            self._draw_tile(
+                surface, tile,
+                hovered=(index == self.hovered_tile),
+                selected=(tile.battle_map is self.selected),
+            )
+        self.footer = ts.draw_footer(
+            surface, screen_rect, self.fonts, self.page, self.page_count,
+            confirm_label=self.confirm_label,
+        )
+
+    def _hint(self):
+        """The instruction line, which changes with the step. It is the only
+        thing that teaches the two beats, since the confirm button does not
+        exist until the first one is done."""
+        if self.selected is None:
+            return "Click a map to select it. The armies come next."
+        return f"{self.selected.name} selected - press Confirm below, or pick another."
+
+    def _hint_width(self, screen_rect):
+        """How wide the header's hint may be before it reaches the biome row.
+
+        Derived from biome_layout() rather than measured once and written down:
+        the row is right-aligned and its width follows the NUMBER of biomes,
+        which has already grown from three to four - see the comment on
+        BIOME_BUTTON_WIDTH, whose "clears them by ~380 px" was measured when
+        there were three of them and a shorter map name."""
+        rects = self.biome_layout(screen_rect)
+        if not rects:
+            return None
+        left = min(r.left for r in rects.values())
+        label_width = self.fonts["label"].size(BIOME_LABEL)[0]
+        return left - label_width - BIOME_LABEL_GAP - (screen_rect.x + ts.MARGIN) - 24
 
     def _draw_biome_row(self, surface, screen_rect, mouse_pos=None):
         """The three biome buttons, plus the word BIOME so a first-time player
@@ -332,7 +427,7 @@ class MapSelectScreen(ts.Paged):
         selected = self.biome
 
         first = rects[biomes.BIOMES[0].key]
-        label = self.fonts["label"].render("BIOME", True, ACCENT_COLOR)
+        label = self.fonts["label"].render(BIOME_LABEL, True, ACCENT_COLOR)
         surface.blit(label, label.get_rect(
             right=first.left - BIOME_LABEL_GAP, centery=first.centery))
 
@@ -345,8 +440,8 @@ class MapSelectScreen(ts.Paged):
             )
         return rects
 
-    def _draw_tile(self, surface, tile, hovered=False):
-        ts.draw_tile_frame(surface, tile.rect, hovered=hovered)
+    def _draw_tile(self, surface, tile, hovered=False, selected=False):
+        ts.draw_tile_frame(surface, tile.rect, hovered=hovered, selected=selected)
 
         # The picture, letterboxed inside its square box (see
         # map_preview.surface_for) on its own dark plate, so a portrait board
@@ -373,6 +468,10 @@ class MapSelectScreen(ts.Paged):
             surf = font.render(text, True, color)
             surface.blit(surf, surf.get_rect(centerx=tile.rect.centerx, y=y + 2))
             y += font.get_height() + 2
+
+        # Drawn LAST so it sits over the preview rather than under it.
+        if selected:
+            ts.draw_selected_badge(surface, tile.rect, self.fonts)
 
     # -- the loop ---------------------------------------------------------
     def run(self, screen, clock=None):

@@ -1,16 +1,26 @@
-"""The three BIOMES the battlefield can be painted in, and their buttons.
+"""The four BIOMES the battlefield can be painted in, and their buttons.
 
 User: "ich habe die texturen fuer die maps in ordner geordnet. es gibt jetzt 3
 biome. kannst du bei der map auswahl bitte ganz oben noch 3 knoepfe reinpacken,
-ueber die man sein biom waehlen kann?"
+ueber die man sein biom waehlen kann?" - and later, for the fourth: "neben den
+3 biomen soll es noch eine 4. option geben. dort besteht die map nicht aus
+sprites, sondern du renderst sie."
+
+THREE OF THE FOUR ARE PICTURES, THE FOURTH IS DRAWING CODE. That split runs
+through this whole file: every "each biome supplies three files" check below
+belongs to PHOTO_KEYS, and the arena gets the opposite check - that it supplies
+NONE, so a missing folder can never be mistaken for missing art. What the arena
+actually looks like is test_arena_biome.py's job; this file only asks that it
+is a biome like the others.
 
 Two claims, and they need separate checks:
 
-  1. THE TABLE (game/biomes.py + game/sprites.py) - three biomes, each
-     supplying three real files off the disk, found by ROLE rather than by a
-     transcribed filename, and PURELY COSMETIC: the board, both zones, every
-     terrain footprint and every objective are identical whichever is picked.
-  2. THE BUTTONS (game/ui/map_select.py) - three of them at the top of the map
+  1. THE TABLE (game/biomes.py + game/sprites.py) - four biomes, the
+     photographed three each supplying three real files off the disk, found by
+     ROLE rather than by a transcribed filename, and PURELY COSMETIC: the
+     board, both zones, every terrain footprint and every objective are
+     identical whichever is picked.
+  2. THE BUTTONS (game/ui/map_select.py) - four of them at the top of the map
      picker, one shown as selected, a click switching biome WITHOUT also
      picking a map, and the previews below actually repainting.
 
@@ -67,12 +77,35 @@ def raises(key):
 
 # --- 1. the table ----------------------------------------------------------
 
-c.eq("three biomes", len(biomes.BIOMES), 3)
-c.eq("...city, desert, forest, in button order", biomes.keys(),
-     ["city", "desert", "forest"])
-c.eq("the default is desert - the look the game already had",
-     biomes.DEFAULT_BIOME, "desert")
+PHOTO_KEYS = ["city", "desert", "forest"]
+
+c.eq("four biomes", len(biomes.BIOMES), 4)
+c.eq("...city, desert, forest, arena, in button order", biomes.keys(),
+     PHOTO_KEYS + ["arena"])
+
+# The one question anybody asks about the difference, and it has to answer for
+# every biome rather than only for the one it was written for.
+c.true("the arena is the drawn one", biomes.is_procedural(biomes.get("arena")))
+c.true("...and it is the ONLY drawn one",
+       [b.key for b in biomes.BIOMES if biomes.is_procedural(b)] == ["arena"])
+c.true("...which is exactly 'this biome has no folder'",
+       biomes.get("arena").folder is None
+       and all(biomes.get(k).folder for k in PHOTO_KEYS))
+# The no-argument form reads the SETTING, which is what the renderer calls.
+config.BIOME = "arena"
+c.true("is_procedural() with no argument asks about the selected biome",
+       biomes.is_procedural())
+config.BIOME = "desert"
+c.true("...and says no for a photographed one", not biomes.is_procedural())
+config.BIOME = _ORIGINAL_BIOME
+c.eq("the default is the drawn one (user: \"mach arena biom bitte als default\")",
+     biomes.DEFAULT_BIOME, "arena")
 c.true("...and config ships with a known one", _ORIGINAL_BIOME in biomes.BIOMES_BY_KEY)
+# The two answer different questions - "what does the game open on" and "what
+# do we do with a setting we do not recognise" - and the right answer is the
+# same one: a stale settings value should land on the board the game normally
+# shows, not on a different-looking one. Pinned so the two cannot drift.
+c.eq("...the same one the fallback uses", _ORIGINAL_BIOME, biomes.DEFAULT_BIOME)
 
 # The folder on disk is misspelled "Dessert" while every file inside it says
 # "Desert". THE FOLDER WINS, exactly as it does for the eight Necron sprite
@@ -107,7 +140,7 @@ config.BIOME = _ORIGINAL_BIOME
 # started this: once the textures were sorted into folders, all three lookups
 # returned None and the renderer silently fell back to flat colours.
 seen = {}
-for biome in biomes.BIOMES:
+for biome in [biomes.get(k) for k in PHOTO_KEYS]:
     config.BIOME = biome.key
     paths = {
         "ground": sprites.ground_texture_path(),
@@ -128,6 +161,19 @@ for biome in biomes.BIOMES:
 c.eq("all nine pictures are distinct",
      len({p for paths in seen.values() for p in paths.values()}), 9)
 
+# The arena answers all three roles with None, and that is NOT the "missing
+# art" the renderer falls back on - it means the biome is drawn instead
+# (game/arena_biome.py). Checked here because the two look identical from
+# sprites.py's side, and only game/renderer.py's is_procedural() branch keeps
+# them apart: without it the arena would render as flat BACKGROUND_COLOR.
+config.BIOME = "arena"
+for role, path_of in (("ground", sprites.ground_texture_path),
+                      ("dense cover", sprites.dense_cover_texture_path),
+                      ("light cover", sprites.normal_cover_texture_path)):
+    c.true(f"arena: the {role} lookup resolves to no file at all",
+           path_of() is None)
+config.BIOME = _ORIGINAL_BIOME
+
 # The roles are matched by PREFIX, not by a transcribed name - which is what
 # lets the desert folder spell its light cover with a hyphen
 # (Light_Cover-Desert.jpg) where the other two use an underscore. That
@@ -142,7 +188,7 @@ c.true("...and the other two are not, so the prefix rule is doing real work",
 # normal_cover_texture_path() resolves to the biome's LIGHT_Cover file. The
 # two names disagree on purpose: the renderer's split is "footprint with a
 # wall on it" vs "without", not the terrain CATEGORY.
-for key in biomes.keys():
+for key in PHOTO_KEYS:
     c.true(f"{key}: normal_cover_texture_path() is the Light_Cover picture",
            os.path.basename(seen[key]["light cover"]).lower().startswith("light_cover"))
     c.true(f"{key}: dense_cover_texture_path() is the Dense_Cover one",
@@ -159,7 +205,7 @@ config.BIOME = _ORIGINAL_BIOME
 for map_key in ("map1", "map2", "map3"):
     digests = {key: board_digest(map_key, key) for key in biomes.keys()}
     c.eq(f"{map_key}: each biome paints a visibly different board",
-         len(set(digests.values())), 3)
+         len(set(digests.values())), 4)
 
     shapes = {}
     for key in biomes.keys():
@@ -300,11 +346,20 @@ c.eq("...and writes it where the renderer will read it", config.BIOME, "forest")
 c.true("clicking a biome does not choose a map", picker.chosen is None)
 c.true("...and does not end the screen", not picker.done)
 
-# A map click still works afterwards, and leaves the biome alone.
+# A map click still works afterwards, and leaves the biome alone. It SELECTS
+# now rather than choosing - the map screen takes two beats (a click
+# highlights, the footer button commits, see game/ui/map_select.py) - but what
+# this pin is about is unchanged: the biome row must not swallow tile clicks.
 picker.layout(SCREEN_RECT)
 click(picker, picker.tiles[0].rect.center)
-c.true("a map click still picks a map", picker.chosen is not None)
+c.true("a map click still reaches the tiles", picker.selected is not None)
 c.eq("...and leaves the biome alone", picker.biome, "forest")
+# ...and the second beat still lands, with the biome still untouched: the two
+# kinds of button on this screen have to stay independent all the way through.
+picker.draw(pygame.Surface(SCREEN_RECT.size), (2, 2))
+click(picker, picker.footer.confirm.center)
+c.true("...and confirming then picks that map", picker.chosen is not None)
+c.eq("...still leaving the biome alone", picker.biome, "forest")
 
 # Re-clicking the selected biome is a no-op, and says so.
 picker = fresh("city")

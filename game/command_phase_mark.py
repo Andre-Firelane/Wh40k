@@ -50,7 +50,7 @@ one - it leaves no mark behind and has nothing to expire, so the half it would
 share is the half this module does not own.
 """
 
-from game import enhancements
+from game import ai_mode, enhancements
 from game.squad import edge_distance
 
 
@@ -78,7 +78,7 @@ class CommandPhaseMark:
         self.game_state = game_state
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         #: See the module docstring - printed, not stylistic.
         self.exclude_own_unit = exclude_own_unit
         self.decline_label = decline_label or "Nobody this round"
@@ -155,7 +155,7 @@ class CommandPhaseMark:
                 self.mark(self._pick(targets))
                 asked = True
                 continue
-            options = [("%s: %s" % (self.name, t.name), (lambda target=t: self.mark(target)))
+            options = [("%s: %s" % (self.name, t.name), (lambda target=t: self.mark(target)), t)
                        for t in targets]
             options.append((self.decline_label, None))
             self.decision_manager.request(

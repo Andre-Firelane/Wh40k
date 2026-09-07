@@ -64,7 +64,7 @@ for the same reason VengefulStarsController takes its verdict as a closure:
 game/ modules do not depend on ai/.
 
 """
-from game import death_lords_chosen
+from game import ai_mode, death_lords_chosen
 from game.fight_after_death import FightAfterDeath
 from game.stratagems import Stratagem
 from game.turn import PHASE_FIGHT
@@ -92,7 +92,7 @@ class UndyingSpiteController:
         self.fight_controller = fight_controller
         self.game_log = game_log
         self.game_state = game_state
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         # worth_using(attacking_squad, target_squad) -> bool. main.py passes the
         # shared damage estimate; None means "always worth it", which is what a
         # headless test wants and what a human prompt implies anyway.
@@ -180,6 +180,11 @@ class UndyingSpiteController:
         # The verdict gate is applied ONLY to the AI. A human is being asked, so
         # pre-judging it for them would hide a Stratagem they might want - the
         # same split 'Ard as Nails makes between can_use() and is_worth_using().
+        #
+        # That last sentence described an intention rather than the code for a
+        # long while: 'Ard as Nails ran its verdict ABOVE the split and did gate
+        # the human's prompt with it. This module was right and the one it cited
+        # was not; both do it this way now.
         if target_squad.owner in self.auto_players and not self.is_worth_using(
                 target_squad, attacking_squad):
             return False

@@ -105,6 +105,13 @@ im2.pending_move_token = beta
 im2.drag_offset = (1.5, -2.5)
 im2.group_drag_start_in = (3.0, 4.0)
 im2._pending_move_down_px = (11, 22)
+# ...nor the deselect-on-click bookkeeping, which is the same shape of deferred
+# gesture state: a press on empty ground is only a deselect if the cursor does
+# not travel, so track_pointer() moving the cursor must not disturb the record
+# of where the press landed. Pre-set here rather than left at its None default,
+# because a field that is None on both sides of the diff cannot fail this check
+# and the pin would silently stop covering it.
+im2._void_press_px = (33, 44)
 snapshot = dict(im2.__dict__)
 im2.track_pointer(px(20.0, 14.0), tokens, board)
 changed = {k for k, v in im2.__dict__.items() if snapshot.get(k) is not v and snapshot.get(k) != v}

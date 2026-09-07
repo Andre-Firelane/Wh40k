@@ -1,6 +1,7 @@
 import math
 import threading
 
+from ai import connection
 from ai import observation
 from ai.observation import build_observation, build_planning_observation
 from game import status_effects
@@ -7340,13 +7341,44 @@ def _choose(agent, all_tokens, turn_tracker, options, player, on_thinking=None, 
     observation = build_observation(
         _all_squads(all_tokens), turn_tracker, options, player, objectives=objectives, plan_context=plan_context,
     )
-    index = agent.decide(observation)
+    index = connection.ask(agent.decide, observation)
     if not isinstance(index, int) or not (0 <= index < len(options)):
         index = 0
     return options[index]
 
 
-def take_one_action(
+def take_one_action(*args, **kwargs):
+    """One AI action, or nothing at all if the agent has gone offline.
+
+    THE ONE PLACE an unreachable agent stops the AI instead of the game.
+    User: "momentan stürzt das Spiel ab, wenn KI Modus an ist und die
+    Verbindung verloren geht oder api Fehler oder Guthaben leer. besser wäre
+    eine Meldung 'Connection lost' und das Spiel geht aber ohne KI weiter."
+
+    Only ai.connection.AIUnavailable is caught - never a bare Exception. That
+    type is raised by exactly one thing (the guarded API call in
+    ai/claude_agent.py), so a genuine bug in a handler still crashes loudly
+    rather than being turned into a silently skipped turn, which would be far
+    harder to notice than a traceback.
+
+    ABORTING MID-ACTION IS ACCEPTABLE HERE, and worth naming: the agent may
+    have gone offline after a move was begun or a prompt opened. Whatever is
+    half-done stays on screen, and the human - who is now playing both sides -
+    can confirm or cancel it like any other open decision. The alternative
+    (unwinding the engine) would be a second, much larger notion of "undo"
+    for a case that ends the AI's involvement anyway.
+
+    A no-op once offline, so the loop stops paying a failed round-trip per
+    frame: is_online() is checked BEFORE the call, not only after it."""
+    if not connection.is_online():
+        return None
+    try:
+        return _take_one_action(*args, **kwargs)
+    except connection.AIUnavailable:
+        return None
+
+
+def _take_one_action(
     agent, memory, state, turn_tracker, movement_controller, shooting_controller,
     charge_controller, fight_controller, battle_shock_controller, pile_in_controller,
     decision_manager, dice_manager, game_log, coherency_enforcer=None, player="Player 2",
@@ -8607,7 +8639,7 @@ def _run_turn_plan(agent, build_observation, out, recheck=None, coverage=None):
         # plan, so nothing moves underneath it.
         observation = build_observation()
         out["observation"] = observation
-        plan = agent.plan_turn(observation)
+        plan = connection.ask(agent.plan_turn, observation)
         problems = list(recheck(plan)) if recheck else []
         # A stub plan goes back to the planner too, not just into a warning.
         # It is structurally valid, so nothing downstream rejects it - but every
@@ -8626,7 +8658,8 @@ def _run_turn_plan(agent, build_observation, out, recheck=None, coverage=None):
             # small cost; losing every order for every squad is a whole turn
             # played blind.
             try:
-                revised = agent.plan_turn(observation, problems=problems)
+                revised = connection.ask(agent.plan_turn, observation,
+                                         problems=problems)
                 # Two conditions, and the second one is the important one.
                 #
                 # "Fewer problems" alone is a criterion that REWARDS deleting

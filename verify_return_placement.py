@@ -17,7 +17,21 @@ Two things have to be true, and they are the two halves of the change:
   * the AI's return opens nothing at all - it lands where the ability said, in
     the same frame, at no API cost.
 
-Usage:  python verify_return_placement.py [map2] [--frames N]
+...and, since 2026-09-07, the third half of the same picture: the board has to
+SAY WHICH MODELS just came back (user: "Widerbeleben - ich kann nicht erkennen,
+welche einheiten gerade zurueckgekommen sind, um sie zu verschieben"). The unit
+outline is equally true of the survivors standing beside them, so the returning
+ones get their own ring - counted here in the REAL frame, because a source
+guard only shows that the call is written down.
+
+NOTE ON --frames: the default is deliberately generous. The human's first
+Command phase is a long way past the pre-game, and with too few frames this
+reports 0 activations and reads like a failure of the thing being measured.
+
+Usage:  python verify_return_placement.py [map2] [--frames N] [--neutralize]
+
+`--neutralize` restores the pre-fix world for that last half (the identity draw
+never learns which models are the new ones) and must report no rings at all.
 """
 
 import os
@@ -29,7 +43,8 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 import runpy
 
 MAP = "map2"
-FRAMES = "1200"
+FRAMES = "3000"
+NEUTRALIZE = "--neutralize" in sys.argv[1:]
 for arg in sys.argv[1:]:
     if arg.startswith("--frames"):
         FRAMES = arg.split("=", 1)[1]
@@ -47,7 +62,34 @@ config.ARMY_SELECT = False
 
 seen = {"human_opened": 0, "ai_opened": 0, "human_placed": [], "staged": False,
         "activations": 0, "survivors_moved": 0, "green_fraction": None,
-        "band_drawn": None, "keepout_same": None, "radius_intact": None}
+        "band_drawn": None, "keepout_same": None, "radius_intact": None,
+        "identity_frames": 0, "ringed": None, "unit_size": None}
+
+# WHICH MODELS the board rings, counted in the real frame. Spied on the
+# RENDERER rather than on the controller: "built but never FED" has hit this
+# repo six times, and only the drawing answers whether main.py hands the
+# subset over at all.
+from game.renderer import Renderer                   # noqa: E402
+
+_real_identity = Renderer.draw_placement_identity
+_real_rings = Renderer.draw_returning_models
+
+
+def spy_identity(self, surface, board, squad, placing_models=None):
+    seen["identity_frames"] += 1
+    if NEUTRALIZE:
+        placing_models = None       # the pre-fix world: it never knew
+    return _real_identity(self, surface, board, squad, placing_models=placing_models)
+
+
+def spy_rings(self, surface, board, models):
+    if models:
+        seen["ringed"] = len(models)
+    return _real_rings(self, surface, board, models)
+
+
+Renderer.draw_placement_identity = spy_identity
+Renderer.draw_returning_models = spy_rings
 
 _real_place = ReturnPlacementController.place
 
@@ -63,6 +105,7 @@ def spy_place(self, squad, models, spots, **kwargs):
         seen["human_opened"] += 1
         placing = list(self.setup_controller.placing_models)
         seen["human_placed"].append((squad.name, len(placing), len(squad.models)))
+        seen["unit_size"] = len(squad.models)
         # ...and HOW MUCH GROUND the overlay would paint green for it. User:
         # "immer wenn man Einheiten platzieren muss, zb durch Reanimation, muss
         # man in coherency platzieren ... im Moment geht das ueber die ganze
@@ -114,6 +157,9 @@ def spy_place(self, squad, models, spots, **kwargs):
     return result
 
 
+NO_RING_NOTE = (chr(10) + "  *** NOTHING WAS RINGED - the board never said "
+                "which models came back.")
+
 ReturnPlacementController.place = spy_place
 
 _real_begin = rp.ReanimationProtocolsController.begin_command_phase
@@ -161,6 +207,9 @@ if seen["keepout_same"] is not None:
           f"   (must be 0 different - one line for the unit)")
     print(f"coherency band drawn            : {seen['band_drawn']}")
     print(f"the model's radius survived it  : {seen['radius_intact']}")
+print(f"identity draws on the board     : {seen['identity_frames']}")
+print(f"models ringed as RETURNING      : {seen['ringed']}"
+      f" of {seen['unit_size']} in the unit")
 
 ok = (seen["human_opened"] > 0 and seen["ai_opened"] == 0
       and seen["survivors_moved"] == 0
@@ -173,11 +222,17 @@ ok = (seen["human_opened"] > 0 and seen["ai_opened"] == 0
       # reach, and a model whose radius was left alone.
       and (seen["keepout_same"] is None or seen["keepout_same"][1] == 0)
       and seen["band_drawn"] is not False
-      and seen["radius_intact"] is not False)
+      and seen["radius_intact"] is not False
+      # ...and the board says WHICH models are the new ones: some, not all.
+      and seen["ringed"] is not None
+      and (seen["unit_size"] is None or seen["ringed"] < seen["unit_size"]))
 if seen["human_opened"] == 0:
     print("\n  *** THE HUMAN'S RETURN NEVER OPENED A PLACEMENT - this measured nothing.")
+if seen["ringed"] is None and seen["human_opened"]:
+    print(NO_RING_NOTE)
 if seen["ai_opened"]:
     print("\n  *** A PLACEMENT WAS OPENED FOR THE AI - it would stall or cost a call.")
 
-print("\n" + ("PASS - the human places, the AI lands" if ok else "FAIL"))
+print("\n" + ("PASS - the human places, the AI lands, the board says which"
+               if ok else "FAIL"))
 sys.exit(0 if ok else 1)

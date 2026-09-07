@@ -18,6 +18,7 @@ in the weapon NAME instead - the ~15th occurrence of the artefact CLAUDE.md
 records - so game/weapons.py follows the name column throughout.
 """
 
+from game import force_dispositions
 from game.factions.datasheet import Datasheet, Gear, ModelLine, WargearOption
 from game.factions.faction import Faction, register_faction
 from game.factions.detachment import Detachment, Enhancement
@@ -664,6 +665,7 @@ AWAKENED_DYNASTY = NECRONS.add_detachment(Detachment(
     rule_name="Command Protocols",
     setting="AWAKENED_DYNASTY_PLAYERS",
     points=3,
+    force_disposition=force_dispositions.TAKE_AND_HOLD,
     rule_text=(
         "Command Protocols: While a NECRONS CHARACTER model is leading this unit, each "
         "time a model in this unit makes an attack, add 1 to the Hit roll."

@@ -1,6 +1,6 @@
 # Pantheon of Woe
 
-**Necrons** - 2 DP detachment
+**Necrons** - 2 DP detachment - Force Disposition: Disruption
 
 Source: <https://wahapedia.ru/wh40k11ed/factions/necrons/>
 
@@ -8,7 +8,6 @@ Source: <https://wahapedia.ru/wh40k11ed/factions/necrons/>
 
 ### Cosmic Distortion
 
-The quantum dissonance and molecular erosion caused by multiple C’tan shards in close proximity is enough to fray the very physical being of the foe at an atomic level.
 NECRONS MONSTER units from your army have the following ability:
 
 **Distortion Fields (Aura):** While an enemy unit is within 6" of this unit, it is unravelling. While an enemy unit is unravelling, each time an attack targets that unit, improve the Armour Penetration characteristic of that attack by 1.
@@ -24,8 +23,6 @@ When mustering your army, each NECRONS MONSTER unit from your army has the relev
 
 ### Singularity Matrix - 45 pts
 
-This eldritch device fetters and directs the Deceiver’s powers within a vortex that devours lesser wits entirely.
-
 C’TAN SHARD OF THE DECEIVER model only. This model has the following ability:
 
 **Lord of Deceit (Aura):** Each time your opponent targets a unit from their army with a Stratagem, if that unit is within 12" of this model, increase the cost of that use of that Stratagem by 1CP.
@@ -40,19 +37,13 @@ Change to:
 
 ### Quantum Goad - 45 pts
 
-The energies of this binding latch onto enemy targets and shunt the shard into alignment with them.
-
 C’TAN SHARD OF THE NIGHTBRINGER model only. This model is eligible to declare a charge in a turn in which it Advanced.
 
 ### Animus Damper - 35 pts
 
-This device bleeds off the Void Dragon shard’s energies and earths them violently through nearby machines.
-
 C’TAN SHARD OF THE VOID DRAGON model only. Once per turn, at the start of your opponent’s Shooting phase, select one enemy VEHICLE unit **visible** to the bearer. That unit must take a Leadership test. Until the end of the phase, each time a model in that unit makes an attack, subtract 1 from the Hit roll and, if that Leadership test was failed, subtract 1 from the Wound roll as well.
 
 ### Reletavistic Tether - 40 pts
-
-This binding uses atomic resonance magnetism to compel the shard into the midst of the foe.
 
 TRANSCENDENT C’TAN model only. In your turn, when this unit makes an **ingress**/**advance move** using its Transdimensional Displacement ability, this unit can end that move more than 6" horizontally from all enemy units (instead of more than 8"). When this unit ends that move within 8" of an enemy unit, this unit is not **eligible to declare a charge** until the end of the turn.
 
@@ -61,8 +52,6 @@ TRANSCENDENT C’TAN model only. In your turn, when this unit makes an **ingress
 ### DISHARMONISATION CASCADE - 1CP
 
 *Pantheon of Woe – Epic Deed Stratagem*
-
-Tear one shard suddenly from the complex web of atomic resonances and its severing triggers a violent energistic dissonance blast.
 
 **WHEN:** Any phase, just after a NECRONS MONSTER model from your army is destroyed, before making its **Deadly Demise** roll.
 
@@ -73,8 +62,6 @@ Tear one shard suddenly from the complex web of atomic resonances and its severi
 ### MOLECULAR EROSION - 1CP
 
 *Pantheon of Woe – Strategic Ploy Stratagem*
-
-Those without the will to hold themselves together start to physically tatter apart in a molecular haze in the presence of so many god shards.
 
 **WHEN:** Command phase.
 
@@ -88,8 +75,6 @@ Those without the will to hold themselves together start to physically tatter ap
 
 *Pantheon of Woe – Epic Deed Stratagem*
 
-The power of the C’tan rips the foe’s greatest assets apart and forcibly reknits nearby Necron soldiery using the stolen corporeal matter.
-
 **WHEN:** Your Shooting phase or the Fight phase, just after a NECRONS MONSTER unit from your army destroys an enemy unit.
 
 **TARGET:** One friendly NECRONS unit (excluding MONSTERS) within 6" of that MONSTER unit.
@@ -102,8 +87,6 @@ The power of the C’tan rips the foe’s greatest assets apart and forcibly rek
 
 *Pantheon of Woe – Battle Tactic Stratagem*
 
-Necrons’ android senses can target the foe by reading the exotic radiation signatures wreathed about them by the C’tan shards onslaught.
-
 **WHEN:** Your Shooting phase or the Fight phase.
 
 **TARGET:** One NECRONS unit (excluding MONSTERS) from your army that has not been selected to shoot or fight this phase.
@@ -114,8 +97,6 @@ Necrons’ android senses can target the foe by reading the exotic radiation sig
 
 *Pantheon of Woe – Battle Tactic Stratagem*
 
-With the battlefield shuddering in and out of sync with time and space, slain Necrons still strike at their enemies through cracks in temporal causality
-
 **WHEN:** Fight phase, just after an enemy unit has selected its targets.
 
 **TARGET:** One NECRONS unit from your army that was selected as the target of one or more of the attacking unit’s attacks.
@@ -125,8 +106,6 @@ With the battlefield shuddering in and out of sync with time and space, slain Ne
 ### PHASE MELDING - 1CP
 
 *Pantheon of Woe – Strategic Ploy Stratagem*
-
-The very stuff of reality flows together at an atomic level, and the foe find to their horror that they are literally – and gruesomely – rooted to the spot.
 
 **WHEN:** Your opponent’s Movement phase, when an unravelling enemy unit is selected to Fall Back.
 

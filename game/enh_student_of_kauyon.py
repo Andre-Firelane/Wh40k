@@ -41,7 +41,7 @@ An owner in `auto_players` takes the first three by name - deterministic, and a
 rule answering its own prompt rather than an AI path (the standing T'au rule).
 """
 
-from game import enhancements
+from game import ai_mode, enhancements
 
 STUDENT_OF_KAUYON = "Student of Kauyon"
 MAX_UNITS = 3
@@ -93,7 +93,7 @@ class StudentOfKauyonStep:
     def __init__(self, decision_manager=None, game_log=None, auto_players=()):
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self.granted = {}      # player -> [squads], for reporting and the count
         # The army being offered from, remembered so an accepted grant can
         # re-offer the next one: DecisionManager resolves asynchronously, so
@@ -132,7 +132,7 @@ class StudentOfKauyonStep:
                 acted = True
                 continue
             options = [(f"{STUDENT_OF_KAUYON}: {t.name}",
-                        (lambda target=t: self.grant(player, target)))
+                        (lambda target=t: self.grant(player, target)), t)
                        for t in targets]
             options.append(("No more", None))
             self.decision_manager.request(

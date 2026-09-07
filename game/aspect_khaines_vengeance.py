@@ -48,7 +48,7 @@ and checked separately in the test.
 THE AI DECLINES (standing Aeldari instruction).
 """
 
-from game import aeldari_detachments, detachment_gate
+from game import aeldari_detachments, ai_mode, detachment_gate
 from game.hazard import HazardRollStep
 from game.squad import ENGAGEMENT_RANGE_IN, edge_distance
 from game.stratagems import Stratagem
@@ -137,7 +137,7 @@ class KhainesVengeanceController:
         self.turn_tracker = turn_tracker
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._hazard_step = None
         self._pending = {}
         self._stratagem = Stratagem(

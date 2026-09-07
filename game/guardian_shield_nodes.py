@@ -37,7 +37,7 @@ BOTH PHASES, with the same printed asymmetry Warding Salvoes has: "YOUR
 opponent's Shooting phase" but "THE Fight phase".
 """
 
-from game import aeldari_detachments, defend_at_all_costs
+from game import aeldari_detachments, ai_mode, defend_at_all_costs
 from game.modifiers import Modifier
 from game.objectives import is_within_range_of_objective
 from game.stratagems import Stratagem
@@ -89,7 +89,7 @@ class ShieldNodesController:
         self.objectives = objectives if objectives is not None else []
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._offered_this_phase = set()
         self._stratagem = Stratagem(
             name=SHIELD_NODES_NAME, cp_cost=SHIELD_NODES_CP, effect=self._grant,

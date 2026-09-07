@@ -37,7 +37,7 @@ step Vengeful Stars already uses.
 THE AI DECLINES (standing Aeldari instruction).
 """
 
-from game import aeldari_detachments, defend_at_all_costs
+from game import aeldari_detachments, ai_mode, defend_at_all_costs
 from game.stratagems import Stratagem
 
 VAULS_VENGEANCE_NAME = "Vaul's Vengeance"
@@ -77,7 +77,7 @@ class VaulsVengeanceController:
         self.game_state = game_state
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         #: (player, battle round) for each use. The printed restriction is per
         #: ROUND, which Stratagem's own max_per_battle cannot express.
         self._used_rounds = set()

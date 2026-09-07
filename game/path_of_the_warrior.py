@@ -40,7 +40,7 @@ never worth less. A prompt nobody answers would stall the loop, which is the
 'Ard as Nails arrangement rather than an AI path.
 """
 
-from game import aeldari_detachments
+from game import aeldari_detachments, ai_mode
 from game import enh_mantle_of_wisdom
 
 PATH_OF_THE_WARRIOR_LABEL = "Path of the Warrior"
@@ -86,7 +86,7 @@ class PathOfTheWarriorController:
         self.decision_manager = decision_manager
         self.game_log = game_log
         self.turn_tracker = turn_tracker
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         #: (id(squad), phase) -> HIT or WOUND.
         self._chosen = {}
 

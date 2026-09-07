@@ -107,7 +107,7 @@ class FireSupportController:
             self._mark(transport, candidates[0])
             return
         options = [
-            (target.name, (lambda t=target: self._mark(transport, t)))
+            (target.name, (lambda t=target: self._mark(transport, t)), target)
             for target in candidates
         ]
         self.decision_manager.request(

@@ -376,9 +376,23 @@ checks.true("no AI path for any of the three",
             not any(n in ai_src for n in
                     ("crystal_matrix", "monofilament_web", "harassment_fire")))
 
+ART = {  # datasheets whose art the user has since supplied
+    'Fire Prism': 'Fire Prism.png',
+    'Night Spinner': 'Night Spinner.png',
+    'Vypers': 'Vyper.png',
+}
 for sheet in (ae.FIRE_PRISM, ae.NIGHT_SPINNER, ae.VYPERS):
     sq = build(sheet, n=30)
-    checks.eq("%s has no art yet - pinned so adding one is visible" % sheet.name,
-              sprites.sprite_for(sq.models[0]), None)
+    _p = sprites.sprite_for(sq.models[0])
+    if sheet.name in ART:
+        # AT THE MODEL, so a key naming a file that is not on disk fails here
+        # rather than passing on a mapping table nobody checked. Named file, so
+        # a datasheet quietly borrowing a NEIGHBOUR's art by substring match
+        # fails too - which is how "Autarch" would shadow "Autarch Wayleaper".
+        checks.true("%s draws its own art" % sheet.name,
+                    ART[sheet.name] in (_p or ""))
+    else:
+        checks.eq("%s has no art yet - pinned so adding one is visible" % sheet.name,
+                  _p, None)
 
 checks.finish()

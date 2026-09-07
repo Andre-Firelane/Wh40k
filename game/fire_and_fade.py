@@ -36,7 +36,7 @@ the distinction The Torchstar Gambit's own confirm_move() draws.
 """
 
 from game.squad import ENGAGEMENT_RANGE_IN, edge_distance
-from game import engagement
+from game import ai_mode, engagement
 
 FIRE_AND_FADE_MOVE_IN = 6.0
 FIRE_AND_FADE_MOVE_MODE = "fire_and_fade"
@@ -81,7 +81,7 @@ class FireAndFadeController:
         self.decision_manager = decision_manager
         self.all_tokens = all_tokens if all_tokens is not None else []
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._moving_squad = None
 
     @property

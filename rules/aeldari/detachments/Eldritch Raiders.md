@@ -1,6 +1,6 @@
 # Eldritch Raiders
 
-**Aeldari** - 2 DP detachment
+**Aeldari** - 2 DP detachment - Force Disposition: Purge the Foe
 
 Source: <https://wahapedia.ru/wh40k11ed/factions/aeldari/>
 
@@ -8,37 +8,27 @@ Source: <https://wahapedia.ru/wh40k11ed/factions/aeldari/>
 
 ### Yriel’s Own
 
-These are Yriel’s most elite raiders, skilled in fast-paced raids and used to fighting superior forces using a combination of guile, superior technology, and physical prowess.
 AELDARI units in your army are eligible to declare a charge in a turn in which they Advanced. In addition, each time an ANHRATHE, RANGERS or SHROUD RUNNERS unit from your army Advances, you can re-roll the Advance roll.
 
 ### Veterans of the Void
 
-No two bands of Anhrathe warriors are identical. Each possesses a wealth of hard-earned experience that a cunning commander can to bear upon their victims to devastating effect.
 Each time you add an ANHRATHE unit to your army, it can be given up to one Corsair Enhancement. Each Corsair Enhancement included in your army must be unique. If a unit is given a Corsair Enhancement, you must increase the points cost of that unit by the amount shown. If this causes your army to exceed the points limit for the battle you are playing, you cannot include that unit in your army.
 
 ## Enhancements
 
 ### Pirate Prince - 15 pts
 
-Yriel’s speed, both of thought and action, ensures that he remains one step ahead of his opponents at all times.
-
 PRINCE YRIEL unit only. Each time you spend a Battle Focus token to enable this unit to perform an Agile Manoeuvre, roll one D6: on a 3+, you gain 1 Battle Focus token.
 
 ### Alacritous Assault - 20 pts
-
-The key to any raid is the shock of the opening strike. Anhrathe warriors strike at breakneck speed, power swords and boarding hooks finding gaps in enemy armour and inflicting devastating wounds.
 
 ANHRATHE unit only. Melee weapons equipped by models in this unit have the [LANCE] ability.
 
 ### Exotic Munitions - 15 pts
 
-In their travels through the void, these Anhrathe warriors have collected a bounty of esoteric ammunition. The most lethal of these munitions are toxic or acidic enough to fell monstrous foes or to burn through armour and servo-motors with frightening rapidity.
-
 ANHRATHE unit only. Ranged weapons equipped by models in this unit have the [ANTI-MONSTER 5+] and [ANTI-VEHICLE 5+] abilities.
 
 ### Adrenal Infusions - 20 pts
-
-Amongst the hauls taken by Aeldari Corsairs are many stimulants and elixirs, the most powerful of which enhance the already impressive grace and agility of the Aeldari physiology.
 
 ANHRATHE INFANTRY unit only. This unit can perform the Fade Back Agile Manoeuvre without spending a Battle Focus token to do so. It can do so even if other units have done so in the same phase, and doing so does not prevent other units from performing the same Agile Manoeuvre in the same phase.
 
@@ -47,8 +37,6 @@ ANHRATHE INFANTRY unit only. This unit can perform the Fade Back Agile Manoeuvre
 ### RAIDERS’ SPOILS - 1CP
 
 *Eldritch Raiders – Strategic Ploy Stratagem*
-
-Even as battle rages around them, the Eldritch Raiders prioritise the seizing of treasures above the destruction of their foes.
 
 **WHEN:** Command phase.
 
@@ -60,8 +48,6 @@ Even as battle rages around them, the Eldritch Raiders prioritise the seizing of
 
 *Eldritch Raiders – Strategic Ploy Stratagem*
 
-These are Yriel’s chosen killers, and there is no escape for their prey.
-
 **WHEN:** Your Shooting phase or the Fight phase.
 
 **TARGET:** One CORSAIR VOIDSCARRED unit from your army that has not been selected to shoot or Fight this phase.
@@ -71,8 +57,6 @@ These are Yriel’s chosen killers, and there is no escape for their prey.
 ### YRIEL’S EXAMPLE - 1CP
 
 *Eldritch Raiders – Epic Deed Stratagem*
-
-Inspired by their prince, who has felt Ynnead’s touch, the Eldritch Raiders laugh in the face of death.
 
 **WHEN:** Fight phase, just after an enemy unit has selected its targets.
 
@@ -84,8 +68,6 @@ Inspired by their prince, who has felt Ynnead’s touch, the Eldritch Raiders la
 
 *Eldritch Raiders – Battle Tactic Stratagem*
 
-By accurately targeting weak points in anatomies and superstructures, the Anhrathe can bring down even the most resilient of foes.
-
 **WHEN:** Your Shooting phase.
 
 **TARGET:** One ANHRATHE, RANGERS or SHROUD RUNNERS unit from your army that has not been selected to shoot this phase.
@@ -96,8 +78,6 @@ By accurately targeting weak points in anatomies and superstructures, the Anhrat
 
 *Eldritch Raiders – Wargear Stratagem*
 
-As the foes attempt to close in, Yriel’s cunning outcasts stymie their assault with a dazzling burst of distracting fire.
-
 **WHEN:** Start of your opponent’s Charge phase.
 
 **TARGET:** One RANGERS, SHROUD RUNNERS or STARFANG unit from your army.
@@ -107,8 +87,6 @@ As the foes attempt to close in, Yriel’s cunning outcasts stymie their assault
 ### WITHDRAW AND REINFORCE - 1CP
 
 *Eldritch Raiders – Strategic Ploy Stratagem*
-
-Prince Yriel commands resources beyond the dreams of most Corsair Princes. Depleted bands may fall back from the battlefield to be reinforced and resupplied at a moment’s notice.
 
 **WHEN:** End of your opponent’s Fight phase.
 

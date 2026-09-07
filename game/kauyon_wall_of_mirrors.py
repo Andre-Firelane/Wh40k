@@ -27,10 +27,10 @@ exactly one datasheet in this faction, so the keywords and the printed names
 are the same set.
 """
 
-from game import kauyon, strategic_reserves, tau_detachments
+from game import ai_mode, kauyon, strategic_reserves, tau_detachments
+from game.phase_window import PhaseWindow
 from game.attached_units import unit_has_datasheet_keyword
 from game.stratagems import Stratagem
-from game.turn import PHASE_FIGHT
 
 WALL_OF_MIRRORS_CP = 1
 WALL_OF_MIRRORS_NAME = "Wall of Mirrors"
@@ -62,7 +62,12 @@ class WallOfMirrorsController:
         # a prompt nobody is there to click - the `'Ard as Nails` arrangement.
         # There is no T'au AI path by standing instruction, so this stays empty
         # unless a caller asks for it.
-        self.auto_players = tuple(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
+        # The end-of-Fight-phase window this controller's own offer opens.
+        # NOT a live turn_tracker.phase test: see game/phase_window.py -
+        # the clock has already advanced by the time the offer is made,
+        # let alone by the time a human answers the queued prompt.
+        self._window = PhaseWindow()
         self._stratagem = Stratagem(
             name=WALL_OF_MIRRORS_NAME, cp_cost=WALL_OF_MIRRORS_CP, effect=self._withdraw,
         )
@@ -96,7 +101,11 @@ class WallOfMirrorsController:
 
     def offer_at_end_of_fight_phase(self, ending_player):
         """WHEN: "end of your opponent's Fight phase" - called with the player
-        whose Fight phase just ended, so the offer goes to the other side."""
+        whose Fight phase just ended, so the offer goes to the other side.
+
+        `ending_player` must be main.py's `mover_before`, captured BEFORE
+        advance_phase(): turn_tracker.turn_owner has flipped by the time this
+        runs, and passing it named exactly the wrong side."""
         if self.turn_tracker is None:
             return False
         reactor = next((p for p in self._players() if p != ending_player), None)
@@ -107,11 +116,12 @@ class WallOfMirrorsController:
             return False
         if reactor in self.auto_players or self.decision_manager is None:
             return False   # nobody to ask, and withdrawing unasked is a real cost
+        self._window.arm(reactor)
         self.decision_manager.request(
             reactor,
             f"{WALL_OF_MIRRORS_NAME} ({WALL_OF_MIRRORS_CP} CP): withdraw a unit into "
             "Strategic Reserves?",
-            [(squad.name, (lambda s=squad: self.use(s))) for squad in candidates]
+            [(squad.name, (lambda s=squad: self.use(s)), squad) for squad in candidates]
             + [("Decline", lambda: None)],
         )
         return True
@@ -128,9 +138,14 @@ class WallOfMirrorsController:
     def can_use(self, squad):
         if squad is None or self.turn_tracker is None:
             return False
-        if self.turn_tracker.phase != PHASE_FIGHT:
+        if not self._window.is_open(squad.owner):
             return False
         return squad in self.eligible_units(squad.owner)
+
+    def reset_phase(self):
+        """The window lasts exactly one phase boundary. main.py clears it in
+        the per-phase reset block, which runs BEFORE that boundary's offers."""
+        self._window.close()
 
     def use(self, squad):
         if not self.can_use(squad):

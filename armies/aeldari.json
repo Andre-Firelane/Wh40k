@@ -1,0 +1,147 @@
+{
+  "format": 1,
+  "key": "aeldari",
+  "name": "Aeldari",
+  "faction_keyword": "AELDARI",
+  "army_rule": "Battle Focus",
+  "detachments": ["Seer Council", "Path of the Outcast"],
+  "force_disposition": "priority_assets",
+  "sort_order": 10,
+  "roster": [
+    {
+      "datasheet": "Avatar of Khaine",
+      "color": [230, 90, 60]
+    },
+    {
+      "datasheet": "Dark Reapers",
+      "color": [60, 60, 95]
+    },
+    {
+      "datasheet": "Rangers",
+      "color": [140, 130, 105]
+    },
+    {
+      "datasheet": "Striking Scorpions",
+      "color": [110, 180, 100]
+    },
+    {
+      "datasheet": "Wraithguard",
+      "color": [225, 225, 195],
+      "choices": {
+        "Wraithguard": {
+          "Wraithcannon -> D-scythe": 5
+        }
+      }
+    },
+    {
+      "datasheet": "Guardian Defenders",
+      "color": [90, 170, 210],
+      "leaders": [
+        {
+          "datasheet": "Farseer",
+          "color": [150, 130, 200],
+          "choices": {
+            "Farseer": {
+              "Witchblade -> Singing Spear": 1
+            }
+          }
+        },
+        {
+          "datasheet": "Warlock Conclave",
+          "color": [150, 120, 200],
+          "choices": {
+            "Warlock": {
+              "Witchblade -> Singing Spear": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "datasheet": "Storm Guardians",
+      "color": [110, 190, 200],
+      "choices": {
+        "Storm Guardian": {
+          "Shuriken Pistol -> Flamer": 2,
+          "Shuriken Pistol -> Fusion Gun": 2,
+          "Close Combat Weapon -> Power Sword": [4, 5]
+        }
+      },
+      "leaders": [
+        {
+          "datasheet": "Eldrad Ulthran",
+          "color": [170, 140, 210]
+        },
+        {
+          "datasheet": "Warlock Conclave",
+          "color": [150, 120, 200],
+          "choices": {
+            "Warlock": {
+              "Witchblade -> Singing Spear": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "datasheet": "Windriders",
+      "color": [120, 155, 130],
+      "choices": {
+        "Windrider": {
+          "Twin Shuriken Catapult -> Shuriken Cannon": 3
+        }
+      },
+      "leaders": [
+        {
+          "datasheet": "Warlock Skyrunners",
+          "color": [170, 140, 220]
+        }
+      ]
+    },
+    {
+      "datasheet": "Dire Avengers",
+      "color": [70, 150, 220],
+      "choices": {
+        "Dire Avenger Exarch": {
+          "Exarch -> second Avenger Shuriken Catapult": 1
+        }
+      },
+      "leaders": [
+        {
+          "datasheet": "Asurmen",
+          "color": [240, 240, 250]
+        }
+      ]
+    },
+    {
+      "datasheet": "Howling Banshees",
+      "color": [230, 220, 210],
+      "choices": {
+        "Howling Banshee Exarch": {
+          "Exarch -> Executioner": 1
+        }
+      },
+      "leaders": [
+        {
+          "datasheet": "Jain Zar",
+          "color": [235, 225, 215]
+        }
+      ]
+    },
+    {
+      "datasheet": "Warp Spiders",
+      "color": [200, 200, 230],
+      "choices": {
+        "Warp Spider Exarch": {
+          "Exarch -> Powerblade Array": 1
+        }
+      },
+      "leaders": [
+        {
+          "datasheet": "Lhykhis",
+          "color": [180, 190, 220]
+        }
+      ]
+    }
+  ]
+}

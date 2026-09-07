@@ -43,20 +43,8 @@ c = tk.Checks("T'au detachment Stratagems")
 HUMAN = "Player 1"
 
 
-class settings_as:
-    def __init__(self, **values):
-        self.values = values
-
-    def __enter__(self):
-        self.old = {k: getattr(config, k) for k in self.values}
-        for key, value in self.values.items():
-            setattr(config, key, value)
-        return self
-
-    def __exit__(self, *exc):
-        for key, value in self.old.items():
-            setattr(config, key, value)
-
+# The one definition lives in testkit - eight suites had their own copy.
+settings_as = tk.settings_as
 
 def turn_at(phase, owner=HUMAN):
     tracker = TurnTracker(first_player=owner)
@@ -94,9 +82,20 @@ class FightStub:
 
 
 class MoveStub:
-    def __init__(self, moved=(), advanced=()):
+    """MovementController, as the Stratagem controllers ask it.
+
+    `selected` matters: ActionPanel._draw_movement_ui() opens with
+    `squad = movement_controller.selected_squad` and asks
+    proactive_stratagems.buttons_for(squad) about that squad and no other. A
+    stub without the attribute makes every "is this the selected squad" clause
+    read None, which is how Aggressive Mobility's button could be unrenderable
+    in every real game while this suite stayed green.
+    """
+
+    def __init__(self, moved=(), advanced=(), selected=None):
         self.moved_squad_ids = set(moved)
         self.advanced_squad_ids = set(advanced)
+        self.selected_squad = selected
 
 
 commander = tk.build(COMMANDER_IN_COLDSTAR_BATTLESUIT, HUMAN,
@@ -203,6 +202,72 @@ with settings_as(**EPC_ON):
     c.true("a second purchase is refused while it is up", not rich.can_use(commander))
     rich.reset_phase([commander])
     c.true("the grant is gone after the phase", ammo.active_mode(commander) is None)
+
+# [HAZARDOUS] END TO END. Everything above asks adjusted_weapon() directly and
+# was green while the third clause of the richer mode did NOTHING in a real
+# game: ShootingController's hazard ledger read pairs[0][1].hazardous - the
+# PRINTED weapon - so a GRANTED [HAZARDOUS] never incremented the count and
+# _finish_squad() never rolled. Reported: "hazardous wurde nicht ausgeloest bei
+# experimental ammunition", and visible in logs/game_20260905_212844.log:149-158
+# (bought, +1S/+1AP applied, no Hazard Roll anywhere after it).
+from game.factions import necrons as _haz_nec  # noqa: E402
+D_SUNFORGE = __import__('game.factions.tau_empire', fromlist=['x']).TAU_EMPIRE.datasheets["Crisis Sunforge Battlesuits"]
+
+
+def hazard_dice(mode, sheet=COMMANDER_IN_COLDSTAR_BATTLESUIT):
+    """Every hazard die thrown by one full activation, and how many ranged
+    weapons the unit actually has - rule 24.15 is one roll per WEAPON."""
+    scene = tk.shooting_scene(sheet,
+                              _haz_nec.NECRONS.datasheets["Necron Warriors"], gap=8.0)
+    sh, dice, shooter = scene["shooting"], scene["dice"], scene["attacker"]
+    shooter.experimental_ammunition_mode = mode
+    weapons = sum(1 for m in shooter.models for w in m.weapons
+                  if w.weapon_type == RANGED)
+    tk.script(default=4)
+    sh.start_shooting(shooter)
+    if sh.state == "choosing_shooting_type":
+        sh.choose_shooting_type(sh.available_types[0])
+    sh.choose_target_squad(scene["target"])
+    if sh.state == "choosing_weapon":
+        sh.choose_weapon(sh.remaining_weapon_types[0])
+    for _ in range(400):
+        if dice.is_pending:
+            dice.acknowledge()
+            sh.on_dice_acknowledged()
+        elif sh.pending_damage_choice:
+            sh.choose_damage_model(sh.pending_damage_choice[0])
+        else:
+            break
+    thrown = [values for label, values in dice.rolled if "Hazard" in label]
+    return weapons, sum(len(v) for v in thrown), len(thrown)
+
+
+c.eq("without the grant there is no hazard roll", hazard_dice(None)[1], 0)
+c.eq("...nor with the plain +1 S mode", hazard_dice(ammo.MODE_STRENGTH)[1], 0)
+_w1, _d1, _n1 = hazard_dice(ammo.MODE_STRENGTH_AP_HAZARDOUS)
+c.eq("the richer mode really throws them - the whole trade-off", _n1, 1)
+
+# ONE ROLL PER WEAPON, not per attack GROUP. Reported after the fix above:
+# "Hazardous bei den sunforge viel zu wenig ... fuer jede waffe, die abgefeuert
+# wurde muss gewuerfelt werden" - and rule 24.15 says exactly that ("for each
+# [HAZARDOUS] weapon that was used to make one or more of those attacks").
+# A three-model Sunforge team carries two Fusion Blasters each; grouped by
+# rule 04.03 that is ONE attack group and used to be ONE die.
+_sun_w, _sun_d, _sun_n = hazard_dice(ammo.MODE_STRENGTH_AP_HAZARDOUS,
+                                     sheet=D_SUNFORGE)
+c.true("the premise: the Sunforge team carries more weapons than attack groups",
+       _sun_w > 1)
+c.eq("one hazard die per weapon that fired", _sun_d, _sun_w)
+c.eq("...thrown together as ONE roll, not one prompt per weapon", _sun_n, 1)
+c.eq("a one-weapon model still owes exactly one", _d1, _w1)
+# The ledger has to read the ADJUSTED weapon, or the next runtime grant of any
+# keyword the hazard step cares about fails the same silent way.
+_shoot_haz = io.open("game/shooting.py", encoding="utf-8").read()
+c.true("the hazard ledger asks the adjusted weapon, not the printed one",
+       "self._adjusted_weapon(pairs, target_squad).hazardous" in _shoot_haz)
+_fight_haz = io.open("game/fight.py", encoding="utf-8").read()
+c.true("...and the melee half has the same shape, for the next grant",
+       "self._adjusted_weapon(pairs, _haz_target).hazardous" in _fight_haz)
 
 blade = next((w for w in commander.models[0].weapons if w.weapon_type == MELEE), None)
 with settings_as(**EPC_ON):
@@ -623,6 +688,79 @@ c.true("Commander Shadowsun is eligible by NAME - she shares no keyword with the
        mirrors.is_eligible_unit(shadowsun))
 c.true("a Strike Team is not", not mirrors.is_eligible_unit(strike))
 
+# THE WHOLE POINT of this block: everything above was already green while the
+# Stratagem was, in a real game, offered to the WRONG PLAYER and then did
+# NOTHING when accepted. Reported: "Frage nach Wall of Mirrors kam am Anfang
+# der Gegner Runde ... funktioniert auch nicht". Only driving the real phase
+# BOUNDARY - advance_phase() first, offer second, exactly as
+# advance_turn_phase() orders them - can see either half.
+from game.game_state import GameState as _GS  # noqa: E402
+from game.factions import necrons as _nec  # noqa: E402
+
+
+def mirrors_boundary(kauyon_owner=HUMAN, use_mover_before=True):
+    """One end-of-Fight-phase boundary, in main.py's order."""
+    other = "Player 2" if kauyon_owner == HUMAN else HUMAN
+    state = _GS()
+    hider = tk.build(STEALTH_BATTLESUITS, kauyon_owner, name="Stealth W")
+    foe = tk.build(_nec.NECRONS.datasheets["Necron Warriors"], other, name="Warriors W")
+    tk.line_up(hider, 10.0, 10.0)
+    tk.line_up(foe, 10.0, 40.0)          # far apart: the Engagement Range clause is clear
+    for squad in (hider, foe):
+        for model in squad.models:
+            state.add_token(model)
+    tracker = TurnTracker(first_player=other)
+    while tracker.phase != PHASE_FIGHT:
+        tracker.advance_phase()
+    dec, log = DecisionManager(), tk.Log()
+    ctrl = mirrors.WallOfMirrorsController(
+        strat_controller(), game_state=state, turn_tracker=tracker,
+        all_tokens=state.tokens, decision_manager=dec, game_log=log,
+        auto_players=())
+    mover_before = tracker.turn_owner        # main.py:3166, BEFORE the advance
+    tracker.advance_phase()                  # main.py:3187
+    ctrl.reset_phase()                       # main.py's per-phase reset block
+    ctrl.offer_at_end_of_fight_phase(mover_before if use_mover_before
+                                     else tracker.turn_owner)
+    return dict(state=state, hider=hider, dec=dec, log=log, ctrl=ctrl,
+                tracker=tracker, mover_before=mover_before)
+
+
+with settings_as(**KAUYON_ON):
+    # Kauyon is the HUMAN's, and it is the OPPONENT whose Fight phase ends -
+    # so "end of your opponent's Fight phase" must offer it to the HUMAN.
+    b = mirrors_boundary()
+    c.true("the offer is made at the boundary at all", b["dec"].is_pending)
+    c.eq("...to the side whose OPPONENT just fought", b["dec"].player, HUMAN)
+    c.true("...naming the eligible unit",
+           any(o["label"] == "Stealth W" for o in b["dec"].options))
+    # The clock has ALREADY moved on by now - that is the whole trap.
+    c.true("...even though the phase already reads the next one",
+           b["tracker"].phase != PHASE_FIGHT)
+
+    _before = len(b["state"].tokens)
+    _idx = next(i for i, o in enumerate(b["dec"].options) if o["squad"] is not None)
+    b["dec"].choose(_idx)
+    c.true("accepting really withdraws the unit",
+           b["hider"] in b["state"].reserves)
+    c.eq("...and takes every one of its models off the board",
+         [t for t in b["state"].tokens if getattr(t, "squad", None) is b["hider"]], [])
+    c.true("...leaving the enemy's models where they were",
+           len(b["state"].tokens) < _before and len(b["state"].tokens) > 0)
+    c.true("...and says so in the log",
+           any("Wall of Mirrors" in line for line in b["log"].lines))
+
+    # The pre-fix argument named the side whose own Fight phase just ended.
+    b2 = mirrors_boundary(use_mover_before=False)
+    c.true("passing the post-advance turn_owner asks nobody with the detachment",
+           not b2["dec"].is_pending)
+
+    # The window is one boundary wide.
+    b3 = mirrors_boundary()
+    b3["ctrl"].reset_phase()
+    c.true("a later phase cannot answer a stale window",
+           not b3["ctrl"].can_use(b3["hider"]))
+
 
 # -- Photon Grenades (-2 Charge, Battle-shock) ----------------------------
 c.eq("the penalty is the printed 2", photon.PHOTON_GRENADES_CHARGE_PENALTY, 2)
@@ -637,6 +775,56 @@ c.true("the -2 is applied to the CHARGING unit's roll",
        "kauyon_photon_grenades.charge_penalty_for(self.active_squad)" in capped_src)
 c.true("...beside Neocapacitor Shields, the other charger-side penalty",
        "neocapacitor_shields.charge_penalty_for(self.active_squad)" in capped_src)
+
+
+# NOT while the unit is inside a TRANSPORT. The reaction chain hands every
+# reactor the SAME target list, captured once when the charge was declared -
+# and Combat Embarkation sits on that very chain, so the unit named as a target
+# can be in a vehicle by the time this one is asked. Reported: "Photon granades
+# Stratagem soll nicht gehen, wenn embarked".
+_ph_state = _GS()
+_ph_def = tk.build(STRIKE_TEAM, HUMAN, name="Photon Def")
+_ph_foe = tk.build(BOYZ, "Player 2", name="Photon Foe")
+tk.line_up(_ph_def, 20.0, 20.0)
+tk.line_up(_ph_foe, 20.0, 40.0)            # far apart: the Engagement clause is clear
+for _s in (_ph_def, _ph_foe):
+    for _m in _s.models:
+        _ph_state.add_token(_m)
+_ph = photon.PhotonGrenadesController(
+    strat_controller(), turn_tracker=kauyon_turn(PHASE_CHARGE),
+    all_tokens=_ph_state.tokens, game_log=tk.Log())
+with settings_as(**KAUYON_ON):
+    c.eq("a GRENADES unit on the board is offered it",
+         [s.name for s in _ph.eligible_defenders(_ph_foe, [_ph_def])], ["Photon Def"])
+    # Exactly what TransportController.embark() does to the board
+    # (game/transport.py): the models leave the token list and their
+    # COORDINATES are left alone - which is why is_engaged() is no substitute.
+    for _m in list(_ph_def.models):
+        if _m in _ph_state.tokens:
+            _ph_state.tokens.remove(_m)
+    _ph_def.embarked_in = object()
+    c.eq("...and not once it has boarded a transport",
+         [s.name for s in _ph.eligible_defenders(_ph_foe, [_ph_def])], [])
+    c.true("the coordinates it left behind still read as un-engaged, so the "
+           "Engagement clause could never have caught this",
+           not _ph_def.is_engaged(_ph_state.tokens))
+    # The two clauses are SEPARATE, and each has to be tested where the other
+    # cannot cover for it - otherwise removing either one leaves this block
+    # green (found by ab_charge_window_and_prompts.py).
+    for _m in _ph_def.models:
+        _ph_state.add_token(_m)
+    c.eq("embarked_in alone is enough, even with models still listed",
+         [s.name for s in _ph.eligible_defenders(_ph_foe, [_ph_def])], [])
+    _ph_def.embarked_in = None
+    for _m in list(_ph_def.models):
+        if _m in _ph_state.tokens:
+            _ph_state.tokens.remove(_m)
+    c.eq("...and being off the board alone is too - a unit wiped this frame",
+         [s.name for s in _ph.eligible_defenders(_ph_foe, [_ph_def])], [])
+    for _m in _ph_def.models:
+        _ph_state.add_token(_m)
+    c.eq("back on the board and out of any vehicle, it is offered again",
+         [s.name for s in _ph.eligible_defenders(_ph_foe, [_ph_def])], ["Photon Def"])
 
 
 # -- Combat Embarkation ---------------------------------------------------
@@ -659,10 +847,140 @@ c.true("...and it defaults to the shared definition",
        "reach = EMBARK_RANGE_IN if range_in is None else range_in" in embark_src)
 c.eq("and it is the printed 3 inches",
      __import__("game.transport", fromlist=["x"]).EMBARK_RANGE_IN, 3.0)
-# The named limitation, written out rather than left to be discovered.
 ce_src = io.open("game/kauyon_combat_embarkation.py", encoding="utf-8").read()
-c.true("the missing \"select new targets\" clause is documented",
-       "NAMED LIMITATION" in ce_src and "pick DIFFERENT targets" in ce_src)
+
+# "IF IT DOES, YOUR OPPONENT CAN SELECT NEW TARGETS FOR THAT CHARGE."
+# This half used to be a NAMED LIMITATION, and the limitation was worse than it
+# read: _start_declared_move() re-checks state, targets-non-empty and
+# max_distance but never the TARGETS, and embark() takes a unit's models off
+# the token list while leaving their coordinates alone - so the charge was
+# resolved against a unit sitting inside a vehicle and engaged it at 0.0".
+# Seen in a real game (logs/game_20260905_203642.log:191-196). Reported: "nach
+# combat embarkation stratagem: auswahl bei attacker muss zurueckspringen auf
+# choose charge targets".
+_charge_src_early = io.open("game/charge.py", encoding="utf-8").read()
+c.true("reopen_target_selection() exists on the charge controller",
+       "def reopen_target_selection(self, dropped_squad=None):" in _charge_src_early)
+c.true("...and Combat Embarkation calls it after a successful embark",
+       "self.charge_controller.reopen_target_selection(squad)" in ce_src)
+
+
+class _EmbarkTransport:
+    """The two things Combat Embarkation asks of TransportController, doing
+    exactly what the real embark() does to the board (game/transport.py)."""
+
+    def __init__(self, state):
+        self.state = state
+
+    def can_embark(self, squad, token, require_move=True, range_in=None):
+        return True
+
+    def embark(self, squad, token, require_move=True, range_in=None):
+        for model in list(squad.models):
+            if model in self.state.tokens:
+                self.state.tokens.remove(model)
+        squad.embarked_in = token
+        self.state.embarked_squads.append(squad)
+
+
+class _EmbarkMove:
+    move_mode = None
+    selected_squad = None
+    advanced_squad_ids = set()
+    moved_squad_ids = set()
+    fell_back_squad_ids = set()
+
+    def __init__(self):
+        self.started = None
+
+    def start_charge_move(self, distance, targets):
+        self.started = (distance, [t.name for t in targets])
+
+
+def embark_scene(wired=True, second_target=False):
+    """One declared charge, answered with Combat Embarkation."""
+    from game.dice import DiceManager as _DM
+    from game.factions import necrons as _nec
+    from game.factions import tau_empire as _tau
+    state = _GS()
+    riders = tk.build(_tau.TAU_EMPIRE.datasheets["Breacher Team"], HUMAN, name="Breachers E")
+    ride = tk.build(_tau.TAU_EMPIRE.datasheets["Devilfish"], HUMAN, name="Devilfish E")
+    foe = tk.build(_nec.NECRONS.datasheets["Skorpekh Destroyers"], "Player 2",
+                   name="Skorpekh E")
+    tk.line_up(riders, 20.0, 20.0)
+    tk.line_up(ride, 21.0, 22.0)
+    tk.line_up(foe, 20.0, 28.0)
+    for squad in (riders, ride, foe):
+        for model in squad.models:
+            state.add_token(model)
+    tracker = turn_at(PHASE_CHARGE, "Player 2")
+    dice, dec, log = _DM(), DecisionManager(), tk.Log()
+    move = _EmbarkMove()
+    cc = charge_module.ChargeController(
+        game_log=log, dice_manager=dice, turn_tracker=tracker,
+        all_tokens=state.tokens, movement_controller=move)
+    ctrl = embark_strat.CombatEmbarkationController(
+        strat_controller(), transport_controller=_EmbarkTransport(state),
+        turn_tracker=tracker, all_tokens=state.tokens, decision_manager=dec,
+        game_log=log, auto_players=(),
+        charge_controller=cc if wired else None)
+    cc.charge_declaration_reactions.append(ctrl.maybe_offer)
+    tk.script(default=6)
+    cc.declare_charge(foe)
+    dice.acknowledge()
+    cc.max_distance = 10.0
+    move.selected_squad = foe
+    cc.toggle_charge_target(riders)
+    if second_target:
+        cc.toggle_charge_target(ride)
+    cc.begin_charge_move()
+    return dict(cc=cc, dec=dec, move=move, riders=riders, foe=foe, tracker=tracker)
+
+
+with settings_as(**KAUYON_ON):
+    _e = embark_scene()
+    c.true("the charge really was declared against the Breachers",
+           [s.name for s in _e["cc"].charge_targets] == ["Breachers E"])
+    c.true("Combat Embarkation is offered on that declaration", _e["dec"].is_pending)
+    _ei = next(i for i, o in enumerate(_e["dec"].options) if o["squad"] is not None)
+    _e["dec"].choose(_ei)
+    c.true("the unit really boards the transport",
+           getattr(_e["riders"], "embarked_in", None) is not None)
+    c.eq("the embarked unit is dropped from the declared targets",
+         [s.name for s in _e["cc"].charge_targets], [])
+    c.eq("...and the charge does NOT move against it",
+         _e["move"].started, None)
+    c.eq("...while the declaration stays open for new targets",
+         _e["cc"].state, charge_module.DECLARING_TARGETS)
+    c.eq("...with the roll kept - the effect re-opens targets, not the dice",
+         _e["cc"].max_distance, 10.0)
+    # Deliberately NOT asserting a set_active() restore here: nothing on this
+    # Stratagem's path moves active_player in the first place (its sibling only
+    # restores it because the Battle-shock test it starts moves it). Measured,
+    # so the absence is a fact rather than an omission.
+    c.eq("the charging player never lost the decision window to begin with",
+         _e["tracker"].active_player, "Player 2")
+    # TWO declared targets, only one of which boards. charge_targets is then
+    # still non-empty, so _start_declared_move()'s own guards would happily let
+    # the charge run - the re-opened window is the ONLY thing that stops it,
+    # and this is the case that says so.
+    _e3 = embark_scene(second_target=True)
+    c.true("the premise: two targets were declared",
+           len(_e3["cc"].charge_targets) == 2)
+    _ei3 = next(i for i, o in enumerate(_e3["dec"].options) if o["squad"] is not None)
+    _e3["dec"].choose(_ei3)
+    c.eq("the one that boarded is dropped and the other stays",
+         [s.name for s in _e3["cc"].charge_targets], ["Devilfish E"])
+    c.eq("...and the charge still does NOT move - the opponent re-declares",
+         _e3["move"].started, None)
+
+    # THE PRE-FIX WORLD, so this block cannot pass by accident.
+    _e2 = embark_scene(wired=False)
+    _ei2 = next(i for i, o in enumerate(_e2["dec"].options) if o["squad"] is not None)
+    _e2["dec"].choose(_ei2)
+    c.true("unwired, the charge resolves into the transport - the reported bug",
+           _e2["move"].started is not None
+           and "Breachers E" in _e2["move"].started[1])
 
 
 # -- both reactive ones share one chained hook ----------------------------
@@ -862,8 +1180,16 @@ def mobility_ctrl(move=None):
 
 with settings_as(**MONTKA_ON):
     c.true("offered in the Movement phase", mobility_ctrl().can_use(strike))
+    # THE QUESTION THE PANEL ACTUALLY ASKS. It only ever asks about
+    # movement_controller.selected_squad, so a clause that refuses THAT squad
+    # makes the button unrenderable - which is exactly what happened.
+    # Reported: "Aggressive mobility stratagem wird nie angeboten".
+    c.true("...and about the SELECTED squad, which is the only one the panel asks about",
+           mobility_ctrl(MoveStub(selected=strike)).can_use(strike))
     c.true("not once the unit has moved",
            not mobility_ctrl(MoveStub(moved=[strike])).can_use(strike))
+    c.true("...nor once it has advanced",
+           not mobility_ctrl(MoveStub(advanced=[strike])).can_use(strike))
     ctrl = mobility_ctrl()
     c.true("buying it works", ctrl.use(strike))
     # BOTH halves, or the Stratagem is a downgrade: no roll AND +6" Move.
@@ -1002,6 +1328,58 @@ c.true("the re-roll reaches the SHOOTING hit step",
 c.true("...and the FIGHT one, because it says \"an attack\"",
        "self.pinpoint_counter_offensive.applies(" in fight_src2)
 
+# WHY IT WAS NEVER OFFERED. The death sweep passes whoever was attacking, and
+# _actually_finish_squad() has already cleared active_squad by the time the
+# sweep runs - so a unit wiped by the LAST weapon group of an activation, which
+# is the only case this Stratagem is about, arrives with killer_squad None.
+# Reported: "Pinpoint counter offensive stratagem wird nie angeboten".
+def pin_ctrl(dec=None):
+    return pinpoint.PinpointCounterOffensiveController(
+        strat_controller(), turn_tracker=montka_turn(),
+        decision_manager=dec if dec is not None else DecisionManager(),
+        game_log=tk.Log(), auto_players=())
+
+
+with settings_as(**MONTKA_ON):
+    _p = pin_ctrl()
+    c.true("an unattributed death opens nothing on the spot",
+           not _p.notify_unit_destroyed(strike, None))
+    c.true("...and does not silently drop it either", _p._owed == [strike])
+    c.true("the after-activation hook supplies the killer and offers it",
+           _p.maybe_offer(orks))
+    c.eq("...to the owner of the unit that died", _p.decision_manager.player, HUMAN)
+    _p.decision_manager.choose(0)
+    c.true("...and accepting marks the KILLER, army-wide", _p.applies(strike, orks))
+    c.true("the owed list is drained, so a later attacker is not blamed too",
+           _p._owed == [] and not _p.maybe_offer(falcon))
+
+    # A killer that IS known at sweep time still works, unchanged - that is the
+    # path the reported game did hit (a Piranha destroyed mid-activation).
+    _p2 = pin_ctrl()
+    c.true("a death WITH a killer is offered immediately",
+           _p2.notify_unit_destroyed(strike, orks))
+
+    # An owed death does not outlive its phase.
+    _p3 = pin_ctrl()
+    _p3.notify_unit_destroyed(strike, None)
+    _p3.reset_phase()
+    c.true("reset_phase() forgets an unattributed death",
+           not _p3.maybe_offer(orks))
+
+    # TWO units wiped in one sweep: a single shared _pending slot was written
+    # at request() time, so the second prompt overwrote the first and the first
+    # answer marked the wrong enemy. The killer rides in the option's closure.
+    _p4 = pin_ctrl()
+    _second = tk.build(STRIKE_TEAM, HUMAN, name="1 Strike Team 77")
+    _p4.notify_unit_destroyed(strike, orks)
+    _p4.notify_unit_destroyed(_second, falcon)
+    _first_options = _p4.decision_manager.options
+    c.true("the first prompt is still the first unit's",
+           "1 Strike Team 1" in _p4.decision_manager.prompt)
+    _p4.decision_manager.choose(0)
+    c.true("...and answering it marks ITS killer, not the later one",
+           _p4.applies(strike, orks) and not _p4.applies(strike, falcon))
+
 
 # -- Focused Fire (two units, one target) ---------------------------------
 def focused_ctrl(battle_round=2, tokens=None):
@@ -1046,6 +1424,8 @@ c.true("...and the +1 AP in the weapon chain",
 # -- wiring ----------------------------------------------------------------
 for needle, label in [
     ("AggressiveMobilityController(", "Aggressive Mobility is built"),
+    ("marker_beacon_controller = MarkerBeaconController(",
+     "Marker Beacon is NOT on the proactive panel registry"),
     ("CombatDebarkationController(", "Combat Debarkation is built"),
     ("FocusedFireController(", "Focused Fire is built"),
     ("PinpointCounterOffensiveController(", "Pinpoint Counter-Offensive is built"),
@@ -1056,6 +1436,20 @@ for needle, label in [
     ("fight_controller.pinpoint_counter_offensive = pinpoint_controller",
      "...and the fight one"),
     ("pinpoint_controller.notify_unit_destroyed(", "Pinpoint is fed from the death sweep"),
+    # ...and ANSWERED where the attacker is known. The sweep half alone is what
+    # made this Stratagem look wired while never firing: it hands over None for
+    # exactly the deaths the rule is about.
+    ("pinpoint_controller.maybe_offer(shooter_squad)",
+     "Pinpoint is answered when a shooting activation ends"),
+    ("pinpoint_controller.maybe_offer(_fighter)",
+     "...and when a melee one does - its WHEN is \"any phase\""),
+    ("pinpoint_controller.reset_phase()", "an unattributed death expires with the phase"),
+    # Marker Beacon is an end-of-Movement-phase OFFER, not a panel button:
+    # objective control is only recomputed at a phase boundary, so a mid-phase
+    # button could never see ground taken by the move that just happened.
+    ("marker_beacon_controller.offer_at_end_of_movement_phase(mover_before)",
+     "Marker Beacon is offered at the end of the Movement phase"),
+    ("marker_beacon_controller.reset_phase()", "...and its window is one boundary wide"),
     ("pulse_onslaught_controller.offer_after_shooting", "Pulse Onslaught is offered after shooting"),
     ("counterfire_defence_controller,", "Counterfire joins the target reactions"),
     ("pulse_onslaught_controller.expire(", "shaken expires by deadline, not on a boundary"),
@@ -1105,29 +1499,85 @@ far_held = BeaconObjective("Objective Far", 10.0, 90.0, controlled_by=HUMAN)
 enemy_held = BeaconObjective("Objective Theirs", 10.0, 11.0, controlled_by="Player 2")
 
 
-def beacon_ctrl(objectives):
-    return beacon.MarkerBeaconController(
+def beacon_ctrl(objectives, armed_for=HUMAN):
+    """Its WHEN is a phase BOUNDARY, so the window its own offer opens is what
+    makes can_use() answer - not turn_tracker.phase. See game/phase_window.py.
+    """
+    ctrl = beacon.MarkerBeaconController(
         strat_controller(), turn_tracker=turn_at(PHASE_MOVEMENT),
         objectives=objectives, all_tokens=[m for m in pathfinders.models],
         decision_manager=None, game_log=tk.Log())
+    if armed_for is not None:
+        ctrl._window.arm(armed_for)
+    return ctrl
 
 
 ctrl = beacon_ctrl([held, far_held, enemy_held])
 c.eq("only an objective this unit holds AND stands on is offered",
      [o.name for o in ctrl.controllable_objectives(pathfinders)], ["Objective Held"])
 with settings_as(**AAC2_ON):
-    c.true("offered in the Movement phase", ctrl.can_use(pathfinders))
+    c.true("offered at the end of the Movement phase", ctrl.can_use(pathfinders))
     c.true("not to a unit the rule does not name",
            not beacon_ctrl([held]).can_use(strike))
     # Never offer what buys nothing.
     c.true("not offered with no controlled objective in range",
            not beacon_ctrl([far_held, enemy_held]).can_use(pathfinders))
+    c.true("...and not at all outside the window its offer opened",
+           not beacon_ctrl([held, far_held, enemy_held], armed_for=None)
+           .can_use(pathfinders))
     c.true("buying it works", ctrl.use(pathfinders))
     c.eq("the objective is secured for this player", held.secured_by, HUMAN)
     c.true("...and it is not offered again", not ctrl.can_use(pathfinders))
 with settings_as(**AAC2_OFF):
     c.true("nothing without the detachment",
            not beacon_ctrl([enemy_held]).can_use(pathfinders))
+
+# THE BUG THIS BLOCK COULD NOT SEE. Everything above hands the controller
+# objectives whose controlled_by is already set. In a real game
+# Objective.controlled_by is recomputed ONLY in advance_turn_phase() (rule
+# 14.02), so a button drawn DURING the Movement phase reads the board as it
+# stood before anything moved - and "walk onto an objective and nail it down",
+# the one case this Stratagem exists for, was unreachable. Reported:
+# "Stratagem marker beacon wird nie angeboten".
+from game.objectives import Objective as _RealObjective  # noqa: E402
+from game.terrain import EXPOSED as _EXPOSED, Obstacle as _RealObstacle  # noqa: E402
+from game.terrain import TerrainArea as _RealArea  # noqa: E402
+
+_walkers = tk.build(PATHFINDER_TEAM, HUMAN, name="1 Pathfinder Team 9")
+_real_obj = _RealObjective(
+    _RealArea([_RealObstacle(18.0, 18.0, 4.0, 4.0, category=_EXPOSED)]),
+    name="Objective Taken")
+_tokens9 = list(_walkers.models)
+
+
+def _beacon9():
+    return beacon.MarkerBeaconController(
+        strat_controller(), turn_tracker=turn_at(PHASE_MOVEMENT),
+        objectives=[_real_obj], all_tokens=_tokens9,
+        decision_manager=DecisionManager(), game_log=tk.Log(), auto_players=())
+
+
+with settings_as(**AAC2_ON):
+    tk.line_up(_walkers, 40.0, 40.0)
+    _real_obj.update_control(_tokens9)        # the Command-phase boundary
+    tk.line_up(_walkers, 19.0, 19.0)          # it MOVES onto the objective
+    _mid = _beacon9()
+    _mid._window.arm(HUMAN)
+    c.true("mid-phase the control snapshot is still stale, so nothing is offered",
+           not _mid.can_use(_walkers))
+    _real_obj.update_control(_tokens9)        # main.py:3191, at the boundary
+    _end = _beacon9()
+    c.true("the end-of-Movement-phase offer sees the objective it just took",
+           _end.offer_at_end_of_movement_phase(HUMAN))
+    c.eq("...and asks the player whose Movement phase ended",
+         _end.decision_manager.player, HUMAN)
+    c.true("...naming the unit, tagged for a board pick",
+           any(o["label"] == _walkers.name and o["squad"] is _walkers
+               for o in _end.decision_manager.options))
+    _end.decision_manager.choose(0)
+    c.eq("...and accepting secures it (rule 14.03)", _real_obj.secured_by, HUMAN)
+    c.true("the other player is never offered it",
+           not _beacon9().offer_at_end_of_movement_phase("Player 2"))
 
 # It is the first caller of a hook that was written and left waiting.
 obj_src = io.open("game/objectives.py", encoding="utf-8").read()

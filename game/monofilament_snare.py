@@ -142,7 +142,7 @@ class MonofilamentSnareController:
         self.decision_manager.request(
             squad.owner,
             "%s: %s - which unit is snared?" % (squad.name, MONOFILAMENT_SNARE_LABEL),
-            [(target.name, (lambda t=target: self.snare(t, squad.owner)))
+            [(target.name, (lambda t=target: self.snare(t, squad.owner)), target)
              for target in candidates],
         )
 

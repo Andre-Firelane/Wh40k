@@ -75,10 +75,16 @@ def returnable_models(squad):
 class CurseOfTheWalkingPoxController:
     """Tallies kills during the unit's attacks, spends them afterwards."""
 
-    def __init__(self, game_log=None, game_state=None, position_valid=None):
+    def __init__(self, game_log=None, game_state=None, position_valid=None,
+                 placer=None):
         self.game_log = game_log
         self.game_state = game_state
         self.position_valid = position_valid
+        # ReturnPlacementController (game/return_placement.py). Rule
+        # 01.02.03 makes a returning model SET UP, so a human sets it up;
+        # an owner in auto_players still lands on the spot computed here.
+        # Optional, so a caller that hands none over keeps the older path.
+        self.placer = placer
         self._credit = {}   # id(poxwalker squad) -> kills owed
 
     def _log(self, message, file_only=False):
@@ -114,7 +120,25 @@ class CurseOfTheWalkingPoxController:
 
     def resolve_after_attacks(self, squad):
         """"after this unit has resolved its attacks". Returns the models that
-        really came back."""
+        really came back.
+
+        NOBODY IS ASKED, and unlike several of its neighbours that is correct
+        rather than an oversight - it was checked, so the next reader does not
+        have to check it again. The printed text does say "you CAN return one
+        destroyed POXWALKER model", which normally means a human decides. Both
+        halves of that decision are inert here:
+
+          * WHETHER - a returned model arrives with full wounds and costs
+            nothing, so declining is never better. One rational answer, and
+            offering it would be the "never offer what buys nothing" mistake
+            (Fehlerklasse 5).
+          * WHICH - POXWALKERS is a single-model-line datasheet, so every
+            returnable model is identical. There is nothing to tell apart.
+
+        WHAT IS STILL TAKEN FROM THE PLAYER is WHERE they stand:
+        returning_positions() picks that for everyone. That is the model-return
+        placement work, and it is the same gap in all eight abilities that put
+        a model back on the board."""
         owed = self._credit.pop(id(squad), 0)
         if owed <= 0:
             return []
@@ -127,12 +151,16 @@ class CurseOfTheWalkingPoxController:
         # model that finds nowhere legal is simply not returned - "you CAN
         # return one" - which is the same call grot_orderly.py makes.
         spots = returning_positions(squad, candidates, position_valid=self._valid_for)
-        returned = []
-        for model, spot in zip(candidates, spots):
-            if spot is None:
-                continue
-            model_return.set_up_model(model, spot, game_state=self.game_state)
-            returned.append(model)
+        if self.placer is not None:
+            returned = self.placer.place(squad, candidates, spots,
+                                         validator=self._valid_for)
+        else:
+            returned = []
+            for model, spot in zip(candidates, spots):
+                if spot is None:
+                    continue
+                model_return.set_up_model(model, spot, game_state=self.game_state)
+                returned.append(model)
         if returned:
             self._log(f"Curse of the Walking Pox ({squad.name}): {len(returned)} "
                       f"Poxwalker(s) shamble back into the unit.")

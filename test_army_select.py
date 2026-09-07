@@ -38,6 +38,7 @@ pygame.init()
 pygame.display.set_mode((1600, 900))
 
 from game import army_lists, config, loadout, maps, scene_io, sprites  # noqa: E402
+from game.ui import army_select, tile_screen as ts  # noqa: E402
 from game.ui.army_select import ArmySelectScreen  # noqa: E402
 from testkit import Checks  # noqa: E402
 
@@ -55,7 +56,19 @@ def _read(path):
 print("\n=== 1. the list registry ===")
 
 keys = [entry.key for entry in army_lists.ARMY_LISTS]
-c.eq("five lists on offer", keys, ["aeldari", "orks", "necrons", "tau", "death_guard"])
+c.eq("eight lists on offer", keys,
+     ["aeldari", "orks", "necrons", "tau", "tau_montka",
+      "tau_retaliation", "tau_recon", "death_guard"])
+# FIVE FACTIONS, SIX LISTS - the first time any faction here has more than one,
+# which is what the two-step "pick a people, then a list" flow was built for and
+# had only ever been measured against a made-up registry.
+c.eq("...across five factions", len(army_lists.factions()), 5)
+c.eq("...and the T'au have four of them",
+     [e.key for e in army_lists.lists_for("T'AU EMPIRE")],
+     ["tau", "tau_montka", "tau_retaliation", "tau_recon"])
+c.true("every other faction still has exactly one",
+       all(len(army_lists.lists_for(f.key)) == 1
+           for f in army_lists.factions() if f.key != "T'AU EMPIRE"))
 c.eq("every list is reachable by key", sorted(army_lists.BY_KEY), sorted(keys))
 
 # The tile's own text: name / logo / detachment, per the user's description of
@@ -66,7 +79,11 @@ c.eq("every list is reachable by key", sorted(army_lists.BY_KEY), sorted(keys))
 # recorded as a PIN rather than skipped, so dropping the files in later is a
 # visible one-line change here instead of a silent one, exactly as the Necron
 # and Aeldari "no sprite" pins were before their art arrived.
-LISTS_WITHOUT_ART = {"DEATH GUARD"}
+# Death Guard's badge arrived last and emptied this set - the pin did its job
+# and turned over. Kept as a set rather than deleted: it is where the next
+# faction shipped ahead of its art goes, and an empty one is the claim that
+# every fieldable list has a badge today.
+LISTS_WITHOUT_ART = set()
 for entry in army_lists.ARMY_LISTS:
     c.true(f"{entry.name} names a detachment", bool(entry.detachment))
     c.true(f"{entry.name} names its army rule", bool(entry.army_rule))
@@ -75,6 +92,8 @@ for entry in army_lists.ARMY_LISTS:
         c.true(f"{entry.name} has NO badge yet - art not uploaded", not has_badge)
     else:
         c.true(f"{entry.name}'s badge resolves to a file on disk", has_badge)
+c.eq("every army list has badge art, so GameStatusPanel never needs a monogram",
+     LISTS_WITHOUT_ART, set())
 
 # An unknown key is refused loudly rather than falling through to a default -
 # the failure mode that guard exists for is "the game silently fielded a
@@ -98,23 +117,27 @@ print("\n=== 2. any list, any player ===")
 # class 17, which test_player1_army.py has now been bitten by twice.
 EXPECTED = {
     # key: (units after 19.01 merging, models, points)
-    # Still 20 list entries after the Shroud Runners -> Windriders swap (one
-    # datasheet out, one in), but a unit FEWER: the Warlock Skyrunner used to
-    # stand alone because its JOIN names WINDRIDERS and the list fielded none,
-    # and now it merges into them. Models are unchanged (3 out, 3 in); the
-    # points drop is only the transcription's own Shroud Runners 90 -> Windriders 80.
-    "aeldari": (12, 74, 1890),   # 20 list entries, SIX attachments merged
+    # Revised again on 2026-09-01 (user: "Falcon raus / Shining Spears raus /
+    # Avatar of Khaine rein"): two entries out and one in, so 20 list entries
+    # become 19 and the unit count falls with it - the Avatar has no LEADER
+    # line, so unlike the Warlock Skyrunner before him he adds a unit rather
+    # than merging into one. Models 74 - 1 (Falcon) - 3 (Spears) + 1 = 71, and
+    # the army gets DEARER by 20 despite losing an entry: 250 for the Avatar
+    # against the 230 the two departing entries cost between them.
+    "aeldari": (11, 71, 1910),   # 19 list entries, SIX attachments merged
     "orks": (14, 103, 1935),     # 17 list entries, three attachments merged
     "necrons": (9, 68, 2020),    # 15 list entries, SIX attachments merged
     # Replaced wholesale on 2026-08-30 by the list the user supplied: out go
     # the Ghostkeel, the Strike Team, the Coldstar + Starscythes and Farsight +
     # Sunforges, in come Shadowsun, an Ethereal, a second Fireblade and
     # Breacher Team, the Broadsides, Kroot Hounds, a second Pathfinder Team,
-    # two Piranhas, a second Stealth team and the Vespid. It is also the only
-    # list here fielding TWO detachments (Kauyon + Advanced Acquisition Cadre)
-    # and the only one that buys no Enhancement - the supplied list names none,
+    # two Piranhas, a second Stealth team and the Vespid. It was the first
+    # list here to field TWO detachments (Kauyon + Advanced Acquisition Cadre)
+    # - the Aeldari list does too now - and it is still the only one that buys
+    # no Enhancement at all: the supplied list names none,
     # so 2030 is its units and nothing else.
-    "tau": (19, 94, 2030),       # 21 list entries, TWO attachments merged
+    "tau": (18, 76, 2165),       # 21 list entries, THREE attachments merged,
+                                 # and the first list here that buys Enhancements
 }
 for key, (units, models, points) in EXPECTED.items():
     for owner in ("Player 1", "Player 2"):
@@ -183,6 +206,72 @@ c.eq("a Necron mirror gives BOTH players the detachment",
 
 
 # --------------------------------------------------------------------------
+# Helpers for the sections below, now that picking an army is TWO questions
+# (user: "erst waehlt man das Volk und dann kommen die verschiedenen Listen zur
+# Auswahl. also in 2 Stufen").
+# --------------------------------------------------------------------------
+def list_screen(lists=None, defaults=None, faction=None):
+    """A screen already past the FACTION question.
+
+    Most of what follows is about what a LIST tile looks like, and that is step
+    two now. Answering step one here keeps those sections testing the thing
+    they were written for instead of testing the new step by accident."""
+    screen = ArmySelectScreen(lists=lists, defaults=defaults)
+    screen.choose(faction if faction is not None else screen.items[0].key)
+    return screen
+
+
+def multi_list_faction(count=5, base_key="orks"):
+    """`count` lists that all belong to ONE faction.
+
+    The shape the user has since created: the T'au now ship TWO lists (Kauyon
+    and Mont'ka), which is what section 4c below drives. This helper stays for
+    the cases a real pair cannot reach - the PAGER needs more tiles than one
+    page holds, and the shared cell size needs several lists to share it - so
+    the geometry is still measured against several lists of one faction rather
+    than against several factions.
+
+    Registered in BY_KEY because everything a tile needs goes through the real
+    registry: preview_squads() builds the units and detachments.points_for()
+    prices the detachments. They reuse the base list's builder, so these are
+    genuine buildable lists, not stubs."""
+    base = army_lists.get(base_key)
+    made = []
+    for index in range(count):
+        entry = army_lists.ArmyList(
+            f"{base_key}_variant_{index}", f"{base.name} List {index + 1}",
+            base.faction_keyword, base.army_rule, base.detachments, base.build,
+            force_disposition=base.force_disposition,
+        )
+        army_lists.BY_KEY[entry.key] = entry
+        made.append(entry)
+    return made
+
+
+def many_factions(count):
+    """`count` lists that each belong to a DIFFERENT faction.
+
+    The mirror of multi_list_faction(): that one grows step TWO, this one grows
+    step ONE. Needed since the faction step became a grid - five real factions
+    now fit on one page at every supported resolution, so the only way to reach
+    its pager at all is to invent more factions.
+
+    They reuse the base list's builder and go into BY_KEY like the other
+    helper's do, so they are genuine buildable lists rather than stubs."""
+    base = army_lists.get("orks")
+    made = []
+    for index in range(count):
+        entry = army_lists.ArmyList(
+            f"faction_{index}", f"Faction {index + 1}",
+            f"MADE UP FACTION {index}", base.army_rule, base.detachments, base.build,
+            force_disposition=base.force_disposition,
+        )
+        army_lists.BY_KEY[entry.key] = entry
+        made.append(entry)
+    return made
+
+
+# --------------------------------------------------------------------------
 # 4. The two steps - and the human answers both of them
 # --------------------------------------------------------------------------
 print("\n=== 4. two steps, one human ===")
@@ -190,13 +279,16 @@ print("\n=== 4. two steps, one human ===")
 screen = ArmySelectScreen(defaults={"Player 1": "aeldari", "Player 2": "necrons"})
 c.eq("it opens on Player 1", screen.current_player, "Player 1")
 c.true("it is not done yet", not screen.done)
-c.true("step 1 tells the player how to choose", "Click a list" in screen.hint())
+# Step one is the FACTION now (user: "erst waehlt man das Volk und dann
+# kommen die verschiedenen Listen zur Auswahl. also in 2 Stufen").
+c.true("step 1 tells the player how to choose", "Click a faction" in screen.hint())
+c.true("...and says a second question follows", "lists come next" in screen.hint())
 
 screen.choose("orks")
 c.eq("after the first pick it asks Player 2", screen.current_player, "Player 2")
 c.eq("Player 1's pick is recorded", screen.choices["Player 1"], "orks")
 # The user's clarification, pinned as a check: the human picks for the AI.
-c.true("step 2 says the human picks the AI's list too",
+c.true("Player 2's first step says the human picks for the AI",
        "AI's list too" in screen.hint() and "never chooses its own" in screen.hint())
 
 screen.back()
@@ -224,11 +316,192 @@ c.true("the screen cannot reach an agent",
 
 
 # --------------------------------------------------------------------------
+# 4b. The FACTION step - the new first half of each player's turn
+# --------------------------------------------------------------------------
+print("\n=== 4b. the faction step ===")
+
+from game.ui.army_select import STAGE_FACTION, STAGE_LIST  # noqa: E402
+
+# The grouping is DERIVED from ArmyList.faction_keyword and named from the
+# Faction the rules already carry - never written down a second time.
+factions = army_lists.factions()
+c.eq("one entry per faction that has a list",
+     [f.key for f in factions],
+     ["AELDARI", "ORKS", "NECRONS", "T'AU EMPIRE", "DEATH GUARD"])
+c.eq("...in ARMY_LISTS order, so adding a list cannot reshuffle the tiles",
+     [f.key for f in factions],
+     list(dict.fromkeys(e.faction_keyword for e in army_lists.ARMY_LISTS)))
+c.true("each carries its display name", all(f.name and f.name != f.key for f in factions))
+c.true("...its badge", all(sprites.faction_logo_path(f.faction_keyword) for f in factions))
+c.true("...and its army rule", all(f.army_rule for f in factions))
+c.eq("every list is reachable through exactly one faction",
+     sorted(e.key for f in factions for e in f.lists),
+     sorted(e.key for e in army_lists.ARMY_LISTS))
+c.eq("lists_for names one faction's lists", [e.key for e in army_lists.lists_for("ORKS")], ["orks"])
+c.eq("faction_of goes the other way", army_lists.faction_of("tau"), "T'AU EMPIRE")
+
+# A faction with SEVERAL lists is the shape that is coming, and the grouping
+# has to hold it - checked against a real multi-list faction rather than
+# against today's one-each registry, which would pass either way.
+grouped = army_lists.factions(multi_list_faction(3))
+c.eq("three lists of one faction group into ONE tile", len(grouped), 1)
+c.eq("...carrying all three", len(grouped[0].lists), 3)
+
+# The four steps, in order.
+steps = ArmySelectScreen()
+c.eq("it opens on Player 1's FACTION", (steps.current_player, steps.stage),
+     ("Player 1", STAGE_FACTION))
+c.eq("...offering factions, not lists", [i.key for i in steps.items], [f.key for f in factions])
+steps.choose("ORKS")
+c.eq("then Player 1's LIST", (steps.current_player, steps.stage), ("Player 1", STAGE_LIST))
+c.eq("...offering only that faction's lists", [i.key for i in steps.items], ["orks"])
+c.eq("...and no list is recorded yet", steps.choices.get("Player 1"), None)
+steps.choose("orks")
+c.eq("only then is Player 1's list recorded", steps.choices["Player 1"], "orks")
+c.eq("...and it moves to Player 2's FACTION", (steps.current_player, steps.stage),
+     ("Player 2", STAGE_FACTION))
+steps.choose("NECRONS")
+steps.choose("necrons")
+c.true("done after four answers", steps.done)
+c.eq("both players fielded what was picked", steps.choices,
+     {"Player 1": "orks", "Player 2": "necrons"})
+
+# BACK walks one STEP, which is the whole point of splitting the question.
+walk = ArmySelectScreen()
+walk.choose("ORKS")
+walk.back()
+c.eq("Back from a list step returns to the faction", walk.stage, STAGE_FACTION)
+c.eq("...and forgets that faction", walk.factions_chosen.get("Player 1"), None)
+walk.choose("AELDARI")
+c.eq("...so another faction can be picked", [i.key for i in walk.items], ["aeldari"])
+c.eq("Back at the very first step does nothing", ArmySelectScreen().back(), False)
+
+# Changing faction after a list was already recorded must DROP that list -
+# otherwise Back-then-forward finishes with an Ork faction and an Aeldari list.
+swap = ArmySelectScreen()
+swap.choose("orks")            # answers both of Player 1's steps
+swap.back()                    # back to Player 1's list step
+swap.back()                    # back to Player 1's faction step
+swap.choose("AELDARI")
+c.eq("re-picking a faction clears the list under it", swap.choices.get("Player 1"), None)
+c.eq("...and offers the new faction's lists", [i.key for i in swap.items], ["aeldari"])
+
+# A key from the wrong step is refused rather than stored.
+wrong = ArmySelectScreen()
+try:
+    wrong.select("orks")
+    c.true("a list key is refused at the faction step", False)
+except KeyError:
+    c.true("a list key is refused at the faction step", True)
+wrong.choose("ORKS")
+try:
+    wrong.select("NECRONS")
+    c.true("a faction key is refused at the list step", False)
+except KeyError:
+    c.true("a faction key is refused at the list step", True)
+
+# choose(list) still answers BOTH steps in one call - what --army1, a saved
+# scene and the headless harnesses rely on, and the reason the click path could
+# be split in two without touching any of them.
+short = ArmySelectScreen()
+short.choose("death_guard")
+c.eq("a list key answers both questions at once", short.choices["Player 1"], "death_guard")
+c.eq("...recording the faction it belongs to", short.factions_chosen["Player 1"], "DEATH GUARD")
+c.eq("...and moving on to the next player", short.current_player, "Player 2")
+# ...from EITHER step, and across factions: the shortcut rewinds first. This is
+# also the case that used to recurse for ever, because army_lists.get() lower
+# cases and "AELDARI" lands on "aeldari".
+across = ArmySelectScreen()
+across.choose("ORKS")
+across.choose("aeldari")
+c.eq("the shortcut works from the list step too", across.choices["Player 1"], "aeldari")
+c.eq("...replacing the faction that was on screen", across.factions_chosen["Player 1"], "AELDARI")
+
+# The faction step draws: badge, name, list count, and NO portrait grid.
+faction_screen = ArmySelectScreen()
+faction_tiles = faction_screen.layout(SCREEN_RECT)
+c.true("a faction tile carries no portrait grid",
+       all(not t.cells and not t.section_labels for t in faction_tiles))
+c.true("faction tiles are inside the screen",
+       all(SCREEN_RECT.contains(t.rect) for t in faction_tiles))
+c.true("...and do not overlap",
+       all(not a.rect.colliderect(b.rect)
+           for i, a in enumerate(faction_tiles) for b in faction_tiles[i + 1:]))
+c.true("...and are shorter than a list tile, having less to show",
+       faction_tiles[0].rect.height < list_screen().layout(SCREEN_RECT)[0].rect.height)
+faction_surface = pygame.Surface(SCREEN_RECT.size)
+faction_screen.draw(faction_surface, (2, 2))
+c.true("the faction step really draws something",
+       any(faction_surface.get_at((x, y))[:3] != faction_surface.get_at((2, 2))[:3]
+           for x in range(faction_tiles[0].rect.x, faction_tiles[0].rect.right, 7)
+           for y in range(faction_tiles[0].rect.y, faction_tiles[0].rect.bottom, 7)))
+
+# --------------------------------------------------------------------------
+# 4c. A faction with TWO REAL lists
+# --------------------------------------------------------------------------
+print("\n=== 4c. the T'au have two lists ===")
+
+# The two-step flow was built for "ich habe vor pro Volk mehrere listen
+# anzulegen" and had nothing but multi_list_faction() to grow until now. The
+# T'au ship two: Kauyon and Mont'ka, the same twenty-one entries under
+# different detachments.
+_tau_lists = army_lists.lists_for("T'AU EMPIRE")
+c.eq("the T'au offer four lists",
+     [e.key for e in _tau_lists],
+     ["tau", "tau_montka", "tau_retaliation", "tau_recon"])
+c.eq("...with different names, or the second step would show four of the same",
+     len({e.name for e in _tau_lists}), 4)
+# Read off .detachment - the FIRST of each list's tuple - because the Recon list
+# is the first anywhere to field THREE detachments at once, and a tile, a log
+# line and a saved scene all want a single name.
+c.eq("...and different lead detachments",
+     [e.detachment for e in _tau_lists],
+     ["Kauyon", "Mont'ka", "Retaliation Cadre", "Advanced Acquisition Cadre"])
+# THREE, not four: the Prototypes list was retired on user request, and it was
+# the only one declaring Disruption - so Death Trap is dormant again. Named
+# rather than quietly relaxed; test_force_dispositions.py carries the same fact
+# on the mission side.
+c.eq("...and THREE different Primary Missions between them",
+     len({e.force_disposition for e in _tau_lists}), 3)
+
+# The screen really offers both at step two, and picking the second answers
+# with the second - which is the whole point of splitting the question.
+_two = ArmySelectScreen()
+_two.select("T'AU EMPIRE")
+_two.confirm()
+c.eq("picking the T'au leads to all of their lists",
+     [e.key for e in _two._step_items()],
+     ["tau", "tau_montka", "tau_retaliation", "tau_recon"])
+_two.select("tau_montka")
+_two.confirm()
+c.eq("...and choosing the second one is what the player gets",
+     _two.choices.get("Player 1"), "tau_montka")
+
+# Back from the list step returns to the faction step, which is the reason the
+# two are separate steps at all - and now has something to go back FOR.
+_two.back()
+c.eq("Back returns to that faction's list step",
+     [e.key for e in _two._step_items()],
+     ["tau", "tau_montka", "tau_retaliation", "tau_recon"])
+_two.back()
+c.eq("...and again to the factions",
+     [e.key for e in _two._step_items()],
+     [f.key for f in army_lists.factions()])
+
+# The one-call shortcut still answers both questions at once, which is what
+# --army1, a snapshot and the ten harnesses use.
+_short = ArmySelectScreen()
+_short.choose("tau_montka")
+c.eq("choose() still answers straight through to the second list",
+     _short.choices.get("Player 1"), "tau_montka")
+
+
+# --------------------------------------------------------------------------
 # 5. Tiles: name/logo/detachment, and one portrait per unit
 # --------------------------------------------------------------------------
 print("\n=== 5. tile layout ===")
 
-screen = ArmySelectScreen()
+screen = list_screen(lists=multi_list_faction())
 tiles = screen.layout(SCREEN_RECT)
 c.eq("one tile per list", len(tiles), 3)
 c.true("every tile is inside the screen", all(SCREEN_RECT.contains(t.rect) for t in tiles))
@@ -261,19 +534,29 @@ for tile in tiles:
 # Charaktere von den Squads trennen, weil jetzt sieht man auf dem ersten Blick
 # schlecht, welche Squads da in der Liste sind").
 #
-# The Aeldari list is the case that motivated it: five of its thirteen units
-# are attached (19.01), and an attached unit's single portrait is its
-# CHARACTER, so before the split those five mobs were invisible.
-aeldari_tile = next(t for t in tiles if t.entry.key == "aeldari")
+# The Aeldari list is the case that motivated it: six of its eleven units are
+# attached (19.01), and an attached unit's single portrait is its CHARACTER,
+# so before the split those six mobs were invisible.
+# Its own screen, on the AELDARI faction: the tiles above are five lists of one
+# faction, which is what the pager and the shared cell size need, and this is
+# about one specific list's contents.
+aeldari_screen = list_screen(faction="AELDARI")
+aeldari_tile = next(t for t in aeldari_screen.layout(SCREEN_RECT)
+                    if t.entry.key == "aeldari")
 character_labels = [e.label for e in aeldari_tile.characters]
 squad_labels = [e.label for e in aeldari_tile.units]
-# Eight, not the five attached leaders alone: the Avatar-style standalone
-# characters count too, and Warlock Skyrunners is a one-model CHARACTER unit
-# that belongs here rather than under SQUADS.
-c.eq("every attached leader is listed as a character", len(character_labels), 8)
+# NINE, not the six attached leaders alone: a standalone character counts too,
+# and Warlock Skyrunners is a one-model CHARACTER unit that belongs here rather
+# than under SQUADS. The ninth is the Avatar of Khaine, and he is the reason
+# this pair of numbers moved in OPPOSITE directions when the list lost an
+# entry: he replaced two SQUAD entries (Falcon, Shining Spears) with a
+# CHARACTER one, so the split shifted 12/8 -> 10/9.
+c.eq("every attached leader is listed as a character", len(character_labels), 9)
 c.true("...naming them by datasheet, not by squad id",
        "Farseer" in character_labels and "Eldrad Ulthran" in character_labels)
-c.eq("...and every unit is listed as a squad", len(squad_labels), 12)
+c.true("...including a standalone character with no LEADER line",
+       "Avatar of Khaine" in character_labels)
+c.eq("...and every unit is listed as a squad", len(squad_labels), 10)
 c.true("the mobs the characters lead are now visible in their own right",
        {"Guardian Defenders", "Storm Guardians", "Dire Avengers",
         "Howling Banshees", "Warp Spiders"} <= set(squad_labels))
@@ -282,7 +565,8 @@ c.true("a bodyguard is never filed as a character",
 
 # A standalone CHARACTER unit belongs in the character column even though it
 # was never attached to anything - which is what the keyword is read for.
-necron_tile = next(t for t in tiles if t.entry.key == "necrons")
+necron_tile = next(t for t in list_screen(faction="NECRONS").layout(SCREEN_RECT)
+                   if t.entry.key == "necrons")
 necron_characters = [e.label for e in necron_tile.characters]
 # The C'tan Shard is the ONLY one left after the list revision - it is the
 # one Necron character with no printed LEADER line, so it can never merge.
@@ -328,19 +612,33 @@ c.true("...and the tiles are the same height", len({t.rect.height for t in tiles
 # The grid fills the tile rather than leaving it mostly empty - the first
 # version capped cells at 88 px and left the bottom two thirds of a
 # 900 px-tall tile blank.
-tallest = max(tiles, key=lambda t: len(t.cells))
+#
+# THE SUBJECT IS THE TILE WITH THE MOST SQUADS, not the one with the most
+# cells, and that is the same distinction _cell_size() spells out: the
+# CHARACTER rows are reserved at the page maximum for every tile, so a tile is
+# as tall as "everyone's character rows + its own squad rows" and the tile that
+# reaches the bottom is whichever has the most squad ROWS. This check named the
+# most-cells tile and passed anyway for as long as the two happened to be the
+# same tile - with 12 Aeldari squads and 14 Ork ones at 5 columns both came to
+# 3 rows. Dropping the Falcon and the Shining Spears took the Aeldari list to
+# 10 squads (2 rows) and broke the coincidence, leaving that tile legitimately
+# 108 px short at the bottom. Same species of latent test bug the layout's own
+# comment records, and fixed the same way: ask the question the layout answers.
+tallest = max(tiles, key=lambda t: len(t.units))
 lowest_cell = max(r.bottom for r, _e in tallest.cells)
-c.true("the fullest tile's portraits reach its bottom edge",
-       tallest.rect.bottom - lowest_cell <= 40)
+c.eq(f"the fullest tile ({tallest.entry.key}) reaches its bottom edge",
+     tallest.rect.bottom - lowest_cell <= 40, True)
 # Relative to the tile, not an absolute pixel count: the test window is
 # smaller than a real one, and the point is that a portrait is a picture
 # rather than an icon.
+# Keyed off the tiles on screen rather than a list name: these are now five
+# lists of ONE faction, so the keys are that faction's, not the registry's.
 c.true("portraits are a sizeable share of the tile",
-       cell_sizes["orks"] >= tiles[0].rect.width // 8)
+       cell_sizes[tiles[0].entry.key] >= tiles[0].rect.width // 8)
 
 # The cell size is derived, not fixed: a small window has to fit the same
 # number of units into a smaller tile.
-small = ArmySelectScreen()
+small = list_screen(lists=multi_list_faction())
 small_tiles = small.layout(pygame.Rect(0, 0, 1024, 720))
 c.true("a smaller window still fits every entry",
        all(len(t.cells) == len(t.characters) + len(t.units) for t in small_tiles))
@@ -353,8 +651,9 @@ c.true("...and still inside its tile",
 c.eq("a tile shows the list that will be fielded",
      [s.name for s in tiles[1].squads],
      [s.name for s in army_lists.preview_squads("orks", "Player 1")])
-# ...and for the player currently choosing, not for a fixed one.
-screen.choose("aeldari")
+# ...and for the player currently choosing, not for a fixed one. Any of this
+# faction's lists will do - the point is WHO the previews are built for.
+screen.choose(screen.items[0].key)
 p2_tiles = screen.layout(SCREEN_RECT)
 c.true("step 2's tiles are built for Player 2",
        all(s.owner == "Player 2" for t in p2_tiles for s in t.squads))
@@ -365,7 +664,9 @@ c.true("step 2's tiles are built for Player 2",
 # --------------------------------------------------------------------------
 print("\n=== 6. hover and click ===")
 
-screen = ArmySelectScreen()
+# Hit tests and hover are about LIST tiles - portraits only exist there - so
+# this runs on step two, with several lists of one faction on screen.
+screen = list_screen(lists=multi_list_faction())
 tiles = screen.layout(SCREEN_RECT)
 c.eq("tile_at finds the tile under the cursor", screen.tile_at(tiles[2].rect.center), 2)
 c.eq("tile_at outside every tile is None", screen.tile_at((2, 2)), None)
@@ -407,16 +708,34 @@ many = next(e for t in tiles for _r, e in t.cells if len(e.models) > 1)
 c.true("...and a multi-model one is still plural",
        screen._detail_lines(many)[0][1].startswith(f"{len(many.models)} models"))
 
-# A left click on a tile fields that list.
+# TWO BEATS. User: "erst auswaehlen, dann wird die entsprechende kachel
+# gehighlightet und dann auf den auswahl button unten druecken." A left click
+# SELECTS; only the footer button fields the list.
 screen.handle_event(
     pygame.event.Event(pygame.MOUSEBUTTONDOWN, {"pos": tiles[2].rect.center, "button": 1}),
     SCREEN_RECT)
-c.eq("clicking a tile picks that list", screen.choices.get("Player 1"), tiles[2].entry.key)
+c.eq("clicking a tile selects that list", screen.selected_key, tiles[2].entry.key)
+c.eq("...and fields nothing yet", screen.choices.get("Player 1"), None)
+c.eq("...so the step has not advanced", screen.current_player, "Player 1")
+screen.handle_event(
+    pygame.event.Event(pygame.MOUSEBUTTONDOWN, {"pos": tiles[0].rect.center, "button": 1}),
+    SCREEN_RECT)
+c.eq("clicking another moves the selection", screen.selected_key, tiles[0].entry.key)
+screen.draw(pygame.Surface(SCREEN_RECT.size), (2, 2))
+c.true("a confirm button appears once a list is selected", screen.footer.confirm is not None)
+screen.handle_event(
+    pygame.event.Event(pygame.MOUSEBUTTONDOWN,
+                       {"pos": screen.footer.confirm.center, "button": 1}),
+    SCREEN_RECT)
+c.eq("pressing Confirm fields the selected list",
+     screen.choices.get("Player 1"), tiles[0].entry.key)
+c.eq("...and the next player starts with nothing selected", screen.selected_key, None)
 
 # A right click goes back a step.
 screen.handle_event(pygame.event.Event(pygame.MOUSEBUTTONDOWN, {"pos": (5, 5), "button": 3}),
                     SCREEN_RECT)
 c.eq("right-click goes back", screen.current_player, "Player 1")
+c.eq("...and clears the selection it had", screen.selected_key, None)
 
 # Motion updates the hover without choosing anything.
 screen.handle_event(pygame.event.Event(pygame.MOUSEMOTION, {"pos": cell_rect.center}), SCREEN_RECT)
@@ -438,7 +757,9 @@ for label, event in (("ESC", pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K
 print("\n=== 7. drawing ===")
 
 surface = pygame.Surface(SCREEN_RECT.size)
-screen = ArmySelectScreen()
+# Step two again: the hover card is a portrait's, and portraits are on LIST
+# tiles. The faction step gets its own drawing checks in section 4b.
+screen = list_screen(lists=multi_list_faction())
 tiles = screen.layout(SCREEN_RECT)
 hover_rect = tiles[0].cells[0][0]
 screen.draw(surface, hover_rect.center)
@@ -462,7 +783,7 @@ c.true("the hovered portrait's detail card is drawn next to the cursor",
 # portrait has to differ exactly where the card was, so the card is genuinely
 # the hover's doing rather than something that is always there.
 plain = pygame.Surface(SCREEN_RECT.size)
-plain_screen = ArmySelectScreen()
+plain_screen = list_screen(lists=multi_list_faction())
 plain_screen.layout(SCREEN_RECT)
 plain_screen.draw(plain, (hover_rect.centerx, tiles[0].rect.bottom - 4))
 card_area = pygame.Rect(hover_rect.centerx + 24, hover_rect.centery + 24, 200, 40)
@@ -476,10 +797,10 @@ c.eq("...and nothing was hovered in that frame", plain_screen.hovered_entry, Non
 step2 = ArmySelectScreen()
 step2.choose("orks")
 step2.draw(pygame.Surface(SCREEN_RECT.size), (2, 2))
-c.true("step 2 offers a Back button", step2.back_rect is not None)
+c.true("step 2 offers a Back button", step2.footer.back is not None)
 step1 = ArmySelectScreen()
 step1.draw(pygame.Surface(SCREEN_RECT.size), (2, 2))
-c.eq("step 1 has nothing to go back to", step1.back_rect, None)
+c.eq("step 1 has nothing to go back to", step1.footer.back, None)
 
 
 # --------------------------------------------------------------------------
@@ -487,11 +808,14 @@ c.eq("step 1 has nothing to go back to", step1.back_rect, None)
 # --------------------------------------------------------------------------
 print("\n=== 7b. pagination ===")
 
-# This build ships three lists, so the pager is unreachable through the real
-# registry - and an unreachable feature is an untested one. The screen takes
-# its lists as an argument for exactly this: five entries, two pages.
-five = (list(army_lists.ARMY_LISTS) + list(army_lists.ARMY_LISTS))[:5]
-paged = ArmySelectScreen(lists=five)
+# Paging now belongs to STEP TWO, and that is the point of the change: the
+# first step lists five factions, the second lists one faction's lists, and it
+# is the second that will grow ("ich habe vor pro Volk mehrere listen
+# anzulegen"). So the pager is exercised against five lists of ONE faction -
+# the shape that is coming - rather than against five factions, which is what
+# it used to be and no longer says anything about a list pager.
+five = multi_list_faction()
+paged = list_screen(lists=five)
 c.eq("five lists make two pages", paged.page_count, 2)
 c.eq("it opens on the first page", paged.page, 0)
 
@@ -536,14 +860,14 @@ c.eq("the wheel pages too", paged.page, 1)
 paged.page = 0
 paged.draw(pygame.Surface(SCREEN_RECT.size), (2, 2))
 c.true("the pager draws both buttons",
-       paged.prev_rect is not None and paged.next_rect is not None)
+       paged.footer.prev is not None and paged.footer.next is not None)
 paged.handle_event(
-    pygame.event.Event(pygame.MOUSEBUTTONDOWN, {"pos": paged.next_rect.center, "button": 1}),
+    pygame.event.Event(pygame.MOUSEBUTTONDOWN, {"pos": paged.footer.next.center, "button": 1}),
     SCREEN_RECT)
 c.eq("clicking Next pages forward", paged.page, 1)
 c.eq("...and chooses nothing", paged.choices, {})
 paged.handle_event(
-    pygame.event.Event(pygame.MOUSEBUTTONDOWN, {"pos": paged.prev_rect.center, "button": 1}),
+    pygame.event.Event(pygame.MOUSEBUTTONDOWN, {"pos": paged.footer.prev.center, "button": 1}),
     SCREEN_RECT)
 c.eq("clicking Prev pages back", paged.page, 0)
 
@@ -554,7 +878,14 @@ paged.handle_event(
     pygame.event.Event(pygame.MOUSEBUTTONDOWN,
                        {"pos": paged.tiles[0].rect.center, "button": 1}),
     SCREEN_RECT)
-c.eq("a tile on a later page can be chosen",
+c.eq("a tile on a later page can be selected", paged.selected_key, five[3].key)
+# The selection SURVIVES paging - it is an answer, not a pointer position - and
+# the button names it, so confirming from another page is not a surprise.
+paged.turn_page(-1)
+c.eq("...and paging away does not lose it", paged.selected_key, five[3].key)
+c.true("...the confirm label names it", five[3].name in paged.confirm_label)
+paged.confirm()
+c.eq("...so it is the list that gets fielded",
      paged.choices.get("Player 1"), five[3].key)
 
 # With three lists there is one page and no pager chrome at all - checked
@@ -564,22 +895,23 @@ single = ArmySelectScreen(lists=army_lists.ARMY_LISTS[:3])
 single.draw(pygame.Surface(SCREEN_RECT.size), (2, 2))
 c.eq("three lists need no pager", single.page_count, 1)
 c.true("...so no pager buttons are drawn",
-       single.prev_rect is None and single.next_rect is None)
+       single.footer.prev is None and single.footer.next is None)
 c.eq("...and turning the page does nothing", single.turn_page(1), False)
 
-# How many tiles a page holds FOLLOWS THE WINDOW: a fixed count would either
-# waste a wide screen or cramp a narrow one, and both were measured.
-wide = ArmySelectScreen()
+# How many tiles a ROW holds FOLLOWS THE WINDOW: a fixed count would either
+# waste a wide screen or cramp a narrow one, and both were measured. This is
+# the LIST step, which is still one row of tall tiles - see 7c for the step
+# that stopped being a row.
+#
+# THESE CHECKS USED TO DRIVE THE FACTION STEP while sitting under a heading
+# that says paging "now belongs to STEP TWO". They do now.
+wide = list_screen(lists=multi_list_faction())
 wide_tiles = wide.layout(pygame.Rect(0, 0, 1920, 1080))
 c.eq("a 1920-wide screen fits four tiles per page", wide.tiles_per_page, 4)
-# The FIFTH list is what finally makes the pager real in an actual game. The
-# machinery has been here since the army-select screen was built, but until now
-# it could only be exercised against an artificial registry - so this line
-# changing from 1 to 2 is the moment it went live, not a regression.
 c.eq("...and five lists need a second page", wide.page_count, 2)
 c.true("...and the tiles are still large", wide_tiles[0].rect.width >= 400)
 
-narrow = ArmySelectScreen()
+narrow = list_screen(lists=multi_list_faction())
 narrow_tiles = narrow.layout(pygame.Rect(0, 0, 1366, 768))
 c.eq("a 1366-wide screen fits three", narrow.tiles_per_page, 3)
 c.eq("...and pages the fourth", narrow.page_count, 2)
@@ -588,21 +920,150 @@ c.true("...without the tiles dropping below the readable width",
 c.true("...and every portrait still inside its tile",
        all(t.rect.contains(r) for t in narrow_tiles for r, _e in t.cells))
 
-# Never more than four across, however wide the screen: past that a list is
-# easier to compare by paging than by scanning.
-huge = ArmySelectScreen()
+# Never more than four ACROSS, however wide the screen: past that an item is
+# easier to compare by paging than by scanning sideways.
+huge = list_screen(lists=multi_list_faction())
 huge.layout(pygame.Rect(0, 0, 3840, 2160))
 c.eq("a very wide screen still shows at most four", huge.tiles_per_page, 4)
 
 # A page index left over from a wider window must not survive into a narrower
 # one - it would index past the end and show an empty screen.
-shrunk = ArmySelectScreen(lists=(list(army_lists.ARMY_LISTS) + list(army_lists.ARMY_LISTS))[:5])
+shrunk = list_screen(lists=multi_list_faction())
 shrunk.layout(pygame.Rect(0, 0, 1920, 1080))
 shrunk.turn_page(1)
 c.eq("paged to the last page on a wide screen", shrunk.page, 1)
 shrunk.layout(pygame.Rect(0, 0, 1024, 720))
 c.true("a narrower window clamps the page rather than showing nothing",
        shrunk.page < shrunk.page_count and len(shrunk.tiles) > 0)
+
+
+# --------------------------------------------------------------------------
+# 7c. The faction step is a GRID, so its pager arrives much later
+# --------------------------------------------------------------------------
+print("\n=== 7c. the faction grid ===")
+
+# User: "bei der volkauswahl im pregame ist jetzt viel verschwendeter platz,
+# weil die volk kacheln sehr klein sind. die koennen sich in einem grid
+# anordnen statt nur nebeneinander. so sollte die paginierung dann erst sehr
+# spaet einsetzen."
+for width, height, want_columns in ((1920, 1080, 4), (1366, 768, 3), (1280, 720, 2)):
+    grid = ArmySelectScreen()
+    tiles = grid.layout(pygame.Rect(0, 0, width, height))
+    xs = sorted({t.rect.x for t in tiles})
+    ys = sorted({t.rect.y for t in tiles})
+    want_rows = -(-5 // want_columns)
+    c.eq(f"{width}x{height}: the same column count a row would have had",
+         len(xs), want_columns)
+    c.eq(f"...and the five factions WRAP onto {want_rows} rows", len(ys), want_rows)
+    c.eq(f"...all on one page ({width})", grid.page_count, 1)
+    c.true(f"...tiles do not overlap ({width})",
+           all(not a.rect.colliderect(b.rect)
+               for i, a in enumerate(tiles) for b in tiles[i + 1:]))
+    c.true(f"...and every one is inside the band ({width})",
+           all(ts.tile_area(pygame.Rect(0, 0, width, height)).contains(t.rect)
+               for t in tiles))
+
+# The grid BLOCK is centred in the band rather than pinned to the top. Pinned,
+# a short grid reads as one row nailed to the ceiling over a void - which is
+# the "verschwendeter platz" being reported.
+centred = ArmySelectScreen()
+tiles = centred.layout(pygame.Rect(0, 0, 1600, 900))
+band = ts.tile_area(pygame.Rect(0, 0, 1600, 900))
+top_gap = min(t.rect.y for t in tiles) - band.y
+bottom_gap = band.bottom - max(t.rect.bottom for t in tiles)
+c.true(f"the grid is centred vertically ({top_gap} vs {bottom_gap})",
+       abs(top_gap - bottom_gap) <= 1)
+
+# WHAT THE GRID BUYS, as the number the request asks for. Measured against the
+# single row it replaced: 4 across at 1920, so five factions paged.
+deep = ArmySelectScreen()
+deep.layout(pygame.Rect(0, 0, 1920, 1080))
+c.eq("five real factions no longer page at all", deep.page_count, 1)
+big = ArmySelectScreen(lists=many_factions(24))
+big.layout(pygame.Rect(0, 0, 1920, 1080))
+c.eq("...and neither do twenty-four", big.page_count, 1)
+c.true(f"...one page holds {big.tiles_per_page}, where a row held 4",
+       big.tiles_per_page > 4 * 2)
+huge_grid = ArmySelectScreen(lists=many_factions(60))
+huge_grid.layout(pygame.Rect(0, 0, 1920, 1080))
+c.true("the pager does still arrive eventually", huge_grid.page_count > 1)
+c.true("...and its pages are not empty",
+       len(huge_grid.layout(pygame.Rect(0, 0, 1920, 1080))) > 0)
+
+# The clamp, on the step that can now actually page.
+clamped = ArmySelectScreen(lists=many_factions(60))
+clamped.layout(pygame.Rect(0, 0, 1920, 1080))
+clamped.turn_page(1)
+clamped.layout(pygame.Rect(0, 0, 1024, 700))
+c.true("a faction page index is clamped into a narrower window",
+       clamped.page < clamped.page_count and len(clamped.tiles) > 0)
+
+# THE CARDS GREW, which is the other half of the sentence ("die volk kacheln
+# sehr klein"). Measured against the minimum the content needs, and against the
+# cap that keeps the growth carried by ART rather than by padding.
+grown = ArmySelectScreen()
+grown_tiles = grown.layout(pygame.Rect(0, 0, 1920, 1080))
+floor = grown._faction_tile_min_height()
+c.true(f"a faction card is taller than its bare content "
+       f"({grown_tiles[0].rect.height} > {floor})",
+       grown_tiles[0].rect.height > floor)
+c.true("...but not taller than a card holding the largest badge",
+       grown_tiles[0].rect.height
+       <= 2 * army_select.TILE_PAD + army_select.FACTION_LOGO_MAX_PX)
+c.true("...and still wider than it is tall, so it reads as a card",
+       grown_tiles[0].rect.width > grown_tiles[0].rect.height)
+
+# THE BADGE GROWS WITH THE CARD, measured on PIXELS. Without this the growth is
+# padding and the card becomes the "mostly empty space [that] reads as
+# something failing to load" this screen's own layout rule rules out - and the
+# A/B probe that pins the badge back at LOGO_PX came back 328/328, a finding
+# about this suite rather than about the code.
+grown_surface = pygame.Surface((1920, 1080))
+grown.draw(grown_surface, (-1, -1))
+badge_tile = grown_tiles[0].rect
+# The VERTICAL extent of ink in a column exactly LOGO_PX wide at the card's
+# left edge. Both halves of that matter: the name starts at
+# TILE_PAD + logo_px + 14, so a column this narrow can only ever contain the
+# badge whatever size it is drawn at - the first version of this check used a
+# FACTION_LOGO_MAX_PX-wide band, caught the name, and passed with the badge
+# pinned back at LOGO_PX. And the vertical extent is what separates the two
+# sizes; horizontally these logos are a few px narrower than tall.
+badge_x = badge_tile.x + army_select.TILE_PAD
+badge_ys = [y
+            for y in range(badge_tile.y + 1, badge_tile.bottom - 1)
+            for x in range(badge_x, badge_x + army_select.LOGO_PX)
+            if grown_surface.get_at((x, y))[:3] not in
+            (army_select.BG_COLOR, ts.TILE_BG_COLOR, ts.TILE_BORDER_COLOR)]
+badge_px = (max(badge_ys) - min(badge_ys) + 1) if badge_ys else 0
+c.true(f"the badge grew with the card ({badge_px}px, printed size is {army_select.LOGO_PX})",
+       badge_px > army_select.LOGO_PX)
+c.true("...without exceeding its own cap",
+       badge_px <= army_select.FACTION_LOGO_MAX_PX)
+# The counter-check: it must still FIT the card, or "bigger" would be satisfied
+# by art spilling over the card's edges.
+c.true("...and stays inside the card",
+       badge_px <= badge_tile.height - 2 * army_select.TILE_PAD)
+# The growth is "use what is left over", not "always be big": a page carrying
+# four rows gets much shorter cards than a page carrying two, and they stay off
+# the cap. MEASURED rather than asserted as "exactly the floor" - four rows of
+# the minimum still leave 76px of an 1280x720 band over, and those get shared
+# out, so the floor is a lower bound and not the answer.
+tight = ArmySelectScreen(lists=many_factions(24))
+tight_tiles = tight.layout(pygame.Rect(0, 0, 1280, 720))
+tight_h = tight_tiles[0].rect.height
+c.true(f"a deep page gets shorter cards than a shallow one "
+       f"({tight_h} < {grown_tiles[0].rect.height})",
+       tight_h < grown_tiles[0].rect.height)
+c.true("...at or above the minimum", tight_h >= tight._faction_tile_min_height())
+c.true("...and nowhere near the cap",
+       tight_h < 2 * army_select.TILE_PAD + army_select.FACTION_LOGO_MAX_PX)
+# ...and the rows it does use FILL the band, which is the point of growing at
+# all. Within one row gap, because the height is an integer share.
+tight_rows = len(sorted({t.rect.y for t in tight_tiles}))
+band720 = ts.tile_area(pygame.Rect(0, 0, 1280, 720))
+spent = tight_rows * tight_h + ts.TILE_GAP * (tight_rows - 1)
+c.true(f"...while filling the band ({spent} of {band720.height})",
+       band720.height - spent <= tight_rows)
 
 
 # --------------------------------------------------------------------------
@@ -620,8 +1081,11 @@ def _line_of(pattern):
 
 c.true("main() runs the selection screen", "ArmySelectScreen(defaults=armies).run(screen)" in main_src)
 c.true("...gated on config.ARMY_SELECT", "if config.ARMY_SELECT and not config.LOAD_SCENE:" in main_src)
-c.true("...and abandoning it closes the program",
-       re.search(r"if chosen is None:\s*\n\s*pygame\.quit\(\)\s*\n\s*return", main_src) is not None)
+# See test_map_select.py's twin of this check: main() is ONE BATTLE now, so a
+# screen that is abandoned answers the menu with QUIT and run() - the
+# application loop around main() - is what closes the window.
+c.true("...and abandoning it answers the menu's QUIT",
+       re.search(r"if chosen is None:\s*\n\s*return game_menu_module\.QUIT", main_src) is not None)
 c.true("main() writes the detachment settings from the choice",
        "army_lists.apply_to_config(armies)" in main_src)
 c.true("main() builds each player's chosen list",
@@ -750,5 +1214,86 @@ finally:
 
 c.eq("capture without armies stays silent",
      "armies" in scene_io.capture(_EmptyState(), "map2"), False)
+
+
+# --------------------------------------------------------------------------
+# 7d. the tile HEADER: nothing overlaps, nothing runs out the side
+# --------------------------------------------------------------------------
+print(chr(10) + "=== 7d. the tile header ===")
+
+# User, with a screenshot: "Oben ueberlagert sich text". Two faults in one
+# picture, and 352 checks saw neither, because nothing here had ever measured
+# the header:
+#   * the NAME is wrapped, but the height assumed a flat four lines - so
+#     "T'au Empire (Prototypes)" on a four-tile page pushed the three lines
+#     under it into the summary line;
+#   * the detachment and disposition lines were not wrapped at all, so
+#     "Auxiliary Cadre + Experimental Prototype Cadre (2 DP)" simply ran out
+#     past the tile's own edge into its neighbour.
+# The T'au page is the reported case: four lists, so four tiles, so the
+# narrowest a list tile gets.
+from game.ui.army_select import (  # noqa: E402
+    LOGO_PX, LOGO_TEXT_GAP, TILE_PAD as _TILE_PAD,
+)
+
+# 1920x1080 on purpose, not this file's usual 1600x900: four tiles fit there,
+# which is the page the user photographed and the narrowest a list tile gets.
+HDR_RECT = pygame.Rect(0, 0, 1920, 1080)
+hdr_screen = ArmySelectScreen()
+hdr_screen.select("T'AU EMPIRE")
+hdr_screen.confirm()
+hdr_tiles = hdr_screen.layout(HDR_RECT)
+c.eq("the T'au page shows all four lists side by side", len(hdr_tiles), 4)
+
+over_edge = []
+into_summary = []
+for tile in hdr_tiles:
+    text_width = hdr_screen._header_text_width(tile.rect.width)
+    blocks = hdr_screen._header_blocks(tile.entry, text_width)
+    for font, _colour, lines in blocks:
+        for line in lines:
+            if font.size(line)[0] > text_width:
+                over_edge.append((tile.entry.key, line))
+    # Where the header's text really ends, against where the summary line
+    # starts (grid_top - label height - 8, see _draw_tile).
+    text_bottom = tile.rect.y + _TILE_PAD + hdr_screen._blocks_height(blocks)
+    summary_top = (hdr_screen._grid_top(tile)
+                   - hdr_screen.label_font.get_height() - 8)
+    if text_bottom > summary_top:
+        into_summary.append((tile.entry.key, text_bottom - summary_top))
+
+c.eq("no header line runs out past its tile", over_edge, [])
+c.eq("...and none of them reaches the summary line", into_summary, [])
+
+# The reported case was "T'au Empire (Prototypes)", whose tile name wraps at
+# this width - which is what makes the case worth pinning rather than hoping.
+# That list has since been retired, so this takes the LONGEST name on the page
+# instead of naming one: the assertion is about a name that wraps, not about
+# which list happens to own it. It used to be guarded with `if proto:`, which
+# meant it quietly measured nothing the moment that list went away.
+longest = max(hdr_tiles, key=lambda t: len(t.entry.name))
+name_lines = hdr_screen._header_blocks(
+    longest.entry, hdr_screen._header_text_width(longest.rect.width))[0][2]
+c.true("the longest list name on the page really does wrap here (%r)"
+       % longest.entry.name, len(name_lines) > 1)
+
+# The height REACTS to that: a name that wraps costs a line, and the header
+# grows by one rather than letting the block below it run over.
+one_line = hdr_screen._header_height(hdr_screen.items, 4000)
+c.true("a wide column needs a shorter header than a narrow one",
+       one_line < hdr_screen._header_height(
+           hdr_screen.items, hdr_screen._header_text_width(hdr_tiles[0].rect.width)))
+
+# Every tile on the page starts its grid at the SAME y - that is what makes two
+# lists comparable side by side, and it is why the height is a page-wide
+# worst case rather than each tile's own.
+c.eq("every tile starts its grid at the same height",
+     len(set(hdr_screen._grid_top(t) - t.rect.y for t in hdr_tiles)), 1)
+
+# The text column leaves room for the badge whether or not the art exists - a
+# tile whose text starts somewhere else because a file is missing is worse
+# than a little empty space.
+c.eq("the text column is the tile minus its padding and the badge",
+     hdr_screen._header_text_width(400), 400 - 2 * _TILE_PAD - (LOGO_PX + LOGO_TEXT_GAP))
 
 c.finish()

@@ -39,7 +39,7 @@ fires from a move, and the only moves that reach it belong to whoever is
 moving. The reactor is by construction not that player, which the owner
 comparison already establishes.
 """
-from game import enhancements
+from game import ai_mode, enhancements
 from game.squad import edge_distance
 
 HIGHER_DUTY = "Higher Duty"
@@ -72,7 +72,7 @@ class HigherDutyController:
         self.decision_manager = decision_manager
         self.turn_tracker = turn_tracker
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self.all_tokens = all_tokens
         self._moving_squad = None
         self._restore_active = None

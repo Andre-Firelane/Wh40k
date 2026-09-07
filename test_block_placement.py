@@ -140,7 +140,7 @@ def test_group_drag():
 
     before = [(m.x_in, m.y_in) for m in squad.models]
     spread_before = _spread(squad)
-    setup.begin_group_drag()
+    setup.begin_drag()
     setup.apply_group_drag(3.0, 0.0)
     after = [(m.x_in, m.y_in) for m in squad.models]
 
@@ -159,7 +159,7 @@ def test_group_drag():
           all(abs(a[0] - b[0]) < 1e-9 for a, b in zip(again, after)))
 
     # Dragging into the board edge is clamped for the WHOLE block, not sheared.
-    setup.begin_group_drag()
+    setup.begin_drag()
     setup.apply_group_drag(0.0, -1000.0)
     edge = [(m.x_in, m.y_in) for m in squad.models]
     edge_offsets = {round(a[1] - b[1], 4) for a, b in zip(edge, again)}
@@ -173,7 +173,7 @@ def test_group_drag():
 
     # A drag that cannot move at all leaves the block exactly where it was.
     frozen = [(m.x_in, m.y_in) for m in squad.models]
-    setup.begin_group_drag()
+    setup.begin_drag()
     setup.apply_group_drag(0.0, -1000.0)
     check("a fully blocked drag is a no-op, not a scramble",
           all(abs(a[0] - b[0]) < 0.2 and abs(a[1] - b[1]) < 0.2
@@ -291,7 +291,7 @@ def test_toggle_semantics():
     check("precondition: the squad really is stacked and illegal",
           bool(stacked.check_model_overlap(state.tokens)))
     setup.block_placement_enabled = True
-    setup.begin_group_drag()
+    setup.begin_drag()
     before = [(m.x_in, m.y_in) for m in stacked.models]
     setup.apply_group_drag(2.0, 0.0)
     after = [(m.x_in, m.y_in) for m in stacked.models]

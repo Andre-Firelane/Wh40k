@@ -33,7 +33,7 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 import testkit as tk  # noqa: E402
 from fetch_datasheet_rules import FACTIONS, normalise_name  # noqa: E402
-from game.weapons import MELEE  # noqa: E402
+from game.weapons import MELEE, printed_keywords  # noqa: E402
 from verify_rules_vs_engine import (  # noqa: E402
     engine_weapon_stats, printed_weapons, read_corpus, same_value, weapon_pairs,
 )
@@ -147,5 +147,134 @@ for label, weapon_cls, want in (
 ):
     checks.eq("%s rolls %s for Damage" % (label, want),
               describe(weapon_cls.damage_notation), want)
+
+
+print("--- 5. every weapon's KEYWORDS match its printed row ---")
+
+# Reported: "in den weapon info tabellen im overlay fehlen die keywords (zb
+# twin linked oder sustained hits)". Putting the two keyword columns side by
+# side to build that display found FIVE genuine engine differences, in exactly
+# the shape section 1 found thirteen: the Corsair Voidscarred's paired
+# Hekatarii blades were not [TWIN-LINKED] and so re-rolled nothing, the
+# Defiler's ectoplasma destructor was not [BLAST], Jain Zar's Silent Death
+# carried an [ANTI-INFANTRY 3+] that belongs to her Blade alone, the Myphitic
+# Blight-hauler's krak missile had a [LETHAL HITS] its row does not print, and
+# The Twin Lance's XV pulse pistol was [PISTOL] on the strength of its name.
+#
+# ENFORCED rather than reported for the same reason as section 1: no standing
+# decision makes a weapon keyword deviate from the printed sheet, and after the
+# fixes the only differences left are the four named below.
+
+# "BLAST" and "BLAST 1" are the same printed keyword - plain [BLAST] is X=1
+# (WeaponProfile.blast says so), and the corpus spells it both ways (52 rows
+# bare, one with the 1). A spelling, not a difference.
+def keyword_set(cell):
+    out = set()
+    for keyword in cell.split(","):
+        keyword = keyword.strip().lower()
+        if keyword == "blast 1":
+            keyword = "blast"
+        if keyword:
+            out.add(keyword)
+    return out
+
+
+KEYWORD_EXCEPTIONS = {
+    # Datasheet-specific weapon abilities this engine deliberately does not
+    # model - each documented as unmodeled where its weapon is defined. They
+    # are left OFF the card on purpose: every keyword it prints is one the
+    # engine actually enforces, and printing these would promise a rule no
+    # code applies.
+    "Dread Klaw": "printed 'dead choppy'; NOT engine-wired (see game/factions/orks.py)",
+    "Stikka Kannon": "printed 'snagged'; NOT engine-wired (see its own profile's note)",
+    "Prism Cannon - Focused Lances": "printed 'linked fire'; NOT engine-wired",
+    # One printed keyword naming two target keywords at once. The engine models
+    # it as the two separate [ANTI-X] entries it is, which resolves
+    # identically (best threshold wins, and both are 3+) - so this is how it is
+    # SPELLED, not what it does.
+    "Song of Waning": "printed 'anti-MONSTER/VEHICLE 3+'; engine holds the two entries separately",
+}
+
+keyword_compared = 0
+keyword_diffs = []
+seen_keyword_exceptions = set()
+
+for folder, _slug, faction in FACTIONS:
+    for sheet_name, sheet in sorted(faction.datasheets.items()):
+        key = (folder, normalise_name(sheet_name))
+        if key not in corpus:
+            continue
+        _path, text = corpus[key]
+        printed_rows = printed_weapons(text)
+        for weapon_cls, _profile_cls in weapon_pairs(sheet):
+            is_melee = weapon_cls.weapon_type == MELEE
+            row = printed_rows.get((is_melee, normalise_name(weapon_cls.name)))
+            if row is None or "Keywords" not in row:
+                continue
+            keyword_compared += 1
+            printed = keyword_set(row["Keywords"])
+            engine = keyword_set(", ".join(printed_keywords(weapon_cls)))
+            if printed == engine:
+                continue
+            if weapon_cls.name in KEYWORD_EXCEPTIONS:
+                seen_keyword_exceptions.add(weapon_cls.name)
+                continue
+            keyword_diffs.append("%s/%s %s: printed [%s], engine [%s]"
+                                 % (folder, sheet_name, weapon_cls.name,
+                                    ", ".join(sorted(printed)) or "-",
+                                    ", ".join(sorted(engine)) or "-"))
+
+# Guards the guard, exactly as section 1 does: a sweep that stopped finding
+# weapons would report zero differences and read as a pass.
+checks.true("the sweep actually compared a real number of keyword columns (>500)",
+            keyword_compared > 500)
+checks.eq("no weapon's keywords differ from its printed row",
+          sorted(keyword_diffs), [])
+checks.eq("every named keyword exception still applies to something",
+          sorted(set(KEYWORD_EXCEPTIONS) - seen_keyword_exceptions), [])
+
+print("--- 6. the five weapons the keyword sweep fixed ---")
+
+# Pinned by name, so these survive any later narrowing of the sweep above.
+import game.weapons as _wp  # noqa: E402
+
+for label, weapon_cls, want in (
+        ("Corsair Voidscarred's paired Hekatarii blades", _wp.PairedHekatariiBladesProfile,
+         ["TWIN-LINKED"]),
+        ("Jain Zar's Silent Death", _wp.SilentDeathProfile, ["ASSAULT"]),
+        ("...and her Blade of Destruction keeps the ANTI", _wp.BladeOfDestructionProfile,
+         ["ANTI-INFANTRY 3+"]),
+        ("Defiler's ectoplasma destructor", _wp.EctoplasmaDestructorProfile,
+         ["BLAST", "LETHAL HITS"]),
+        ("Blight-hauler's krak missile", _wp.MissileLauncherKrakProfile, []),
+        ("...and its frag half, which is the one that prints [BLAST]",
+         _wp.MissileLauncherFragProfile, ["BLAST"]),
+        ("Twin Lance's XV pulse pistol", _wp.XvPulsePistolProfile, ["RAPID FIRE 2"]),
+):
+    checks.eq("%s prints %s" % (label, want or "nothing"),
+              printed_keywords(weapon_cls), want)
+
+print("--- 7. how printed_keywords spells them ---")
+
+# The valued keywords are the ones whose printed form is not a constant, so
+# each is pinned at the point where it could be spelled wrong.
+checks.eq("ANTI-X reads its threshold, and a weapon carrying two prints two",
+          printed_keywords(_wp.BeastSnaggaKlawProfile),
+          ["ANTI-MONSTER 4+", "ANTI-VEHICLE 4+"])
+checks.eq("a dice [SUSTAINED HITS X] prints the DIE, not the placeholder int",
+          [k for k in printed_keywords(_wp.WailingDoomProfile) if k.startswith("SUSTAINED")],
+          ["SUSTAINED HITS D3"])
+# Alphabetical, because that is the printed order - all 35 distinct
+# multi-keyword rows in rules/*.md are sorted.
+mixed = printed_keywords(_wp.KombiWeaponProfile)
+checks.eq("keywords come out alphabetically, as the sheet prints them",
+          mixed, sorted(mixed))
+checks.true("...and that is more than one keyword, so the order means something",
+            len(mixed) > 1)
+# The counter-check: a weapon with none prints none. Without it every
+# assertion above would hold on a formatter that invents keywords for
+# everything.
+checks.eq("a weapon with no keywords prints none",
+          printed_keywords(_wp.CloseCombatWeaponProfile), [])
 
 checks.finish()

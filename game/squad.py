@@ -38,6 +38,95 @@ def edge_distance(a, b):
     return max(0.0, center_dist - a.radius_in - b.radius_in)
 
 
+def coherency_probe(models, moving):
+    """`f(x_in, y_in) -> bool`: would 09.02 still hold with `moving` there?
+
+    THE SAME RULE Squad.check_coherency() enforces, asked one position at a
+    time - not a "has some neighbour within 2 inches" stand-in. That weaker
+    question is exactly the bug check_coherency() was rewritten to fix: two
+    mutually-coherent sub-clusters satisfy every model individually while the
+    unit has split in half. So this answers CONNECTIVITY.
+
+    WHY IT IS A PROBE AND NOT A PREDICATE. The green/red placement overlay asks
+    this for thousands of points, and the drag clamp asks it once per bisection
+    step. Everything except `moving` stands still while it is being dragged, so
+    the components of the REST of the unit are computed once, here, and each
+    point then only has to ask which of them it touches - O(components) instead
+    of rebuilding the graph per point.
+
+    Coherent means: dropping `moving` at (x, y) leaves ONE connected group, so
+    it must touch EVERY component the rest of the unit falls into. With the
+    rest already in one piece that is the familiar "within 2 inches of a
+    squadmate"; with the rest in two pieces it is the bridge that rejoins them,
+    which is the case a neighbour test gets wrong.
+
+    Dead models are excluded: remove_dead_models() runs once per frame, so a
+    corpse is still in `models` for the rest of this one (Fehlerklasse 12), and
+    a unit is not held together by a model that is not there."""
+    others = [m for m in models if m is not moving and not m.is_dead()]
+    if not others:
+        return lambda x_in, y_in: True
+
+    unvisited = list(others)
+    components = []
+    while unvisited:
+        seed = unvisited.pop()
+        group, frontier = [seed], [seed]
+        while frontier:
+            current = frontier.pop()
+            for other in list(unvisited):
+                if edge_distance(current, other) <= COHERENCY_RANGE_IN:
+                    unvisited.remove(other)
+                    group.append(other)
+                    frontier.append(other)
+        components.append(group)
+
+    radius = moving.radius_in
+
+    def _probe(x_in, y_in):
+        for group in components:
+            if not any(((x_in - m.x_in) ** 2 + (y_in - m.y_in) ** 2) ** 0.5
+                       - radius - m.radius_in <= COHERENCY_RANGE_IN
+                       for m in group):
+                return False        # this piece would be left behind
+        return True
+
+    return _probe
+
+
+def widest_pair(models):
+    """(distance, a, b) for the two models furthest apart edge to edge, or None
+    for fewer than two.
+
+    Rule 09.02's 9" spread half is this number compared against MAX_SPREAD_IN.
+    Extracted because a third consumer arrived: Squad.check_coherency() decides
+    the RULE with it, coherency.coherency_report() explains a breach with it,
+    and the line-drag readout has to show it CLIMBING - the player is told
+    7.3" of 9.0" while there is still time to redraw, rather than being handed
+    a rejection at Confirm."""
+    if len(models) <= 1:
+        return None
+    return max(
+        ((edge_distance(a, b), a, b)
+         for i, a in enumerate(models)
+         for b in models[i + 1:]),
+        key=lambda item: item[0],
+    )
+
+
+def spread_headroom(squad):
+    """(widest_in, MAX_SPREAD_IN) for a unit the 9" half applies to, else None.
+
+    Reads spread_limit_applies() rather than config.SPREAD_LIMIT_PLAYERS
+    directly, so a unit the house rule was lifted for is never warned about a
+    limit it does not have - the same gate check_coherency() and
+    coherency_report() already mirror, for the same reason."""
+    if not spread_limit_applies(squad):
+        return None
+    pair = widest_pair(squad.models)
+    return (0.0 if pair is None else pair[0], MAX_SPREAD_IN)
+
+
 def model_engaged_with(model, other_squad):
     """Rule 12.02: is this specific model within Engagement Range of
     other_squad - unlike Squad.is_engaged_with, which only needs one model
@@ -459,6 +548,7 @@ class Squad:
         # turn" and are cleared with ere_we_go_active/fights_first.
         self.swift_as_the_wind_active = False  # add 2" to this unit's Move characteristic - read by game/coldstar.py's effective_movement_in()
         self.star_engines_active = False       # this unit's ranged weapons have [ASSAULT] - read by game/coldstar.py's weapon_has_assault()
+        self.montka_killing_blow = False       # Mont'ka's Killing Blow: this unit's ranged weapons have [ASSAULT] in the detachment's battle rounds - read by game/coldstar.py's weapon_has_assault(), which is handed only (weapon, squad) and so cannot ask the round question itself. Stamped once per phase change by game/montka.py's refresh_killing_blow(); the flag exists for the same reason star_engines_active above does, one rule higher up
         self.flitting_shadows_active = False   # enemies cannot Fire Overwatch (15.08) at this unit - read by game/shooting.py's _is_valid_target_squad(), gated on Snap Shooting
         self.sudden_strike_active = False      # Pile-in/Consolidation moves may go 6" instead of 3" - read by game/pile_in.py and game/consolidate.py; phase lifetime, like swift_as_the_wind_active
         self.neocapacitor_shielded = False  # The Twin Lance's Neocapacitor Shields: -1 to Charge rolls made for this unit "until the end of the turn" - see game/neocapacitor_shields.py. A unit-level flag like ere_we_go_active, and cleared in the same end-of-turn place
@@ -545,11 +635,13 @@ class Squad:
         # 231 pairs, and check_coherency() is called several times per
         # candidate placement by the AI's movement search.
         if spread_limit_applies(self):
-            max_dist = max(
-                edge_distance(a, b)
-                for i, a in enumerate(self.models)
-                for b in self.models[i + 1:]
-            )
+            # Through the shared widest_pair() so the rule, the diagnostic and
+            # the line-drag readout cannot disagree about one number. Measured
+            # before routing it: 1.01x on a 22-model unit, and the AI's
+            # movement search - the hot path this comment was worried about -
+            # never reaches here at all, because the gate above already skips
+            # the whole sweep for anyone the 9" half was lifted for.
+            max_dist = widest_pair(self.models)[0]
             if max_dist > MAX_SPREAD_IN:
                 errors.append(
                     f'The squad is spread too far apart (max {MAX_SPREAD_IN}" between any two models).'

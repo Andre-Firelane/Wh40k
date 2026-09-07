@@ -3,7 +3,7 @@ import copy
 from game import attached_units, battle_focus, line_of_sight, status_effects
 from game.ard_as_nails import ARD_AS_NAILS_WOUND_PENALTY, ard_as_nails_wound_modifier_applies
 from game.damage_estimate import wound_threshold as _wound_threshold  # rule 05.02's S-vs-T table; moved to a leaf module so game/stim_injectors.py can reach it without an import cycle - re-exported here under its old private name for game/fight.py and ai/ (see game/damage_estimate.py's docstring)
-from game.damage_resolution import DamageAllocationSession, DevastatingWoundAllocationSession, MortalWoundAllocationSession, displayed_save_threshold
+from game.damage_resolution import DamageAllocationSession, DevastatingWoundAllocationSession, MortalWoundAllocationSession, displayed_save_threshold, save_is_impossible, AUTO_FAILED_SAVE
 from game.hazard import hazard_failures, hazard_mortal_wounds
 from game.dice import ATTACKS_ROLL, HIT_ROLL, SAVE_ROLL, SNAP_SHOT_HIT_ROLL, WOUND_ROLL
 from game.dice_notation import DiceNotation, DiceNotationRoll, describe as describe_dice_notation
@@ -24,7 +24,7 @@ from game import wave_serpent_shield
 from game.fire_support import FIRE_SUPPORT_LABEL
 from game.hand_of_asuryan import hand_of_asuryan_adjusted_weapon
 from game.notation_reroll import DamageRerollOffer
-from game.weapons import NON_MONSTER_VEHICLE
+from game.weapons import NON_MONSTER_VEHICLE, anti_entries
 from game import conditional_devastating_wounds
 from game import corsair_abilities
 from game import reavers_of_the_void
@@ -182,20 +182,11 @@ def _unit_has_keyword(squad, keyword):
     return any(getattr(m.profile, field, False) for m in squad.models)
 
 
-def _anti_entries(weapon):
-    """WeaponProfile.anti as a uniform sequence of (keyword, threshold).
-
-    It may be written either as a single tuple - ("VEHICLE", 4) - or as a
-    tuple of those, for a weapon that prints more than one [ANTI-X] at once
-    (the Beastboss's Beast Snagga klaw and Beastchoppa each carry
-    Anti-Monster 4+ AND Anti-Vehicle 4+). The single form is detected by its
-    second element being an int, which no nested form can be."""
-    anti = weapon.anti
-    if anti is None:
-        return ()
-    if len(anti) == 2 and isinstance(anti[1], int):
-        return (anti,)
-    return tuple(anti)
+#: Rule 24.03's [ANTI-X Y+] as a uniform sequence of (keyword, threshold).
+#: The definition lives in game/weapons.py beside the field it reads, because
+#: printed_keywords() is a second consumer of the same question - re-exported
+#: here so this module's own call site and its name are unchanged.
+_anti_entries = anti_entries
 
 
 def _wound_crit_threshold(weapon, target_squad):
@@ -752,11 +743,16 @@ class ShootingController:
 
         self.current_group = None    # the group currently being rolled
         self.pending_step = None     # "attacks" | "hit" | "wound" | "save" | "save_crit_ap" | "allocate" | None
+        # Set by _skip_impossible_save() when a Save roll was skipped because
+        # no model of the target could ever pass it; read and cleared by
+        # _check_allocation_done() so the log says so instead of listing dice
+        # that were never thrown.
+        self._save_not_rolled = None
         self.damage_session = None   # DamageAllocationSession while pending_step == "allocate"
         self.devastating_wound_session = None  # DevastatingWoundAllocationSession, rule 24.10
         self._devastating_crits = 0  # crits pulled out of the current wound roll for [DEVASTATING WOUNDS]
         self._pending_crit_ap_crits = 0  # critical wounds pulled out of the current wound roll for their own Save roll at a different AP - Cadre Fireblade's Crack Shot (override to -3) or Seer Council's Fate Inescapable (improve by 1); see game/crit_ap.py, _begin_crit_ap_save()
-        self._hazardous_count = 0  # distinct [HAZARDOUS] weapon groups fired this activation, rule 24.15
+        self._hazardous_count = 0  # [HAZARDOUS] weapons FIRED this activation - one roll each, rule 24.15
         self._lethal_hits_auto_wounds = 0  # rule 24.23: hits chosen to auto-wound, folded into normal_wounds once the (possibly skipped) wound roll resolves
         self._twin_linked_used = False  # rule 24.38: whether this group's one-time re-roll offer has already been made/used
         self._pending_attacks_roll = None  # DiceNotationRoll while pending_step == "attacks" (a dice-notation Attacks characteristic, e.g. a printed "D6", rolled once per attacking model before the Hit roll can even start - see WeaponProfile.attacks_notation)
@@ -781,7 +777,7 @@ class ShootingController:
         self._pending_subgroups = []  # [(pairs, label_suffix), ...] still queued
         self._pending_subgroups_target_squad = None
         self._pending_subgroups_base_label = None
-        self._pending_subgroups_hazardous = False  # apply once, when the whole selection is done - not per sub-group
+        self._pending_subgroups_hazardous = 0  # how many [HAZARDOUS] weapons this selection fired; added once, not per sub-group
 
         self._weapon_side_lock = {}  # rule 24.07: model -> "close_quarters"/"other", once committed this activation
 
@@ -1111,7 +1107,7 @@ class ShootingController:
         self._pending_subgroups = []
         self._pending_subgroups_target_squad = None
         self._pending_subgroups_base_label = None
-        self._pending_subgroups_hazardous = False
+        self._pending_subgroups_hazardous = 0
         self._finish_activation()
 
     def _finish_activation(self):
@@ -1157,10 +1153,12 @@ class ShootingController:
         return None
 
     def _is_valid_target_squad(self, target_squad, all_tokens, attacking_squad=_UNSET, shooting_type=_UNSET):
-        """Rule 10.06: under Close-Quarters shooting, only enemy units your
-        unit is engaged with can be targeted. Every other shooting type
-        excludes engaged enemy units entirely (rule 03.04 already blocked
-        those from normal shooting). Rule 13.09: a unit that's entirely
+        """Rule 10.06: under Close-Quarters shooting, an INFANTRY shooter can
+        only target enemy units its own unit is engaged with, while a
+        MONSTER/VEHICLE unit may also shoot out of the melee at another enemy
+        unit (one that is not itself engaged - see the branch below). Every
+        other shooting type excludes engaged enemy units entirely (rule 03.04
+        already blocked those from normal shooting). Rule 13.09: a unit that's entirely
         Hidden and outside every one of the shooter's models' detection
         range can't be targeted at all. Rule 24.24 (LONE OPERATIVE): a unit
         with this ability "is not visible to enemy models unless they are
@@ -1206,7 +1204,30 @@ class ShootingController:
             return False
         if shooting_type == CLOSE_QUARTERS_SHOOTING:
             if not attacking_squad.is_engaged_with(target_squad):
-                return False
+                # Rule 10.06's MONSTER/VEHICLE clause: such a unit is NOT
+                # confined to the unit it is locked with - it can shoot out of
+                # the melee at a different enemy unit. Reported from a real
+                # game ("monster und fahrzeuge koennen aus dem nahkampf
+                # rausschiessen auf eine andere einheit"): an engaged C'tan
+                # Shard of the Void Dragon could only ever be pointed back at
+                # the unit it had charged.
+                #
+                # Everything else about that other unit is unchanged, which is
+                # why this repeats the `elif` below rather than skipping it:
+                # rule 03.04 keeps a unit that is itself locked in someone
+                # else's melee off the target list, for this shooting type
+                # exactly as for every other one.
+                #
+                # Deliberately NOT widened to a non-MONSTER/VEHICLE unit
+                # shooting its [CLOSE-QUARTERS]/[PISTOL] weapons while engaged:
+                # the report names monsters and vehicles, and those two are
+                # also the only units _weapon_eligible_for_type() lets fire a
+                # non-[CLOSE-QUARTERS] weapon here at all. Infantry keeps
+                # today's behaviour - it shoots the unit it is locked with.
+                if not is_monster_or_vehicle_unit(attacking_squad):
+                    return False
+                if target_squad.is_engaged(all_tokens):
+                    return False
         elif target_squad.is_engaged(all_tokens):
             return False
         # Rule 15.09 (Snap Shooting): "one visible enemy unit within 24\" of
@@ -1978,7 +1999,25 @@ class ShootingController:
         self._pending_subgroups = []
         self._pending_subgroups_target_squad = target_squad
         self._pending_subgroups_base_label = weapon_label
-        self._pending_subgroups_hazardous = bool(pairs) and pairs[0][1].hazardous
+        # Rule 24.15 ([HAZARDOUS]): "roll one D6 for each [HAZARDOUS] weapon
+        # that was used to make one or more of those attacks" - so this is a
+        # COUNT of weapons, not a flag for the group. `pairs` holds one entry
+        # per (model, weapon) and is already filtered by _can_reach(), so its
+        # length is exactly "the weapons that were used". A three-model
+        # Sunforge team with two Fusion Blasters each, plus an attached
+        # Commander with four, owes TEN rolls - it used to owe one per attack
+        # GROUP, which is two. Reported: "Hazardous bei den sunforge viel zu
+        # wenig ... fuer jede waffe, die abgefeuert wurde muss gewuerfelt
+        # werden".
+        #
+        # Asked of the ADJUSTED weapon, not the printed one: every other
+        # keyword this step reads comes off _adjusted_weapon()'s copy (see
+        # _crit_note()'s call at the hit step), and reading pairs[0][1] here
+        # meant a GRANTED [HAZARDOUS] - the third clause of Experimental
+        # Ammunition's richer mode - never counted at all.
+        self._pending_subgroups_hazardous = (
+            len(pairs) if pairs and self._adjusted_weapon(pairs, target_squad).hazardous
+            else 0)
 
         if not pairs or not target_squad.models or self.shooting_type == SNAP_SHOOTING:
             # Rule 15.09 (Snap Shooting) ignores every hit modifier,
@@ -2286,9 +2325,18 @@ class ShootingController:
         if self.guide is not None and self.guide.applies(shooter_model, target_squad):
             modifiers.append(Modifier(-1, "Guide"))
         if self.shooting_type == CLOSE_QUARTERS_SHOOTING and is_monster_or_vehicle_unit(self.active_squad):
+            # `targets_engaged_unit` was UNREACHABLE (always True) until
+            # _is_valid_target_squad() started letting a MONSTER/VEHICLE shoot
+            # out of the melee - this half of the condition was written from
+            # the printed rule and then had nothing to distinguish. It is live
+            # now, so the two ways of earning the malus get their own labels:
+            # a die that says "non-[CLOSE-QUARTERS] weapon" while the weapon
+            # plainly IS one sends the next investigation back to the board.
             targets_engaged_unit = self.active_squad.is_engaged_with(target_squad)
-            if not (is_close_quarters(weapon) and targets_engaged_unit):
+            if not is_close_quarters(weapon):
                 modifiers.append(Modifier(1, "Close-Quarters (non-[CLOSE-QUARTERS] weapon)"))
+            elif not targets_engaged_unit:
+                modifiers.append(Modifier(1, "Close-Quarters (target not engaged with this unit)"))
         # Strike Team's Suppression Volley ability (user-supplied, not a
         # core rule): "each time a model in that [suppressed] unit makes an
         # attack, subtract 1 from the Hit roll" - checked against the
@@ -3208,11 +3256,7 @@ class ShootingController:
             )
 
         elif self.pending_step == "save":
-            damage_weapon = melta_adjusted_weapon(weapon, group["pairs"], target_squad)
-            if self._precision_choice_needed(weapon, target_squad, group["pairs"]):
-                self._offer_precision_choice(rolls, damage_weapon, target_squad, group["pairs"], weapon_label, self.active_squad.owner)
-            else:
-                self._begin_damage_allocation(rolls, damage_weapon, target_squad, priority_group=None)
+            self._continue_after_save(rolls, weapon, target_squad, weapon_label, group)
 
         elif self.pending_step == "save_crit_ap":
             # Cadre Fireblade's own "Crack Shot" ability's own Save roll (see
@@ -3223,11 +3267,7 @@ class ShootingController:
             # so those adjustments make no difference to the outcome.
             crit_ap_weapon = crit_ap.adjusted_weapon(
                 weapon, group["pairs"][0][0], self.active_squad)
-            damage_weapon = melta_adjusted_weapon(crit_ap_weapon, group["pairs"], target_squad)
-            if self._precision_choice_needed(crit_ap_weapon, target_squad, group["pairs"]):
-                self._offer_precision_choice(rolls, damage_weapon, target_squad, group["pairs"], weapon_label, self.active_squad.owner)
-            else:
-                self._begin_damage_allocation(rolls, damage_weapon, target_squad, priority_group=None)
+            self._continue_after_save(rolls, crit_ap_weapon, target_squad, weapon_label, group)
 
         elif self.pending_step == "allocate":
             # The dice roll just acknowledged belongs to DamageAllocationSession
@@ -3698,6 +3738,13 @@ class ShootingController:
             # actually rolls it per failed save, see its own docstring.
             melta_weapon = melta_adjusted_weapon(weapon, self.current_group["pairs"], target_squad)
             damage_preview = None if melta_weapon.damage_notation is not None else melta_weapon.damage
+            if self._skip_impossible_save(target_squad, weapon, save_threshold, normal_wounds):
+                # No model of the target can pass this save, so there is no
+                # roll to make - see _skip_impossible_save().
+                self._continue_after_save(
+                    [AUTO_FAILED_SAVE] * normal_wounds, weapon,
+                    target_squad, weapon_label, self.current_group)
+                return
             self.dice_manager.roll(
                 count=normal_wounds, sides=6,
                 label=f"Save Roll: {weapon_label} ({normal_wounds} wound(s))",
@@ -4250,6 +4297,43 @@ class ShootingController:
             owner, f"{weapon_label}: [PRECISION] - prioritize a visible CHARACTER for allocation?", options,
         )
 
+    def _continue_after_save(self, rolls, weapon, target_squad, weapon_label, group):
+        """Everything that happens once a group's Save roll is settled.
+
+        One method because there are now two ways to get here: the roll was
+        acknowledged, or it was never made at all (_skip_impossible_save()).
+        [PRECISION] still has to be offered on the skipped path - the attacker
+        directing failed saves at a CHARACTER is a choice about WHERE the
+        wounds land, entirely independent of whether a die could have stopped
+        them - so the branch belongs here rather than at the acknowledgement."""
+        damage_weapon = melta_adjusted_weapon(weapon, group["pairs"], target_squad)
+        if self._precision_choice_needed(weapon, target_squad, group["pairs"]):
+            self._offer_precision_choice(rolls, damage_weapon, target_squad, group["pairs"], weapon_label, self.active_squad.owner)
+        else:
+            self._begin_damage_allocation(rolls, damage_weapon, target_squad, priority_group=None)
+
+    def _skip_impossible_save(self, target_squad, weapon, save_threshold, wounds):
+        """Whether this Save roll may be skipped outright, recording WHY so
+        _check_allocation_done() can say so instead of printing dice that were
+        never thrown.
+
+        User: "Save Rolls, die man gar nicht bestehen kann, sollten auch gar
+        nicht gewuerfelt werden. Manchmal werden da 6en gewuerfelt, die dann
+        aber rot sind."
+
+        The predicate lives in game/damage_resolution.py next to the thresholds
+        it reads - the same one definition that already stops the panel and the
+        resolution disagreeing about a save. Note it asks about EVERY model of
+        the unit, not the representative `save_threshold` shown on the panel."""
+        if wounds <= 0 or not save_is_impossible(target_squad, weapon, self.waaagh):
+            self._save_not_rolled = None
+            return False
+        needed = save_threshold if save_threshold is not None else 7
+        self._save_not_rolled = f"not rolled - no save is possible, needed {needed}+"
+        self._log(f"{self.current_group['weapon_label']}: no save is possible "
+                  f"(needed {needed}+), so {wounds} wound(s) go straight through.")
+        return True
+
     def _begin_damage_allocation(self, rolls, weapon, target_squad, priority_group):
         # Sunforge's Damage-roll half - only built when the ability actually
         # applies to this group, so the session's mere possession of one
@@ -4334,7 +4418,12 @@ class ShootingController:
         saved, failed = self.damage_session.saved, self.damage_session.failed
         weapon_label = self.current_group["weapon_label"]
         summary = f"{weapon_label} save roll"
-        if rolls is not None:
+        if self._save_not_rolled is not None:
+            # Never print a dice list for a roll that did not happen: the
+            # stand-in 1s are rule 05.04 bookkeeping, not dice anyone threw.
+            summary += f" ({self._save_not_rolled})"
+            self._save_not_rolled = None
+        elif rolls is not None:
             summary += f" {rolls}"
         self._log(f"{summary}: {saved} saved, {failed} failed.")
         self.damage_session = None
@@ -4408,6 +4497,11 @@ class ShootingController:
         )
         melta_weapon = melta_adjusted_weapon(crit_ap_weapon, self.current_group["pairs"], target_squad)
         damage_preview = None if melta_weapon.damage_notation is not None else melta_weapon.damage
+        if self._skip_impossible_save(target_squad, crit_ap_weapon, save_threshold, crits):
+            self._continue_after_save(
+                [AUTO_FAILED_SAVE] * crits, crit_ap_weapon,
+                target_squad, weapon_label, self.current_group)
+            return
         self.dice_manager.roll(
             count=crits, sides=6,
             label=(f"Save Roll: {weapon_label} ({crit_source}, AP{crit_ap_weapon.ap}, "
@@ -4462,14 +4556,13 @@ class ShootingController:
         # which is what cancel() needs to know (see _note_ranged_attack()).
         self._fired_this_activation = True
 
-        # Rule 24.15 ([HAZARDOUS]): count this as one of the "[HAZARDOUS]
-        # weapons you selected in the Select Weapons step" - once per
-        # weapon SELECTION (i.e. once total, even if it got cover-split
-        # into two physical dice sequences above), not once per model or
-        # per physical dice sequence.
+        # Rule 24.15 ([HAZARDOUS]): add this group's weapons to the tally -
+        # one roll per weapon that fired. Added ONCE for the whole selection
+        # even when it got cover-split into two physical dice sequences above,
+        # which is what zeroing the pending count here is for.
         if self._pending_subgroups_hazardous:
-            self._hazardous_count += 1
-            self._pending_subgroups_hazardous = False
+            self._hazardous_count += self._pending_subgroups_hazardous
+            self._pending_subgroups_hazardous = 0
 
         if self.split_fire:
             self._begin_next_split_group()

@@ -90,7 +90,7 @@ class FuryOfTheVoidController:
         self.decision_manager.request(
             squad.owner,
             "%s: %s - which unit is riven?" % (squad.name, FURY_OF_THE_VOID_LABEL),
-            [(t.name, (lambda t=t: self.mark(squad, t))) for t in candidates],
+            [(t.name, (lambda t=t: self.mark(squad, t)), t) for t in candidates],
         )
         return True
 

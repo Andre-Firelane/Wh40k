@@ -2,11 +2,14 @@ from game import config, geometry
 from game import scuttling_walker
 from game.coherency import coherency_report
 from game import whirling_death
+from game import whole_unit_drag
 from game.coldstar import effective_movement_in
 from game import guardian_time_to_strike
 from game import montka_aggressive_mobility, montka_pulse_onslaught
+from game import formation_layout, front_rank, line_drag
 from game.dice import ADVANCE_ROLL
 from game.roll_bonus import advance_and_charge_bonus
+from game.selection import Selection
 from game.squad import model_engaged_with, model_terrain_violation, model_overlaps_any
 from game.terrain import DENSE, may_cross_walls
 from game.turn import PHASE_MOVEMENT, PHASE_FIGHT
@@ -106,8 +109,13 @@ class MovementController:
         self, obstacles=None, game_log=None, player_name="Player 1", dice_manager=None,
         turn_tracker=None, all_tokens=None, board_width_in=None, board_height_in=None,
     ):
-        self.selected_squad = None
-        self.selected_model = None  # the exact model clicked; anchor for the LOS check
+        # Which unit the player has picked. Lives in game/selection.py because
+        # almost nothing that reads it is a movement concern (the whole action
+        # panel, six controllers' preconditions, the renderer) - see that
+        # module. `selected_squad`/`selected_model` below forward to it, so
+        # every existing reader and both direct writers are unchanged.
+        # MUST be created before anything assigns through those properties.
+        self.selection = Selection()
         self.state = IDLE
         self.move_start = {}       # token.id -> (x_in, y_in) at the very start of the whole move
         self.last_move_start = {}  # the same map for the move that JUST finished - survives _clear_move_state() so on_move_finished listeners can still read it (see game/wraith_form.py)
@@ -179,16 +187,41 @@ class MovementController:
         self.desperate_escape_this_move = False  # rule 09.07: Desperate Escape mode of a Fall Back move - models may be moved across other models (not terrain) during this drag
         self.surge_target = None           # rule 21.02: the enemy squad a surge move must end unengaged-with-others-except
         self.on_remain_stationary = None   # optional callable(squad) - e.g. Strike Team's DS8 Support Turret ability (game/support_turret.py), wired in main.py
-        self.group_move_enabled = False    # QoL: drag every model in the squad at once instead of one at a time (see toggle_group_move()) - a persistent global preference (User-Wunsch: "die toggles sollen global gelten"), same as live_los_highlight_enabled below, not reset per move/squad
-        self.live_los_highlight_enabled = False  # QoL perf toggle: the "what can the dragged model see" board highlight, off by default (see toggle_live_los_highlight())
+
+    # Forwarders onto self.selection. Properties rather than a rename at the
+    # ~25 call sites, so that every existing reader - the whole action panel,
+    # the six controller preconditions, the renderer, the AI - is unchanged BY
+    # CONSTRUCTION, and so are the two places that write the field directly
+    # instead of going through select(): start_scout_move() below (deliberately,
+    # per its own docstring) and game/torchstar_gambit.py.
+    @property
+    def selected_squad(self):
+        return self.selection.squad
+
+    @selected_squad.setter
+    def selected_squad(self, squad):
+        self.selection.squad = squad
+
+    @property
+    def selected_model(self):
+        return self.selection.model
+
+    @selected_model.setter
+    def selected_model(self, model):
+        self.selection.model = model
 
     def select(self, token):
         if token is not None and token.squad is not None and not self.can_select(token.squad):
             return  # not your turn - the opposing player's units can't be selected
 
-        self.selected_squad = token.squad if token is not None else None
-        self.selected_model = token
+        self.selection.set(token)
         self.state = SELECTED if self.selected_squad is not None else IDLE
+        # Both of these are MOVEMENT state, which is why select() stays here
+        # rather than moving to game/selection.py with the pair above. The
+        # errors clear in particular is load-bearing for the AI, which reads
+        # movement_controller.errors as its success test and calls
+        # select(squad.models[0]) at every entry point - without it a previous
+        # unit's stale errors read as this unit's failure (Fehlerklasse 6).
         self._clear_move_state()
         self.errors = []
 
@@ -432,6 +465,43 @@ class MovementController:
     REACTIVE_MOVE_MODES = frozenset({"battle_focus", "path_of_the_outcast",
                                      "raid_and_run", "overflight", "higher_duty"})
 
+    #: Every move_mode that can be open while it is NOT the moving unit's own
+    #: Movement phase - i.e. every move an ABILITY or a STRATAGEM grants,
+    #: through the three doors that are deliberately not gated on can_move().
+    #:
+    #: A SUPERSET of REACTIVE_MOVE_MODES, answering a different question. That
+    #: set asks "can this be open during the OPPONENT's turn", which is what
+    #: ai/agent_driver.py needs to know when to hold still. This one asks "was
+    #: this move paid for outside the normal Movement phase", which is what
+    #: main()'s _has_unresolved_declaration() needs. The own-turn extras
+    #: (Torchstar Gambit, Tactical Acumen, both Fire and Fades, Nomads of the
+    #: Hidden Way, Retro-thrusters) belong to the second question only.
+    #:
+    #: WHY THE PHASE GATE NEEDS IT. That gate had no movement_controller term
+    #: of any kind, and the "Next Phase" branch calls select(None) right after
+    #: it passes - which clears the selection and the state but NEITHER
+    #: move_mode NOR the model positions. So a phase change over an open
+    #: Torchstar Gambit move left the models wherever they had been dragged,
+    #: the CP spent, and the Stratagem's own charge lock never applied. Two of
+    #: the twelve owners happened to be waited on already, and both for an
+    #: unrelated reason (they hold turn_tracker.active_player).
+    #:
+    #: ONE set rather than one gate term per owning controller: eleven modules
+    #: open these, and eleven terms would be eleven chances to forget the
+    #: twelfth. game/ui/action_panel.py already records what happens to a
+    #: hand-maintained list of move modes - "scout" went missing from one.
+    #:
+    #: NOT the Movement phase's own modes (None/charge/pile_in/consolidate/
+    #: fall_back/surge/scout). Those are the engine's own move types, each
+    #: already waited on through its own controller, and abandoning one on a
+    #: phase change is the deliberate "abandon and move on" behaviour that
+    #: shooting_controller.cancel() has.
+    OUT_OF_PHASE_MOVE_MODES = REACTIVE_MOVE_MODES | frozenset({
+        "torchstar", "tactical_acumen", "fire_and_fade",
+        "warhost_fire_and_fade", "nomads_of_the_hidden_way",
+        "retro_thrusters", "retro_thrusters_fall_back",
+    })
+
     def start_battle_focus_move(self, squad, max_distance, move_mode="battle_focus"):
         """A reactive Normal move of an already-rolled distance, taken in the
         OPPONENT's turn.
@@ -489,8 +559,32 @@ class MovementController:
         if squad is None or squad is not self.selected_squad:
             return
         if fall_back:
-            self.start_fall_back_move("ordered_retreat")
+            # NOT via start_fall_back_move(), and that is the same reason this
+            # method exists at all - the one its own docstring gives four
+            # paragraphs up. That method is gated on can_make_fall_back_move()
+            # -> can_move(), which asks "is this the unit's MOVEMENT-PHASE
+            # move?", and Retro-thrusters fires at the end of the FIGHT phase.
+            # So the call returned early every single time, _begin_move() never
+            # ran, and the line below then set a move_mode for a move that was
+            # never open: state stayed SELECTED, no drag was possible, and the
+            # ability's Fall Back half had never once worked. Measured in both
+            # phases before the fix. game/retro_thrusters.py's eligible_moves()
+            # even says "Fall Back is the half that WORKS there, and is exactly
+            # why the ability offers two" - a comment promising behaviour no
+            # code delivered.
+            #
+            # The full Move characteristic, as the docstring says: the ability
+            # puts no number on this half. Ordered Retreat always, so no
+            # Desperate Escape allowance - the flag is cleared rather than left
+            # at whatever a previous move set it to.
+            self._begin_move(effective_movement_in)
             self.move_mode = "retro_thrusters_fall_back"
+            self.desperate_escape_this_move = False
+            # DELIBERATELY not fell_back_this_turn. confirm_move() sets that for
+            # move_mode == "fall_back" only, and 09.07's consequences ("cannot
+            # shoot or declare a charge this turn") are unreachable from here:
+            # this move happens at the end of the Fight phase, after both. The
+            # distinct mode name is what keeps the two apart.
             return
         self._begin_move(lambda model: RETRO_THRUSTER_MOVE_IN)
         self.move_mode = "retro_thrusters"
@@ -683,39 +777,41 @@ class MovementController:
         if self.game_log is not None:
             self.game_log.add(f"{self._active_player_name()} has {self.selected_squad.name} take to the skies (rule 21.03).")
 
-    def toggle_group_move(self):
+    @property
+    def group_move_enabled(self):
         """QoL feature (not a rule): drag the whole squad at once, in its
         current formation, instead of one model at a time. Only a drag
         convenience - apply_group_drag() below still runs every model
         through the exact same clamp_move() per-model checks (remaining
         range/terrain/enemy models/board edges) a normal single-model drag
         does, so a squad can still end up sheared apart by an obstacle and
-        fail check_coherency() on Confirm, same as it always could. A
-        persistent GLOBAL preference (User-Wunsch: "die toggles sollen
+        fail check_coherency() on Confirm, same as it always could.
+
+        THE VALUE LIVES IN game/whole_unit_drag.py, not here: it is one and
+        the same preference as SetupController.block_placement_enabled, per
+        the user's own reading ("Block Deployment und Block Movement
+        zusammenfassen... mir faellt keine Situation ein, wo man das
+        getrennt braeuchte"). Kept as a named attribute so every read site
+        and every test that assigns to it is unchanged.
+
+        A persistent GLOBAL preference (User-Wunsch: "die toggles sollen
         global gelten... bleibt er für alle squads an, bis ich ihn
         ausschalte") - nothing resets it at the start/end of a move or
         squad selection anymore (it used to, back when it lived inside the
-        per-squad movement UI), same as toggle_live_los_highlight() below.
-        Unrestricted to MOVING state on purpose, now that it's toggled from
-        an always-visible toolbar rather than a screen that only exists
-        mid-move - lets it be set before a drag even starts."""
-        self.group_move_enabled = not self.group_move_enabled
+        per-squad movement UI), and it is not reset per controller either,
+        which is why it cannot be an __init__ assignment."""
+        return whole_unit_drag.is_enabled()
 
-    def toggle_live_los_highlight(self):
-        """QoL perf toggle (not a rule, not the movement-mode state above -
-        see main.py's visibility_cache): whether dragging a model shows a
-        live "which enemy models can this one currently see" board
-        highlight. User-request follow-up to the same LOS-cost-at-~130-
-        models complaint that motivated Move Whole Squad's own LOS skip
-        (that one only disables the highlight while group-dragging) - this
-        is the general version, off by default, and unlike group_move_
-        enabled it's a persistent session preference: nothing resets it
-        automatically at the start/end of a move, since re-enabling it
-        before every single drag would defeat the point of turning it off
-        for performance in the first place. Unrestricted to MOVING state on
-        purpose (harmless, and lets it be toggled before a drag even
-        starts)."""
-        self.live_los_highlight_enabled = not self.live_los_highlight_enabled
+    @group_move_enabled.setter
+    def group_move_enabled(self, value):
+        whole_unit_drag.set_enabled(value)
+
+    def toggle_group_move(self):
+        """Flip the shared whole-unit-drag preference. Unrestricted to MOVING
+        state on purpose, now that it's toggled from an always-visible toolbar
+        rather than a screen that only exists mid-move - lets it be set before
+        a drag even starts."""
+        whole_unit_drag.toggle()
 
     def apply_group_drag(self, dx_in, dy_in):
         """Rigid-translate every model in the selected squad by the same
@@ -736,6 +832,99 @@ class MovementController:
                 continue
             ox, oy = origin
             model.x_in, model.y_in = self.clamp_move(model, ox + dx_in, oy + dy_in)
+
+    def apply_line_drag(self, start_in, end_in, legal_frontages=()):
+        """Total-War style: form the selected unit up along the segment
+        start_in -> end_in, the drag's LENGTH setting the frontage. Returns a
+        LineDragInfo describing what actually came out, or None if there is no
+        move open to do it in.
+
+        Writes the models' positions LIVE, exactly as apply_group_drag() does,
+        and for a reason stronger than symmetry: the thing the player most
+        needs to see is WHO CANNOT GET THERE, and a ghost preview cannot show
+        that without duplicating clamp_move() - a second implementation of the
+        rule, which is this repo's error class 10. The clamped positions ARE
+        the warning. Measured cost, 22 models on real map2 terrain: 0.26 ms a
+        frame, which the existing group drag already pays.
+
+        Idempotent per frame: clamp_move() measures from last_waypoint, which
+        only moves in _finalize_segment(), so recomputing every frame cannot
+        accumulate and re-drawing the line inside one held gesture is free.
+        Committing is commit_group_drag(), reused verbatim on release - it
+        already carries the exclude_from_overlap batching this needs, for
+        exactly the same reason (every preview written before any is checked).
+
+        NOT gated on move_mode. can_advance()'s "move_mode is None is the whole
+        rule" does not transfer: an Advance is a rules DECISION taken inside a
+        move, this is a gesture that moves models - and apply_group_drag() has
+        no such gate either. Every end-of-move rule is still enforced
+        downstream by confirm_move() (11.04's charge engagement, 12.03's
+        pile-in, 12.08's consolidation, 24.32's scout clearance, and the
+        generic "must end unengaged"), so gating here would invent a
+        restriction no rule states and remove the case where a wide front is
+        most useful."""
+        squad = self.selected_squad
+        if squad is None or self.state != MOVING or not squad.models:
+            return None
+        models = squad.models
+        origins = [self.last_waypoint.get(m.id) for m in models]
+        if any(origin is None for origin in origins):
+            return None
+
+        length = ((end_in[0] - start_in[0]) ** 2 + (end_in[1] - start_in[1]) ** 2) ** 0.5
+        frontage, ranks, _ = formation_layout.line_shape(models, length)
+        depth_toward = (sum(o[0] for o in origins) / len(origins),
+                        sum(o[1] for o in origins) / len(origins))
+
+        def lay_out(front):
+            return formation_layout.line_positions(
+                squad, start_in, end_in, depth_toward=depth_toward,
+                origins=origins, frontage=frontage, front=front,
+            )
+
+        targets = lay_out(())
+        fighters = front_rank.front_rank_models(squad)
+        if fighters:
+            # Melee characters to the front - but only if the unit can AFFORD
+            # it. Measured, forcing them forward costs a mean +1.14" (worst
+            # +4.66") of longest walk: free during a Set Up, potentially
+            # decisive here, where a walk longer than a model's remaining
+            # movement simply does not happen. Same "never trade a working
+            # placement for a better-looking one" guard pack_positions() states
+            # for its own front-rank pass.
+            led = lay_out(fighters)
+            if self._cannot_reach(models, origins, led) <= self._cannot_reach(models, origins, targets):
+                targets = led
+
+        for model, target in zip(models, targets):
+            model.x_in, model.y_in = self.clamp_move(model, target[0], target[1])
+        return line_drag.measure(squad, targets, length, frontage, ranks, legal_frontages)
+
+    def finish_line_drag(self):
+        """End of the gesture: lock in what every model actually travelled.
+
+        commit_group_drag() verbatim - it already validates each model against
+        every squadmate not yet committed in the same batch, which is exactly
+        what a layout that wrote all its previews before checking any of them
+        needs. A model held short by terrain or its own budget commits where it
+        got to; one standing somewhere illegal snaps back to its own waypoint,
+        which is the same ragged-line outcome by the same machinery."""
+        self.commit_group_drag()
+
+    def _cannot_reach(self, models, origins, targets):
+        """How many models would be left short of `targets` by their own
+        remaining movement alone. Terrain and enemies can hold a model back too,
+        but those need clamp_move() and this runs before anything is written -
+        it only has to RANK two candidate layouts, and budget is the term that
+        differs between them."""
+        short = 0
+        for model, origin, target in zip(models, origins, targets):
+            if target is None:
+                continue
+            need = ((target[0] - origin[0]) ** 2 + (target[1] - origin[1]) ** 2) ** 0.5
+            if need > self.remaining_range.get(model.id, 0.0) + 1e-9:
+                short += 1
+        return short
 
     def commit_group_drag(self):
         """Counterpart to apply_group_drag(): validates and locks in every

@@ -408,10 +408,21 @@ checks.eq("main.py hands the mission controller to the panel",
 checks.eq("and no phase hook opens an action prompt",
           "offer_actions_at_shooting_phase(" in MAIN, False)
 PANEL = io.open("game/ui/action_panel.py", encoding="utf-8").read()
-checks.true("the panel asks which actions the selected unit could start",
-            "secondary_mission_controller.available_actions_for(squad)" in PANEL)
-checks.true("and its buttons start them",
-            "secondary_mission_controller.start_action(a, sq, t)" in PANEL)
+# The panel used to name the Secondary deck in both of these. It no longer
+# does, and that is the point: TWO mission systems own rule-16.01 actions (the
+# Secondary card deck and the Force Disposition Primary), so the panel asks
+# each in turn and dispatches a click back to whichever one offered it. Naming
+# one of them here again would be the panel deciding which actions exist.
+checks.true("the panel asks BOTH mission systems which actions this unit could start",
+            "for _owner in (secondary_mission_controller, primary_mission_controller):"
+            in PANEL)
+checks.true("...through the one method name they share",
+            "_owner.available_actions_for(squad)" in PANEL)
+checks.true("and a button starts it on whichever system offered it",
+            "o.start_action(a, sq, t)" in PANEL)
+checks.true("...carrying that owner along, so the two cannot be confused",
+            "for action_owner, action_label, action_def, action_target in _action_offers"
+            in PANEL)
 checks.true("and the turn ends by clearing it",
             "action_controller.reset_for_turn()" in MAIN)
 

@@ -62,6 +62,11 @@ CELL_BORDER_HOVER_COLOR = (255, 215, 0)
 MARGIN = ts.MARGIN
 TILE_PAD = ts.TILE_PAD
 LOGO_PX = 72
+# How large a faction badge may grow on the step-one card, and with it how tall
+# that card may get (see _faction_tile_height()). The badge is the thing a
+# faction is recognised by, so it is what the freed vertical space goes to -
+# growing the card without growing the art would just be padding.
+FACTION_LOGO_MAX_PX = 132
 CELL_GAP = 8
 CELL_CHAMFER = 6
 CELL_INSET = 6
@@ -78,6 +83,14 @@ CELL_STEP = 6
 DETAIL_WIDTH = 380
 DETAIL_PAD = 12
 DETAIL_MOUSE_OFFSET = 20
+
+# Between the badge and the text column beside it, and between the header's
+# four wrapped blocks. Named because _header_text_width() and _draw_tile() both
+# have to use the same numbers or the text is measured against a width it is
+# not drawn at.
+LOGO_TEXT_GAP = 14
+HEADER_BLOCK_GAP = 4
+SUMMARY_RULE_GAP = 10   # under the summary line: its own gap plus the rule
 
 SECTION_LABEL_HEIGHT = 22
 SECTION_GAP = 12
@@ -113,6 +126,24 @@ def detachment_summary(entry):
     return "%s (%d DP)" % (" + ".join(names), points)
 
 
+def force_disposition_summary(entry):
+    """The Force Disposition this list declares and the Primary Mission it
+    brings, e.g. "Priority Assets - Secure Asset".
+
+    BOTH halves, because neither alone is enough on a tile: the disposition is
+    the list-building fact and the mission is what it means for the game, and
+    nothing else on this screen says either. One function for the same reason
+    detachment_summary() above is one - the tile and the header note must not
+    be able to disagree about what a list brings."""
+    from game import force_dispositions, primary_missions
+    disposition = getattr(entry, "force_disposition", None)
+    if not disposition:
+        return "no force disposition"
+    mission = primary_missions.mission_for(disposition)
+    label = force_dispositions.label(disposition)
+    return "%s - %s" % (label, mission.name) if mission is not None else label
+
+
 class _Entry:
     """One picture in a tile: either a unit, or one component of an attached
     unit (19.01).
@@ -136,6 +167,12 @@ class _Entry:
     @property
     def points(self):
         return getattr(self.squad, "points", None)
+
+
+# The two questions each player answers, in order. Named rather than 0/1 so a
+# branch reads as what it is - see ArmySelectScreen._steps.
+STAGE_FACTION = "faction"
+STAGE_LIST = "list"
 
 
 class _Tile:
@@ -162,17 +199,30 @@ class ArmySelectScreen(ts.Paged):
 
     def __init__(self, defaults=None, players=("Player 1", "Player 2"), lists=None):
         self.players = tuple(players)
-        self.init_paging(lists if lists is not None else army_lists.ARMY_LISTS)
-        self.defaults = dict(defaults or {})
+        self.all_lists = list(lists if lists is not None else army_lists.ARMY_LISTS)
+        # TWO STEPS PER PLAYER, flattened into one sequence: pick the faction,
+        # then pick one of its lists. One index over (player, stage) pairs
+        # rather than a player index plus a stage field, because every question
+        # this screen asks about "where am I" - is it done, what does Back
+        # undo, whose turn is it - is then one lookup instead of two that can
+        # disagree.
+        self._steps = [(player, stage) for player in self.players
+                       for stage in (STAGE_FACTION, STAGE_LIST)]
         self.step = 0
+        self.factions_chosen = {}   # player -> faction keyword, set by step one
+        self.defaults = dict(defaults or {})
         self.choices = {}
+        self.selected_key = None    # this step's pick, awaiting confirmation
+        self.init_paging(self._step_items())
         self.cancelled = False
         self.hovered_tile = None    # index into self.tiles
         self.hovered_entry = None   # the _Entry under the cursor, if any
         self.tiles = []
-        self.back_rect = None
-        self.prev_rect = None
-        self.next_rect = None
+        # How tall a list tile's header came out for THIS page - measured in
+        # layout() off the wrapped lines, read by _grid_top() and _cell_size()
+        # so the three cannot disagree about where the portrait grid starts.
+        self._header_px = None
+        self.footer = ts.FooterButtons()
         self._preview_cache = {}
         self._entry_cache = {}
         fonts = ts.make_fonts()
@@ -187,16 +237,57 @@ class ArmySelectScreen(ts.Paged):
     # -- state ------------------------------------------------------------
     @property
     def current_player(self):
-        """Whose turn it is to be given a list, or None once both have one."""
-        return self.players[self.step] if self.step < len(self.players) else None
+        """Whose turn it is, or None once both players have a list."""
+        return self._steps[self.step][0] if self.step < len(self._steps) else None
+
+    @property
+    def stage(self):
+        """STAGE_FACTION or STAGE_LIST - which of this player's two questions
+        is on screen, or None once the screen is finished."""
+        return self._steps[self.step][1] if self.step < len(self._steps) else None
 
     @property
     def done(self):
-        return self.cancelled or self.step >= len(self.players)
+        return self.cancelled or self.step >= len(self._steps)
+
+    def _step_items(self):
+        """What this step offers: every faction, or the chosen faction's lists.
+
+        The ONE place the two stages differ in WHAT is on screen, which is why
+        it is a method rather than two branches at each of the three places
+        that need to know."""
+        player, stage = (self._steps[self.step] if self.step < len(self._steps)
+                         else (None, None))
+        if stage == STAGE_FACTION:
+            return army_lists.factions(self.all_lists)
+        if stage == STAGE_LIST:
+            return army_lists.lists_for(self.factions_chosen.get(player), self.all_lists)
+        return []
+
+    @property
+    def confirm_label(self):
+        """What the footer button says, or None while nothing is picked this
+        step - the button is not drawn at all until then."""
+        if self.selected_key is None:
+            return None
+        return f"Confirm: {self._selected_item().name}"
+
+    def _selected_item(self):
+        """The FactionChoice or ArmyList this step has highlighted, found in
+        this step's own items rather than looked up in a global registry - a
+        faction keyword and a list key live in different namespaces, and asking
+        the wrong one is how a two-stage screen starts printing the wrong
+        name."""
+        for item in self.items:
+            if item.key == self.selected_key:
+                return item
+        return None
 
     def turn_page(self, delta):
         """Page, and drop the hover with it - the tile under the cursor is
-        gone once the page has changed."""
+        gone once the page has changed. The SELECTION survives: it is this
+        step's answer, not a pointer position, and the confirm button names it
+        so pressing it from another page is not a surprise."""
         if not super().turn_page(delta):
             return False
         self.hovered_tile = None
@@ -215,30 +306,127 @@ class ArmySelectScreen(ts.Paged):
             self._preview_cache[cache_key] = army_lists.preview_squads(key, owner)
         return self._preview_cache[cache_key]
 
+    def select(self, key):
+        """Highlight this step's answer. Reversible: picking another replaces
+        it, and nothing is committed until confirm().
+
+        Checked against THIS STEP's items rather than a registry, so a list key
+        offered to the faction step (or the other way round) is refused instead
+        of being stored and then failing later somewhere else."""
+        if self.current_player is None:
+            return False
+        if not any(item.key == key for item in self.items):
+            raise KeyError(f"{key!r} is not on offer at this step")
+        self.selected_key = key
+        return True
+
+    def confirm(self):
+        """Commit the highlighted answer and move on. False when nothing is
+        picked, so a press on an empty footer is a no-op rather than an
+        advance."""
+        if self.selected_key is None:
+            return False
+        return self.choose(self.selected_key)
+
     def choose(self, key):
-        """Give the current player this list and move on."""
+        """Answer this step and move to the next.
+
+        Select AND commit in one call - the programmatic entry point, for a
+        caller driving the screen without a mouse. The click path never comes
+        here; it goes select() then confirm(), one question at a time.
+
+        A LIST KEY HANDED TO THE FACTION STEP ANSWERS BOTH QUESTIONS. That is
+        what keeps "give this player this list" a single instruction now that
+        the screen asks two things: --army1, the headless harnesses and every
+        caller that already knew which list it wanted say it once and mean
+        exactly what they meant before. The two-step path is what a PERSON
+        takes, and it is the clicks that are tested as two steps."""
+        player, stage = (self._steps[self.step] if self.step < len(self._steps)
+                         else (None, None))
+        if player is None:
+            return False
+        if not any(item.key == key for item in self.items):
+            # Not an answer to the question on screen, so it has to be a LIST
+            # key. Looked up in BY_KEY DIRECTLY rather than through get():
+            # get() lower-cases, and a faction keyword lower-cases straight
+            # onto a list key ("AELDARI" -> "aeldari"), so routing this through
+            # it turned an unanswerable faction into that faction's list and
+            # then recursed for ever.
+            entry = army_lists.BY_KEY.get(str(key))
+            if entry is None:
+                raise KeyError(f"{key!r} is not on offer at this step")
+            return self._choose_list_outright(entry)
+        return self._answer(key, stage, player)
+
+    def _answer(self, key, stage, player):
+        """Record one step's answer and move to the next. The single-step path,
+        with no shortcut in it - so nothing that calls it can loop."""
+        self.select(key)
+        if stage == STAGE_FACTION:
+            # Changing the faction has to drop any list already recorded for
+            # this player: it belonged to the OLD faction, and leaving it would
+            # let Back-then-forward finish the screen with an Ork faction and
+            # an Aeldari list.
+            self.factions_chosen[player] = key
+            self.choices.pop(player, None)
+        else:
+            self.choices[player] = key
+        self._advance(self.step + 1)
+        return True
+
+    def _faction_step_of(self, player):
+        """The index of this player's FACTION question.
+
+        Derived from _steps rather than arithmetic on the player index, so the
+        two cannot drift if a third question is ever added per player."""
+        return self._steps.index((player, STAGE_FACTION))
+
+    def _choose_list_outright(self, entry):
+        """Answer BOTH of the current player's questions with one list.
+
+        Rewinds to this player's faction question first, so it works from
+        either step and from a faction that is not this list's - "give this
+        player this list" has one meaning wherever it is said, which is what
+        --army1 and the headless harnesses rely on."""
         player = self.current_player
         if player is None:
             return False
-        army_lists.get(key)  # refuses an unknown key loudly rather than storing it
-        self.choices[player] = key
-        self.step += 1
-        self.hovered_tile = None
-        self.hovered_entry = None
-        self.tiles = []
-        return True
+        self._advance(self._faction_step_of(player))
+        if not any(item.key == entry.faction_keyword for item in self.items):
+            raise KeyError(f"{entry.key!r} belongs to {entry.faction_keyword!r}, "
+                           "which this screen does not offer")
+        # _answer() twice, never choose(): choose() is the door the shortcut
+        # came through, and going back through it is how this recursed.
+        self._answer(entry.faction_keyword, STAGE_FACTION, player)
+        return self._answer(entry.key, STAGE_LIST, player)
 
     def back(self):
-        """Undo the previous step - a misclick on Player 1 should not mean
-        restarting the program."""
+        """Undo one step - a misclick should not mean restarting the program.
+
+        One STEP, not one player: from a faction's list step this returns to
+        that faction, which is the whole point of splitting the question in
+        two."""
         if self.step == 0:
             return False
-        self.step -= 1
-        self.choices.pop(self.players[self.step], None)
+        player, stage = self._steps[self.step - 1]
+        if stage == STAGE_FACTION:
+            self.factions_chosen.pop(player, None)
+        self.choices.pop(player, None)
+        self._advance(self.step - 1)
+        return True
+
+    def _advance(self, step):
+        """Move to `step` and re-open the screen on what it offers.
+
+        init_paging() resets the page to 0, which is right: a new question
+        starts at its own beginning rather than on whatever page the previous
+        one was left on."""
+        self.step = step
+        self.selected_key = None
         self.hovered_tile = None
         self.hovered_entry = None
         self.tiles = []
-        return True
+        self.init_paging(self._step_items())
 
     # -- layout -----------------------------------------------------------
     def entries_for(self, key, owner):
@@ -286,6 +474,8 @@ class ArmySelectScreen(ts.Paged):
         if player is None:
             self.tiles = []
             return self.tiles
+        if self.stage == STAGE_FACTION:
+            return self._layout_factions(screen_rect)
 
         area = ts.tile_area(screen_rect)
         per_page = self.fit_page(area.width)
@@ -296,6 +486,12 @@ class ArmySelectScreen(ts.Paged):
         # paging does not resize the portraits under the cursor. The tile
         # HEIGHT is this page's own, so a page of short lists is not left
         # carrying a page of long lists' empty space.
+        # The header is measured BEFORE the cells, because the cells are sized
+        # into whatever it leaves. Worst case over EVERY list rather than this
+        # page's, for the same reason the cell size is: paging must not move
+        # the grid, or the portraits jump under the cursor.
+        self._header_px = self._header_height(
+            self.items, self._header_text_width(tile_width))
         all_entries = [self.entries_for(item.key, player) for item in self.items]
         cell_px, columns = self._cell_size(tile_width, all_entries, area.height)
         page_entries = [self.entries_for(item.key, player) for item in page_lists]
@@ -304,7 +500,7 @@ class ArmySelectScreen(ts.Paged):
         unit_rows = max((math.ceil(len(units) / columns) for _c, units in page_entries), default=0)
         tile_height = min(
             area.height,
-            self._header_height()
+            self._header_px
             + self._grid_height(character_rows, unit_rows, cell_px) + TILE_PAD,
         )
 
@@ -318,11 +514,150 @@ class ArmySelectScreen(ts.Paged):
         self.tiles = tiles
         return tiles
 
-    def _header_height(self):
-        """How much of a tile the badge, name, detachment and summary take,
-        measured off the fonts rather than guessed - the grid starts below it
-        and the tile's height is built from it."""
-        return TILE_PAD + max(LOGO_PX, 3 * self.font.get_height() + 26) + 18
+    def _layout_factions(self, screen_rect):
+        """Step one's tiles: one card per faction, with no portrait grid.
+
+        A faction has SEVERAL lists, so there is no single set of units to show
+        - and showing every list's units at once would be the wall of pictures
+        this screen splits in two to avoid. So the card carries only what is
+        true of the faction itself (badge, name, army rule) plus how many lists
+        are behind it, and the portraits stay where they mean something: on
+        step two, where a tile is one list.
+
+        Short tiles, not full-height ones stretched to fill: the height is what
+        the content needs. A card that is mostly empty space reads as something
+        failing to load.
+
+        A GRID, not a row (User: "bei der volkauswahl im pregame ist jetzt viel
+        verschwendeter platz, weil die volk kacheln sehr klein sind. die koennen
+        sich in einem grid anordnen statt nur nebeneinander. so sollte die
+        paginierung dann erst sehr spaet einsetzen"). MEASURED before the
+        change: a single row of these short cards filled 11% of the band at
+        1920x1080 and 19% at 1280x720, and five factions already needed two
+        pages - so the pager was doing its work while nine tenths of the screen
+        was empty. Wrapping into rows is the only one of the two obvious fixes
+        that does not contradict the paragraph above: stretching the cards to
+        fill would make them the mostly-empty boxes it rules out, while a grid
+        puts MORE CARDS in the space instead of more space in the cards.
+
+        The list step keeps its single row and cannot use this: its tiles carry
+        a portrait grid and are nearly full-height already, so there is no
+        second row to have, and its tile HEIGHT depends on which items are on
+        the page - which would make the page size depend on itself. A faction
+        card's height is fixed, so the grid capacity is knowable up front."""
+        area = ts.tile_area(screen_rect)
+        floor = min(area.height, self._faction_tile_min_height())
+        # CAPACITY is worked out from the SMALLEST a card may be, so paging
+        # stays as late as the band allows; the cards then share out whatever
+        # the rows they actually use leave over. Deriving capacity from the
+        # grown height instead would shrink the page every time a card grew,
+        # which is the opposite of what was asked for.
+        columns = self.fit_grid(area.width, area.height, floor)
+        page_items = self.page_items
+        rows = -(-len(page_items) // max(1, columns))
+        height = self._faction_tile_height(area.height, rows, floor)
+        block = ts.grid_block(area, columns, len(page_items), height)
+        rects = ts.tile_rects(block, columns, len(page_items), height)
+        self.tiles = [_Tile(item, rect, [], [], []) for item, rect in zip(page_items, rects)]
+        return self.tiles
+
+    def _faction_tile_min_height(self):
+        """The SMALLEST a faction card may be: badge, name, army rule, list
+        count - measured off the fonts, the same way _header_height() is, so
+        adding a line here cannot silently run past the bottom of the card."""
+        text = (self.name_font.get_height() + self.font.get_height()
+                + self.small_font.get_height() + 16)
+        return TILE_PAD * 2 + max(LOGO_PX, text)
+
+    def _faction_tile_height(self, area_height, rows, floor):
+        """How tall a faction card is: its minimum, grown into whatever the
+        rows this page uses leave spare, capped.
+
+        The second half of the request that produced the grid - the tiles were
+        called "sehr klein", and a grid alone does not change that: measured at
+        1920x1080, five factions in two rows of 104px still left 84% of the
+        band empty. So the cards take some of it.
+
+        THE CAP IS WHAT KEEPS THIS HONEST, and it is not a round number chosen
+        by eye: FACTION_LOGO_MAX_PX is how large the badge may get, and the
+        card may be exactly as tall as a card holding that badge - so every
+        pixel of the growth is carried by ART, and the card never becomes the
+        "mostly empty space [that] reads as something failing to load" this
+        screen's own layout rule rules out. _draw_faction_tile() derives the
+        badge back from the rect it is handed, so the two cannot disagree.
+
+        Below the cap the cards simply fill the band: with three rows on a
+        1280x720 window the height lands under it and nothing is left over."""
+        if rows <= 0:
+            return floor
+        share = (area_height - ts.TILE_GAP * (rows - 1)) // rows
+        ceiling = TILE_PAD * 2 + FACTION_LOGO_MAX_PX
+        return max(floor, min(share, max(floor, ceiling)))
+
+    def _header_text_width(self, tile_width):
+        """How wide the header's text column is: the tile minus its padding and
+        the badge beside it. The badge is always reserved for, even when the
+        faction has no art - a tile whose text starts in a different place
+        depending on whether a file exists is worse than a little empty."""
+        return tile_width - 2 * TILE_PAD - (LOGO_PX + LOGO_TEXT_GAP)
+
+    def _header_blocks(self, entry, text_width):
+        """The four printed things in a tile's header - name, detachments,
+        force disposition, army rule - each WRAPPED to the width it really has.
+        (font, colour, lines) in drawing order.
+
+        ONE definition, read by the height arithmetic AND by _draw_tile(). They
+        used to be two: the drawing wrapped the NAME and printed the other
+        three as single lines, while the height assumed four lines flat. Both
+        halves of that showed up on screen - "T'au Empire (Prototypes)" wraps
+        to two lines and pushed everything under it into the summary line,
+        while "Auxiliary Cadre + Experimental Prototype Cadre (2 DP)" simply
+        ran out past the tile's own edge (user: "Oben ueberlagert sich text").
+        """
+        blocks = [
+            (self.name_font, TITLE_COLOR, entry.name),
+            # EVERY detachment the list declares, with what they cost: a list
+            # may field several, and they belong to the list rather than being
+            # chosen later, so the tile is the only place they are ever shown.
+            (self.font, TEXT_COLOR, detachment_summary(entry)),
+            # The FORCE DISPOSITION, and the Primary Mission it brings. Same
+            # justification: it is part of the written list, is not derivable
+            # from the units, and this screen is the only place it is shown -
+            # so choosing a list here is also choosing a Primary Mission, and
+            # that should not be a surprise found in the first Command phase.
+            (self.font, TEXT_COLOR, force_disposition_summary(entry)),
+            (self.small_font, DIM_TEXT_COLOR, entry.army_rule),
+        ]
+        return [(font, colour, wrap_text(font, text, text_width) or [text])
+                for font, colour, text in blocks]
+
+    def _blocks_height(self, blocks):
+        return sum(len(lines) * font.get_height() + HEADER_BLOCK_GAP
+                   for font, _colour, lines in blocks)
+
+    def _header_height(self, entries=(), text_width=None):
+        """How much of a tile the badge, the four header lines and the summary
+        take. The grid starts below it and the tile's height is built from it.
+
+        MEASURED off the wrapped lines, and at the WORST CASE across `entries`
+        rather than per tile: every tile on a page starts its grid at the same
+        y, which is what makes two lists comparable side by side - the same
+        reason _lay_out_sections() reserves the page's character rows for all
+        of them. Called with nothing it falls back to the old fixed four-line
+        reading, which is what a caller without a width to wrap to can honestly
+        say.
+
+        The trailing term is the summary line ("18 units | 76 models | 2165
+        pts") plus the rule under it, DERIVED rather than the constant 18 it
+        used to be: at the bigger label font that constant was 7px short and
+        the summary was drawn over the army-rule line."""
+        if entries and text_width:
+            text = max(self._blocks_height(self._header_blocks(entry, text_width))
+                       for entry in entries)
+        else:
+            text = 4 * self.font.get_height() + 26
+        return (TILE_PAD + max(LOGO_PX, text)
+                + HEADER_BLOCK_GAP + self.label_font.get_height() + SUMMARY_RULE_GAP)
 
     def _grid_height(self, character_rows, unit_rows, cell_px):
         """How tall the two labelled sections are together."""
@@ -336,14 +671,18 @@ class ArmySelectScreen(ts.Paged):
         return height
 
     def _grid_top(self, tile):
-        """Where a tile's first section starts: below the badge/name header."""
-        return tile.rect.y + self._header_height()
+        """Where a tile's first section starts: below the badge/name header.
+
+        Reads the height layout() measured for THIS page, so the drawing and
+        the layout cannot disagree about where the grid begins - the fallback
+        is only for a caller that never went through layout()."""
+        return tile.rect.y + (self._header_px or self._header_height())
 
     def _cell_size(self, tile_width, entries_per_list, available_height):
         """(cell px, columns) - the largest square that still fits every list's
         two sections into one tile, tried from CELL_MAX down."""
         inner_width = tile_width - 2 * TILE_PAD
-        budget = available_height - self._header_height() - TILE_PAD
+        budget = available_height - (self._header_px or self._header_height()) - TILE_PAD
         if not entries_per_list or inner_width <= 0 or budget <= 0:
             return CELL_MIN, 1
         for candidate in range(CELL_MAX, CELL_MIN - 1, -CELL_STEP):
@@ -459,21 +798,33 @@ class ArmySelectScreen(ts.Paged):
         if event.type == pygame.MOUSEWHEEL:
             self.turn_page(-1 if getattr(event, "y", 0) > 0 else 1)
             return True
+        if event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+            # The keyboard half of the confirm button. Not a shortcut past the
+            # two beats - it still needs something selected first.
+            self.confirm()
+            return not self.done
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
             self.back()
             return True
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             self.layout(screen_rect)
-            for rect, delta in ((self.prev_rect, -1), (self.next_rect, 1)):
+            # The confirm button is asked FIRST: it is the control that ends
+            # this step, and a control that only answers when nothing else
+            # matched is one refactor from never answering.
+            if self.footer.confirm is not None and self.footer.confirm.collidepoint(event.pos):
+                self.confirm()
+                return not self.done
+            for rect, delta in ((self.footer.prev, -1), (self.footer.next, 1)):
                 if rect is not None and rect.collidepoint(event.pos):
                     self.turn_page(delta)
                     return True
-            if self.back_rect is not None and self.back_rect.collidepoint(event.pos):
+            if self.footer.back is not None and self.footer.back.collidepoint(event.pos):
                 self.back()
                 return True
             index = self.tile_at(event.pos)
             if index is not None:
-                self.choose(self.tiles[index].entry.key)
+                # SELECTS, it no longer chooses. The button below commits.
+                self.select(self.tiles[index].entry.key)
             return not self.done
         return True
 
@@ -486,7 +837,11 @@ class ArmySelectScreen(ts.Paged):
             self.track_pointer(mouse_pos)
         self._draw_header(surface, screen_rect)
         for index, tile in enumerate(self.tiles):
-            self._draw_tile(surface, tile, hovered=(index == self.hovered_tile))
+            self._draw_tile(
+                surface, tile,
+                hovered=(index == self.hovered_tile),
+                selected=(tile.entry.key == self.selected_key),
+            )
         self._draw_footer(surface, screen_rect)
         if self.hovered_entry is not None and mouse_pos is not None:
             self._draw_detail(surface, self.hovered_entry, mouse_pos)
@@ -499,10 +854,28 @@ class ArmySelectScreen(ts.Paged):
         the AI's list as well ("Aber ich waehle fuer die KI. Die KI soll nicht
         selber waehlen"), and that is the one thing about this screen that
         could otherwise be misread. Pinned as such in test_army_select.py."""
-        if self.current_player == self.players[0]:
-            return "Click a list to field it. Hover a portrait for that unit's loadout."
-        return ("You pick the AI's list too - it never chooses its own. "
-                "Right-click or Back to redo Player 1.")
+        # It also teaches the two beats, which nothing else can: the confirm
+        # button does not exist until something is selected (user: "erst
+        # auswaehlen, dann wird die entsprechende kachel gehighlightet und dann
+        # auf den auswahl button unten druecken").
+        if self.selected_key is not None:
+            item = self._selected_item()
+            name = item.name if item is not None else self.selected_key
+            return f"{name} selected - press Confirm below, or pick another."
+        # The AI note belongs on BOTH of Player 2's steps, not just the first
+        # of them: it is the one thing about this screen that could be misread
+        # ("Aber ich waehle fuer die KI. Die KI soll nicht selber waehlen"),
+        # and splitting the question in two would otherwise have halved how
+        # often it is said.
+        ai_note = ("You pick the AI's list too - it never chooses its own. "
+                   if self.current_player != self.players[0] else "")
+        if self.stage == STAGE_FACTION:
+            # Says out loud that this is the first of two questions, so the
+            # step does not read as "pick your army" and then surprise you.
+            return (ai_note + "Click a faction to select it. Its lists come next."
+                    + (" Right-click or Back to go back a step." if ai_note else ""))
+        return (ai_note + "Click a list to select it. Hover a portrait for that "
+                "unit's loadout. Right-click or Back to change faction.")
 
     def _draw_header(self, surface, screen_rect):
         player = self.current_player
@@ -512,43 +885,58 @@ class ArmySelectScreen(ts.Paged):
             if key is None:
                 continue
             entry = army_lists.get(key)
-            notes.append((f"{done_player}: {entry.name} ({detachment_summary(entry)})",
+            notes.append((f"{done_player}: {entry.name} ({detachment_summary(entry)}"
+                          f" | {force_disposition_summary(entry)})",
                           ts.PLAYER_ACCENT_COLORS.get(done_player, TEXT_COLOR)))
+        if player is None:
+            title = "ARMY LISTS CHOSEN"
+        elif self.stage == STAGE_FACTION:
+            title = f"{player} - CHOOSE FACTION"
+        else:
+            # NAMES the faction being picked from: with two questions in a row
+            # and the same tile frame, the title is what says which one is on
+            # screen.
+            faction = self.factions_chosen.get(player)
+            name = next((f.name for f in army_lists.factions(self.all_lists)
+                         if f.key == faction), faction)
+            title = f"{player} - CHOOSE {str(name).upper()} LIST"
         ts.draw_header(
             surface, screen_rect, self.fonts,
-            f"{player} - CHOOSE ARMY LIST" if player else "ARMY LISTS CHOSEN",
+            title,
             self.hint(),
             ts.PLAYER_ACCENT_COLORS.get(player, ts.DEFAULT_ACCENT_COLOR),
             notes=notes,
         )
 
-    def _draw_tile(self, surface, tile, hovered=False):
+    def _draw_tile(self, surface, tile, hovered=False, selected=False):
         entry = tile.entry
         rect = tile.rect
-        ts.draw_tile_frame(surface, rect, hovered=hovered)
+        ts.draw_tile_frame(surface, rect, hovered=hovered, selected=selected)
+        if selected:
+            ts.draw_selected_badge(surface, rect, self.fonts)
+        if self.stage == STAGE_FACTION:
+            self._draw_faction_tile(surface, tile)
+            return
 
         # Badge. Missing art is fine (sprites.py's convention throughout), and
         # the name carries the identity either way.
-        text_x = rect.x + TILE_PAD
+        text_x = rect.x + TILE_PAD + LOGO_PX + LOGO_TEXT_GAP
         logo_path = sprites.faction_logo_path(entry.faction_keyword)
         if logo_path is not None:
             art = sprites.fitted_surface(logo_path, LOGO_PX)
             surface.blit(art, art.get_rect(center=(rect.x + TILE_PAD + LOGO_PX // 2,
                                                    rect.y + TILE_PAD + LOGO_PX // 2)))
-            text_x += LOGO_PX + 14
 
+        # Drawn from the SAME wrapped blocks the height was measured off, so a
+        # name that needs two lines moves everything under it instead of being
+        # written over the summary - see _header_blocks().
         y = rect.y + TILE_PAD
-        text_width = rect.right - TILE_PAD - text_x
-        for line in wrap_text(self.name_font, entry.name, text_width) or [entry.name]:
-            surface.blit(self.name_font.render(line, True, TITLE_COLOR), (text_x, y))
-            y += self.name_font.get_height()
-        # EVERY detachment the list declares, with what they cost: a list may
-        # field several, and they belong to the list rather than being chosen
-        # later, so the tile is the only place they are ever shown.
-        surface.blit(self.font.render(detachment_summary(entry), True, TEXT_COLOR),
-                     (text_x, y + 2))
-        y += self.font.get_height() + 4
-        surface.blit(self.small_font.render(entry.army_rule, True, DIM_TEXT_COLOR), (text_x, y + 2))
+        for font, colour, lines in self._header_blocks(
+                entry, self._header_text_width(rect.width)):
+            for line in lines:
+                surface.blit(font.render(line, True, colour), (text_x, y))
+                y += font.get_height()
+            y += HEADER_BLOCK_GAP
 
         # What the list actually is, counted off the built units rather than
         # written down next to them. Points come from the published lists
@@ -592,10 +980,48 @@ class ArmySelectScreen(ts.Paged):
                 art = sprites.fitted_surface(cell_entry.path, cell_rect.width - CELL_INSET * 2)
                 surface.blit(art, art.get_rect(center=cell_rect.center))
 
+    def _draw_faction_tile(self, surface, tile):
+        """Step one's card: badge, name, army rule, and how many lists are
+        behind it.
+
+        The COUNT is the reason this step exists - it is what tells you whether
+        picking this faction leads to a choice or to a formality - so it is
+        drawn, not left to be discovered on the next screen."""
+        entry, rect = tile.entry, tile.rect
+        text_x = rect.x + TILE_PAD
+        # The badge fills the card's own height, between LOGO_PX and
+        # FACTION_LOGO_MAX_PX. DERIVED from the rect rather than passed in, so
+        # a card and the art inside it cannot end up sized by two different
+        # rules - the layout picks the height, and this reads it back.
+        logo_px = max(LOGO_PX, min(FACTION_LOGO_MAX_PX, rect.height - 2 * TILE_PAD))
+        logo_path = sprites.faction_logo_path(entry.faction_keyword)
+        if logo_path is not None:
+            art = sprites.fitted_surface(logo_path, logo_px)
+            surface.blit(art, art.get_rect(center=(rect.x + TILE_PAD + logo_px // 2,
+                                                   rect.centery)))
+            text_x += logo_px + 14
+
+        text_width = rect.right - TILE_PAD - text_x
+        lines = wrap_text(self.name_font, entry.name, text_width) or [entry.name]
+        block = (len(lines) * self.name_font.get_height()
+                 + self.font.get_height() + self.small_font.get_height() + 10)
+        y = rect.centery - block // 2
+        for line in lines:
+            surface.blit(self.name_font.render(line, True, TITLE_COLOR), (text_x, y))
+            y += self.name_font.get_height()
+        count = len(entry.lists)
+        surface.blit(self.font.render(f"{count} list{'' if count == 1 else 's'}",
+                                      True, TEXT_COLOR), (text_x, y + 4))
+        y += self.font.get_height() + 6
+        if entry.army_rule:
+            surface.blit(self.small_font.render(entry.army_rule, True, DIM_TEXT_COLOR),
+                         (text_x, y))
+
     def _draw_footer(self, surface, screen_rect):
-        self.back_rect, self.prev_rect, self.next_rect = ts.draw_footer(
+        self.footer = ts.draw_footer(
             surface, screen_rect, self.fonts, self.page, self.page_count,
             back_label="Back" if self.step > 0 and not self.done else None,
+            confirm_label=self.confirm_label,
         )
 
     def _detail_lines(self, entry):

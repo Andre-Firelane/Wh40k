@@ -76,11 +76,21 @@ class AggressiveMobilityController:
             return False
         if not tau_detachments.is_tau_unit(squad):
             return False
-        # "has not been selected to move this phase".
+        # "has not been selected to move this phase" - the units that have
+        # already MOVED or ADVANCED, exactly as its sibling with the identical
+        # printed WHEN reads it (game/aux_alien_expertise.py).
+        #
+        # NOT `movement_controller.selected_squad is squad`. selected_squad is
+        # set by merely CLICKING a unit (game/movement.py's select()), so it
+        # does not mean "has begun its move" - and the panel asks
+        # proactive_stratagems.buttons_for(movement_controller.selected_squad)
+        # and nothing else, so that clause was true every single time it was
+        # evaluated and this button could never render at all. Reported:
+        # "Aggressive mobility stratagem wird nie angeboten".
         if self.movement_controller is not None:
             if squad in getattr(self.movement_controller, "moved_squad_ids", ()):
                 return False
-            if getattr(self.movement_controller, "selected_squad", None) is squad:
+            if squad in getattr(self.movement_controller, "advanced_squad_ids", ()):
                 return False
         return self.stratagem_controller.can_use(squad.owner, self._stratagem, [squad])
 

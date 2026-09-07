@@ -268,11 +268,14 @@ class PlagueSelectionStep:
     The AI answers itself from ai_choice(); no `agent` reaches this class, so
     the choice cannot cost an API call however the driver is wired."""
 
-    def __init__(self, plague_choice, decision_manager=None, human_player="Player 1",
-                 game_log=None):
+    def __init__(self, plague_choice, decision_manager=None,
+                 human_players=("Player 1",), game_log=None):
         self.plague_choice = plague_choice
         self.decision_manager = decision_manager
-        self.human_player = human_player
+        # A SET for the same reason PregameController holds one: with the AI
+        # mode off both armies are played by hand, so a DEATH GUARD player
+        # who is not "Player 1" must still be asked for their Plague.
+        self.human_players = human_players
         self.game_log = game_log
 
     def begin(self, squads):
@@ -283,7 +286,7 @@ class PlagueSelectionStep:
             if self.plague_choice.chosen_by(player) is not None:
                 continue  # idempotent: start() can be reached more than once
             asked.append(player)
-            if player == self.human_player and self.decision_manager is not None:
+            if player in self.human_players and self.decision_manager is not None:
                 self._request(player)
             else:
                 self.plague_choice.choose(player, ai_choice())

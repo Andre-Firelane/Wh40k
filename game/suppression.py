@@ -106,7 +106,7 @@ class SuppressionController:
         if len(targets) == 1 or self.decision_manager is None:
             self._suppress(squad, targets[0])
             return
-        options = [(f"Suppress {t.name}", lambda t=t: self._suppress(squad, t)) for t in targets]
+        options = [(f"Suppress {t.name}", lambda t=t: self._suppress(squad, t), t) for t in targets]
         self.decision_manager.request(
             squad.owner, f"{squad.name}: Suppression Volley - which enemy INFANTRY unit becomes suppressed?", options,
         )
@@ -144,7 +144,7 @@ class SuppressionController:
             return
         options = [(f"Suppress {t.name}",
                     lambda t=t: self._suppress(squad, t, requires_source=False,
-                                               label=HARASSMENT_FIRE_LABEL))
+                                               label=HARASSMENT_FIRE_LABEL), t)
                    for t in targets]
         self.decision_manager.request(
             squad.owner,

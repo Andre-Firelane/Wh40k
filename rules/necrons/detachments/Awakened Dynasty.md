@@ -1,6 +1,6 @@
 # Awakened Dynasty
 
-**Necrons** - 3 DP detachment
+**Necrons** - 3 DP detachment - Force Disposition: Take and Hold
 
 Source: <https://wahapedia.ru/wh40k11ed/factions/necrons/>
 
@@ -8,14 +8,11 @@ Source: <https://wahapedia.ru/wh40k11ed/factions/necrons/>
 
 ### Command Protocols
 
-The Necron nobility and their high-ranking courtiers make war in a codified and relentless fashion. Their command protocols crackle out across multi-dimensional spectra from carrier-wave projectors, compelling their semi-sentient soldiery into battle one overriding directive at a time
 While a NECRONS CHARACTER model is leading this unit, each time a model in this unit makes an attack, add 1 to the Hit roll.
 
 ## Enhancements
 
 ### Veil of Darkness - 20 pts
-
-With this device the bearer can twist space and time about them, enfolding them in a swirling darkness. When it fades, they have vanished, rematerialising elsewhere through a miracle of arcane science.
 
 NECRONS model only. (Once per battle, per army) At the end of your opponent’s turn, if this unit is **unengaged**, you can use this ability. If you do:
 
@@ -37,19 +34,13 @@ Change to:
 
 ### Nether-realm Casket - 20 pts
 
-Clouds of hyper-dense particles billow from this small artefact, to obscure and shield the bearer from the foe.
-
 NECRONS model only. While the bearer is leading a unit, models in that unit have the **Stealth** ability.
 
 ### Phasal Subjugator (Aura) - 35 pts
 
-This engraved sigil-circuitry transforms the fierce will of the bearer into a surging lash across every phasal state.
-
 NECRONS model only. While a friendly NECRONS unit (excluding CHARACTER units) is within 6" of the bearer, each time a model in that unit makes an attack, add 1 to the Hit roll.
 
 ### Enaegic Dermal Bond - 30 pts
-
-The bearers living metal mantle is bonded to mirror versions of itself across many dimensional thresholds.
 
 NECRONS model only. The bearer has the Feel No Pain 4+ ability.
 
@@ -58,8 +49,6 @@ NECRONS model only. The bearer has the Feel No Pain 4+ ability.
 ### PROTOCOL OF THE ETERNAL REVENANT - 1CP
 
 *Awakened Dynasty – Epic Deed Stratagem*
-
-Necron rulers possess enhanced self-repair systems.
 
 **WHEN:** Any phase.
 
@@ -73,8 +62,6 @@ Necron rulers possess enhanced self-repair systems.
 
 *Awakened Dynasty – Strategic Ploy Stratagem*
 
-Nanoscarabs are released in boiling black clouds that whirl about the legions and effect rapid repairs
-
 **WHEN:** Your opponent’s Shooting phase or the Fight phase, just after an enemy unit has resolved its attacks.
 
 **TARGET:** One NECRONS unit from your army that had one or more of its models destroyed as a result of the attacking unit’s attacks.
@@ -84,8 +71,6 @@ Nanoscarabs are released in boiling black clouds that whirl about the legions an
 ### PROTOCOL OF THE HUNGRY VOID - 1CP
 
 *Awakened Dynasty – Battle Tactic Stratagem*
-
-Necrons strike with data-augmented accuracy.
 
 **WHEN:** Fight phase.
 
@@ -97,8 +82,6 @@ Necrons strike with data-augmented accuracy.
 
 *Awakened Dynasty – Strategic Ploy Stratagem*
 
-Arcing energies leap from one Necron to the next, lending them unnatural speed and surety
-
 **WHEN:** Your Movement phase.
 
 **TARGET:** One NECRONS unit from your army.
@@ -109,8 +92,6 @@ Arcing energies leap from one Necron to the next, lending them unnatural speed a
 
 *Awakened Dynasty – Battle Tactic Stratagem*
 
-The legions employ the strategies of their masters in perfect synchronicity, laying down hails of mechanically coordinated fire.
-
 **WHEN:** Your Shooting phase.
 
 **TARGET:** One NECRONS unit from your army that has not been selected to shoot this phase.
@@ -120,8 +101,6 @@ The legions employ the strategies of their masters in perfect synchronicity, lay
 ### PROTOCOL OF THE VENGEFUL STARS - 2CP
 
 *Awakened Dynasty – Strategic Ploy Stratagem*
-
-Criss-crossfire leaps from the Necron ranks, forming a blazing corona of deadly energy to punish those who dare threaten the indignant nobility's legions.
 
 **WHEN:** Your opponent’s Shooting phase, just after an enemy unit destroys a NECRONS unit from your army.
 

@@ -25,6 +25,8 @@ while the turn belongs to their opponent. Same shape as every reactive
 Stratagem here, and `auto_players` answers it for the AI so nothing stalls.
 """
 
+from game import ai_mode
+
 HALLUCINOGEN_GRENADES_LABEL = "Hallucinogen Grenades"
 
 #: "visible to and within 36 inches of this unit".
@@ -52,7 +54,7 @@ class HallucinogenGrenadesController:
         self.decision_manager = decision_manager
         self.game_log = game_log
         self.all_tokens = all_tokens if all_tokens is not None else []
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._granted = []
 
     def _squads(self):
@@ -111,7 +113,7 @@ class HallucinogenGrenadesController:
                 bearer.owner,
                 "%s: %s - give which friendly AELDARI INFANTRY unit Stealth?"
                 % (HALLUCINOGEN_GRENADES_LABEL, bearer.name),
-                [(t.name, (lambda b=bearer, t=t: self.grant(b, t))) for t in options]
+                [(t.name, (lambda b=bearer, t=t: self.grant(b, t)), t) for t in options]
                 + [("Do not use it", None)])
             return True
         return False

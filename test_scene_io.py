@@ -162,7 +162,8 @@ c.true("...for every unit, so the comparison above is not trivially true",
            for n in original if len(original[n]["models"]) > 1))
 
 # =====================================================================
-head("3. casualties: a shorter unit in the snapshot loses its tail")
+head("3. casualties: a shorter unit in the snapshot loses the models it "
+     "does not name")
 # =====================================================================
 state, squads, by_name = scene()
 mob = by_name[MOB]
@@ -176,6 +177,13 @@ c.eq("the unit is cut down to the snapshot's size", len(mob.models), 6)
 c.eq("and the removed models are out of state.tokens",
      sum(1 for m in state.tokens if m.squad is mob), 6)
 c.true("the scene really did start bigger", full > 6)
+# WHICH models are the casualties is the whole of test_scene_activation.py's
+# first section - trimming the front of the snapshot's list here would leave
+# the Warboss and Painboy standing, not the first six Boyz.
+c.eq("the casualties are recorded as destroyed, not merely dropped",
+     len(mob.destroyed_models), full - 6)
+c.true("...at zero wounds, which is how this engine spells destroyed",
+       all(m.current_wounds == 0 for m in mob.destroyed_models))
 
 # =====================================================================
 head("4. mismatches are reported, not papered over")
@@ -273,5 +281,192 @@ c.true("begin_battle runs before the turn state is restored",
        main_src.index("begin_battle((loaded") < main_src.index("scene_io.restore_turn"))
 c.true("a snapshot from another map is refused",
        "was saved on" in main_src)
+
+# =====================================================================
+head("8. a unit destroyed before the save does not come back")
+# =====================================================================
+# capture() walks the three GameState lists, and a wiped squad is in none of
+# them - so it is simply absent from the file. Leaving the rebuilt copy alone
+# was nearly harmless on the default path (nothing has been deployed yet, so
+# it just sits off-board) and WRONG on the legacy already-deployed one, where
+# register_unit() has already put it on the battlefield at full strength.
+from game.squad import Squad  # noqa: E402
+from game.token import Token  # noqa: E402
+
+
+class _P:
+    name = "Probe"
+    wounds = 2
+    fly = hover = transport = character = squad_leader = False
+
+
+class _State:
+    def __init__(self):
+        self.tokens, self.reserves, self.embarked_squads = [], [], []
+
+
+def _squad(name, n=1):
+    models = [Token(x_in=float(i), y_in=1.0, radius_in=0.5, color=(1, 1, 1), profile=_P())
+              for i in range(n)]
+    squad = Squad(name, models, owner="Player 1")
+    for model in models:
+        model.squad = squad
+    return squad
+
+
+alive, doomed = _squad("Alive", 2), _squad("Doomed", 1)
+live_state = _State()
+live_state.tokens = list(alive.models)      # the sweep already removed `doomed`
+wiped = scene_io.capture(live_state, "map2")
+c.eq("a destroyed unit is not in the snapshot at all",
+     [e["name"] for e in wiped["squads"]], ["Alive"])
+
+a2, d2 = _squad("Alive", 2), _squad("Doomed", 1)
+s2 = _State()
+problems = scene_io.restore(wiped, s2, squads=[a2, d2])
+c.true("the restore says which unit the snapshot did not have",
+       any("Doomed" in p for p in problems))
+c.eq("...and the rebuilt copy is emptied, which is how this engine spells destroyed",
+     len(d2.models), 0)
+c.eq("...its models kept as casualties, where the rules read a last position from",
+     len(d2.destroyed_models), 1)
+c.eq("the surviving unit is restored as normal", len(a2.models), 2)
+
+# The legacy path: register_unit() puts everything on the board up front.
+a3, d3 = _squad("Alive", 2), _squad("Doomed", 1)
+s3 = _State()
+s3.tokens = list(a3.models) + list(d3.models)
+scene_io.restore(wiped, s3, squads=[a3, d3])
+c.true("a destroyed unit is taken OFF the board, not left standing",
+       not any(m in s3.tokens for m in d3.destroyed_models))
+c.eq("...and has no models left", len(d3.models), 0)
+
+# The valve. A snapshot of a different roster names nothing in this scene, and
+# evicting on that basis would delete both armies.
+x, y = _squad("Other", 2), _squad("Else", 1)
+s4 = _State()
+s4.tokens = list(x.models) + list(y.models)
+problems = scene_io.restore(wiped, s4, squads=[x, y])
+c.eq("a snapshot from another roster deletes nothing", [len(x.models), len(y.models)], [2, 1])
+c.true("...and says why", any("wrong roster" in p for p in problems))
+a5, d5 = _squad("Alive", 2), _squad("Doomed", 1)
+s5 = _State()
+s5.tokens = list(a5.models) + list(d5.models)
+scene_io.restore(wiped, s5, squads=[a5, d5], evict_missing=False)
+c.eq("...and then the old behaviour is unchanged", len(d5.models), 1)
+
+# =====================================================================
+head("9. the mission state survives a round trip")
+# =====================================================================
+# Without this a resumed battle restarted at 0 VP with a fresh deck, which is
+# the gap CLAUDE.md listed as open. The rule that decides what is in here: a
+# field scoped to ONE TURN is left out, because the autosave is taken at a
+# battle-round boundary where all of them are empty - and several of them
+# (pending_pick's callbacks, the id(squad)-keyed sets) could not be written to
+# JSON at all.
+from game.missions import MissionController  # noqa: E402
+from game.primary_missions import DEATH_TRAP_ALL_SLOT, PrimaryMissionController  # noqa: E402
+from game.secondary_missions import ALL_CARDS, SecondaryMissionController  # noqa: E402
+
+
+class _Obj:
+    def __init__(self, name):
+        self.name = name
+
+
+class _Area:
+    pass
+
+
+def _mission_set(objectives, areas):
+    ledger = MissionController()
+    secondary = SecondaryMissionController(
+        player="Player 1", mission_controller=ledger, command_points=None,
+        decision_manager=None, turn_tracker=None, game_log=None)
+    secondary.set_objectives_source(lambda: objectives)
+    secondary.set_squads_source(lambda: [])
+    primary = PrimaryMissionController(
+        player="Player 1", mission_controller=ledger, turn_tracker=None,
+        game_log=None, action_controller=None)
+    primary.set_terrain_source(lambda: areas)
+    return {"ledger": ledger, "secondary": secondary, "primary": primary}
+
+
+objs = [_Obj("Central Objective"), _Obj("Objective East")]
+areas = [_Area(), _Area(), _Area()]
+before = _mission_set(objs, areas)
+before["ledger"].primary_points["Player 1"] = 13
+before["ledger"].secondary_points["Player 1"] = 8
+before["ledger"]._unscored_kills["Player 1"] = 2
+sec = before["secondary"]
+sec.hand = [ALL_CARDS[0], ALL_CARDS[1]]
+sec.discarded = [ALL_CARDS[2]]
+sec.deck = [card for card in ALL_CARDS if card not in sec.hand + sec.discarded]
+sec._drawn_round, sec._scored_round, sec._scored_vp_this_round = 3, 3, 7
+sec.card_state.setdefault("a_tempting_target", {})["objective"] = objs[1]
+pri = before["primary"]
+pri.points, pri._battle_scored = 11, True
+pri.card_state[DEATH_TRAP_ALL_SLOT] = {id(areas[2]): areas[2], id(areas[0]): areas[0]}
+
+saved = scene_io.capture(_State(), "map2", missions=before)
+c.eq("every controller gets its own slot", sorted(saved["missions"]), ["ledger", "primary", "secondary"])
+# Cards are module-level singletons shared by every battle, so they go by key.
+c.true("cards are stored by key, not pickled",
+       all(isinstance(k, str) for k in saved["missions"]["secondary"]["deck"]))
+# A TerrainArea has no name, so the trapped set goes by index into the list
+# battle_map.build() produces - deterministic for a given map key, which the
+# snapshot pins.
+c.eq("trapped ground is stored as indices", saved["missions"]["primary"]["trapped"], [0, 2])
+c.true("turn-scoped card state is NOT stored",
+       "guards" not in json.dumps(saved["missions"]) and "_this_turn" not in json.dumps(saved["missions"]))
+
+objs2 = [_Obj("Central Objective"), _Obj("Objective East")]
+areas2 = [_Area(), _Area(), _Area()]
+after = _mission_set(objs2, areas2)
+problems = scene_io.restore_missions(saved, after)
+c.eq("a clean round trip complains about nothing", problems, [])
+c.eq("the VP ledger comes back", after["ledger"].primary_points["Player 1"], 13)
+c.eq("...both halves", after["ledger"].secondary_points["Player 1"], 8)
+c.eq("...including kills banked but not yet scored", after["ledger"]._unscored_kills["Player 1"], 2)
+c.eq("the hand comes back", [card.key for card in after["secondary"].hand],
+     [card.key for card in sec.hand])
+c.eq("the discard pile comes back", [card.key for card in after["secondary"].discarded],
+     [card.key for card in sec.discarded])
+# ORDER matters: the deck is drawn from the top with pop(0), so a reshuffle on
+# load would deal a different battle.
+c.eq("the deck comes back IN ORDER", [card.key for card in after["secondary"].deck],
+     [card.key for card in sec.deck])
+c.eq("the round ledgers come back",
+     [after["secondary"]._drawn_round, after["secondary"]._scored_round,
+      after["secondary"]._scored_vp_this_round], [3, 3, 7])
+c.true("a WHEN DRAWN pick resolves to the SAME objective in the new scene",
+       after["secondary"].card_state["a_tempting_target"]["objective"] is objs2[1])
+c.eq("the Primary's running score comes back", after["primary"].points, 11)
+c.true("...and its once-per-battle latch", after["primary"]._battle_scored)
+c.eq("trapped ground resolves back to the same areas",
+     sorted(areas2.index(a) for a in after["primary"].card_state[DEATH_TRAP_ALL_SLOT].values()),
+     [0, 2])
+
+# A snapshot written before any of this existed has no "missions" section and
+# must restore exactly as it always did - the same promise `armies` makes, and
+# the reason FORMAT_VERSION does not move.
+old_style = scene_io.capture(_State(), "map2")
+c.true("an older snapshot carries no mission section", "missions" not in old_style)
+untouched = _mission_set(objs2, areas2)
+c.eq("...and restoring one changes nothing", scene_io.restore_missions(old_style, untouched), [])
+c.eq("...leaving the score at zero", untouched["ledger"].primary_points["Player 1"], 0)
+
+# A pick whose target is gone is reported, not guessed at.
+gone = _mission_set([_Obj("Central Objective")], areas2)
+problems = scene_io.restore_missions(saved, gone)
+c.true("a pick that is not in this scene is reported",
+       any("Objective East" in p for p in problems))
+c.true("...and the card is simply left without one",
+       gone["secondary"].card_state.get("a_tempting_target", {}).get("objective") is None)
+
+c.true("main() restores the missions after begin_battle()",
+       main_src.index("begin_battle((loaded") < main_src.index("scene_io.restore_missions"))
+c.eq("there is ONE definition of which controller fills which slot",
+     main_src.count("def _mission_slots("), 1)
 
 c.finish()

@@ -479,4 +479,121 @@ checks.true("...and the real clock, so the dwell can elapse",
             "pygame.time.get_ticks()" in MAIN)
 
 
+
+# --- 10. the weapon table prints the KEYWORDS ------------------------------
+print("--- 10. weapon keywords ---")
+
+# Reported: "in den weapon info tabellen im overlay fehlen die keywords (zb
+# twin linked oder sustained hits)". The table drew Range/A/BS/S/AP/D and
+# stopped there, so the half of a weapon row that decides how it behaves -
+# [TORRENT] means no Hit roll at all, [TWIN-LINKED] a re-roll, [DEVASTATING
+# WOUNDS] wounds that skip the save - was on no screen anywhere in the game.
+#
+# Whether the SET of keywords is right is section 5 of
+# test_weapon_characteristics.py, measured against rules/*.md. What is pinned
+# here is that they reach the surface, in a band of their own, without
+# breaking the table around them.
+from game import weapons as _weapons  # noqa: E402
+from game.weapons import printed_keywords  # noqa: E402
+from game.factions import necrons as _nec  # noqa: E402
+
+_ALL_BUILT_WEAPONS = [cls for cls in vars(_weapons).values()
+                      if isinstance(cls, type) and issubclass(cls, _weapons.WeaponProfile)]
+
+_kw_squad = tk.build(_nec.CTAN_SHARD_OF_THE_VOID_DRAGON, "Player 1",
+                     name="1 C'tan Shard of the Void Dragon 1")
+_kw_token = _kw_squad.models[0]
+_kw_surface = pygame.Surface((900, 1400))
+_kw_surface.fill(BG)
+_kw_card = udc.UnitDatacardOverlay()
+_kw_rendered = []
+_kw_card.keyword_font = _RecordingFont(_kw_card.keyword_font, _kw_rendered)
+_kw_card.draw(_kw_surface, _kw_token, (60, 40))
+
+# The reported keywords, on a real unit, actually drawn: the Void Dragon's
+# voltaic storm prints [BLAST] and [SUSTAINED HITS 2], its spear
+# [ANTI-VEHICLE 2+].
+checks.true("the drawn card carries the voltaic storm's [SUSTAINED HITS 2]",
+            any("SUSTAINED HITS 2" in line for line in _kw_rendered))
+checks.true("...and its [BLAST]",
+            any("BLAST" in line for line in _kw_rendered))
+checks.true("...and the spear's [ANTI-VEHICLE 2+]",
+            any("ANTI-VEHICLE 2+" in line for line in _kw_rendered))
+
+# The counter-check, without which every line above would hold just as well on
+# a card that stamped keywords onto every row. It needs a unit carrying BOTH
+# kinds of weapon, and the Void Dragon is not one - all four of its rows print
+# something. The Devilfish is: its armoured hull and burst cannon print
+# nothing, its two twin pulse carbines print [ASSAULT, TWIN-LINKED].
+from game.factions import tau_empire as _tau  # noqa: E402
+
+_mix_squad = tk.build(_tau.DEVILFISH, "Player 1", name="1 Devilfish 1")
+_mix_token = _mix_squad.models[0]
+_mix_card = udc.UnitDatacardOverlay()
+_mix_rendered = []
+_mix_card.keyword_font = _RecordingFont(_mix_card.keyword_font, _mix_rendered)
+_mix_card.draw(pygame.Surface((900, 1400)), _mix_token, (60, 40))
+
+_with_keywords = [w for w in _mix_token.weapons if printed_keywords(w)]
+_expected_lines = sum(len(_mix_card._weapon_keyword_lines(w, _mix_card.last_rect))
+                      for w in _with_keywords)
+checks.eq("one keyword band per weapon that HAS keywords, and none for the rest",
+          len(_mix_rendered), _expected_lines)
+checks.true("...and this unit really does carry some of each kind",
+            0 < len(_with_keywords) < len(_mix_token.weapons))
+
+# A weapon with no keywords costs its row nothing; one with them makes the row
+# taller. This is the accounting the card gets wrong most easily - the same
+# hazard section 5 exists for, one level further down.
+#
+# The lookups take a default rather than raising: an A/B probe that empties
+# printed_keywords() must turn this suite RED, not crash it into reporting
+# nothing at all - the lesson this repo has now learned seventeen times.
+_bare = next((w for w in _mix_token.weapons if not printed_keywords(w)), None)
+_loaded = next((w for w in _mix_token.weapons if printed_keywords(w)), None)
+checks.true("the mixed unit really carries a weapon of each kind",
+            _bare is not None and _loaded is not None)
+checks.eq("a keyword-free weapon's row is exactly its numbers band",
+          _bare is not None and _mix_card._weapon_row_height(_bare, _mix_card.last_rect)
+          == _mix_card._weapon_band_height(_bare), True)
+checks.true("a weapon WITH keywords gets a taller row than its numbers band",
+            _loaded is not None
+            and _mix_card._weapon_row_height(_loaded, _mix_card.last_rect)
+            > _mix_card._weapon_band_height(_loaded))
+
+# The keyword band spans the whole table, so the column separators have to stop
+# at the numbers band above it - a vertical rule running on through the
+# keywords would slice them into pieces belonging to columns they have nothing
+# to do with.
+_widths, _positions = _kw_card._column_layout(_kw_card.last_rect, 7, name_column=True)
+_keyword_rows = [y for y in range(_kw_card.last_rect.y, _kw_card.last_rect.bottom)
+                 if any(_kw_surface.get_at((x, y))[:3] == udc.KEYWORD_COLOR
+                        for x in range(_kw_card.last_rect.x, _kw_card.last_rect.right))]
+checks.true("keyword text really is on the surface, not merely rendered",
+            len(_keyword_rows) > 0)
+checks.eq("no column separator runs through a keyword line",
+          [(int(x), y) for y in _keyword_rows for x in _positions[1:]
+           if _kw_surface.get_at((int(x), y))[:3] == udc.TABLE_LINE_COLOR], [])
+
+# ...and the whole band stays inside the card, which is what the row-height
+# accounting above is FOR: get it wrong and the last section is clipped away.
+checks.true("every keyword line is drawn inside the card",
+            all(_kw_card.last_rect.y < y < _kw_card.last_rect.bottom for y in _keyword_rows))
+
+# The layout decision itself, measured rather than asserted: the keywords go
+# under the numbers instead of into an eighth column because the widest string
+# any built weapon prints fits the table on one line and could not have fitted
+# the name cell at all.
+_widest = max([", ".join(printed_keywords(w)) for w in _ALL_BUILT_WEAPONS
+               if printed_keywords(w)] or [""],
+              key=lambda t: _kw_card.keyword_font.size(t)[0])
+_widest_px = _kw_card.keyword_font.size(_widest)[0]
+checks.true("the widest printed keyword string (%d px) fits the full table width"
+            % _widest_px,
+            _widest_px <= udc.BOX_WIDTH - 2 * udc.PADDING - 8)
+checks.true("...and would NOT have fitted the %d px name column"
+            % (udc.NAME_COLUMN_WIDTH - 8),
+            _widest_px > udc.NAME_COLUMN_WIDTH - 8)
+
+
 checks.finish()

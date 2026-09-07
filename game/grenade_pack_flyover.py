@@ -111,7 +111,7 @@ class GrenadePackFlyoverController:
         targets = self.targets_for(squad)
         if not targets:
             return
-        options = [(t.name, (lambda tt=t: self.use(squad, tt))) for t in targets]
+        options = [(t.name, (lambda tt=t: self.use(squad, tt)), t) for t in targets]
         options.append(("Do not use it", lambda: None))
         self.decision_manager.request(
             squad.owner,

@@ -61,7 +61,7 @@ inventing a heuristic here would be inventing an AI path, which the standing
 T'au rule says not to do.
 """
 
-from game import enhancements
+from game import ai_mode, enhancements
 from game import pregame as pregame_module
 from game.strategic_reserves import withdraw_to_reserves
 
@@ -84,7 +84,7 @@ class SolidImageProjectionStep:
         self.game_state = game_state
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self.chosen = {}          # player -> [(squad, destination)]
         self._pregame = None
         self._on_done = None
@@ -150,13 +150,21 @@ class SolidImageProjectionStep:
             targets = self.eligible_targets(player)
             if not targets:
                 return False
-            options = []
-            for target in targets:
-                options.append((f"{SOLID_IMAGE_PROJECTION_UNIT}: redeploy {target.name}",
-                                (lambda t=target: self.choose(player, t, REDEPLOY))))
-                options.append((f"{SOLID_IMAGE_PROJECTION_UNIT}: {target.name} into "
-                                f"Strategic Reserves",
-                                (lambda t=target: self.choose(player, t, RESERVES))))
+            # TWO STEPS, so this can be answered on the BOARD (the standing
+            # rule: "immer wenn man eine einheit auf dem schlachtfeld waehlen
+            # muss ... will ich die einheit nicht aus einer liste waehlen").
+            #
+            # It used to be one prompt offering every unit TWICE - once per
+            # destination - and game/unit_pick.py rightly refuses a prompt that
+            # names the same unit in two options, because a click says "this
+            # unit" and cannot pick between two fates. Splitting the question
+            # removes that: step one names each unit exactly once and is
+            # tagged, step two picks the fate and is an ordinary list (the two
+            # destinations are not units).
+            options = [
+                (target.name, (lambda t=target: self._offer_destination(player, t)), target)
+                for target in targets
+            ]
             options.append(("No more", lambda: self.decline(player)))
             self.decision_manager.request(
                 player,
@@ -165,6 +173,19 @@ class SolidImageProjectionStep:
                 options)
             return True
         return False
+
+    def _offer_destination(self, player, squad):
+        """Step two: what happens to the unit just picked on the board."""
+        if self.decision_manager is None:
+            return self.choose(player, squad, REDEPLOY)
+        self.decision_manager.request(
+            player,
+            f"{SOLID_IMAGE_PROJECTION_UNIT}: {squad.name} - set it up again, or "
+            "put it into Strategic Reserves?",
+            [("Set up again elsewhere", (lambda: self.choose(player, squad, REDEPLOY))),
+             ("Into Strategic Reserves", (lambda: self.choose(player, squad, RESERVES)))],
+        )
+        return True
 
     def choose(self, player, squad, destination):
         if squad is None or self.remaining(player) <= 0:

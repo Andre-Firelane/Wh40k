@@ -53,7 +53,7 @@ clause carries most of the weight. All three are written out anyway, because
 THE AI DECLINES (standing Aeldari instruction).
 """
 
-from game import aeldari_detachments, martial_grace
+from game import aeldari_detachments, ai_mode, martial_grace
 from game.stratagems import Stratagem
 from game.turn import PHASE_SHOOTING
 
@@ -104,7 +104,7 @@ class WarhostFireAndFadeController:
         self.dice_manager = dice_manager
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._moving_squad = None
         self._stratagem = Stratagem(
             name=WARHOST_FIRE_AND_FADE_NAME, cp_cost=WARHOST_FIRE_AND_FADE_CP,

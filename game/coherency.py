@@ -1,4 +1,4 @@
-from game.squad import COHERENCY_RANGE_IN, MAX_SPREAD_IN, edge_distance, spread_limit_applies
+from game.squad import COHERENCY_RANGE_IN, MAX_SPREAD_IN, edge_distance, spread_limit_applies, widest_pair
 
 
 def connected_groups(models):
@@ -73,13 +73,8 @@ def coherency_report(squad):
     # every future investigation would start by chasing a violation that isn't
     # one.
     if spread_limit_applies(squad):
-        widest = max(
-            ((edge_distance(a, b), a, b)
-             for i, a in enumerate(squad.models)
-             for b in squad.models[i + 1:]),
-            key=lambda item: item[0],
-        )
-        if widest[0] > MAX_SPREAD_IN:
+        widest = widest_pair(squad.models)
+        if widest is not None and widest[0] > MAX_SPREAD_IN:
             parts.append(
                 f'widest pair {widest[0]:.2f}" apart {_pos(widest[1])}<->{_pos(widest[2])} '
                 f'(limit {MAX_SPREAD_IN}")'

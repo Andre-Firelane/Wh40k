@@ -13,6 +13,7 @@ which is also what game/battle_focus.py's qualifying_players() reads to decide
 whose army counts as ASURYANI.
 """
 
+from game import force_dispositions
 from game.factions.aeldari_points import AELDARI_POINTS
 from game.factions.datasheet import Datasheet, Gear, ModelLine, WargearOption
 from game.factions.detachment import Detachment, Enhancement
@@ -130,7 +131,7 @@ from game.weapons import (
     WarWalkerFeetProfile,
     WraithboneHullProfile,
     WraithCloseCombatWeaponProfile,
-    WraithcannonProfile,
+    WraithcannonProfile, VoidreaverWraithcannonProfile,
     WitchbladeProfile,
     DarkReaperMissileLauncherStarshotProfile, DarkReaperShurikenCannonProfile, LaserLanceMeleeProfile, LaserLanceRangedProfile, ParagonSabreProfile, ReaperLauncherStarshotProfile, StarLanceMeleeProfile, StarLanceRangedProfile, TempestLauncherProfile,
     AeldariCloseCombatWeaponA3Profile, ScatterLaserProfile,
@@ -155,6 +156,7 @@ from game.weapons import (
     BlasterProfile, NeuroDisruptorProfile, ShredderProfile,
     ShurikenRifleProfile, BlastPistolProfile, CorsairBladeProfile,
     PairedHekatariiBladesProfile, VoidscarredExecutionerProfile,
+    VoidscarredPowerSwordProfile,
     WaySeekerWitchStaffProfile, DreadOfTheDeepVoidProfile, WaystaveProfile,
     EyeOfWrathProfile, SpearOfTwilightProfile, DisintegratorCannonProfile,
     StarfangGrenadeLauncherProfile, PowerSwordProfile, FusionGunProfile,
@@ -179,6 +181,7 @@ SEER_COUNCIL = AELDARI.add_detachment(Detachment(
     rule_name="Strands of Fate",
     setting="SEER_COUNCIL_PLAYERS",
     points=2,
+    force_disposition=force_dispositions.PRIORITY_ASSETS,
     rule_text=(
         "Strands of Fate: at the start of the battle, roll six D6 and set them aside as "
         "Fate dice. Once per phase, you can spend one to reduce the cost of a Stratagem. "
@@ -219,6 +222,7 @@ ARMOURED_WARHOST = AELDARI.add_detachment(Detachment(
     rule_name="Skilled Crews",
     setting="ARMOURED_WARHOST_PLAYERS",
     points=1,
+    force_disposition=force_dispositions.RECONNAISSANCE,
     rule_text=(
         "Skilled Crews: Friendly AELDARI VEHICLE units' ranged attacks have [ASSAULT]. "
         "Granted in the adjuster chain AND read by game/coldstar.py's "
@@ -235,6 +239,7 @@ PATH_OF_THE_OUTCAST_DETACHMENT = AELDARI.add_detachment(Detachment(
     rule_name="Far-Reaching Doom",
     setting="PATH_OF_THE_OUTCAST_PLAYERS",
     points=1,
+    force_disposition=force_dispositions.RECONNAISSANCE,
     rule_text=(
         "Far-Reaching Doom: when a friendly RANGERS/SHROUD RUNNERS unit is selected to "
         "shoot, enemy units have +6\" detection range until that friendly unit has shot. "
@@ -252,6 +257,7 @@ GUARDIAN_BATTLEHOST = AELDARI.add_detachment(Detachment(
     rule_name="Defend at All Costs",
     setting="GUARDIAN_BATTLEHOST_PLAYERS",
     points=2,
+    force_disposition=force_dispositions.TAKE_AND_HOLD,
     rule_text=(
         "Defend at All Costs: each time a DIRE AVENGER, GUARDIAN, SUPPORT WEAPON or "
         "WAR WALKER model from your army makes an attack, if that model's unit and/or "
@@ -271,6 +277,7 @@ ASPECT_HOST = AELDARI.add_detachment(Detachment(
     rule_name="Path of the Warrior",
     setting="ASPECT_HOST_PLAYERS",
     points=3,
+    force_disposition=force_dispositions.PRIORITY_ASSETS,
     rule_text=(
         "Path of the Warrior: each time an ASPECT WARRIORS or AVATAR OF KHAINE unit "
         "from your army is selected to shoot or fight, select one of the following for "
@@ -291,6 +298,7 @@ WARHOST = AELDARI.add_detachment(Detachment(
     rule_name="Martial Grace",
     setting="WARHOST_PLAYERS",
     points=3,
+    force_disposition=force_dispositions.RECONNAISSANCE,
     rule_text=(
         "Martial Grace: at the start of the battle round you receive 1 additional "
         "Battle Focus token; each time a unit performs the Swift as the Wind Agile "
@@ -312,6 +320,7 @@ WINDRIDER_HOST = AELDARI.add_detachment(Detachment(
     rule_name="Ride the Wind",
     setting="WINDRIDER_HOST_PLAYERS",
     points=2,
+    force_disposition=force_dispositions.DISRUPTION,
     rule_text=(
         "Ride the Wind: ASURYANI MOUNTED and VYPER units may be set up in Reserves and "
         "arrive as if from Strategic Reserves, and for the purposes of setting such "
@@ -334,6 +343,7 @@ SPIRIT_CONCLAVE = AELDARI.add_detachment(Detachment(
     rule_name="Shepherds of the Dead",
     setting="SPIRIT_CONCLAVE_PLAYERS",
     points=2,
+    force_disposition=force_dispositions.TAKE_AND_HOLD,
     rule_text=(
         "Shepherds of the Dead: each time an ASURYANI PSYKER model from your army is "
         "destroyed by an enemy unit, that enemy unit gains a Vengeful Dead token, and "
@@ -2391,7 +2401,7 @@ CORSAIR_VOIDREAVERS = AELDARI.add_datasheet(Datasheet(
                       with_weapons=[ShurikenCannonProfile],
                       max_models=1, name=VOIDREAVER_TO_SHURIKEN_CANNON),
         WargearOption(_VOIDREAVER_LINE, replaces=PowerSwordProfile,
-                      with_weapons=[WraithcannonProfile],
+                      with_weapons=[VoidreaverWraithcannonProfile],
                       max_models=1, name=VOIDREAVER_TO_WRAITHCANNON),
     ],
     gear_options=[
@@ -2486,8 +2496,11 @@ CORSAIR_SKYREAVERS = AELDARI.add_datasheet(Datasheet(
 ))
 
 
-_VOIDSCARRED_LOADOUT = [ShurikenPistolProfile, PowerSwordProfile,
-                        AeldariCloseCombatWeaponA2Profile]
+# A3 for BOTH melee rows: Corsair Voidscarred print "Power sword" and "Close
+# combat weapon" one Attack better than Corsair Voidreavers do, so neither
+# shares the Voidreavers' class.
+_VOIDSCARRED_LOADOUT = [ShurikenPistolProfile, VoidscarredPowerSwordProfile,
+                        AeldariCloseCombatWeaponA3Profile]
 _VOIDSCARRED_LINE = "Corsair Voidscarred"
 _VOIDSCARRED_FELARCH_LINE = "Voidscarred Felarch"
 _SHADE_RUNNER_LINE = "Shade Runner"
@@ -2514,7 +2527,7 @@ CORSAIR_VOIDSCARRED = AELDARI.add_datasheet(Datasheet(
                    [ShurikenPistolProfile, PairedHekatariiBladesProfile],
                    name=_SHADE_RUNNER_LINE),
          ModelLine(SoulWeaverProfile, 1,
-                   [ShurikenPistolProfile, PowerSwordProfile],
+                   [ShurikenPistolProfile, VoidscarredPowerSwordProfile],
                    name=_SOUL_WEAVER_LINE),
          ModelLine(WaySeekerProfile, 1,
                    [ShurikenPistolProfile, VoidscarredExecutionerProfile,

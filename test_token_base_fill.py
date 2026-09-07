@@ -69,11 +69,11 @@ def render(token, old_style=False):
     surface = pygame.Surface((BOARD.width_px, BOARD.height_px))
     surface.fill(BACKDROP)
     if not old_style:
-        Renderer()._draw_tokens(surface, BOARD, [token], "Player 1")
+        Renderer()._draw_tokens(surface, BOARD, [token])
         return surface
     px, py = BOARD.to_px(token.x_in, token.y_in)
     r_px = round(BOARD.in_to_px_len(token.radius_in))
-    color = Renderer()._token_color(token, "Player 1")
+    color = Renderer()._token_color(token)
     fill_color = tuple(round(ch * rmod.TOKEN_FILL_DARKEN) for ch in color)
     pygame.draw.circle(surface, fill_color, (round(px), round(py)), r_px)
     pygame.draw.circle(surface, color, (round(px), round(py)), r_px, width=rmod.TOKEN_BORDER_WIDTH)
@@ -108,7 +108,7 @@ def ring_present(surface, token):
     of the request that must NOT change ("nur der farbige ring übrig")."""
     px, py = BOARD.to_px(token.x_in, token.y_in)
     r_px = round(BOARD.in_to_px_len(token.radius_in))
-    ring_color = tuple(Renderer()._token_color(token, "Player 1"))
+    ring_color = tuple(Renderer()._token_color(token))
     return any(
         tuple(surface.get_at((round(px + dx), round(py + dy))))[:3] == ring_color
         for dx, dy in ((r_px - 1, 0), (-(r_px - 1), 0), (0, r_px - 1), (0, -(r_px - 1)))
@@ -173,7 +173,7 @@ def radial_profile(surface, token, renderer):
 
 painboy_surface = render(painboy)
 profile = radial_profile(painboy_surface, painboy, Renderer())
-team = tuple(Renderer()._token_color(painboy, "Player 1"))
+team = tuple(Renderer()._token_color(painboy))
 colored = [i for i, c_ in enumerate(profile) if c_ == team]
 dark = [i for i, c_ in enumerate(profile) if c_ == rmod.TOKEN_INNER_RING_COLOR]
 

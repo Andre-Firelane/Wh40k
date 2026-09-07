@@ -37,7 +37,7 @@ BATTLESUIT detachment" is printed, and it is not about points: two 1 DP
 detachments sharing a tag are illegal together however much budget is left.
 """
 
-from game import config
+from game import config, force_dispositions
 from game.factions.faction import FACTIONS
 
 # See the module docstring: an ASSUMPTION, not a transcription.
@@ -130,6 +130,26 @@ def validate(army_key):
             problems.append(
                 f"{entry.name} takes {len(names)} {tag} detachments "
                 f"({', '.join(sorted(names))}); only one is allowed.")
+
+    # The list's declared FORCE DISPOSITION has to be one its detachments
+    # permit. Each detachment allows exactly one, and a list fielding several
+    # picks among them - so this check IS the "you may choose one" rule, and
+    # for a single-detachment list it is simply "the one it grants".
+    #
+    # A list that declares nothing is not a problem here: the Primary Mission
+    # system is per-player (config.PRIMARY_MISSION_CARD_PLAYERS), and a list
+    # nobody plays a Primary card with needs no disposition. What is refused is
+    # declaring one the detachments do not grant.
+    declared = getattr(entry, "force_disposition", None)
+    if declared is not None:
+        granted = {d.force_disposition for d in for_army(army_key)
+                   if d.force_disposition}
+        if declared not in granted:
+            problems.append(
+                f"{entry.name} declares the {force_dispositions.label(declared)} "
+                f"Force Disposition, which none of its detachments permits "
+                f"(they permit: "
+                f"{', '.join(sorted(force_dispositions.label(g) for g in granted)) or 'none'}).")
     return problems
 
 

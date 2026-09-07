@@ -13,7 +13,16 @@ contributor, and it is impossible to review.
 Reorganised here into ordered sections, with every substantive rule kept and
 the duplicates merged. When adding a rule, put it in the section it belongs to
 rather than appending a new paragraph at the end.
+
+The two VP RATES are interpolated from game/missions.py rather than written
+out. They have been retuned once (3/1 -> 6/3), and a prompt that quotes a stale
+number is worse than one that omits it: the planner weighs ground against kills
+with exactly this arithmetic, so a wrong rate is a wrong plan every turn, and
+nothing in the game would contradict it.
 """
+
+from game.missions import (PRIMARY_FIRST_SCORING_ROUND, PRIMARY_POINTS_PER_OBJECTIVE,
+                           SECONDARY_POINTS_PER_KILL)
 
 PLANNER_SYSTEM_PROMPT = (
     # ---------------------------------------------------------------- role
@@ -57,8 +66,11 @@ PLANNER_SYSTEM_PROMPT = (
     # ------------------------------------------------------- winning at all
     "== WHAT WINNING LOOKS LIKE ==\n"
     "You win on Victory Points, not by destroying the enemy army. Primary (\"Hold the Line\") pays "
-    "3 VP per objective you control at the start of each of your own Command phases; Secondary "
-    "(\"No Mercy\") pays 1 VP per enemy unit destroyed, at the end of your own turn. Ground "
+    f"{PRIMARY_POINTS_PER_OBJECTIVE} VP per objective you control at the start of each of your own "
+    f"Command phases, from battle round {PRIMARY_FIRST_SCORING_ROUND} onward (round 1 pays nothing, "
+    "so round 1 is for getting onto the objectives, not for sitting on the ones you deployed on); "
+    f"Secondary (\"No Mercy\") pays {SECONDARY_POINTS_PER_KILL} VP per enemy unit "
+    "destroyed, at the end of your own turn. Ground "
     "therefore pays repeatedly and a kill pays once, so holding objectives round after round "
     "usually beats hunting units - and an army that survives untouched while the enemy holds "
     "every objective has lost.\n"

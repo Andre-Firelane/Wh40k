@@ -4,8 +4,6 @@ Source: <https://wahapedia.ru/wh40k11ed/factions/aeldari/>
 
 ## Battle Focus
 
-In war, as in all things, the Aeldari bring the full might of their intellect, skill and agility to bear upon the task. Coupled with their exceptional technology, this ensures they move with swiftness and grace that is impossible for the foe to match.
-
 If your Army Faction is ASURYANI, at the start of the battle round, you receive a number of Battle Focus tokens based on the battle size, as shown in the table below.
 
 **BATTLE SIZEBATTLE FOCUS TOKENS**
@@ -72,7 +70,6 @@ When mustering your army, you can include HARLEQUINS units in your army, even th
 
 ## Strands of Fate
 
-The Aeldari live on the brink of extinction. As such, their Farseers have become adept at reading future events, seeing the many strands of fate ahead of their people and the consequences of following each one. Taken at the right time, a simple action can avoid calamitous outcomes, aiding the Aeldari in their continued struggle for survival.
 If your Army Faction is AELDARI, at the start of the battle, make a Strands of Fate roll by rolling six D6.
 
 If you wish, you can then re-roll all of these dice, but if you do, roll one less D6. You can continue re-rolling all of the dice in this manner, rolling one less D6 each time you do, until you are satisfied with the results rolled (or until you only have a single D6 remaining).

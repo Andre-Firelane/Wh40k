@@ -1,0 +1,203 @@
+{
+  "format": 1,
+  "key": "tau_retaliation",
+  "name": "T'au Empire (Retaliation)",
+  "faction_keyword": "T'AU EMPIRE",
+  "army_rule": "For The Greater Good",
+  "detachments": ["Retaliation Cadre"],
+  "force_disposition": "purge_the_foe",
+  "sort_order": 70,
+  "roster": [
+    {
+      "datasheet": "The Twin Lance",
+      "color": [210, 190, 120]
+    },
+    {
+      "datasheet": "Broadside Battlesuits",
+      "color": [120, 140, 190],
+      "composition_index": 2,
+      "gear": {
+        "Broadside Shas'vre": ["Seeker Missile", "Twin Plasma Rifle", "Missile Drone", "Missile Drone"],
+        "Broadside Shas'ui": ["Seeker Missile", "Twin Plasma Rifle", "Missile Drone", "Missile Drone"]
+      },
+      "choices": {
+        "Broadside Shas'vre": {
+          "Heavy Rail Rifle -> High-yield Missile Pods": 1
+        },
+        "Broadside Shas'ui": {
+          "Heavy Rail Rifle -> High-yield Missile Pods": 2
+        }
+      }
+    },
+    {
+      "datasheet": "Crisis Fireknife Battlesuits",
+      "color": [150, 160, 200],
+      "gear": {
+        "Crisis Fireknife Shas'vre": ["Gun Drone", "Shield Drone"],
+        "Crisis Fireknife Shas'ui (1)": ["Gun Drone", "Shield Drone"],
+        "Crisis Fireknife Shas'ui (2)": ["Gun Drone", "Shield Drone"]
+      },
+      "choices": {
+        "Crisis Fireknife Shas'vre": {
+          "Plasma Rifle -> Missile Pod": 1
+        },
+        "Crisis Fireknife Shas'ui (1)": {
+          "Plasma Rifle -> Missile Pod": 1
+        },
+        "Crisis Fireknife Shas'ui (2)": {
+          "Plasma Rifle -> Missile Pod": 1
+        }
+      },
+      "leaders": [
+        {
+          "datasheet": "Commander in Enforcer Battlesuit",
+          "color": [140, 160, 210],
+          "gear": {
+            "Commander in Enforcer Battlesuit": ["Shield Drone", "Shield Drone", "Missile Pod", "Missile Pod", "Missile Pod"]
+          },
+          "choices": {
+            "Commander in Enforcer Battlesuit": {
+              "Burst Cannon -> Cyclic Ion Blaster": 1
+            }
+          },
+          "enhancement": "Starflare Ignition System"
+        }
+      ]
+    },
+    {
+      "datasheet": "Crisis Starscythe Battlesuits",
+      "color": [200, 140, 90],
+      "gear": {
+        "Crisis Starscythe Shas'vre": ["Gun Drone", "Shield Drone"],
+        "Crisis Starscythe Shas'ui (1)": ["Gun Drone", "Shield Drone"],
+        "Crisis Starscythe Shas'ui (2)": ["Gun Drone", "Shield Drone"]
+      },
+      "choices": {
+        "Crisis Starscythe Shas'vre": {
+          "Burst Cannon -> T'au Flamer": 1
+        },
+        "Crisis Starscythe Shas'ui (1)": {
+          "Burst Cannon -> T'au Flamer": 1
+        },
+        "Crisis Starscythe Shas'ui (2)": {
+          "Burst Cannon -> T'au Flamer": 1
+        }
+      },
+      "leaders": [
+        {
+          "datasheet": "Commander Farsight",
+          "color": [230, 170, 90]
+        }
+      ]
+    },
+    {
+      "datasheet": "Crisis Starscythe Battlesuits",
+      "color": [200, 140, 90],
+      "gear": {
+        "Crisis Starscythe Shas'vre": ["Gun Drone", "Shield Drone"],
+        "Crisis Starscythe Shas'ui (1)": ["Gun Drone", "Shield Drone"],
+        "Crisis Starscythe Shas'ui (2)": ["Gun Drone", "Shield Drone"]
+      },
+      "choices": {
+        "Crisis Starscythe Shas'vre": {
+          "T'au Flamer -> Burst Cannon": 1
+        },
+        "Crisis Starscythe Shas'ui (1)": {
+          "T'au Flamer -> Burst Cannon": 1
+        },
+        "Crisis Starscythe Shas'ui (2)": {
+          "T'au Flamer -> Burst Cannon": 1
+        }
+      },
+      "leaders": [
+        {
+          "datasheet": "Commander in Coldstar Battlesuit",
+          "color": [130, 150, 200],
+          "gear": {
+            "Commander in Coldstar Battlesuit": ["Marker Drone", "Shield Drone", "Burst Cannon", "Burst Cannon", "Cyclic Ion Blaster"]
+          }
+        }
+      ]
+    },
+    {
+      "datasheet": "Crisis Sunforge Battlesuits",
+      "color": [130, 150, 200],
+      "gear": {
+        "Crisis Sunforge Shas'vre": ["Gun Drone", "Shield Drone"],
+        "Crisis Sunforge Shas'ui (1)": ["Gun Drone", "Shield Drone"],
+        "Crisis Sunforge Shas'ui (2)": ["Gun Drone", "Shield Drone"]
+      },
+      "leaders": [
+        {
+          "datasheet": "Commander in Enforcer Battlesuit",
+          "color": [140, 160, 210],
+          "gear": {
+            "Commander in Enforcer Battlesuit": ["Shield Drone", "Shield Drone", "Fusion Blaster", "Fusion Blaster", "Fusion Blaster"]
+          },
+          "choices": {
+            "Commander in Enforcer Battlesuit": {
+              "Burst Cannon -> Fusion Blaster": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "datasheet": "Kroot Carnivores",
+      "color": [120, 90, 40]
+    },
+    {
+      "datasheet": "Pathfinder Team",
+      "color": [90, 180, 140],
+      "gear": {
+        "Pathfinder Shas'ui": ["Shield Drone", "Shield Drone", "Grav-inhibitor Drone"]
+      },
+      "choices": {
+        "Pathfinder": {
+          "Pulse Carbine -> Rail Rifle": [0, 1, 2],
+          "+ Semi-automatic Grenade Launcher": [3]
+        }
+      }
+    },
+    {
+      "datasheet": "Riptide Battlesuit",
+      "color": [150, 150, 195],
+      "choices": {
+        "Riptide Battlesuit": {
+          "Heavy Burst Cannon -> Ion Accelerator": 1,
+          "Twin Plasma Rifle -> Twin Fusion Blaster": 1
+        }
+      }
+    },
+    {
+      "datasheet": "Stealth Battlesuits",
+      "color": [100, 100, 150],
+      "gear": {
+        "Stealth Shas'vre": ["Gun Drone", "Marker Drone"],
+        "Stealth Shas'ui": ["Homing Beacon"]
+      },
+      "choices": {
+        "Stealth Shas'vre": {
+          "Burst Cannon -> Fusion Blaster": 1
+        }
+      }
+    },
+    {
+      "datasheet": "Stealth Battlesuits",
+      "color": [100, 100, 150],
+      "gear": {
+        "Stealth Shas'vre": ["Gun Drone", "Marker Drone"],
+        "Stealth Shas'ui": ["Homing Beacon"]
+      },
+      "choices": {
+        "Stealth Shas'vre": {
+          "Burst Cannon -> Fusion Blaster": 1
+        }
+      }
+    },
+    {
+      "datasheet": "Vespid Stingwings",
+      "color": [150, 120, 190]
+    }
+  ]
+}

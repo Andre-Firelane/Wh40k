@@ -30,7 +30,7 @@ whether the unit actually Fell Back this turn.
 THE AI DECLINES (standing Aeldari instruction).
 """
 
-from game import aeldari_detachments, skilled_crews
+from game import aeldari_detachments, ai_mode, skilled_crews
 from game.stratagems import Stratagem
 
 VECTORED_ENGINES_NAME = "Vectored Engines"
@@ -63,7 +63,7 @@ class VectoredEnginesController:
         self.turn_tracker = turn_tracker
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._stratagem = Stratagem(
             name=VECTORED_ENGINES_NAME, cp_cost=VECTORED_ENGINES_CP, effect=self._grant,
         )

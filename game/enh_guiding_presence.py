@@ -43,7 +43,7 @@ should: a phase-scoped mark that also had a turn reset would be two clocks for
 one lifetime, the mistake game/protocol_sudden_storm.py records having to keep
 apart.
 """
-from game import aeldari_detachments, attached_units, enhancements
+from game import aeldari_detachments, ai_mode, attached_units, enhancements
 from game.squad import edge_distance
 
 GUIDING_PRESENCE = "Guiding Presence"
@@ -82,7 +82,7 @@ class GuidingPresenceController:
         self.game_state = game_state
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         #: visible(observer_model, target_model) -> bool. Optional, like every
         #: other line-of-sight collaborator here; None means "everything
         #: counts as visible", which is what a headless harness gets.
@@ -154,7 +154,7 @@ class GuidingPresenceController:
             player,
             "%s: which friendly AELDARI VEHICLE unit gains +1 to hit this phase?"
             % GUIDING_PRESENCE_LABEL,
-            [(squad.name, (lambda s=squad: self._choose(player, s))) for squad in options],
+            [(squad.name, (lambda s=squad: self._choose(player, s)), squad) for squad in options],
         )
         return True
 

@@ -28,7 +28,7 @@ turn it expires after, so a phase or turn boundary cannot shorten it by
 accident - the mistake a flag cleared in the usual end-of-turn block would make.
 """
 
-from game import montka, tau_detachments
+from game import ai_mode, montka, tau_detachments
 from game.attached_units import unit_has_datasheet_keyword
 from game.stratagems import Stratagem
 from game.turn import PHASE_SHOOTING
@@ -79,7 +79,7 @@ class PulseOnslaughtController:
         self.turn_tracker = turn_tracker
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = tuple(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._pending = None
         self._stratagem = Stratagem(
             name=PULSE_ONSLAUGHT_NAME, cp_cost=PULSE_ONSLAUGHT_CP, effect=self._shake,
@@ -127,7 +127,7 @@ class PulseOnslaughtController:
             f"{PULSE_ONSLAUGHT_NAME} ({PULSE_ONSLAUGHT_CP} CP): shake one unit "
             f"{squad.name} hit (-{SHAKEN_PENALTY}\" Move, -{SHAKEN_PENALTY} Advance and "
             "Charge rolls, until the end of your opponent's next turn)?",
-            [(target.name, (lambda t=target: self._accept(squad, t)))
+            [(target.name, (lambda t=target: self._accept(squad, t)), target)
              for target in candidates]
             + [("Decline", lambda: None)],
         )

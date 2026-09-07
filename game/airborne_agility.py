@@ -29,7 +29,7 @@ honest if a later caller separates them.
 """
 
 from game.squad import ENGAGEMENT_RANGE_IN, edge_distance
-from game import engagement
+from game import ai_mode, engagement
 from game.strategic_reserves import withdraw_to_reserves
 
 
@@ -58,7 +58,7 @@ class AirborneAgilityController:
         self.decision_manager = decision_manager
         self.game_state = game_state
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
 
     def can_use(self, squad):
         tokens = getattr(self.game_state, "tokens", []) if self.game_state else []

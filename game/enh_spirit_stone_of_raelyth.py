@@ -42,7 +42,7 @@ D3, CAPPED at the model's missing wounds - healing is bounded by what was
 lost, so a roll that would overheal simply tops it up. See the controller for
 why this one D3 is rolled in the module rather than through the DiceManager.
 """
-from game import aeldari_detachments, attached_units, enhancements
+from game import aeldari_detachments, ai_mode, attached_units, enhancements
 from game.squad import edge_distance
 
 SPIRIT_STONE_OF_RAELYTH = "Spirit Stone of Raelyth"
@@ -132,7 +132,7 @@ class SpiritStoneOfRaelythController:
         self.game_state = game_state
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         #: id(squad) -> True once this unit has used its heal for the move it
         #: is currently making. "At the start OR end" is ONE heal.
         self._used_this_move = {}

@@ -1,0 +1,67 @@
+{
+  "format": 1,
+  "key": "death_guard",
+  "name": "Death Guard",
+  "faction_keyword": "DEATH GUARD",
+  "army_rule": "Nurgle's Gift",
+  "detachments": ["Death Lord's Chosen"],
+  "force_disposition": "priority_assets",
+  "sort_order": 80,
+  "note": "16 list entries, 14 units after two attachments, 49 models, 2020 pts (the supplied list says 2015; four entries disagree with the transcribed points list, which wins - see game/factions/death_guard_points.py).",
+  "roster": [
+    {
+      "datasheet": "Daemon Prince of Nurgle",
+      "color": [110, 130, 80],
+      "note": "A MONSTER CHARACTER with no LEADER line - it always fights alone."
+    },
+    {
+      "datasheet": "Plague Marines",
+      "composition_index": 2,
+      "color": [100, 120, 70],
+      "choices": {
+        "Plague Marine": {
+          "Boltgun -> Plague Spewer": 2,
+          "Boltgun -> Blight Launcher": 2,
+          "Boltgun -> Heavy Plague Weapon": 2
+        }
+      },
+      "note": "10x Plague Marines: 3 with Boltgun, 2 Plague spewer, 2 Blight launcher, 2 Heavy plague weapon; the Champion keeps the printed default and so takes no choices.",
+      "leaders": [
+        {"datasheet": "Malignant Plaguecaster", "color": [120, 150, 100]}
+      ]
+    },
+    {
+      "datasheet": "Deathshroud Terminators",
+      "color": [95, 105, 75],
+      "note": "Printed default (Manreaper + plaguespurt gauntlet, no icon of despair). This one carries Typhus.",
+      "leaders": [
+        {"datasheet": "Typhus", "color": [150, 145, 90]}
+      ]
+    },
+    {
+      "datasheet": "Deathshroud Terminators",
+      "color": [95, 105, 75]
+    },
+    {"datasheet": "Chaos Spawn", "color": [140, 115, 100]},
+    {"datasheet": "Chaos Spawn", "color": [140, 115, 100]},
+    {"datasheet": "Poxwalkers", "color": [130, 135, 105]},
+    {"datasheet": "Poxwalkers", "color": [130, 135, 105]},
+    {
+      "datasheet": "Defiler",
+      "color": [80, 95, 65],
+      "choices": {"Defiler": {"Heavy Baleflamer -> Heavy Reaper Autocannon": 1}},
+      "note": "Hades battle cannon, 2x Excruciator cannon, Heavy reaper autocannon, Heavy missile launcher, Shearing claws - the reaper REPLACES the printed heavy baleflamer (the missile launcher is kept), and it is one of the two Defiler options that costs points."
+    },
+    {"datasheet": "Foetid Bloat-drone", "color": [105, 125, 85],
+     "note": "Plague probe, Fleshmower - the printed default."},
+    {"datasheet": "Foetid Bloat-drone", "color": [105, 125, 85]},
+    {"datasheet": "Myphitic Blight-hauler", "color": [90, 110, 75],
+     "note": "Two SEPARATE one-model units, not one two-model unit: the list prints them as two entries at 100 pts each, and the datasheet allows 1-2 models per unit."},
+    {"datasheet": "Myphitic Blight-hauler", "color": [90, 110, 75]},
+    {
+      "datasheet": "Plagueburst Crawler",
+      "color": [85, 100, 70],
+      "note": "Armoured tracks, Plagueburst mortar, Heavy slugger, 2x Entropy cannon - the printed default."
+    }
+  ]
+}

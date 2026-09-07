@@ -126,7 +126,7 @@ class NeocapacitorShieldsController:
                 if not targets:
                     continue
                 options = [
-                    (f"Neocapacitor Shields: {t.name}", self._make_effect(squad, t)) for t in targets
+                    (f"Neocapacitor Shields: {t.name}", self._make_effect(squad, t), t) for t in targets
                 ]
                 options.append(("Decline", lambda: None))
                 self.decision_manager.request(

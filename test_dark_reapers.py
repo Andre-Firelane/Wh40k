@@ -146,18 +146,41 @@ checks.eq("the rank and file keep their Reaper Launchers",
 
 missile = weapon_named(reapers(choices={EXARCH: {ae.DARK_REAPER_TO_MISSILE_LAUNCHER: 1}}),
                        0, "Missile Launcher - Starshot")
-checks.eq("Missile Launcher: S10/AP-2/D6", (missile.strength, missile.ap, missile.damage), (10, -2, 6))
+# The printed Damage is "D6", so it must be a ROLL, not a flat number. This
+# line used to assert damage == 6 - the old "store the die's max value as a
+# fixed int and never roll it" convention that game/dice_notation.py exists to
+# replace - which quietly gave the Exarch a guaranteed 6 where the datasheet
+# gives an average of 3.5. Asserting the NOTATION is what makes that
+# distinction visible at all; `damage` beside it is only the grouping
+# placeholder.
+checks.eq("Missile Launcher: S10/AP-2", (missile.strength, missile.ap), (10, -2))
+# describe() on a None notation would raise, and a probe that CRASHES the
+# suite hides which check broke (this repo's recurring lesson - the two
+# str.index() guards, the padded row in test_faction_badges.py). Degrade to a
+# readable value instead.
+checks.eq("...and Damage is a D6 ROLL, not a flat 6",
+          describe(missile.damage_notation) if missile.damage_notation else
+          "flat %s" % missile.damage, "D6")
 checks.eq("...BS2+, the Exarch's own", missile.ballistic_skill, "2+")
 checks.eq("...its Sunburst mode is D6 attacks, [BLAST]",
           (describe(missile.overcharge_profile().attacks_notation),
            missile.overcharge_profile().blast), ("D6", 1))
-# Same printed name as the Falcon's, different Damage - hence its own class.
+# Same printed name as the Falcon's, and its own class - but what separates
+# them is [IGNORES COVER], not the Damage. This line used to read "D6 vs D3"
+# and passed by comparing the two placeholder ints (6 against 3); both weapons
+# are printed D6, and that false difference is what kept the flat 6 above
+# looking deliberate. Pinned against each other rather than against literals,
+# so neither can drift alone.
 falcon_missile = next(
     w for w in tk.build(ae.FALCON, "Player 1", name="1 Falcon 1",
                         choices={"Falcon": {ae.FALCON_SCATTER_TO_MISSILE: 1}}).models[0].weapons
     if w.name == "Missile Launcher - Starshot")
-checks.true("...and it is NOT the Falcon's Missile Launcher (D6 vs D3)",
-            missile.damage != falcon_missile.damage)
+checks.eq("...same Damage as the Falcon's, both printed D6",
+          describe(missile.damage_notation) if missile.damage_notation else
+          "flat %s" % missile.damage,
+          describe(falcon_missile.damage_notation))
+checks.eq("...what separates them is [IGNORES COVER], not the Damage",
+          (missile.ignores_cover, falcon_missile.ignores_cover), (True, False))
 
 aspect_shrine.grant_tokens(five)
 aspect_shrine.grant_tokens(ten)

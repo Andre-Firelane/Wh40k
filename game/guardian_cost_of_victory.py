@@ -45,10 +45,10 @@ THE AI DECLINES (standing Aeldari instruction): taking a unit off the board is
 a whole-army judgement this engine cannot make.
 """
 
-from game import aeldari_detachments, defend_at_all_costs, engagement
+from game import aeldari_detachments, ai_mode, defend_at_all_costs, engagement
 from game.stratagems import Stratagem
 from game.strategic_reserves import withdraw_to_reserves
-from game.turn import PHASE_FIGHT
+from game.phase_window import PhaseWindow
 
 COST_OF_VICTORY_NAME = "Cost of Victory"
 COST_OF_VICTORY_CP = 1
@@ -147,13 +147,21 @@ class CostOfVictoryController:
         self.all_tokens = all_tokens if all_tokens is not None else []
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
+        # The end-of-Fight-phase window this controller's own offer opens.
+        # NOT a live turn_tracker.phase test - see game/phase_window.py.
+        self._window = PhaseWindow()
         self._stratagem = Stratagem(
             name=COST_OF_VICTORY_NAME, cp_cost=COST_OF_VICTORY_CP, effect=self._withdraw,
         )
 
     def can_use(self, squad):
         if squad is None or self.stratagem_controller is None or self.game_state is None:
+            return False
+        # The window is the one this controller's own offer opened, not a live
+        # phase test: the offer runs AFTER advance_phase(), so the clock
+        # already reads the next phase. See game/phase_window.py.
+        if not self._window.is_open(squad.owner):
             return False
         if not eligible_unit(squad):
             return False
@@ -165,16 +173,32 @@ class CostOfVictoryController:
             return False
         return self.stratagem_controller.can_use(squad.owner, self._stratagem, [squad])
 
+    def reset_phase(self):
+        """The window lasts exactly one phase boundary. main.py clears it in
+        the per-phase reset block, which runs BEFORE that boundary's offers."""
+        self._window.close()
+
     def offer_at_end_of_fight_phase(self, squads, ending_player):
         """`ending_player` is whose turn the Fight phase belonged to, so the
-        offer goes to everyone ELSE - "your OPPONENT'S Fight phase"."""
-        if self.turn_tracker is not None and self.turn_tracker.phase != PHASE_FIGHT:
-            return False
+        offer goes to everyone ELSE - "your OPPONENT'S Fight phase".
+
+        `ending_player` must be main.py's `mover_before`, captured BEFORE
+        advance_phase() - turn_tracker.turn_owner has already flipped here.
+        There is deliberately no live phase test any more: this runs AFTER
+        advance_phase(), so `phase != PHASE_FIGHT` was always true and this
+        Stratagem never opened a prompt at all. See game/phase_window.py."""
+        # Armed BEFORE the eligibility loop, because can_use() below asks the
+        # window: the window IS this offer's own "right moment", and the offer
+        # is only ever made at the boundary that owns it. Closed again if
+        # nothing was actually put to the player.
         for squad in sorted((s for s in squads if s.owner != ending_player),
                             key=lambda s: (str(s.owner), s.name)):
+            self._window.arm(squad.owner)
             if not self.can_use(squad):
+                self._window.close()
                 continue
             if squad.owner in self.auto_players or self.decision_manager is None:
+                self._window.close()
                 return False           # no AI path
             self.decision_manager.request(
                 squad.owner,

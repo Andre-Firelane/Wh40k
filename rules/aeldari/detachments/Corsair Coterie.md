@@ -1,6 +1,6 @@
 # Corsair Coterie
 
-**Aeldari** - 2 DP detachment
+**Aeldari** - 2 DP detachment - Force Disposition: Priority Assets
 
 Source: <https://wahapedia.ru/wh40k11ed/factions/aeldari/>
 
@@ -8,7 +8,6 @@ Source: <https://wahapedia.ru/wh40k11ed/factions/aeldari/>
 
 ### Relentless Raiders
 
-Should the Anhrathe detect valuable plunder, they will go to great lengths to seize it, and fight with shocking ferocity to protect their prize.
 While an objective marker is under your control, each time an enemy unit ends a **Normal**, **Advance**, Fall Back or **Charge move** within range of that objective marker, roll one D6: on a 2+, that enemy unit suffers D3 **mortal wounds**.
 
 ANHRATHE units from your army have the following ability:
@@ -17,26 +16,19 @@ ANHRATHE units from your army have the following ability:
 
 ### Veterans of the Void
 
-No two bands of Anhrathe warriors are identical. Each possesses a wealth of experience that a cunning commander can bring to bear upon the foe.
 Each time you add an ANHRATHE unit to your army, it can be given up to one Corsair Enhancement. Each Corsair Enhancement included in your army must be unique. If a unit is given a Corsair Enhancement, you must increase the points cost of that unit by the amount shown. If this causes your army to exceed the points limit for the battle you are playing, you cannot include that unit in your army.
 
 ## Enhancements
 
 ### Infamy (Aura) - 25 pts
 
-These infamous raiders are rightly feared, and use their reputation to their advantage with easily identifiable armour and insignia.
-
 ANHRATHE unit only. While an enemy unit is within 3" of this unit, subtract 1 from the Objective Control characteristic of models in that unit (to a minimum of 1).
 
 ### Webway Pathstone - 25 pts
 
-This smooth token contains esoteric knowledge of local Webway spurs. When activated by psychic impulse, it projects a mental map of these routes into the minds of the bearer, enabling them to locate hidden gates, bypass their foes, and seize the treasures they seek.
-
 ANHRATHE unit only. Models in this unit have the **Deep Strike** ability. In addition, once per battle, at the end of your opponent’s turn, if this unit is not within **Engagement Range** of one or more enemy units, it can use this ability. If it does, remove this unit from the battlefield and place it into **Strategic Reserves**.
 
 ### Archraider - 35 pts
-
-A master of the lightning assault, this commander appears prescient in their ability to confound the foe.
 
 ANHRATHE CHARACTER unit only. At the start of the battle, select one CHARACTER model in this unit. That model has the following ability:
 
@@ -52,8 +44,6 @@ Change to:
 
 ### Voidstone - 15 pts
 
-Seized from an alien tomb, this obsidian artefact seems to absorb light itself. It offers the bearer and their unit some measure of protection against even the strongest attacks.
-
 ANHRATHE INFANTRY unit only. Models in this unit have a 5+ invulnerable save.
 
 ## Stratagems
@@ -61,8 +51,6 @@ ANHRATHE INFANTRY unit only. Models in this unit have a 5+ invulnerable save.
 ### PIRATES’ DUE - 1CP
 
 *Corsair Coterie – Battle Tactic Stratagem*
-
-In their pursuit of riches, Anhrathe warriors will fight with violent fury to seize their due.
 
 **WHEN:** The Fight phase.
 
@@ -74,8 +62,6 @@ In their pursuit of riches, Anhrathe warriors will fight with violent fury to se
 
 *Corsair Coterie – Strategic Ploy Stratagem*
 
-With a final flurry of gunshots, blade strikes and explosives, these warriors feign retreat before striking again with renewed aggression.
-
 **WHEN:** Your Movement phase, just after an AELDARI unit from your army Falls Back.
 
 **TARGET:** That AELDARI unit.
@@ -85,8 +71,6 @@ With a final flurry of gunshots, blade strikes and explosives, these warriors fe
 ### OUTCAST AMBUSH - 1CP
 
 *Corsair Coterie – Strategic Ploy Stratagem*
-
-Anhrathe raiders often find common ground with other Aeldari Outcasts, who use the distraction of the Corsair onslaught to ambush unsuspecting foes.
 
 **WHEN:** Your Shooting phase.
 
@@ -98,8 +82,6 @@ Anhrathe raiders often find common ground with other Aeldari Outcasts, who use t
 
 *Corsair Coterie – Strategic Ploy Stratagem*
 
-Corsair raiders are swift to exploit gaps in the enemy line and advance upon their objectives.
-
 **WHEN:** Your Shooting phase, just after an ANHRATHE unit from your army destroyed one or more enemy units.
 
 **TARGET:** That ANHRATHE unit.
@@ -110,8 +92,6 @@ Corsair raiders are swift to exploit gaps in the enemy line and advance upon the
 
 *Corsair Coterie – Strategic Ploy Stratagem*
 
-Having secured their prize, the Anhrathe melt into the shadows, leaving their foes shooting at shadows.
-
 **WHEN:** Your opponent’s Shooting phase, just after an enemy unit has selected its targets.
 
 **TARGET:** One AELDARI INFANTRY unit from your army that is within range of an objective marker that you control and that was selected as the target of one or more of the attacking unit’s attacks.
@@ -121,8 +101,6 @@ Having secured their prize, the Anhrathe melt into the shadows, leaving their fo
 ### VENGEFUL SORROW - 1CP
 
 *Corsair Coterie – Strategic Ploy Stratagem*
-
-Anhrathe share bonds forged in battle. The loss of an ally inspires sorrow and fury in equal measure.
 
 **WHEN:** Your opponent’s Shooting phase, just after an enemy unit has shot.
 

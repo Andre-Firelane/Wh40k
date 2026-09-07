@@ -1,6 +1,6 @@
 # Bully Boyz
 
-**Orks** - 2 DP detachment
+**Orks** - 2 DP detachment - Force Disposition: Purge the Foe
 
 Source: <https://wahapedia.ru/wh40k11ed/factions/orks/>
 
@@ -8,7 +8,6 @@ Source: <https://wahapedia.ru/wh40k11ed/factions/orks/>
 
 ### Da Boss Is Watchin’
 
-Gathered together into an all-conquering mass of hulking brutes, the biggest Nobz and their even larger bosses are - or so they claim - more Orky than anyone else. Their bellowed war cries are louder, their self-belief, impetus and sheer presence an affront to the senses. Theirs is a violent momentum that can roll through entire enemy armies in an unrelenting wave of aggression.
 At the start of your Command phase, in a turn in which you have not called a Waaagh!, if you have one or more WARBOSS models on the battlefield (or embarked within a TRANSPORT that is on the battlefield), you can call a Waaagh! for a second time this battle. When doing so, that second Waaagh! only counts as having been called for WARBOSS, NOBZ and MEGANOBZ units from your army.
 
 ### Errata
@@ -23,25 +22,17 @@ Change to:
 
 ### Big Gob - 20 pts
 
-This warlords bellowing war cry is so loud that it can be heard over the thickest of fighting, rolling outwards in a terrifying bestial roar.
-
 INFANTRY WARBOSS model only. At the start of the Fight phase, select one enemy unit within **Engagement range** of the bearer. That unit must take a Battle-shock test, and when doing so, subtract 1 from the result.
 
 ### Da Biggest Boss - 15 pts
-
-The bigger the Waaagh!, the bigger the boss must be to exert control. This Ork has countless huge battles under his belt and has grown in stature and aggression to match.
 
 INFANTRY WARBOSS model only. Add 2 to the bearer’s Wounds characteristic.
 
 ### ’Eadstompa - 10 pts
 
-A solid slab of muscle and aggression, this Ork is living embodiment of the undeniable truth of his enemies’ inferiority.
-
 INFANTRY WARBOSS model only. Each time the bearer makes an attack that targets a unit that is below its Starting Strength, re-roll a Wound roll of 1. If that unit is Below Half-strength, you can re-roll the Wound roll instead.
 
 ### Tellyporta - 25 pts
-
-Nothing shocks the enemy like an angry mob of the biggest and surliest Orks imaginable suddenly appearing in a blast of green lightning!
 
 WARBOSS IN MEGA ARMOUR model only. Models in the bearer’s unit have the **Deep Strike** ability.
 
@@ -50,8 +41,6 @@ WARBOSS IN MEGA ARMOUR model only. Models in the bearer’s unit have the **Deep
 ### ARMED TO DATEEF - 1CP
 
 *Bully Boyz – Battle Tactic Stratagem*
-
-Nobz load themselves with all manner of weapons in shows of wealth and influence, enabling them to smash the foe with a ceaseless barrage of attacks.
 
 **WHEN:** Your Shooting phase or the Fight phase.
 
@@ -63,8 +52,6 @@ Nobz load themselves with all manner of weapons in shows of wealth and influence
 
 *Bully Boyz – Strategic Ploy Stratagem*
 
-With bone-headed arrogance, Nobz will carry on killing before their deaths finally register.
-
 **WHEN:** Your opponent’s Shooting phase or the Fight phase, just after an enemy unit has selected its targets.
 
 **TARGET:** One NOBZ or MEGANOBZ unit from your army that was selected as the target of one or more of the attacking unit’s attacks.
@@ -74,8 +61,6 @@ With bone-headed arrogance, Nobz will carry on killing before their deaths final
 ### ALWAYS LOOKIN’ FER A FIGHT - 1CP
 
 *Bully Boyz – Strategic Ploy Stratagem*
-
-As one enemy falls to the choppas of a battle-hungry mob of Nobz, they immediately seek out more.
 
 **WHEN:** Fight phase, just after an enemy unit is destroyed.
 
@@ -87,8 +72,6 @@ As one enemy falls to the choppas of a battle-hungry mob of Nobz, they immediate
 
 *Bully Boyz – Epic Deed Stratagem*
 
-When a thundering mob of hulking Ork Nobz stampedes into the foe, their crushing momentum is a lethal weapon by itself.
-
 **WHEN:** Your Charge phase, just after a NOBZ or MEGANOBZ unit from your army ends a **Charge move**.
 
 **TARGET:** That NOBZ or MEGANOBZ unit.
@@ -99,8 +82,6 @@ When a thundering mob of hulking Ork Nobz stampedes into the foe, their crushing
 
 *Bully Boyz – Battle Tactic Stratagem*
 
-Furious with any snivelling gitz who attempt to back away from a good fight, Nobz will ruthlessly hack them apart as they turn to flee.
-
 **WHEN:** Your opponent’s Movement phase, just after an enemy unit is selected to Fall Back.
 
 **TARGET:** One NOBZ or MEGANOBZ unit from your army within **Engagement Range** of that enemy unit.
@@ -110,8 +91,6 @@ Furious with any snivelling gitz who attempt to back away from a good fight, Nob
 ### HULKING BRUTES - 1CP
 
 *Bully Boyz – Battle Tactic Stratagem*
-
-The sheer aggressive contempt advancing Nobz project, not to mention their thick skulls and ‘eavy armour, make them a terrifying prospect for foes desperately trying to gun them down.
 
 **WHEN:** Your opponent’s Shooting phase, just after an enemy unit has selected its targets.
 

@@ -29,7 +29,7 @@ threshold is named rather than inlined so the two Necron CP decisions
 (this and the Resurrection Orb) can be compared side by side.
 """
 
-from game import awakened_dynasty, reanimation_protocols
+from game import ai_mode, awakened_dynasty, reanimation_protocols
 from game.stratagems import Stratagem
 
 UNDYING_LEGIONS_CP_COST = 1
@@ -48,14 +48,22 @@ class UndyingLegionsController:
     game/ard_as_nails.py uses, so both routes share one verdict."""
 
     def __init__(self, stratagem_controller, dice_manager=None, decision_manager=None,
-                 game_log=None, game_state=None, position_valid=None, auto_players=()):
+                 game_log=None, game_state=None, position_valid=None, auto_players=(),
+                 placer=None):
         self.stratagem_controller = stratagem_controller
         self.dice_manager = dice_manager
         self.decision_manager = decision_manager
         self.game_log = game_log
         self.game_state = game_state
         self.position_valid = position_valid
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
+        # ReturnPlacementController - rule 01.02.03's "set up" half, the same
+        # one ReanimationProtocolsController holds. This Stratagem is a SECOND
+        # DOOR into reanimate(), so it needs its own; without it a human's
+        # models reappeared wherever the engine put them while the army rule
+        # itself asked (user: "Einheiten wurde automatisch platziert bei
+        # protocol of the undying legion, obwohl ich necrons spiele").
+        self.placer = placer
         self._pending = None
         self._stratagem = Stratagem(
             name=UNDYING_LEGIONS_NAME, cp_cost=UNDYING_LEGIONS_CP_COST,
@@ -147,6 +155,7 @@ class UndyingLegionsController:
             all_tokens=self._tokens(),
             position_valid=self.position_valid,
             game_state=self.game_state,
+            placer=self.placer,
         )
         detail = f"{spent} wound(s)"
         if revived:

@@ -75,15 +75,21 @@ ck.eq("Broadside 1 / 2 / 3 models",
       [(len(unit(BROADSIDE_BATTLESUITS, ci=i).models),
         unit(BROADSIDE_BATTLESUITS, ci=i).points) for i in (0, 1, 2)],
       [(1, 75), (2, 150), (3, 255)])
-ck.eq("Crisis Fireknife is always 3 models, 100 pts",
-      (len(unit(CRISIS_FIREKNIFE).models), unit(CRISIS_FIREKNIFE).points), (3, 100))
+# 115, not 100: "per Missile pod 5" is charged PER WEAPON IN THE UNIT, and the
+# printed default carries three of them. The 100 on the page is the unit
+# WITHOUT them - see game/factions/points.py for the user-supplied list that
+# settles that reading, and note that this datasheet is one of only two here
+# where the two readings differ at all.
+ck.eq("Crisis Fireknife is always 3 models; its default carries three missile "
+      "pods, so 100 + 3x5",
+      (len(unit(CRISIS_FIREKNIFE).models), unit(CRISIS_FIREKNIFE).points), (3, 115))
 # Both datasheets are tiered by how many copies the army already has.
 ck.eq("a 3rd Broadside unit costs more",
       build_squad(BROADSIDE_BATTLESUITS, "Player 1", composition_index=2,
                   unit_index=3).points,
       275)
-ck.eq("...and a 3rd Fireknife unit too",
-      build_squad(CRISIS_FIREKNIFE, "Player 1", unit_index=3).points, 110)
+ck.eq("...and a 3rd Fireknife unit too (110 + 3x5)",
+      build_squad(CRISIS_FIREKNIFE, "Player 1", unit_index=3).points, 125)
 
 ck.eq("Broadside loadout",
       sorted({w.name for m in unit(BROADSIDE_BATTLESUITS, ci=2).models for w in m.weapons}),
@@ -133,8 +139,10 @@ _two_plasma = unit(CRISIS_FIREKNIFE,
                    choices={"Crisis Fireknife Shas'vre": {FIREKNIFE_MISSILE_POD_TO_PLASMA: 1}})
 ck.eq("and trading the missile pod leaves two plasma rifles",
       [w.name for w in _two_plasma.models[0].weapons].count("Plasma Rifle"), 2)
-ck.eq("only the missile-pod direction is priced",
-      (_two_pods.points, _two_plasma.points), (105, 100))
+# Neither DIRECTION is priced any more - the weapon is. Two pods on one model
+# is four in the unit (120), two plasma rifles is two (110).
+ck.eq("the price follows the missile pods in the built unit",
+      (_two_pods.points, _two_plasma.points), (120, 110))
 
 # Broadside gear: two independent menus, and the support items reach EVERY
 # model ("any number of models can each be equipped"), not just the leader.

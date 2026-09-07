@@ -467,10 +467,26 @@ ll = mw.LivingLightningController(dice_manager=DiceManager(), game_state=state5,
 script(4, 4, 4, 1, default=1)
 c.eq("Living Lightning fires", ll.offer_at_shooting_phase({plasmancer}, "Player 2"), True)
 ll.dice_manager.acknowledge()
+# Snapshot BEFORE the acknowledgement: against a SINGLE-model target the
+# session applies the wounds itself and never parks, which is exactly why the
+# hole below survived so long - every one-model victim behaved correctly.
+_ll_before = sum(m.current_wounds for s in lightning for m in s.models)
 ll.on_dice_acknowledged()
 c.true("...four D6 were thrown, three of them 4+", ll.mortal_wound_session is not None)
-c.eq("...inflicting 3 mortal wounds", ll.mortal_wound_session.inflicted
+c.eq("...ordering 3 mortal wounds", ll.mortal_wound_session.inflicted
      + ll.mortal_wound_session.remaining, 3)
+# AND THEY REALLY ARRIVE. The sum above is the same whether the allocation
+# resolves or is abandoned - and against a MULTI-model target it was
+# abandoned: rule 06.02 parks the session on pending_choice and nothing here
+# ever drained it. Six abilities across four factions shared that hole; see
+# the rule 06.02 note in game/mortal_wound_abilities.py.
+_ll_guard = 0
+while ll.pending_damage_choice and _ll_guard < 10:
+    ll.choose_damage_model(ll.pending_damage_choice[0])
+    _ll_guard += 1
+c.eq("...and all three really come off the target",
+     _ll_before - sum(m.current_wounds for s in lightning for m in s.models), 3)
+c.eq("...with nothing left to pick", ll.pending_damage_choice, None)
 c.eq("once per Shooting phase", ll.can_use(plasmancer), False)
 
 ma = mw.MatterAbsorptionController(dice_manager=DiceManager(), game_state=state5,

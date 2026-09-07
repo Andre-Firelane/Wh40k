@@ -125,7 +125,7 @@ def _scene_with_two_transports():
     tt = TurnTracker(deferred_start=True)
     ctrl = pregame.PregameController(
         state, setup, DiceManager(), DecisionManager(), turn_tracker=tt,
-        human_player="Player 2",
+        human_players=("Player 2",),
     )
 
     trukk1 = build_squad(TRUKK, "Player 2", name="2 Trukk 1", x_in=10, y_in=6)

@@ -1,6 +1,6 @@
 # Annihilation Legion
 
-**Necrons** - 2 DP detachment
+**Necrons** - 2 DP detachment - Force Disposition: Purge the Foe
 
 Source: <https://wahapedia.ru/wh40k11ed/factions/necrons/>
 
@@ -8,7 +8,6 @@ Source: <https://wahapedia.ru/wh40k11ed/factions/necrons/>
 
 ### Annihilation Protocol
 
-The most murderous Necrons of an Annihilation Legion retain no thought processes beyond destroying anything in reach. They are mechanised death, echoes of the industrialised and brutal processes of bio transference made manifest. Whether soullessly efficient or frenziedly deluded, these killing machines follow protocols that have atrophied into a singular and all-consuming insanity.
 Each time a DESTROYER CULT or FLAYED ONES unit from your army **declares a charge**, you can re-roll the **Charge roll**. If one or more targets of that charge are Below Half-strength, add 1 to the Charge roll as well.
 
 Each time a DESTROYER CULT unit from your army makes a ranged attack that targets the closest eligible target, add 1 to the Armour Penetration characteristic of that attack.
@@ -25,25 +24,17 @@ Add the following paragraph:
 
 ### Eternal Madness - 20 pts
 
-This Necrons sanity suffered during the Great Sleep. Now they are driven by a wrathful zeal, one which has seeped through the carrier waves of their commandments and into their followers.
-
 NECRONS model only. In the Fight phase, each time a model in the bearer’s unit is destroyed, if that model has not fought this phase, roll one D6: on a 4+, do not remove the destroyed model from play; it can fight after the attacking models unit has finished making its attacks, and is then removed from play.
 
 ### Ingrained Superiority - 5 pts
-
-An immortal destroyer, this war leaders every victim is etched irrevocably into their cognitive engrams. Every weakness they ever overcame is recalled, frailties they can exploit on each new battlefield.
 
 NECRONS model only. Each time a model in the bearer’s unit makes an attack, on a Critical Wound, improve the Armour Penetration characteristic of that attack by 1.
 
 ### Soulless Reaper - 15 pts
 
-This deathly killer exudes a soul-sapping presence, the promise of lifes’ end so explicit in their chilling gaze that few can muster the strength of will to evade it.
-
 DESTROYER CULT model only. Each time an enemy unit within **Engagement Range** of the bearer’s unit is selected to Fall Back, roll one D6: on a 3+, that unit cannot Fall Back this phase and must Remain Stationary.
 
 ### Eldritch Nightmare - 10 pts
-
-Atavistic fears are summoned from the pits of nightmare and thrust into the minds of all foes near this metal-skinned horror.
 
 DESTROYER CULT model only. At the start of the Fight phase, each enemy unit within **Engagement Range** of the bearer must take a Battle-shock test.
 
@@ -52,8 +43,6 @@ DESTROYER CULT model only. At the start of the Fight phase, each enemy unit with
 ### MASKS OF DEATH - 1CP
 
 *Annihilation Legion – Strategic Ploy Stratagem*
-
-Wreathed in tendrils of transdimensional shadow that intensify their deathly visages, these killing machines evoke such terror that steady aims tremble and blade arms are sapped of strength.
 
 **WHEN:** Your opponent’s Shooting phase or the Fight phase, just after an enemy unit has selected its targets.
 
@@ -65,8 +54,6 @@ Wreathed in tendrils of transdimensional shadow that intensify their deathly vis
 
 *Annihilation Legion – Battle Tactic Stratagem*
 
-Where one foe falls, logic dictates all others must follow. Where blood is shed, ever must more flow.
-
 **WHEN:** Your Shooting phase or the Fight phase.
 
 **TARGET:** One DESTROYER CULT or FLAYED ONES unit from your army that has not been selected to shoot or fight this phase.
@@ -76,8 +63,6 @@ Where one foe falls, logic dictates all others must follow. Where blood is shed,
 ### MURDEROUS REANIMATION - 1CP
 
 *Annihilation Legion – Battle Tactic Stratagem*
-
-Through some quirk of their kind's shared insanity, a spark of gruesome satisfaction surges through them with every enemy life snuffed out, triggering quiescent power reserves that drive them onwards.
 
 **WHEN:** Fight phase.
 
@@ -89,8 +74,6 @@ Through some quirk of their kind's shared insanity, a spark of gruesome satisfac
 
 *Annihilation Legion – Battle Tactic Stratagem*
 
-Driven into a state of hyperaggression, an Annihilation Legion's most eager hunters plunge into their prey's midst to maximise their butchery.
-
 **WHEN:** Fight phase.
 
 **TARGET:** One DESTROYER CULT or FLAYED ONES unit from your army that has not been selected to fight this phase.
@@ -101,8 +84,6 @@ Driven into a state of hyperaggression, an Annihilation Legion's most eager hunt
 
 *Annihilation Legion – Battle Tactic Stratagem*
 
-Whatever strange afflictions eat away at the sanity of Destroyers and Flayed Ones, mercy is not one of them.
-
 **WHEN:** Your opponent’s Movement phase, just after an enemy unit ends a **Fall Back move**.
 
 **TARGET:** One DESTROYER CULT or FLAYED ONES unit from your army that started the phase within **Engagement Range** of that enemy unit.
@@ -112,8 +93,6 @@ Whatever strange afflictions eat away at the sanity of Destroyers and Flayed One
 ### INSANITY’S IRE - 1CP
 
 *Annihilation Legion – Strategic Ploy Stratagem*
-
-To strike down one horror is merely to draw the rest of the pack's insane and murderous focus.
 
 **WHEN:** Your opponent’s Shooting phase, when an enemy unit that targeted a friendly **unengaged** DESTROYER CULT/FLAYED ONES unit this phase has shot.
 

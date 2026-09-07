@@ -4,21 +4,27 @@
 # `python main.py --map 1` overrides it for one run without editing this.
 MAP = "map2"
 
-# WHICH BIOME the battlefield is painted in: "city", "desert" or "forest"
-# (game/biomes.py). Purely cosmetic - it swaps the ground picture and the two
-# terrain cover textures and nothing else; no rule reads any of them, and the
-# board, zones, terrain and objectives are identical whichever one is set.
+# WHICH BIOME the battlefield is painted in: "city", "desert", "forest" or
+# "arena" (game/biomes.py). Purely cosmetic - it swaps the ground picture and
+# the two terrain cover textures and nothing else; no rule reads any of them,
+# and the board, zones, terrain and objectives are identical whichever one is
+# set.
 #
 # This is the DEFAULT the map selection screen opens on, not the final answer:
-# the three buttons at the top of that screen (game/ui/map_select.py) write
+# the four buttons at the top of that screen (game/ui/map_select.py) write
 # whatever is clicked back over it, the same way ARMY_SELECT's screen writes
 # PLAYER1_ARMY/PLAYER2_ARMY. `python main.py --biome forest` sets it for one
 # run without editing this, and with MAP_SELECT off it is the whole answer.
 #
-# "desert" is the default because its three files are byte-identical to the
-# three that used to sit loose in Sprites/ - so an untouched setup renders
-# exactly what it rendered before biomes existed.
-BIOME = "desert"
+# "arena" is the default on the user's say-so ("und dann mach arena biom bitte
+# als default"): the drawn one (game/arena_biome.py), not one of the three
+# photographed sets. It was "desert" before, because those three files are
+# byte-identical to the ones that used to sit loose in Sprites/ and an
+# untouched setup then rendered exactly what it did before biomes existed.
+# That property belongs to the desert BIOME and is unchanged - it is just no
+# longer what an untouched setup opens on; test_biomes.py still checks it, and
+# sets the biome itself to do so.
+BIOME = "arena"
 
 # WHICH ARMY LIST EACH PLAYER FIELDS: "aeldari", "orks", "necrons" or "tau" (see
 # game/army_lists.py, which holds all four and can build any of them for
@@ -71,6 +77,61 @@ MAP_SELECT = True
 # that waits for a click - they run on the settings above instead.
 # `python main.py --no-army-select` does the same for one run.
 ARMY_SELECT = True
+
+# Whether the application opens with the game menu (game/ui/game_menu.py):
+# Start New Game / Resume Game / Quit Game, before the map picker.
+#
+# UNLIKE MAP_SELECT/ARMY_SELECT above, the headless harnesses do NOT have to
+# turn this off, and that is the whole reason the menu lives where it does.
+# main() is ONE BATTLE; the menu and the loop around it live in main.py's
+# run(), and every harness calls main.main() directly - so a screen that waits
+# for a click is simply not on their path. `python main.py --no-menu` skips it
+# for one run; --load skips it too, because naming a file to open is already an
+# answer to the question the menu asks.
+START_MENU = True
+
+# WHICH PLAYERS THE ENGINE ANSWERS FOR ITSELF - the one definition of "this
+# side is played by the AI", read once by main() and handed to every rule that
+# has a decision to make.
+#
+# It is what ~84 controllers take as `auto_players`: an owner listed here gets
+# the rule's own deterministic answer, anyone else gets a DecisionManager
+# prompt and picks for themselves. The pattern already existed and was already
+# right; what did not exist was a single place to say it. Before this, main.py
+# carried the literal ("Player 2",) at 82 call sites, and four more spellings
+# of the same fact lived in game/scouts.py (human_players), game/pregame.py and
+# game/plagues.py (human_player, singular) and ai/deployment_ai.py (ai_players).
+#
+# WHY A RULE MUST NEVER BAKE THIS IN. The AI can already answer any pending
+# prompt through ai/agent_driver.py's _maybe_resolve_decision() - but that goes
+# through the LLM and costs a real API call. So `auto_players` exists purely to
+# make the AI's answer free and deterministic, which means the determinism
+# belongs on the ANSWERING side and the rule itself must always offer. A rule
+# that decides for everyone takes the choice away from a human playing that
+# army (user: "wenn ein Mensch zb. necrons spielt, muss er die stratagems,
+# Faehigkeiten und Platzierung der Modelle manuell ganz normal steuern
+# koennen").
+#
+# FROZEN FOR A WHOLE BATTLE, by construction: every controller normalises this
+# into its own set/tuple in __init__, so nothing can change it under a
+# controller mid-battle. That is why the question is asked once, before main()
+# builds anything.
+#
+# Empty means nobody is automatic - both sides are played by hand at one
+# keyboard, and no agent is constructed at all.
+AI_PLAYERS = ("Player 2",)
+
+# Whether to ASK, at the start of a battle, whether Player 2 is the AI
+# (game/ui/ai_mode_select.py) - user: "Frage am Anfang der Schlacht durch ein
+# promt, ob der ki Modus an oder aus sein soll".
+#
+# Like START_MENU above and UNLIKE MAP_SELECT/ARMY_SELECT, the headless
+# harnesses do NOT have to turn this off: the screen lives in main.py's run(),
+# above main(), and every harness calls main.main() directly - so it is not on
+# their path and needs no opt-out in ten files. `--vs-ai` / `--hotseat` name
+# the answer and skip the question, the same way --map skips the map picker;
+# --load skips it too, because a snapshot records what it was played with.
+AI_MODE_SELECT = True
 
 # Whose army is an AWAKENED DYNASTY detachment (the Necron detachment this
 # build implements). Like SEER_COUNCIL_PLAYERS below, this CANNOT be derived
@@ -277,7 +338,7 @@ SPREAD_LIMIT_PLAYERS = ("Player 1",)
 # Battle size, which today is read by exactly one rule: the Aeldari army rule
 # Battle Focus hands out 2/4/6 tokens per battle round for Incursion/Strike
 # Force/Onslaught (see game/battle_focus.py). Strike Force is the bracket every
-# list in this project falls in - they run 1890 to 2030 pts (game/army_lists.py)
+# list in this project falls in - they run 1910 to 2165 pts (game/army_lists.py)
 # and Strike Force is the 2000-pt game. There is no army-building flow to derive it
 # from (CLAUDE.md's deferred list), so it is a setting rather than a
 # consequence; anything unrecognised falls back to strike_force rather than to
@@ -336,6 +397,30 @@ PATH_OF_THE_OUTCAST_PLAYERS = ()
 # them on a decision nobody is there to make. test_secondary_missions.py has a
 # source guard requiring all five, so a new harness cannot quietly forget.
 SECONDARY_MISSION_CARD_PLAYERS = ("Player 1",)
+
+# Which players run a FORCE DISPOSITION Primary Mission
+# (game/primary_missions.py) INSTEAD of the standard "Hold the Line" Primary.
+# WHICH one they run is not set here - it follows from the Force Disposition
+# their chosen army list declares (game/army_lists.py's ArmyList), which in
+# turn has to be one their detachments permit.
+#
+# User: "die ki soll weiterhin ihre standard primar mission haben. die primary
+# missions hier sind nur fuer spieler1." So exactly one entry, the human.
+#
+# All five supplied cards print "OPPONENT: TAKE AND HOLD" at the bottom - they
+# are the set for a game whose OTHER player is playing Take and Hold, which is
+# the user's standing assumption ("wir gehen davon aus, dass spieler 2 immer
+# take and hold hat"). game/primary_missions.py logs a line when the AI's
+# declared disposition is something else, so a violated assumption is visible
+# rather than silently mispriced.
+#
+# UNLIKE its Secondary twin above, the headless harnesses do NOT need to switch
+# this off, and that is a property worth keeping: a Primary scores
+# AUTOMATICALLY. There is no "cash in or keep" prompt to stall on, because a
+# Primary offers no such choice - you hold exactly one card all battle and each
+# of its boxes is a fixed condition. So selfplay.py and the smokes exercise the
+# real Primary on every run. test_primary_missions.py asserts that absence.
+PRIMARY_MISSION_CARD_PLAYERS = ("Player 1",)
 
 AI_MODEL = "claude-haiku-4-5"
 # The strategic planning phase's model (ai/claude_agent.py's plan_turn()) -

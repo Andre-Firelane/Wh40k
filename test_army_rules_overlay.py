@@ -22,6 +22,10 @@ pygame.font.init()
 pygame.display.set_mode((1, 1))   # sprites.fitted_surface() needs a display format for convert_alpha()
 
 import testkit as tk  # noqa: E402
+
+# Asked for by FACTION, not named: a suite that hardcodes a list key breaks
+# when that list is retired, and breaks as a crash rather than a red line.
+DG_LIST = tk.list_key("DEATH GUARD")
 from game import army_lists, config, rules_text  # noqa: E402
 from game.command_points import CommandPointManager  # noqa: E402
 from game.missions import MissionController  # noqa: E402
@@ -148,7 +152,7 @@ FLUFF_AND_RULE = [
     ("orks", "The infamous war cry of the Orks", "call a Waaagh!"),
     ("necrons", "The Necron dynasties benefit", "heals D3 wounds"),
     ("tau", "The Hunter Cadres battle for the betterment", "Observer unit"),
-    ("death_guard", "The Death Guard are warriors of the Plague God",
+    (DG_LIST, "The Death Guard are warriors of the Plague God",
      "Contagion Range"),
 ]
 for _key, _lore, _rule in FLUFF_AND_RULE:
@@ -176,7 +180,7 @@ c.true("...while its name, subtitle and WHEN survive",
 # Death Guard is the case where lore and rule alternate line by line - one
 # flavour sentence above each of the three Plagues - so a filter that only
 # dropped a section's OPENING paragraph would still leak here.
-_dg = flat(overlay({"Player 1": "death_guard"}))
+_dg = flat(overlay({"Player 1": DG_LIST}))
 c.eq("per-Plague flavour lines are gone as well",
      any(s in _dg for s in ("This horrifying affliction",
                             "Limbs shuddering with fever palsy",

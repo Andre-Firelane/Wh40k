@@ -69,11 +69,16 @@ blade = next(w for w in sq.models[0].weapons if w.weapon_type == MELEE)
 checks.eq("Blade of Destruction A8/S6/AP-3/D2",
           (blade.attacks, blade.strength, blade.ap, blade.damage), (8, 6, -3, 2))
 # The two rows' keywords landed in BOTH columns and looked swapped, which is
-# why it was queried rather than guessed: each carries its own, and only the
-# gun carries two.
+# why it was queried rather than guessed - and the answer that came back put
+# [ANTI-INFANTRY 3+] on both. The scraped keyword column of
+# rules/aeldari/Jain Zar.md says otherwise: "assault" on the ranged row,
+# "anti-infantry 3+" on the melee one and nothing else. The corpus is the
+# printed page itself, and this repo's standing decision is that the
+# transcription wins, so the gun lost a keyword it never printed - found by
+# the keyword sweep in test_weapon_characteristics.py section 5.
 checks.true("Silent Death is [ASSAULT]", gun.assault)
-checks.eq("...and [ANTI-INFANTRY 3+]", gun.anti, ("INFANTRY", 3))
-checks.eq("the Blade is [ANTI-INFANTRY 3+] too", blade.anti, ("INFANTRY", 3))
+checks.eq("...and NOT [ANTI-INFANTRY 3+] - that is the Blade's alone", gun.anti, None)
+checks.eq("the Blade is [ANTI-INFANTRY 3+]", blade.anti, ("INFANTRY", 3))
 checks.eq("...but NOT [ASSAULT] - a melee weapon could not be", blade.assault, False)
 
 

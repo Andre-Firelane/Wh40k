@@ -70,8 +70,8 @@ print("\n=== 1. what each host offers ===")
 
 c.eq("the four actions are distinct", len({NEW_GAME, RESUME, SAVE, QUIT}), 4)
 
-startup = [a for a, _l, _e, _n in GameMenu().entries()]
-in_game = [a for a, _l, _e, _n in GameMenu(in_game=True).entries()]
+startup = [a for a, _l, _e in GameMenu().entries()]
+in_game = [a for a, _l, _e in GameMenu(in_game=True).entries()]
 c.eq("the startup menu offers the three the user asked for, in that order",
      startup, [NEW_GAME, RESUME, QUIT])
 c.eq("a battle also offers Save, and Resume comes first",
@@ -83,16 +83,23 @@ c.true("Save is offered only in a battle", SAVE not in startup)
 
 # Resume's eligibility is the whole reason the startup host takes a path.
 c.true("with no save, Resume is disabled",
-       [e for a, _l, e, _n in GameMenu().entries() if a == RESUME] == [False])
+       [e for a, _l, e in GameMenu().entries() if a == RESUME] == [False])
 c.true("...and with one, it is enabled",
-       [e for a, _l, e, _n in GameMenu(save_path="x", save_note="n").entries()
+       [e for a, _l, e in GameMenu(save_path="x", save_note="n").entries()
         if a == RESUME] == [True])
 # A DISABLED entry stays on screen. Dropping it would silently change the
-# menu's shape between the two hosts, and the reason it cannot be pressed is
-# the useful thing to show.
+# menu's shape between the two hosts.
 c.eq("a disabled Resume is still listed", len(GameMenu().entries()), 3)
-c.true("...and says why", "no saved" in
-       [n for a, _l, _e, n in GameMenu().entries() if a == RESUME][0])
+# The captions under the rows are GONE (user: "Die unterschriften unter den
+# buttons koennen weg"), so a row is (action, label, enabled) and nothing else.
+# Named consequence, pinned here rather than left to be rediscovered: a greyed
+# Resume no longer prints WHY, and an enabled one no longer names the save.
+c.true("a row carries no caption any more",
+       all(len(row) == 3 for row in GameMenu().entries()))
+c.true("...for either host",
+       all(len(row) == 3 for row in GameMenu(in_game=True).entries()))
+c.true("nothing in the menu still renders one",
+       "NOTE_COLOR" not in _read("game/ui/game_menu.py"))
 
 # Accents describe what a press COSTS - the meaning game/ui/button_style.py
 # already carries. Start New Game is free at startup and costs the battle in
@@ -104,7 +111,7 @@ c.eq("...and costs the battle in one", GameMenu(in_game=True)._accent(NEW_GAME),
 # The two reserved accents belong to rules that pin their own hues.
 c.true("no entry borrows the Stratagem or Battle Focus accents",
        not any(GameMenu(in_game=g)._accent(a) in ("stratagem", "battle_focus")
-               for g in (False, True) for a, _l, _e, _n in GameMenu(in_game=g).entries()))
+               for g in (False, True) for a, _l, _e in GameMenu(in_game=g).entries()))
 
 
 # --------------------------------------------------------------------------
@@ -259,7 +266,7 @@ with tempfile.TemporaryDirectory() as tmp:
     # That None is the eligibility gate: the menu greys Resume rather than
     # offering a press that would then fail (CLAUDE.md error class 5).
     c.true("a file that cannot be summarised leaves Resume disabled",
-           [e for a, _l, e, _n in GameMenu(save_path=broken,
+           [e for a, _l, e in GameMenu(save_path=broken,
                                            save_note=scene_io.summary(broken)).entries()
             if a == RESUME] == [False])
 

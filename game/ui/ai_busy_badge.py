@@ -55,20 +55,12 @@ PANEL_EDGE_COLOR = (255, 199, 54)   # thin amber seam facing the board, so the d
 PANEL_EDGE_WIDTH = 2
 
 
-# The AUTO-PLAY indicator. User: "dieses AutoPlay-enabled Label kannst du
-# eigentlich weglassen. Ersatz: es durch einen kleinen roten Punkt irgendwo in
-# der Ecke des Bildschirms, damit man Bescheid weiss. Aber das Riesenlabel
-# brauchen wir nicht. Als Riesenlabel brauchen wir nur das Claude is thinking."
-#
-# It was a badge in the same corner as the busy badge, and the busy badge is
-# flashed ON TOP of an already-finished frame - so the wider AUTO-PLAY label
-# stuck out from behind the narrower "Claude is thinking...", which is exactly
-# the overlap that got reported. A dot in the OPPOSITE corner cannot collide
-# with it by construction, which is the real fix, not just the smaller one.
-DOT_FILL = (215, 45, 45)
-DOT_RING = (12, 8, 8)
-DOT_GLOW = (255, 70, 70)
-AUTO_PLAY_DOT_RADIUS = 7
+# The AI-mode switch below replaced a red DOT that used to live in this file.
+# User: "vielleicht dort, wo jetzt der rote punkt ist." A dot could only ever
+# say "on" - it was not drawn at all while the mode was off - so there was
+# nothing to click to turn the mode back on, and nothing on screen said the
+# mode existed at all. The switch says both states and is the control as well
+# as the indicator.
 
 
 def _pulse(t):
@@ -76,26 +68,57 @@ def _pulse(t):
     return 0.5 + 0.5 * math.sin(t * 4.0)
 
 
-def draw_auto_play_dot(surface, board_rect):
-    """The "Player 2 is driving itself" reminder, reduced to a dot in the
-    board's top-RIGHT corner (Shift+A still toggles it).
+AI_TOGGLE_WIDTH = 92      # wider than the MENU button above it: measured, "AI"
+                          # needs more than the 17px a 74px-wide toggle leaves
+                          # once the 32px track and its gaps are taken out.
+AI_TOGGLE_LABEL = "AI"
 
-    Deliberately static, not blinking: this is on for whole turns at a time,
-    and a corner light that flashes for minutes is the kind of nag this
-    replaced. The soft halo plus the dark ring are what make it readable over
-    both bright terrain and dark, without making it any bigger.
 
-    Returns the dot's centre, so a test can assert WHERE it went rather than
-    only that something was drawn."""
-    center = (board_rect.right - MARGIN - AUTO_PLAY_DOT_RADIUS,
-              board_rect.y + MARGIN + AUTO_PLAY_DOT_RADIUS)
-    glow = pygame.Surface(((AUTO_PLAY_DOT_RADIUS + 6) * 2, (AUTO_PLAY_DOT_RADIUS + 6) * 2), pygame.SRCALPHA)
-    pygame.draw.circle(glow, (*DOT_GLOW, 70), (AUTO_PLAY_DOT_RADIUS + 6, AUTO_PLAY_DOT_RADIUS + 6),
-                       AUTO_PLAY_DOT_RADIUS + 6)
-    surface.blit(glow, (center[0] - AUTO_PLAY_DOT_RADIUS - 6, center[1] - AUTO_PLAY_DOT_RADIUS - 6))
-    pygame.draw.circle(surface, DOT_RING, center, AUTO_PLAY_DOT_RADIUS + 2)
-    pygame.draw.circle(surface, DOT_FILL, center, AUTO_PLAY_DOT_RADIUS)
-    return center
+def ai_mode_toggle_rect(board_rect, font, avoid_rects=()):
+    """Where the AI-mode switch sits: the board's top-right corner, under the
+    MENU button, right edges aligned.
+
+    User: "auesserdem waere ein toggle in der oberflaeche gut fuer den KI
+    Modus. vielleicht dort, wo jetzt der rote punkt ist." So it takes the dot's
+    corner - and it has to be a real control rather than a light, because a dot
+    that is only drawn while the mode is ON is a thing you can never click to
+    turn it back on.
+
+    Same avoid_rects dance the dot did, and for the same measured reason: the
+    dice panel is top-anchored and centred inside this very board rect, so the
+    only free direction here is DOWN."""
+    height = button_style.toggle_height(AI_TOGGLE_WIDTH, AI_TOGGLE_LABEL, font)
+    rect = pygame.Rect(board_rect.right - MARGIN - AI_TOGGLE_WIDTH,
+                       board_rect.y + MARGIN, AI_TOGGLE_WIDTH, height)
+    blockers = [r for r in avoid_rects if r is not None]
+    for _ in range(len(blockers)):   # cleared of one blocker, it can land on the next
+        hit = next((r for r in blockers if rect.colliderect(r)), None)
+        if hit is None:
+            break
+        rect.y = hit.bottom + MARGIN
+    return rect
+
+
+def draw_ai_mode_toggle(surface, board_rect, on, font, mouse_pos=None, avoid_rects=()):
+    """The one AI switch, drawn in BOTH states. Returns its rect, so main()
+    hit-tests exactly what was drawn.
+
+    ONE SWITCH: user, when asked whether auto-play and the ability/Stratagem
+    gates should be separate things - "das ist fuer mich das gleiche. KI -
+    Modus ist autoplay, erkennbar am roten punkt. das steuert auch, ob die ki
+    pfade fuer faehigkeiten und stratagems aktiviert sind. verstehe nicht warum
+    man das trennen sollte." See game/ai_mode.py for how one live flag reaches
+    the ~83 gates that were built once, at the start of the battle.
+
+    button_style.draw_toggle() rather than a bespoke light, so the board's
+    switch and the left panel's switches are one visual language - and so this
+    one inherits the three redundant state cues that were argued for there
+    (knob side, track colour, border/text colour), which a coloured dot has
+    exactly none of."""
+    rect = ai_mode_toggle_rect(board_rect, font, avoid_rects)
+    mouse = mouse_pos if mouse_pos is not None else pygame.mouse.get_pos()
+    return button_style.draw_toggle(surface, rect, AI_TOGGLE_LABEL, on, font,
+                                    hovered=rect.collidepoint(mouse))
 
 
 class AiBusyBadge:

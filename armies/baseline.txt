@@ -1,0 +1,1134 @@
+### aeldari / Player 1
+1 Avatar of Khaine 1 | deploy | pts=250 | models=1
+  components: -
+  Avatar of Khaine x1 (230,90,60) [The Wailing Doom, The Wailing Doom - Strike, The Wailing Doom - Sweep] {}
+  enhancements: -
+1 Dark Reapers 1 | deploy | pts=100 | models=5
+  components: -
+  Dark Reaper Exarch x1 (60,60,95) [Close Combat Weapon, Reaper Launcher - Starshot] {}
+  Dark Reaper x4 (60,60,95) [Close Combat Weapon, Reaper Launcher - Starshot] {}
+  enhancements: -
+1 Rangers 1 | deploy | pts=60 | models=5
+  components: -
+  Ranger x5 (140,130,105) [Close Combat Weapon, Long Rifle, Shuriken Pistol] {}
+  enhancements: -
+1 Striking Scorpions 1 | deploy | pts=75 | models=5
+  components: -
+  Striking Scorpion Exarch x1 (110,180,100) [Scorpion Chainsword, Scorpion's Claw, Shuriken Pistol] {}
+  Striking Scorpion x4 (110,180,100) [Scorpion Chainsword, Shuriken Pistol] {}
+  enhancements: -
+1 Wraithguard 1 | deploy | pts=145 | models=5
+  components: -
+  Wraithguard x5 (225,225,195) [Close Combat Weapon, D-scythe] {}
+  enhancements: -
+1 Guardian Defenders 1 + Farseer + Warlock Conclave | deploy | pts=210 | models=14
+  components: Guardian Defenders/bodyguard, Farseer/leader, Warlock Conclave/leader
+  Heavy Weapon Platform x1 (90,170,210) [Bright Lance, Close Combat Weapon] {}
+  Guardian Defender x10 (90,170,210) [Close Combat Weapon, Shuriken Catapult] {}
+  Farseer x1 (150,130,200) [Eldritch Storm, Shuriken Pistol, Singing Spear, Singing Spear] {}
+  Warlock x2 (150,120,200) [Destructor, Shuriken Pistol, Singing Spear, Singing Spear] {}
+  enhancements: -
+1 Storm Guardians 1 + Eldrad Ulthran + Warlock Conclave | deploy | pts=295 | models=14
+  components: Storm Guardians/bodyguard, Eldrad Ulthran/leader, Warlock Conclave/leader
+  Serpent's Scale Platform x1 (110,190,200) [Close Combat Weapon] {}
+  Storm Guardian x2 (110,190,200) [Close Combat Weapon, Flamer] {}
+  Storm Guardian x2 (110,190,200) [Close Combat Weapon, Fusion Gun] {}
+  Storm Guardian x2 (110,190,200) [Power Sword, Shuriken Pistol] {}
+  Storm Guardian x4 (110,190,200) [Close Combat Weapon, Shuriken Pistol] {}
+  Eldrad Ulthran x1 (170,140,210) [Mind War, Shuriken Pistol, Staff of Ulthamar and Witchblade] {}
+  Warlock x2 (150,120,200) [Destructor, Shuriken Pistol, Singing Spear, Singing Spear] {}
+  enhancements: -
+1 Windriders 1 + Warlock Skyrunners | deploy | pts=135 | models=4
+  components: Windriders/bodyguard, Warlock Skyrunners/leader
+  Windrider x3 (120,155,130) [Close Combat Weapon, Shuriken Cannon] {}
+  Warlock Skyrunner x1 (170,140,220) [Destructor, Shuriken Pistol, Twin Shuriken Catapult, Witchblade] {}
+  enhancements: -
+1 Dire Avengers 1 + Asurmen | deploy | pts=210 | models=6
+  components: Dire Avengers/bodyguard, Asurmen/leader
+  Dire Avenger Exarch x1 (70,150,220) [Avenger Shuriken Catapult, Avenger Shuriken Catapult, Close Combat Weapon] {}
+  Dire Avenger x4 (70,150,220) [Avenger Shuriken Catapult, Close Combat Weapon] {}
+  Asurmen x1 (240,240,250) [Bloody Twins, Sword of Asur] {}
+  enhancements: -
+1 Howling Banshees 1 + Jain Zar | deploy | pts=190 | models=6
+  components: Howling Banshees/bodyguard, Jain Zar/leader
+  Howling Banshee Exarch x1 (230,220,210) [Executioner, Shuriken Pistol] {}
+  Howling Banshee x4 (230,220,210) [Banshee Blade, Shuriken Pistol] {}
+  Jain Zar x1 (235,225,215) [Blade of Destruction, Silent Death] {}
+  enhancements: -
+1 Warp Spiders 1 + Lhykhis | deploy | pts=240 | models=6
+  components: Warp Spiders/bodyguard, Lhykhis/leader
+  Warp Spider Exarch x1 (200,200,230) [Close Combat Weapon, Powerblade Array] {}
+  Warp Spider x4 (200,200,230) [Close Combat Weapon, Death Spinner] {}
+  Lhykhis x1 (180,190,220) [Brood Twain, Spider's Fangs, Weaverender] {}
+  enhancements: -
+
+### aeldari / Player 2
+2 Avatar of Khaine 1 | deploy | pts=250 | models=1
+  components: -
+  Avatar of Khaine x1 (230,90,60) [The Wailing Doom, The Wailing Doom - Strike, The Wailing Doom - Sweep] {}
+  enhancements: -
+2 Dark Reapers 1 | deploy | pts=100 | models=5
+  components: -
+  Dark Reaper Exarch x1 (60,60,95) [Close Combat Weapon, Reaper Launcher - Starshot] {}
+  Dark Reaper x4 (60,60,95) [Close Combat Weapon, Reaper Launcher - Starshot] {}
+  enhancements: -
+2 Rangers 1 | deploy | pts=60 | models=5
+  components: -
+  Ranger x5 (140,130,105) [Close Combat Weapon, Long Rifle, Shuriken Pistol] {}
+  enhancements: -
+2 Striking Scorpions 1 | deploy | pts=75 | models=5
+  components: -
+  Striking Scorpion Exarch x1 (110,180,100) [Scorpion Chainsword, Scorpion's Claw, Shuriken Pistol] {}
+  Striking Scorpion x4 (110,180,100) [Scorpion Chainsword, Shuriken Pistol] {}
+  enhancements: -
+2 Wraithguard 1 | deploy | pts=145 | models=5
+  components: -
+  Wraithguard x5 (225,225,195) [Close Combat Weapon, D-scythe] {}
+  enhancements: -
+2 Guardian Defenders 1 + Farseer + Warlock Conclave | deploy | pts=210 | models=14
+  components: Guardian Defenders/bodyguard, Farseer/leader, Warlock Conclave/leader
+  Heavy Weapon Platform x1 (90,170,210) [Bright Lance, Close Combat Weapon] {}
+  Guardian Defender x10 (90,170,210) [Close Combat Weapon, Shuriken Catapult] {}
+  Farseer x1 (150,130,200) [Eldritch Storm, Shuriken Pistol, Singing Spear, Singing Spear] {}
+  Warlock x2 (150,120,200) [Destructor, Shuriken Pistol, Singing Spear, Singing Spear] {}
+  enhancements: -
+2 Storm Guardians 1 + Eldrad Ulthran + Warlock Conclave | deploy | pts=295 | models=14
+  components: Storm Guardians/bodyguard, Eldrad Ulthran/leader, Warlock Conclave/leader
+  Serpent's Scale Platform x1 (110,190,200) [Close Combat Weapon] {}
+  Storm Guardian x2 (110,190,200) [Close Combat Weapon, Flamer] {}
+  Storm Guardian x2 (110,190,200) [Close Combat Weapon, Fusion Gun] {}
+  Storm Guardian x2 (110,190,200) [Power Sword, Shuriken Pistol] {}
+  Storm Guardian x4 (110,190,200) [Close Combat Weapon, Shuriken Pistol] {}
+  Eldrad Ulthran x1 (170,140,210) [Mind War, Shuriken Pistol, Staff of Ulthamar and Witchblade] {}
+  Warlock x2 (150,120,200) [Destructor, Shuriken Pistol, Singing Spear, Singing Spear] {}
+  enhancements: -
+2 Windriders 1 + Warlock Skyrunners | deploy | pts=135 | models=4
+  components: Windriders/bodyguard, Warlock Skyrunners/leader
+  Windrider x3 (120,155,130) [Close Combat Weapon, Shuriken Cannon] {}
+  Warlock Skyrunner x1 (170,140,220) [Destructor, Shuriken Pistol, Twin Shuriken Catapult, Witchblade] {}
+  enhancements: -
+2 Dire Avengers 1 + Asurmen | deploy | pts=210 | models=6
+  components: Dire Avengers/bodyguard, Asurmen/leader
+  Dire Avenger Exarch x1 (70,150,220) [Avenger Shuriken Catapult, Avenger Shuriken Catapult, Close Combat Weapon] {}
+  Dire Avenger x4 (70,150,220) [Avenger Shuriken Catapult, Close Combat Weapon] {}
+  Asurmen x1 (240,240,250) [Bloody Twins, Sword of Asur] {}
+  enhancements: -
+2 Howling Banshees 1 + Jain Zar | deploy | pts=190 | models=6
+  components: Howling Banshees/bodyguard, Jain Zar/leader
+  Howling Banshee Exarch x1 (230,220,210) [Executioner, Shuriken Pistol] {}
+  Howling Banshee x4 (230,220,210) [Banshee Blade, Shuriken Pistol] {}
+  Jain Zar x1 (235,225,215) [Blade of Destruction, Silent Death] {}
+  enhancements: -
+2 Warp Spiders 1 + Lhykhis | deploy | pts=240 | models=6
+  components: Warp Spiders/bodyguard, Lhykhis/leader
+  Warp Spider Exarch x1 (200,200,230) [Close Combat Weapon, Powerblade Array] {}
+  Warp Spider x4 (200,200,230) [Close Combat Weapon, Death Spinner] {}
+  Lhykhis x1 (180,190,220) [Brood Twain, Spider's Fangs, Weaverender] {}
+  enhancements: -
+
+### orks / Player 1
+1 Kill Rig 1 | deploy | pts=145 | models=1
+  components: -
+  Kill Rig x1 (100,85,65) ['Eavy Lobba, Butcha Boyz, Savage Horns and Hooves, Saw Blades, Stikka Kannon, Wurrtower] {}
+  enhancements: -
+1 Beast Snagga Boyz 1 + Beastboss | embark | via=1 Kill Rig 1 | pts=170 | models=11
+  components: Beast Snagga Boyz/bodyguard, Beastboss/leader
+  Beast Snagga Nob x1 (120,145,55) [Power Snappa, Slugga] {}
+  Beast Snagga Boy x9 (120,145,55) [Choppa, Slugga] {}
+  Beastboss x1 (185,80,45) [Beast Snagga Klaw, Beastchoppa, Shoota] {}
+  enhancements: -
+1 Battlewagon 1 | deploy | pts=160 | models=1
+  components: -
+  Battlewagon x1 (75,95,55) [Big Shoota, Big Shoota, Big Shoota, Big Shoota, Tracks and Wheels, Zzap Gun] {'Ard Case}
+  enhancements: -
+1 Meganobz 1 + Warboss in Mega Armour | embark | via=1 Battlewagon 1 | pts=260 | models=7
+  components: Meganobz/bodyguard, Warboss in Mega Armour/leader
+  Meganob x6 (120,100,130) [Kustom Shoota, Power Klaw] {}
+  Warboss in Mega Armour x1 (170,60,60) ['Uge Choppa, Big Shoota] {}
+  enhancements: -
+1 Boyz 1 + Warboss + Painboy | deploy | pts=335 | models=22
+  components: Boyz/bodyguard, Warboss/leader, Painboy/leader
+  Boss Nob x1 (70,140,60) [Power Klaw, Slugga] {}
+  Boy x19 (70,140,60) [Choppa, Slugga] {}
+  Warboss x1 (170,60,60) [Attack Squig, Big Choppa, Kombi-weapon, Twin Slugga] {}
+  Painboy x1 (150,65,105) ['Urty Syringe, Power Klaw] {Grot Orderly}
+  enhancements: -
+1 Gretchin 1 | deploy | pts=45 | models=11
+  components: -
+  Gretchin x10 (140,110,70) [Close Combat Weapon, Grot Blasta] {}
+  Runtherd x1 (140,110,70) [Grot-Smacka, Slugga] {}
+  enhancements: -
+1 Gretchin 2 | deploy | pts=45 | models=11
+  components: -
+  Gretchin x10 (140,110,70) [Close Combat Weapon, Grot Blasta] {}
+  Runtherd x1 (140,110,70) [Grot-Smacka, Slugga] {}
+  enhancements: -
+1 Warbikers 1 | deploy | pts=60 | models=3
+  components: -
+  Boss Nob on Warbike x1 (150,130,60) [Close Combat Weapon, Power Klaw, Twin Dakkagun] {}
+  Warbiker x2 (150,130,60) [Close Combat Weapon, Twin Dakkagun] {}
+  enhancements: -
+1 Warbikers 2 | deploy | pts=60 | models=3
+  components: -
+  Boss Nob on Warbike x1 (150,130,60) [Close Combat Weapon, Power Klaw, Twin Dakkagun] {}
+  Warbiker x2 (150,130,60) [Close Combat Weapon, Twin Dakkagun] {}
+  enhancements: -
+1 Stormboyz 1 | deploy | pts=130 | models=10
+  components: -
+  Boss Nob x1 (110,150,70) [Power Klaw, Slugga] {}
+  Stormboy x9 (110,150,70) [Choppa, Slugga] {}
+  enhancements: -
+1 Deff Dread 1 | deploy | pts=110 | models=1
+  components: -
+  Deff Dread x1 (80,80,90) [Big Shoota, Big Shoota, Dread Klaw, Dread Klaw, Stompy Feet] {}
+  enhancements: -
+1 Deffkoptas 1 | deploy | pts=140 | models=6
+  components: -
+  Deffkopta x6 (130,145,165) [Kopta Rokkits, Slugga, Spinnin' Blades] {}
+  enhancements: -
+1 Flash Gitz 1 | deploy | pts=150 | models=10
+  components: -
+  Kaptin x1 (170,150,55) [Choppa, Snazzgun] {Ammo Runt}
+  Flash Git x9 (170,150,55) [Choppa, Snazzgun] {}
+  enhancements: -
+1 Tankbustas 1 | deploy | pts=125 | models=6
+  components: -
+  Boss Nob x1 (160,110,40) [Choppa, Rokkit Pistol, Smash Hammer] {}
+  Tankbusta x1 (160,110,40) [Close Combat Weapon, Rokkit Launcha, Rokkit Launcha] {}
+  Tankbusta x4 (160,110,40) [Close Combat Weapon, Rokkit Launcha] {}
+  enhancements: -
+
+### orks / Player 2
+2 Kill Rig 1 | deploy | pts=145 | models=1
+  components: -
+  Kill Rig x1 (100,85,65) ['Eavy Lobba, Butcha Boyz, Savage Horns and Hooves, Saw Blades, Stikka Kannon, Wurrtower] {}
+  enhancements: -
+2 Beast Snagga Boyz 1 + Beastboss | embark | via=2 Kill Rig 1 | pts=170 | models=11
+  components: Beast Snagga Boyz/bodyguard, Beastboss/leader
+  Beast Snagga Nob x1 (120,145,55) [Power Snappa, Slugga] {}
+  Beast Snagga Boy x9 (120,145,55) [Choppa, Slugga] {}
+  Beastboss x1 (185,80,45) [Beast Snagga Klaw, Beastchoppa, Shoota] {}
+  enhancements: -
+2 Battlewagon 1 | deploy | pts=160 | models=1
+  components: -
+  Battlewagon x1 (75,95,55) [Big Shoota, Big Shoota, Big Shoota, Big Shoota, Tracks and Wheels, Zzap Gun] {'Ard Case}
+  enhancements: -
+2 Meganobz 1 + Warboss in Mega Armour | embark | via=2 Battlewagon 1 | pts=260 | models=7
+  components: Meganobz/bodyguard, Warboss in Mega Armour/leader
+  Meganob x6 (120,100,130) [Kustom Shoota, Power Klaw] {}
+  Warboss in Mega Armour x1 (170,60,60) ['Uge Choppa, Big Shoota] {}
+  enhancements: -
+2 Boyz 1 + Warboss + Painboy | deploy | pts=335 | models=22
+  components: Boyz/bodyguard, Warboss/leader, Painboy/leader
+  Boss Nob x1 (70,140,60) [Power Klaw, Slugga] {}
+  Boy x19 (70,140,60) [Choppa, Slugga] {}
+  Warboss x1 (170,60,60) [Attack Squig, Big Choppa, Kombi-weapon, Twin Slugga] {}
+  Painboy x1 (150,65,105) ['Urty Syringe, Power Klaw] {Grot Orderly}
+  enhancements: -
+2 Gretchin 1 | deploy | pts=45 | models=11
+  components: -
+  Gretchin x10 (140,110,70) [Close Combat Weapon, Grot Blasta] {}
+  Runtherd x1 (140,110,70) [Grot-Smacka, Slugga] {}
+  enhancements: -
+2 Gretchin 2 | deploy | pts=45 | models=11
+  components: -
+  Gretchin x10 (140,110,70) [Close Combat Weapon, Grot Blasta] {}
+  Runtherd x1 (140,110,70) [Grot-Smacka, Slugga] {}
+  enhancements: -
+2 Warbikers 1 | deploy | pts=60 | models=3
+  components: -
+  Boss Nob on Warbike x1 (150,130,60) [Close Combat Weapon, Power Klaw, Twin Dakkagun] {}
+  Warbiker x2 (150,130,60) [Close Combat Weapon, Twin Dakkagun] {}
+  enhancements: -
+2 Warbikers 2 | deploy | pts=60 | models=3
+  components: -
+  Boss Nob on Warbike x1 (150,130,60) [Close Combat Weapon, Power Klaw, Twin Dakkagun] {}
+  Warbiker x2 (150,130,60) [Close Combat Weapon, Twin Dakkagun] {}
+  enhancements: -
+2 Stormboyz 1 | deploy | pts=130 | models=10
+  components: -
+  Boss Nob x1 (110,150,70) [Power Klaw, Slugga] {}
+  Stormboy x9 (110,150,70) [Choppa, Slugga] {}
+  enhancements: -
+2 Deff Dread 1 | deploy | pts=110 | models=1
+  components: -
+  Deff Dread x1 (80,80,90) [Big Shoota, Big Shoota, Dread Klaw, Dread Klaw, Stompy Feet] {}
+  enhancements: -
+2 Deffkoptas 1 | deploy | pts=140 | models=6
+  components: -
+  Deffkopta x6 (130,145,165) [Kopta Rokkits, Slugga, Spinnin' Blades] {}
+  enhancements: -
+2 Flash Gitz 1 | deploy | pts=150 | models=10
+  components: -
+  Kaptin x1 (170,150,55) [Choppa, Snazzgun] {Ammo Runt}
+  Flash Git x9 (170,150,55) [Choppa, Snazzgun] {}
+  enhancements: -
+2 Tankbustas 1 | deploy | pts=125 | models=6
+  components: -
+  Boss Nob x1 (160,110,40) [Choppa, Rokkit Pistol, Smash Hammer] {}
+  Tankbusta x1 (160,110,40) [Close Combat Weapon, Rokkit Launcha, Rokkit Launcha] {}
+  Tankbusta x4 (160,110,40) [Close Combat Weapon, Rokkit Launcha] {}
+  enhancements: -
+
+### necrons / Player 1
+1 C'tan Shard of the Void Dragon 1 | deploy | pts=345 | models=1
+  components: -
+  C'tan Shard of the Void Dragon x1 (90,110,140) [Canoptek Tail Blades, Spear of the Void Dragon, Spear of the Void Dragon - Strike, Voltaic Storm] {}
+  enhancements: -
+1 Immortals 1 + Plasmancer | deploy | pts=195 | models=11
+  components: Immortals/bodyguard, Plasmancer/leader
+  Immortal x10 (100,130,150) [Close Combat Weapon, Gauss Blaster] {}
+  Plasmancer x1 (110,170,190) [Plasmic Lance, Plasmic Lance] {}
+  enhancements: -
+1 Immortals 2 + Plasmancer | deploy | pts=195 | models=11
+  components: Immortals/bodyguard, Plasmancer/leader
+  Immortal x10 (120,145,175) [Close Combat Weapon, Tesla Carbine] {}
+  Plasmancer x1 (110,170,190) [Plasmic Lance, Plasmic Lance] {}
+  enhancements: -
+1 Necron Warriors 1 + Technomancer | deploy | pts=270 | models=21
+  components: Necron Warriors/bodyguard, Technomancer/leader
+  Necron Warrior x20 (90,120,130) [Close Combat Weapon, Gauss Flayer] {}
+  Technomancer x1 (120,160,140) [Staff of Light, Staff of Light] {}
+  enhancements: -
+1 Canoptek Wraiths 1 | deploy | pts=220 | models=6
+  components: -
+  Canoptek Wraith x6 (150,170,180) [Vicious Claws] {}
+  enhancements: -
+1 Doomsday Ark 1 | deploy | pts=210 | models=1
+  components: -
+  Doomsday Ark x1 (80,100,120) [Armoured Bulk, Doomsday Cannon, Gauss Flayer Array, Gauss Flayer Array] {}
+  enhancements: -
+1 Lokhust Destroyers 1 + Lokhust Lord | deploy | pts=240 | models=7
+  components: Lokhust Destroyers/bodyguard, Lokhust Lord/leader
+  Lokhust Destroyer x6 (110,120,100) [Close Combat Weapon, Gauss Cannon] {}
+  Lokhust Lord x1 (110,120,100) [Staff of Light, Staff of Light] {Nanoscarab Amulet}
+  enhancements: -
+1 Lychguard 1 + Overlord | deploy | pts=170 | models=6
+  components: Lychguard/bodyguard, Overlord/leader
+  Lychguard x5 (160,140,60) [Hyperphase Sword] {Dispersion Shield}
+  Overlord x1 (170,150,70) [Voidscythe] {Resurrection Orb}
+  enhancements: -
+1 Skorpekh Destroyers 1 + Skorpekh Lord | deploy | pts=175 | models=4
+  components: Skorpekh Destroyers/bodyguard, Skorpekh Lord/leader
+  Skorpekh Destroyer x1 (120,90,90) [Skorpekh Hyperphase Weapons] {Plasmacyte}
+  Skorpekh Destroyer x2 (120,90,90) [Skorpekh Hyperphase Weapons] {}
+  Skorpekh Lord x1 (120,90,90) [Enmitic Annihilator, Flensing Claw, Hyperphase Harvester] {}
+  enhancements: -
+
+### necrons / Player 2
+2 C'tan Shard of the Void Dragon 1 | deploy | pts=345 | models=1
+  components: -
+  C'tan Shard of the Void Dragon x1 (90,110,140) [Canoptek Tail Blades, Spear of the Void Dragon, Spear of the Void Dragon - Strike, Voltaic Storm] {}
+  enhancements: -
+2 Immortals 1 + Plasmancer | deploy | pts=195 | models=11
+  components: Immortals/bodyguard, Plasmancer/leader
+  Immortal x10 (100,130,150) [Close Combat Weapon, Gauss Blaster] {}
+  Plasmancer x1 (110,170,190) [Plasmic Lance, Plasmic Lance] {}
+  enhancements: -
+2 Immortals 2 + Plasmancer | deploy | pts=195 | models=11
+  components: Immortals/bodyguard, Plasmancer/leader
+  Immortal x10 (120,145,175) [Close Combat Weapon, Tesla Carbine] {}
+  Plasmancer x1 (110,170,190) [Plasmic Lance, Plasmic Lance] {}
+  enhancements: -
+2 Necron Warriors 1 + Technomancer | deploy | pts=270 | models=21
+  components: Necron Warriors/bodyguard, Technomancer/leader
+  Necron Warrior x20 (90,120,130) [Close Combat Weapon, Gauss Flayer] {}
+  Technomancer x1 (120,160,140) [Staff of Light, Staff of Light] {}
+  enhancements: -
+2 Canoptek Wraiths 1 | deploy | pts=220 | models=6
+  components: -
+  Canoptek Wraith x6 (150,170,180) [Vicious Claws] {}
+  enhancements: -
+2 Doomsday Ark 1 | deploy | pts=210 | models=1
+  components: -
+  Doomsday Ark x1 (80,100,120) [Armoured Bulk, Doomsday Cannon, Gauss Flayer Array, Gauss Flayer Array] {}
+  enhancements: -
+2 Lokhust Destroyers 1 + Lokhust Lord | deploy | pts=240 | models=7
+  components: Lokhust Destroyers/bodyguard, Lokhust Lord/leader
+  Lokhust Destroyer x6 (110,120,100) [Close Combat Weapon, Gauss Cannon] {}
+  Lokhust Lord x1 (110,120,100) [Staff of Light, Staff of Light] {Nanoscarab Amulet}
+  enhancements: -
+2 Lychguard 1 + Overlord | deploy | pts=170 | models=6
+  components: Lychguard/bodyguard, Overlord/leader
+  Lychguard x5 (160,140,60) [Hyperphase Sword] {Dispersion Shield}
+  Overlord x1 (170,150,70) [Voidscythe] {Resurrection Orb}
+  enhancements: -
+2 Skorpekh Destroyers 1 + Skorpekh Lord | deploy | pts=175 | models=4
+  components: Skorpekh Destroyers/bodyguard, Skorpekh Lord/leader
+  Skorpekh Destroyer x1 (120,90,90) [Skorpekh Hyperphase Weapons] {Plasmacyte}
+  Skorpekh Destroyer x2 (120,90,90) [Skorpekh Hyperphase Weapons] {}
+  Skorpekh Lord x1 (120,90,90) [Enmitic Annihilator, Flensing Claw, Hyperphase Harvester] {}
+  enhancements: -
+
+### tau / Player 1
+1 Devilfish 1 | deploy | pts=75 | models=1
+  components: -
+  Devilfish x1 (200,160,90) [Accelerator Burst Cannon, Armoured Hull, Seeker Missile, Seeker Missile, Twin Pulse Carbine, Twin Pulse Carbine] {}
+  enhancements: -
+1 Breacher Team 1 + Cadre Fireblade | embark | via=1 Devilfish 1 | pts=170 | models=11
+  components: Breacher Team/bodyguard, Cadre Fireblade/leader
+  Breacher Fire Warrior Shas'ui x1 (220,150,70) [Close Combat Weapon, Pulse Blaster, Pulse Pistol, Twin Pulse Carbine] {Guardian Drone, Gun Drone}
+  Breacher Fire Warrior x9 (220,150,70) [Close Combat Weapon, Pulse Blaster, Pulse Pistol] {}
+  Cadre Fireblade x1 (220,150,70) [Close Combat Weapon, Fireblade Pulse Rifle, Twin Pulse Carbine, Twin Pulse Carbine] {Gun Drone, Gun Drone}
+  enhancements: Through Unity, Devastation
+1 Devilfish 2 | deploy | pts=75 | models=1
+  components: -
+  Devilfish x1 (200,160,90) [Accelerator Burst Cannon, Armoured Hull, Seeker Missile, Seeker Missile, Twin Pulse Carbine, Twin Pulse Carbine] {}
+  enhancements: -
+1 Breacher Team 2 + Cadre Fireblade | embark | via=1 Devilfish 2 | pts=155 | models=11
+  components: Breacher Team/bodyguard, Cadre Fireblade/leader
+  Breacher Fire Warrior Shas'ui x1 (220,150,70) [Close Combat Weapon, Pulse Blaster, Pulse Pistol, Twin Pulse Carbine] {Guardian Drone, Gun Drone}
+  Breacher Fire Warrior x9 (220,150,70) [Close Combat Weapon, Pulse Blaster, Pulse Pistol] {}
+  Cadre Fireblade x1 (220,150,70) [Close Combat Weapon, Fireblade Pulse Rifle] {}
+  enhancements: Precision of the Patient Hunter
+1 Crisis Sunforge Battlesuits 1 + Commander in Coldstar Battlesuit | deploy | pts=240 | models=4
+  components: Crisis Sunforge Battlesuits/bodyguard, Commander in Coldstar Battlesuit/leader
+  Crisis Sunforge Shas'vre x1 (130,150,200) [Battlesuit Fists, Fusion Blaster, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Crisis Sunforge Shas'ui x2 (130,150,200) [Battlesuit Fists, Fusion Blaster, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Commander in Coldstar Battlesuit x1 (130,150,200) [Battlesuit Fists, Fusion Blaster, Fusion Blaster, Fusion Blaster, Fusion Blaster] {Fusion Blaster, Fusion Blaster, Fusion Blaster, Marker Drone, Shield Drone}
+  enhancements: Exemplar of the Kauyon
+1 Broadside Battlesuits 1 | deploy | pts=150 | models=2
+  components: -
+  Broadside Shas'vre x1 (120,140,190) [Crushing Bulk, Heavy Rail Rifle, Missile Pod, Missile Pod, Seeker Missile, Twin Plasma Rifle] {Missile Drone, Missile Drone, Seeker Missile, Twin Plasma Rifle}
+  Broadside Shas'ui x1 (120,140,190) [Crushing Bulk, Heavy Rail Rifle, Missile Pod, Missile Pod, Seeker Missile, Twin Plasma Rifle] {Missile Drone, Missile Drone, Seeker Missile, Twin Plasma Rifle}
+  enhancements: -
+1 Ghostkeel Battlesuit 1 | deploy | pts=180 | models=1
+  components: -
+  Ghostkeel Battlesuit x1 (110,130,175) [Cyclic Ion Raker - Standard, Ghostkeel Fists, Twin Fusion Blaster] {}
+  enhancements: Unmasking Suite
+1 Hammerhead Gunship 1 | deploy | pts=150 | models=1
+  components: -
+  Hammerhead Gunship x1 (150,170,210) [Accelerator Burst Cannon, Accelerator Burst Cannon, Armoured Hull, Railgun, Seeker Missile, Seeker Missile] {Seeker Missile, Seeker Missile}
+  enhancements: -
+1 Kroot Carnivores 1 | deploy | pts=65 | models=10
+  components: -
+  Long-quill x1 (120,90,40) [Close Combat Weapon, Kroot Pistol, Kroot Rifle] {}
+  Kroot Carnivore x9 (120,90,40) [Close Combat Weapon, Kroot Rifle] {}
+  enhancements: -
+1 Kroot Hounds 1 | deploy | pts=45 | models=5
+  components: -
+  Kroot Hound x5 (140,105,55) [Ripping Fangs] {}
+  enhancements: -
+1 Pathfinder Team 1 | deploy | pts=85 | models=10
+  components: -
+  Pathfinder Shas'ui x1 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol] {Grav-inhibitor Drone, Shield Drone, Shield Drone}
+  Pathfinder x3 (90,180,140) [Close Combat Weapon, Pulse Pistol, Rail Rifle] {}
+  Pathfinder x1 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol, Semi-automatic Grenade Launcher - EMP] {}
+  Pathfinder x5 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol] {}
+  enhancements: -
+1 Piranhas 1 | deploy | pts=65 | models=1
+  components: -
+  Piranha x1 (110,165,200) [Armoured Hull, Piranha Burst Cannon, Twin Pulse Carbine, Twin Pulse Carbine] {}
+  enhancements: -
+1 Riptide Battlesuit 1 | deploy | pts=215 | models=1
+  components: -
+  Riptide Battlesuit x1 (150,150,195) [Ion Accelerator - Standard, Missile Pod, Missile Pod, Riptide Fists, Twin Fusion Blaster] {}
+  enhancements: -
+1 Sky Ray Gunship 1 | deploy | pts=140 | models=1
+  components: -
+  Sky Ray Gunship x1 (140,165,205) [Accelerator Burst Cannon, Accelerator Burst Cannon, Armoured Hull, Seeker Missile Rack] {}
+  enhancements: -
+1 Stealth Battlesuits 1 | deploy | pts=115 | models=5
+  components: -
+  Stealth Shas'vre x1 (100,100,150) [Battlesuit Fists, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Marker Drone}
+  Stealth Shas'ui x1 (100,100,150) [Battlesuit Fists, Burst Cannon] {Homing Beacon}
+  Stealth Shas'ui x3 (100,100,150) [Battlesuit Fists, Burst Cannon] {}
+  enhancements: Negation Emitters
+1 Stealth Battlesuits 2 | deploy | pts=100 | models=5
+  components: -
+  Stealth Shas'vre x1 (100,100,150) [Battlesuit Fists, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Marker Drone}
+  Stealth Shas'ui x1 (100,100,150) [Battlesuit Fists, Burst Cannon] {Homing Beacon}
+  Stealth Shas'ui x3 (100,100,150) [Battlesuit Fists, Burst Cannon] {}
+  enhancements: -
+1 Vespid Stingwings 1 | deploy | pts=70 | models=5
+  components: -
+  Vespid Strain Leader x1 (150,120,190) [Neutron Blaster, Stingwing Claws] {}
+  Vespid Stingwing x4 (150,120,190) [Neutron Blaster, Stingwing Claws] {}
+  enhancements: -
+1 Ethereal 1 | deploy | pts=70 | models=1
+  components: -
+  Ethereal x1 (200,180,210) [Honour Stave] {Marker Drone, Shield Drone}
+  enhancements: Solid-image Projection Unit
+
+### tau / Player 2
+2 Devilfish 1 | deploy | pts=75 | models=1
+  components: -
+  Devilfish x1 (200,160,90) [Accelerator Burst Cannon, Armoured Hull, Seeker Missile, Seeker Missile, Twin Pulse Carbine, Twin Pulse Carbine] {}
+  enhancements: -
+2 Breacher Team 1 + Cadre Fireblade | embark | via=2 Devilfish 1 | pts=170 | models=11
+  components: Breacher Team/bodyguard, Cadre Fireblade/leader
+  Breacher Fire Warrior Shas'ui x1 (220,150,70) [Close Combat Weapon, Pulse Blaster, Pulse Pistol, Twin Pulse Carbine] {Guardian Drone, Gun Drone}
+  Breacher Fire Warrior x9 (220,150,70) [Close Combat Weapon, Pulse Blaster, Pulse Pistol] {}
+  Cadre Fireblade x1 (220,150,70) [Close Combat Weapon, Fireblade Pulse Rifle, Twin Pulse Carbine, Twin Pulse Carbine] {Gun Drone, Gun Drone}
+  enhancements: Through Unity, Devastation
+2 Devilfish 2 | deploy | pts=75 | models=1
+  components: -
+  Devilfish x1 (200,160,90) [Accelerator Burst Cannon, Armoured Hull, Seeker Missile, Seeker Missile, Twin Pulse Carbine, Twin Pulse Carbine] {}
+  enhancements: -
+2 Breacher Team 2 + Cadre Fireblade | embark | via=2 Devilfish 2 | pts=155 | models=11
+  components: Breacher Team/bodyguard, Cadre Fireblade/leader
+  Breacher Fire Warrior Shas'ui x1 (220,150,70) [Close Combat Weapon, Pulse Blaster, Pulse Pistol, Twin Pulse Carbine] {Guardian Drone, Gun Drone}
+  Breacher Fire Warrior x9 (220,150,70) [Close Combat Weapon, Pulse Blaster, Pulse Pistol] {}
+  Cadre Fireblade x1 (220,150,70) [Close Combat Weapon, Fireblade Pulse Rifle] {}
+  enhancements: Precision of the Patient Hunter
+2 Crisis Sunforge Battlesuits 1 + Commander in Coldstar Battlesuit | deploy | pts=240 | models=4
+  components: Crisis Sunforge Battlesuits/bodyguard, Commander in Coldstar Battlesuit/leader
+  Crisis Sunforge Shas'vre x1 (130,150,200) [Battlesuit Fists, Fusion Blaster, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Crisis Sunforge Shas'ui x2 (130,150,200) [Battlesuit Fists, Fusion Blaster, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Commander in Coldstar Battlesuit x1 (130,150,200) [Battlesuit Fists, Fusion Blaster, Fusion Blaster, Fusion Blaster, Fusion Blaster] {Fusion Blaster, Fusion Blaster, Fusion Blaster, Marker Drone, Shield Drone}
+  enhancements: Exemplar of the Kauyon
+2 Broadside Battlesuits 1 | deploy | pts=150 | models=2
+  components: -
+  Broadside Shas'vre x1 (120,140,190) [Crushing Bulk, Heavy Rail Rifle, Missile Pod, Missile Pod, Seeker Missile, Twin Plasma Rifle] {Missile Drone, Missile Drone, Seeker Missile, Twin Plasma Rifle}
+  Broadside Shas'ui x1 (120,140,190) [Crushing Bulk, Heavy Rail Rifle, Missile Pod, Missile Pod, Seeker Missile, Twin Plasma Rifle] {Missile Drone, Missile Drone, Seeker Missile, Twin Plasma Rifle}
+  enhancements: -
+2 Ghostkeel Battlesuit 1 | deploy | pts=180 | models=1
+  components: -
+  Ghostkeel Battlesuit x1 (110,130,175) [Cyclic Ion Raker - Standard, Ghostkeel Fists, Twin Fusion Blaster] {}
+  enhancements: Unmasking Suite
+2 Hammerhead Gunship 1 | deploy | pts=150 | models=1
+  components: -
+  Hammerhead Gunship x1 (150,170,210) [Accelerator Burst Cannon, Accelerator Burst Cannon, Armoured Hull, Railgun, Seeker Missile, Seeker Missile] {Seeker Missile, Seeker Missile}
+  enhancements: -
+2 Kroot Carnivores 1 | deploy | pts=65 | models=10
+  components: -
+  Long-quill x1 (120,90,40) [Close Combat Weapon, Kroot Pistol, Kroot Rifle] {}
+  Kroot Carnivore x9 (120,90,40) [Close Combat Weapon, Kroot Rifle] {}
+  enhancements: -
+2 Kroot Hounds 1 | deploy | pts=45 | models=5
+  components: -
+  Kroot Hound x5 (140,105,55) [Ripping Fangs] {}
+  enhancements: -
+2 Pathfinder Team 1 | deploy | pts=85 | models=10
+  components: -
+  Pathfinder Shas'ui x1 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol] {Grav-inhibitor Drone, Shield Drone, Shield Drone}
+  Pathfinder x3 (90,180,140) [Close Combat Weapon, Pulse Pistol, Rail Rifle] {}
+  Pathfinder x1 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol, Semi-automatic Grenade Launcher - EMP] {}
+  Pathfinder x5 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol] {}
+  enhancements: -
+2 Piranhas 1 | deploy | pts=65 | models=1
+  components: -
+  Piranha x1 (110,165,200) [Armoured Hull, Piranha Burst Cannon, Twin Pulse Carbine, Twin Pulse Carbine] {}
+  enhancements: -
+2 Riptide Battlesuit 1 | deploy | pts=215 | models=1
+  components: -
+  Riptide Battlesuit x1 (150,150,195) [Ion Accelerator - Standard, Missile Pod, Missile Pod, Riptide Fists, Twin Fusion Blaster] {}
+  enhancements: -
+2 Sky Ray Gunship 1 | deploy | pts=140 | models=1
+  components: -
+  Sky Ray Gunship x1 (140,165,205) [Accelerator Burst Cannon, Accelerator Burst Cannon, Armoured Hull, Seeker Missile Rack] {}
+  enhancements: -
+2 Stealth Battlesuits 1 | deploy | pts=115 | models=5
+  components: -
+  Stealth Shas'vre x1 (100,100,150) [Battlesuit Fists, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Marker Drone}
+  Stealth Shas'ui x1 (100,100,150) [Battlesuit Fists, Burst Cannon] {Homing Beacon}
+  Stealth Shas'ui x3 (100,100,150) [Battlesuit Fists, Burst Cannon] {}
+  enhancements: Negation Emitters
+2 Stealth Battlesuits 2 | deploy | pts=100 | models=5
+  components: -
+  Stealth Shas'vre x1 (100,100,150) [Battlesuit Fists, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Marker Drone}
+  Stealth Shas'ui x1 (100,100,150) [Battlesuit Fists, Burst Cannon] {Homing Beacon}
+  Stealth Shas'ui x3 (100,100,150) [Battlesuit Fists, Burst Cannon] {}
+  enhancements: -
+2 Vespid Stingwings 1 | deploy | pts=70 | models=5
+  components: -
+  Vespid Strain Leader x1 (150,120,190) [Neutron Blaster, Stingwing Claws] {}
+  Vespid Stingwing x4 (150,120,190) [Neutron Blaster, Stingwing Claws] {}
+  enhancements: -
+2 Ethereal 1 | deploy | pts=70 | models=1
+  components: -
+  Ethereal x1 (200,180,210) [Honour Stave] {Marker Drone, Shield Drone}
+  enhancements: Solid-image Projection Unit
+
+### tau_montka / Player 1
+1 Crisis Sunforge Battlesuits 1 + Commander Farsight | deploy | pts=195 | models=4
+  components: Crisis Sunforge Battlesuits/bodyguard, Commander Farsight/leader
+  Crisis Sunforge Shas'vre x1 (130,150,200) [Battlesuit Fists, Fusion Blaster, Fusion Blaster] {Marker Drone, Shield Drone}
+  Crisis Sunforge Shas'ui x2 (130,150,200) [Battlesuit Fists, Fusion Blaster, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Commander Farsight x1 (130,150,200) [Dawn Blade - Strike, Dawn Blade - Sweep, High-intensity Plasma Rifle] {}
+  enhancements: -
+1 Crisis Starscythe Battlesuits 1 + Commander in Coldstar Battlesuit | deploy | pts=210 | models=4
+  components: Crisis Starscythe Battlesuits/bodyguard, Commander in Coldstar Battlesuit/leader
+  Crisis Starscythe Shas'vre x1 (200,140,90) [Battlesuit Fists, Burst Cannon, Burst Cannon] {Marker Drone, Shield Drone}
+  Crisis Starscythe Shas'ui x2 (200,140,90) [Battlesuit Fists, Burst Cannon, Burst Cannon, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Commander in Coldstar Battlesuit x1 (200,140,90) [Battlesuit Fists, Burst Cannon, Burst Cannon, Cyclic Ion Blaster - Standard, High-output Burst Cannon] {Burst Cannon, Burst Cannon, Cyclic Ion Blaster, Shield Drone, Shield Drone}
+  enhancements: Strategic Conqueror
+1 Devilfish 1 | deploy | pts=75 | models=1
+  components: -
+  Devilfish x1 (200,160,90) [Accelerator Burst Cannon, Armoured Hull, Seeker Missile, Seeker Missile, Twin Pulse Carbine, Twin Pulse Carbine] {}
+  enhancements: -
+1 Breacher Team 1 + Cadre Fireblade | embark | via=1 Devilfish 1 | pts=140 | models=11
+  components: Breacher Team/bodyguard, Cadre Fireblade/leader
+  Breacher Fire Warrior Shas'ui x1 (220,150,70) [Close Combat Weapon, Pulse Blaster, Pulse Pistol] {Guardian Drone, Shield Drone}
+  Breacher Fire Warrior x9 (220,150,70) [Close Combat Weapon, Pulse Blaster, Pulse Pistol] {}
+  Cadre Fireblade x1 (220,150,70) [Close Combat Weapon, Fireblade Pulse Rifle, Twin Pulse Carbine, Twin Pulse Carbine] {Gun Drone, Gun Drone}
+  enhancements: -
+1 Devilfish 2 | deploy | pts=75 | models=1
+  components: -
+  Devilfish x1 (200,160,90) [Accelerator Burst Cannon, Armoured Hull, Seeker Missile, Seeker Missile, Twin Pulse Carbine, Twin Pulse Carbine] {}
+  enhancements: -
+1 Breacher Team 2 + Cadre Fireblade | embark | via=1 Devilfish 2 | pts=140 | models=11
+  components: Breacher Team/bodyguard, Cadre Fireblade/leader
+  Breacher Fire Warrior Shas'ui x1 (220,150,70) [Close Combat Weapon, Pulse Blaster, Pulse Pistol] {Guardian Drone, Shield Drone}
+  Breacher Fire Warrior x9 (220,150,70) [Close Combat Weapon, Pulse Blaster, Pulse Pistol] {}
+  Cadre Fireblade x1 (220,150,70) [Close Combat Weapon, Fireblade Pulse Rifle, Twin Pulse Carbine, Twin Pulse Carbine] {Gun Drone, Gun Drone}
+  enhancements: -
+1 Darkstrider 1 | deploy | pts=60 | models=1
+  components: -
+  Darkstrider x1 (170,200,140) [Close Combat Weapon, Shade] {}
+  enhancements: -
+1 The Twin Lance 1 | deploy | pts=230 | models=2
+  components: -
+  Ri'Lantar x1 (210,190,120) [Fusion Eliminator, Fusion Eliminator, Shardstorm Burst System, Twin Pulse Blaster, XV Pulse Pistol, XV Pulse Pistol] {}
+  Ri'Locai x1 (210,190,120) [Ion Scattercannon, Ion Scattercannon - Standard, Shardstorm Burst System, Twin Pulse Blaster, XV Pulse Pistol, XV Pulse Pistol] {}
+  enhancements: -
+1 Broadside Battlesuits 1 | deploy | pts=270 | models=3
+  components: -
+  Broadside Shas'vre x1 (120,140,190) [Crushing Bulk, High-yield Missile Pods, Missile Pod, Missile Pod, Seeker Missile, Twin Plasma Rifle] {Missile Drone, Missile Drone, Seeker Missile, Twin Plasma Rifle}
+  Broadside Shas'ui x2 (120,140,190) [Crushing Bulk, High-yield Missile Pods, Missile Pod, Missile Pod, Seeker Missile, Twin Plasma Rifle] {Missile Drone, Missile Drone, Seeker Missile, Twin Plasma Rifle}
+  enhancements: -
+1 Kroot Carnivores 1 | deploy | pts=65 | models=10
+  components: -
+  Long-quill x1 (120,90,40) [Close Combat Weapon, Kroot Pistol, Kroot Rifle] {}
+  Kroot Carnivore x9 (120,90,40) [Close Combat Weapon, Kroot Rifle] {}
+  enhancements: -
+1 Pathfinder Team 1 | deploy | pts=100 | models=10
+  components: -
+  Pathfinder Shas'ui x1 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol, Semi-automatic Grenade Launcher - EMP, Twin Pulse Carbine, Twin Pulse Carbine] {Grav-inhibitor Drone, Gun Drone, Gun Drone}
+  Pathfinder x3 (90,180,140) [Close Combat Weapon, Ion Rifle - Standard, Pulse Pistol] {}
+  Pathfinder x6 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol] {}
+  enhancements: -
+1 Riptide Battlesuit 1 | deploy | pts=215 | models=1
+  components: -
+  Riptide Battlesuit x1 (150,150,195) [Ion Accelerator - Standard, Missile Pod, Missile Pod, Riptide Fists, Twin Fusion Blaster] {}
+  enhancements: -
+1 Stealth Battlesuits 1 | deploy | pts=100 | models=5
+  components: -
+  Stealth Shas'vre x1 (100,100,150) [Battlesuit Fists, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Marker Drone}
+  Stealth Shas'ui x1 (100,100,150) [Battlesuit Fists, Burst Cannon] {Homing Beacon}
+  Stealth Shas'ui x3 (100,100,150) [Battlesuit Fists, Burst Cannon] {}
+  enhancements: -
+1 Stealth Battlesuits 2 | deploy | pts=100 | models=5
+  components: -
+  Stealth Shas'vre x1 (100,100,150) [Battlesuit Fists, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Marker Drone}
+  Stealth Shas'ui x1 (100,100,150) [Battlesuit Fists, Burst Cannon] {Homing Beacon}
+  Stealth Shas'ui x3 (100,100,150) [Battlesuit Fists, Burst Cannon] {}
+  enhancements: -
+
+### tau_montka / Player 2
+2 Crisis Sunforge Battlesuits 1 + Commander Farsight | deploy | pts=195 | models=4
+  components: Crisis Sunforge Battlesuits/bodyguard, Commander Farsight/leader
+  Crisis Sunforge Shas'vre x1 (130,150,200) [Battlesuit Fists, Fusion Blaster, Fusion Blaster] {Marker Drone, Shield Drone}
+  Crisis Sunforge Shas'ui x2 (130,150,200) [Battlesuit Fists, Fusion Blaster, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Commander Farsight x1 (130,150,200) [Dawn Blade - Strike, Dawn Blade - Sweep, High-intensity Plasma Rifle] {}
+  enhancements: -
+2 Crisis Starscythe Battlesuits 1 + Commander in Coldstar Battlesuit | deploy | pts=210 | models=4
+  components: Crisis Starscythe Battlesuits/bodyguard, Commander in Coldstar Battlesuit/leader
+  Crisis Starscythe Shas'vre x1 (200,140,90) [Battlesuit Fists, Burst Cannon, Burst Cannon] {Marker Drone, Shield Drone}
+  Crisis Starscythe Shas'ui x2 (200,140,90) [Battlesuit Fists, Burst Cannon, Burst Cannon, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Commander in Coldstar Battlesuit x1 (200,140,90) [Battlesuit Fists, Burst Cannon, Burst Cannon, Cyclic Ion Blaster - Standard, High-output Burst Cannon] {Burst Cannon, Burst Cannon, Cyclic Ion Blaster, Shield Drone, Shield Drone}
+  enhancements: Strategic Conqueror
+2 Devilfish 1 | deploy | pts=75 | models=1
+  components: -
+  Devilfish x1 (200,160,90) [Accelerator Burst Cannon, Armoured Hull, Seeker Missile, Seeker Missile, Twin Pulse Carbine, Twin Pulse Carbine] {}
+  enhancements: -
+2 Breacher Team 1 + Cadre Fireblade | embark | via=2 Devilfish 1 | pts=140 | models=11
+  components: Breacher Team/bodyguard, Cadre Fireblade/leader
+  Breacher Fire Warrior Shas'ui x1 (220,150,70) [Close Combat Weapon, Pulse Blaster, Pulse Pistol] {Guardian Drone, Shield Drone}
+  Breacher Fire Warrior x9 (220,150,70) [Close Combat Weapon, Pulse Blaster, Pulse Pistol] {}
+  Cadre Fireblade x1 (220,150,70) [Close Combat Weapon, Fireblade Pulse Rifle, Twin Pulse Carbine, Twin Pulse Carbine] {Gun Drone, Gun Drone}
+  enhancements: -
+2 Devilfish 2 | deploy | pts=75 | models=1
+  components: -
+  Devilfish x1 (200,160,90) [Accelerator Burst Cannon, Armoured Hull, Seeker Missile, Seeker Missile, Twin Pulse Carbine, Twin Pulse Carbine] {}
+  enhancements: -
+2 Breacher Team 2 + Cadre Fireblade | embark | via=2 Devilfish 2 | pts=140 | models=11
+  components: Breacher Team/bodyguard, Cadre Fireblade/leader
+  Breacher Fire Warrior Shas'ui x1 (220,150,70) [Close Combat Weapon, Pulse Blaster, Pulse Pistol] {Guardian Drone, Shield Drone}
+  Breacher Fire Warrior x9 (220,150,70) [Close Combat Weapon, Pulse Blaster, Pulse Pistol] {}
+  Cadre Fireblade x1 (220,150,70) [Close Combat Weapon, Fireblade Pulse Rifle, Twin Pulse Carbine, Twin Pulse Carbine] {Gun Drone, Gun Drone}
+  enhancements: -
+2 Darkstrider 1 | deploy | pts=60 | models=1
+  components: -
+  Darkstrider x1 (170,200,140) [Close Combat Weapon, Shade] {}
+  enhancements: -
+2 The Twin Lance 1 | deploy | pts=230 | models=2
+  components: -
+  Ri'Lantar x1 (210,190,120) [Fusion Eliminator, Fusion Eliminator, Shardstorm Burst System, Twin Pulse Blaster, XV Pulse Pistol, XV Pulse Pistol] {}
+  Ri'Locai x1 (210,190,120) [Ion Scattercannon, Ion Scattercannon - Standard, Shardstorm Burst System, Twin Pulse Blaster, XV Pulse Pistol, XV Pulse Pistol] {}
+  enhancements: -
+2 Broadside Battlesuits 1 | deploy | pts=270 | models=3
+  components: -
+  Broadside Shas'vre x1 (120,140,190) [Crushing Bulk, High-yield Missile Pods, Missile Pod, Missile Pod, Seeker Missile, Twin Plasma Rifle] {Missile Drone, Missile Drone, Seeker Missile, Twin Plasma Rifle}
+  Broadside Shas'ui x2 (120,140,190) [Crushing Bulk, High-yield Missile Pods, Missile Pod, Missile Pod, Seeker Missile, Twin Plasma Rifle] {Missile Drone, Missile Drone, Seeker Missile, Twin Plasma Rifle}
+  enhancements: -
+2 Kroot Carnivores 1 | deploy | pts=65 | models=10
+  components: -
+  Long-quill x1 (120,90,40) [Close Combat Weapon, Kroot Pistol, Kroot Rifle] {}
+  Kroot Carnivore x9 (120,90,40) [Close Combat Weapon, Kroot Rifle] {}
+  enhancements: -
+2 Pathfinder Team 1 | deploy | pts=100 | models=10
+  components: -
+  Pathfinder Shas'ui x1 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol, Semi-automatic Grenade Launcher - EMP, Twin Pulse Carbine, Twin Pulse Carbine] {Grav-inhibitor Drone, Gun Drone, Gun Drone}
+  Pathfinder x3 (90,180,140) [Close Combat Weapon, Ion Rifle - Standard, Pulse Pistol] {}
+  Pathfinder x6 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol] {}
+  enhancements: -
+2 Riptide Battlesuit 1 | deploy | pts=215 | models=1
+  components: -
+  Riptide Battlesuit x1 (150,150,195) [Ion Accelerator - Standard, Missile Pod, Missile Pod, Riptide Fists, Twin Fusion Blaster] {}
+  enhancements: -
+2 Stealth Battlesuits 1 | deploy | pts=100 | models=5
+  components: -
+  Stealth Shas'vre x1 (100,100,150) [Battlesuit Fists, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Marker Drone}
+  Stealth Shas'ui x1 (100,100,150) [Battlesuit Fists, Burst Cannon] {Homing Beacon}
+  Stealth Shas'ui x3 (100,100,150) [Battlesuit Fists, Burst Cannon] {}
+  enhancements: -
+2 Stealth Battlesuits 2 | deploy | pts=100 | models=5
+  components: -
+  Stealth Shas'vre x1 (100,100,150) [Battlesuit Fists, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Marker Drone}
+  Stealth Shas'ui x1 (100,100,150) [Battlesuit Fists, Burst Cannon] {Homing Beacon}
+  Stealth Shas'ui x3 (100,100,150) [Battlesuit Fists, Burst Cannon] {}
+  enhancements: -
+
+### tau_retaliation / Player 1
+1 The Twin Lance 1 | deploy | pts=230 | models=2
+  components: -
+  Ri'Lantar x1 (210,190,120) [Fusion Eliminator, Fusion Eliminator, Shardstorm Burst System, Twin Pulse Blaster, XV Pulse Pistol, XV Pulse Pistol] {}
+  Ri'Locai x1 (210,190,120) [Ion Scattercannon, Ion Scattercannon - Standard, Shardstorm Burst System, Twin Pulse Blaster, XV Pulse Pistol, XV Pulse Pistol] {}
+  enhancements: -
+1 Broadside Battlesuits 1 | deploy | pts=270 | models=3
+  components: -
+  Broadside Shas'vre x1 (120,140,190) [Crushing Bulk, High-yield Missile Pods, Missile Pod, Missile Pod, Seeker Missile, Twin Plasma Rifle] {Missile Drone, Missile Drone, Seeker Missile, Twin Plasma Rifle}
+  Broadside Shas'ui x2 (120,140,190) [Crushing Bulk, High-yield Missile Pods, Missile Pod, Missile Pod, Seeker Missile, Twin Plasma Rifle] {Missile Drone, Missile Drone, Seeker Missile, Twin Plasma Rifle}
+  enhancements: -
+1 Crisis Fireknife Battlesuits 1 + Commander in Enforcer Battlesuit | deploy | pts=230 | models=4
+  components: Crisis Fireknife Battlesuits/bodyguard, Commander in Enforcer Battlesuit/leader
+  Crisis Fireknife Shas'vre x1 (150,160,200) [Battlesuit Fists, Missile Pod, Missile Pod, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Crisis Fireknife Shas'ui x2 (150,160,200) [Battlesuit Fists, Missile Pod, Missile Pod, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Commander in Enforcer Battlesuit x1 (140,160,210) [Battlesuit Fists, Cyclic Ion Blaster - Standard, Missile Pod, Missile Pod, Missile Pod] {Missile Pod, Missile Pod, Missile Pod, Shield Drone, Shield Drone}
+  enhancements: Starflare Ignition System
+1 Crisis Starscythe Battlesuits 1 + Commander Farsight | deploy | pts=200 | models=4
+  components: Crisis Starscythe Battlesuits/bodyguard, Commander Farsight/leader
+  Crisis Starscythe Shas'vre x1 (200,140,90) [Battlesuit Fists, T'au Flamer, T'au Flamer, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Crisis Starscythe Shas'ui x2 (200,140,90) [Battlesuit Fists, T'au Flamer, T'au Flamer, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Commander Farsight x1 (230,170,90) [Dawn Blade - Strike, Dawn Blade - Sweep, High-intensity Plasma Rifle] {}
+  enhancements: -
+1 Crisis Starscythe Battlesuits 2 + Commander in Coldstar Battlesuit | deploy | pts=195 | models=4
+  components: Crisis Starscythe Battlesuits/bodyguard, Commander in Coldstar Battlesuit/leader
+  Crisis Starscythe Shas'vre x1 (200,140,90) [Battlesuit Fists, Burst Cannon, Burst Cannon, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Crisis Starscythe Shas'ui x2 (200,140,90) [Battlesuit Fists, Burst Cannon, Burst Cannon, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Commander in Coldstar Battlesuit x1 (130,150,200) [Battlesuit Fists, Burst Cannon, Burst Cannon, Cyclic Ion Blaster - Standard, High-output Burst Cannon] {Burst Cannon, Burst Cannon, Cyclic Ion Blaster, Marker Drone, Shield Drone}
+  enhancements: -
+1 Crisis Sunforge Battlesuits 1 + Commander in Enforcer Battlesuit | deploy | pts=205 | models=4
+  components: Crisis Sunforge Battlesuits/bodyguard, Commander in Enforcer Battlesuit/leader
+  Crisis Sunforge Shas'vre x1 (130,150,200) [Battlesuit Fists, Fusion Blaster, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Crisis Sunforge Shas'ui x2 (130,150,200) [Battlesuit Fists, Fusion Blaster, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Commander in Enforcer Battlesuit x1 (140,160,210) [Battlesuit Fists, Fusion Blaster, Fusion Blaster, Fusion Blaster, Fusion Blaster] {Fusion Blaster, Fusion Blaster, Fusion Blaster, Shield Drone, Shield Drone}
+  enhancements: -
+1 Kroot Carnivores 1 | deploy | pts=65 | models=10
+  components: -
+  Long-quill x1 (120,90,40) [Close Combat Weapon, Kroot Pistol, Kroot Rifle] {}
+  Kroot Carnivore x9 (120,90,40) [Close Combat Weapon, Kroot Rifle] {}
+  enhancements: -
+1 Pathfinder Team 1 | deploy | pts=85 | models=10
+  components: -
+  Pathfinder Shas'ui x1 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol] {Grav-inhibitor Drone, Shield Drone, Shield Drone}
+  Pathfinder x3 (90,180,140) [Close Combat Weapon, Pulse Pistol, Rail Rifle] {}
+  Pathfinder x1 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol, Semi-automatic Grenade Launcher - EMP] {}
+  Pathfinder x5 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol] {}
+  enhancements: -
+1 Riptide Battlesuit 1 | deploy | pts=215 | models=1
+  components: -
+  Riptide Battlesuit x1 (150,150,195) [Ion Accelerator - Standard, Missile Pod, Missile Pod, Riptide Fists, Twin Fusion Blaster] {}
+  enhancements: -
+1 Stealth Battlesuits 1 | deploy | pts=100 | models=5
+  components: -
+  Stealth Shas'vre x1 (100,100,150) [Battlesuit Fists, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Marker Drone}
+  Stealth Shas'ui x1 (100,100,150) [Battlesuit Fists, Burst Cannon] {Homing Beacon}
+  Stealth Shas'ui x3 (100,100,150) [Battlesuit Fists, Burst Cannon] {}
+  enhancements: -
+1 Stealth Battlesuits 2 | deploy | pts=100 | models=5
+  components: -
+  Stealth Shas'vre x1 (100,100,150) [Battlesuit Fists, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Marker Drone}
+  Stealth Shas'ui x1 (100,100,150) [Battlesuit Fists, Burst Cannon] {Homing Beacon}
+  Stealth Shas'ui x3 (100,100,150) [Battlesuit Fists, Burst Cannon] {}
+  enhancements: -
+1 Vespid Stingwings 1 | deploy | pts=70 | models=5
+  components: -
+  Vespid Strain Leader x1 (150,120,190) [Neutron Blaster, Stingwing Claws] {}
+  Vespid Stingwing x4 (150,120,190) [Neutron Blaster, Stingwing Claws] {}
+  enhancements: -
+
+### tau_retaliation / Player 2
+2 The Twin Lance 1 | deploy | pts=230 | models=2
+  components: -
+  Ri'Lantar x1 (210,190,120) [Fusion Eliminator, Fusion Eliminator, Shardstorm Burst System, Twin Pulse Blaster, XV Pulse Pistol, XV Pulse Pistol] {}
+  Ri'Locai x1 (210,190,120) [Ion Scattercannon, Ion Scattercannon - Standard, Shardstorm Burst System, Twin Pulse Blaster, XV Pulse Pistol, XV Pulse Pistol] {}
+  enhancements: -
+2 Broadside Battlesuits 1 | deploy | pts=270 | models=3
+  components: -
+  Broadside Shas'vre x1 (120,140,190) [Crushing Bulk, High-yield Missile Pods, Missile Pod, Missile Pod, Seeker Missile, Twin Plasma Rifle] {Missile Drone, Missile Drone, Seeker Missile, Twin Plasma Rifle}
+  Broadside Shas'ui x2 (120,140,190) [Crushing Bulk, High-yield Missile Pods, Missile Pod, Missile Pod, Seeker Missile, Twin Plasma Rifle] {Missile Drone, Missile Drone, Seeker Missile, Twin Plasma Rifle}
+  enhancements: -
+2 Crisis Fireknife Battlesuits 1 + Commander in Enforcer Battlesuit | deploy | pts=230 | models=4
+  components: Crisis Fireknife Battlesuits/bodyguard, Commander in Enforcer Battlesuit/leader
+  Crisis Fireknife Shas'vre x1 (150,160,200) [Battlesuit Fists, Missile Pod, Missile Pod, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Crisis Fireknife Shas'ui x2 (150,160,200) [Battlesuit Fists, Missile Pod, Missile Pod, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Commander in Enforcer Battlesuit x1 (140,160,210) [Battlesuit Fists, Cyclic Ion Blaster - Standard, Missile Pod, Missile Pod, Missile Pod] {Missile Pod, Missile Pod, Missile Pod, Shield Drone, Shield Drone}
+  enhancements: Starflare Ignition System
+2 Crisis Starscythe Battlesuits 1 + Commander Farsight | deploy | pts=200 | models=4
+  components: Crisis Starscythe Battlesuits/bodyguard, Commander Farsight/leader
+  Crisis Starscythe Shas'vre x1 (200,140,90) [Battlesuit Fists, T'au Flamer, T'au Flamer, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Crisis Starscythe Shas'ui x2 (200,140,90) [Battlesuit Fists, T'au Flamer, T'au Flamer, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Commander Farsight x1 (230,170,90) [Dawn Blade - Strike, Dawn Blade - Sweep, High-intensity Plasma Rifle] {}
+  enhancements: -
+2 Crisis Starscythe Battlesuits 2 + Commander in Coldstar Battlesuit | deploy | pts=195 | models=4
+  components: Crisis Starscythe Battlesuits/bodyguard, Commander in Coldstar Battlesuit/leader
+  Crisis Starscythe Shas'vre x1 (200,140,90) [Battlesuit Fists, Burst Cannon, Burst Cannon, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Crisis Starscythe Shas'ui x2 (200,140,90) [Battlesuit Fists, Burst Cannon, Burst Cannon, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Commander in Coldstar Battlesuit x1 (130,150,200) [Battlesuit Fists, Burst Cannon, Burst Cannon, Cyclic Ion Blaster - Standard, High-output Burst Cannon] {Burst Cannon, Burst Cannon, Cyclic Ion Blaster, Marker Drone, Shield Drone}
+  enhancements: -
+2 Crisis Sunforge Battlesuits 1 + Commander in Enforcer Battlesuit | deploy | pts=205 | models=4
+  components: Crisis Sunforge Battlesuits/bodyguard, Commander in Enforcer Battlesuit/leader
+  Crisis Sunforge Shas'vre x1 (130,150,200) [Battlesuit Fists, Fusion Blaster, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Crisis Sunforge Shas'ui x2 (130,150,200) [Battlesuit Fists, Fusion Blaster, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Shield Drone}
+  Commander in Enforcer Battlesuit x1 (140,160,210) [Battlesuit Fists, Fusion Blaster, Fusion Blaster, Fusion Blaster, Fusion Blaster] {Fusion Blaster, Fusion Blaster, Fusion Blaster, Shield Drone, Shield Drone}
+  enhancements: -
+2 Kroot Carnivores 1 | deploy | pts=65 | models=10
+  components: -
+  Long-quill x1 (120,90,40) [Close Combat Weapon, Kroot Pistol, Kroot Rifle] {}
+  Kroot Carnivore x9 (120,90,40) [Close Combat Weapon, Kroot Rifle] {}
+  enhancements: -
+2 Pathfinder Team 1 | deploy | pts=85 | models=10
+  components: -
+  Pathfinder Shas'ui x1 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol] {Grav-inhibitor Drone, Shield Drone, Shield Drone}
+  Pathfinder x3 (90,180,140) [Close Combat Weapon, Pulse Pistol, Rail Rifle] {}
+  Pathfinder x1 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol, Semi-automatic Grenade Launcher - EMP] {}
+  Pathfinder x5 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol] {}
+  enhancements: -
+2 Riptide Battlesuit 1 | deploy | pts=215 | models=1
+  components: -
+  Riptide Battlesuit x1 (150,150,195) [Ion Accelerator - Standard, Missile Pod, Missile Pod, Riptide Fists, Twin Fusion Blaster] {}
+  enhancements: -
+2 Stealth Battlesuits 1 | deploy | pts=100 | models=5
+  components: -
+  Stealth Shas'vre x1 (100,100,150) [Battlesuit Fists, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Marker Drone}
+  Stealth Shas'ui x1 (100,100,150) [Battlesuit Fists, Burst Cannon] {Homing Beacon}
+  Stealth Shas'ui x3 (100,100,150) [Battlesuit Fists, Burst Cannon] {}
+  enhancements: -
+2 Stealth Battlesuits 2 | deploy | pts=100 | models=5
+  components: -
+  Stealth Shas'vre x1 (100,100,150) [Battlesuit Fists, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Marker Drone}
+  Stealth Shas'ui x1 (100,100,150) [Battlesuit Fists, Burst Cannon] {Homing Beacon}
+  Stealth Shas'ui x3 (100,100,150) [Battlesuit Fists, Burst Cannon] {}
+  enhancements: -
+2 Vespid Stingwings 1 | deploy | pts=70 | models=5
+  components: -
+  Vespid Strain Leader x1 (150,120,190) [Neutron Blaster, Stingwing Claws] {}
+  Vespid Stingwing x4 (150,120,190) [Neutron Blaster, Stingwing Claws] {}
+  enhancements: -
+
+### tau_recon / Player 1
+1 Kroot Carnivores 1 + Kroot Flesh Shaper | deploy | pts=110 | models=11
+  components: Kroot Carnivores/bodyguard, Kroot Flesh Shaper/leader
+  Long-quill x1 (120,90,40) [Close Combat Weapon, Kroot Pistol, Kroot Rifle] {}
+  Kroot Carnivore x9 (120,90,40) [Close Combat Weapon, Kroot Rifle] {}
+  Kroot Flesh Shaper x1 (150,115,60) [Kroot Scattergun, Twin Ritualistic Blades] {}
+  enhancements: -
+1 Kroot Carnivores 2 + Kroot Flesh Shaper | deploy | pts=110 | models=11
+  components: Kroot Carnivores/bodyguard, Kroot Flesh Shaper/leader
+  Long-quill x1 (120,90,40) [Close Combat Weapon, Kroot Pistol, Kroot Rifle] {}
+  Kroot Carnivore x9 (120,90,40) [Close Combat Weapon, Kroot Rifle] {}
+  Kroot Flesh Shaper x1 (150,115,60) [Kroot Scattergun, Twin Ritualistic Blades] {}
+  enhancements: -
+1 Pathfinder Team 1 + Darkstrider | deploy | pts=160 | models=11
+  components: Pathfinder Team/bodyguard, Darkstrider/leader
+  Pathfinder Shas'ui x1 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol, Semi-automatic Grenade Launcher - EMP, Twin Pulse Carbine, Twin Pulse Carbine] {Grav-inhibitor Drone, Gun Drone, Gun Drone}
+  Pathfinder x3 (90,180,140) [Close Combat Weapon, Ion Rifle - Standard, Pulse Pistol] {}
+  Pathfinder x6 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol] {}
+  Darkstrider x1 (170,200,140) [Close Combat Weapon, Shade] {}
+  enhancements: -
+1 Commander in Coldstar Battlesuit 1 | deploy | pts=95 | models=1
+  components: -
+  Commander in Coldstar Battlesuit x1 (130,150,200) [Airbursting Fragmentation Projector, Battlesuit Fists, Cyclic Ion Blaster - Standard, Missile Pod] {Cyclic Ion Blaster, Marker Drone, Missile Pod, Shield Drone, Weapon Support System}
+  enhancements: -
+1 Commander in Coldstar Battlesuit 2 | deploy | pts=115 | models=1
+  components: -
+  Commander in Coldstar Battlesuit x1 (130,150,200) [Battlesuit Fists, Plasma Rifle, Plasma Rifle, Plasma Rifle, Plasma Rifle] {Marker Drone, Plasma Rifle, Plasma Rifle, Plasma Rifle, Shield Drone}
+  enhancements: Plasma Accelerator Rifle
+1 Commander in Enforcer Battlesuit 1 | deploy | pts=95 | models=1
+  components: -
+  Commander in Enforcer Battlesuit x1 (140,160,210) [Battlesuit Fists, Cyclic Ion Blaster - Standard, Plasma Rifle, Plasma Rifle, T'au Flamer] {Plasma Rifle, Plasma Rifle, Shield Drone, Shield Drone, T'au Flamer}
+  enhancements: Thermoneutronic Projector
+1 The Twin Lance 1 | deploy | pts=230 | models=2
+  components: -
+  Ri'Lantar x1 (210,190,120) [Fusion Eliminator, Fusion Eliminator, Shardstorm Burst System, Twin Pulse Blaster, XV Pulse Pistol, XV Pulse Pistol] {}
+  Ri'Locai x1 (210,190,120) [Ion Scattercannon, Ion Scattercannon - Standard, Shardstorm Burst System, Twin Pulse Blaster, XV Pulse Pistol, XV Pulse Pistol] {}
+  enhancements: -
+1 Ghostkeel Battlesuit 1 | deploy | pts=180 | models=1
+  components: -
+  Ghostkeel Battlesuit x1 (110,130,175) [Cyclic Ion Raker - Standard, Ghostkeel Fists, Twin Fusion Blaster] {}
+  enhancements: Unmasking Suite
+1 Ghostkeel Battlesuit 2 | deploy | pts=150 | models=1
+  components: -
+  Ghostkeel Battlesuit x1 (110,130,175) [Fusion Collider, Ghostkeel Fists, Twin Fusion Blaster] {}
+  enhancements: -
+1 Krootox Rampagers 1 | deploy | pts=170 | models=6
+  components: -
+  Krootox Rampager x6 (130,100,55) [Close Combat Weapon, Kroot Pistol and Hunting Javelins, Krootox Fists] {}
+  enhancements: -
+1 Pathfinder Team 2 | deploy | pts=100 | models=10
+  components: -
+  Pathfinder Shas'ui x1 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol, Semi-automatic Grenade Launcher - EMP, Twin Pulse Carbine, Twin Pulse Carbine] {Grav-inhibitor Drone, Gun Drone, Gun Drone}
+  Pathfinder x3 (90,180,140) [Close Combat Weapon, Ion Rifle - Standard, Pulse Pistol] {}
+  Pathfinder x6 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol] {}
+  enhancements: -
+1 Piranhas 1 | deploy | pts=65 | models=1
+  components: -
+  Piranha x1 (110,165,200) [Armoured Hull, Piranha Fusion Blaster, Seeker Missile, Seeker Missile, Twin Pulse Carbine, Twin Pulse Carbine] {Seeker Missile, Seeker Missile}
+  enhancements: -
+1 Piranhas 2 | deploy | pts=65 | models=1
+  components: -
+  Piranha x1 (110,165,200) [Armoured Hull, Piranha Fusion Blaster, Seeker Missile, Seeker Missile, Twin Pulse Carbine, Twin Pulse Carbine] {Seeker Missile, Seeker Missile}
+  enhancements: -
+1 Stealth Battlesuits 1 | deploy | pts=100 | models=5
+  components: -
+  Stealth Shas'vre x1 (100,100,150) [Battlesuit Fists, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Marker Drone}
+  Stealth Shas'ui x1 (100,100,150) [Battlesuit Fists, Burst Cannon] {Homing Beacon}
+  Stealth Shas'ui x3 (100,100,150) [Battlesuit Fists, Burst Cannon] {}
+  enhancements: -
+1 Stealth Battlesuits 2 | deploy | pts=100 | models=5
+  components: -
+  Stealth Shas'vre x1 (100,100,150) [Battlesuit Fists, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Marker Drone}
+  Stealth Shas'ui x1 (100,100,150) [Battlesuit Fists, Burst Cannon] {Homing Beacon}
+  Stealth Shas'ui x3 (100,100,150) [Battlesuit Fists, Burst Cannon] {}
+  enhancements: -
+1 Vespid Stingwings 1 | deploy | pts=70 | models=5
+  components: -
+  Vespid Strain Leader x1 (150,120,190) [Neutron Blaster, Stingwing Claws] {}
+  Vespid Stingwing x4 (150,120,190) [Neutron Blaster, Stingwing Claws] {}
+  enhancements: -
+1 Vespid Stingwings 2 | deploy | pts=70 | models=5
+  components: -
+  Vespid Strain Leader x1 (150,120,190) [Neutron Blaster, Stingwing Claws] {}
+  Vespid Stingwing x4 (150,120,190) [Neutron Blaster, Stingwing Claws] {}
+  enhancements: -
+
+### tau_recon / Player 2
+2 Kroot Carnivores 1 + Kroot Flesh Shaper | deploy | pts=110 | models=11
+  components: Kroot Carnivores/bodyguard, Kroot Flesh Shaper/leader
+  Long-quill x1 (120,90,40) [Close Combat Weapon, Kroot Pistol, Kroot Rifle] {}
+  Kroot Carnivore x9 (120,90,40) [Close Combat Weapon, Kroot Rifle] {}
+  Kroot Flesh Shaper x1 (150,115,60) [Kroot Scattergun, Twin Ritualistic Blades] {}
+  enhancements: -
+2 Kroot Carnivores 2 + Kroot Flesh Shaper | deploy | pts=110 | models=11
+  components: Kroot Carnivores/bodyguard, Kroot Flesh Shaper/leader
+  Long-quill x1 (120,90,40) [Close Combat Weapon, Kroot Pistol, Kroot Rifle] {}
+  Kroot Carnivore x9 (120,90,40) [Close Combat Weapon, Kroot Rifle] {}
+  Kroot Flesh Shaper x1 (150,115,60) [Kroot Scattergun, Twin Ritualistic Blades] {}
+  enhancements: -
+2 Pathfinder Team 1 + Darkstrider | deploy | pts=160 | models=11
+  components: Pathfinder Team/bodyguard, Darkstrider/leader
+  Pathfinder Shas'ui x1 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol, Semi-automatic Grenade Launcher - EMP, Twin Pulse Carbine, Twin Pulse Carbine] {Grav-inhibitor Drone, Gun Drone, Gun Drone}
+  Pathfinder x3 (90,180,140) [Close Combat Weapon, Ion Rifle - Standard, Pulse Pistol] {}
+  Pathfinder x6 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol] {}
+  Darkstrider x1 (170,200,140) [Close Combat Weapon, Shade] {}
+  enhancements: -
+2 Commander in Coldstar Battlesuit 1 | deploy | pts=95 | models=1
+  components: -
+  Commander in Coldstar Battlesuit x1 (130,150,200) [Airbursting Fragmentation Projector, Battlesuit Fists, Cyclic Ion Blaster - Standard, Missile Pod] {Cyclic Ion Blaster, Marker Drone, Missile Pod, Shield Drone, Weapon Support System}
+  enhancements: -
+2 Commander in Coldstar Battlesuit 2 | deploy | pts=115 | models=1
+  components: -
+  Commander in Coldstar Battlesuit x1 (130,150,200) [Battlesuit Fists, Plasma Rifle, Plasma Rifle, Plasma Rifle, Plasma Rifle] {Marker Drone, Plasma Rifle, Plasma Rifle, Plasma Rifle, Shield Drone}
+  enhancements: Plasma Accelerator Rifle
+2 Commander in Enforcer Battlesuit 1 | deploy | pts=95 | models=1
+  components: -
+  Commander in Enforcer Battlesuit x1 (140,160,210) [Battlesuit Fists, Cyclic Ion Blaster - Standard, Plasma Rifle, Plasma Rifle, T'au Flamer] {Plasma Rifle, Plasma Rifle, Shield Drone, Shield Drone, T'au Flamer}
+  enhancements: Thermoneutronic Projector
+2 The Twin Lance 1 | deploy | pts=230 | models=2
+  components: -
+  Ri'Lantar x1 (210,190,120) [Fusion Eliminator, Fusion Eliminator, Shardstorm Burst System, Twin Pulse Blaster, XV Pulse Pistol, XV Pulse Pistol] {}
+  Ri'Locai x1 (210,190,120) [Ion Scattercannon, Ion Scattercannon - Standard, Shardstorm Burst System, Twin Pulse Blaster, XV Pulse Pistol, XV Pulse Pistol] {}
+  enhancements: -
+2 Ghostkeel Battlesuit 1 | deploy | pts=180 | models=1
+  components: -
+  Ghostkeel Battlesuit x1 (110,130,175) [Cyclic Ion Raker - Standard, Ghostkeel Fists, Twin Fusion Blaster] {}
+  enhancements: Unmasking Suite
+2 Ghostkeel Battlesuit 2 | deploy | pts=150 | models=1
+  components: -
+  Ghostkeel Battlesuit x1 (110,130,175) [Fusion Collider, Ghostkeel Fists, Twin Fusion Blaster] {}
+  enhancements: -
+2 Krootox Rampagers 1 | deploy | pts=170 | models=6
+  components: -
+  Krootox Rampager x6 (130,100,55) [Close Combat Weapon, Kroot Pistol and Hunting Javelins, Krootox Fists] {}
+  enhancements: -
+2 Pathfinder Team 2 | deploy | pts=100 | models=10
+  components: -
+  Pathfinder Shas'ui x1 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol, Semi-automatic Grenade Launcher - EMP, Twin Pulse Carbine, Twin Pulse Carbine] {Grav-inhibitor Drone, Gun Drone, Gun Drone}
+  Pathfinder x3 (90,180,140) [Close Combat Weapon, Ion Rifle - Standard, Pulse Pistol] {}
+  Pathfinder x6 (90,180,140) [Close Combat Weapon, Pulse Carbine, Pulse Pistol] {}
+  enhancements: -
+2 Piranhas 1 | deploy | pts=65 | models=1
+  components: -
+  Piranha x1 (110,165,200) [Armoured Hull, Piranha Fusion Blaster, Seeker Missile, Seeker Missile, Twin Pulse Carbine, Twin Pulse Carbine] {Seeker Missile, Seeker Missile}
+  enhancements: -
+2 Piranhas 2 | deploy | pts=65 | models=1
+  components: -
+  Piranha x1 (110,165,200) [Armoured Hull, Piranha Fusion Blaster, Seeker Missile, Seeker Missile, Twin Pulse Carbine, Twin Pulse Carbine] {Seeker Missile, Seeker Missile}
+  enhancements: -
+2 Stealth Battlesuits 1 | deploy | pts=100 | models=5
+  components: -
+  Stealth Shas'vre x1 (100,100,150) [Battlesuit Fists, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Marker Drone}
+  Stealth Shas'ui x1 (100,100,150) [Battlesuit Fists, Burst Cannon] {Homing Beacon}
+  Stealth Shas'ui x3 (100,100,150) [Battlesuit Fists, Burst Cannon] {}
+  enhancements: -
+2 Stealth Battlesuits 2 | deploy | pts=100 | models=5
+  components: -
+  Stealth Shas'vre x1 (100,100,150) [Battlesuit Fists, Fusion Blaster, Twin Pulse Carbine] {Gun Drone, Marker Drone}
+  Stealth Shas'ui x1 (100,100,150) [Battlesuit Fists, Burst Cannon] {Homing Beacon}
+  Stealth Shas'ui x3 (100,100,150) [Battlesuit Fists, Burst Cannon] {}
+  enhancements: -
+2 Vespid Stingwings 1 | deploy | pts=70 | models=5
+  components: -
+  Vespid Strain Leader x1 (150,120,190) [Neutron Blaster, Stingwing Claws] {}
+  Vespid Stingwing x4 (150,120,190) [Neutron Blaster, Stingwing Claws] {}
+  enhancements: -
+2 Vespid Stingwings 2 | deploy | pts=70 | models=5
+  components: -
+  Vespid Strain Leader x1 (150,120,190) [Neutron Blaster, Stingwing Claws] {}
+  Vespid Stingwing x4 (150,120,190) [Neutron Blaster, Stingwing Claws] {}
+  enhancements: -
+
+### death_guard / Player 1
+1 Daemon Prince of Nurgle 1 | deploy | pts=195 | models=1
+  components: -
+  Daemon Prince of Nurgle x1 (110,130,80) [Hellforged Weapons - strike, Infernal Cannon] {}
+  enhancements: -
+1 Plague Marines 1 + Malignant Plaguecaster | deploy | pts=240 | models=11
+  components: Plague Marines/bodyguard, Malignant Plaguecaster/leader
+  Plague Champion x1 (100,120,70) [Boltgun, Plague Knives] {}
+  Plague Marine x2 (100,120,70) [Blight Launcher, Plague Knives] {}
+  Plague Marine x2 (100,120,70) [Plague Knives, Plague Spewer] {}
+  Plague Marine x2 (100,120,70) [Heavy Plague Weapon, Plague Knives] {}
+  Plague Marine x3 (100,120,70) [Boltgun, Plague Knives] {}
+  Malignant Plaguecaster x1 (120,150,100) [Bolt Pistol, Corrupted Staff, Plague Wind - witchfire] {}
+  enhancements: -
+1 Deathshroud Terminators 1 + Typhus | deploy | pts=260 | models=4
+  components: Deathshroud Terminators/bodyguard, Typhus/leader
+  Deathshroud Champion x1 (95,105,75) [Manreaper - strike, Plaguespurt Gauntlet] {}
+  Deathshroud Terminator x2 (95,105,75) [Manreaper - strike, Plaguespurt Gauntlet] {}
+  Typhus x1 (150,145,90) [Lakrimae - strike] {}
+  enhancements: -
+1 Deathshroud Terminators 2 | deploy | pts=160 | models=3
+  components: -
+  Deathshroud Champion x1 (95,105,75) [Manreaper - strike, Plaguespurt Gauntlet] {}
+  Deathshroud Terminator x2 (95,105,75) [Manreaper - strike, Plaguespurt Gauntlet] {}
+  enhancements: -
+1 Chaos Spawn 1 | deploy | pts=80 | models=2
+  components: -
+  Chaos Spawn x2 (140,115,100) [Hideous Mutations] {}
+  enhancements: -
+1 Chaos Spawn 2 | deploy | pts=80 | models=2
+  components: -
+  Chaos Spawn x2 (140,115,100) [Hideous Mutations] {}
+  enhancements: -
+1 Poxwalkers 1 | deploy | pts=65 | models=10
+  components: -
+  Poxwalker x10 (130,135,105) [Improvised Weapon] {}
+  enhancements: -
+1 Poxwalkers 2 | deploy | pts=65 | models=10
+  components: -
+  Poxwalker x10 (130,135,105) [Improvised Weapon] {}
+  enhancements: -
+1 Defiler 1 | deploy | pts=315 | models=1
+  components: -
+  Defiler x1 (80,95,65) [Excruciator Cannon, Excruciator Cannon, Hades Battle Cannon, Heavy Missile Launcher - krak, Heavy Reaper Autocannon, Shearing Claws - strike] {}
+  enhancements: -
+1 Foetid Bloat-drone 1 | deploy | pts=100 | models=1
+  components: -
+  Foetid Bloat-drone x1 (105,125,85) [Fleshmower, Plague Probe] {}
+  enhancements: -
+1 Foetid Bloat-drone 2 | deploy | pts=100 | models=1
+  components: -
+  Foetid Bloat-drone x1 (105,125,85) [Fleshmower, Plague Probe] {}
+  enhancements: -
+1 Myphitic Blight-hauler 1 | deploy | pts=95 | models=1
+  components: -
+  Myphitic Blight-hauler x1 (90,110,75) [Bile Spurt, Gnashing Maw, Missile Launcher - krak, Multi-melta] {}
+  enhancements: -
+1 Myphitic Blight-hauler 2 | deploy | pts=95 | models=1
+  components: -
+  Myphitic Blight-hauler x1 (90,110,75) [Bile Spurt, Gnashing Maw, Missile Launcher - krak, Multi-melta] {}
+  enhancements: -
+1 Plagueburst Crawler 1 | deploy | pts=170 | models=1
+  components: -
+  Plagueburst Crawler x1 (85,100,70) [Armoured Tracks, Entropy Cannon, Entropy Cannon, Heavy Slugger, Plagueburst Mortar] {}
+  enhancements: -
+
+### death_guard / Player 2
+2 Daemon Prince of Nurgle 1 | deploy | pts=195 | models=1
+  components: -
+  Daemon Prince of Nurgle x1 (110,130,80) [Hellforged Weapons - strike, Infernal Cannon] {}
+  enhancements: -
+2 Plague Marines 1 + Malignant Plaguecaster | deploy | pts=240 | models=11
+  components: Plague Marines/bodyguard, Malignant Plaguecaster/leader
+  Plague Champion x1 (100,120,70) [Boltgun, Plague Knives] {}
+  Plague Marine x2 (100,120,70) [Blight Launcher, Plague Knives] {}
+  Plague Marine x2 (100,120,70) [Plague Knives, Plague Spewer] {}
+  Plague Marine x2 (100,120,70) [Heavy Plague Weapon, Plague Knives] {}
+  Plague Marine x3 (100,120,70) [Boltgun, Plague Knives] {}
+  Malignant Plaguecaster x1 (120,150,100) [Bolt Pistol, Corrupted Staff, Plague Wind - witchfire] {}
+  enhancements: -
+2 Deathshroud Terminators 1 + Typhus | deploy | pts=260 | models=4
+  components: Deathshroud Terminators/bodyguard, Typhus/leader
+  Deathshroud Champion x1 (95,105,75) [Manreaper - strike, Plaguespurt Gauntlet] {}
+  Deathshroud Terminator x2 (95,105,75) [Manreaper - strike, Plaguespurt Gauntlet] {}
+  Typhus x1 (150,145,90) [Lakrimae - strike] {}
+  enhancements: -
+2 Deathshroud Terminators 2 | deploy | pts=160 | models=3
+  components: -
+  Deathshroud Champion x1 (95,105,75) [Manreaper - strike, Plaguespurt Gauntlet] {}
+  Deathshroud Terminator x2 (95,105,75) [Manreaper - strike, Plaguespurt Gauntlet] {}
+  enhancements: -
+2 Chaos Spawn 1 | deploy | pts=80 | models=2
+  components: -
+  Chaos Spawn x2 (140,115,100) [Hideous Mutations] {}
+  enhancements: -
+2 Chaos Spawn 2 | deploy | pts=80 | models=2
+  components: -
+  Chaos Spawn x2 (140,115,100) [Hideous Mutations] {}
+  enhancements: -
+2 Poxwalkers 1 | deploy | pts=65 | models=10
+  components: -
+  Poxwalker x10 (130,135,105) [Improvised Weapon] {}
+  enhancements: -
+2 Poxwalkers 2 | deploy | pts=65 | models=10
+  components: -
+  Poxwalker x10 (130,135,105) [Improvised Weapon] {}
+  enhancements: -
+2 Defiler 1 | deploy | pts=315 | models=1
+  components: -
+  Defiler x1 (80,95,65) [Excruciator Cannon, Excruciator Cannon, Hades Battle Cannon, Heavy Missile Launcher - krak, Heavy Reaper Autocannon, Shearing Claws - strike] {}
+  enhancements: -
+2 Foetid Bloat-drone 1 | deploy | pts=100 | models=1
+  components: -
+  Foetid Bloat-drone x1 (105,125,85) [Fleshmower, Plague Probe] {}
+  enhancements: -
+2 Foetid Bloat-drone 2 | deploy | pts=100 | models=1
+  components: -
+  Foetid Bloat-drone x1 (105,125,85) [Fleshmower, Plague Probe] {}
+  enhancements: -
+2 Myphitic Blight-hauler 1 | deploy | pts=95 | models=1
+  components: -
+  Myphitic Blight-hauler x1 (90,110,75) [Bile Spurt, Gnashing Maw, Missile Launcher - krak, Multi-melta] {}
+  enhancements: -
+2 Myphitic Blight-hauler 2 | deploy | pts=95 | models=1
+  components: -
+  Myphitic Blight-hauler x1 (90,110,75) [Bile Spurt, Gnashing Maw, Missile Launcher - krak, Multi-melta] {}
+  enhancements: -
+2 Plagueburst Crawler 1 | deploy | pts=170 | models=1
+  components: -
+  Plagueburst Crawler x1 (85,100,70) [Armoured Tracks, Entropy Cannon, Entropy Cannon, Heavy Slugger, Plagueburst Mortar] {}
+  enhancements: -
+

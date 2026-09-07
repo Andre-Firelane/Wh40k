@@ -48,12 +48,25 @@ answer once the phase is over.
 "END OF THE FIGHT PHASE", not "your Fight phase" - it belongs to nobody, so
 both players are offered it at the same boundary and there is no owner check.
 
+THE WINDOW IS A FACT THIS MODULE OWNS, NOT A LIVE PHASE TEST. This used to read
+
+    if self.turn_tracker.phase != PHASE_FIGHT:
+        return False
+
+and that check could never hold. Its only offer is main.py's advance_turn_phase(),
+which calls turn_tracker.advance_phase() FIRST and only then runs the
+end-of-phase offers - and Fight is the LAST phase, so by the time the offer is
+made the clock has rolled all the way round to Command. Both printings of this
+Stratagem were therefore a guaranteed, silent no-op: never offered, for either
+detachment. Same shape, same cause and same fix as Cost of Victory and Webway
+Tunnel before it - see game/phase_window.py.
+
 THE AI DECLINES (standing Aeldari instruction).
 """
 
-from game import aeldari_detachments, detachment_gate, engagement
+from game import aeldari_detachments, ai_mode, detachment_gate, engagement
+from game.phase_window import PhaseWindow
 from game.stratagems import Stratagem
-from game.turn import PHASE_FIGHT
 
 SKYBORNE_SANCTUARY_NAME = "Skyborne Sanctuary"
 SKYBORNE_SANCTUARY_CP = 1
@@ -89,7 +102,10 @@ class SkyborneSanctuaryController:
         self.turn_tracker = turn_tracker
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
+        # The end-of-Fight-phase window this controller's own offer opens.
+        # NOT a live turn_tracker.phase test - see game/phase_window.py.
+        self._window = PhaseWindow()
         self._pending = {}
         self._stratagem = Stratagem(
             name=SKYBORNE_SANCTUARY_NAME, cp_cost=SKYBORNE_SANCTUARY_CP,
@@ -128,7 +144,11 @@ class SkyborneSanctuaryController:
     def can_use(self, squad):
         if squad is None or self.stratagem_controller is None:
             return False
-        if self.turn_tracker is not None and self.turn_tracker.phase != PHASE_FIGHT:
+        # The window is the one this controller's own offer opened, not a live
+        # phase test: the offer runs AFTER advance_phase(), and Fight is the
+        # last phase, so the clock already reads Command by then. See
+        # game/phase_window.py.
+        if not self._window.is_open(squad.owner):
             return False
         if not eligible_unit(squad, self.setting):
             return False
@@ -144,12 +164,28 @@ class SkyborneSanctuaryController:
             return False
         return self.stratagem_controller.can_use(squad.owner, self._stratagem, [squad])
 
+    def reset_phase(self):
+        """The window lasts exactly one phase boundary. main.py clears it in
+        the per-phase reset block, which runs BEFORE that boundary's offers."""
+        self._window.close()
+
     def offer_at_end_of_fight_phase(self, squads):
         """"End of THE Fight phase" - it belongs to nobody, so both players
-        are offered it at the same boundary."""
-        for squad in sorted((s for s in squads if self.can_use(s)),
-                            key=lambda s: (str(s.owner), s.name)):
+        are offered it at the same boundary, and no owner is passed in.
+
+        There is deliberately no live phase test any more: this runs AFTER
+        advance_phase(), so `phase != PHASE_FIGHT` was always true and this
+        Stratagem never opened a prompt at all. See game/phase_window.py."""
+        # Armed BEFORE each eligibility test, because can_use() asks the
+        # window: the window IS this offer's own "right moment". Closed again
+        # if nothing was actually put to the player.
+        for squad in sorted(squads, key=lambda s: (str(s.owner), s.name)):
+            self._window.arm(squad.owner)
+            if not self.can_use(squad):
+                self._window.close()
+                continue
             if squad.owner in self.auto_players or self.decision_manager is None:
+                self._window.close()
                 return False           # no AI path
             transport = self.transports_for(squad)[0]
             self.decision_manager.request(

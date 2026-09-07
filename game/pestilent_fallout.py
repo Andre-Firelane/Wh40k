@@ -30,6 +30,8 @@ engine asks how far a model actually moves - so it composes with the Death
 Guard Plague Scabrous Soulrot (-1") without either knowing about the other.
 """
 
+from game import ai_mode
+
 ENFEEBLED_MOVE_PENALTY_IN = 2.0
 PLAGUE_WIND_NAMES = ("Plague Wind - witchfire", "Plague Wind - focused witchfire")
 
@@ -38,11 +40,12 @@ class PestilentFalloutController:
     """Fed from ShootingController.on_squad_finished_shooting."""
 
     def __init__(self, turn_tracker=None, game_log=None, auto_players=(),
-                 target_pick=None):
+                 target_pick=None, decision_manager=None):
         self.turn_tracker = turn_tracker
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self.target_pick = target_pick
+        self.decision_manager = decision_manager
         # id(squad) -> the player whose turn must END before it wears off.
         self._enfeebled = {}
 
@@ -76,9 +79,30 @@ class PestilentFalloutController:
                       and self._is_infantry(s)]
         if not candidates:
             return False
-        if len(candidates) == 1 or shooter_squad.owner in self.auto_players:
+        # THIS GATE USED TO BE DEAD CODE: both branches were byte-identical,
+        # and the controller had no decision_manager to fall through to. So a
+        # human Death Guard player firing a Plague Wind into two or more
+        # INFANTRY units had the enfeeble target chosen for them by
+        # _best_damage_target - the AI's own damage ranking, injected from
+        # main.py. Its sibling Barrage of Filth, built four lines earlier in
+        # main.py, has always had the prompt; this reads like a copy of it with
+        # the prompt half dropped.
+        #
+        # "Select one enemy INFANTRY unit" is not optional, so there is no
+        # Decline - the only decision is WHICH, and with a single candidate
+        # there is nothing to ask (Fehlerklasse 5).
+        if (len(candidates) == 1 or shooter_squad.owner in self.auto_players
+                or self.decision_manager is None):
             return self._use(shooter_squad, self._pick(shooter_squad, candidates))
-        return self._use(shooter_squad, self._pick(shooter_squad, candidates))
+        options = [(f"Pestilent Fallout: {t.name}",
+                    (lambda target=t: self._use(shooter_squad, target)), t)
+                   for t in sorted(candidates, key=lambda s: s.name)]
+        self.decision_manager.request(
+            shooter_squad.owner,
+            f"{shooter_squad.name}: Pestilent Fallout - enfeeble which unit?",
+            options,
+        )
+        return True
 
     def _pick(self, squad, candidates):
         if self.target_pick is not None:

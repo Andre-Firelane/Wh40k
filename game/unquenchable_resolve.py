@@ -85,11 +85,15 @@ class UnquenchableResolveController:
     every phase boundary."""
 
     def __init__(self, dice_manager=None, game_state=None, game_log=None,
-                 position_valid=None):
+                 position_valid=None, placer=None):
         self.dice_manager = dice_manager
         self.game_state = game_state
         self.game_log = game_log
         self.position_valid = position_valid
+        # ReturnPlacementController (game/return_placement.py). Rule
+        # 01.02.03 makes a returning model SET UP, so a human sets it up;
+        # an owner in auto_players still lands on the spot computed here.
+        self.placer = placer
         self._pending = []   # models destroyed this phase that are owed a roll
         self._used = set()   # id(model) - "the FIRST time this model is destroyed"
 
@@ -137,7 +141,17 @@ class UnquenchableResolveController:
                 self._log(f"{name}: Unquenchable Resolve - rolled {roll}, but no legal "
                           "spot was found near where he fell.")
                 continue
-            self._set_up(model, spot)
+            if self.placer is not None and model.squad is not None:
+                # The same predicate _spot_for() searched with, so what the
+                # drag allows is what the search would have accepted.
+                enemies = _enemy_tokens(model, list(self.game_state.tokens)
+                                        if self.game_state is not None else [])
+                if not self.placer.place(
+                        model.squad, [model], [spot],
+                        validator=lambda m, x, y, _e=enemies: self._legal(m, x, y, _e)):
+                    continue
+            else:
+                self._set_up(model, spot)
             self._log(f"{name}: Unquenchable Resolve - rolled {roll}, back on the "
                       f"battlefield at ({spot[0]:.1f}, {spot[1]:.1f}) with full wounds.")
             returned.append(model)

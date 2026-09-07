@@ -193,7 +193,7 @@ class CrushingStridesController(MortalWoundOfferController):
             squad.owner,
             "%s: %s crushes which unit?" % (CRUSHING_STRIDES_NAME, squad.name),
             [("%s: %s" % (CRUSHING_STRIDES_NAME, t.name),
-              (lambda target=t: self._use(squad, target))) for t in targets],
+              (lambda target=t: self._use(squad, target)), t) for t in targets],
         )
         return True
 
@@ -215,7 +215,9 @@ class CrushingStridesController(MortalWoundOfferController):
         """ONE stage: each 3+ is exactly one mortal wound, where Kroot
         Linebreakers rolls a gate and then a D3 per hit."""
         if self._pending is None:
-            return False
+            # No roll of our own outstanding - but an allocation session may
+            # still owe a Feel No Pain acknowledgement. See _ack_session().
+            return self._ack_session()
         values = (self.dice_manager.last_values if self.dice_manager is not None
                   else None) or []
         ctx = self._pending

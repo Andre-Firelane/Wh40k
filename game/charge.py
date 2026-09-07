@@ -43,6 +43,10 @@ class ChargeController:
         self.waaagh = waaagh
 
         self.state = IDLE
+        # Set by reopen_target_selection() when a reaction takes a declared
+        # target off the board, so the reaction chain stops instead of falling
+        # through into the move. See that method.
+        self._declaration_reopened = False
         self.active_squad = None
         self.max_distance = None       # charge roll result (2D6), None until the roll is acknowledged
         self.charge_targets = []       # declared enemy squads for this charge
@@ -406,6 +410,40 @@ class ChargeController:
         else:
             self.charge_targets.append(enemy_squad)
 
+    def reopen_target_selection(self, dropped_squad=None):
+        """Hand target declaration back to the charging player, roll intact.
+
+        Combat Embarkation (Kauyon) prints "Your unit can embark within that
+        TRANSPORT. If it does, your opponent can select new targets for that
+        charge." The second sentence had no implementation, and
+        _start_declared_move() re-checks state, targets-non-empty and
+        max_distance but never re-validates the TARGETS themselves - so the
+        charge went ahead against a unit now sitting inside a vehicle, whose
+        models embark() takes off the token list while leaving their
+        coordinates alone, and check_charge_engagement() duly engaged a
+        phantom. Reported: "nach combat embarkation stratagem: auswahl bei
+        attacker muss zurueckspringen auf choose charge targets".
+
+        No state-machine change is needed. The controller never LEAVES
+        DECLARING_TARGETS during a declaration reaction, and max_distance is
+        already fixed - the printed effect re-opens the TARGETS, not the roll.
+        All this does is drop the target that left and stop the reaction chain
+        falling through into the move, so toggle_charge_target() and the "Begin
+        Charge Move" button are live again.
+
+        The AI needs nothing new: _handle_charge() already returns when a
+        reaction owns the resume and re-enters later, where an empty
+        charge_targets makes it pick again from
+        eligible_charge_target_squads() - which is built from the token list
+        and therefore no longer offers the embarked unit.
+        """
+        if self.state != DECLARING_TARGETS:
+            return False
+        if dropped_squad is not None and dropped_squad in self.charge_targets:
+            self.charge_targets.remove(dropped_squad)
+        self._declaration_reopened = True
+        return True
+
     def begin_charge_move(self):
         """Attempt Charge (11.02 step 3): start the actual drag-based move,
         capped at the charge roll distance."""
@@ -437,6 +475,7 @@ class ChargeController:
         # out to a reactor as None (reported crash: Photon Grenades resolved,
         # the resume ran, and Combat Embarkation was handed None).
         charging = self.active_squad
+        self._declaration_reopened = False
 
         def window_is_open():
             """Is the declaration these reactors share still standing?
@@ -452,7 +491,8 @@ class ChargeController:
             it anyway would let a player spend CP on a charge that is over.
             """
             return (charging is not None and self.active_squad is charging
-                    and self.state == DECLARING_TARGETS)
+                    and self.state == DECLARING_TARGETS
+                    and not self._declaration_reopened)
 
         def step(index):
             while index < len(reactors):
@@ -462,6 +502,13 @@ class ChargeController:
                 index += 1
                 if reactor(charging, list(targets), lambda i=index: step(i)):
                     return  # that reactor owns the continuation now
+            # Asked ONCE MORE at the end of the chain, not only between
+            # reactors: a reaction that re-opened target declaration (Combat
+            # Embarkation) is answered by the LAST reactor as often as not, and
+            # falling out of the loop straight into the move would resolve a
+            # charge whose targets the opponent is entitled to pick again.
+            if not window_is_open():
+                return
             self._start_declared_move()
 
         step(0)

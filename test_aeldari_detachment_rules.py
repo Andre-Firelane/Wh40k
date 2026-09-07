@@ -65,23 +65,8 @@ def sq(name, owner="Player 1"):
     return tk.build(D[name], owner, name="%s %s 1" % (owner[-1], name))
 
 
-class settings_as:
-    """config constants are real module globals; a test that left one set
-    would change what every later test measures."""
-
-    def __init__(self, **values):
-        self.values = values
-
-    def __enter__(self):
-        self.old = {k: getattr(config, k) for k in self.values}
-        for key, value in self.values.items():
-            setattr(config, key, value)
-        return self
-
-    def __exit__(self, *exc):
-        for key, value in self.old.items():
-            setattr(config, key, value)
-
+# The one definition lives in testkit - eight suites had their own copy.
+settings_as = tk.settings_as
 
 # =========================================================================
 # 0a. ASURYANI - the second printed keyword line
@@ -1317,10 +1302,38 @@ c.eq("the seven DP costs",
      {n: ae.AELDARI.detachments[n].points for n in _built},
      {"Armoured Warhost": 1, "Path of the Outcast": 1, "Guardian Battlehost": 2,
       "Aspect Host": 3, "Warhost": 3, "Windrider Host": 2, "Spirit Conclave": 2})
-# The predefined list is untouched - the seven are declared, not fielded.
-c.eq("the Aeldari list still fields Seer Council and nothing else",
-     detachments.names_for("aeldari"), ["Seer Council"])
+# ONE of the seven is now fielded, and the other six are still declared-only.
+# When these rules were built the pin here read "Seer Council and nothing
+# else", because the whole batch was verified with a selfplay run each rather
+# than made the default. Path of the Outcast came off that shelf on 2026-09-01
+# (user: "detechments: Seer Council + Path of the Outcast"), which is exactly
+# the visible one-line change the pin existed to force.
+c.eq("the Aeldari list fields Seer Council + Path of the Outcast",
+     detachments.names_for("aeldari"), ["Seer Council", "Path of the Outcast"])
 c.eq("...and is still legal", detachments.validate("aeldari"), [])
+# 2 + 1 against a budget of 3: the pair is at the ceiling, so a THIRD cannot be
+# added without something else giving way. Pinned because "legal" above would
+# stay green with a DP or two to spare and would not say how close it is.
+c.eq("...spending exactly the budget", detachments.points_for("aeldari"),
+     detachments.DETACHMENT_POINT_BUDGET)
+# The other six stay declared-only, so this pin keeps doing its job for them.
+c.eq("the other six are still declared, not fielded",
+     sorted(n for n in _built if n not in detachments.names_for("aeldari")),
+     sorted(n for n in _built if n != "Path of the Outcast"))
+# Far-Reaching Doom is not a dormant grant on this roster: it reads friendly
+# RANGERS/SHROUD RUNNERS units, and the list fields Rangers. Measured, because
+# a detachment whose rule can never fire would be a different kind of change
+# from the one that was asked for.
+from game import army_lists  # noqa: E402
+_aeldari_units = []
+army_lists.get("aeldari").build("Player 1", _aeldari_units.append)
+_saved_path = config.PATH_OF_THE_OUTCAST_PLAYERS
+config.PATH_OF_THE_OUTCAST_PLAYERS = ("Player 1",)
+try:
+    c.true("...and Far-Reaching Doom has a unit to fire on (the Rangers)",
+           any(frd.applies(u) for u in _aeldari_units))
+finally:
+    config.PATH_OF_THE_OUTCAST_PLAYERS = _saved_path
 
 
 c.finish()

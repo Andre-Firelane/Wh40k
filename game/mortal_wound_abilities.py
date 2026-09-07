@@ -59,6 +59,7 @@ other deterministic target choice in this engine already uses.
 
 from game.squad import ENGAGEMENT_RANGE_IN
 from game.status_effects import lone_operative_range
+from game import ai_mode
 
 LIVING_LIGHTNING_RANGE_IN = 18.0
 LIVING_LIGHTNING_LONE_OPERATIVE_RANGE_IN = 12.0
@@ -198,7 +199,7 @@ class MortalWoundOfferController:
         self.decision_manager = decision_manager
         self.game_log = game_log
         self.game_state = game_state
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         # target_pick(attacker, candidates) -> squad. main.py passes the shared
         # damage-value ranking, so the AI uses the same measure as every other
         # deterministic target choice; None falls back to name order, which
@@ -237,6 +238,64 @@ class MortalWoundOfferController:
             target, wounds, dice_manager=self.dice_manager,
             log=(lambda m: self._log(m)) if self.game_log is not None else None)
 
+    # ---------------------------------------------------------------- 06.02
+    # THE SESSION'S OWN PLUMBING, WRITTEN ONCE FOR ALL SIX CARRIERS.
+    #
+    # It used to be written ZERO times. MortalWoundAllocationSession parks at
+    # `pending_choice` the moment its target has more than one eligible model
+    # (game/damage_resolution.py's _advance()), and nothing here ever drained
+    # it - no pending_damage_choice, no choose_damage_model, no done check. So
+    # against any multi-model unit the dice were rolled, the log said N mortal
+    # wounds, and NOT ONE OF THEM WAS EVER APPLIED. Six abilities across four
+    # factions: Living Lightning, Matter Absorption, Crimson Harvest, Eater
+    # Plague, Kroot Linebreakers and Crushing Strides.
+    #
+    # Against a SINGLE-model target the session applies the wound itself and
+    # never parks, which is why this survived: every one-model victim behaved
+    # correctly, and the two suites that cover it measured how much was
+    # ORDERED (`inflicted + remaining`, `remaining in (2, 1, 0)`) rather than
+    # how much LANDED.
+    #
+    # Written in the base rather than on the one carrier that reported it:
+    # game/crushing_impact.py and game/deadly_demise.py already spell these
+    # same three methods out, so a seventh copy is the drift this repo
+    # consolidates at the second consumer. With main.py asking each carrier
+    # for pending_damage_choice, test_event_chain_wiring.py's section 6 then
+    # enforces the click branch and the highlight by construction.
+
+    @property
+    def pending_damage_choice(self):
+        """Rule 06.02: the TARGET's owner picks which of their models takes
+        each mortal wound."""
+        if self.mortal_wound_session is None:
+            return None
+        return self.mortal_wound_session.pending_choice
+
+    def choose_damage_model(self, model):
+        if self.mortal_wound_session is None:
+            return
+        self.mortal_wound_session.choose_model(model)
+        self._check_session_done()
+
+    def _ack_session(self):
+        """The Feel No Pain leg of an OPEN session.
+
+        Every subclass's on_dice_acknowledged() opens with `if self._pending
+        is None: return False`, and by the time a session exists that slot is
+        already cleared - so the FNP roll's acknowledgement never reached the
+        session either. Called from exactly that guard instead of returning."""
+        if self.mortal_wound_session is None:
+            return False
+        if self.mortal_wound_session.pending_fnp is not None:
+            self.mortal_wound_session.on_fnp_acknowledged()
+            self._check_session_done()
+            return True
+        return False
+
+    def _check_session_done(self):
+        if self.mortal_wound_session is not None and self.mortal_wound_session.done:
+            self.mortal_wound_session = None
+
 
 class LivingLightningController(MortalWoundOfferController):
     """The Plasmancer's. Offered once per Shooting phase per bearer unit."""
@@ -271,7 +330,7 @@ class LivingLightningController(MortalWoundOfferController):
         targets = living_lightning_targets(squad, self._tokens(), self.visible)
         if squad.owner in self.auto_players or self.decision_manager is None:
             return self._use(squad, self._pick(squad, targets))
-        options = [(f"Living Lightning: {t.name}", (lambda target=t: self._use(squad, target)))
+        options = [(f"Living Lightning: {t.name}", (lambda target=t: self._use(squad, target)), t)
                    for t in targets]
         options.append(("Decline", None))
         self.decision_manager.request(
@@ -291,7 +350,9 @@ class LivingLightningController(MortalWoundOfferController):
 
     def on_dice_acknowledged(self):
         if self._pending is None:
-            return False
+            # No roll of our own outstanding - but an allocation session may
+            # still owe a Feel No Pain acknowledgement. See _ack_session().
+            return self._ack_session()
         ctx, self._pending = self._pending, None
         values = (self.dice_manager.last_values if self.dice_manager is not None else None) or []
         wounds = sum(1 for v in values if v >= MORTAL_WOUND_THRESHOLD)
@@ -338,7 +399,7 @@ class MatterAbsorptionController(MortalWoundOfferController):
         targets = matter_absorption_targets(squad, self._tokens())
         if len(targets) == 1 or squad.owner in self.auto_players or self.decision_manager is None:
             return self._use(squad, self._pick(squad, targets))
-        options = [(f"Matter Absorption: {t.name}", (lambda target=t: self._use(squad, target)))
+        options = [(f"Matter Absorption: {t.name}", (lambda target=t: self._use(squad, target)), t)
                    for t in targets]
         self.decision_manager.request(
             squad.owner, f"{squad.name}: Matter Absorption - drain which vehicle?", options)
@@ -357,7 +418,9 @@ class MatterAbsorptionController(MortalWoundOfferController):
 
     def on_dice_acknowledged(self):
         if self._pending is None:
-            return False
+            # No roll of our own outstanding - but an allocation session may
+            # still owe a Feel No Pain acknowledgement. See _ack_session().
+            return self._ack_session()
         values = (self.dice_manager.last_values if self.dice_manager is not None else None) or [1]
         ctx = self._pending
         if self._stage == "gate":
@@ -435,7 +498,7 @@ class CrimsonHarvestController(MortalWoundOfferController):
         targets = crimson_harvest_targets(squad, self._tokens())
         if len(targets) == 1 or squad.owner in self.auto_players or self.decision_manager is None:
             return self._use(squad, self._pick(squad, targets))
-        options = [(f"Crimson Harvest: {t.name}", (lambda target=t: self._use(squad, target)))
+        options = [(f"Crimson Harvest: {t.name}", (lambda target=t: self._use(squad, target)), t)
                    for t in targets]
         self.decision_manager.request(
             squad.owner, f"{squad.name}: Crimson Harvest - reap which unit?", options)
@@ -453,7 +516,9 @@ class CrimsonHarvestController(MortalWoundOfferController):
 
     def on_dice_acknowledged(self):
         if self._pending is None:
-            return False
+            # No roll of our own outstanding - but an allocation session may
+            # still owe a Feel No Pain acknowledgement. See _ack_session().
+            return self._ack_session()
         values = (self.dice_manager.last_values if self.dice_manager is not None else None) or [1]
         ctx = self._pending
         if self._stage == "gate":
@@ -595,7 +660,7 @@ class EaterPlagueController(MortalWoundOfferController):
         self._used_this_phase.add(id(squad))
         if squad.owner in self.auto_players or self.decision_manager is None:
             return self._use(squad, self._pick(squad, targets))
-        options = [(f"Eater Plague: {t.name}", (lambda target=t: self._use(squad, target)))
+        options = [(f"Eater Plague: {t.name}", (lambda target=t: self._use(squad, target)), t)
                    for t in targets]
         options.append(("Decline", None))
         self.decision_manager.request(
@@ -616,7 +681,9 @@ class EaterPlagueController(MortalWoundOfferController):
 
     def on_dice_acknowledged(self):
         if self._pending is None:
-            return False
+            # No roll of our own outstanding - but an allocation session may
+            # still owe a Feel No Pain acknowledgement. See _ack_session().
+            return self._ack_session()
         values = (self.dice_manager.last_values if self.dice_manager is not None else None) or [1]
         ctx = self._pending
         if self._stage == "gate":
@@ -763,7 +830,7 @@ class KrootLinebreakersController(MortalWoundOfferController):
         targets = linebreaker_targets(squad, self._tokens())
         if len(targets) == 1 or squad.owner in self.auto_players or self.decision_manager is None:
             return self._use(squad, self._pick(squad, targets))
-        options = [(f"Kroot Linebreakers: {t.name}", (lambda target=t: self._use(squad, target)))
+        options = [(f"Kroot Linebreakers: {t.name}", (lambda target=t: self._use(squad, target)), t)
                    for t in targets]
         self.decision_manager.request(
             squad.owner, f"{squad.name}: Kroot Linebreakers - trample which unit?", options)
@@ -784,7 +851,9 @@ class KrootLinebreakersController(MortalWoundOfferController):
 
     def on_dice_acknowledged(self):
         if self._pending is None:
-            return False
+            # No roll of our own outstanding - but an allocation session may
+            # still owe a Feel No Pain acknowledgement. See _ack_session().
+            return self._ack_session()
         values = (self.dice_manager.last_values if self.dice_manager is not None else None) or [1]
         ctx = self._pending
         if self._stage == "gate":

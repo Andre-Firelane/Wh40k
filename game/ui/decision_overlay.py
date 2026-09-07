@@ -1,6 +1,6 @@
 import pygame
 
-from game import config
+from game import config, decline_option
 from game.ui import button_style, unit_thumbs
 from game.ui.text_utils import wrap_text
 
@@ -12,6 +12,17 @@ PLAYER_COLOR = (255, 215, 0)
 BUTTON_BG_COLOR = (45, 45, 45)
 BUTTON_BORDER_COLOR = (120, 120, 120)
 BUTTON_TEXT_COLOR = (255, 255, 255)
+# The "no" option, in the same red the left panel has always used for Cancel
+# and Decline (user: "Decline Buttons auch in den overlays rot einfaerben").
+# Taken from button_style rather than written again here, so the modal box and
+# ActionPanel cannot end up with two different reds meaning one thing - which
+# one an option is comes from game/decline_option.py, likewise the one
+# definition. It stays THIS overlay's flat rectangle, not draw_button()'s
+# chamfered HUD body: the box's option buttons are a list of answers and
+# changing their shape was not what was asked for.
+DECLINE_BG_COLOR = button_style.BG_NORMAL_DANGER
+DECLINE_BORDER_COLOR = button_style.BORDER_NORMAL_DANGER
+DECLINE_TEXT_COLOR = button_style.TEXT_NORMAL_DANGER
 # User: "der violette color code für stratagems muss sich auch in den
 # überschriften wiederfinden, wenn das spiel mit einem confirmation overlay
 # unterbricht, zb für Abwehrfeuer oder Heroic Intervention" - when this
@@ -22,8 +33,23 @@ BUTTON_TEXT_COLOR = (255, 255, 255)
 # (game/ui/button_style.py's "stratagem" palette) and StratagemNoticeOverlay,
 # instead of this overlay's own plain gold - everything else (prompt/option
 # button styling) is left as-is, since only the heading was asked for.
+# ... and the same idea one colour over for an Aeldari Agile Manoeuvre, which
+# spends a Battle Focus token rather than CP - user: "colorcode für agile
+# manouvers ist momentan lila wie stratagems. soll aber türkis sein. (buttons,
+# überschriften)". "Überschriften" is this heading; the buttons are
+# ActionPanel's, and both read button_style's "battle_focus" palette so the
+# panel and the overlay cannot drift apart.
 STRATAGEM_BOX_BORDER_COLOR = button_style.BORDER_NORMAL_STRATAGEM
 STRATAGEM_PLAYER_COLOR = button_style.TEXT_NORMAL_STRATAGEM
+
+# (border, heading) per DecisionManager.accent - ONE table, so a fourth
+# category is a row here rather than another branch at the draw site.
+ACCENT_COLORS = {
+    None: (BOX_BORDER_COLOR, PLAYER_COLOR),
+    "stratagem": (STRATAGEM_BOX_BORDER_COLOR, STRATAGEM_PLAYER_COLOR),
+    "battle_focus": (button_style.BORDER_NORMAL_BATTLE_FOCUS,
+                     button_style.TEXT_NORMAL_BATTLE_FOCUS),
+}
 
 BOX_WIDTH = 420
 THUMB_GAP = 10  # between the thumbnail row and the prompt text under it
@@ -47,15 +73,27 @@ class DecisionOverlay:
         self.button_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE, bold=True)
         self._button_rects = []
 
-    def draw(self, surface, decision_manager, squads=()):
+    def draw(self, surface, decision_manager, squads=(), board_pick=False):
         """`squads` is every unit in the game (GameState.all_squads()) - the
         ones this prompt actually talks about are picked out of its own text
         and shown as thumbnails above it. User: "der text ist mir zu
         unübersichtlich ... ich fände die portraits überall gut, wo von
         einheiten gesprochen wird." Optional: passing nothing just draws the
-        box as before."""
+        box as before.
+
+        `board_pick` is game/unit_pick.py's verdict that this decision is
+        answered by CLICKING A UNIT ON THE BOARD. Then this overlay draws
+        NOTHING - not a smaller box, nothing: it dims the whole window and
+        would sit on top of the very units the player has to see and click, and
+        the left panel carries the prompt instead (ActionPanel's
+        _draw_unit_pick_ui, the arrangement Burden of Trust already used).
+
+        Drawn-nothing still has to run: _button_rects is cleared FIRST, so last
+        frame's option buttons cannot keep swallowing clicks behind a picture
+        that is no longer on screen. That is why main.py calls this either way
+        rather than skipping the call."""
         self._button_rects = []
-        if not decision_manager.is_pending:
+        if not decision_manager.is_pending or board_pick:
             return
 
         dim = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
@@ -93,8 +131,8 @@ class DecisionOverlay:
         )
         box_rect = pygame.Rect(0, 0, BOX_WIDTH, box_height)
         box_rect.center = surface.get_rect().center
-        border_color = STRATAGEM_BOX_BORDER_COLOR if decision_manager.is_stratagem else BOX_BORDER_COLOR
-        player_color = STRATAGEM_PLAYER_COLOR if decision_manager.is_stratagem else PLAYER_COLOR
+        border_color, player_color = ACCENT_COLORS.get(
+            getattr(decision_manager, "accent", None), ACCENT_COLORS[None])
         pygame.draw.rect(surface, BOX_BG_COLOR, box_rect)
         pygame.draw.rect(surface, border_color, box_rect, width=2)
 
@@ -115,13 +153,17 @@ class DecisionOverlay:
             y += PROMPT_LINE_HEIGHT
 
         y += BUTTON_GAP
-        for lines, height in zip(option_lines, option_heights):
+        for option, lines, height in zip(decision_manager.options, option_lines, option_heights):
+            declines = decline_option.is_decline(option["label"])
+            bg = DECLINE_BG_COLOR if declines else BUTTON_BG_COLOR
+            border = DECLINE_BORDER_COLOR if declines else BUTTON_BORDER_COLOR
+            text_color = DECLINE_TEXT_COLOR if declines else BUTTON_TEXT_COLOR
             btn_rect = pygame.Rect(box_rect.x + BOX_PADDING, y, content_width, height)
-            pygame.draw.rect(surface, BUTTON_BG_COLOR, btn_rect)
-            pygame.draw.rect(surface, BUTTON_BORDER_COLOR, btn_rect, width=1)
+            pygame.draw.rect(surface, bg, btn_rect)
+            pygame.draw.rect(surface, border, btn_rect, width=1)
             line_y = btn_rect.y + (height - len(lines) * BUTTON_LINE_HEIGHT) // 2
             for line in lines:
-                label_surf = self.button_font.render(line, True, BUTTON_TEXT_COLOR)
+                label_surf = self.button_font.render(line, True, text_color)
                 surface.blit(label_surf, label_surf.get_rect(centerx=btn_rect.centerx, y=line_y))
                 line_y += BUTTON_LINE_HEIGHT
             self._button_rects.append(btn_rect)

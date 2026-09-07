@@ -45,7 +45,7 @@ call: it picks the keyword carried by the most enemy MODELS on the board, ties
 broken by keyword order. That is a real reading of the board rather than a
 constant, and it cannot flicker, which a prompt nobody answers would.
 """
-from game import attached_units
+from game import ai_mode, attached_units
 
 #: The four printed choices, in printed order. Order is load-bearing only as
 #: the AI's tie-break.
@@ -91,7 +91,7 @@ class FatedHeroController:
         self.game_state = game_state
         self.game_log = game_log
         self.decision_manager = decision_manager
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._chosen = {}          # id(model) -> keyword
         self._pending = []
         self._on_done = None

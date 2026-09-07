@@ -29,7 +29,7 @@ The protocol is maybe_offer(attacker, target, melee=False); melee is declined
 outright, because the printed WHEN names the Shooting phase.
 """
 
-from game import montka, tau_detachments
+from game import ai_mode, montka, tau_detachments
 from game.stratagems import Stratagem
 
 COUNTERFIRE_CP = 2
@@ -54,7 +54,7 @@ class CounterfireDefenceController:
         self.turn_tracker = turn_tracker
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = tuple(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._offered_this_phase = set()
         self._stratagem = Stratagem(
             name=COUNTERFIRE_NAME, cp_cost=COUNTERFIRE_CP, effect=self._grant,

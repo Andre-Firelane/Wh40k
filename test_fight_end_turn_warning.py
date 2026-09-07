@@ -265,10 +265,38 @@ for i in guards:
     c.true(f"...guard at line {i + 1} gates an advance_turn_phase() call",
            any("advance_turn_phase()" in lines[j] for j in range(i, min(i + 6, len(lines)))))
 
-# The AI must not keep playing behind an unread warning - same gate every
-# other notice already has, in all three places.
-c.eq("the AI/datacard gates all know about it",
-     src.count("and not fight_warning_overlay.is_pending"), 3)
+# The AI must not keep playing behind an unread warning, and neither may the
+# hover datacard draw over it - same gate every other notice already has, in
+# all three places.
+#
+# Counted by MEANING, not by one spelling. This used to count the literal
+# "and not fight_warning_overlay.is_pending" and went red when the datacard
+# gate was rewritten as an early-out ("or ...is_pending: token = None"), which
+# is the same gate with the opposite polarity - the pin was measuring
+# punctuation, the mistake this repo has now made with `.index()`, a trailing
+# paren and a name count. Both polarities count; the click branch at
+# `elif fight_warning_overlay.is_pending:` is the fourth site and is the
+# dismiss handler, not a gate, so it is excluded by requiring a boolean
+# connective on the line.
+gate_lines = [ln.strip() for ln in lines
+              if "fight_warning_overlay.is_pending" in ln
+              and (ln.strip().startswith(("and ", "or ")) or " and not " in ln)]
+# FOUR since the Stratagem tooltip joined them: it is drawn over the board
+# like the datacard, so a prompt that has to be answered first must suppress
+# it too. This count going up is the POINT of the pin - a new view that
+# forgets the modal list is exactly what it is here to catch.
+c.eq("the AI/datacard/tooltip gates all know about it", len(gate_lines), 4)
+c.true("...and every one of them is a gate, not the dismiss branch",
+       all(not ln.startswith("elif") for ln in gate_lines))
+# Named, so a gate that quietly disappears says WHICH one.
+c.true("...one of them guards the hover datacard",
+       any("fight_warning_overlay.is_pending" in ln for ln in
+           src[src.index("_datacard_token = input_manager.hovered_token"):
+               src.index("unit_datacard.update_hover(")].splitlines()))
+c.true("...and one guards the Stratagem tooltip",
+       any("fight_warning_overlay.is_pending" in ln for ln in
+           src[src.index("_modal_up = ("):
+               src.index("action_panel.update_tooltip(")].splitlines()))
 
 # Once per PHASE needs a point of re-offer at the phase change (this repo's
 # own rule 14: a "deferred until X" note needs a point at X).

@@ -46,7 +46,7 @@ is the cheapest tie-break that is not arbitrary. A rule answering its own
 prompt, not an AI path - the standing T'au rule.
 """
 
-from game import enhancements, scouts
+from game import ai_mode, enhancements, scouts
 from game.squad import edge_distance
 
 STRIKE_SWIFTLY = "Strike Swiftly"
@@ -79,7 +79,7 @@ class StrikeSwiftlyStep:
                  game_state=None):
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self.game_state = game_state
         self.granted = {}     # player -> [squads]
         self._pending_players = []
@@ -171,7 +171,7 @@ class StrikeSwiftlyStep:
                 self.grant(player, self._pick(player, candidates))
                 continue
             options = [(f"{STRIKE_SWIFTLY}: {t.name}",
-                        (lambda target=t: self.grant(player, target)))
+                        (lambda target=t: self.grant(player, target)), t)
                        for t in candidates]
             # Declining MUST advance the chain, not fall through to a None
             # callback: this step gates the rest of Resolve Pre-battle

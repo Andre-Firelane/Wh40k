@@ -129,7 +129,7 @@ class HeroicInterventionController:
             self.turn_tracker.set_active(opponent)
 
         options = [
-            (f"Heroic Intervention: {squad.name} (1 CP)", lambda squad=squad: self._pick(opponent, squad))
+            (f"Heroic Intervention: {squad.name} (1 CP)", lambda squad=squad: self._pick(opponent, squad), squad)
             for squad in eligible
         ]
         options.append(("Decline", self._decline))

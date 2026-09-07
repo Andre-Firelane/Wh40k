@@ -44,7 +44,7 @@ with; the ledger is keyed on id(model) exactly as Fuegan's is.
 
 import math
 
-from game import awakened_dynasty, formation_layout, model_return
+from game import ai_mode, awakened_dynasty, formation_layout, model_return
 from game.stratagems import Stratagem
 
 ETERNAL_REVENANT_CP_COST = 1
@@ -76,7 +76,7 @@ class EternalRevenantController:
         self.game_log = game_log
         self.game_state = game_state
         self.position_valid = position_valid
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._pending = []   # models destroyed this phase that could still be bought back
         self._used = set()   # id(model) - once per battle, per model
 

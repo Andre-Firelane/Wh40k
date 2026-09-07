@@ -92,7 +92,18 @@ def model_line_groups(models):
     for signature in order:
         count, model = seen[signature]
         labels = weapon_names(model)
-        gear = list(getattr(model, "gear_names", ()) or [])
+        # A Gear item whose name IS a weapon name is already in `labels` - it
+        # granted that weapon. game/battlesuit_wargear.py's support_menu_gear()
+        # is the whole "up to three of the following" menu, and most of its
+        # items are guns, so an Enforcer Commander read "3x Missile Pod, 2x
+        # Shield Drone, 3x Missile Pod". Dropping those keeps what gear_names
+        # is FOR: naming the items that leave no other trace (a Shield Drone is
+        # +1 Wound, a Guardian Drone a flag, a Marker Drone sometimes nothing).
+        # Compared against the RAW weapon names, not against `labels` - those
+        # already carry their counts ("4x Fusion Blaster"), so a set of them
+        # never matches the bare gear name.
+        already = {getattr(w, "name", None) for w in (getattr(model, "weapons", None) or ())}
+        gear = [g for g in (getattr(model, "gear_names", ()) or []) if g not in already]
         if gear:
             gear_counts = Counter(gear)
             labels += [name if n == 1 else f"{n}x {name}" for name, n in gear_counts.items()]

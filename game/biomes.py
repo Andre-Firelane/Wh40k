@@ -1,13 +1,21 @@
-"""WHICH BIOME the battlefield is painted in - city, desert or forest.
+"""WHICH BIOME the battlefield is painted in - city, desert, forest or arena.
 
 User: "ich habe die texturen für die maps in ordner geordnet. es gibt jetzt 3
 biome. kannst du bei der map auswahl bitte ganz oben noch 3 knöpfe reinpacken,
 über die man sein biom wählen kann?"
 
-A biome is exactly THREE PICTURES: the ground under everything, plus the two
+A biome answers exactly THREE ROLES: the ground under everything, plus the two
 cover textures a terrain footprint is filled with (game/renderer.py splits
 those by "does this footprint have a wall standing on it", not by terrain
 CATEGORY - see DENSE_COVER/LIGHT_COVER below).
+
+THREE OF THEM ANSWER WITH PICTURES, THE FOURTH WITH DRAWING CODE. Arena is
+rendered rather than photographed (User: "dort besteht die map nicht aus
+sprites, sondern du renderst sie") - see game/arena_biome.py, and
+is_procedural() below, which is the ONE question the rest of the code asks
+about the difference. Everything else here treats all four alike, which is the
+point: a biome is still "which of the four buttons is pressed", and the two
+ways of answering are a detail of the answer.
 
 PURELY COSMETIC, and that is worth stating rather than assuming: no rule reads
 the floor or the cover art, and the board size, both deployment zones, every
@@ -41,7 +49,8 @@ Light_Cover-Desert.jpg to Light_Cover_Desert.jpg later changes nothing here.
 The display NAME is not discovered the same way, because it is a decision and
 because deriving it from the folder would put "DESSERT" on a button.
 
-A fourth biome therefore costs ONE LINE in BIOMES plus the folder.
+A further biome therefore costs ONE LINE in BIOMES plus the folder - or, for a
+drawn one, one line plus a module beside game/arena_biome.py.
 
 NO FILESYSTEM IN THIS MODULE. Resolving a role to an actual file is
 game/sprites.py's job, because that is where "where art lives" and "which
@@ -80,21 +89,36 @@ Biome = namedtuple("Biome", "key name folder")
 
 #: In the order their buttons appear. `folder` is the name ON DISK, typo and
 #: all - see the module docstring; `name` is what the button says.
+#:
+#: `folder=None` means THERE IS NO ART: that biome is drawn by code rather than
+#: blitted from pictures (game/arena_biome.py). It is a fourth kind of answer
+#: to the same three roles, not a fourth kind of biome - everything else on
+#: this screen and in the renderer treats it exactly like the other three, and
+#: is_procedural() below is the one place the difference is asked about.
 BIOMES = (
     Biome("city", "City", "City"),
     Biome("desert", "Desert", "Dessert"),
     Biome("forest", "Forest", "Forest"),
+    Biome("arena", "Arena", None),
 )
 
 BIOMES_BY_KEY = {b.key: b for b in BIOMES}
 
-#: What an unknown config.BIOME falls back to. Deliberately the desert one:
-#: its three files are BYTE-IDENTICAL to the three that used to sit loose in
+#: What an unknown config.BIOME falls back to: the same one config ships with,
+#: so a stale or misspelled setting lands on the board the game normally opens
+#: on rather than on a different-looking one. Kept in step with config.BIOME
+#: deliberately - they answer two questions ("what do we start on" and "what do
+#: we do with nonsense") whose right answer is the same, and a test pins that
+#: they agree.
+#:
+#: It was "desert" until the arena biome arrived, on the grounds that those
+#: three files are BYTE-IDENTICAL to the three that used to sit loose in
 #: Sprites/ (verified by hash - Ground_Desert.jpg is the old wüste-boden.jpg,
 #: Dense_Cover_Desert.jpg and Light_Cover-Desert.jpg are the old cover pair),
-#: so the default keeps the table looking exactly as it did before biomes
-#: existed. Nothing changes unless a button is pressed.
-DEFAULT_BIOME = "desert"
+#: so an untouched setup rendered exactly what it did before biomes existed.
+#: That is still TRUE of the desert biome and still checked - it is simply no
+#: longer what the game opens on.
+DEFAULT_BIOME = "arena"
 
 
 def keys():
@@ -124,3 +148,14 @@ def current():
     mid-frame."""
     return BIOMES_BY_KEY.get(getattr(config, "BIOME", DEFAULT_BIOME),
                              BIOMES_BY_KEY[DEFAULT_BIOME])
+
+
+def is_procedural(biome=None):
+    """Is this biome DRAWN rather than blitted from pictures? (`biome` defaults
+    to the selected one.)
+
+    The one question anybody asks about the difference, so it is one function
+    rather than a `folder is None` test spelled out at each of the renderer's
+    two seams and again in every test - which is how two places end up
+    disagreeing about what an empty folder means."""
+    return (current() if biome is None else biome).folder is None

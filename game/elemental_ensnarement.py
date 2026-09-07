@@ -33,6 +33,8 @@ game/monofilament_web.py sets out: the Move penalty is read by
 game/coldstar.py's effective_movement_in(), which has no controller in scope.
 """
 
+from game import ai_mode
+
 ELEMENTAL_ENSNAREMENT_LABEL = "Elemental Ensnarement"
 
 #: "-2 inches M".
@@ -76,7 +78,7 @@ class ElementalEnsnarementController:
         self.decision_manager = decision_manager
         self.game_log = game_log
         self.all_tokens = all_tokens if all_tokens is not None else []
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
 
     def can_use(self, squad):
         """"if this unit is not battle-shocked" - and it must still exist."""
@@ -147,7 +149,7 @@ class ElementalEnsnarementController:
                 player,
                 "%s: %s - ensnare which enemy MONSTER/VEHICLE unit?"
                 % (ELEMENTAL_ENSNAREMENT_LABEL, squad.name),
-                [(t.name, (lambda s=squad, t=t: self.use(s, t))) for t in options]
+                [(t.name, (lambda s=squad, t=t: self.use(s, t)), t) for t in options]
                 + [("Do not use it", None)],
             )
             return True

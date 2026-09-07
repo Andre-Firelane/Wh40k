@@ -19,6 +19,25 @@ Compared per datasheet:
   * the invulnerable save, INCLUDING the case the engine has one and the
     printed sheet no longer does
   * the points, per composition tier
+  * every WEAPON's Range / A / BS or WS / S / AP / D, per datasheet
+
+Two things the weapon pass has to get right or it drowns in false positives,
+both learned the hard way while it was being written:
+  * WS/BS live on the model PROFILE here, not on the weapon (WeaponProfile
+    says so in its own docstring); a weapon only carries an override where
+    its printed row disagrees with its wielder's own skill. So the comparison
+    resolves override-else-profile, exactly as shooting.py's
+    effective_ballistic_skill() does.
+  * Attacks, Strength and Damage can each be a die roll rather than a number
+    (attacks_notation / strength_notation / damage_notation). Where one is
+    set, the plain int beside it is only a grouping placeholder, so the
+    notation is what gets compared - reading the int instead reports every
+    dice-notation weapon as wrong, and is the same mistake the unit datacard
+    itself was making.
+
+A weapon whose printed row cannot be found by name is reported separately
+rather than skipped: a name that has drifted is exactly how a weapon stops
+being compared at all.
 """
 
 import glob
@@ -30,6 +49,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fetch_datasheet_rules import FACTIONS, normalise_name, safe_filename  # noqa: E402
+from game.dice_notation import describe  # noqa: E402
+from game.weapons import MELEE  # noqa: E402
 
 MM_PER_INCH = 25.4
 
@@ -107,6 +128,94 @@ def printed_base_mm(text, label=""):
         return None, cleaned
     number = re.search(r"([\d.]+)\s*mm", cleaned)
     return (float(number.group(1)) if number else None), cleaned
+
+
+
+def printed_weapons(text):
+    """{(is_melee, normalised name): {column: value}} from both weapon tables."""
+    out = {}
+    for heading, is_melee in (("Ranged Weapons", False), ("Melee Weapons", True)):
+        rows = table_rows(section(text, heading))
+        if not rows:
+            continue
+        header = rows[0]
+        for row in rows[1:]:
+            entry = dict(zip(header, row))
+            name = entry.get("Weapon")
+            if name:
+                out[(is_melee, normalise_name(name))] = entry
+    return out
+
+
+def firing_modes(weapon_cls):
+    """A weapon and every alternate firing mode hanging off it (an Ion
+    weapon's Overcharge, a Plasma weapon's Supercharge) - each of those is a
+    printed row of its own and so gets compared of its own."""
+    chain = []
+    while weapon_cls is not None and weapon_cls not in chain:
+        chain.append(weapon_cls)
+        weapon_cls = getattr(weapon_cls, "overcharge_profile", None)
+    return chain
+
+
+def weapon_pairs(sheet):
+    """[(weapon class, the UnitProfile that wields it)] for everything this
+    datasheet can field - default loadouts, wargear swaps and weapon-granting
+    gear alike. The wielder comes along because BS/WS are read off it."""
+    pairs, seen = [], set()
+    compositions = list(sheet.compositions())
+    default_holder = compositions[0][0].profile_cls if compositions and compositions[0] else None
+
+    def add(weapon_cls, holder):
+        for mode in firing_modes(weapon_cls):
+            if (mode, holder) not in seen:
+                seen.add((mode, holder))
+                pairs.append((mode, holder))
+
+    for composition in compositions:
+        for model_line in composition:
+            for weapon_cls in model_line.default_weapons:
+                add(weapon_cls, model_line.profile_cls)
+    for option in getattr(sheet, "wargear_options", None) or []:
+        holder = default_holder
+        for composition in compositions:
+            for model_line in composition:
+                if model_line.name == getattr(option, "model_line_name", None):
+                    holder = model_line.profile_cls
+        for weapon_cls in getattr(option, "with_weapons", None) or []:
+            add(weapon_cls, holder)
+    for item in getattr(sheet, "gear_options", None) or []:
+        for weapon_cls in getattr(item, "weapons", None) or []:
+            add(weapon_cls, default_holder)
+    return pairs
+
+
+def engine_weapon_stats(weapon_cls, profile_cls):
+    """The engine's answer for one weapon's printed row, in the corpus's own
+    spelling. `describe` renders a dice-notation characteristic the way the
+    datasheet prints it ("D6+2"), so the two columns are comparable."""
+    is_melee = weapon_cls.weapon_type == MELEE
+    attribute = "weapon_skill" if is_melee else "ballistic_skill"
+    skill = getattr(weapon_cls, attribute, None) or getattr(profile_cls, attribute, None)
+
+    def characteristic(which):
+        notation = getattr(weapon_cls, which + "_notation", None)
+        return describe(notation) if notation is not None else str(getattr(weapon_cls, which))
+
+    return {
+        "RANGE": "Melee" if is_melee else '%g"' % weapon_cls.range_in,
+        "A": characteristic("attacks"),
+        "WS" if is_melee else "BS": "N/A" if skill in (None, "N/A") else str(skill),
+        "S": characteristic("strength"),
+        "AP": str(weapon_cls.ap),
+        "D": characteristic("damage"),
+    }
+
+
+def same_value(printed, engine):
+    """A trailing "*" marks a characteristic an ability modifies; the number
+    itself is the comparison, as it already is for the statline."""
+    return normalise_name(printed.strip().rstrip("*")) == normalise_name(engine)
 
 
 def engine_stats(profile_cls):
@@ -228,6 +337,41 @@ def main():
                         folder, sheet_name, what,
                         printed_inv or "not printed",
                         str(engine_inv) if engine_inv else "none in engine"))
+
+            # -- weapons ----------------------------------------------------
+            printed_rows = printed_weapons(text)
+            for weapon_cls, profile_cls in weapon_pairs(sheet):
+                is_melee = weapon_cls.weapon_type == MELEE
+                row = printed_rows.get((is_melee, normalise_name(weapon_cls.name)))
+                if row is None:
+                    # Reported, not skipped: a drifted name is precisely how a
+                    # weapon quietly stops being compared at all.
+                    findings.append((
+                        folder, sheet_name, "no printed row for this weapon",
+                        "%s weapon" % ("melee" if is_melee else "ranged"),
+                        weapon_cls.name))
+                    continue
+                mine = engine_weapon_stats(weapon_cls, profile_cls)
+                for column, engine_value in mine.items():
+                    if column not in row:
+                        continue
+                    # A [TORRENT] weapon prints its skill as "N/A"/"-" because
+                    # rule 24.37 makes it hit automatically - no Hit roll is
+                    # ever made with it, so whatever skill the wielder happens
+                    # to have is never read. That is agreement, not a
+                    # difference; reporting all 35 of them every run is how a
+                    # report stops being read. A weapon that prints N/A and is
+                    # NOT torrent still shows up, which is the case worth
+                    # seeing.
+                    if (column in ("BS", "WS")
+                            and row[column].strip().rstrip("*") in ("N/A", "-", "")
+                            and getattr(weapon_cls, "torrent", False)):
+                        continue
+                    if not same_value(row[column], engine_value):
+                        findings.append((
+                            folder, sheet_name,
+                            "%s %s" % (weapon_cls.name, column),
+                            row[column], engine_value))
 
             # -- points -----------------------------------------------------
             if sheet.points:

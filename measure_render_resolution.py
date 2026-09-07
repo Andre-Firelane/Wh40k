@@ -134,7 +134,7 @@ for label, ppi, clip in (("before", config.PIXELS_PER_INCH * OLD_SUPERSAMPLE, Fa
     def one_frame():
         if clip:
             surf.set_clip(vis)
-        r.draw(surf, board, state.tokens, state.obstacles, "Player 1",
+        r.draw(surf, board, state.tokens, state.obstacles,
                deployment_zones=state.deployment_zones, blood_decals=state.blood_decals,
                terrain_areas=state.terrain_areas)
         surf.set_clip(None)
@@ -172,7 +172,7 @@ if os.environ.get("SAVE_CROPS"):
         vw, vh = cam.visible_size()
         cam.pan_x, cam.pan_y = px - vw / 2, py - vh / 2
         vis, dest = cam.visible_rect(), cam.dest_rect()
-        r.draw(surf, board, state.tokens, state.obstacles, "Player 1",
+        r.draw(surf, board, state.tokens, state.obstacles,
                deployment_zones=state.deployment_zones, blood_decals=state.blood_decals,
                terrain_areas=state.terrain_areas)
         view = surf.subsurface(vis)

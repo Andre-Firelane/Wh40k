@@ -1,6 +1,6 @@
 # Blitz Brigade
 
-**Orks** - 2 DP detachment
+**Orks** - 2 DP detachment - Force Disposition: Reconnaissance
 
 Source: <https://wahapedia.ru/wh40k11ed/factions/orks/>
 
@@ -8,32 +8,23 @@ Source: <https://wahapedia.ru/wh40k11ed/factions/orks/>
 
 ### Eager for the Fight
 
-Blitz Brigades thunder into battle laden with eager, belligerent Orks, all desperate to get stuck into the enemy. Clambering from transport compartments or leaping from armoured hulls, these wild-eyed killers descend on the enemy in roaring savagery.
 Each time an ORKS unit from your army disembarks from a TRANSPORT, until the end of the turn, you can re-roll **Advance** and **Charge rolls** made for that ORKS unit.
 
 ## Enhancements
 
 ### Runnin’ Boots - 10 pts
 
-These squighide boots were looted from the corpse of a particularly nippy Speed Freek. The wearer is utterly convinced that they make him faster.
-
 ORKS INFANTRY CHARACTER model only. Each time you make a **Charge roll** for the bearer’s unit, if that unit disembarked from a TRANSPORT this turn, add 1 to the result.
 
 ### Blitzkaptin - 25 pts
-
-Keeping a Blitz Brigade going in one direction is hard enough for most Orks. This particular commander, however, is a master of armoured taktiks.
 
 ORKS CHARACTER model only. After both players have deployed their armies, if the bearer’s unit (or any TRANSPORT it is embarked within) is on the battlefield, select up to three ORKS VEHICLE units from your army and redeploy them. When doing so, you can set those units up in **Strategic Reserves**, regardless of how many units are already in Strategic Reserves.
 
 ### Supercharged Squig Oil - 10 pts
 
-A few drops of this volatile admixture of Squig oil, rokkit fuel and various other noxious chemicals is enough to provide any engine with increased performance.
-
 MEK model only. Each time the bearer uses its Mekaniak ability, until the end of the turn, you can re-roll **Charge rolls** for the selected VEHICLE model’s unit.
 
 ### Tuff Git - 5 pts
-
-Big, brash and belligerent, this Ork is resilient in both mind and body. Even the explosion of his transport isn’t enough to shake him.
 
 ORKS INFANTRY CHARACTER model only. At the end of a phase in which the bearer’s unit disembarked from a TRANSPORT, if that unit is **Battle-shocked**, it is no longer Battle-shocked.
 
@@ -42,8 +33,6 @@ ORKS INFANTRY CHARACTER model only. At the end of a phase in which the bearer’
 ### MOUNT UP, LADZ - 1CP
 
 *Blitz Brigade – Strategic Ploy Stratagem*
-
-With nothing left to blast or krump, these Orks scramble aboard their transport and thunder towards the next engagement.
 
 **WHEN:** End of the Fight phase.
 
@@ -55,8 +44,6 @@ With nothing left to blast or krump, these Orks scramble aboard their transport 
 
 *Blitz Brigade – Strategic Ploy Stratagem*
 
-As Orkoid vehicles thunder into battle at high speed, hatches and ramps swing open, unleashing eager mobs into the thick of the fight.
-
 **WHEN:** Your Movement phase.
 
 **TARGET:** One BATTLEWAGON, KILL RIG or HUNTA RIG unit from your army that has not been **selected to move** this phase.
@@ -66,8 +53,6 @@ As Orkoid vehicles thunder into battle at high speed, hatches and ramps swing op
 ### RUN ’EM DOWN - 1CP
 
 *Blitz Brigade – Strategic Ploy Stratagem*
-
-Driving forward in loose formation, Ork vehicles smash into the foe, crushing fleeing enemies beneath tyres, steel tracks and Squig trotters.
 
 **WHEN:** Your Movement phase.
 
@@ -79,8 +64,6 @@ Driving forward in loose formation, Ork vehicles smash into the foe, crushing fl
 
 *Blitz Brigade – Battle Tactic Stratagem*
 
-Ork crews delight in engaging enemy vehicles and monsters in mobile battles.
-
 **WHEN:** Your Shooting phase.
 
 **TARGET:** One ORKS VEHICLE unit from your army that has not been selected to shoot this phase.
@@ -91,8 +74,6 @@ Ork crews delight in engaging enemy vehicles and monsters in mobile battles.
 
 *Blitz Brigade – Strategic Ploy Stratagem*
 
-Ramshackle though they may appear, Ork vehicles are frighteningly resilient in their construction.
-
 **WHEN:** Your opponent’s Shooting phase, just after an enemy unit has selected its targets.
 
 **TARGET:** One BATTLEWAGON, KILL RIG or HUNTA RIG unit from your army that was selected as the target of one or more of the attacking unit’s attacks.
@@ -102,8 +83,6 @@ Ramshackle though they may appear, Ork vehicles are frighteningly resilient in t
 ### YOOZ IN TROUBLE NOW - 1CP
 
 *Blitz Brigade – Strategic Ploy Stratagem*
-
-Spilling from their damaged transport, enraged Orkoid infantry mobs surge towards their attackers.
 
 **WHEN:** Your opponent’s Shooting phase, just after an enemy unit has shot.
 

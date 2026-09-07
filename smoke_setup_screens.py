@@ -40,13 +40,18 @@ MAX_FRAMES = 4000
 # What the clicks ask for. The map is NOT config.MAP and the pairing is not the
 # configured one, so nothing here can pass by coincidence.
 WANTED_MAP = "map1"
-WANTED_BIOME = "forest"   # config.BIOME below stays on the default, "desert"
+WANTED_BIOME = "forest"   # config.BIOME below stays on the shipped default,
+                          # "arena" - which is the DRAWN biome, so a pass here
+                          # cannot come from the default in any sense: it is
+                          # not just a different folder, it is a different way
+                          # of producing the ground at all.
 WANTED = {"Player 1": "orks", "Player 2": "aeldari"}
 
 pygame.init()
 
 from game.factions.faction import faction_keyword_of  # noqa: E402
-from game.ui.army_select import ArmySelectScreen  # noqa: E402
+from game import army_lists  # noqa: E402
+from game.ui.army_select import ArmySelectScreen, STAGE_FACTION  # noqa: E402
 from game.ui.map_select import MapSelectScreen  # noqa: E402
 
 state = {"frames": 0, "clicked": [], "results": {}}
@@ -98,8 +103,21 @@ def fake_events():
         if tile is None:
             state["results"]["error"] = f"no tile for {WANTED_MAP!r}"
             raise SystemExit(0)
-        state["clicked"].append(("map", WANTED_MAP))
-        return _click(tile.rect.center)
+        # TWO BEATS, driven as two clicks on two frames - which is the whole
+        # point of the change (user: "erst auswaehlen, dann wird die
+        # entsprechende kachel gehighlightet und dann auf den auswahl button
+        # unten druecken"). Selecting must leave the screen UP; only the footer
+        # button ends it. Both halves are recorded so the assertions below can
+        # tell them apart.
+        if picker.selected is not tile.battle_map:
+            state["clicked"].append(("map-select", WANTED_MAP))
+            state["results"]["map_still_up_after_select"] = True
+            return _click(tile.rect.center)
+        if picker.footer.confirm is None:
+            return []   # wait for the frame that draws the button
+        state["results"]["map_selected_before_confirm"] = picker.selected.key
+        state["clicked"].append(("map-confirm", WANTED_MAP))
+        return _click(picker.footer.confirm.center)
 
     screen = _live_screen(ArmySelectScreen)
     if screen is not None:
@@ -108,7 +126,13 @@ def fake_events():
         player = screen.current_player
         if not screen.tiles or player is None:
             return []
-        wanted = WANTED[player]
+        # TWO STEPS PER PLAYER now (user: "erst waehlt man das Volk und dann
+        # kommen die verschiedenen Listen zur Auswahl. also in 2 Stufen"), so
+        # what this step wants depends on which of them is on screen: the
+        # faction that owns the list, then the list itself.
+        wanted_list = WANTED[player]
+        wanted = (army_lists.faction_of(wanted_list)
+                  if screen.stage == STAGE_FACTION else wanted_list)
         tile = next((t for t in screen.tiles if t.entry.key == wanted), None)
         if tile is None:
             state["results"]["error"] = f"no tile for {wanted!r}"
@@ -121,8 +145,16 @@ def fake_events():
             state["results"]["hover_unit"] = tile.cells[0][1].label
             screen.track_pointer(tile.cells[0][0].center)
             state["results"]["hover_resolved"] = screen.hovered_entry is tile.cells[0][1]
-        state["clicked"].append((player, wanted))
-        return _click(tile.rect.center)
+        # Two beats here too - see the map branch above.
+        if screen.selected_key != wanted:
+            state["clicked"].append((player, "select", wanted))
+            return _click(tile.rect.center)
+        if screen.footer.confirm is None:
+            return []   # wait for the frame that draws the button
+        state["results"].setdefault("army_selected_before_confirm", {})[player] = \
+            screen.selected_key
+        state["clicked"].append((player, "confirm", wanted))
+        return _click(screen.footer.confirm.center)
 
     loc = _frame_with(lambda l: "scene_units" in l and "armies" in l and "battle_map" in l)
     if loc is None:
@@ -146,6 +178,11 @@ def fake_events():
     results["board"] = (config.BOARD_WIDTH_IN, config.BOARD_HEIGHT_IN)
     results["armies"] = dict(loc["armies"])
     results["seer_council"] = tuple(config.SEER_COUNCIL_PLAYERS)
+    # The Aeldari list fields a PAIR, so both of its settings have to arrive -
+    # a pair whose second half never reaches config is precisely the "built but
+    # never fed" failure that no unit test can see, because a unit test calls
+    # apply_to_config() itself.
+    results["path_of_the_outcast"] = tuple(config.PATH_OF_THE_OUTCAST_PLAYERS)
     results["awakened_dynasty"] = tuple(config.AWAKENED_DYNASTY_PLAYERS)
     per_player = {}
     for entry in loc["scene_units"]:
@@ -200,11 +237,35 @@ print(f"clicked: {state['clicked']}")
 if "error" in results:
     print("ERROR:", results["error"])
 
+# FOUR army steps now, not two: each player answers a faction and then one of
+# that faction's lists, and each of those is still two beats (select, confirm).
+# Written out in full rather than counted, because the ORDER is the claim - a
+# faction step that ran after its own list step would still be four entries.
 check("every step was answered by the harness, not by an agent",
-      [p for p, _k in state["clicked"]] == ["biome", "map", "Player 1", "Player 2"],
+      [(c[0], c[1] if len(c) > 1 else None, c[2] if len(c) > 2 else None)
+       for c in state["clicked"]]
+      == [("biome", "forest", None),
+          ("map-select", "map1", None), ("map-confirm", "map1", None),
+          ("Player 1", "select", "ORKS"), ("Player 1", "confirm", "ORKS"),
+          ("Player 1", "select", "orks"), ("Player 1", "confirm", "orks"),
+          ("Player 2", "select", "AELDARI"), ("Player 2", "confirm", "AELDARI"),
+          ("Player 2", "select", "aeldari"), ("Player 2", "confirm", "aeldari")],
       str(state["clicked"]))
+# The two beats, in the REAL loop rather than in the unit test: selecting a
+# tile leaves the screen up, and only the footer button ends it. If a tile
+# click ever commits again, the harness reaches the confirm branch on the
+# following frame and finds no screen at all - so these keys go missing.
+check("selecting a map left the screen up rather than ending it",
+      results.get("map_still_up_after_select") is True,
+      str(results.get("map_still_up_after_select")))
+check("...and the map was already selected when Confirm was pressed",
+      results.get("map_selected_before_confirm") == WANTED_MAP,
+      str(results.get("map_selected_before_confirm")))
+check("both army steps were selected before being confirmed",
+      results.get("army_selected_before_confirm") == WANTED,
+      str(results.get("army_selected_before_confirm")))
 check("the biome click reached config", results.get("biome") == WANTED_BIOME,
-      f"got {results.get('biome')}, want {WANTED_BIOME} (config.BIOME is desert)")
+      f"got {results.get('biome')}, want {WANTED_BIOME} (config.BIOME ships as arena)")
 check("...and the renderer reads its ground art out of that biome's folder",
       results.get("ground_folder") == "Forest", str(results.get("ground_folder")))
 check("main() plays on the map that was clicked", results.get("map") == WANTED_MAP,
@@ -225,19 +286,26 @@ check("Player 2 is on the board as AELDARI",
 check("Player 1 fields the whole Ork list (14 units)",
       results.get("unit_counts", {}).get("Player 1") == 14,
       str(results.get("unit_counts", {}).get("Player 1")))
-# 12, down from 13: the Shroud Runners -> Windriders swap merged the Warlock
-# Skyrunner - which stood alone only because its JOIN names WINDRIDERS and the
-# list fielded none - into the Windriders. One list entry fewer on the table is
-# what an attachment LOOKS like, and is not a unit going missing (the model
-# count is unchanged); see game/army_lists.py's roster docstring.
-check("Player 2 fields the whole Aeldari list (12 units)",
-      results.get("unit_counts", {}).get("Player 2") == 12,
+# 11, down from 12: the 2026-09-01 revision took out the Falcon and the Shining
+# Spears and put in the Avatar of Khaine, who has no LEADER line and so stands
+# as a unit of his own. Two entries out, one in. (The revision before this one
+# lost a unit for the opposite reason - the Warlock Skyrunner MERGED into the
+# Windriders, which is what an attachment looks like on the table rather than a
+# unit going missing.) See game/army_lists.py's roster docstring.
+check("Player 2 fields the whole Aeldari list (11 units)",
+      results.get("unit_counts", {}).get("Player 2") == 11,
       str(results.get("unit_counts", {}).get("Player 2")))
 # The detachment settings have to follow the lists, not stay where config left
 # them - this is the half that silently leaves a player running a detachment
 # whose army is not on the table.
 check("Seer Council moved to the Aeldari player", results.get("seer_council") == ("Player 2",),
       str(results.get("seer_council")))
+# BOTH halves of the pair, through the real main(): the second detachment is
+# the one that would go missing silently, because everything else on this
+# screen keeps working without it.
+check("...and so did Path of the Outcast, the list's second detachment",
+      results.get("path_of_the_outcast") == ("Player 2",),
+      str(results.get("path_of_the_outcast")))
 check("nobody runs Awakened Dynasty without Necrons",
       results.get("awakened_dynasty") == (), str(results.get("awakened_dynasty")))
 

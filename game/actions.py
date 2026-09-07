@@ -65,9 +65,17 @@ class ActionDefinition:
     """
 
     def __init__(self, key, name, starts, units, completes, effect,
-                 use_limit=None, target_options=None, completes_immediately=False):
+                 use_limit=None, target_options=None, completes_immediately=False,
+                 result_slot=None):
         self.key = key
         self.name = name
+        # What the mission that owns this action calls its own completions when
+        # it stores them ("cleansed_this_turn", "plundered_this_turn"). It
+        # belongs on the action because the WORD is the mission's, not the
+        # framework's - and it lives here rather than in an if/elif at the
+        # storing end, which is where it started and where a fourth action
+        # would have had to land as an else branch.
+        self.result_slot = result_slot or ("%s_this_turn" % key)
         self.starts = starts              # a phase constant, for the caller to gate on
         self._units = units
         self._completes = completes
@@ -180,6 +188,7 @@ class ActionController:
         self.game_log = game_log
         self.states = []              # ActionState, this turn only
         self.completed_this_turn = []  # [(ActionState, ...)] resolved at the turn's end
+        self._resolved_for = None      # the player resolve_end_of_turn() has already run for
 
     # ------------------------------------------------------------ queries
 
@@ -265,7 +274,19 @@ class ActionController:
 
         Cleanse is the only action so far and completes at the end of the turn;
         an action that completes elsewhere would be resolved from its own hook
-        and simply not be in this list."""
+        and simply not be in this list.
+
+        IDEMPOTENT PER PLAYER PER TURN, and that is load-bearing rather than
+        tidiness: TWO mission systems now own actions (the Secondary card deck
+        and the Force Disposition Primary), both are asked at the same turn
+        boundary, and both need the same answer. Resolving twice would fire
+        every EFFECT twice - silently, because an effect returns nothing. So
+        the second caller gets the stored list back instead. Cleared by
+        reset_for_turn(), which main.py calls once per turn after both have
+        read it."""
+        if self._resolved_for == player:
+            return self.completed_this_turn
+        self._resolved_for = player
         completed = []
         for state in self.states:
             if state.squad.owner != player:
@@ -300,6 +321,7 @@ class ActionController:
         """16.01's bookkeeping is per TURN: "it started another action this
         turn", and both locks last "until the end of the turn"."""
         self.states = []
+        self._resolved_for = None
 
     def _log(self, message, file_only=False):
         if self.game_log is not None:

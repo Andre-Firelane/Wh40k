@@ -61,7 +61,7 @@ it back is a real option for a human - a bigger D3 is worth more when more
 models are down - which is why the prompt is not simply skipped for everyone.
 """
 
-from game import attached_units, model_return
+from game import ai_mode, attached_units, model_return
 from game.formation_layout import returning_positions
 from game.squad import is_below_starting_strength
 from game.turn import PHASE_COMMAND
@@ -99,7 +99,8 @@ class GrotOrderlyController:
     from the start of the Fight phase."""
 
     def __init__(self, dice_manager=None, decision_manager=None, game_log=None,
-                 game_state=None, position_valid=None, auto_players=()):
+                 game_state=None, position_valid=None, auto_players=(),
+                 placer=None):
         self.dice_manager = dice_manager
         self.decision_manager = decision_manager
         self.game_log = game_log
@@ -109,7 +110,12 @@ class GrotOrderlyController:
         # every other placement in the game (board edge, Dense terrain that
         # blocks this model, overlap with another unit's models).
         self.position_valid = position_valid
-        self.auto_players = set(auto_players)
+        # ReturnPlacementController (game/return_placement.py). Rule
+        # 01.02.03 makes a returning model SET UP, so a human sets it up;
+        # an owner in auto_players still lands on the spot computed here.
+        # Optional, so a caller that hands none over keeps the older path.
+        self.placer = placer
+        self.auto_players = ai_mode.players(auto_players)
         self._used = set()     # id(bearer model) - once per battle, never cleared
         self._pending = None   # {"squad", "bearer"} while the D3 is on the table
 
@@ -221,12 +227,16 @@ class GrotOrderlyController:
             self._log(f"Grot Orderly ({squad.name}): rolled a {rolled}, but there is nothing to return.")
             return
         spots = returning_positions(squad, candidates, position_valid=self._valid_for)
-        returned = []
-        for model, spot in zip(candidates, spots):
-            if spot is None:
-                continue
-            self._return_model(squad, model, spot)
-            returned.append(model)
+        if self.placer is not None:
+            returned = self.placer.place(squad, candidates, spots,
+                                         validator=self._valid_for)
+        else:
+            returned = []
+            for model, spot in zip(candidates, spots):
+                if spot is None:
+                    continue
+                self._return_model(squad, model, spot)
+                returned.append(model)
         if not returned:
             self._log(
                 f"Grot Orderly ({squad.name}): rolled a {rolled}, but no returning model could be "

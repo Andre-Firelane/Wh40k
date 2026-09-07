@@ -26,48 +26,46 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import testkit as tk  # noqa: E402
-from game import army_lists, config, detachments, retaliation_cadre as rc  # noqa: E402
+from game import army_lists, config, detachments, enhancements, retaliation_cadre as rc  # noqa: E402
 from game.factions import aeldari, death_guard, necrons, orks, tau_empire  # noqa: E402
 
 c = tk.Checks("detachments")
 
 
-class settings_as:
-    """These are real module-level globals; a test that left one set would
-    change what every later test measures."""
-
-    def __init__(self, **values):
-        self.values = values
-
-    def __enter__(self):
-        self.old = {k: getattr(config, k) for k in self.values}
-        for key, value in self.values.items():
-            setattr(config, key, value)
-        return self
-
-    def __exit__(self, *exc):
-        for key, value in self.old.items():
-            setattr(config, key, value)
-
+# The one definition lives in testkit - eight suites had their own copy.
+settings_as = tk.settings_as
 
 class fielding:
     """Give an army list a different set of detachments for one block.
 
     ArmyList entries are module-level singletons shared by every test in the
     process - the same trap UnitProfile's class attributes are - so this puts
-    the real tuple back."""
+    the real tuple back.
 
-    def __init__(self, army_key, names):
+    IT ALSO CLEARS THE FORCE DISPOSITION, and that is not tidying. A list may
+    only declare a disposition one of its detachments permits
+    (game/force_dispositions.py, validate()'s fifth check), so a hypothetical
+    detachment set carries no opinion about which disposition the list would
+    have been written with - and leaving the real one in place makes every
+    block below fail on a rule none of them is about. Pass `disposition=` to
+    exercise that rule deliberately; test_force_dispositions.py is where it is
+    actually measured."""
+
+    def __init__(self, army_key, names, disposition=None):
         self.entry = army_lists.get(army_key)
         self.names = tuple(names)
+        self.disposition = disposition
 
     def __enter__(self):
         self.old = self.entry.detachments
+        self.old_disposition = self.entry.force_disposition
         self.entry.detachments = self.names
+        self.entry.force_disposition = self.disposition
         return self.entry
 
     def __exit__(self, *exc):
         self.entry.detachments = self.old
+        self.entry.force_disposition = self.old_disposition
 
 
 FACTION_MODULES = [
@@ -128,11 +126,14 @@ c.eq("War Horde alone declares no config setting", without, ["War Horde"])
 # The detachments belong to the LIST.
 c.true("ArmyList carries a TUPLE of detachments",
        isinstance(army_lists.get("tau").detachments, tuple))
-# T'au is the only list fielding two at once - the 2026-08-30 roster declares
-# Kauyon + Advanced Acquisition Cadre, which is 2+1 DP against a budget of 3.
+# TWO lists field two at once, and both spend exactly the 3 DP budget: T'au's
+# 2026-08-30 roster declares Kauyon + Advanced Acquisition Cadre (2+1), and the
+# Aeldari list declares Seer Council + Path of the Outcast (2+1). Neither pair
+# shares an exclusion tag, so the tag rule permits both.
 for key, expected in [("tau", ["Kauyon", "Advanced Acquisition Cadre"]),
                       ("necrons", ["Awakened Dynasty"]),
-                      ("aeldari", ["Seer Council"]), ("orks", ["War Horde"]),
+                      ("aeldari", ["Seer Council", "Path of the Outcast"]),
+                      ("orks", ["War Horde"]),
                       ("death_guard", ["Death Lord's Chosen"])]:
     c.eq("%s fields %s" % (key, expected), detachments.names_for(key), expected)
 c.eq("every predefined list is legal",
@@ -326,33 +327,29 @@ c.true("...because the armies it does store imply them", "def armies_in(path):" 
 _tau_points = lambda: sum(s.points for s in army_lists.preview_squads("tau", "Player 1")
                           if s.points)
 _base_points = _tau_points()
-c.eq("the roster as supplied buys no Enhancement, so its points are its units'",
-     _base_points, 2030)
+c.eq("the roster as supplied buys six Enhancements, and its points include them",
+     _base_points, 2165)
 
+# THE POINT OF THIS BLOCK: an Enhancement is part of the LIST, so its points are
+# answerable at PREVIEW time - before anything is written to config. That is
+# what keeps the army screen's tile and the battle agreeing.
+_enh_points = sum(enhancements.get(n).points
+                  for n in army_lists.get("tau").enhancement_names())
+c.eq("...and those six are 115 of them", _enh_points, 115)
+c.eq("so the units alone come to 2050", _base_points - _enh_points, 2050)
 
-class granting:
-    """Populate game/army_lists.py's Enhancement table for the duration."""
+# Swapping the declared detachment does NOT move the points: the units are
+# built and priced the same either way, and it is is_active() that refuses an
+# Enhancement whose detachment is not fielded. Which is the honest division -
+# the roster is what it is, the rules decide what it does.
+with fielding("tau", ["Mont'ka"]):
+    c.eq("a list declaring another detachment still costs the same",
+         _tau_points(), _base_points)
 
-    def __init__(self, table):
-        self.table = table
-
-    def __enter__(self):
-        self.old = army_lists._TAU_LIST_ENHANCEMENTS
-        army_lists._TAU_LIST_ENHANCEMENTS = self.table
-
-    def __exit__(self, *exc):
-        army_lists._TAU_LIST_ENHANCEMENTS = self.old
-
-
-_kauyon_table = {"Kauyon": ("Exemplar of the Kauyon", "Cadre Fireblade")}
-with granting(_kauyon_table), fielding("tau", ["Kauyon"]):
-    c.eq("a declared detachment's Enhancement shows up in the PREVIEW's points",
-         _tau_points(), _base_points + 20)
-with granting(_kauyon_table), fielding("tau", ["Mont'ka"]):
-    c.eq("...and a list not declaring it gets nothing", _tau_points(), _base_points)
 army_src = io.open("game/army_lists.py", encoding="utf-8").read()
-c.true("the Enhancement grant reads the LIST's detachments, not config",
-       "for detachment in get(TAU_ARMY).detachments:" in army_src)
+roster_src = io.open("game/army_roster.py", encoding="utf-8").read()
+c.true("the Enhancement grant runs where the units are built",
+       "enhancements.grant(" in roster_src)
 c.true("...so it is answerable before anything is applied to config",
        "player_has_detachment" not in army_src)
 

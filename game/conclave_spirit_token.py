@@ -38,7 +38,7 @@ at the two names, with a Wraithlord as an explicit negative case.
 THE AI DECLINES (standing Aeldari instruction).
 """
 
-from game import aeldari_detachments, shepherds_of_the_dead
+from game import aeldari_detachments, ai_mode, shepherds_of_the_dead
 from game.objectives import is_within_range_of_objective
 from game.stratagems import Stratagem
 from game.turn import PHASE_MOVEMENT
@@ -94,7 +94,7 @@ class SpiritTokenController:
         self.turn_tracker = turn_tracker
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._pending = {}
         self._stratagem = Stratagem(
             name=SPIRIT_TOKEN_NAME, cp_cost=SPIRIT_TOKEN_CP, effect=self._secure,

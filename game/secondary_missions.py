@@ -62,13 +62,39 @@ from game.turn import PHASE_SHOOTING
 # Beacon's "round 5" IS that last round, so it is read from there rather
 # than written out again - the two would otherwise drift apart silently.
 from game.missions import BATTLE_ROUNDS
+# MissionContext and the board geometry moved to game/mission_context.py when
+# the PRIMARY missions became their second consumer (see that module's
+# docstring for why they moved rather than being imported the other way).
+#
+# RE-EXPORTED, not re-implemented: every card predicate below and every one of
+# test_secondary_missions.py's checks still reads these names off this module,
+# so the extraction is behaviour-neutral BY CONSTRUCTION rather than by having
+# been checked. Same idiom as game/retaliation_cadre.py's is_tau_unit and
+# game/tau_detachments.py's has_detachment; the test pins that these are the
+# SAME OBJECTS, which is the only thing that makes "by construction" true.
+from game.mission_context import (  # noqa: F401  (re-exported for the cards)
+    MissionContext,
+    _board_box,
+    _live_squads,
+    _model_wholly_in_rect,
+    _non_home_objectives,
+    _other_player,
+    _unit_within_of_point,
+    _zone_centre,
+    board_centre,
+    enemy_home_objective,
+    in_own_territory,
+    model_distance_to_point,
+    no_mans_land_objectives,
+    objective_centre,
+    own_home_objective,
+    quarters_with_presence,
+    table_quarters,
+    unit_has_presence_in,
+    zone_distance,
+)
+from game.mission_context import CENTRE_EXCLUSION_IN
 
-
-def _other_player(player):
-    # A local copy, matching this codebase's usual per-module small-helper
-    # convention - game/missions.py and several other modules each keep their
-    # own rather than sharing one.
-    return "Player 2" if player == "Player 1" else "Player 1"
 
 # A card's scoring instant. The two supplied cards differ, and the difference
 # is printed on them: Centre Ground says "END OF YOUR TURN", Bring It Down says
@@ -143,7 +169,12 @@ OUTFLANK_EDGE_RANGE_IN = 6.0        # "within 6\" of one or more battlefield edg
 OUTFLANK_ONE_EDGE_VP = 3
 OUTFLANK_OPPOSITE_EDGES_VP = 5
 
-ENGAGE_CENTRE_EXCLUSION_IN = 6.0  # "not within 6\" of the battlefield centre"
+# "not within 6\" of the battlefield centre". Renamed away from this card and
+# moved to game/mission_context.py once Reconnaissance Sweep (Primary) turned
+# out to print the same clause word for word; kept here under the old name
+# because this card's own checks read it by that name. ONE definition - the
+# test pins the two are the same value, not two 6.0s.
+ENGAGE_CENTRE_EXCLUSION_IN = CENTRE_EXCLUSION_IN
 ENGAGE_THREE_QUARTERS_VP = 3      # TACTICAL; the FIXED half prints 2 and is ignored per the user
 ENGAGE_FOUR_QUARTERS_VP = 5       # TACTICAL; FIXED prints 4
 
@@ -163,213 +194,6 @@ CLEANSE_MANY_VP = 5  # "Two or more objectives were cleansed this turn"
 
 BEACON_OUTSIDE_DEPLOYMENT_VP = 3  # "on the battlefield and outside your deployment zone"
 BEACON_OUTSIDE_TERRITORY_VP = 5   # "...and outside your territory" - user: territory = your half of the board
-
-
-def board_centre():
-    """The centre of the battlefield, in inches. Read from config at CALL time
-    - maps.apply_to_config() writes the board dimensions at startup, so a
-    module-level copy would be the pre-map board (see game/config.py's own note
-    forbidding `from game.config import BOARD_WIDTH_IN`)."""
-    return (config.BOARD_WIDTH_IN / 2.0, config.BOARD_HEIGHT_IN / 2.0)
-
-
-def model_distance_to_point(model, x_in, y_in):
-    """Base-EDGE distance from a model to a bare point, the same
-    edge-not-centre convention game/squad.py's edge_distance() uses between two
-    models. Kept local: this is its only consumer, and this repo's rule is to
-    extract at the SECOND one, not in anticipation."""
-    dx = model.x_in - x_in
-    dy = model.y_in - y_in
-    return max(0.0, (dx * dx + dy * dy) ** 0.5 - model.radius_in)
-
-
-def objective_centre(objective):
-    """The middle of an objective's terrain footprint, in inches. An Objective
-    is a TerrainArea (13.01) made of axis-aligned features, so this is the
-    centre of their common bounding box - the same `bounding_box` the renderer
-    already draws the marker's outline from."""
-    min_x, min_y, max_x, max_y = objective.terrain_area.bounding_box
-    return ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
-
-
-def zone_distance(zone, x_in, y_in):
-    """Distance from a point to the nearest edge of a deployment zone, 0 if
-    inside it.
-
-    This WAS a second, hand-written copy of DeploymentZone.distance_to_point()
-    - identical arithmetic, and the two disagreed only on the empty-zone
-    fallback (0.0 there, inf here; see shapes.Union.signed_distance for which
-    one won and why). Kept as a name because six call sites read it, but it is
-    now the one definition asked once, so a zone that is not a rectangle list
-    answers here too."""
-    return zone.distance_to_point(x_in, y_in)
-
-
-def _board_box():
-    return (0.0, 0.0, config.BOARD_WIDTH_IN, config.BOARD_HEIGHT_IN)
-
-
-def _zone_centre(zone):
-    """A representative point inside the zone. Sampled from the shape rather
-    than averaged over rectangle centres, so it is still inside for a diagonal
-    or holed zone - a rectangle-centre average is only meaningful while the
-    zone IS rectangles."""
-    return zone.centroid(board_box=_board_box())
-
-
-def in_own_territory(ctx, x_in, y_in):
-    """Whether a point is in `ctx.player`'s own half of the board.
-
-    User's definition, supplied with the Beacon card: "Territory heisst einfach
-    ausserhalb meiner Spielfeldhaelfte" - so territory is a HALF-BOARD, a much
-    bigger area than the deployment zone inside it, which is why Beacon pays 5
-    for leaving it and only 3 for leaving the zone.
-
-    Which half is whose is DERIVED from where the two deployment zones sit
-    rather than assumed, and the derivation is the PERPENDICULAR BISECTOR of
-    the line between the two zone centres: your territory is every point
-    closer to your own zone than to your opponent's. That is the split for a
-    diagonal or corner deployment as much as for a banded one - the dividing
-    line simply turns with the zones instead of being picked from two board
-    axes.
-
-    It replaces exactly that axis pick ("whichever of x/y separates them,
-    split the board in half there"), which could only ever produce a
-    horizontal or a vertical line. Behaviour-neutral where the old form
-    applied: measured over a 201x201 grid on all three shipped maps for both
-    players, 0 of 40401 points change hands on each - the shipped zones are
-    symmetric about the board centre, so their bisector IS the old centre
-    line.
-
-    Falls back to "everything is your territory" when the zones are unknown -
-    that scores 0 rather than inventing a free 5 VP."""
-    mine = [z for z in ctx.deployment_zones if z.owner == ctx.player]
-    theirs = [z for z in ctx.deployment_zones if z.owner == ctx.opponent]
-    if not mine or not theirs:
-        return True
-    my_cx, my_cy = _zone_centre(mine[0])
-    their_cx, their_cy = _zone_centre(theirs[0])
-    # Squared distances: same comparison, no sqrt - this is read once per model
-    # per scoring card.
-    to_mine = (x_in - my_cx) ** 2 + (y_in - my_cy) ** 2
-    to_theirs = (x_in - their_cx) ** 2 + (y_in - their_cy) ** 2
-    return to_mine <= to_theirs
-
-
-def no_mans_land_objectives(ctx):
-    """The objectives in No Man's Land - i.e. inside NOBODY's deployment zone.
-
-    That single test also delivers the card's "excl. home objectives" clause
-    for free, and does it without reading names: every map here places its home
-    objectives inside their owner's zone, so "not in a deployment zone" and
-    "not a home objective" pick out the same set. Deriving it from geometry
-    rather than from the string "Home" means a renamed or newly added objective
-    is classified correctly on its own."""
-    out = []
-    for objective in ctx.objectives:
-        cx, cy = objective_centre(objective)
-        if not any(z.contains_point(cx, cy) for z in ctx.deployment_zones):
-            out.append(objective)
-    return out
-
-
-def _live_squads(tokens):
-    """Every squad with at least one model still on the board. Derived from
-    tokens rather than from a squad list so a wiped-out unit cannot linger -
-    the same source main.py's own `{t.squad for t in state.tokens}` sets use."""
-    return {t.squad for t in tokens if t.squad is not None and t.squad.models}
-
-
-def _unit_within_of_point(squad, x_in, y_in, range_in):
-    return any(model_distance_to_point(m, x_in, y_in) <= range_in for m in squad.models)
-
-
-class MissionContext:
-    """Everything a card's predicate is allowed to look at. A plain bag rather
-    than passing five arguments around: a new card that needs one more fact
-    adds a field here instead of changing every predicate's signature."""
-
-    def __init__(self, player, tokens=(), turn_tracker=None, ending_player=None,
-                 destroyed_this_turn=(), destroyed_squads_this_turn=(),
-                 destroyed_characters_this_battle=(), all_squads=None,
-                 objectives=(), deployment_zones=(), card_state=None,
-                 battle_round=None, embarked_squads=(), hand=(), terrain_areas=(),
-                 on_objective_at_turn_start=()):
-        # The cards currently in hand. Two cards ask whether ANOTHER card is
-        # "active" (Cleanse about Plunder and vice versa), which is the only
-        # thing in this module that looks sideways at the rest of the hand.
-        self.hand = list(hand)
-        # Terrain areas (13.01) - Plunder's targets.
-        self.terrain_areas = list(terrain_areas)
-        # id(squad) for every enemy unit that was within range of an objective
-        # at the START of this turn. A snapshot, because Overwhelming Force
-        # asks about a moment that has passed by the time it scores - and about
-        # units that no longer exist.
-        self.on_objective_at_turn_start = set(on_objective_at_turn_start)
-        # The battle round the ENDING TURN belonged to. Passed in rather than
-        # read off turn_tracker: begin_end_of_turn() runs AFTER
-        # TurnTracker.advance_phase(), which - when the second player's turn
-        # ends - has already incremented battle_round. A card asking "is this
-        # round 5" would then see 6 and never fire.
-        self.battle_round = battle_round
-        # Units inside a TRANSPORT (18.02). Neither on the board nor in
-        # reserves; Beacon's setup explicitly offers them.
-        self.embarked_squads = list(embarked_squads)
-        # Board furniture, for cards that talk about places rather than kills.
-        self.objectives = list(objectives)
-        self.deployment_zones = list(deployment_zones)
-        # The per-card scratchpad. A card that remembers something across the
-        # battle (which objective is your tempting target, which unit is your
-        # beacon) MUST keep it here and not on itself: the SecondaryMissionCard
-        # objects are module-level singletons shared by every battle, and
-        # writing state onto one is the shared-class-attribute trap this
-        # codebase already documents for UnitProfile. The controller owns the
-        # dict, keyed by card, so two battles cannot see each other's choices.
-        self.card_state = {} if card_state is None else card_state
-        self.player = player
-        self.tokens = list(tokens)
-        self.turn_tracker = turn_tracker
-        self.ending_player = ending_player
-        # Models destroyed since the last turn boundary, both sides. Cards that
-        # say "destroyed this turn" read this; nothing else does.
-        self.destroyed_this_turn = list(destroyed_this_turn)
-        # Whole UNITS wiped out since the last turn boundary. A separate list,
-        # not derived from the models above: "unit destroyed" is main.py's own
-        # attached_units.unit_is_destroyed() judgement (19.01 merges a leader
-        # into its bodyguard squad, so a half-dead unit is not a destroyed
-        # one), and re-deriving it here would be a second opinion on a question
-        # the engine already answers.
-        self.destroyed_squads_this_turn = list(destroyed_squads_this_turn)
-        # Enemy CHARACTER models destroyed at ANY point in the battle - a
-        # longer lifetime than everything above, for Assassination's
-        # "have been destroyed during the battle" clause.
-        self.destroyed_characters_this_battle = list(destroyed_characters_this_battle)
-        # Every unit still in the game, wherever it is - board, Strategic
-        # Reserves (03.02) or embarked in a transport (18.02). `tokens` is the
-        # BOARD only, so a card asking "are any left at all" must not use it:
-        # a character sitting in reserves is not on the battlefield and is also
-        # very much not destroyed. main.py supplies state.all_squads().
-        self._all_squads = None if all_squads is None else list(all_squads)
-
-    @property
-    def opponent(self):
-        return _other_player(self.player)
-
-    def friendly_squads(self):
-        return [sq for sq in _live_squads(self.tokens) if sq.owner == self.player]
-
-    def enemy_squads(self):
-        return [sq for sq in _live_squads(self.tokens) if sq.owner != self.player]
-
-    def all_squads(self):
-        """Board + reserves + embarked. Falls back to the board alone when no
-        richer source was supplied (tests that only care about the board)."""
-        if self._all_squads is None:
-            return list(_live_squads(self.tokens))
-        return [sq for sq in self._all_squads if sq is not None and sq.models]
-
-    def living_enemy_models(self):
-        return [m for sq in self.all_squads() if sq.owner != self.player for m in sq.models]
 
 
 class SecondaryMissionCard:
@@ -487,9 +311,9 @@ class SecondaryMissionCard:
     def detail(self, ctx):
         return self._detail(ctx) if self._detail is not None else None
 
-    def info_lines(self):
-        """The facts about this card that its printed prose does NOT carry,
-        as short "LABEL  value" rows for the strip to show above the text.
+    def info_rows(self):
+        """The facts about this card that its printed prose does NOT carry, as
+        (LABEL, value) pairs for the strip to lay out above the text.
 
         User: "der info text fuer die missionen soll vollstaendiger sein. da
         fehlt zum beispiel das timing. da kann ruhig ein bisschen mehr stehen."
@@ -498,23 +322,38 @@ class SecondaryMissionCard:
         collapsed bar, so opening a card USED to hide it. Everything else here
         is a clause a player has to know about in advance - that the card needs
         an action and when that action can be started, and that it may offer to
-        be swapped out the moment it is drawn."""
-        lines = [f"WHEN     {self.timing_label}"]
+        be swapped out the moment it is drawn.
+
+        PAIRS, not padded strings. These used to be single strings with the
+        value pushed across by spaces ("WHEN     end of your turn"), which
+        silently assumed a monospace font - and config.FONT_NAME is None, i.e.
+        pygame's proportional default (measured: "WWWW" 37px vs "iiii" 12px),
+        so the columns never lined up. Worse, wrap_text() splits on spaces, so
+        the one row long enough to wrap ("ON DRAW ...", measured 323px against
+        a 226px card) lost its indent completely on the second line and read as
+        a new sentence. That is a large part of the user's "die sind gerade
+        sehr schwer lesbar". A pair lets the strip put the label in its own
+        column and wrap the value inside the other one."""
+        rows = [("WHEN", self.timing_label)]
         if self.min_battle_round:
-            lines.append(f"FROM     battle round {self.min_battle_round}")
+            rows.append(("FROM", f"battle round {self.min_battle_round}"))
         if self.action is not None:
-            lines.append(f"ACTION   {self.action.name}, started in your "
-                         f"{self.action.starts} phase")
-            lines.append("         "
-                         + ("completes immediately"
-                            if self.action.completes_immediately
-                            else "completes at the end of your turn")
-                         + "; the unit cannot shoot or charge this turn")
+            completes = ("completes immediately" if self.action.completes_immediately
+                         else "completes at the end of your turn")
+            rows.append(("ACTION", f"{self.action.name}, started in your "
+                                   f"{self.action.starts} phase; {completes}; "
+                                   f"the unit cannot shoot or charge this turn"))
         if self._when_drawn is not None:
             how = "shuffled back into the deck" if self.when_drawn_shuffles_back else "discarded"
             when = "is" if self.when_drawn_is_mandatory else "may be"
-            lines.append(f"ON DRAW  {when} {how} and replaced, if its clause applies")
-        return lines
+            rows.append(("ON DRAW", f"{when} {how} and replaced, if its clause applies"))
+        return rows
+
+    def info_lines(self):
+        """The same rows flattened to strings, for callers that only want to
+        read the text (tests, logs). Built FROM info_rows() so the two cannot
+        disagree."""
+        return [f"{label}  {value}" for label, value in self.info_rows()]
 
 
 # ------------------------------------------------------------- the two cards
@@ -952,59 +791,6 @@ def _no_prisoners(ctx):
     return min(NO_PRISONERS_MAX_VP, killed * NO_PRISONERS_VP_PER_UNIT)
 
 
-def table_quarters():
-    """The four table quarters, as (min_x, min_y, max_x, max_y) in inches.
-
-    Split at the battlefield centre on both axes - the plain reading of "table
-    quarter", and the only one that works on all three boards here (44x60
-    portrait, 60x44 landscape, 30x30 square) without special cases."""
-    centre_x, centre_y = board_centre()
-    width, height = config.BOARD_WIDTH_IN, config.BOARD_HEIGHT_IN
-    return [
-        (0.0, 0.0, centre_x, centre_y),          # NW
-        (centre_x, 0.0, width, centre_y),        # NE
-        (0.0, centre_y, centre_x, height),       # SW
-        (centre_x, centre_y, width, height),     # SE
-    ]
-
-
-def _model_wholly_in_rect(model, rect):
-    min_x, min_y, max_x, max_y = rect
-    r = model.radius_in
-    return (min_x <= model.x_in - r and model.x_in + r <= max_x
-            and min_y <= model.y_in - r and model.y_in + r <= max_y)
-
-
-def unit_has_presence_in(squad, rect, ctx):
-    """Engage on All Fronts' own definition of "presence":
-
-        "You have a presence in a table quarter if one or more friendly units
-        (excl. AIRCRAFT & battle-shocked) are wholly within it and not within
-        6" of the battlefield centre."
-
-    Two conditions on the SAME unit, and the second is the one that makes the
-    card hard: a unit parked on the middle of the board sits in a quarter but
-    is too close to the centre to count, so spreading out is not enough - you
-    have to spread out AWAY from the middle.
-
-    "Wholly within it" is measured per model base, so a unit straddling a
-    centre line is in neither quarter."""
-    if squad.battle_shocked or not squad.models:
-        return False
-    if not all(_model_wholly_in_rect(m, rect) for m in squad.models):
-        return False
-    centre_x, centre_y = board_centre()
-    return all(model_distance_to_point(m, centre_x, centre_y) > ENGAGE_CENTRE_EXCLUSION_IN
-               for m in squad.models)
-
-
-def quarters_with_presence(ctx):
-    quarters = table_quarters()
-    friendly = ctx.friendly_squads()
-    return [rect for rect in quarters
-            if any(unit_has_presence_in(sq, rect, ctx) for sq in friendly)]
-
-
 def _engage_on_all_fronts(ctx):
     """ENGAGE ON ALL FRONTS, Tactical half: 3 VP for a presence in three table
     quarters, 5 VP for four."""
@@ -1072,17 +858,6 @@ def expansion_objectives(ctx):
     return out
 
 
-def enemy_home_objective(ctx):
-    """The OPPONENT's home objective - own_home_objective() from the other
-    side, so the two cannot disagree about what "home" means."""
-    theirs = [z for z in ctx.deployment_zones if z.owner == ctx.opponent]
-    for objective in ctx.objectives:
-        cx, cy = objective_centre(objective)
-        if any(z.contains_point(cx, cy) for z in theirs):
-            return objective
-    return None
-
-
 def _forward_position(ctx):
     """FORWARD POSITION: "You control your opponent's home objective and/or
     each expansion objective."
@@ -1108,18 +883,6 @@ def _forward_position_detail(ctx):
     parts += [o.name for o in expansion_objectives(ctx)]
     return "Either: " + " OR all of: ".join([parts[0], ", ".join(parts[1:])]) if len(parts) > 1 \
         else ("Target: " + parts[0] if parts else "No qualifying objective on this map.")
-
-
-def own_home_objective(ctx):
-    """The card player's OWN home objective: the one inside their deployment
-    zone. Derived from geometry, like every other objective classification
-    here, so a renamed objective still resolves."""
-    mine = [z for z in ctx.deployment_zones if z.owner == ctx.player]
-    for objective in ctx.objectives:
-        cx, cy = objective_centre(objective)
-        if any(z.contains_point(cx, cy) for z in mine):
-            return objective
-    return None
 
 
 def unit_wholly_in_no_mans_land(squad, ctx):
@@ -1208,22 +971,6 @@ def _defend_stronghold_detail(ctx):
         return "This map has no home objective for you."
     holder = home.controlled_by or "nobody"
     return f"Your home objective: {home.name} (held by {holder})"
-
-
-def _non_home_objectives(ctx):
-    """Every objective except the card player's OWN home one.
-
-    Cleanse says "excl. your home objective" - singular and possessive, so the
-    ENEMY's home objective is a legal target. Derived from geometry like
-    no_mans_land_objectives(): a home objective is one inside its owner's
-    deployment zone, so "mine" is one inside MY zone."""
-    mine = [z for z in ctx.deployment_zones if z.owner == ctx.player]
-    out = []
-    for objective in ctx.objectives:
-        cx, cy = objective_centre(objective)
-        if not any(z.contains_point(cx, cy) for z in mine):
-            out.append(objective)
-    return out
 
 
 def cleanse_units(squad, ctx):
@@ -1554,6 +1301,7 @@ DISPLAY_OF_MIGHT = SecondaryMissionCard(
 
 PLUNDER_ACTION = ActionDefinition(
     key="plunder",
+    result_slot="plundered_this_turn",
     name="Plunder",
     starts=PHASE_SHOOTING,           # "STARTS: Your Shooting phase."
     units=plunder_units,
@@ -1610,6 +1358,7 @@ SECURE_NO_MANS_LAND = SecondaryMissionCard(
 
 CLEANSE_ACTION = ActionDefinition(
     key="cleanse",
+    result_slot="cleansed_this_turn",
     name="Cleanse",
     starts=PHASE_SHOOTING,          # "STARTS: Your Shooting phase."
     units=cleanse_units,
@@ -1749,11 +1498,6 @@ class SecondaryMissionController:
         # Per-card scratchpad, keyed by card KEY - see MissionContext.card_state
         # for why it lives here and not on the card objects.
         self.card_state = {}
-        # An open "click one of your units on the board" request, or None.
-        # {"prompt", "subject", "eligible", "on_pick", "on_skip", "skip_label"}
-        # - see request_unit_pick(). This is the one thing in this module the
-        # player answers on the BOARD rather than in the decision overlay.
-        self.pending_pick = None
         # Which battle round the two cards were last drawn in. The draw hook is
         # reachable from three call sites (the two battle-start paths and every
         # Command phase), so it has to be idempotent by round, not by call.
@@ -1804,49 +1548,39 @@ class SecondaryMissionController:
         muss auf der Map mein Einheit anklicken."
 
         `subject` is what the left panel names as the thing being decided (the
-        objective) - the whole reason this exists is that a bare "pick a unit"
+        objective) - the whole reason it exists is that a bare "pick a unit"
         prompt does not say which objective it is for.
 
-        `eligible` is the set of squads a click may resolve to; a click on
-        anything else is ignored rather than guessed at."""
-        self.pending_pick = {
-            "prompt": prompt,
-            "subject": subject,
-            "eligible": list(eligible),
-            "on_pick": on_pick,
-            "on_skip": on_skip,
-            "skip_label": skip_label,
-        }
+        THIS USED TO BE ITS OWN LITTLE PENDING SYSTEM (a `pending_pick` dict,
+        its own branch in main.py's event chain, its own screen in the panel) -
+        the only board pick in the game. It is now one ordinary
+        DecisionManager request whose options carry their squad, because every
+        such prompt works this way (user: "Immer wenn man eine einheit auf dem
+        schlachtfeld waehlen muss ... will ich die einheit nicht aus einer
+        liste waehlen, sondern auf dem schlachtfeld"). Two mechanisms for one
+        question is the drift this repo keeps consolidating - and the shared
+        one brings something this never had: the eligible units are RINGED on
+        the board, which the old screen's own docstring recorded as missing
+        ("nothing on the board itself marks which units qualify").
 
-    def pick_is_eligible(self, squad):
-        pick = self.pending_pick
-        return bool(pick) and any(sq is squad for sq in pick["eligible"])
-
-    def choose_picked_unit(self, squad):
-        """Resolve an open pick with the clicked squad. Ignores a click on
-        anything not eligible - returns whether it took."""
-        pick = self.pending_pick
-        if not pick or not self.pick_is_eligible(squad):
-            return False
-        self.pending_pick = None
-        pick["on_pick"](squad)
-        return True
-
-    def skip_pick(self):
-        """The panel's own button: decline this one and move on."""
-        pick = self.pending_pick
-        if not pick:
+        `eligible` is the set of squads a click may resolve to; game/unit_pick.py
+        ignores a click on anything else rather than guessing at it."""
+        if self.decision_manager is None:
             return
-        self.pending_pick = None
-        if pick["on_skip"] is not None:
-            pick["on_skip"]()
+        options = [(squad.name, (lambda s=squad: on_pick(s)), squad) for squad in eligible]
+        options.append((skip_label, on_skip if on_skip is not None else (lambda: None)))
+        self.decision_manager.request(self.player, prompt, options, subject=subject)
 
     @property
     def is_busy(self):
         """True while this controller still owes the human a prompt. Read by
         main.py's _has_unresolved_declaration() so the phase cannot advance out
         from under an open mission decision."""
-        return self._asking or bool(self._pending_scoring) or self.pending_pick is not None
+        # The board pick is NOT listed here any more: it lives in the shared
+        # DecisionManager queue now, and main.py's chain already gates on
+        # decision_manager.is_pending. Naming it twice would be a second
+        # answer to "is a prompt open" that could go stale on its own.
+        return self._asking or bool(self._pending_scoring)
 
     def sync_battle_round(self, battle_round):
         """Idempotent per-battle-round reset of the 15 VP ledger. Called on
@@ -2053,7 +1787,6 @@ class SecondaryMissionController:
                 skip_label="No guard here",
             )
             return
-        self.pending_pick = None
 
     def _take_guard(self, card, objective, squad, index):
         guards = self.card_state.setdefault(card.key, {}).setdefault("guards", {})
@@ -2126,7 +1859,7 @@ class SecondaryMissionController:
                     if state.definition is card.action and state.target is not None]
             # Each action card reads its own completions under its own name -
             # the word is the card's, not the framework's.
-            slot = "plundered_this_turn" if card.action.key == "plunder" else "cleansed_this_turn"
+            slot = card.action.result_slot
             self.card_state.setdefault(card.key, {})[slot] = done
 
     def record_destroyed_model(self, model):
@@ -2189,6 +1922,90 @@ class SecondaryMissionController:
         # it is done, which is also the only path when there is nothing to ask.
         self._offer_redraws(list(drawn), battle_round=battle_round)
         return drawn
+
+    # -- saving and restoring (game/scene_io.py) ---------------------------
+    #
+    # WHAT IS AND IS NOT SAVED, and the rule that decides it: anything scoped
+    # to ONE TURN is left out. That is not a shortcut - the autosave fires at
+    # the start of a battle round, and at that instant every turn-scoped field
+    # here is empty by construction. It is also the only way this can be
+    # written at all: an open board pick holds CALLBACKS and `_on_objective_at_
+    # turn_start` is keyed by id(squad), and neither survives a round trip
+    # through JSON.
+    #
+    # So: the deck, the hand, the discard pile, the two round ledgers, the
+    # battle-long character kill list, and the one card_state slot that
+    # outlives a turn - the objective (or unit) a WHEN DRAWN clause picked.
+    # Cards are module-level singletons shared by every battle, so they are
+    # stored by KEY; the objective and the unit are stored by NAME.
+    def save_state(self):
+        return {
+            "deck": [card.key for card in self.deck],
+            "hand": [card.key for card in self.hand],
+            "discarded": [card.key for card in self.discarded],
+            "drawn_round": self._drawn_round,
+            "scored_round": self._scored_round,
+            "scored_vp_this_round": self._scored_vp_this_round,
+            "destroyed_characters": [getattr(getattr(m, "profile", None), "name", None)
+                                     for m in self._destroyed_characters_this_battle],
+            # Only the battle-scoped slot. A key ending in _this_turn is by
+            # convention the turn-scoped kind and is deliberately dropped.
+            "picks": {key: getattr(state.get("objective"), "name", None)
+                      for key, state in self.card_state.items()
+                      if state.get("objective") is not None},
+        }
+
+    def load_state(self, data):
+        """Put a saved deck back. Returns the same kind of complaint list
+        restore() does - a key this build no longer has is reported rather
+        than silently dropped, because a hand that quietly shrinks is a
+        scoring difference nobody would notice."""
+        problems = []
+        by_key = {card.key: card for card in ALL_CARDS}
+
+        def _cards(field):
+            out = []
+            for key in data.get(field) or ():
+                card = by_key.get(key)
+                if card is None:
+                    problems.append(f"the snapshot's {field} names an unknown card {key!r}")
+                else:
+                    out.append(card)
+            return out
+
+        self.deck = _cards("deck")
+        self.hand = _cards("hand")
+        self.discarded = _cards("discarded")
+        self._drawn_round = data.get("drawn_round")
+        self._scored_round = data.get("scored_round")
+        self._scored_vp_this_round = data.get("scored_vp_this_round") or 0
+        # Only the LENGTH of this is ever read (Assassination asks whether any
+        # enemy character has died at all), so the names are enough.
+        self._destroyed_characters_this_battle = [
+            n for n in (data.get("destroyed_characters") or ()) if n
+        ]
+
+        # The WHEN DRAWN picks, resolved back to live objects by name. A pick
+        # that no longer exists - an objective on another map, a unit that is
+        # not in this roster - is reported and left unset rather than guessed
+        # at; the card then simply scores nothing, which is honest.
+        objectives = list(self._objectives_source()) if self._objectives_source else []
+        squads = list(self._squads_source()) if self._squads_source else []
+        if self._embarked_source:
+            squads += list(self._embarked_source())
+        by_name = {}
+        for thing in list(objectives) + list(squads):
+            by_name.setdefault(getattr(thing, "name", None), thing)
+        for key, name in (data.get("picks") or {}).items():
+            if key not in by_key:
+                problems.append(f"the snapshot picked a target for unknown card {key!r}")
+                continue
+            target = by_name.get(name)
+            if target is None:
+                problems.append(f"{key}'s saved target {name!r} is not in this scene")
+                continue
+            self.card_state.setdefault(key, {})["objective"] = target
+        return problems
 
     def _draw_one(self):
         """One card off the top, or None. The deck is NOT reshuffled when empty
@@ -2283,7 +2100,17 @@ class SecondaryMissionController:
             self.decision_manager.request(
                 self.player, card.draw_prompt,
                 [
-                    (label, lambda c=card, v=value, a=rest: self._take_setup_choice(c, v, a))
+                    # Tagged with the choice itself when the choice IS a unit, so
+                    # Beacon's "choose one of your units" is answered by clicking
+                    # it (game/unit_pick.py). draw_choices() is a generic hook -
+                    # a card may hand back an objective just as well - so the
+                    # value is duck-typed rather than assumed: only something
+                    # with models is a unit. Beacon also offers EMBARKED units,
+                    # which have no token to click; unit_pick refuses the whole
+                    # prompt then and it reads as the old list, which is the only
+                    # form those can be answered in.
+                    (label, lambda c=card, v=value, a=rest: self._take_setup_choice(c, v, a),
+                     value if getattr(value, "models", None) is not None else None)
                     for label, value in options
                 ],
             )

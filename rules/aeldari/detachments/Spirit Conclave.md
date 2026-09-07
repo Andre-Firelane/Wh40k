@@ -1,6 +1,6 @@
 # Spirit Conclave
 
-**Aeldari** - 2 DP detachment
+**Aeldari** - 2 DP detachment - Force Disposition: Take and Hold
 
 Source: <https://wahapedia.ru/wh40k11ed/factions/aeldari/>
 
@@ -8,7 +8,6 @@ Source: <https://wahapedia.ru/wh40k11ed/factions/aeldari/>
 
 ### Shepherds of the Dead
 
-When guided by a Spirit Conclave, the ghost warriors gain a clarity and prowess they would otherwise lack. Moreover, should the foe slay any of their precious spirit guides, the dead will surely have their vengeance.
 Each time an ASURYANI PSYKER model from your army is destroyed by an enemy unit, that enemy unit gains a Vengeful Dead token. Each time a WRAITH CONSTRUCT model from your army makes an attack that targets a unit with one or more Vengeful Dead tokens, add 1 to the Hit roll and add 1 to the Wound roll.
 
 ASURYANI PSYKER models from your army have the following ability:
@@ -22,25 +21,17 @@ WRAITHBLADES and WRAITHGUARD units from your army gain the BATTLELINE keyword.
 
 ### Light of Clarity - 30 pts
 
-The mind of this Spiritseer shines with psychic illumination, burning away the veils that cloud the senses of the dead.
-
 SPIRITSEER model only. In your Command phase, select one friendly WRAITH CONSTRUCT unit within 12" of the bearer. Until the start of your next Command phase, add 1 to the Objective Control characteristic of INFANTRY models in that unit and add 3 to the Objective Control characteristic of MONSTER models in that unit.
 
 ### Stave of Kurnous - 15 pts
-
-Wound about with finely inscribed myths of Kurnous, the Hunter, this wraithbone staff imbues ghost warriors with an echo of the slain god’s keen-eyed skill.
 
 SPIRITSEER model only. In your Command phase, select one friendly WRAITH CONSTRUCT unit within 12" of the bearer (excluding TITANIC units). Until the start of your next Command phase, each time a model in that unit makes an attack, on a Critical Wound, that attack has the [precision] ability.
 
 ### Rune of Mists - 10 pts
 
-This rare psychic rune binds occluding psychic energies about nearby wraith constructs to baffle the foe’s senses.
-
 SPIRITSEER model only. In your Command phase, select one friendly WRAITH CONSTRUCT unit within 12" of the bearer. Until the start of your next Command phase, each time a ranged attack targets that unit, unless the attacking model is within 18", models in that unit have the **Benefit of Cover** against that attack.
 
 ### Higher Duty - 25 pts
-
-Knowing their crucial role in guiding the ghost warriors, this seer chooses duty over personal glory.
 
 SPIRITSEER model only. In your opponent’s Movement phase, if an enemy unit ends a move within 8" of this unit, if this unit is not within **Engagement Range** of one or more enemy units, this unit can make a **Normal move** of up to 6".
 
@@ -58,8 +49,6 @@ Change to:
 
 *Spirit Conclave – Battle Tactic Stratagem*
 
-Seeing their prey as much through the eyes of their guiding seer as with any sense of their own, the wraith constructs strike swift and true.
-
 **WHEN:** Your Shooting phase or the Fight phase.
 
 **TARGET:** One AELDARI PSYKER model from your army and one friendly WRAITH CONSTRUCT unit within 12" of it that has not been selected to shoot or fight this phase.
@@ -69,8 +58,6 @@ Seeing their prey as much through the eyes of their guiding seer as with any sen
 ### WRAITHBONE ARMOUR - 1CP
 
 *Spirit Conclave – Battle Tactic Stratagem*
-
-The apparent fragility of wraith constructs’ lithe bodies be/ies their incredible resilience.
 
 **WHEN:** Your opponent’s Shooting phase or the Fight phase, just after an enemy unit has selected its targets.
 
@@ -82,8 +69,6 @@ The apparent fragility of wraith constructs’ lithe bodies be/ies their incredi
 
 *Spirit Conclave – Battle Tactic Stratagem*
 
-Sometimes, the twinned perceptions of ghost warriors allow them to perceive - and strike at - the souls of their foes.
-
 **WHEN:** Fight phase.
 
 **TARGET:** One WRAITHBLADES, WRAITHLORD or WRAITHKNIGHT unit from your army that has not been selected to fight this phase.
@@ -93,8 +78,6 @@ Sometimes, the twinned perceptions of ghost warriors allow them to perceive - an
 ### SOUL BRIDGE - 1CP
 
 *Spirit Conclave – Strategic Ploy Stratagem*
-
-It is risky for a Spiritseer to cast their awareness so far, but aiding the dead is sometimes necessary.
 
 **WHEN:** Your Command phase.
 
@@ -106,8 +89,6 @@ It is risky for a Spiritseer to cast their awareness so far, but aiding the dead
 
 *Spirit Conclave – Strategic Ploy Stratagem*
 
-By leaving psycho-resonant wraithbone markers upon the battlefield, these warriors wreathe vital strategic locations in an aura of dread not easily overcome.
-
 **WHEN:** Start of your Movement phase.
 
 **TARGET:** One WRAITHBLADES or WRAITHGUARD unit from your army.
@@ -117,8 +98,6 @@ By leaving psycho-resonant wraithbone markers upon the battlefield, these warrio
 ### CRUSHING STRIDES - 1CP
 
 *Spirit Conclave – Battle Tactic Stratagem*
-
-Elegant they may be, but the weight and implacable strength of wraith constructs on the charge can smash enemies to the ground bloody and broken.
 
 **WHEN:** Your Charge phase, just after a WRAITHBLADES, WRAITHLORD or WRAITHKNIGHT unit from your army ends a **Charge move**.
 

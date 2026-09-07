@@ -267,7 +267,8 @@ for label, mask in (("masked", corners), ("clip", None)):
     canvas = pygame.Surface((blend_board.width_px, blend_board.height_px))
     canvas.fill(BG_RGB)
     renderer = Renderer()
-    renderer._tile_texture(canvas, solid_path, blend_board, patch_rect, 3.0,
+    renderer._tile_texture(canvas, renderer._cached_tile(solid_path, blend_board, 3.0),
+                           patch_rect,
                            alpha=rmod.TERRAIN_TILE_ALPHA, mask_points=mask)
     drawn[label] = canvas.get_at(patch_rect.center)[:3]
     c.true(f"the {label} tile path blends once, to {expected} (got {drawn[label]})",
@@ -282,8 +283,9 @@ c.true(f"PRE-CHANGE: the masked path landed on 154, {expected[0] - 154} points "
 # rectangle, so "it clips" cannot pass by the tile simply not being drawn.
 canvas = pygame.Surface((blend_board.width_px, blend_board.height_px))
 canvas.fill(BG_RGB)
-Renderer()._tile_texture(
-    canvas, solid_path, blend_board, patch_rect, 3.0,
+masker = Renderer()
+masker._tile_texture(
+    canvas, masker._cached_tile(solid_path, blend_board, 3.0), patch_rect,
     alpha=rmod.TERRAIN_TILE_ALPHA,
     mask_points=[patch_rect.topleft, patch_rect.topright, patch_rect.bottomleft])
 c.eq("outside the mask polygon the ground is untouched",
@@ -297,10 +299,11 @@ c.true("...while inside it the texture is there",
 canvas = pygame.Surface((blend_board.width_px, blend_board.height_px))
 canvas.fill(BG_RGB)
 shared = Renderer()
-shared._tile_texture(canvas, solid_path, blend_board, patch_rect, 3.0,
+shared_tile = shared._cached_tile(solid_path, blend_board, 3.0)
+shared._tile_texture(canvas, shared_tile, patch_rect,
                      alpha=rmod.TERRAIN_TILE_ALPHA, mask_points=None)
 canvas.fill(BG_RGB)
-shared._tile_texture(canvas, solid_path, blend_board, patch_rect, 3.0,
+shared._tile_texture(canvas, shared_tile, patch_rect,
                      alpha=rmod.TERRAIN_TILE_ALPHA, mask_points=corners)
 c.true("a clip-path call leaves no alpha on the shared tile for the masked one",
        all(abs(g - e) <= TOL

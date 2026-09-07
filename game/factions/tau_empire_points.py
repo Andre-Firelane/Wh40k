@@ -49,14 +49,20 @@ TAU_EMPIRE_POINTS = {
             PointsTier({3: 100}, to_unit=2),
             PointsTier({3: 110}, from_unit=3),
         ],
-        wargear={"Missile pod": 5},
+        # PER WEAPON, not per swap: this datasheet's default already carries
+        # three missile pods, so the printed 100 is the unit WITHOUT them.
+        per_weapon={"Missile pod": 5},
     ),
+    # PRINTED: "1st to 2nd 3 models 100 / 3rd+ 3 models 110", plus "per T'au
+    # flamer 5". The 90/100 that used to stand here came from reading the
+    # printed number as the DEFAULT's cost (which carries three flamers) rather
+    # than as the base before them - see game/factions/points.py.
     "Crisis Starscythe Battlesuits": UnitPoints(
         [
-            PointsTier({3: 90}, to_unit=2),
-            PointsTier({3: 100}, from_unit=3),
+            PointsTier({3: 100}, to_unit=2),
+            PointsTier({3: 110}, from_unit=3),
         ],
-        wargear={"T'au flamer": 5},
+        per_weapon={"T'au flamer": 5},   # see Crisis Fireknife above
     ),
     "Crisis Sunforge Battlesuits": UnitPoints([
         PointsTier({3: 125}, to_unit=2),
@@ -130,7 +136,10 @@ TAU_EMPIRE_POINTS = {
         PointsTier({1: 790}, to_unit=1),
         PointsTier({1: 890}, from_unit=2),
     ]),
-    "The Twin Lance": flat_points({2: 220}),
+    # PRINTED: "YOUR UNIT COSTS 2 models 230" (rules/tau_empire/The Twin
+    # Lance.md). The 220 that used to stand here matched no line of the
+    # page; the 2026-09-05 Retaliation Cadre list prices it 230 too.
+    "The Twin Lance": flat_points({2: 230}),
     "Tidewall Droneport": flat_points({1: 85}),
     "Tidewall Gunrig": flat_points({1: 90}),
     # The list's "+ 1 Tidewall Defence Platform 20 pts" line sits where every

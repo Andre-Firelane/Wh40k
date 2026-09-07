@@ -75,9 +75,12 @@ check("For The Greater Good", p.for_the_greater_good)
 check("unit-level Ignores Cover RULE (not a weapon keyword)", p.ignores_cover)
 check("keywords line matches the datasheet",
       THE_TWIN_LANCE.keywords == ("EPIC HERO", "VEHICLE", "WALKER", "FLY", "CHARACTER", "BATTLESUIT", "THE TWIN LANCE"))
-check("points: flat 220 for 2 models (EPIC HERO, no per-copy tiering)",
-      THE_TWIN_LANCE.points_for(0, unit_index=1) == 220 and THE_TWIN_LANCE.points_for(0, unit_index=5) == 220)
-check("Squad.points reflects the built unit", squad.points == 220)
+# 230, which is what the page prints ("YOUR UNIT COSTS 2 models 230"). The 220
+# that stood here matched no line of it; the 2026-09-05 Retaliation Cadre list
+# prices it 230 as well.
+check("points: flat 230 for 2 models (EPIC HERO, no per-copy tiering)",
+      THE_TWIN_LANCE.points_for(0, unit_index=1) == 230 and THE_TWIN_LANCE.points_for(0, unit_index=5) == 230)
+check("Squad.points reflects the built unit", squad.points == 230)
 
 
 # --- 2. Weapons ----------------------------------------------------------
@@ -111,9 +114,14 @@ check('Shardstorm 18"/S5/AP0/D1, [PISTOL], and Attacks is a REAL D6 roll',
 
 pp_r = next(w for w in lantar.weapons if w.name == "XV Pulse Pistol" and w.weapon_type == "ranged")
 pp_m = next(w for w in lantar.weapons if w.name == "XV Pulse Pistol" and w.weapon_type == "melee")
-check('XV pulse pistol (ranged) 12"/A2/S6/AP-1/D2, [RAPID FIRE 2] + [PISTOL]',
+# NOT [PISTOL], despite the name. The printed keyword column reads "rapid
+# fire 2" and nothing else, while the Shardstorm burst system one row above
+# does print "pistol" - so the sheet distinguishes them and this profile did
+# not. Found by the keyword sweep in test_weapon_characteristics.py section 5;
+# the pin used to assert the flag, reasoning from the weapon's name.
+check('XV pulse pistol (ranged) 12"/A2/S6/AP-1/D2, [RAPID FIRE 2] and NOT [PISTOL]',
       (pp_r.range_in, pp_r.attacks, pp_r.strength, pp_r.ap, pp_r.damage, pp_r.rapid_fire, pp_r.pistol)
-      == (12, 2, 6, -1, 2, 2, True))
+      == (12, 2, 6, -1, 2, 2, False))
 check("XV pulse pistol (melee) A4/WS3+/S6/AP-1/D2, NOT [EXTRA ATTACKS]",
       (pp_m.attacks, pp_m.weapon_skill, pp_m.strength, pp_m.ap, pp_m.damage, pp_m.extra_attacks)
       == (4, "3+", 6, -1, 2, False))

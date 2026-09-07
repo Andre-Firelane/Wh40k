@@ -108,7 +108,7 @@ def main():
     def fresh_army():
         state = GameState()
         squads = []
-        army_lists.build_necrons("Player 2", squads.append, state=state)
+        army_lists.get("necrons").build("Player 2", squads.append, state=state)
         merged = attached_units.resolve_all(squads, game_state=state) \
             if hasattr(attached_units, "resolve_all") else squads
         return state, merged
@@ -171,7 +171,7 @@ def main():
             state, squads = fresh_army()
             squad = place(state, squads, crowded)
             if squad is None:
-                sys.exit(f"{UNIT} not built by build_necrons")
+                sys.exit(f"{UNIT} not built by the necrons list")
             if flyers is None:
                 flyers = sum(1 for m in squad.models if m.profile.fly)
                 print(f"({flyers} of {len(squad.models)} models have FLY)\n")

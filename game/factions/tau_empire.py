@@ -24,6 +24,7 @@ lives in game/factions/tau_empire_points.py (all 43 entries, including the
 `points=` field - and any priced wargear option - at its own entry there, so
 no number is repeated. See game/factions/points.py for the structure."""
 
+from game import force_dispositions
 from game.drones import (
     DRONE_GROUP, DRONE_SLOTS, SPECIAL_DRONE_GROUP, SPECIAL_DRONE_SLOTS,
     HOVER_DRONE_GROUP, HOVER_DRONE_SLOTS, hover_drone_gear,
@@ -81,7 +82,8 @@ from game.weapons import (
     DroneMissilePodProfile,
     KrootCloseCombatWeaponProfile, KrootPistolProfile, KrootRifleProfile, MissilePodProfile,
     PulseBlasterProfile,
-    PulseCarbineProfile, PulsePistolProfile, PulseRifleProfile, RiptideFistsProfile,
+    PulseCarbineProfile, PulsePistolProfile, PulsePistolBs3Profile,
+    PulseRifleProfile, RiptideFistsProfile,
     SemiAutomaticGrenadeLauncherEmpProfile, SeekerMissileProfile,
     DawnBladeStrikeProfile, DawnBladeSweepProfile,
     FusionEliminatorMeleeProfile, FusionEliminatorProfile,
@@ -100,6 +102,7 @@ RETALIATION_CADRE = TAU_EMPIRE.add_detachment(Detachment(
     rule_name="Bonded Heroes",
     setting="RETALIATION_CADRE_PLAYERS",
     points=3,
+    force_disposition=force_dispositions.PURGE_THE_FOE,
     rule_text=(
         'Each time a T\'AU EMPIRE BATTLESUIT model from your army makes a '
         'ranged attack that targets a unit within 12", improve the Strength characteristic '
@@ -163,6 +166,7 @@ KAUYON = TAU_EMPIRE.add_detachment(Detachment(
     rule_name="Patient Hunter",
     setting="KAUYON_PLAYERS",
     points=2,
+    force_disposition=force_dispositions.RECONNAISSANCE,
     rule_text=(
         "During the third, fourth and fifth battle rounds, ranged weapons equipped by "
         "T'AU EMPIRE models from your army have the [SUSTAINED HITS 1] ability. During the "
@@ -184,6 +188,7 @@ MONTKA = TAU_EMPIRE.add_detachment(Detachment(
     rule_name="Killing Blow",
     setting="MONTKA_PLAYERS",
     points=3,
+    force_disposition=force_dispositions.PRIORITY_ASSETS,
     rule_text=(
         "During the first, second and third battle rounds, ranged weapons equipped by "
         "T'AU EMPIRE models from your army have the [ASSAULT] ability. During the first, "
@@ -203,6 +208,7 @@ EXPERIMENTAL_PROTOTYPE_CADRE = TAU_EMPIRE.add_detachment(Detachment(
     rule_name="Superior Craftsmanship",
     setting="EXPERIMENTAL_PROTOTYPE_CADRE_PLAYERS",
     points=1, tag="BATTLESUIT",
+    force_disposition=force_dispositions.PRIORITY_ASSETS,
     rule_text=(
         'Friendly BATTLESUIT CHARACTER units\' ranged attacks have +6" Range.\n'
         "This detachment has the BATTLESUIT tag and cannot be taken with another "
@@ -220,6 +226,7 @@ ADVANCED_ACQUISITION_CADRE = TAU_EMPIRE.add_detachment(Detachment(
     rule_name="Expert Fieldcraft",
     setting="ADVANCED_ACQUISITION_CADRE_PLAYERS",
     points=1,
+    force_disposition=force_dispositions.RECONNAISSANCE,
     rule_text=(
         "In your Shooting phase, when a friendly PATHFINDER TEAM/STEALTH BATTLESUITS unit "
         "is selected to shoot, those ranged attacks do not prevent your unit from being "
@@ -236,6 +243,7 @@ AUXILIARY_CADRE = TAU_EMPIRE.add_detachment(Detachment(
     rule_name="Integrated Command Structure",
     setting="AUXILIARY_CADRE_PLAYERS",
     points=1, tag="AUXILIARIES",
+    force_disposition=force_dispositions.DISRUPTION,
     rule_text=(
         "Friendly KROOT/VESPID STINGWINGS units have the following ability:\n"
         'Harnessed Alien Instincts: In your Shooting phase, this unit can select one '
@@ -579,7 +587,7 @@ FIRESIGHT_TEAM = TAU_EMPIRE.add_datasheet(Datasheet(
     # purposes". That is also why the rifle profile's name is plural.
     model_lines=[
         ModelLine(FiresightMarksmanProfile, 1,
-                  [LongshotPulseRiflesProfile, PulsePistolProfile,
+                  [LongshotPulseRiflesProfile, PulsePistolBs3Profile,
                    FiresightCloseCombatWeaponsProfile],
                   name=_FIRESIGHT_LINE),
     ],
@@ -740,7 +748,7 @@ COMMANDER_SHADOWSUN = TAU_EMPIRE.add_datasheet(Datasheet(
         ModelLine(CommanderShadowsunProfile, 1,
                   [FlechetteLauncherProfile,
                    HighEnergyFusionBlasterProfile, HighEnergyFusionBlasterProfile,
-                   LightMissilePodProfile, PulsePistolProfile,
+                   LightMissilePodProfile, PulsePistolBs3Profile,
                    CrisisBattlesuitFistsProfile],
                   name=_SHADOWSUN_LINE),
     ],
@@ -1112,11 +1120,11 @@ CRISIS_FIREKNIFE = TAU_EMPIRE.add_datasheet(Datasheet(
     ],
     # The two swaps are MIRRORS - each turns one of the model's two guns into
     # another copy of the other - so a model can end with two plasma rifles or
-    # two missile pods but never lose both. Only the missile pod is priced,
-    # which is why only that direction carries a cost.
+    # two missile pods but never lose both. NEITHER carries a cost: the missile
+    # pod is priced PER WEAPON IN THE UNIT (UnitPoints.per_weapon), which counts
+    # the default's own three as well, so charging the swap too would double it.
     wargear_options=[
         WargearOption(line, PlasmaRifleProfile, [MissilePodProfile], max_models=1,
-                      points=_FIREKNIFE_POINTS.wargear["Missile pod"],
                       name=FIREKNIFE_PLASMA_TO_MISSILE_POD)
         for line in (_FIREKNIFE_LEADER, _FIREKNIFE_LINE + " (1)", _FIREKNIFE_LINE + " (2)")
     ] + [
@@ -1414,13 +1422,15 @@ def _starscythe_wargear(line_name):
 
     Only the burst-cannon-to-flamer direction costs points ("per T'au flamer
     5 pts") - that's the SECOND flamer a model ends up with, since one is
-    already part of the printed default loadout. The reverse swap is free,
-    and the default flamer itself is never charged (see
-    game/factions/points.py for why)."""
+    already part of the printed default loadout. NEITHER swap carries a cost:
+    the flamer is priced PER WEAPON IN THE UNIT (UnitPoints.per_weapon), which
+    counts the default's own three as well, so charging the swap too would
+    double it - see game/factions/points.py for the list that settles the
+    reading."""
     return [
         WargearOption(
             line_name, replaces=BurstCannonProfile, with_weapons=[TauFlamerProfile],
-            name=STARSCYTHE_BURST_TO_FLAMER, points=_STARSCYTHE_POINTS.wargear["T'au flamer"],
+            name=STARSCYTHE_BURST_TO_FLAMER,
         ),
         WargearOption(line_name, replaces=TauFlamerProfile, with_weapons=[BurstCannonProfile], name=STARSCYTHE_FLAMER_TO_BURST),
     ]
@@ -1634,8 +1644,27 @@ _COLDSTAR_COMMANDER_LINE = "Commander in Coldstar Battlesuit"
 # Missile") and +1x Cyclic Ion Blaster. Both free (points=0, not on the
 # official points list's own wargear dict) since nothing here is confirmed
 # priced wargear.
-COLDSTAR_ADD_2X_BURST_CANNON = "+ 2x Burst Cannon (Slot)"
-COLDSTAR_ADD_CYCLIC_ION_BLASTER = "+ Cyclic Ion Blaster (Slot)"
+# The printed menu is one REPLACEMENT of the high-output burst cannon plus up
+# to THREE additions from the same ten-item list. The additions used to be
+# hand-picked BUNDLES here (+ 2x Burst Cannon, + Cyclic Ion Blaster, + 3x
+# Fusion Blaster) - one option per combination a shipped list happened to buy.
+# They are gone: the datasheet now carries the real menu as Gear, the way the
+# Enforcer Commander always did, so any legal pick of three is expressible and
+# the three support systems are reachable at all.
+#
+# All the replacements below are free (points=0): none of them is on the
+# official points list's own wargear dict.
+COLDSTAR_BURST_TO_FUSION = "High-output Burst Cannon -> Fusion Blaster"
+COLDSTAR_BURST_TO_BURST_CANNON = "High-output Burst Cannon -> Burst Cannon"
+COLDSTAR_BURST_TO_CYCLIC_ION = "High-output Burst Cannon -> Cyclic Ion Blaster"
+COLDSTAR_BURST_TO_MISSILE_POD = "High-output Burst Cannon -> Missile Pod"
+# These three are what makes Experimental Prototype Cadre's Enhancements
+# reachable at all: each names a weapon ("select one of this model's Plasma
+# Rifle weapons"), and until a list equipped one they were dormant by
+# construction.
+COLDSTAR_BURST_TO_PLASMA_RIFLE = "High-output Burst Cannon -> Plasma Rifle"
+COLDSTAR_BURST_TO_TAU_FLAMER = "High-output Burst Cannon -> T'au Flamer"
+COLDSTAR_BURST_TO_AIRBURSTING = "High-output Burst Cannon -> Airbursting Fragmentation Projector"
 
 COMMANDER_IN_COLDSTAR_BATTLESUIT = TAU_EMPIRE.add_datasheet(Datasheet(
     "Commander in Coldstar Battlesuit",
@@ -1646,20 +1675,73 @@ COMMANDER_IN_COLDSTAR_BATTLESUIT = TAU_EMPIRE.add_datasheet(Datasheet(
     model_lines=[
         ModelLine(ColdstarCommanderProfile, 1, _COLDSTAR_COMMANDER_LOADOUT, name=_COLDSTAR_COMMANDER_LINE),
     ],
-    # Drones: no official screenshot for this datasheet's own drone menu
-    # either - reusing the same generic "up to 2, no Guardian Drone, can
-    # take duplicates" menu already used for Crisis Starscythe/Stealth
-    # Battlesuits (Battlesuit-line convention), flagged the same way.
-    gear_options=drone_options(_COLDSTAR_COMMANDER_LINE, include_guardian=False, allow_duplicates=True),
-    gear_slots={_COLDSTAR_COMMANDER_LINE: 2},
+    # TWO independent printed menus, exactly like the Enforcer Commander above:
+    # "up to two of the following [drones], and can take duplicates" and "up to
+    # three of the following", the second mixing guns with the three support
+    # systems. Two groups, so a support system can never eat a drone slot.
+    #
+    # THIS USED TO BE THREE HAND-PICKED BUNDLES (+ 2x Burst Cannon, + Cyclic Ion
+    # Blaster, + 3x Fusion Blaster) - one WargearOption per combination some
+    # shipped list happened to buy. That could not express a menu-three pick of
+    # three DIFFERENT items, and it could not express the support systems at all,
+    # because a WargearOption trades a weapon for weapons and a Weapon Support
+    # System is not one. The Enforcer had the printed shape right all along; this
+    # is that shape, and the bundles are gone rather than kept alongside it -
+    # two ways to say "+ 3 fusion blasters" is the drift this repo consolidates.
+    gear_options=(drone_options(_COLDSTAR_COMMANDER_LINE, include_guardian=False,
+                                allow_duplicates=True)
+                  + support_menu_gear(_COLDSTAR_COMMANDER_LINE, [
+                      # The starred items cannot be duplicated; the rest can,
+                      # up to the menu's own cap of three.
+                      ("Airbursting Fragmentation Projector",
+                       AirburstingFragmentationProjectorProfile, 1),
+                      ("Burst Cannon", BurstCannonProfile, 3),
+                      ("Cyclic Ion Blaster", CyclicIonBlasterStandardProfile, 1),
+                      ("Fusion Blaster", FusionBlasterProfile, 3),
+                      ("Missile Pod", MissilePodProfile, 3),
+                      ("Plasma Rifle", PlasmaRifleProfile, 3),
+                      ("T'au Flamer", TauFlamerProfile, 3),
+                  ])),
+    gear_slots={_COLDSTAR_COMMANDER_LINE: {DRONE_GROUP: DRONE_SLOTS,
+                                           BATTLESUIT_SUPPORT_GROUP: BATTLESUIT_SUPPORT_SLOTS}},
     wargear_options=[
         WargearOption(
-            _COLDSTAR_COMMANDER_LINE, replaces=None, with_weapons=[BurstCannonProfile, BurstCannonProfile],
-            max_models=1, name=COLDSTAR_ADD_2X_BURST_CANNON,
+            _COLDSTAR_COMMANDER_LINE, replaces=HighOutputBurstCannonProfile,
+            with_weapons=[FusionBlasterProfile],
+            max_models=1, name=COLDSTAR_BURST_TO_FUSION,
+        ),
+        # The printed menu-one list is ten items long; these are the seven that
+        # are weapons. Its other three are the support systems, which live in
+        # the menu above for the reason written there.
+        WargearOption(
+            _COLDSTAR_COMMANDER_LINE, replaces=HighOutputBurstCannonProfile,
+            with_weapons=[BurstCannonProfile],
+            max_models=1, name=COLDSTAR_BURST_TO_BURST_CANNON,
         ),
         WargearOption(
-            _COLDSTAR_COMMANDER_LINE, replaces=None, with_weapons=[CyclicIonBlasterStandardProfile],
-            max_models=1, name=COLDSTAR_ADD_CYCLIC_ION_BLASTER,
+            _COLDSTAR_COMMANDER_LINE, replaces=HighOutputBurstCannonProfile,
+            with_weapons=[CyclicIonBlasterStandardProfile],
+            max_models=1, name=COLDSTAR_BURST_TO_CYCLIC_ION,
+        ),
+        WargearOption(
+            _COLDSTAR_COMMANDER_LINE, replaces=HighOutputBurstCannonProfile,
+            with_weapons=[MissilePodProfile],
+            max_models=1, name=COLDSTAR_BURST_TO_MISSILE_POD,
+        ),
+        WargearOption(
+            _COLDSTAR_COMMANDER_LINE, replaces=HighOutputBurstCannonProfile,
+            with_weapons=[PlasmaRifleProfile],
+            max_models=1, name=COLDSTAR_BURST_TO_PLASMA_RIFLE,
+        ),
+        WargearOption(
+            _COLDSTAR_COMMANDER_LINE, replaces=HighOutputBurstCannonProfile,
+            with_weapons=[TauFlamerProfile],
+            max_models=1, name=COLDSTAR_BURST_TO_TAU_FLAMER,
+        ),
+        WargearOption(
+            _COLDSTAR_COMMANDER_LINE, replaces=HighOutputBurstCannonProfile,
+            with_weapons=[AirburstingFragmentationProjectorProfile],
+            max_models=1, name=COLDSTAR_BURST_TO_AIRBURSTING,
         ),
     ],
     # Official list: 1 model 95 pts, no per-copy tiering. The two wargear
@@ -1698,14 +1780,22 @@ CADRE_FIREBLADE = TAU_EMPIRE.add_datasheet(Datasheet(
     # /MissilePodProfile in game/weapons.py with identical stats, so no new
     # classes were needed for them - but with no swap rule text of their
     # own), same documented gap as every other T'au datasheet's own
-    # alternates. Gun Drone gear IS added (user-supplied, "2x Gun Drone" -
-    # not from an official screenshot for this specific datasheet, same
-    # "flagged, not confirmed" status as Coldstar Commander's own drone menu
-    # above) - reusing the standalone gun_drone_gear() helper (same one
-    # Stealth Battlesuits' Shas'vre uses for its own single Gun Drone) with
-    # max_count=2 instead of the full drone_options() menu, since only Gun
-    # Drone was ever asked for on this model.
-    gear_options=[gun_drone_gear(_CADRE_FIREBLADE_LINE, max_count=2)],
+    # alternates. The DRONE menu is the printed one: "up to two of the
+    # following, and can take duplicates - gun drone, marker drone, shield
+    # drone", which is exactly drone_options(include_guardian=False,
+    # allow_duplicates=True).
+    #
+    # It used to be gun_drone_gear() alone, "since only Gun Drone was ever
+    # asked for on this model" - which is not a reason, it is the defect. A
+    # datasheet is a transcription of what GW prints; which options a shipped
+    # list happens to buy has nothing to do with which ones exist, and modelling
+    # only the bought ones means the next list is blocked by a gap nobody put
+    # there on purpose. Three of eighteen T'au datasheets were short this way;
+    # the other two are the Coldstar and Enforcer menu-one support systems,
+    # which are a real structural limit (a WargearOption trades weapons for
+    # weapons and cannot set a profile flag), not an oversight.
+    gear_options=drone_options(_CADRE_FIREBLADE_LINE, include_guardian=False,
+                               allow_duplicates=True),
     gear_slots={_CADRE_FIREBLADE_LINE: 2},
     #
     # Official list: 1 model 50 pts, no per-copy tiering, no priced wargear.
@@ -1840,7 +1930,9 @@ _PATHFINDER_LINE = "Pathfinder"
 # model has to give up. Free, like everything else here - the official
 # points list prices exactly one item for this unit, an "Ion rifle", which
 # the supplied datasheet never mentions and which is therefore NOT modeled.
-PATHFINDER_CARBINE_TO_GRENADE_LAUNCHER = "Pulse Carbine -> Semi-automatic Grenade Launcher"
+# An ADDITION, not a replacement - see the option itself. The name kept its
+# old spelling so no caller has to change; it reads as a swap and is not one.
+PATHFINDER_CARBINE_TO_GRENADE_LAUNCHER = "+ Semi-automatic Grenade Launcher"
 # The two special weapons, both supplied as real stat lines after the initial
 # datasheet paste. Each replaces the Pulse carbine - that is the weapon the
 # army list's own rail-rifle models give up ("3 with Close combat weapon,
@@ -1855,14 +1947,22 @@ PATHFINDER_CARBINE_TO_RAIL_RIFLE = "Pulse Carbine -> Rail Rifle"
 PATHFINDER_CARBINE_TO_ION_RIFLE = "Pulse Carbine -> Ion Rifle"
 
 _PATHFINDER_POINTS = TAU_EMPIRE_POINTS["Pathfinder Team"]
-# Offered on BOTH model lines. The "(x2)" annotation caps the unit at two
-# launchers, but says nothing about WHICH two models - and a supplied army
-# list puts one on the Shas'ui ("1x Pathfinder Shas'ui: ... Semi-automatic
-# grenade launcher"), so restricting the option to the rank and file would
-# make a real, legal build unbuildable. max_models is per LINE, so the two
-# entries could in principle total three; the printed cap is not enforced
-# across lines, the same already-documented limitation WargearOption has
-# everywhere else.
+# THE LAUNCHER IS OFFERED ON BOTH MODEL LINES, and the second entry is not
+# decoration: the printed text is "1 MODEL IN THIS UNIT equipped with a pulse
+# carbine", and the Shas'ui carries one, so he is as eligible as any of the
+# nine. A supplied army list buys exactly that ("1x Pathfinder Shas'ui: ...
+# 1x Semi-automatic grenade launcher"), and with the option on the rank and
+# file alone that build is silently unbuildable - build_squad() drops a
+# `choices` entry naming a (line, option) pair the datasheet does not have,
+# so the unit comes out one weapon short and correctly priced.
+#
+# This comment used to claim both lines while only one was wired, which is
+# how the gap survived: a comment promising behaviour no code delivers.
+#
+# LIMITATION, named rather than enforced: max_models is per LINE, so the two
+# entries together allow TWO launchers where the text allows one. Same
+# already-documented shortcoming WargearOption has everywhere else - it has no
+# way to express a cap across lines.
 
 PATHFINDER_TEAM = TAU_EMPIRE.add_datasheet(Datasheet(
     "Pathfinder Team",
@@ -1872,13 +1972,25 @@ PATHFINDER_TEAM = TAU_EMPIRE.add_datasheet(Datasheet(
         ModelLine(PathfinderProfile, 9, _PATHFINDER_LOADOUT, name=_PATHFINDER_LINE),
     ],
     wargear_options=[
+        # PRINTED: "1 model in this unit equipped with a pulse carbine can be
+        # equipped with 1 semi-automatic grenade launcher. That model's pulse
+        # carbine cannot be replaced." So it is an ADDITION, not a swap - the
+        # model keeps its carbine - and it is ONE model in the whole unit.
+        # This used to be two swap options (max 2 on the rank and file plus 1
+        # on the Shas'ui), which cost the unit a pulse carbine it should keep
+        # and allowed three launchers where the text allows one. Found by
+        # transcribing the supplied army list, whose Pathfinder Team prints
+        # "6x Pulse carbine ... 1x Semi-automatic grenade launcher" across nine
+        # models - ten weapons for nine bodies, which only adds up if the
+        # launcher is carried alongside a carbine.
         WargearOption(
-            _PATHFINDER_LINE, replaces=PulseCarbineProfile,
+            _PATHFINDER_LINE, replaces=None,
             with_weapons=[SemiAutomaticGrenadeLauncherEmpProfile],
-            max_models=2, name=PATHFINDER_CARBINE_TO_GRENADE_LAUNCHER,
+            max_models=1, name=PATHFINDER_CARBINE_TO_GRENADE_LAUNCHER,
         ),
+        # The same option on the Shas'ui - see the note above the datasheet.
         WargearOption(
-            _PATHFINDER_LEADER, replaces=PulseCarbineProfile,
+            _PATHFINDER_LEADER, replaces=None,
             with_weapons=[SemiAutomaticGrenadeLauncherEmpProfile],
             max_models=1, name=PATHFINDER_CARBINE_TO_GRENADE_LAUNCHER,
         ),

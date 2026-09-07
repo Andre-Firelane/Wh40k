@@ -33,1165 +33,30 @@ exist - which is also why apply_to_config() at the bottom is what turns a
 choice into those settings.
 """
 
-from game import attached_units, config, enhancements, pregame, starflare_ignition
-from game.factions import build_squad
-from game.factions.aeldari import (
-    ASURMEN, BANSHEE_BLADE_TO_EXECUTIONER, DARK_REAPERS, DIRE_AVENGERS,
-    DIRE_AVENGER_SECOND_CATAPULT, ELDRAD_ULTHRAN, FALCON,
-    FALCON_CATAPULT_TO_SHURIKEN_CANNON, FALCON_SCATTER_TO_BRIGHT_LANCE, FARSEER,
-    FARSEER_WITCHBLADE_TO_SPEAR, GUARDIAN_DEFENDERS, HOWLING_BANSHEES,
-    JAIN_ZAR, LHYKHIS, RANGERS, SHINING_SPEARS, SHINING_SPEAR_SHIMMERSHIELD,
-    SHINING_SPEAR_TO_SHURIKEN_CANNON, SHINING_SPEAR_TO_STAR_LANCE,
-    STORM_GUARDIANS, STORM_GUARDIAN_CCW_TO_POWER_SWORD,
-    STORM_GUARDIAN_PISTOL_TO_FLAMER, STORM_GUARDIAN_PISTOL_TO_FUSION,
-    STRIKING_SCORPIONS, WARLOCK_CONCLAVE, WARLOCK_SKYRUNNERS,
-    WARLOCK_WITCHBLADE_TO_SPEAR, WARP_SPIDERS,
-    WARP_SPIDER_TO_POWERBLADE_ARRAY, WINDRIDERS, WINDRIDER_TO_SHURIKEN_CANNON,
-    WRAITHGUARD, WRAITHGUARD_TO_D_SCYTHE,
-)
-from game.factions.death_guard import (CHAOS_SPAWN, DAEMON_PRINCE_OF_NURGLE,
-                                       DEATHSHROUD_TERMINATORS,
-                                       DEFILER, DEFILER_BALEFLAMER_TO_REAPER,
-                                       FOETID_BLOAT_DRONE, MALIGNANT_PLAGUECASTER,
-                                       MYPHITIC_BLIGHT_HAULER, PLAGUEBURST_CRAWLER,
-                                       PLAGUE_MARINES, PM_TO_BLIGHT_LAUNCHER,
-                                       PM_TO_HEAVY_PLAGUE_WEAPON, PM_TO_PLAGUE_SPEWER,
-                                       POXWALKERS, TYPHUS)
-from game.factions.necrons import (
-    CANOPTEK_WRAITHS, CTAN_SHARD_OF_THE_VOID_DRAGON, DOOMSDAY_ARK,
-    IMMORTALS, IMMORTALS_TO_TESLA_CARBINE, LOKHUST_DESTROYERS, LOKHUST_LORD,
-    LOKHUST_LORD_NANOSCARAB_AMULET, LYCHGUARD, LYCHGUARD_DISPERSION_SHIELD,
-    LYCHGUARD_TO_HYPERPHASE_SWORD, NECRON_WARRIORS, OVERLORD, OVERLORD_RESURRECTION_ORB,
-    OVERLORD_TO_VOIDSCYTHE, PLASMANCER, SKORPEKH_DESTROYERS, SKORPEKH_LORD,
-    SKORPEKH_PLASMACYTE, TECHNOMANCER,
-)
-from game.factions.orks import (
-    BATTLEWAGON, BATTLEWAGON_ADD_BIG_SHOOTAS, BATTLEWAGON_ADD_ZZAP_GUN, BATTLEWAGON_ARD_CASE,
-    BEAST_SNAGGA_BOYZ, BEASTBOSS, BOYZ, BOYZ_BIG_CHOPPA_TO_POWER_KLAW, DEFF_DREAD, DEFFKOPTAS,
-    FLASH_GITZ, FLASH_GITZ_AMMO_RUNT, GRETCHIN, KILL_RIG, MEGANOBZ, PAINBOY,
-    PAINBOY_GROT_ORDERLY, STORMBOYZ,
-    STORMBOYZ_CHOPPA_TO_POWER_KLAW, TANKBUSTAS, TANKBUSTAS_ADD_ROKKIT_LAUNCHA,
-    TANKBUSTAS_BOSS_NOB_ADD_SMASH_HAMMER,
-    WARBIKERS, WARBIKERS_ADD_POWER_KLAW, WARBOSS, WARBOSS_ADD_ATTACK_SQUIG, WARBOSS_MEGA_ARMOUR,
-)
+import os
 
-from game.factions.tau_empire import (
-    BREACHER_TEAM, BROADSIDE_BATTLESUITS, BROADSIDE_RAIL_TO_MISSILE_PODS, CADRE_FIREBLADE,
-    COMMANDER_SHADOWSUN, DEVILFISH, ETHEREAL, KROOT_CARNIVORES, KROOT_HOUNDS,
-    PATHFINDER_CARBINE_TO_RAIL_RIFLE, PATHFINDER_TEAM, PIRANHA_BURST_TO_FUSION, PIRANHAS,
-    RIPTIDE_BATTLESUIT, RIPTIDE_BURST_TO_ION_ACCELERATOR, RIPTIDE_PLASMA_TO_TWIN_FUSION,
-    STEALTH_BATTLESUITS, STEALTH_BURST_TO_FUSION, THE_TWIN_LANCE, VESPID_STINGWINGS,
-    DEVILFISH_SEEKER_MISSILE_OPTION,
-)
+from game import army_io, army_roster, config, pregame
 
+#: Re-exported from game/army_roster.py, where it moved with the builder. It is
+#: the one place a squad's identifier is formed, and four modules point at it by
+#: this name (game/maps.py, game/ui/army_select.py, main.py and
+#: test_player1_army.py all explain themselves in terms of
+#: "army_lists.unit_name()"), so the name stays answerable here rather than
+#: making five references stale to save one line.
+unit_name = army_roster.unit_name
+# The three keys this module and main.py still NAME. There used to be one per
+# shipped list, from when ARMY_LISTS was a hand-written table here; the registry
+# is a scan of armies/*.json now, so the rest had no readers - and TAU_EPC_ARMY
+# had come to name a list that no longer exists, which get() answers with a
+# SystemExit rather than with anything useful.
+#
+# These three earn their place: two are the DEFAULTS below (which player starts
+# with which army), and main.py re-exports Orks and Necrons for its CLI.
 AELDARI = "aeldari"
 ORKS_ARMY = "orks"
-TAU_ARMY = "tau"
-DEATH_GUARD_ARMY = "death_guard"
 NECRONS_ARMY = "necrons"
 
 
-def unit_name(owner, text):
-    """This army's name for a unit: the owner's digit, then the datasheet name
-    and the copy number ("2 Boyz 1").
-
-    One definition because the name is an identifier - see this module's
-    docstring. owner[-1] rather than a lookup table for the same reason main()
-    already used it: the two players are "Player 1" and "Player 2" everywhere
-    in this engine, and a third would need a great deal more than a prefix."""
-    return f"{owner[-1]} {text}"
-
-
-def _check_positions(list_name, model_positions, wanted):
-    """Refuse --no-deployment loudly when the map's hand-placed table does not
-    cover this list.
-
-    Kept from main(), where it guarded exactly one roster. It matters more now
-    that either player may field either list: the tables in game/maps.py are a
-    property of the MAP and were written for a Player 1 Aeldari roster that has
-    since been revised twice, so any other pairing has no table at all - and
-    the failure without this is silent, every uncovered unit simply starting on
-    top of each other at (0, 0)."""
-    if model_positions is None:
-        return
-    if len(model_positions) != wanted:
-        raise SystemExit(
-            f"--no-deployment needs one hand-placed position list per unit, and the {list_name} "
-            f"list does not have them: this map carries {len(model_positions)} position list(s) "
-            f"for {wanted} unit(s). Every army list in this build was written on the "
-            "understanding that the Pre-game Sequence (rule 03.01) places it - user: \"nicht "
-            "aufstellen, wir haben ja jetzt die spieler aufstellung drin\". Run without "
-            "--no-deployment, or add the missing entries to game/maps.py."
-        )
-
-
-def _apply_positions(squad, model_positions, index):
-    """Hand-place one unit's models, legacy --no-deployment mode only."""
-    positions = model_positions[index] if model_positions and index < len(model_positions) else []
-    for model, (x_in, y_in) in zip(squad.models, positions):
-        model.x_in, model.y_in = x_in, y_in
-    return positions
-
-
-# ===========================================================================
-# Aeldari (Asuryani) - Seer Council
-# ===========================================================================
-
-def build_aeldari(owner, register, state=None, model_positions=None):
-    """The Aeldari (Asuryani) list the user supplied (revised 2026-08-27):
-    five characters - Asurmen, Eldrad Ulthran, a Farseer, Jain Zar and
-    Lhykhis - plus Guardian Defenders, Storm Guardians, Dark Reapers, Dire
-    Avengers, a Falcon, Howling Banshees, Rangers, Shining Spears, Striking
-    Scorpions, two Warlock Conclaves, Warlock Skyrunners, Warp Spiders,
-    Windriders and Wraithguard. 20 list entries, 12 units once the SIX
-    attachments are merged (19.01), 74 models, 1890 pts here against the
-    list's own 1930.
-
-    WHAT CHANGED IN THE LATEST REVISION (user: "tausche bei der aeldari liste
-    die shroud runner mit diesen windridern und packe den warlock skyrunner
-    rein"): the Shroud Runners are out and 3 Windriders on shuriken cannons
-    are in, and the Warlock Skyrunner - which until now STOOD ALONE, because
-    its LEADER line is a JOIN naming WINDRIDERS and this list fielded none -
-    joins them. So the entry count is unchanged (one datasheet swapped for
-    another) but the UNIT count drops 13 -> 12, because an entry that used to
-    be its own unit is now merged into one. Models and the army total barely
-    move: 3 out and 3 in, and Windriders cost exactly what the Shroud Runners
-    were priced at in the list (80), so only the engine's own transcription
-    differs (Shroud Runners 90 here, Windriders 80).
-
-    The previous revision (2026-08-23) dropped the Avatar of Khaine and the
-    Fire Dragons and brought in Dark Reapers, Rangers, Shining Spears, Shroud
-    Runners and the Warlock Skyrunner.
-
-    THIS IS WHAT MAKES THE AELDARI WORK REACHABLE IN PLAY. Every one of the
-    Aeldari datasheet entries in CLAUDE.md ends with the same open point -
-    "built and tested, but in no demo army, so none of it is exercised in a
-    game" - and so do Battle Focus, all six Seer Council stratagems and
-    Strands of Fate. The army rule in particular derives ASURYANI from units
-    that carry the flag (see game/battle_focus.py's qualifying_players()), so
-    it starts working for whoever fields this list, without a setting.
-
-    POINTS: 11 of the 19 distinct entries disagree with the transcribed
-    official points list (list price first, engine second) - Eldrad 120 vs
-    130, Farseer 70 vs 65, Jain Zar 120 vs 105, Guardian Defenders 100 vs 90,
-    Dark Reapers 90 vs 100, Howling Banshees 95 vs 85, Rangers 55 vs 60,
-    Shining Spears 110 vs 100, Striking Scorpions 85 vs 75, Warlock
-    Skyrunners 45 vs 55, Wraithguard 160 vs 145. The Windriders are the entry
-    that AGREES - the list prices them at 80 and so does the transcription -
-    which is why the count went 12 -> 11 rather than staying put: the Shroud
-    Runners they replaced were one of the mismatches. Note the mismatches run
-    BOTH ways, which is worth stating: the pre-revision list was uniformly
-    dearer than the transcription, so "the app rounds up" was a tempting
-    story, and the newer entries falsify it. Same kind of app-vs-list mismatch
-    both other armies already carry, and handled the same way: named here, not
-    used to overwrite game/factions/aeldari_points.py. The COMPOSITION is
-    followed model for model, which is what the tests check.
-
-    ATTACHMENTS (user: "farseer in die guardian defenders / warlock
-    conclaive 1 in die guardian defenders / eldrad in die storm guardians /
-    warlock conclaive 2 in die storm guardians / die phoenix lords in ihre
-    passenden squads", plus the Skyrunner into the Windriders). The order
-    below is not cosmetic - see the note on the Guardian Defenders block.
-    """
-    # The Falcon's own build: "Pulse Laser, Wraithbone hull, Bright Lance,
-    # Shuriken Cannon" - the printed baseline is Pulse Laser + Wraithbone Hull
-    # + Scatter Laser + Twin Shuriken Catapult, so the list takes both of the
-    # datasheet's independent swaps (they give up different weapons, which is
-    # exactly why they can be taken together). It carries nothing: the list
-    # embarks no unit in it.
-    falcon_choices = {"Falcon": {FALCON_SCATTER_TO_BRIGHT_LANCE: 1,
-                                FALCON_CATAPULT_TO_SHURIKEN_CANNON: 1}}
-    # "5x Wraithguard: 5 with Close Combat Weapon, D-Scythe" - all five, which
-    # is the only legal way to take this swap ("ALL of the models in this unit
-    # can EACH have their wraithcannon replaced").
-    wraithguard_choices = {"Wraithguard": {WRAITHGUARD_TO_D_SCYTHE: 5}}
-    # The Shining Spear Exarch's listed "Shimmershield, Shuriken Cannon, Star
-    # Lance" is THREE printed sentences and they are not all the same kind of
-    # thing, which is the one trap on this datasheet: the star lance and the
-    # shuriken cannon are weapon swaps (they give up different weapons, so they
-    # can be taken together), but the shimmershield is a pure ADDITION and is
-    # modelled as Gear, not as a WargearOption - it takes nothing away and only
-    # sets the 4+ invulnerable save. So it goes in the gear columns below, and
-    # this is the first Aeldari entry that uses them at all.
-    #
-    # "Star Lance" appears twice in the built loadout and that is correct: the
-    # lance is one printed weapon with a ranged row AND a melee row, exactly
-    # like the laser lance it replaces.
-    shining_spears_choices = {"Shining Spear Exarch": {
-        SHINING_SPEAR_TO_STAR_LANCE: 1,
-        SHINING_SPEAR_TO_SHURIKEN_CANNON: 1,
-    }}
-    army = [
-        # (datasheet, gear-slot model line name (or None), gear list, color, wargear choices (or None))
-        # The Shining Spears' shimmershield is the only non-weapon gear in this
-        # roster; every other entry leaves the two gear columns None.
-        #
-        # Dark Reapers and Rangers are listed with exactly their printed
-        # defaults - Reaper Launchers on all five including the Exarch, and no
-        # wargear options at all on the Rangers - so there is nothing to choose
-        # for either of them. Checked rather than assumed.
-        (DARK_REAPERS, None, None, (60, 60, 95), None),
-        (FALCON, None, None, (100, 140, 190), falcon_choices),
-        (RANGERS, None, None, (140, 130, 105), None),
-        (SHINING_SPEARS, "Shining Spear Exarch", [SHINING_SPEAR_SHIMMERSHIELD],
-         (240, 200, 90), shining_spears_choices),
-        # The Striking Scorpion Exarch's listed "Scorpion chainsword,
-        # Scorpion's claw, Shuriken pistol" is the datasheet's printed
-        # default, so there is nothing to choose - checked rather than assumed,
-        # since both of this datasheet's options replace exactly those three.
-        (STRIKING_SCORPIONS, None, None, (110, 180, 100), None),
-        (WRAITHGUARD, None, None, (225, 225, 195), wraithguard_choices),
-    ]
-    _check_positions("Aeldari", model_positions, len(army))
-
-    unit_counts = {}
-    for index, (datasheet, leader_line_name, gear_list, color, choices) in enumerate(army):
-        unit_counts[datasheet.name] = unit_counts.get(datasheet.name, 0) + 1
-        gear = {leader_line_name: gear_list} if leader_line_name is not None else None
-        positions = model_positions[index] if model_positions and index < len(model_positions) else []
-        first_x, first_y = positions[0] if positions else (0.0, 0.0)
-        squad = build_squad(
-            datasheet, owner=owner, gear=gear, choices=choices,
-            name=unit_name(owner, f"{datasheet.name} {unit_counts[datasheet.name]}"),
-            x_in=first_x, y_in=first_y, color=color,
-            # Which copy of this datasheet the list is buying - the same
-            # running count that already names the squad. The official points
-            # list charges more for later copies of some units (see
-            # game/factions/points.py), so this is what makes Squad.points
-            # come out right rather than always quoting the 1st-unit price.
-            unit_index=unit_counts[datasheet.name],
-        )
-        _apply_positions(squad, model_positions, index)
-        register(squad)
-
-    def aeldari_squad(datasheet, color, name=None, choices=None, composition_index=0, unit_index=1):
-        """One unit of this list, built the way the loop above builds them.
-
-        The five attached units below are built here rather than in `army` for
-        the reason the T'au roster's own Coldstar/Farsight pairs were: an entry
-        in that table registers its squad immediately, and an attachment has to
-        happen BEFORE registration so the scene records one merged unit rather
-        than two."""
-        return build_squad(
-            datasheet, owner=owner, choices=choices, composition_index=composition_index,
-            name=name or unit_name(owner, f"{datasheet.name} 1"), color=color, unit_index=unit_index,
-        )
-
-    # Guardian Defenders + Farseer + Warlock Conclave 1.
-    #
-    # THE ORDER IS LOAD-BEARING, and it is the two printed texts rather than a
-    # preference. A Warlock Conclave's LEADER ability is worded as a JOIN that
-    # states its own limit ("a unit cannot have more than one WARLOCK CONCLAVE
-    # unit joined to it"), so it may join a unit a Farseer already leads. A
-    # Farseer attaching is an ordinary 19.01 attachment, and a plain Farseer's
-    # LEADER line carries no permission to join a unit something is already
-    # attached to - only Eldrad's does. So Farseer first, Conclave second is
-    # legal and the reverse is not; can_attach() enforces exactly that (see
-    # game/attached_units.py's _join_not_bound_by_leader_slot(), which quotes
-    # both texts).
-    #
-    # The Guardian Defenders' listed build - 10 Guardians on Shuriken Catapults
-    # and a Heavy Weapon Platform on a Bright Lance - is the printed default,
-    # and the Farseer's "Singing Spear" is his one swap.
-    guardians_squad = aeldari_squad(GUARDIAN_DEFENDERS, (90, 170, 210))
-    guardians_squad = attached_units.attach(
-        aeldari_squad(FARSEER, (150, 130, 200),
-                      choices={"Farseer": {FARSEER_WITCHBLADE_TO_SPEAR: 1}}),
-        guardians_squad, game_state=state)
-    guardians_squad = attached_units.attach(
-        aeldari_squad(WARLOCK_CONCLAVE, (150, 120, 200), name=unit_name(owner, "Warlock Conclave 1"),
-                      choices={"Warlock": {WARLOCK_WITCHBLADE_TO_SPEAR: 2}}, unit_index=1),
-        guardians_squad, game_state=state)
-    register(guardians_squad)
-
-    # Storm Guardians + Eldrad Ulthran + Warlock Conclave 2. Either order is
-    # legal here - Eldrad's LEADER line explicitly allows him to join a unit a
-    # WARLOCKS unit has already joined - but they are attached in the same
-    # order as above so the two blocks read the same way.
-    #
-    # The listed build is 2 models with Flamer, 2 with Fusion Gun, 2 OTHER
-    # models with Power Sword (keeping their Shuriken Pistol), 4 with the
-    # printed loadout, plus the Serpent's Scale Platform. Every special
-    # weapon sits on its own model.
-    #
-    # The two pistol swaps give up the SAME weapon, so they share a cursor
-    # and take models 0-1 and 2-3 by themselves. The sword swap gives up a
-    # different weapon (the close combat weapon) and would therefore start
-    # its own cursor back at model 0, landing swords on the flamer models -
-    # so the sword models are named explicitly, which is how an army list
-    # says "different models" (see build_squad()). Checked, not assumed.
-    storm_squad = aeldari_squad(STORM_GUARDIANS, (110, 190, 200), choices={
-        "Storm Guardian": {
-            STORM_GUARDIAN_PISTOL_TO_FLAMER: 2,
-            STORM_GUARDIAN_PISTOL_TO_FUSION: 2,
-            STORM_GUARDIAN_CCW_TO_POWER_SWORD: [4, 5],
-        },
-    })
-    storm_squad = attached_units.attach(
-        aeldari_squad(ELDRAD_ULTHRAN, (170, 140, 210)), storm_squad, game_state=state)
-    storm_squad = attached_units.attach(
-        aeldari_squad(WARLOCK_CONCLAVE, (150, 120, 200), name=unit_name(owner, "Warlock Conclave 2"),
-                      choices={"Warlock": {WARLOCK_WITCHBLADE_TO_SPEAR: 2}}, unit_index=2),
-        storm_squad, game_state=state)
-    register(storm_squad)
-
-    # Windriders + Warlock Skyrunner. The Skyrunner NO LONGER STANDS ALONE:
-    # its LEADER line is a JOIN that names WINDRIDERS and nothing else, so the
-    # moment this list fields a Windrider unit the pairing that was previously
-    # impossible becomes the only one it has. attach() would refuse any other
-    # partner, so a wrong guess here is caught rather than silently built.
-    #
-    # Like the two Warlock Conclaves above it, this JOIN states its own limit
-    # ("a unit cannot have more than one WARLOCK SKYRUNNERS unit joined to it")
-    # rather than taking 19.01's single leader slot - the same wording, handled
-    # by the same code in game/attached_units.py.
-    #
-    # "3x Windriders: 3 with Close Combat Weapon, Shuriken Cannon" - the close
-    # combat weapon is the printed default and the shuriken cannon is one of the
-    # two swaps off the twin shuriken catapult, taken on ALL THREE models. Note
-    # the count is 3 and not 1: the list is describing the whole unit, not a
-    # single model upgrade.
-    #
-    # The Skyrunner keeps its printed witchblade rather than the singing spear
-    # the two foot Conclaves take - the one swap this datasheet has, not taken.
-    windriders_squad = aeldari_squad(WINDRIDERS, (120, 155, 130), choices={
-        "Windrider": {WINDRIDER_TO_SHURIKEN_CANNON: 3}})
-    windriders_squad = attached_units.attach(
-        aeldari_squad(WARLOCK_SKYRUNNERS, (170, 140, 220)),
-        windriders_squad, game_state=state)
-    register(windriders_squad)
-
-    # The three Phoenix Lords, each with the one unit its own LEADER line names
-    # (user: "die phoenix lords in ihre passenden squads") - which is also the
-    # pairing table attach() checks, so a wrong guess here would be refused
-    # rather than silently built.
-    #
-    # Dire Avengers: the Exarch's listed "2x Avenger Shuriken Catapult" is the
-    # datasheet's pure-addition option, taken on top of his printed one.
-    avengers_squad = aeldari_squad(DIRE_AVENGERS, (70, 150, 220), choices={
-        "Dire Avenger Exarch": {DIRE_AVENGER_SECOND_CATAPULT: 1}})
-    avengers_squad = attached_units.attach(
-        aeldari_squad(ASURMEN, (240, 240, 250)), avengers_squad, game_state=state)
-    register(avengers_squad)
-
-    # Howling Banshees: the Exarch trades her Banshee Blade for an Executioner
-    # and keeps her Shuriken Pistol.
-    banshees_squad = aeldari_squad(HOWLING_BANSHEES, (230, 220, 210), choices={
-        "Howling Banshee Exarch": {BANSHEE_BLADE_TO_EXECUTIONER: 1}})
-    banshees_squad = attached_units.attach(
-        aeldari_squad(JAIN_ZAR, (235, 225, 215)), banshees_squad, game_state=state)
-    register(banshees_squad)
-
-    # Warp Spiders: the Exarch trades his Death Spinner for a Powerblade Array.
-    spiders_squad = aeldari_squad(WARP_SPIDERS, (200, 200, 230), choices={
-        "Warp Spider Exarch": {WARP_SPIDER_TO_POWERBLADE_ARRAY: 1}})
-    spiders_squad = attached_units.attach(
-        aeldari_squad(LHYKHIS, (180, 190, 220)), spiders_squad, game_state=state)
-    register(spiders_squad)
-
-
-# ===========================================================================
-# Orks - War Horde
-# ===========================================================================
-
-def build_orks(owner, register, state=None, model_positions=None):
-    """The Ork army list the user supplied:
-
-      Char1 Beastboss              -> attached to Beast Snagga Boyz
-      Char2 Warboss                -> attached to Boyz 1
-      Char3 Warboss in Mega Armour -> attached to Meganobz
-      1x Beast Snagga Boyz (10), 2x Boyz (10, Boss Nob w/ Power Klaw),
-      1x Battlewagon ('Ard Case + 4x Big Shoota), 1x Deff Dread,
-      6x Deffkoptas, 1x Flash Gitz (10), 2x Gretchin (11), 1x Kill Rig,
-      6x Meganobz, 1x Stormboyz (10, Boss Nob w/ Power Klaw),
-      6x Tankbustas, 2x Trukk, 2x Warbikers (3 each, + Power Klaw)
-
-    Every item on that list is modeled. The three that were missing once - the
-    Warboss's Attack squig, the Battlewagon's Zzap gun and the Flash Gitz'
-    Ammo Runt - had their stat lines/rules text supplied afterwards and are
-    built here. The Zzap gun in particular is the first weapon in this engine
-    with a dice-rolled Strength ("S D6+6"), see
-    WeaponProfile.strength_notation.
-
-    Points: the list's own per-unit numbers run consistently above this
-    project's transcribed published list (e.g. Trukk 70 vs 55, Tankbustas
-    140 vs 125, Kill Rig 155 vs 145, Deffkoptas 160 vs 140) - a newer
-    revision. Same treatment as the other two lists: named as an informative
-    mismatch, with the transcribed data left as the single source of truth
-    (see game/factions/orks_points.py).
-
-    Transports (user instruction): "die ki soll die beast boyz + beast boss
-    bevorzugt in den kill rig packen und die meganobs + megaboss in
-    megaarmor in den battle wagon" - declared below as EMBARK hints, which
-    ai/deployment_ai.py's own _transport_affinity() honours as the scene's
-    answer AND, since this instruction, treats as exclusive (a hinted unit
-    is never loaded into some other transport that happens to be processed
-    first). Both fit: Beast Snagga Boyz + Beastboss = 11 models against the
-    Kill Rig's capacity 11, all BEAST SNAGGA INFANTRY as that datasheet
-    requires; Meganobz + Warboss in Mega Armour = 7 MEGA ARMOUR models = 14
-    capacity against the Battlewagon's 22.
-
-    The two Trukks carry nobody by declaration - the AI fills them from
-    whatever short-ranged infantry is left, which is what its own
-    _transport_affinity() is for.
-    """
-    # 14 units once the three attachments are merged; the count is what
-    # --no-deployment would need a position list for, and there is none.
-    _check_positions("Orks", model_positions, 0)
-
-    GRETCHIN_COLOR = (140, 110, 70)
-    STORMBOYZ_COLOR = (110, 150, 70)
-    WARBIKERS_COLOR = (150, 130, 60)
-    BOYZ_COLOR = (70, 140, 60)
-    PAINBOY_COLOR = (150, 65, 105)
-    WARBOSS_COLOR = (170, 60, 60)
-    MEGANOBZ_COLOR = (120, 100, 130)
-    DEFF_DREAD_COLOR = (80, 80, 90)
-    DEFFKOPTAS_COLOR = (130, 145, 165)
-    TANKBUSTAS_COLOR = (160, 110, 40)
-    BEAST_SNAGGA_COLOR = (120, 145, 55)
-    BEASTBOSS_COLOR = (185, 80, 45)
-    KILL_RIG_COLOR = (100, 85, 65)
-    BATTLEWAGON_COLOR = (75, 95, 55)
-    FLASH_GITZ_COLOR = (170, 150, 55)
-
-    # --- Kill Rig, and the Beast Snagga Boyz + Beastboss that ride in it ---
-    kill_rig_squad = build_squad(
-        KILL_RIG, owner=owner, name=unit_name(owner, "Kill Rig 1"), color=KILL_RIG_COLOR,
-    )
-    kill_rig_token = kill_rig_squad.models[0]
-    register(kill_rig_squad)
-
-    beast_snagga_squad = build_squad(
-        BEAST_SNAGGA_BOYZ, owner=owner, name=unit_name(owner, "Beast Snagga Boyz 1"),
-        color=BEAST_SNAGGA_COLOR,
-    )
-    beastboss_squad = build_squad(
-        BEASTBOSS, owner=owner, name=unit_name(owner, "Beastboss 1"), color=BEASTBOSS_COLOR,
-    )
-    # The Beastboss's own Leader ability (24.22) lists Beast Snagga Boyz, so
-    # attach() accepts the pairing. Attached BEFORE the transport hint so the
-    # capacity check sees the finished 11-model unit.
-    beast_snagga_squad = attached_units.attach(beastboss_squad, beast_snagga_squad, game_state=state)
-    register(beast_snagga_squad, pregame.EMBARK, transport=kill_rig_token)
-
-    # --- Battlewagon, and the Meganobz + Warboss in Mega Armour inside ---
-    battlewagon_squad = build_squad(
-        BATTLEWAGON, owner=owner, name=unit_name(owner, "Battlewagon 1"), color=BATTLEWAGON_COLOR,
-        gear={"Battlewagon": [BATTLEWAGON_ARD_CASE]},
-        choices={"Battlewagon": {BATTLEWAGON_ADD_BIG_SHOOTAS: 1, BATTLEWAGON_ADD_ZZAP_GUN: 1}},
-    )
-    battlewagon_token = battlewagon_squad.models[0]
-    register(battlewagon_squad)
-
-    meganobz_squad = build_squad(
-        MEGANOBZ, owner=owner, composition_index=1, name=unit_name(owner, "Meganobz 1"),
-        color=MEGANOBZ_COLOR,
-    )
-    warboss_mega_squad = build_squad(
-        WARBOSS_MEGA_ARMOUR, owner=owner, name=unit_name(owner, "Warboss in Mega Armour 1"),
-        color=WARBOSS_COLOR,
-    )
-    # Its Leader ability lists Meganobz. Unlike the old Trukk arrangement -
-    # where 6 MEGA ARMOUR Meganobz alone already filled a Trukk's capacity 12
-    # and the leader had to be left out entirely - the Battlewagon's 22 has
-    # room for all 14 capacity this attached unit costs.
-    meganobz_squad = attached_units.attach(warboss_mega_squad, meganobz_squad, game_state=state)
-    register(meganobz_squad, pregame.EMBARK, transport=battlewagon_token)
-
-    # --- One 20-strong Boyz mob, led by BOTH the Warboss and the Painboy ---
-    # composition_index=1 is the 20-model build, and it is load-bearing here
-    # rather than just bigger: Boyz' own "Bodyguard" ability only allows a
-    # SECOND Leader on a unit with a Starting Strength of 20, and only if one
-    # of the two is a WARBOSS. Both conditions are checked for real - see
-    # game/attached_units.py's _bodyguard_allows_second_leader().
-    boyz_squad = build_squad(
-        BOYZ, owner=owner, composition_index=1,
-        choices={"Boss Nob": {BOYZ_BIG_CHOPPA_TO_POWER_KLAW: 1}},
-        name=unit_name(owner, "Boyz 1"), color=BOYZ_COLOR, unit_index=1,
-    )
-    warboss_squad = build_squad(
-        WARBOSS, owner=owner, name=unit_name(owner, "Warboss 1"), color=WARBOSS_COLOR,
-        choices={"Warboss": {WARBOSS_ADD_ATTACK_SQUIG: 1}},
-    )
-    painboy_squad = build_squad(
-        PAINBOY, owner=owner, name=unit_name(owner, "Painboy 1"), color=PAINBOY_COLOR,
-        gear={"Painboy": [PAINBOY_GROT_ORDERLY]},
-    )
-    # Warboss FIRST: the exception needs a WARBOSS among the two, and
-    # attaching him first means the Painboy's own check finds one already
-    # there rather than depending on the order the pair happens to arrive in
-    # (it accepts either, but this is the order the rule text reads in).
-    boyz_squad = attached_units.attach(warboss_squad, boyz_squad, game_state=state)
-    boyz_squad = attached_units.attach(painboy_squad, boyz_squad, game_state=state)
-    register(boyz_squad)
-
-    # --- The rest of the roster ---
-    for index in (1, 2):
-        register(build_squad(
-            GRETCHIN, owner=owner, name=unit_name(owner, f"Gretchin {index}"),
-            color=GRETCHIN_COLOR, unit_index=index,
-        ))
-
-    # composition_index=0 is the 3-model composition (1 Boss Nob on Warbike +
-    # 2 Warbikers), which is what this list fields twice.
-    for index in (1, 2):
-        register(build_squad(
-            WARBIKERS, owner=owner, composition_index=0,
-            choices={"Boss Nob on Warbike": {WARBIKERS_ADD_POWER_KLAW: 1}},
-            name=unit_name(owner, f"Warbikers {index}"), color=WARBIKERS_COLOR, unit_index=index,
-        ))
-
-    register(build_squad(
-        STORMBOYZ, owner=owner, composition_index=1,
-        choices={"Boss Nob": {STORMBOYZ_CHOPPA_TO_POWER_KLAW: 1}},
-        name=unit_name(owner, "Stormboyz 1"), color=STORMBOYZ_COLOR,
-    ))
-
-    register(build_squad(
-        DEFF_DREAD, owner=owner, name=unit_name(owner, "Deff Dread 1"), color=DEFF_DREAD_COLOR,
-    ))
-
-    # composition_index=1 is the 6-model build this list fields; every model
-    # keeps the printed Kopta rokkits + Slugga + Spinnin' blades, so there
-    # are no wargear choices to make. DEEP STRIKE (24.09), so the deployment
-    # AI is free to hold it in Strategic Reserves.
-    register(build_squad(
-        DEFFKOPTAS, owner=owner, composition_index=1,
-        name=unit_name(owner, "Deffkoptas 1"), color=DEFFKOPTAS_COLOR,
-    ))
-
-    # composition_index=1 is the 10-model build this list fields.
-    register(build_squad(
-        FLASH_GITZ, owner=owner, composition_index=1, name=unit_name(owner, "Flash Gitz 1"),
-        color=FLASH_GITZ_COLOR, gear={"Kaptin": [FLASH_GITZ_AMMO_RUNT]},
-    ))
-
-    # This list's own custom Tankbusta loadout - Boss Nob w/ Smash Hammer
-    # instead of a 2nd Rokkit Pistol, one Tankbusta w/ an extra Rokkit
-    # Launcha (see TANKBUSTAS_BOSS_NOB_ADD_SMASH_HAMMER/
-    # TANKBUSTAS_ADD_ROKKIT_LAUNCHA's own notes).
-    register(build_squad(
-        TANKBUSTAS, owner=owner, name=unit_name(owner, "Tankbustas 1"), color=TANKBUSTAS_COLOR,
-        choices={
-            "Boss Nob": {TANKBUSTAS_BOSS_NOB_ADD_SMASH_HAMMER: 1},
-            "Tankbusta": {TANKBUSTAS_ADD_ROKKIT_LAUNCHA: 1},
-        },
-    ))
-
-
-# ===========================================================================
-# Necrons - Awakened Dynasty
-# ===========================================================================
-
-def build_necrons(owner, register, state=None, model_positions=None):
-    """The Necron army list the user supplied. Awakened Dynasty, 15 list
-    entries, 9 units after the attachments, 68 models, engine total 2020 pts
-    against the list's own 2050 - the per-entry differences are recorded in
-    game/factions/necrons_points.py and deliberately not reconciled.
-
-      Char1 C'tan Shard of the Void Dragon   (330 in the list, 345 here)
-      Char2 Lokhust Lord, Nanoscarab amulet + Staff of light   (80 / 70)
-      Char3 Overlord, Resurrection orb + Voidscythe            (85 / 90)
-      Char4 Plasmancer                       (55 / 55)
-      Char5 Plasmancer                       (55 / 55)
-      Char6 Skorpekh Lord                    (90 / 90 - agrees)
-      Char7 Technomancer                     (80 / 80 - agrees)
-
-    SIX ATTACHED UNITS (rule 19.01), assigned by the user:
-      Overlord      -> Lychguard            (and with him NOBLE, so Guardian
-                                             Protocols finally has a carrier)
-      Technomancer  -> Necron Warriors      (Rites of Reanimation: FNP 5+)
-      Plasmancer 1  -> Immortals 1          (Harbinger of Destruction: 5+ crits)
-      Plasmancer 2  -> Immortals 2          (the same, on the Tesla squad)
-      Skorpekh Lord -> Skorpekh Destroyers  (United In Destruction: [LETHAL HITS])
-      Lokhust Lord  -> Lokhust Destroyers   ("Destroyer Cult": 5+ ranged crits)
-    All six are on the leaders' own printed LEADER lines - checked against
-    attached_units.can_attach() rather than assumed. The two Lords each lead
-    exactly the unit they are the bigger version of, which is the whole of
-    their printed LEADER line.
-
-    THE C'TAN SHARD STANDS ALONE, and that is a statement rather than an
-    omission: it has no printed LEADER line at all.
-
-    This is also what switches Command Protocols on: the detachment rule only
-    pays a unit "while a NECRONS CHARACTER model is leading" it, so six of the
-    nine units on the table now qualify.
-
-    TWO IMMORTALS SQUADS, AND THEY ARE NOT THE SAME UNIT: one keeps the
-    printed gauss blasters, the other swaps every model to a tesla carbine.
-    The swap is written per MODEL (10), not as a flag, because that is what
-    the printed option is - and it is the first entry in this list where two
-    copies of one datasheet carry different wargear, so unit_name()'s copy
-    number is doing real work.
-
-    NO RESERVES AND NO TRANSPORTS: the list has neither, so every unit
-    deploys normally. That is also why ai/deployment_ai.py needs no
-    TRANSPORT_PASSENGER_PRIORITY entry for this army.
-    """
-    _check_positions("Necrons", model_positions, 0)
-
-    VOID_DRAGON_COLOR = (90, 110, 140)
-    OVERLORD_COLOR = (170, 150, 70)
-    PLASMANCER_COLOR = (110, 170, 190)
-    TECHNOMANCER_COLOR = (120, 160, 140)
-    IMMORTALS_COLOR = (100, 130, 150)
-    IMMORTALS_TESLA_COLOR = (120, 145, 175)
-    WARRIORS_COLOR = (90, 120, 130)
-    WRAITHS_COLOR = (150, 170, 180)
-    DOOMSDAY_ARK_COLOR = (80, 100, 120)
-    LOKHUST_COLOR = (110, 120, 100)
-    LYCHGUARD_COLOR = (160, 140, 60)
-    SKORPEKH_COLOR = (120, 90, 90)
-
-    register(build_squad(
-        CTAN_SHARD_OF_THE_VOID_DRAGON, owner=owner,
-        name=unit_name(owner, "C'tan Shard of the Void Dragon 1"), color=VOID_DRAGON_COLOR,
-    ))
-    # Every character below is built at the unit it leads - an attachment has
-    # to happen BEFORE registration, so the scene records one merged unit
-    # rather than two. Same arrangement the Aeldari list's five attachments
-    # use.
-
-    # 10 Immortals with gauss blasters - the printed default, so no choices -
-    # led by the first Plasmancer.
-    immortals_gauss = build_squad(
-        IMMORTALS, owner=owner, composition_index=1, name=unit_name(owner, "Immortals 1"),
-        color=IMMORTALS_COLOR,
-    )
-    register(attached_units.attach(
-        build_squad(PLASMANCER, owner=owner, name=unit_name(owner, "Plasmancer 1"),
-                    color=PLASMANCER_COLOR),
-        immortals_gauss, game_state=state,
-    ))
-    # "10 with Close combat weapon, Tesla carbine" - the whole squad takes the
-    # swap, so the count is the unit size and not 1. Led by the second
-    # Plasmancer, which is what makes this a second full unit rather than a
-    # differently armed copy of the first.
-    immortals_tesla = build_squad(
-        IMMORTALS, owner=owner, composition_index=1, name=unit_name(owner, "Immortals 2"),
-        color=IMMORTALS_TESLA_COLOR,
-        choices={"Immortal": {IMMORTALS_TO_TESLA_CARBINE: 10}},
-    )
-    register(attached_units.attach(
-        build_squad(PLASMANCER, owner=owner, name=unit_name(owner, "Plasmancer 2"),
-                    color=PLASMANCER_COLOR),
-        immortals_tesla, game_state=state,
-    ))
-    # 20 Necron Warriors with gauss flayers - likewise the default - led by
-    # the Technomancer.
-    warriors_squad = build_squad(
-        NECRON_WARRIORS, owner=owner, composition_index=1,
-        name=unit_name(owner, "Necron Warriors 1"), color=WARRIORS_COLOR,
-    )
-    register(attached_units.attach(
-        build_squad(TECHNOMANCER, owner=owner, name=unit_name(owner, "Technomancer 1"),
-                    color=TECHNOMANCER_COLOR),
-        warriors_squad, game_state=state,
-    ))
-    # 6 Canoptek Wraiths with vicious claws, no particle casters or
-    # beamers - the list adds none, so the default loadout stands.
-    register(build_squad(
-        CANOPTEK_WRAITHS, owner=owner, composition_index=1,
-        name=unit_name(owner, "Canoptek Wraiths 1"), color=WRAITHS_COLOR,
-    ))
-    register(build_squad(
-        DOOMSDAY_ARK, owner=owner, name=unit_name(owner, "Doomsday Ark 1"),
-        color=DOOMSDAY_ARK_COLOR,
-    ))
-    # 6 Lokhust Destroyers with gauss cannons - the datasheet has no wargear
-    # options at all - led by the Lokhust Lord, who keeps his staff of light
-    # (the Lord's blade swap would give up BOTH of its rows and leave him no
-    # ranged weapon) and takes the nanoscarab amulet, which is Feel No Pain
-    # 5+ on the BEARER only.
-    lokhust_squad = build_squad(
-        LOKHUST_DESTROYERS, owner=owner, composition_index=3,
-        name=unit_name(owner, "Lokhust Destroyers 1"), color=LOKHUST_COLOR,
-    )
-    register(attached_units.attach(
-        build_squad(
-            LOKHUST_LORD, owner=owner, name=unit_name(owner, "Lokhust Lord 1"),
-            color=LOKHUST_COLOR,
-            gear={"Lokhust Lord": [LOKHUST_LORD_NANOSCARAB_AMULET]},
-        ),
-        lokhust_squad, game_state=state,
-    ))
-    # "5 with Dispersion shield, Hyperphase sword" - one printed option
-    # that is half a weapon swap and half a Gear item, so it takes both
-    # columns. The Gear carries all_models=True; without it four of the
-    # five would silently have no invulnerable save.
-    lychguard_squad = build_squad(
-        LYCHGUARD, owner=owner, name=unit_name(owner, "Lychguard 1"), color=LYCHGUARD_COLOR,
-        choices={"Lychguard": {LYCHGUARD_TO_HYPERPHASE_SWORD: 5}},
-        gear={"Lychguard": [LYCHGUARD_DISPERSION_SHIELD]},
-    )
-    # The Overlord joins them, which is what gives Guardian Protocols the
-    # NOBLE its own text asks for - without him the Lychguard have the
-    # ability printed and it never fires.
-    #
-    # "Resurrection orb, Voidscythe": the voidscythe swap gives up BOTH the
-    # tachyon arrow and the Overlord's blade, which is what makes him
-    # eligible for the orb at all - the Gear item checks for the arrow and
-    # runs after the weapon swaps, so the printed precondition enforces
-    # itself. See game/factions/necrons.py's _equip_resurrection_orb.
-    register(attached_units.attach(
-        build_squad(
-            OVERLORD, owner=owner, name=unit_name(owner, "Overlord 1"), color=OVERLORD_COLOR,
-            choices={"Overlord": {OVERLORD_TO_VOIDSCYTHE: 1}},
-            gear={"Overlord": [OVERLORD_RESURRECTION_ORB]},
-        ),
-        lychguard_squad, game_state=state,
-    ))
-    # "Plasmacyte, 3 with Skorpekh hyperphase weapons" - ONE Plasmacyte, which
-    # is one use of its [DEVASTATING WOUNDS] grant over the whole battle (the
-    # allowance is per Plasmacyte, not per battle). Led by the Skorpekh Lord,
-    # whose United In Destruction hands the same unit [LETHAL HITS] for as
-    # long as he lives.
-    skorpekh_squad = build_squad(
-        SKORPEKH_DESTROYERS, owner=owner, name=unit_name(owner, "Skorpekh Destroyers 1"),
-        color=SKORPEKH_COLOR,
-        gear={"Skorpekh Destroyer": [SKORPEKH_PLASMACYTE]},
-    )
-    register(attached_units.attach(
-        build_squad(SKORPEKH_LORD, owner=owner, name=unit_name(owner, "Skorpekh Lord 1"),
-                    color=SKORPEKH_COLOR),
-        skorpekh_squad, game_state=state,
-    ))
-
-
-
-# ===========================================================================
-# T'au Empire - Retaliation Cadre
-# ===========================================================================
-
-
-# --- which Enhancements a predefined list hands out ------------------------
-#
-# An Enhancement belongs to a DETACHMENT, and a detachment belongs to the LIST
-# (see game/detachments.py): it is part of how the army was written down, not a
-# choice made at the table. So the list hands out the Enhancement of each
-# detachment it declares, and game/enhancements.py's is_active() refuses one
-# whose detachment is not actually fielded - which is what closes the
-# limitation game/starflare_ignition.py used to write out at length ("picking a
-# different T'au detachment leaves that Commander holding a Retaliation Cadre
-# Enhancement, and its 20 points").
-#
-# THIS LIST TAKES NONE, AND THAT IS A FACT ABOUT THE LIST
-# -------------------------------------------------------
-# The T'au roster the user supplied on 2026-08-30 names no Enhancement. Every
-# character in it is priced at its base cost (Shadowsun 100, both Fireblades
-# 50, the Ethereal 50) and an Enhancement would carry both its own line and its
-# own points, exactly as the detachments do. So the table below is EMPTY, the
-# same way the list has no Strike Team: what the list says, not a gap in it.
-#
-# Nothing about the machinery changed - all nineteen Enhancements are still
-# engine-wired and still tested (game/enhancements.py plus the eighteen
-# enh_*.py modules), and _grant_tau_enhancements() below is still the one place
-# a list hands one out. Adding one back is a single entry here, e.g.
-#
-#     "Kauyon": ("Exemplar of the Kauyon", "Cadre Fireblade"),
-#
-# which would be legal in this roster: a Fireblade is a T'AU EMPIRE CHARACTER
-# and not a Kroot Shaper, and he LEADS a Breacher Team, which is what "while
-# the bearer is leading a unit" needs. It would also add 20 points the supplied
-# list does not spend, which is why it is not done unasked.
-_TAU_LIST_ENHANCEMENTS = {}
-
-
-def _grant_tau_enhancements(owner, built, game_log=None):
-    """Hand this player one Enhancement per detachment their LIST declares.
-
-    Read off the ArmyList rather than off the config constants, because that is
-    where a detachment now lives - and because preview_squads() builds the same
-    list without ever applying anything to config, so a config-driven grant
-    would make the selection screen's points disagree with the battle's.
-
-    Returns the names granted. Today that is always none, because the supplied
-    list declares no Enhancement (see the table above); the mechanism is
-    exercised directly by test_tau_enhancements.py rather than through the
-    roster, so it cannot rot while unused.
-
-    The bearer is looked up by DATASHEET in `built` - the units this call has
-    produced so far, NOT state.all_squads(). preview_squads() builds the whole
-    list with no game state at all, and a lookup that needed one would silently
-    drop the Enhancement from the army screen's tile while the battle got it -
-    exactly the preview/battle disagreement that list's own points line exists
-    to catch. _find_by_datasheet() sees through 19.01, so a character already
-    merged into the unit he leads is still found.
-    """
-    granted = []
-    for detachment in get(TAU_ARMY).detachments:
-        entry = _TAU_LIST_ENHANCEMENTS.get(detachment)
-        if entry is None:
-            continue
-        name, bearer_datasheet = entry
-        squad = _find_by_datasheet(built, owner, bearer_datasheet)
-        if squad is None:
-            continue
-        enhancements.grant(squad, name, game_log=game_log)
-        granted.append(name)
-    return granted
-
-
-def _find_by_datasheet(squads, owner, datasheet_name):
-    """One of this owner's already-built units, by datasheet - including a unit
-    a CHARACTER of that datasheet has been merged into under 19.01, which is how
-    a Cadre Fireblade is found (he is inside a Breacher Team by the time this
-    runs)."""
-    for squad in squads or ():
-        if squad.owner != owner:
-            continue
-        names = [getattr(getattr(squad, "datasheet", None), "name", None)]
-        names += [getattr(getattr(c, "datasheet", None), "name", None)
-                  for c in (getattr(squad, "attached_components", ()) or ())]
-        if datasheet_name in names:
-            return squad
-    return None
-
-
-def build_tau(owner, register, state=None, model_positions=None):
-    """The T'au Empire list the user supplied on 2026-08-30, replacing the
-    Retaliation Cadre roster this list used to be.
-
-    21 list entries, 19 units after two attachments, 94 models. Engine total
-    2030 pts against the list's own 1990 - see the mismatch table below.
-
-    DETACHMENTS: Kauyon + Advanced Acquisition Cadre, declared on the ArmyList
-    (2 DP + 1 DP = 3, exactly game/detachments.py's budget). The first pair of
-    detachments any list in this project fields at once, so the Detachment
-    Points arithmetic and the tag rule stop being theory here.
-
-    TWO ATTACHMENTS (19.01), both named by the user ("die Fireblades in die
-    Breacher", "der ethereal ist solo"):
-
-        Cadre Fireblade 1 -> Breacher Team 1
-        Cadre Fireblade 2 -> Breacher Team 2
-
-    Everything else with a CHARACTER keyword stands alone, and for three
-    different reasons rather than one: the Ethereal by the user's instruction
-    (he CAN lead a Breacher Team or a Strike Team - it is a choice, not a
-    limitation), Commander Shadowsun and The Twin Lance because their
-    datasheets print no LEADER line at all. Shadowsun additionally has LONE
-    OPERATIVE 12", so standing alone is her intended state.
-
-    TRANSPORTS: each Breacher Team plus its Fireblade rides in a Devilfish -
-    11 models of a 12-model T'AU EMPIRE INFANTRY capacity. The list names two
-    Devilfish and does not say who rides in them; this is the reading the
-    previous roster was given explicitly by the user ("den fireblade zu den
-    breachern im devilfish"), and the Breachers are the only unit here whose
-    guns (a 10" pulse blaster) are unusable without one.
-
-    NO ENHANCEMENT: the supplied list names none - see _TAU_LIST_ENHANCEMENTS
-    above, which is empty and says why.
-
-    NOTHING IS DECLARED INTO RESERVES: the list says nothing about reserves,
-    and unlike the old roster (Coldstar + Starscythes, an explicit user
-    instruction) there is no unit here the list places off the board. The
-    Pre-game Sequence's Declare Battle Formations step still offers it.
-
-    POINTS: ten of the twenty-one entries disagree with the transcribed
-    official values, in BOTH directions, and the transcription wins as it does
-    for every other list here (game/factions/tau_empire_points.py). Seven
-    datasheets are involved, three of them fielded twice:
-
-        The Twin Lance        220  (list 185)
-        Devilfish              75  (list 85, twice)
-        Kroot Hounds (5)       45  (list 40)
-        Pathfinder Team (10)   85  (list 90, twice)
-        Piranhas (1)           65  (list 60, twice)
-        Riptide + accelerator 215  (list 200)
-        Vespid Stingwings (5)  70  (list 65)
-
-    The other eleven agree exactly, including the two that are easiest to get
-    wrong: the Broadside trio at 270 (255 for three plus 5 per High-yield
-    Missile Pods) and both Stealth teams at 100.
-    """
-    # Breacher Team: "Guardian Drone, Shield Drone" on the Shas'ui, both teams.
-    breacher_gear = ["Guardian Drone", "Shield Drone"]
-    # Broadside Battlesuits, all three models identically: the Heavy Rail Rifle
-    # traded for High-yield Missile Pods (the +5 pts/model this list pays), and
-    # four gear items filling both slot groups - Seeker Missile + Twin Plasma
-    # Rifle in the two support slots, two Missile Drones in the two drone
-    # slots. This datasheet's Gear is all_models=True, so one list covers the
-    # whole unit rather than only each line's first model.
-    broadside_gear = ["Seeker Missile", "Twin Plasma Rifle",
-                      "Missile Drone", "Missile Drone"]
-    broadside_choices = {
-        "Broadside Shas'vre": {BROADSIDE_RAIL_TO_MISSILE_PODS: 1},
-        "Broadside Shas'ui": {BROADSIDE_RAIL_TO_MISSILE_PODS: 2},
-    }
-    # Pathfinder Team: three rank-and-file trade their Pulse Carbine for a Rail
-    # rifle; the Shas'ui KEEPS his carbine (the previous roster traded it for a
-    # semi-automatic grenade launcher - this one does not) and carries two
-    # Shield Drones plus a Grav-inhibitor Drone.
-    pathfinder_gear = ["Shield Drone", "Shield Drone", "Grav-inhibitor Drone"]
-    pathfinder_choices = {"Pathfinder": {PATHFINDER_CARBINE_TO_RAIL_RIFLE: 3}}
-    # Piranhas, one model each: the burst cannon traded for a fusion blaster,
-    # plus both Seeker Missiles.
-    piranha_choices = {"Piranhas": {PIRANHA_BURST_TO_FUSION: 1}}
-    piranha_gear = ["Seeker Missile", "Seeker Missile"]
-    # Riptide: the accelerator replaces the heavy burst cannon, the twin fusion
-    # blaster the twin plasma rifle, and the two missile pods are the
-    # datasheet's own baseline Missile Drones.
-    riptide_choices = {
-        "Riptide Battlesuit": {RIPTIDE_BURST_TO_ION_ACCELERATOR: 1,
-                               RIPTIDE_PLASMA_TO_TWIN_FUSION: 1},
-    }
-    # Stealth Battlesuits: the SHAS'VRE carries the fusion blaster, with a Gun
-    # Drone and a Marker Drone; one Shas'ui carries the Homing Beacon (Gear
-    # lands on a line's first model, which is exactly the printed "1 Stealth
-    # Shas'ui"). The Shas'vre being the fusion-blaster model is why
-    # game/factions/tau_empire.py now carries that option on both model lines -
-    # see the KNOWN LIMITATION note there.
-    stealth_choices = {"Stealth Shas'vre": {STEALTH_BURST_TO_FUSION: 1}}
-    stealth_gear = {"Stealth Shas'vre": ["Gun Drone", "Marker Drone"],
-                    "Stealth Shas'ui": ["Homing Beacon"]}
-    # Ethereal: two Marker Drones (user: "gib dem ethereal marker drones" -
-    # plural, and his printed menu is "up to two of the following, and can take
-    # duplicates", so two of the same drone is exactly what it allows). They
-    # fill his DRONE_GROUP slots; the separate hover-drone slot is left empty,
-    # which is why that menu is a group of its own.
-    ethereal_gear = {"Ethereal": ["Marker Drone", "Marker Drone"]}
-
-    # Everything that deploys as itself, in build order. The two Breacher Teams
-    # are handled below instead, because each is built together with the
-    # Fireblade that joins it and the Devilfish it rides in.
-    #   (datasheet, composition, gear dict, colour, wargear choices)
-    army = [
-        (BROADSIDE_BATTLESUITS, 2, {"Broadside Shas'vre": broadside_gear,
-                                    "Broadside Shas'ui": broadside_gear},
-         (120, 140, 190), broadside_choices),
-        (KROOT_CARNIVORES, 0, None, (120, 90, 40), None),
-        (KROOT_CARNIVORES, 0, None, (120, 90, 40), None),
-        (KROOT_HOUNDS, 0, None, (140, 105, 55), None),
-        (PATHFINDER_TEAM, 0, {"Pathfinder Shas'ui": pathfinder_gear},
-         (90, 180, 140), pathfinder_choices),
-        (PATHFINDER_TEAM, 0, {"Pathfinder Shas'ui": pathfinder_gear},
-         (90, 180, 140), pathfinder_choices),
-        (PIRANHAS, 0, {"Piranhas": piranha_gear}, (110, 165, 200), piranha_choices),
-        (PIRANHAS, 0, {"Piranhas": piranha_gear}, (110, 165, 200), piranha_choices),
-        (RIPTIDE_BATTLESUIT, 0, None, (150, 150, 195), riptide_choices),
-        (STEALTH_BATTLESUITS, 0, stealth_gear, (100, 100, 150), stealth_choices),
-        (STEALTH_BATTLESUITS, 0, stealth_gear, (100, 100, 150), stealth_choices),
-        (VESPID_STINGWINGS, 0, None, (150, 120, 190), None),
-        (COMMANDER_SHADOWSUN, 0, None, (230, 200, 120), None),
-        (ETHEREAL, 0, ethereal_gear, (200, 180, 210), None),
-        (THE_TWIN_LANCE, 0, None, (210, 190, 120), None),
-    ]
-    # Two more units are built in the loop below (one Breacher Team + Fireblade
-    # and one Devilfish per pass), which the hand-placed table would also have
-    # to cover.
-    _check_positions("T'au Empire", model_positions, len(army) + 4)
-
-    fireblade_gear = ["Gun Drone", "Gun Drone"]
-    # Both Devilfish take their Seeker Missiles (user: "gib den devil fishes
-    # jeweils 2 seeker missiles"). ONE option taken ONCE, not two: the printed
-    # entry is "+ 2x Seeker Missile" and its WargearOption adds both missiles
-    # together, so a count of 2 here would ask for four.
-    devilfish_choices = {"Devilfish": {DEVILFISH_SEEKER_MISSILE_OPTION: 1}}
-    breacher_color = (220, 150, 70)
-    devilfish_color = (200, 160, 90)
-
-    unit_counts = {}
-    # The units this call has produced, in build order - what
-    # _grant_tau_enhancements() would search for an Enhancement's bearer. A
-    # local list rather than state.all_squads(), because preview_squads()
-    # builds the whole list with no game state at all.
-    built = []
-    index = 0
-
-    def next_name(datasheet):
-        unit_counts[datasheet.name] = unit_counts.get(datasheet.name, 0) + 1
-        return unit_name(owner, f"{datasheet.name} {unit_counts[datasheet.name]}")
-
-    # Two Breacher Teams, each with a Cadre Fireblade attached and each aboard
-    # its own Devilfish. The attachment has to happen BEFORE registration so
-    # the scene records one merged unit.
-    for _ in range(2):
-        positions = model_positions[index] if model_positions and index < len(model_positions) else []
-        first_x, first_y = positions[0] if positions else (0.0, 0.0)
-        breacher_name = next_name(BREACHER_TEAM)
-        breacher_index = unit_counts[BREACHER_TEAM.name]
-        breachers = build_squad(
-            BREACHER_TEAM, owner=owner,
-            gear={"Breacher Fire Warrior Shas'ui": breacher_gear},
-            name=breacher_name, x_in=first_x, y_in=first_y,
-            color=breacher_color, unit_index=breacher_index,
-        )
-        _apply_positions(breachers, model_positions, index)
-        index += 1
-        devilfish_squad = build_squad(
-            DEVILFISH, owner=owner, name=next_name(DEVILFISH),
-            choices=devilfish_choices,
-            color=devilfish_color, unit_index=unit_counts[DEVILFISH.name],
-        )
-        devilfish_token = devilfish_squad.models[0]
-        _apply_positions(devilfish_squad, model_positions, index)
-        index += 1
-        register(devilfish_squad)
-        merged = attached_units.attach(
-            build_squad(CADRE_FIREBLADE, owner=owner,
-                        gear={"Cadre Fireblade": fireblade_gear},
-                        name=next_name(CADRE_FIREBLADE), color=breacher_color,
-                        unit_index=unit_counts[CADRE_FIREBLADE.name]),
-            breachers, game_state=state)
-        register(merged, pregame.EMBARK, transport=devilfish_token)
-        built.extend((devilfish_squad, merged))
-
-    for datasheet, composition, gear, color, choices in army:
-        positions = model_positions[index] if model_positions and index < len(model_positions) else []
-        first_x, first_y = positions[0] if positions else (0.0, 0.0)
-        name = next_name(datasheet)
-        squad = build_squad(
-            datasheet, owner=owner, composition_index=composition,
-            gear=gear, choices=choices, name=name,
-            x_in=first_x, y_in=first_y, color=color,
-            unit_index=unit_counts[datasheet.name],
-        )
-        _apply_positions(squad, model_positions, index)
-        index += 1
-        register(squad)
-        built.append(squad)
-
-    _grant_tau_enhancements(owner, built)
-
-
-def build_death_guard(owner, register, state=None, model_positions=None):
-    """The Death Guard list the user supplied: 16 entries, 14 units after two
-    attachments, 49 models.
-
-    Engine total 2020 pts against the list's 2015. Four entries disagree, in
-    BOTH directions, and the transcription wins as it does for every other
-    faction here - see game/factions/death_guard_points.py, which records each
-    deviation on its own line:
-
-        Plague Marines (10)      180  (list 190)
-        Myphitic Blight-hauler    95  (list 100, twice)
-        Plagueburst Crawler      170  (list 210)
-        Defiler + reaper         315  (list 250)
-
-    TWO ATTACHMENTS (19.01), and the list names none - this is the USER'S
-    call, made because guessing would silently decide which abilities work at
-    all:
-
-        Typhus                -> Deathshroud Terminators 1
-        Malignant Plaguecaster -> Plague Marines 1
-
-    That pairing switches on four abilities that would otherwise be printed
-    and inert: The Destroyer Hive (-1 to hit the Deathshroud in melee), Silent
-    Bodyguard (Typhus gains Feel No Pain 4+ FROM his bodyguards - the one
-    ability in this engine that runs from bodyguard to leader), Gift of
-    Contagion ([SUSTAINED HITS 1] for the Plague Marines against an Afflicted
-    target), and Fevered Strategist's 12" bubble now has units to reach.
-
-    The Daemon Prince stands alone because it HAS no LEADER line - Death Guard
-    Defenders is its protection instead, and it needs friendly DEATH GUARD
-    INFANTRY within 3" rather than a unit to hide in.
-    """
-    _check_positions("Death Guard", model_positions, 0)
-
-    DAEMON_PRINCE_COLOR = (110, 130, 80)
-    TYPHUS_COLOR = (150, 145, 90)
-    PLAGUECASTER_COLOR = (120, 150, 100)
-    PLAGUE_MARINES_COLOR = (100, 120, 70)
-    POXWALKER_COLOR = (130, 135, 105)
-    DEATHSHROUD_COLOR = (95, 105, 75)
-    SPAWN_COLOR = (140, 115, 100)
-    DEFILER_COLOR = (80, 95, 65)
-    BLOAT_DRONE_COLOR = (105, 125, 85)
-    BLIGHT_HAULER_COLOR = (90, 110, 75)
-    CRAWLER_COLOR = (85, 100, 70)
-
-    # A MONSTER CHARACTER with no LEADER line - it always fights alone.
-    register(build_squad(
-        DAEMON_PRINCE_OF_NURGLE, owner=owner,
-        name=unit_name(owner, "Daemon Prince of Nurgle 1"), color=DAEMON_PRINCE_COLOR,
-    ))
-
-    # "10x Plague Marines: 3 with Boltgun, 2 with Plague spewer, 2 with Blight
-    # launcher, 2 with Heavy plague weapon; Champion with Boltgun" - the
-    # Champion keeps the printed default, so he takes no choices. Led by the
-    # Plaguecaster; the attachment happens BEFORE registration so the scene
-    # records one merged unit rather than two.
-    plague_marines = build_squad(
-        PLAGUE_MARINES, owner=owner, composition_index=2,
-        name=unit_name(owner, "Plague Marines 1"), color=PLAGUE_MARINES_COLOR,
-        choices={"Plague Marine": {PM_TO_PLAGUE_SPEWER: 2,
-                                   PM_TO_BLIGHT_LAUNCHER: 2,
-                                   PM_TO_HEAVY_PLAGUE_WEAPON: 2}},
-    )
-    register(attached_units.attach(
-        build_squad(MALIGNANT_PLAGUECASTER, owner=owner,
-                    name=unit_name(owner, "Malignant Plaguecaster 1"),
-                    color=PLAGUECASTER_COLOR),
-        plague_marines, game_state=state,
-    ))
-
-    # The first Deathshroud unit carries Typhus. Both units take the printed
-    # default (Manreaper + plaguespurt gauntlet, no icon of despair).
-    deathshroud_1 = build_squad(
-        DEATHSHROUD_TERMINATORS, owner=owner, composition_index=0,
-        name=unit_name(owner, "Deathshroud Terminators 1"), color=DEATHSHROUD_COLOR,
-        unit_index=1,
-    )
-    register(attached_units.attach(
-        build_squad(TYPHUS, owner=owner, name=unit_name(owner, "Typhus 1"),
-                    color=TYPHUS_COLOR),
-        deathshroud_1, game_state=state,
-    ))
-    register(build_squad(
-        DEATHSHROUD_TERMINATORS, owner=owner, composition_index=0,
-        name=unit_name(owner, "Deathshroud Terminators 2"), color=DEATHSHROUD_COLOR,
-        unit_index=2,
-    ))
-
-    for index in (1, 2):
-        register(build_squad(
-            CHAOS_SPAWN, owner=owner, name=unit_name(owner, f"Chaos Spawn {index}"),
-            color=SPAWN_COLOR, unit_index=index,
-        ))
-
-    for index in (1, 2):
-        register(build_squad(
-            POXWALKERS, owner=owner, composition_index=0,
-            name=unit_name(owner, f"Poxwalkers {index}"), color=POXWALKER_COLOR,
-            unit_index=index,
-        ))
-
-    # "Hades battle cannon, 2x Excruciator cannon, Heavy reaper autocannon,
-    # Heavy missile launcher, Shearing claws" - the reaper REPLACES the printed
-    # heavy baleflamer (the missile launcher is kept), and it is one of the two
-    # Defiler options that costs points.
-    register(build_squad(
-        DEFILER, owner=owner, name=unit_name(owner, "Defiler 1"), color=DEFILER_COLOR,
-        choices={"Defiler": {DEFILER_BALEFLAMER_TO_REAPER: 1}}, unit_index=1,
-    ))
-
-    # "Plague probe, Fleshmower" - the printed default, so no choices.
-    for index in (1, 2):
-        register(build_squad(
-            FOETID_BLOAT_DRONE, owner=owner,
-            name=unit_name(owner, f"Foetid Bloat-drone {index}"),
-            color=BLOAT_DRONE_COLOR, unit_index=index,
-        ))
-
-    # Two SEPARATE one-model units, not one two-model unit: the list prints
-    # them as two entries at 100 pts each, and the datasheet allows 1-2 models
-    # per unit. Two units is what it says.
-    for index in (1, 2):
-        register(build_squad(
-            MYPHITIC_BLIGHT_HAULER, owner=owner, composition_index=0,
-            name=unit_name(owner, f"Myphitic Blight-hauler {index}"),
-            color=BLIGHT_HAULER_COLOR, unit_index=index,
-        ))
-
-    # "Armoured tracks, Plagueburst mortar, Heavy slugger, 2x Entropy cannon" -
-    # the printed default, so no choices.
-    register(build_squad(
-        PLAGUEBURST_CRAWLER, owner=owner,
-        name=unit_name(owner, "Plagueburst Crawler 1"), color=CRAWLER_COLOR,
-        unit_index=1,
-    ))
 
 class ArmyList:
     """One selectable list: what to call it, what to badge it with, and how
@@ -1208,40 +73,210 @@ class ArmyList:
     pair at 2+1; Mont'ka plus Kauyon is not, at 3+2.
 
     `detachment` remains as a read-only view of the first one, because a
-    tile, a log line and a saved scene all want a single name to print."""
+    tile, a log line and a saved scene all want a single name to print.
 
-    def __init__(self, key, name, faction_keyword, army_rule, detachments, build):
+    `force_disposition` is the list's declared Force Disposition, which decides
+    its PRIMARY MISSION (game/primary_missions.py). Each detachment PERMITS
+    exactly one (Detachment.force_disposition); a list fielding several picks
+    one of the ones they grant, and writes it down here - user: "jedes
+    detachment hat zugang zu einer force disposition. diese waehlt man beim
+    listen bau ... ist aber in der Liste festgeschrieben."
+
+    It lives on the LIST rather than being derived from the detachments even
+    though it must be one of theirs, because with several detachments the
+    derivation has no answer - it is a choice, and a choice belongs where the
+    rest of the list-building choices are. game/detachments.py's validate() is
+    what refuses a disposition none of this list's detachments permit.
+
+    `roster` is the data form: a list of game/army_roster.py Unit records loaded
+    from armies/<key>.json, which game.army_roster.build() turns into squads.
+    `build` is the older shape - one hand-written builder function per list -
+    and the two coexist only while the eight lists are converted one at a time.
+    It stays the SIXTH POSITIONAL parameter throughout, because three suites
+    construct an ArmyList variant by passing another list's builder positionally
+    (test_army_select.py, test_force_dispositions.py); replacing it would break
+    them for no gain."""
+
+    def __init__(self, key, name, faction_keyword, army_rule, detachments, build=None,
+                 force_disposition=None, roster=None):
         self.key = key
         self.name = name
         self.faction_keyword = faction_keyword
         self.army_rule = army_rule
         self.detachments = ((detachments,) if isinstance(detachments, str)
                             else tuple(detachments))
-        self.build = build
+        self._build = build
+        self.roster = roster
+        self.force_disposition = force_disposition
+
+    def build(self, owner, register, state=None, model_positions=None):
+        """Put this list on the table for `owner`, reporting each finished unit
+        to `register` - main.py's one call site, unchanged by the conversion
+        because this has the same signature the stored callable had."""
+        if self.roster is not None:
+            return army_roster.build(self.roster, owner, register,
+                                     list_name=self.name, state=state,
+                                     model_positions=model_positions)
+        return self._build(owner, register, state=state, model_positions=model_positions)
 
     @property
     def detachment(self):
         """The first detachment, for the callers that want one name."""
         return self.detachments[0] if self.detachments else None
 
+    def enhancement_names(self):
+        """Every Enhancement this list buys, in roster order.
 
-ARMY_LISTS = [
-    ArmyList(AELDARI, "Aeldari", "AELDARI", "Battle Focus", "Seer Council", build_aeldari),
-    ArmyList(ORKS_ARMY, "Orks", "ORKS", "Waaagh!", "War Horde", build_orks),
-    ArmyList(NECRONS_ARMY, "Necrons", "NECRONS", "Reanimation Protocols", "Awakened Dynasty",
-             build_necrons),
-    # The only list here that fields TWO detachments at once, which is what the
-    # user's supplied roster declares: Kauyon (2 DP) + Advanced Acquisition
-    # Cadre (1 DP) is 3, exactly game/detachments.py's budget, and the two
-    # carry different exclusion tags so the tag rule permits the pair. The
-    # other four model one detachment each.
-    ArmyList(TAU_ARMY, "T'au Empire", "T'AU EMPIRE", "For The Greater Good",
-             ("Kauyon", "Advanced Acquisition Cadre"), build_tau),
-    ArmyList(DEATH_GUARD_ARMY, "Death Guard", "DEATH GUARD", "Nurgle's Gift",
-             "Death Lord's Chosen", build_death_guard),
-]
+        Read off the roster rather than kept in a table beside it: the four
+        hand-maintained {slot: name} dicts this replaces existed only because a
+        builder could not say WHICH of two identical units took one, and an
+        entry that carries its own Enhancement answers that by being the entry.
+        Their names were also unvalidated - a slot nothing matched was silently
+        ignored - where army_io now refuses one whose detachment the list does
+        not field."""
+        names = []
+        for entry in self.roster or ():
+            if entry.enhancement:
+                names.append(entry.enhancement)
+            names.extend(led.enhancement for led in entry.leaders if led.enhancement)
+        return names
+
+
+def from_army_file(army):
+    """One loaded army_io.ArmyFile, as an ArmyList."""
+    return ArmyList(army.key, army.name, army.faction_keyword, army.army_rule,
+                    army.detachments, roster=army.roster,
+                    force_disposition=army.force_disposition)
+
+
+def _scan_or_refuse(directory=None):
+    """Every list in armies/, refusing LOUDLY if any file there is unusable.
+
+    Today every file in that directory is shipped with this build, so one that
+    does not load is a bug in the build and must not be silently skipped - a
+    quietly missing army list is precisely the failure this whole arrangement
+    exists to prevent. When lists can be IMPORTED, a broken import must not stop
+    the shipped ones from being playable: this is where that split goes, and
+    army_io.scan() already returns the problems separately so it can."""
+    armies, problems = army_io.scan(directory)
+    if problems:
+        raise SystemExit(
+            "%d army list file(s) in %s could not be read:\n  %s"
+            % (len(problems), directory or army_io.ARMIES_DIR, "\n  ".join(problems))
+        )
+    return armies
+
+
+def from_file(key, directory=None):
+    """The list in armies/<key>.json, as an ArmyList.
+
+    Every field comes from the FILE - name, faction, army rule, detachments,
+    Force Disposition and roster alike. None of it is repeated at the call site,
+    because a list written down twice is a list that drifts, and the whole point
+    of moving these out of source was that an importer can add one without
+    anybody editing code.
+
+    Raises army_io.ArmyFileError listing every problem: a shipped list that does
+    not validate is a bug in this build, and it should stop it at import rather
+    than at an army-select hover."""
+    directory = directory if directory is not None else army_io.ARMIES_DIR
+    return from_army_file(army_io.load(os.path.join(directory, f"{key}.json")))
+
+
+# The eight shipped lists, each one file in armies/. Everything about a list -
+# its name, faction, army rule, detachments, Force Disposition and every unit -
+# lives in that file; nothing is repeated here, because a list written down
+# twice is a list that drifts.
+#
+# The ORDER is the files' own sort_order, which is what the army-select screen
+# shows and what test_army_select.py pins. It is explicit rather than
+# alphabetical so an imported list lands at the end instead of in the middle of
+# the T'au.
+ARMY_LISTS = [from_army_file(army) for army in _scan_or_refuse()]
 
 BY_KEY = {entry.key: entry for entry in ARMY_LISTS}
+
+
+class FactionChoice:
+    """One FACTION as the army screen offers it, with the lists it has.
+
+    User: "ich habe vor pro Volk mehrere listen anzulegen. daher muss sich der
+    Volk Auswahl Prozess etwas aendern. erst waehlt man das Volk und dann
+    kommen die verschiedenen Listen zur Auswahl. also in 2 Stufen." - so the
+    screen needs a thing to put on a tile for step one, and this is it.
+
+    DERIVED, never written down twice. The grouping is ArmyList's own
+    `faction_keyword`, and the display name comes from the Faction the rules
+    already carry (game/factions/faction.py's FACTIONS, keyed by that same
+    keyword). A second table of faction names beside the lists is exactly the
+    kind of copy this repo consolidates on sight - and it would be the copy
+    that goes stale, since the keyword is what every datasheet, badge and rule
+    actually matches on.
+
+    `key` and `faction_keyword` are the same string on purpose: a tile can then
+    ask a FactionChoice and an ArmyList the same two questions ("what is your
+    key", "which badge do you wear") without knowing which it is holding."""
+
+    __slots__ = ("key", "faction_keyword", "name", "lists")
+
+    def __init__(self, keyword, name, lists):
+        self.key = keyword
+        self.faction_keyword = keyword
+        self.name = name
+        self.lists = tuple(lists)
+
+    @property
+    def army_rule(self):
+        """The army rule, off the first list. Every list of a faction shares
+        it - it is the FACTION's rule (Waaagh!, Battle Focus) - so this is a
+        read of a shared fact rather than a guess from a sample."""
+        return self.lists[0].army_rule if self.lists else None
+
+
+def factions(lists=None):
+    """Every faction that has at least one list, in ARMY_LISTS order.
+
+    In ARMY_LISTS order rather than alphabetically: that file is the order the
+    lists were written down in, and it is the order the screen has always shown
+    them in - so adding a second Ork list does not silently reshuffle the first
+    step's tiles.
+
+    A faction with NO list is not offered. This engine builds five factions'
+    datasheets, and one of them having no playable list yet would be a tile
+    that answers nothing (CLAUDE.md error class 5)."""
+    from game.factions.faction import FACTIONS
+
+    order = []
+    grouped = {}
+    for entry in (ARMY_LISTS if lists is None else lists):
+        if entry.faction_keyword not in grouped:
+            order.append(entry.faction_keyword)
+            grouped[entry.faction_keyword] = []
+        grouped[entry.faction_keyword].append(entry)
+    out = []
+    for keyword in order:
+        faction = FACTIONS.get(keyword)
+        # The keyword itself is the fallback name. A faction with lists but no
+        # registered Faction object is a build error rather than a display
+        # problem, and a tile reading "ORKS" is a better way to notice it than
+        # a crash on a screen that runs before anything else exists.
+        out.append(FactionChoice(keyword,
+                                 faction.name if faction is not None else keyword,
+                                 grouped[keyword]))
+    return out
+
+
+def lists_for(keyword, lists=None):
+    """Every list of one faction, in ARMY_LISTS order."""
+    return [entry for entry in (ARMY_LISTS if lists is None else lists)
+            if entry.faction_keyword == keyword]
+
+
+def faction_of(key):
+    """The faction keyword of one list, so a caller holding a saved list key
+    (config.PLAYER1_ARMY, a scene snapshot, --army1) can find which faction
+    step it belongs to."""
+    return get(key).faction_keyword
 
 
 def get(key):
@@ -1257,6 +292,20 @@ def get(key):
             f"{', '.join(sorted(BY_KEY))}."
         )
     return BY_KEY[normalised]
+
+
+def force_disposition_for(player, config_module=None):
+    """The Force Disposition the list `player` is fielding declares, or None.
+
+    Read through configured_choices() rather than off a stored answer, so it
+    tracks whatever the army selection screen wrote back - the same way every
+    detachment gate reads config at call time. None for an unrecognised army
+    rather than raising: this is read on the render path (the mission strip)
+    and from the Primary controller, where a stale setting should show no card
+    rather than kill a frame."""
+    key = configured_choices(config_module).get(player)
+    entry = BY_KEY.get(key)
+    return entry.force_disposition if entry is not None else None
 
 
 def configured_choices(config_module=None):

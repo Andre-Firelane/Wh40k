@@ -76,6 +76,7 @@ from game.squad import is_at_half_strength
 from game.stratagems import Stratagem
 from game.turn import PHASE_FIGHT, PHASE_SHOOTING
 from game.unbridled_carnage import is_orks_unit
+from game import ai_mode
 
 ARD_AS_NAILS_CP_COST = 1
 
@@ -213,7 +214,7 @@ class ArdAsNailsController:
         self.decision_manager = decision_manager
         self.turn_tracker = turn_tracker
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._stratagem = Stratagem(
             name="'Ard as Nails", cp_cost=ARD_AS_NAILS_CP_COST, effect=self._grant,
         )
@@ -277,17 +278,35 @@ class ArdAsNailsController:
             return False
         if not self.can_use(attacker, target):
             return False
-        if not is_worth_using(attacker, target, melee=melee):
-            return False  # deliberately NOT memoised - see below
-        # Only memoised once the verdict said yes: a "no" can legitimately turn
-        # into a "yes" for the same pair (Split Fire assigns more weapons to
-        # the same target one at a time, so the expected damage this sees only
-        # grows), and re-deriving it is pure arithmetic with no API call and no
-        # line-of-sight sweep.
-        self._handled_this_phase.add(key)
 
+        # THE VERDICT IS THE AI'S, NOT A GATE ON THE HUMAN'S PROMPT. It used to
+        # run here, above the split, so a human was never shown 'Ard as Nails
+        # unless the engine's own damage estimate had already decided it was
+        # worth 1 CP - an AI heuristic deciding what a person is allowed to see
+        # (user: "die Funktion selbst soll nicht deterministisch sein").
+        #
+        # game/dlc_undying_spite.py has always done it the other way round and
+        # its comment cites this module as its model; that comment described
+        # what this should have been rather than what it was. Both now agree.
         if target.owner in self.auto_players:
+            if not is_worth_using(attacker, target, melee=melee):
+                return False  # deliberately NOT memoised - see below
+            # Only memoised once the verdict said yes: a "no" can legitimately
+            # turn into a "yes" for the same pair (Split Fire assigns more
+            # weapons to the same target one at a time, so the expected damage
+            # this sees only grows), and re-deriving it is pure arithmetic with
+            # no API call and no line-of-sight sweep.
+            self._handled_this_phase.add(key)
             return self.stratagem_controller.use(target.owner, self._stratagem, [target])
+
+        # For a HUMAN the pair is memoised as soon as it is offered, which is
+        # what keeps Split Fire from re-asking once per weapon assignment. The
+        # cost is that the prompt now quotes the damage expected at the FIRST
+        # assignment, when fewer weapons are pointed at the target and the
+        # number is therefore lower than the old gate's. That is the honest
+        # trade: one prompt per (attacker, target) per phase, raised at the
+        # first moment the rule allows it.
+        self._handled_this_phase.add(key)
         if self.decision_manager is None:
             return False
         self.decision_manager.request(

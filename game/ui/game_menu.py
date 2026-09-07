@@ -56,28 +56,29 @@ RESUME = "resume"
 SAVE = "save"
 QUIT = "quit"
 
-TITLE = "WARHAMMER 40,000"
+# The heading over the startup host (user: "Oben links soll stehen Warhamer 40k
+# AI Simulator"). All caps to match the other two pre-battle screens
+# ("CHOOSE THE BATTLEFIELD", "CHOOSE FACTION"), which share this bar.
+TITLE = "WARHAMMER 40K AI SIMULATOR"
 
-# Grew with tile_screen's fonts (user: "Die Font im Main Menu und Auswahl
-# screen darf viel groesser sein"): the entries are drawn with fonts["label"],
-# the heading with fonts["name"] and the notes with fonts["small"], and a 460px
-# panel was measured against the old, smaller set.
+# Both follow tile_screen's fonts (user: "Die Font im Main Menu und Auswahl
+# screen darf viel groesser sein") - the entries are drawn with fonts["label"]
+# and the heading with fonts["name"], and 460/46 were measured against the old,
+# smaller set.
 #
-# PANEL_WIDTH is the load-bearing one - a note is rendered as ONE unwrapped,
-# centred line, so a panel narrower than its longest note ("abandon this battle
-# and pick a new map and armies", 370px at the new size) draws it straight over
-# its own border. ENTRY_HEIGHT is SPACING and nothing more: draw_button() grows
-# a row that is too short for its label all by itself, so the old 46 would still
-# have worked - its own A/B probe said so. It follows the type because a 19px
-# label in a 46px row reads as a taller font in the same old box.
+# Both are SPACING, and that is written down rather than dressed up: their own
+# A/B probes said the old values still worked. draw_button() grows a row too
+# short for its label by itself, and no label comes anywhere near the panel's
+# width - the captions that DID (370px of prose under a row) are gone. They
+# follow the type because a 19px label in a 46px row reads as a taller font
+# dropped into the same old box.
 #
-# Everything else here is already derived from font heights (panel_rect,
-# layout), and test_menu_presentation.py checks all of it at 1280x720.
+# Everything else here is derived from font heights (panel_rect, layout), and
+# test_menu_presentation.py checks all of it at 1280x720.
 PANEL_WIDTH = 560
 PANEL_PAD = 26
 ENTRY_HEIGHT = 58
 ENTRY_GAP = 12
-NOTE_GAP = 3
 HEADING_GAP = 18
 
 SCRIM_COLOR = (0, 0, 0, 185)
@@ -94,8 +95,6 @@ SCRIM_COLOR = (0, 0, 0, 185)
 BACKGROUND_VEIL_COLOR = (0, 0, 0, 150)
 PANEL_BORDER_COLOR = (200, 165, 70)
 HEADING_COLOR = (255, 215, 0)
-NOTE_COLOR = (150, 170, 190)
-DISABLED_NOTE_COLOR = (110, 118, 128)
 
 # The board-corner opener. MARGIN matches game/ui/ai_busy_badge.py's, because
 # these two controls share that corner and a second margin constant would be
@@ -136,7 +135,7 @@ class GameMenu:
 
     # -- what is on offer ---------------------------------------------------
     def entries(self):
-        """(action, label, enabled, note) per row, in the order they are shown.
+        """(action, label, enabled) per row, in the order they are shown.
 
         The ONE place the two hosts differ in content. In a battle the first
         entry is Resume, because that is what ESC means and what most presses
@@ -146,15 +145,21 @@ class GameMenu:
         A disabled Resume STAYS on screen, greyed. That is the opposite of
         tile_screen's "no chrome for a control that cannot do anything" rule,
         and deliberately: dropping it would silently change the menu's shape
-        between the two hosts, and the reason it cannot be pressed - that no
-        save exists yet - is the useful thing to show."""
+        between the two hosts.
+
+        NO CAPTION UNDER A ROW any more (user: "Die unterschriften unter den
+        buttons koennen weg"). Each entry used to carry a line of prose under
+        it, and the startup Resume's line named the save it would load. Named
+        consequence: a greyed Resume no longer prints WHY, and Resume no longer
+        prints WHICH save - the button label is the whole of what is on offer.
+        `save_note` stays as a constructor argument regardless, because it is
+        the ELIGIBILITY gate below, not a caption."""
         if self.in_game:
             return [
-                (RESUME, _entry_label(RESUME, True), True, "back to the battle"),
-                (SAVE, _entry_label(SAVE, True), True, "write a snapshot you can come back to"),
-                (NEW_GAME, _entry_label(NEW_GAME, True), True,
-                 "abandon this battle and pick a new map and armies"),
-                (QUIT, _entry_label(QUIT, True), True, "leave the game"),
+                (RESUME, _entry_label(RESUME, True), True),
+                (SAVE, _entry_label(SAVE, True), True),
+                (NEW_GAME, _entry_label(NEW_GAME, True), True),
+                (QUIT, _entry_label(QUIT, True), True),
             ]
         # BOTH halves, not just the path. summary() answers None for a file
         # that cannot be read at all - corrupt, or from a newer format - and
@@ -164,10 +169,9 @@ class GameMenu:
         # rule exists to stop.
         resumable = self.save_path is not None and self.save_note is not None
         return [
-            (NEW_GAME, _entry_label(NEW_GAME, False), True, "pick a battlefield and two armies"),
-            (RESUME, _entry_label(RESUME, False), resumable,
-             self.save_note if resumable else "no saved game yet"),
-            (QUIT, _entry_label(QUIT, False), True, "leave the game"),
+            (NEW_GAME, _entry_label(NEW_GAME, False), True),
+            (RESUME, _entry_label(RESUME, False), resumable),
+            (QUIT, _entry_label(QUIT, False), True),
         ]
 
     # -- the picker protocol tile_screen.run_screen() needs -----------------
@@ -212,8 +216,7 @@ class GameMenu:
         rows = len(self.entries())
         height = (PANEL_PAD * 2
                   + self.fonts["name"].get_height() + HEADING_GAP
-                  + rows * ENTRY_HEIGHT + (rows - 1) * ENTRY_GAP
-                  + rows * (self.fonts["small"].get_height() + NOTE_GAP))
+                  + rows * ENTRY_HEIGHT + (rows - 1) * ENTRY_GAP)
         rect = pygame.Rect(0, 0, PANEL_WIDTH, height)
         rect.center = screen_rect.center
         return rect
@@ -225,13 +228,12 @@ class GameMenu:
         like it is in (the lesson tile_screen.header_bar() exists for)."""
         panel = self.panel_rect(screen_rect)
         y = panel.y + PANEL_PAD + self.fonts["name"].get_height() + HEADING_GAP
-        note_height = self.fonts["small"].get_height() + NOTE_GAP
         self._rects = []
-        for action, _label, enabled, _note in self.entries():
+        for action, _label, enabled in self.entries():
             rect = pygame.Rect(panel.x + PANEL_PAD, y,
                                panel.width - 2 * PANEL_PAD, ENTRY_HEIGHT)
             self._rects.append((action, rect, enabled))
-            y += ENTRY_HEIGHT + note_height + ENTRY_GAP
+            y += ENTRY_HEIGHT + ENTRY_GAP
         return self._rects
 
     def entry_at(self, pos):
@@ -307,8 +309,7 @@ class GameMenu:
 
         self.layout(screen_rect)
         mouse = mouse_pos if mouse_pos is not None else pygame.mouse.get_pos()
-        note_font = self.fonts["small"]
-        for (action, rect, enabled), (_a, label, _e, note) in zip(self._rects, self.entries()):
+        for (action, rect, enabled), (_a, label, _e) in zip(self._rects, self.entries()):
             if enabled:
                 button_style.draw_button(
                     surface, rect, label, self.fonts["label"],
@@ -324,11 +325,6 @@ class GameMenu:
                 text = self.fonts["label"].render(label.upper(), True,
                                                   button_style.TOGGLE_TEXT_OFF)
                 surface.blit(text, text.get_rect(center=rect.center))
-            if note:
-                colour = NOTE_COLOR if enabled else DISABLED_NOTE_COLOR
-                note_surf = note_font.render(note, True, colour)
-                surface.blit(note_surf, note_surf.get_rect(centerx=rect.centerx,
-                                                           y=rect.bottom + NOTE_GAP))
 
     def _draw_backdrop(self, surface, screen_rect):
         """The startup host's background: the supplied artwork under a dark

@@ -1,14 +1,12 @@
 # Warhost
 
-**Aeldari** - 3 DP detachment
+**Aeldari** - 3 DP detachment - Force Disposition: Reconnaissance
 
 Source: <https://wahapedia.ru/wh40k11ed/factions/aeldari/>
 
 ## Detachment rule
 
 ### Martial Grace
-
-Every element of a Warhost operates with speed and efficiency, units swirling around one another in an agile storm of blades and tightly controlled ferocity. The Aeldari know precisely where they must be at any given stage of the battle plan and move with inhuman elegance that leaves their enemies reeling in their wake.
 
 - At the start of the battle round, you receive 1 additional Battle Focus token.
 - Each time a unit from your army performs the Swift as the Wind Agile Manoeuvre, until the end of the phase, add an additional 1" to the Move characteristic of models in that unit.
@@ -18,25 +16,17 @@ Every element of a Warhost operates with speed and efficiency, units swirling ar
 
 ### Phoenix Gem - 35 pts
 
-Aeldari myth tells how Isha once drew down the heat of a hundred stars into a glittering gem to save Asuryan. The Phoenix Gem is the only surviving fragment of this ancient stone and retains the power to return life to the fallen.
-
 ASURYANI model only. The first time the bearer is destroyed, remove it from play, then, at the end of the phase, roll one D6: on a 2+, set the bearer back up on the battlefield as close as possible to where it was destroyed and not within **Engagement Range** of one or more enemy units, with its full wounds remaining.
 
 ### Timeless Strategist - 15 pts
-
-This ancient Aeldari war leader has commanded armies for the entire lifetimes of the younger mortal species. Their mastery of the swift, decisive and reactive strategy is second to none.
 
 ASURYANI model only. At the start of the battle round, if the bearer is on the battlefield (or any TRANSPORT it is embarked within is on the battlefield), you receive 1 additional Battle Focus token.
 
 ### Gift of Foresight - 15 pts
 
-It is far easier to avoid fatal battlefield errors if one has already foreseen when they will occur and how to prevent them.
-
 ASURYANI model only. Once per battle round, you can target the bearer’s unit with the Command Re-roll Stratagem for 0CP.
 
 ### Psychic Destroyer - 30 pts
-
-This psyker has refined the destructive potential of their mental abilities, honing them to a fine and frighteningly lethal point.
 
 ASURYANI PSYKER model only. Add 1 to the Damage characteristic of ranged Psychic weapons equipped by the bearer.
 
@@ -45,8 +35,6 @@ ASURYANI PSYKER model only. Add 1 to the Damage characteristic of ranged Psychic
 ### LIGHTNING-FAST REACTIONS - 1CP
 
 *Warhost – Battle Tactic Stratagem*
-
-Processing events at incredible speed, these warriors easily evade attacks that would have slain any less celeritous combatants.
 
 **WHEN:** Your opponent’s Shooting phase or the Fight phase, just after an enemy unit has selected its targets.
 
@@ -58,8 +46,6 @@ Processing events at incredible speed, these warriors easily evade attacks that 
 
 *Warhost – Strategic Ploy Stratagem*
 
-The Aeldari excel in striking swiftly, then leaping back into the safety of their skimming transports.
-
 **WHEN:** End of the Fight phase.
 
 **TARGET:** One **unengaged** ASURYANI unit from your army that was **eligible to fight** this phase and one friendly TRANSPORT it is able to embark within.
@@ -69,8 +55,6 @@ The Aeldari excel in striking swiftly, then leaping back into the safety of thei
 ### FEIGNED RETREAT - 1CP
 
 *Warhost – Strategic Ploy Stratagem*
-
-What appears to be a full retreat one moment is revealed as the deceptive prelude to a devastating attack the next.
 
 **WHEN:** Your Movement phase, just after an ASURYANI unit from your army Falls Back.
 
@@ -82,8 +66,6 @@ What appears to be a full retreat one moment is revealed as the deceptive prelud
 
 *Warhost – Battle Tactic Stratagem*
 
-When unleashed in a close-ranged storm, Aeldari weapons fire can completely eradicate all life within the target zone.
-
 **WHEN:** Your Shooting phase.
 
 **TARGET:** One ASURYANI unit from your army that has not been selected to shoot this phase.
@@ -93,8 +75,6 @@ When unleashed in a close-ranged storm, Aeldari weapons fire can completely erad
 ### FIRE AND FADE - 1CP
 
 *Warhost – Strategic Ploy Stratagem*
-
-The Aeldari are masters of hit-and-run tactics, engaging a target with a flurry of shots before swiftly ducking back out of harm's way.
 
 **WHEN:** Your Shooting phase, just after an ASURYANI INFANTRY unit from your army (excluding AIRCRAFT, ASURMEN and WRAITH CONSTRUCT units) has shot.
 
@@ -107,8 +87,6 @@ The Aeldari are masters of hit-and-run tactics, engaging a target with a flurry 
 ### WEBWAY TUNNEL - 1CP
 
 *Warhost – Strategic Ploy Stratagem*
-
-By slipping away into the ethereal confines of the Webway, Aeldari warriors can circumnavigate the foe and strike from new and unexpected quarters.
 
 **WHEN:** End of your opponent’s Fight phase.
 

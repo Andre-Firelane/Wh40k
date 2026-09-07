@@ -300,6 +300,54 @@ checks.true("...BEFORE dice_manager.acknowledge(), which is the only instant "
 checks.true("...and only for an ADVANCE roll",
             "if dice_manager.roll_kind == ADVANCE_ROLL:" in main_src)
 
+# A DECLINED OFFER MUST NOT COME BACK. User: "im letzten spiel wurde ich immer
+# wieder gefragt, ob ich den advance rerollen will mit den destroyern. es war
+# eine schleife bis ich ihn gererollt habe."
+#
+# The loop is structural, not a mistake in either ability: main.py holds the
+# roll un-acknowledged while a prompt is open (it has to - acknowledge() clears
+# pending_values and reroll_die() then refuses), so "Keep it" leaves exactly
+# the board that raised the question, and the next click raises it again.
+# Re-rolling was the only answer that ended it, because it is the only one that
+# changes what the offer reads.
+from game.decision import DecisionManager  # noqa: E402
+
+human_dice = tk.RecordingDice()
+decisions = DecisionManager()
+ss3 = superlative_strategist.SuperlativeStrategistController(
+    dice_manager=human_dice, decision_manager=decisions, game_log=tk.Log(),
+    auto_players=("Player 2",))          # the Autarch's owner is the HUMAN here
+tk.script(2, 2, 2, 2)
+human_dice.roll(1, label="Advance", roll_kind="advance")
+checks.true("a human is asked once", ss3.maybe_offer_advance_reroll(guided))
+checks.true("...and the prompt is really open", decisions.is_pending)
+decisions.choose(1)                       # "Keep it"
+checks.eq("...the die is untouched", human_dice.pending_values, [2])
+checks.true("...and the SAME roll is not offered again - the reported loop",
+            not ss3.maybe_offer_advance_reroll(guided))
+checks.eq("...so nothing is pending to answer", decisions.is_pending, False)
+
+# ...but the offer is per ROLL, not per battle: the next Advance gets its own.
+human_dice.roll(1, label="Advance", roll_kind="advance")
+checks.true("the NEXT Advance is offered again",
+            ss3.maybe_offer_advance_reroll(guided))
+decisions.choose(1)
+
+# Accepting spends it just the same, so a re-rolled die cannot be offered twice
+# either - already_rerolled would refuse the throw, and the offer must not even
+# appear.
+again = tk.RecordingDice()
+ss4 = superlative_strategist.SuperlativeStrategistController(
+    dice_manager=again, decision_manager=DecisionManager(), game_log=tk.Log(),
+    auto_players=("Player 2",))
+tk.script(1, 6)
+again.roll(1, label="Advance", roll_kind="advance")
+ss4.maybe_offer_advance_reroll(guided)
+ss4.decision_manager.choose(0)            # "Re-roll the Advance"
+checks.eq("re-rolling really throws it", again.pending_values, [6])
+checks.true("...and it is not offered a second time",
+            not ss4.maybe_offer_advance_reroll(guided))
+
 
 # --- 6. Aspect Training -----------------------------------------------------
 print("--- 6. Aspect Training ---")
@@ -466,9 +514,23 @@ checks.true("no AI path for any of the six abilities",
                     ("aspect_training", "superlative_strategist", "path_of_command",
                      "indomitable", "harvester_of_souls", "face_of_death")))
 
+ART = {  # datasheets whose art the user has since supplied
+    'Autarch': 'Autarch.png',
+    'Autarch Wayleaper': 'Autarch Wayleaper.png',
+    'Maugan Ra': 'Maugan Ra.png',
+}
 for sheet in (ae.AUTARCH, ae.AUTARCH_WAYLEAPER, ae.MAUGAN_RA):
     sq = build(sheet, n=30)
-    checks.eq("%s has no art yet - pinned so adding one is visible" % sheet.name,
-              sprites.sprite_for(sq.models[0]), None)
+    _p = sprites.sprite_for(sq.models[0])
+    if sheet.name in ART:
+        # AT THE MODEL, so a key naming a file that is not on disk fails here
+        # rather than passing on a mapping table nobody checked. Named file, so
+        # a datasheet quietly borrowing a NEIGHBOUR's art by substring match
+        # fails too - which is how "Autarch" would shadow "Autarch Wayleaper".
+        checks.true("%s draws its own art" % sheet.name,
+                    ART[sheet.name] in (_p or ""))
+    else:
+        checks.eq("%s has no art yet - pinned so adding one is visible" % sheet.name,
+                  _p, None)
 
 checks.finish()

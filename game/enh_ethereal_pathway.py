@@ -36,7 +36,7 @@ GUARDIANS, NOT THE BEARER'S UNIT. The bearer is ASURYANI; what it selects is
 "GUARDIANS units from your army", which need not include its own and need not
 be anywhere near it - there is no distance in this card at all.
 """
-from game import attached_units, enhancements
+from game import ai_mode, attached_units, enhancements
 
 ETHEREAL_PATHWAY = "Ethereal Pathway"
 
@@ -89,7 +89,7 @@ class EtherealPathwayStep:
         self.game_state = game_state
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._on_done = None
         self._pending_players = []
         self._chosen = 0
@@ -144,7 +144,7 @@ class EtherealPathwayStep:
             player,
             "%s: give Infiltrators to a GUARDIANS unit? (%d of %d chosen)"
             % (ETHEREAL_PATHWAY_LABEL, self._chosen, ETHEREAL_PATHWAY_MAX_UNITS),
-            [(squad.name, (lambda s=squad, p=player: self._choose(p, s)))
+            [(squad.name, (lambda s=squad, p=player: self._choose(p, s)), squad)
              for squad in options]
             # "UP TO two" - stopping early, or choosing none at all, is a legal
             # answer and has to be offered as one.

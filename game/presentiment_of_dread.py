@@ -139,7 +139,7 @@ class PresentimentOfDreadController:
             squad.owner,
             f"{squad.name}: Presentiment of Dread - which enemy unit within "
             f'{PRESENTIMENT_RANGE_IN:g}" must take a Battle-shock test at -1?',
-            [(t.name, (lambda x=t: self._impose(x))) for t in options],
+            [(t.name, (lambda x=t: self._impose(x)), t) for t in options],
         )
 
     def _impose(self, target):

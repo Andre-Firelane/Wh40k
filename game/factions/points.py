@@ -24,14 +24,25 @@ What is deliberately NOT stored: the list's own up/down arrows and
 "(+15)"/"(-10)" annotations, which mark what changed relative to the
 PREVIOUS published list rather than forming any part of a cost.
 
-A priced wargear option is charged only when it is actually SELECTED (see
-Datasheet.points_for()) - never for the datasheet's printed default
-loadout, even when that default includes the priced weapon. Crisis
-Starscythe Battlesuits are the case that settles this: every model comes
-with a T'au flamer as standard AND the list prices "per T'au flamer 5 pts",
-which can only mean the SECOND flamer a model takes by replacing its burst
-cannon - otherwise the printed default would cost more than the printed
-unit cost.
+A "per <weapon>" wargear price is charged PER WEAPON IN THE BUILT UNIT, not
+per swap taken - see Datasheet.points_for(), which is handed the finished
+loadout to count.
+
+THIS REVERSES AN EARLIER READING, and the evidence is a user-supplied army
+list. It used to charge only what a `choices` entry actually SELECTED, never
+the printed default, on the argument that Crisis Starscythe Battlesuits come
+with a T'au flamer as standard AND price "per T'au flamer 5 pts", so the
+price could only mean a SECOND flamer - otherwise "3 models 100" would not be
+what the default costs. The 2026-09-05 Retaliation Cadre list prices the SAME
+datasheet twice: 130 for a unit with six T'au flamers and 100 for one with
+none. 100 + 6x5 fits and "per swap" does not, and it says what the base
+number is: the unit WITHOUT the priced weapon, not the printed default (which
+carries three, and therefore costs 115).
+
+Only two datasheets in this project are affected, because only two price a
+weapon their default loadout already carries - Crisis Fireknife and Crisis
+Starscythe Battlesuits. Measured across all five factions; for every other
+priced option the default carries none, so per-swap and per-weapon agree.
 
 Nothing in the engine spends or enforces points yet - there is no army
 building/Muster Armies flow (see CLAUDE.md's Spaeter-Liste). build_squad()
@@ -85,9 +96,18 @@ class UnitPoints:
     unit-formation flow this engine deliberately doesn't have yet (see
     CLAUDE.md's Spaeter-Liste, Attached Units)."""
 
-    def __init__(self, tiers, wargear=None, leads=(), supports=()):
+    def __init__(self, tiers, wargear=None, per_weapon=None, leads=(), supports=()):
         self.tiers = list(tiers)
         self.wargear = dict(wargear) if wargear else {}
+        # Prices charged PER WEAPON IN THE BUILT UNIT rather than per option
+        # taken. Two different things that look alike on the page: a list line
+        # reading "per Cyclic Ion Raker 15" and one reading "per T'au flamer 5"
+        # are the same words, and they only mean the same thing while the
+        # printed default carries none of the weapon. Where it carries some -
+        # Crisis Fireknife and Crisis Starscythe Battlesuits, the only two here
+        # - the base number is the unit WITHOUT them, and every one costs. See
+        # this module's docstring for the user-supplied list that settles it.
+        self.per_weapon = dict(per_weapon) if per_weapon else {}
         self.leads = tuple(leads)
         self.supports = tuple(supports)
 
@@ -104,7 +124,8 @@ class UnitPoints:
         return tier.cost_for(model_count) if tier is not None else None
 
 
-def flat_points(costs, wargear=None, leads=(), supports=()):
+def flat_points(costs, wargear=None, per_weapon=None, leads=(), supports=()):
     """Shorthand for an entry with no "your Nth unit" tiering - one price
     table that applies to every copy of the unit in the army."""
-    return UnitPoints([PointsTier(costs)], wargear=wargear, leads=leads, supports=supports)
+    return UnitPoints([PointsTier(costs)], wargear=wargear, per_weapon=per_weapon,
+                      leads=leads, supports=supports)

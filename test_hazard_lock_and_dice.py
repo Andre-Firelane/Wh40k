@@ -305,4 +305,43 @@ c.eq("A/B: the old armour-only threshold would have shown it red",
      4 >= _old_threshold, False)
 
 
+# ---------------------------------------------------------------------------
+# claim_reroll_offer: a declined re-roll offer must not come back
+# ---------------------------------------------------------------------------
+print("--- a re-roll offer is made once per roll ---")
+
+# User: "im letzten spiel wurde ich immer wieder gefragt, ob ich den advance
+# rerollen will mit den destroyern. es war eine schleife bis ich ihn gererollt
+# habe."
+#
+# main.py holds an Advance roll un-acknowledged while a re-roll prompt is open -
+# it must, because acknowledge() clears pending_values and reroll_die() then
+# refuses to throw anything. So "Keep it" left exactly the board that raised the
+# question. The memory of the offer belongs to the ROLL, which is why it lives
+# here rather than on either ability.
+d = DiceManager()
+d.roll(1, label="Advance")
+c.true("the first ask is granted", d.claim_reroll_offer("A"))
+c.eq("...and the second is not - the reported loop", d.claim_reroll_offer("A"), False)
+
+# KEYED BY SOURCE, and this is the only place it can be shown. Two abilities may
+# each offer once for their own printed reason (the Autarch's Superlative
+# Strategist and Protocol of the Sudden Storm), but MEASURED, no unit can hold
+# both - one is an Aeldari datasheet ability, the other a Necron Stratagem
+# grant - so an A/B probe against the two suites cannot tell a per-source set
+# from one shared flag. It is constructed here instead.
+c.true("a DIFFERENT ability still gets its own offer", d.claim_reroll_offer("B"))
+c.eq("...once", d.claim_reroll_offer("B"), False)
+
+# Cleared by roll(), so the next Advance is offered again. Getting this half
+# wrong is worse than the loop: the offer would silently never appear again.
+d.roll(1, label="Advance")
+c.true("a NEW roll is offered again", d.claim_reroll_offer("A"))
+
+# With no roll on the table there is nothing to offer - reroll_die() would
+# refuse anyway, and an offer nobody can accept is a prompt with no answer.
+d.acknowledge()
+c.eq("an acknowledged roll offers nothing", d.claim_reroll_offer("C"), False)
+
+
 c.finish()

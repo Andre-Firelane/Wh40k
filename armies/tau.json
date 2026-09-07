@@ -1,0 +1,207 @@
+{
+  "format": 1,
+  "key": "tau",
+  "name": "T'au Empire (Kauyon)",
+  "faction_keyword": "T'AU EMPIRE",
+  "army_rule": "For The Greater Good",
+  "detachments": ["Kauyon", "Advanced Acquisition Cadre"],
+  "force_disposition": "reconnaissance",
+  "sort_order": 40,
+  "roster": [
+    {
+      "datasheet": "Devilfish",
+      "color": [200, 160, 90],
+      "choices": {
+        "Devilfish": {
+          "+ 2x Seeker Missile": 1
+        }
+      },
+      "id": "devilfish_1"
+    },
+    {
+      "datasheet": "Breacher Team",
+      "color": [220, 150, 70],
+      "gear": {
+        "Breacher Fire Warrior Shas'ui": ["Guardian Drone", "Gun Drone"]
+      },
+      "leaders": [
+        {
+          "datasheet": "Cadre Fireblade",
+          "color": [220, 150, 70],
+          "gear": {
+            "Cadre Fireblade": ["Gun Drone", "Gun Drone"]
+          },
+          "enhancement": "Through Unity, Devastation"
+        }
+      ],
+      "transport": "devilfish_1"
+    },
+    {
+      "datasheet": "Devilfish",
+      "color": [200, 160, 90],
+      "choices": {
+        "Devilfish": {
+          "+ 2x Seeker Missile": 1
+        }
+      },
+      "id": "devilfish_2"
+    },
+    {
+      "datasheet": "Breacher Team",
+      "color": [220, 150, 70],
+      "gear": {
+        "Breacher Fire Warrior Shas'ui": ["Guardian Drone", "Gun Drone"]
+      },
+      "leaders": [
+        {
+          "datasheet": "Cadre Fireblade",
+          "color": [220, 150, 70],
+          "gear": {
+            "Cadre Fireblade": []
+          },
+          "enhancement": "Precision of the Patient Hunter"
+        }
+      ],
+      "transport": "devilfish_2"
+    },
+    {
+      "datasheet": "Crisis Sunforge Battlesuits",
+      "color": [130, 150, 200],
+      "gear": {
+        "Crisis Sunforge Shas'vre": ["Gun Drone", "Shield Drone"],
+        "Crisis Sunforge Shas'ui (1)": ["Gun Drone", "Shield Drone"],
+        "Crisis Sunforge Shas'ui (2)": ["Gun Drone", "Shield Drone"]
+      },
+      "leaders": [
+        {
+          "datasheet": "Commander in Coldstar Battlesuit",
+          "color": [130, 150, 200],
+          "gear": {
+            "Commander in Coldstar Battlesuit": ["Marker Drone", "Shield Drone", "Fusion Blaster", "Fusion Blaster", "Fusion Blaster"]
+          },
+          "choices": {
+            "Commander in Coldstar Battlesuit": {
+              "High-output Burst Cannon -> Fusion Blaster": 1
+            }
+          },
+          "enhancement": "Exemplar of the Kauyon"
+        }
+      ]
+    },
+    {
+      "datasheet": "Broadside Battlesuits",
+      "color": [120, 140, 190],
+      "composition_index": 1,
+      "gear": {
+        "Broadside Shas'vre": ["Seeker Missile", "Twin Plasma Rifle", "Missile Drone", "Missile Drone"],
+        "Broadside Shas'ui": ["Seeker Missile", "Twin Plasma Rifle", "Missile Drone", "Missile Drone"]
+      }
+    },
+    {
+      "datasheet": "Ghostkeel Battlesuit",
+      "color": [110, 130, 175],
+      "choices": {
+        "Ghostkeel Battlesuit": {
+          "Fusion Collider -> Cyclic Ion Raker": 1,
+          "Twin T'au Flamer -> Twin Fusion Blaster": 1
+        }
+      },
+      "enhancement": "Unmasking Suite"
+    },
+    {
+      "datasheet": "Hammerhead Gunship",
+      "color": [150, 170, 210],
+      "gear": {
+        "Hammerhead Gunship": ["Seeker Missile", "Seeker Missile"]
+      },
+      "choices": {
+        "Hammerhead Gunship": {
+          "2x Twin Pulse Carbine -> 2x Accelerator Burst Cannon": 1
+        }
+      }
+    },
+    {
+      "datasheet": "Kroot Carnivores",
+      "color": [120, 90, 40]
+    },
+    {
+      "datasheet": "Kroot Hounds",
+      "color": [140, 105, 55]
+    },
+    {
+      "datasheet": "Pathfinder Team",
+      "color": [90, 180, 140],
+      "gear": {
+        "Pathfinder Shas'ui": ["Shield Drone", "Shield Drone", "Grav-inhibitor Drone"]
+      },
+      "choices": {
+        "Pathfinder": {
+          "Pulse Carbine -> Rail Rifle": [0, 1, 2],
+          "+ Semi-automatic Grenade Launcher": [3]
+        }
+      }
+    },
+    {
+      "datasheet": "Piranhas",
+      "color": [110, 165, 200]
+    },
+    {
+      "datasheet": "Riptide Battlesuit",
+      "color": [150, 150, 195],
+      "choices": {
+        "Riptide Battlesuit": {
+          "Heavy Burst Cannon -> Ion Accelerator": 1,
+          "Twin Plasma Rifle -> Twin Fusion Blaster": 1
+        }
+      }
+    },
+    {
+      "datasheet": "Sky Ray Gunship",
+      "color": [140, 165, 205],
+      "choices": {
+        "Sky Ray Gunship": {
+          "2x Twin Pulse Carbine -> 2x Accelerator Burst Cannon": 1
+        }
+      }
+    },
+    {
+      "datasheet": "Stealth Battlesuits",
+      "color": [100, 100, 150],
+      "gear": {
+        "Stealth Shas'vre": ["Gun Drone", "Marker Drone"],
+        "Stealth Shas'ui": ["Homing Beacon"]
+      },
+      "choices": {
+        "Stealth Shas'vre": {
+          "Burst Cannon -> Fusion Blaster": 1
+        }
+      },
+      "enhancement": "Negation Emitters"
+    },
+    {
+      "datasheet": "Stealth Battlesuits",
+      "color": [100, 100, 150],
+      "gear": {
+        "Stealth Shas'vre": ["Gun Drone", "Marker Drone"],
+        "Stealth Shas'ui": ["Homing Beacon"]
+      },
+      "choices": {
+        "Stealth Shas'vre": {
+          "Burst Cannon -> Fusion Blaster": 1
+        }
+      }
+    },
+    {
+      "datasheet": "Vespid Stingwings",
+      "color": [150, 120, 190]
+    },
+    {
+      "datasheet": "Ethereal",
+      "color": [200, 180, 210],
+      "gear": {
+        "Ethereal": ["Marker Drone", "Shield Drone"]
+      },
+      "enhancement": "Solid-image Projection Unit"
+    }
+  ]
+}

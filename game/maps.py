@@ -644,6 +644,29 @@ MAP2 = BattleMap(
 #     which is decided by how much of its minimum-area box it fills (102% for
 #     a true one against 66% for a wedge) - see the central pair below.
 #
+# PIECES THAT TOUCH are the one place a coordinate here is NOT the raw
+# measurement, and it is the trim above that made that necessary (User: "bei
+# map 3 gibt es kleine luecken, durch die man durchschiessen kann zwischen den
+# gelaendestuecken ... schiebe sie so zusammen, dass da keine luecken sind,
+# wenn gelaendestuecke sich beruehren sollten"). Fitting each rectangle at the
+# 2nd/98th percentile takes a slice off BOTH pieces of a touching pair, so a
+# seam the art draws closed came out as a slot of up to 0.43". Four pairs are
+# affected; each is moved just far enough to close, never resized, and only
+# barricades and wall-less rubble move - no objective-carrying piece does, so
+# every objective stays exactly where it was measured.
+#
+# WHICH pairs touch is measured off the art, not assumed: the drawn pieces of
+# these four come within 0.05-0.15" of each other, which is the width of the
+# line drawn between them, while the one pair that looks the same and is NOT
+# touching - the cross-braced bar and the -52.5-degree barricade - stands
+# 2.35" apart in the art and keeps its gap here. Only ONE of the four was a
+# gap you could shoot through: the pair at the centre line are ruins, and
+# their WALLS (the only sight-blocking features on this board) stood 0.15"
+# apart and facing, which is a slot a line of sight threads. The other three
+# involve a barricade, and a barricade is Light terrain that never blocked
+# sight in the first place - closing those is what the board LOOKS like, not
+# what it plays like.
+#
 # The DEPLOYMENT ZONES are the reason the shape work came first: each is a
 # board QUADRANT with a 9" circle around the board centre cut out of it. That
 # is not expressible as axis-aligned rectangles at all - see game/shapes.py's
@@ -734,6 +757,55 @@ def _map3_terrain(state, battle_map):
     # pair the 9" hole exists for: both sit in No Man's Land despite standing
     # in a quadrant that is otherwise somebody's deployment zone.
     #
+    # MOVED 1.2" TOWARD THE BOARD CENTRE AND SCALED TO 0.675, so that the whole
+    # piece - and the ring drawn around it - sits inside the 9" hole.
+    #
+    # THE BUG (User): "die beiden mittleren objectives ragen in die
+    # austellungszonen hinein. das ist schlecht fuer manche Missionen, die als
+    # Bedingung 'outside of your deployment zone' haben". At the measured size
+    # and position, 15.3% of each piece stood inside a deployment zone, its far
+    # corner reaching 12.01" from the board centre against the hole's 9" - so a
+    # unit could hold the middle objective while standing in its own deployment
+    # zone, which is exactly what those missions are written to forbid.
+    #
+    # WHY MOVING, AND NOT ONLY SHRINKING. Shrinking alone was the first fix and
+    # it was too brutal to keep (User: "die objectives sind jetzt sehr klein.
+    # die koennen gerne wieder etwas groesser sein"): at the measured CENTRE the
+    # piece is 6.13" out from the middle of a 9" circle, so the largest that
+    # fits is scale 0.508 - a quarter of the area - and no reshaping helps,
+    # because the corner that binds is pushed out by BOTH dimensions at once
+    # (measured: the best any aspect ratio can do at that centre is ~21 sq.in,
+    # which is what 0.508 already gives). Room has to come from the position.
+    #
+    # WHY 1.2" AND NOT MORE. Sliding toward the board centre buys size fast -
+    # 2.0" would allow 80% of the measured piece - but it closes the lane
+    # between the pair, and that lane is part of the board (User: "es soll aber
+    # noch ein corridor zwischen den objectives bleiben"). The ART's own gap
+    # between these two is 4.26", and that is the number this keeps: 1.2" in
+    # leaves 4.39", still wider than the 4.2" base of a Falcon or Wave Serpent,
+    # which is the widest thing that has to drive through it. Past 1.2" the
+    # corridor is what gives way, and by 3.0" the two pieces overlap outright.
+    #
+    # MEASURED at the size that lands: area corner 8.85" and drawn ring 8.97",
+    # both inside the 9" hole; corridor 4.39"; no overlap with any other piece;
+    # 2.0x the area of the shrink-only fix and 68% of the measured piece.
+    #
+    # The RING is why 0.675 and not a hair more: objective_outline_points()
+    # grows the footprint by 5 SCREEN pixels, 0.08" at playing zoom, and a
+    # version whose area cleared while its ring crossed would have looked
+    # unfixed. On the map picker's thumbnail (~17 px/inch) that fixed-pixel ring
+    # can still touch the arc - that is the decoration, not the objective.
+    #
+    # The ASPECT is kept (1.4495 against the measured 1.4505) so it still reads
+    # as the same piece, and the two stay a mirror pair, so they remain exactly
+    # equidistant from the board centre - which is what makes both of them
+    # "central" for Secure Asset and Unstoppable Force.
+    #
+    # It is also the honest size for what the art draws. These two are WEDGES
+    # (see the fill measurement below) approximated by an upright box, and a
+    # wedge fills about two thirds of its box - so a rectangle that pokes out
+    # of the hole is partly the approximation poking out, not the piece.
+    #
     # UPRIGHT, and that is a correction the user had to point out. The art
     # draws these two as WEDGES, and fitting each its minimum-area rectangle
     # laid a long thin 11.5 x 5.75 block diagonally through the wedge at 57
@@ -743,17 +815,33 @@ def _map3_terrain(state, battle_map):
     # over 100% because the fit is trimmed at the 2nd/98th percentile), a wedge
     # only two thirds of it (66%). Where the fill says "wedge", the upright box
     # wins.
-    east_ruin, west_ruin = both(rubble_ruin, 35.87, 20.22, 7.48, 10.85)
+    east_ruin, west_ruin = both(rubble_ruin, 34.72, 20.57, 5.05, 7.32)
     state.add_objective(east_ruin, name="Objective East")
     state.add_objective(west_ruin, name="Objective West")
 
     # -- the rubble pieces flanking the centre line --------------------------
-    both(rubble_ruin, 31.65, 9.00, 3.10, 3.70)
+    # These two and the cross-braced bar below stand in a ROW of three that
+    # the art draws touching, so the seams are closed here - see PIECES THAT
+    # TOUCH above. The middle piece keeps its measured centre and the two
+    # outer ones come to it, which is the only assignment that closes both
+    # seams at once and the one that moves the least.
+    # 31.65 measured; 0.15" west, putting its west edge on its neighbour's
+    # east edge (28.55 + 2.80/2 + 3.10/2). This is the seam that mattered for
+    # play: the two ruins' WALLS were 0.15" apart and facing each other.
+    both(rubble_ruin, 31.50, 9.00, 3.10, 3.70)
     both(rubble_ruin, 28.55, 9.10, 2.80, 3.90)
 
     # -- barricades: gold bracing, no rubble, so no walls --------------------
-    both(barricade, 25.88, 6.03, 2.05, 5.65)             # tall cross-braced bar
-    both(barricade, 19.84, 11.21, 5.89, 3.79, angle_deg=-52.5)
+    # 25.88 measured; 0.245" east onto the rubble piece above
+    # (28.55 - 2.80/2 - 2.05/2).
+    both(barricade, 26.125, 6.03, 2.05, 5.65)            # tall cross-braced bar
+    # (19.84, 11.21) measured; 0.43" west and 0.09" south onto the corner of
+    # the rotated flank ruin. Both pieces are turned and they meet corner to
+    # corner, so the closing move runs along the line between those corners
+    # rather than along an axis - the smallest translation that closes it.
+    # The art draws the same corner meeting, with the same wedge opening out
+    # above and below it, so the wedge stays.
+    both(barricade, 19.41, 11.30, 5.89, 3.79, angle_deg=-52.5)
     # The long flank band. Measured as ONE 9.55 x 2.65 piece: the first pass
     # split it into three because the erosion that separates touching pieces
     # cut this one apart as well, and the halves then landed asymmetrically.
@@ -761,7 +849,9 @@ def _map3_terrain(state, battle_map):
     # The green container, and the piece the first pass MISSED ENTIRELY: its
     # art has no grey ground under it, and that pass masked only grey. The
     # mask now takes green and gold as terrain in their own right.
-    both(barricade, 43.90, 16.85, 2.00, 7.00)
+    # 43.90 measured; 0.405" east so its corner meets the band's end
+    # (50.08 - 9.55/2 - 2.00/2).
+    both(barricade, 44.305, 16.85, 2.00, 7.00)
 
 
 MAP3 = BattleMap(

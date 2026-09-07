@@ -88,17 +88,25 @@ check("Close combat weapon melee A1/S3/AP0/D1", (ccw.weapon_type, ccw.attacks, c
 check("all three defer BS/WS to the model (printed values match it)",
       carbine.ballistic_skill is None and pistol.ballistic_skill is None and ccw.ballistic_skill is None)
 
-gl_squad = make_pathfinders(choices={"Pathfinder": {PATHFINDER_CARBINE_TO_GRENADE_LAUNCHER: 2}})
+# THE GRENADE LAUNCHER IS AN ADDITION, NOT A SWAP. Printed: "1 model in this
+# unit equipped with a pulse carbine can be equipped with 1 semi-automatic
+# grenade launcher. That model's pulse carbine cannot be replaced." It used to
+# be modelled as two swap options (2 on the rank and file plus 1 on the
+# Shas'ui), which cost the carrier a carbine it keeps and allowed three
+# launchers where the text allows one. Found while transcribing the 2026-09-05
+# army list, whose Pathfinder Team prints ten weapons across nine models.
+gl_squad = make_pathfinders(choices={"Pathfinder": {PATHFINDER_CARBINE_TO_GRENADE_LAUNCHER: 1}})
 gl_models = [m for m in gl_squad.models if any("Grenade Launcher" in w.name for w in m.weapons)]
-check('the "(x2)" grenade launcher swap applies to exactly 2 models', len(gl_models) == 2)
-check("it REPLACES the Pulse carbine, not the pistol",
-      all(not any(w.name == "Pulse Carbine" for w in m.weapons) for m in gl_models)
+check("exactly ONE model gets a grenade launcher", len(gl_models) == 1)
+check("it KEEPS its pulse carbine - the printed text requires that",
+      all(any(w.name == "Pulse Carbine" for w in m.weapons) for m in gl_models)
       and all(any(w.name == "Pulse Pistol" for w in m.weapons) for m in gl_models))
-check("the swap never reaches the Shas'ui line",
-      any(w.name == "Pulse Carbine" for w in gl_squad.models[0].weapons))
+check("the option never reaches the Shas'ui line",
+      any(w.name == "Pulse Carbine" for w in gl_squad.models[0].weapons)
+      and not any("Grenade Launcher" in w.name for w in gl_squad.models[0].weapons))
 over = make_pathfinders(choices={"Pathfinder": {PATHFINDER_CARBINE_TO_GRENADE_LAUNCHER: 9}})
-check("an over-eager choice is trimmed to the printed 2",
-      sum(1 for m in over.models if any("Grenade Launcher" in w.name for w in m.weapons)) == 2)
+check("an over-eager choice is trimmed to the printed 1",
+      sum(1 for m in over.models if any("Grenade Launcher" in w.name for w in m.weapons)) == 1)
 
 gl = next(w for w in gl_models[0].weapons if "Grenade Launcher" in w.name)
 fus = gl.overcharge_profile()

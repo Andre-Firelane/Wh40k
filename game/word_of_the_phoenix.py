@@ -46,8 +46,21 @@ THE AI ANSWERS IT ITSELF, so there is no path in ai/ and no API call: "you can
 roll" is only ever declined when there is nothing to gain, and eligible_count()
 already reports that, so an owner in auto_players takes it whenever it is worth
 anything. A prompt nobody answers would stall the loop.
+
+A HUMAN IS ASKED, and for a long time was not: `auto_players` and
+`decision_manager` were both stored and never read, so the paragraph above
+described an intention rather than the code, and main.py drives this for
+whichever player's Command phase it is - Player 1 included. See start().
+
+STILL RESOLVED WITHOUT ASKING, deliberately: HOW MANY of the D3+1 come back.
+"Up to" is a choice in the printed text, but returning fewer models than the
+roll allows is never better - they arrive with full wounds, at legal positions
+or not at all - so a prompt there would have exactly one sensible answer
+(Fehlerklasse 5). WHICH models come back is a real choice on a mixed-wargear
+unit and is not offered yet; that arrives with the model-return placement work,
+where "which" and "where" are the same question.
 """
-from game import attached_units, model_return
+from game import ai_mode, attached_units, model_return
 from game.dice_notation import D3, DiceNotationRoll
 from game.formation_layout import returning_positions
 
@@ -145,7 +158,7 @@ class WordOfThePhoenixController:
         self.setup_controller = setup_controller
         self.all_tokens = all_tokens if all_tokens is not None else []
         self.decision_manager = decision_manager
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         #: The squad whose gate roll is on the table, if any.
         self.pending_squad = None
         #: The D3+1 count roll, once the gate has passed.
@@ -163,7 +176,40 @@ class WordOfThePhoenixController:
     # ------------------------------------------------------------ the rolls
 
     def start(self, squad):
-        """Throws the 2+ gate."""
+        """Offers the ability, then throws the 2+ gate.
+
+        THE GATE THIS CLASS ALREADY CLAIMED TO HAVE. Both `auto_players` and
+        `decision_manager` were stored in __init__ and then never read by a
+        single line - so the docstring above promised a split that no code
+        performed, and main.py drives this for WHICHEVER player's Command
+        phase it is. A human Ynnari player had the whole ability resolved for
+        them, every turn, without being asked.
+
+        A comment promising a behaviour nothing implements is the same defect
+        class as a controller that is built and never fed, which this repo has
+        hit six times. The printed text says "you CAN roll one D6"; that is a
+        decision, and it belongs to whoever is playing Yvraine.
+
+        The AI still answers it itself, free and with no API call: eligible_
+        count() already reports whether there is anything to gain, and
+        can_use() refuses when there is not - so for an owner in auto_players
+        the answer is always yes and there is nothing to weigh."""
+        if not self.can_use(squad) or self.dice_manager is None:
+            return False
+        if squad.owner not in self.auto_players and self.decision_manager is not None:
+            self.decision_manager.request(
+                squad.owner,
+                "%s: %s - roll a D6 to return destroyed Bodyguard models? "
+                "(on a 2+, up to D3+1 of them come back)"
+                % (squad.name, WORD_OF_THE_PHOENIX_LABEL),
+                [("Roll for it", lambda: self._begin_roll(squad)), ("Decline", None)],
+            )
+            return True
+        return self._begin_roll(squad)
+
+    def _begin_roll(self, squad):
+        """Throws the 2+ gate. The AI reaches this directly; a human reaches it
+        by answering the offer above."""
         if not self.can_use(squad) or self.dice_manager is None:
             return False
         self.pending_squad = squad

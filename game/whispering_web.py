@@ -112,7 +112,7 @@ class WhisperingWebController:
             squad.owner,
             f"{squad.name}: Whispering Web - which unit it hit should friendly AELDARI "
             "models score Critical Hits against on an unmodified 5+ for the rest of the turn?",
-            [(target.name, (lambda t=target: self.mark(squad.owner, t))) for target in candidates],
+            [(target.name, (lambda t=target: self.mark(squad.owner, t)), target) for target in candidates],
         )
 
     def mark(self, player, target):

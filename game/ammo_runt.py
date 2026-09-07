@@ -53,6 +53,7 @@ use.
 import copy
 
 from game.weapons import RANGED
+from game import ai_mode
 
 
 def unit_has_ammo_runt(squad):
@@ -91,7 +92,7 @@ class AmmoRuntController:
     def __init__(self, decision_manager=None, game_log=None, auto_players=()):
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._used = set()  # id(squad) - once per battle, never cleared
 
     def has_been_used(self, squad):

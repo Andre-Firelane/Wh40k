@@ -125,7 +125,7 @@ class IshasFuryController:
             reactor,
             f"Isha's Fury ({ISHAS_FURY_CP} CP): {mover.name} {moved}. Roll six D6 - "
             f"each {ISHAS_FURY_SUCCESS_THRESHOLD}+ inflicts 1 mortal wound on it.",
-            [(f"{s.name} ({ISHAS_FURY_CP} CP)", (lambda x=s: self._use(x, mover))) for s in candidates]
+            [(f"{s.name} ({ISHAS_FURY_CP} CP)", (lambda x=s: self._use(x, mover)), s) for s in candidates]
             + [("Decline", lambda: None)],
         )
         return True

@@ -7,33 +7,35 @@ same attachment ORDER) rather than driving main() itself: that keeps the check
 about WHAT the army is, independent of deployment, which the Pre-game Sequence
 (03.01) now owns.
 
-REWRITTEN when the roster went from T'au Empire to Aeldari, and REVISED twice
-since (the Avatar of Khaine and the Fire Dragons out, Dark Reapers / Rangers /
-Shining Spears / Shroud Runners / a Warlock Skyrunner in; then the Shroud
-Runners out and Windriders in, with the Skyrunner joining them). EVERY ONE OF
-THOSE TIMES THIS FILE KEPT PASSING while it validated an army that no longer
+REWRITTEN when the roster went from T'au Empire to Aeldari, and REVISED three
+times since (the Avatar of Khaine and the Fire Dragons out, Dark Reapers /
+Rangers / Shining Spears / Shroud Runners / a Warlock Skyrunner in; then the
+Shroud Runners out and Windriders in, with the Skyrunner joining them; then the
+Falcon and the Shining Spears out and the Avatar of Khaine back in). THE FIRST
+THREE TIMES THIS FILE KEPT PASSING while it validated an army that no longer
 existed - the same stale-test trap test_player2_army.py hit when the Ork list
-was replaced. THREE TIMES NOW for this one file, and the previous countermeasure
+was replaced. THREE TIMES for this one file, and the countermeasure of the day
 was not enough: writing the totals out as the LIST's own arithmetic catches a
 stale NUMBER, but it leaves the SHAPE of the army standing here as a second copy
 that has to be maintained by hand, and it is the shape that went stale each time.
 
-So section 5 now asks game/army_lists.py ITSELF what it built - the same fix
+So section 5 asks game/army_lists.py ITSELF what it built - the same fix
 test_player2_necron_army.py got for the same trap. The hand-built roster stays,
 because it is what checks the per-entry loadouts against the supplied list, but
 it is compared against the real builder on SHAPE (which datasheet leads which,
-how many models) rather than trusted on its own.
+how many models) rather than trusted on its own. THE FOURTH REVISION IS THE
+FIRST ONE THAT CAUGHT ITSELF: those three shape checks went red the moment the
+builder changed, naming the Falcon and the Shining Spears as present here and
+absent there.
 """
 
 from game import attached_units, loadout
 from game.factions import build_squad
 from game.factions.aeldari import (
-    ASURMEN, BANSHEE_BLADE_TO_EXECUTIONER, DARK_REAPERS, DIRE_AVENGERS,
-    DIRE_AVENGER_SECOND_CATAPULT, ELDRAD_ULTHRAN, FALCON,
-    FALCON_CATAPULT_TO_SHURIKEN_CANNON, FALCON_SCATTER_TO_BRIGHT_LANCE, FARSEER,
+    ASURMEN, AVATAR_OF_KHAINE, BANSHEE_BLADE_TO_EXECUTIONER, DARK_REAPERS,
+    DIRE_AVENGERS, DIRE_AVENGER_SECOND_CATAPULT, ELDRAD_ULTHRAN, FARSEER,
     FARSEER_WITCHBLADE_TO_SPEAR, GUARDIAN_DEFENDERS, HOWLING_BANSHEES,
-    JAIN_ZAR, LHYKHIS, RANGERS, SHINING_SPEARS, SHINING_SPEAR_SHIMMERSHIELD,
-    SHINING_SPEAR_TO_SHURIKEN_CANNON, SHINING_SPEAR_TO_STAR_LANCE,
+    JAIN_ZAR, LHYKHIS, RANGERS,
     STORM_GUARDIANS, STORM_GUARDIAN_CCW_TO_POWER_SWORD,
     STORM_GUARDIAN_PISTOL_TO_FLAMER, STORM_GUARDIAN_PISTOL_TO_FUSION,
     STRIKING_SCORPIONS, WARLOCK_CONCLAVE, WARLOCK_SKYRUNNERS,
@@ -95,18 +97,37 @@ check("...4 on Reaper Launchers",
       *has_line(reapers, "Dark Reaper", 4, "Close Combat Weapon",
                 "Reaper Launcher - Starshot"))
 
-falcon = build(FALCON, choices={"Falcon": {FALCON_SCATTER_TO_BRIGHT_LANCE: 1,
-                                          FALCON_CATAPULT_TO_SHURIKEN_CANNON: 1}})
-# "Pulse Laser, Wraithbone hull, Bright Lance, Shuriken Cannon" - and the two
-# swapped-away weapons have to be GONE, which is what makes this an exact test.
-check("Falcon: Pulse Laser + Wraithbone Hull + Bright Lance + Shuriken Cannon",
-      *has_line(falcon, "Falcon", 1, "Pulse Laser", "Wraithbone Hull",
-                "Bright Lance", "Shuriken Cannon"))
-check("...so the Scatter Laser it traded is gone",
-      not any(w.name == "Scatter Laser" for m in falcon.models for w in m.weapons))
-check("...and so is the Twin Shuriken Catapult",
-      not any(w.name == "Twin Shuriken Catapult" for m in falcon.models for w in m.weapons))
-check("Falcon costs 130", falcon.points == 130, str(falcon.points))
+# The Avatar of Khaine, back in the list after one revision away. He is the
+# entry with the LEAST to choose and the most to state, because every fact
+# about him comes off the datasheet rather than out of the list.
+avatar = build(AVATAR_OF_KHAINE)
+check("Avatar of Khaine: 1 model", len(avatar.models) == 1)
+# "Equipped with: the Wailing Doom" is ONE weapon printed as three rows - a
+# ranged one plus a melee Strike and Sweep - so all three are on him and none
+# of them is a choice. Rule 04.01 makes Strike-or-Sweep the choice at swing
+# time instead.
+check("...carrying all three rows of the Wailing Doom and nothing else",
+      *has_line(avatar, "Avatar of Khaine", 1, "The Wailing Doom",
+                "The Wailing Doom - Strike", "The Wailing Doom - Sweep"))
+check("...and the datasheet really has no wargear options at all",
+      len(AVATAR_OF_KHAINE.wargear_options) == 0)
+# He STANDS ALONE, and unlike the Warlock Skyrunner (which stood alone for one
+# revision only because the list fielded no Windriders) that is what his
+# datasheet says: no LEADER line at all. Checked from both sides, so the
+# difference between the two kinds of standing alone does not read as a
+# forgotten attachment.
+check("...he leads nothing (no LEADER line at all)",
+      attached_units.leadable_unit_names(avatar) == ()
+      and attached_units.attachment_role(avatar) is None)
+check("...and no character in this army may lead him either",
+      all(attached_units.can_attach(build(ds, name=f"{ds.name} probe"), avatar) != []
+          for ds in (FARSEER, ELDRAD_ULTHRAN, ASURMEN, JAIN_ZAR, LHYKHIS)))
+check("Avatar of Khaine costs 250", avatar.points == 250, str(avatar.points))
+# He is also the list's first MONSTER, which is what makes his 250 pts buy
+# something the departed Falcon did not: the Falcon was a VEHICLE and the only
+# TRANSPORT here, and it carried nobody.
+check("...and he is this list's only MONSTER model",
+      all(m.profile.monster for m in avatar.models), str(AVATAR_OF_KHAINE.keywords))
 
 rangers = build(RANGERS)
 check("Rangers: 5 models", len(rangers.models) == 5)
@@ -114,32 +135,6 @@ check("...all 5 on Long Rifle + Pistol + CCW (the datasheet has no options at al
       *has_line(rangers, "Ranger", 5, "Close Combat Weapon", "Long Rifle",
                 "Shuriken Pistol"))
 check("...and the datasheet really has none", len(RANGERS.wargear_options) == 0)
-
-# "Shimmershield, Shuriken Cannon, Star Lance" is three printed sentences of two
-# different kinds: two weapon swaps, and one pure ADDITION modelled as Gear. The
-# only entry in this roster that uses the gear columns at all.
-spears = build(SHINING_SPEARS,
-               choices={"Shining Spear Exarch": {SHINING_SPEAR_TO_STAR_LANCE: 1,
-                                                 SHINING_SPEAR_TO_SHURIKEN_CANNON: 1}},
-               gear={"Shining Spear Exarch": [SHINING_SPEAR_SHIMMERSHIELD]})
-check("Shining Spears: 3 models", len(spears.models) == 3)
-# The lance is one printed weapon with a ranged row AND a melee row, so it is
-# named twice - exactly like the laser lance it replaced.
-check("...Exarch on Star Lance (2 profiles) + Shuriken Cannon",
-      *has_line(spears, "Shining Spear Exarch", 1, "Star Lance", "Star Lance",
-                "Shuriken Cannon"))
-check("...so his Laser Lance is gone",
-      not any(w.name == "Laser Lance" for m in spears.models
-              if m.profile.name == "Shining Spear Exarch" for w in m.weapons))
-check("...and so is his Twin Shuriken Catapult",
-      not any(w.name == "Twin Shuriken Catapult" for m in spears.models
-              if m.profile.name == "Shining Spear Exarch" for w in m.weapons))
-# The shimmershield is Gear, so it is checked on the MODEL, not in the weapons.
-check("...and the shimmershield is on him (Gear, not a weapon swap)",
-      sum(1 for m in spears.models if getattr(m, "shimmershield", False)) == 1)
-check("...2 Spears on Laser Lance + Twin Shuriken Catapult",
-      *has_line(spears, "Shining Spear", 2, "Laser Lance", "Laser Lance",
-                "Twin Shuriken Catapult"))
 
 # "3x Windriders (80 pts): 3 with Close Combat Weapon, Shuriken Cannon". The
 # close combat weapon is printed; the shuriken cannon is one of the two swaps
@@ -370,18 +365,18 @@ check("...merged to 6 models", len(merged_spiders.models) == 6)
 
 print("\n5. Army rule and totals")
 
-units = [reapers, falcon, rangers, spears, scorpions, wraithguard,
+units = [avatar, reapers, rangers, scorpions, wraithguard,
          merged_guardians, merged_storm, merged_windriders, merged_avengers,
          merged_banshees, merged_spiders]
-check("12 units: 6 plain + 6 attached", len(units) == 12)
+check("11 units: 5 plain + 6 attached", len(units) == 11)
 check("every unit is priced (no None)", all(u.points is not None for u in units))
 total = sum(u.points for u in units)
 # Counted from the list rather than copied from a run:
-#   plain    5 Reapers + 1 Falcon + 5 Rangers + 3 Spears
-#            + 5 Scorpions + 5 Wraithguard                        = 24
+#   plain    1 Avatar + 5 Reapers + 5 Rangers
+#            + 5 Scorpions + 5 Wraithguard                        = 21
 #   attached (11 + 1 + 2) + (11 + 1 + 2) + (3 + 1) + (5 + 1) * 3  = 50
 models = sum(len(u.models) for u in units)
-check("74 models on the table", models == 24 + 50, str(models))
+check("71 models on the table", models == 21 + 50, str(models))
 
 # ---------------------------------------------------------------------------
 # ...AND THE SAME QUESTION PUT TO THE REAL BUILDER, which is the part that
@@ -410,11 +405,11 @@ def shape(squad):
     return (re.sub(r"\s\d+(?=\s\+|$)", "", bare), len(squad.models))
 
 
-check("the real builder produces the same 12 units, leader for leader and "
+check("the real builder produces the same 11 units, leader for leader and "
       "model for model",
       sorted(shape(u) for u in built) == sorted(shape(u) for u in units),
       f"{sorted(shape(u) for u in built)} vs {sorted(shape(u) for u in units)}")
-check("...the same 74 models", sum(len(u.models) for u in built) == models,
+check("...the same 71 models", sum(len(u.models) for u in built) == models,
       str(sum(len(u.models) for u in built)))
 check("...and the same total", sum(u.points for u in built) == total,
       f"{sum(u.points for u in built)} vs {total}")
@@ -435,19 +430,22 @@ _no_focus = sorted(u.name for u in units
 check("...and every unit but the Wraithguard carries the flag",
       _no_focus == ["Wraithguard"], str(_no_focus))
 
-# The supplied list totals 1930 pts. 11 of its 19 distinct entries disagree with
-# the transcribed official points list (see game/army_lists.py's roster
-# docstring), so the engine total is deliberately different and the check is a
-# sanity bound, not an equality - overwriting the transcribed data to force a
-# match is exactly what both other armies' notes say not to do. The mismatches
-# run BOTH ways, so this is not a one-sided bound.
+# THERE IS NO LIST TOTAL TO BOUND AGAINST ANY MORE, and that is the honest
+# reading rather than a gap. The four earlier revisions each arrived as a
+# priced roster, so this check could compare the engine's transcribed total
+# against the list's own; this one arrived as three words ("Falcon raus /
+# Shining Spears raus / Avatar of Khaine rein") and quotes no price, so the
+# Avatar has no list price to disagree with and 1930 is the total of an army
+# that no longer exists. Keeping the old bound would have been a check that
+# passes by measuring the wrong thing.
 #
-# ELEVEN, down from twelve: the Windriders that replaced the Shroud Runners are
-# priced at 80 by the list AND by the transcription, so the swap retired one of
-# the mismatches rather than moving it.
-print(f"       engine total: {total} pts   |   the supplied list totals 1930 pts")
-check("the total is within 100 pts of the list's own", abs(total - 1930) <= 100,
-      f"{total} vs 1930")
+# What replaces it is the arithmetic that is still checkable: the entries whose
+# list prices ARE recorded still disagree with the transcription 10 times (see
+# game/army_lists.py's roster docstring), and the engine total is what those
+# transcribed prices add up to - so it is pinned exactly, against the same
+# per-unit numbers section 1-4 checked one at a time.
+print(f"       engine total: {total} pts   |   this revision quotes no list total")
+check("the transcribed total is 1910", total == 1910, str(total))
 
 # The loadout display has to survive every unit here - it is what the panels
 # and the reserves cards show, and an attached unit is where it has broken

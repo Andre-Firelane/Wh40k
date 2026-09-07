@@ -1,0 +1,147 @@
+{
+  "format": 1,
+  "key": "orks",
+  "name": "Orks",
+  "faction_keyword": "ORKS",
+  "army_rule": "Waaagh!",
+  "detachments": ["War Horde"],
+  "force_disposition": "take_and_hold",
+  "sort_order": 20,
+  "roster": [
+    {
+      "datasheet": "Kill Rig",
+      "color": [100, 85, 65],
+      "id": "kill_rig_1"
+    },
+    {
+      "datasheet": "Beast Snagga Boyz",
+      "color": [120, 145, 55],
+      "leaders": [
+        {
+          "datasheet": "Beastboss",
+          "color": [185, 80, 45]
+        }
+      ],
+      "transport": "kill_rig_1"
+    },
+    {
+      "datasheet": "Battlewagon",
+      "color": [75, 95, 55],
+      "gear": {
+        "Battlewagon": ["'Ard Case"]
+      },
+      "choices": {
+        "Battlewagon": {
+          "+ 4x Big Shoota": 1,
+          "+ Zzap Gun": 1
+        }
+      },
+      "id": "battlewagon_1"
+    },
+    {
+      "datasheet": "Meganobz",
+      "color": [120, 100, 130],
+      "composition_index": 1,
+      "leaders": [
+        {
+          "datasheet": "Warboss in Mega Armour",
+          "color": [170, 60, 60]
+        }
+      ],
+      "transport": "battlewagon_1"
+    },
+    {
+      "datasheet": "Boyz",
+      "color": [70, 140, 60],
+      "composition_index": 1,
+      "choices": {
+        "Boss Nob": {
+          "Big Choppa -> Power Klaw": 1
+        }
+      },
+      "leaders": [
+        {
+          "datasheet": "Warboss",
+          "color": [170, 60, 60],
+          "choices": {
+            "Warboss": {
+              "+ Attack Squig": 1
+            }
+          }
+        },
+        {
+          "datasheet": "Painboy",
+          "color": [150, 65, 105],
+          "gear": {
+            "Painboy": ["Grot Orderly"]
+          }
+        }
+      ]
+    },
+    {
+      "datasheet": "Gretchin",
+      "color": [140, 110, 70]
+    },
+    {
+      "datasheet": "Gretchin",
+      "color": [140, 110, 70]
+    },
+    {
+      "datasheet": "Warbikers",
+      "color": [150, 130, 60],
+      "choices": {
+        "Boss Nob on Warbike": {
+          "+ Power Klaw": 1
+        }
+      }
+    },
+    {
+      "datasheet": "Warbikers",
+      "color": [150, 130, 60],
+      "choices": {
+        "Boss Nob on Warbike": {
+          "+ Power Klaw": 1
+        }
+      }
+    },
+    {
+      "datasheet": "Stormboyz",
+      "color": [110, 150, 70],
+      "composition_index": 1,
+      "choices": {
+        "Boss Nob": {
+          "Choppa -> Power Klaw": 1
+        }
+      }
+    },
+    {
+      "datasheet": "Deff Dread",
+      "color": [80, 80, 90]
+    },
+    {
+      "datasheet": "Deffkoptas",
+      "color": [130, 145, 165],
+      "composition_index": 1
+    },
+    {
+      "datasheet": "Flash Gitz",
+      "color": [170, 150, 55],
+      "composition_index": 1,
+      "gear": {
+        "Kaptin": ["Ammo Runt"]
+      }
+    },
+    {
+      "datasheet": "Tankbustas",
+      "color": [160, 110, 40],
+      "choices": {
+        "Boss Nob": {
+          "Rokkit Pistol -> Rokkit Pistol + Smash Hammer": 1
+        },
+        "Tankbusta": {
+          "+ Rokkit Launcha": 1
+        }
+      }
+    }
+  ]
+}

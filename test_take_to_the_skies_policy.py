@@ -211,14 +211,14 @@ def flying_units(builder):
 
 
 declines, keeps = [], []
-for builder in (army_lists.build_aeldari, army_lists.build_orks,
-                army_lists.build_necrons, army_lists.build_tau):
+for builder in (army_lists.get("aeldari").build, army_lists.get("orks").build,
+                army_lists.get("necrons").build, army_lists.get("tau").build):
     for unit in flying_units(builder):
         (keeps if take_to_the_skies_pays(unit) else declines).append(unit)
 
-checks.eq("seven flying units across the four rosters stop declaring 21.03",
+checks.eq("six flying units across the four rosters stop declaring 21.03",
           sorted(u.name for u in declines),
-          ["2 Commander Shadowsun 1", "2 Necron Warriors 1 + Technomancer",
+          ["2 Necron Warriors 1 + Technomancer",
            "2 Stealth Battlesuits 1", "2 Stealth Battlesuits 2",
            "2 Stormboyz 1", "2 Vespid Stingwings 1",
            "2 Warp Spiders 1 + Lhykhis"])
@@ -241,6 +241,17 @@ checks.true("...and every one of them is all-INFANTRY, i.e. covered by 13.06",
 #             Riptide stayed), while the declines column grew by three -
 #             Shadowsun, a second Stealth team and the Vespid, every one of
 #             them all-INFANTRY and so covered by 13.06 already.
+#   14 -> 12  the 2026-09-01 Aeldari revision dropped the Falcon (a FLY
+#             grav-tank) and the Shining Spears (FLY jetbikes) and brought in
+#             the Avatar of Khaine, who is a MONSTER on foot and so never
+#             enters this count at all. Both columns are untouched otherwise -
+#             the declines list above is unchanged, which is the check that
+#             says the two removals were keeps rather than declines.
+#   12 -> 14  the 2026-09-05 T'au revision, and BOTH columns moved this time.
+#             Keeps gained the Ghostkeel, a Hammerhead, a Sky Ray and the
+#             Crisis Sunforge (which the Commander in Coldstar merges into, so
+#             he is not a unit of his own) and lost one Piranha; declines lost
+#             Commander Shadowsun, who left the list.
 checks.eq("fourteen keep it", len(keeps), 14)
 checks.true("...and not one of them is all-INFANTRY",
             not any(all(m.profile.infantry for m in u.models) for u in keeps))
@@ -250,8 +261,11 @@ checks.true("...and not one of them is all-INFANTRY",
 # terrain, so 21.03 is the only way it crosses one.
 checks.true("...including the Riptide, the T'au battlesuit that still needs 21.03",
             any(u.name == "2 Riptide Battlesuit 1" for u in keeps))
-checks.true("...and no Crisis suit is in any roster any more, which is why that pin moved",
-            not any("Crisis" in u.name for u in keeps + declines))
+# The Crisis suits are BACK - the 2026-09-05 list fields Crisis Sunforge
+# Battlesuits, led by the Commander in Coldstar. They are the case the policy
+# was written for in the first place.
+checks.true("...and the Crisis suits are back, which is what that pin was for",
+            any("Crisis Sunforge" in u.name for u in keeps))
 checks.true("...and the Deffkoptas, the flying unit the movement harness calls a worst case",
             any(u.name == "2 Deffkoptas 1" for u in keeps))
 

@@ -26,7 +26,7 @@ they shoot, so the two are meant to work together, and a version that skipped
 the check would hand the bonus to units the Stratagem never covered.
 """
 
-from game import advanced_acquisition_cadre as aac, tau_detachments
+from game import advanced_acquisition_cadre as aac, ai_mode, tau_detachments
 from game.stratagems import Stratagem
 from game.turn import PHASE_SHOOTING
 
@@ -56,7 +56,7 @@ class AutoreactiveCamouflageController:
         self.is_hidden_check = is_hidden_check
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = tuple(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._offered_this_phase = set()
         self._stratagem = Stratagem(
             name=AUTOREACTIVE_NAME, cp_cost=AUTOREACTIVE_CP, effect=self._grant,

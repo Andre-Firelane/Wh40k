@@ -452,7 +452,7 @@ foe_squad = squad_at(VictimProfile, FOE, "1 Victim 1", [(40.0, 40.0)])
 # The AI answers itself, with no prompt at all.
 choice_ai = PlagueChoice()
 dec = DecisionManager()
-step = PlagueSelectionStep(choice_ai, decision_manager=dec, human_player=FOE)
+step = PlagueSelectionStep(choice_ai, decision_manager=dec, human_players=(FOE,))
 c.eq("only the Death Guard player is asked", step.begin([dg_squad, foe_squad]), [DG])
 c.eq("the AI chose without a prompt", choice_ai.chosen_by(DG), plagues.RATTLEJOINT_AGUE)
 c.true("nothing is pending", not dec.is_pending)
@@ -460,7 +460,7 @@ c.true("nothing is pending", not dec.is_pending)
 # The human is prompted with all three, and the answer sticks.
 choice_h = PlagueChoice()
 dec_h = DecisionManager()
-step_h = PlagueSelectionStep(choice_h, decision_manager=dec_h, human_player=DG)
+step_h = PlagueSelectionStep(choice_h, decision_manager=dec_h, human_players=(DG,))
 step_h.begin([dg_squad, foe_squad])
 c.true("the human gets a prompt", dec_h.is_pending)
 c.eq("with all three Plagues offered", len(options_of(dec_h)), 3)
@@ -479,7 +479,7 @@ c.eq("no Death Guard on the table -> nobody is asked",
 both_dg = squad_at(PlagueMarineStandIn, FOE, "1 Plague Marines 1", [(40.0, 40.0)])
 c.eq("a mirror match asks both players",
      PlagueSelectionStep(PlagueChoice(), decision_manager=None,
-                         human_player="nobody").begin([dg_squad, both_dg]),
+                         human_players=("nobody",)).begin([dg_squad, both_dg]),
      [FOE, DG])
 
 

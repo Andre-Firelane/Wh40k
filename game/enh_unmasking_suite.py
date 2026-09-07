@@ -42,7 +42,7 @@ broken by name so a self-play run is reproducible), which is a rule answering
 its own prompt rather than an AI path - the standing T'au rule.
 """
 
-from game import enhancements
+from game import ai_mode, enhancements
 from game.squad import edge_distance
 
 UNMASKING_SUITE = "Unmasking Suite"
@@ -84,7 +84,7 @@ class UnmaskingSuiteController:
         self.game_state = game_state
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self.marked = None          # the enemy Squad currently lit up, or None
         self.marked_by = None       # the unit whose activation lit it
 
@@ -125,7 +125,7 @@ class UnmaskingSuiteController:
             return False
         if squad.owner in self.auto_players or self.decision_manager is None:
             return self.mark(squad, self._pick(squad, targets))
-        options = [(f"{UNMASKING_SUITE}: {t.name}", (lambda target=t: self.mark(squad, target)))
+        options = [(f"{UNMASKING_SUITE}: {t.name}", (lambda target=t: self.mark(squad, target)), t)
                    for t in targets]
         options.append(("Do not use it", None))
         self.decision_manager.request(

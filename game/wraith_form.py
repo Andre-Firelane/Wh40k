@@ -31,6 +31,8 @@ AI answers deterministically: the unit it can hurt most, by the shared
 game/damage_estimate.py measure of value.
 """
 
+from game import ai_mode
+
 MORTAL_WOUND_THRESHOLD = 4      # "for each 4+"
 WRAITH_FORM_MOVE_KIND = "normal"
 
@@ -105,7 +107,7 @@ class WraithFormController:
         self.game_log = game_log
         self.game_state = game_state
         self.movement_controller = movement_controller
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         # target_pick(attacker, candidates) -> chosen squad. main.py passes the shared
         # damage-value ranking so the AI's answer is the same measure every
         # other deterministic target choice uses; None falls back to the first
@@ -142,7 +144,7 @@ class WraithFormController:
             return self._use(squad, self._pick(squad, targets))
         options = [
             (f"Wraith Form: {t.name} ({dice_count(squad)} D6, 1 mortal wound per 4+)",
-             (lambda target=t: self._use(squad, target)))
+             (lambda target=t: self._use(squad, target)), t)
             for t in targets
         ]
         options.append(("Decline", None))

@@ -101,7 +101,7 @@ class BattleShockAfterShooting:
             squad.owner,
             "%s: %s - which enemy unit must take a Battle-shock test?"
             % (squad.name, self.label),
-            [(t.name, (lambda t=t: self._test(t))) for t in targets],
+            [(t.name, (lambda t=t: self._test(t)), t) for t in targets],
         )
         return True
 

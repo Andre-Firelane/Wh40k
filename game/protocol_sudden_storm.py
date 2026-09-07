@@ -27,7 +27,7 @@ second clause.
 
 import copy
 
-from game import awakened_dynasty
+from game import ai_mode, awakened_dynasty
 from game.stratagems import Stratagem
 from game.weapons import RANGED
 
@@ -69,7 +69,7 @@ class SuddenStormController:
         self.game_log = game_log
         self.dice_manager = dice_manager
         self.decision_manager = decision_manager
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._stratagem = Stratagem(name=SUDDEN_STORM_NAME, cp_cost=SUDDEN_STORM_CP_COST,
                                     effect=self._grant)
 
@@ -120,6 +120,11 @@ class SuddenStormController:
             return False
         values = self.dice_manager.pending_values or self.dice_manager.last_values or []
         if not values:
+            return False
+        # ONCE per roll. Declining used to leave the die on the table with
+        # nothing changed, so the next click asked again - see
+        # DiceManager.claim_reroll_offer().
+        if not self.dice_manager.claim_reroll_offer(SUDDEN_STORM_NAME):
             return False
         if squad.owner in self.auto_players or self.decision_manager is None:
             if values[0] >= ADVANCE_REROLL_FLOOR:

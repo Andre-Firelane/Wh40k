@@ -20,6 +20,31 @@ whoever was attacking, and this controller keeps those killers for the phase.
 Deriving it afterwards is not possible - the dead unit is gone, and nothing on
 the killer remembers.
 
+THREE THINGS ABOUT THAT LEDGER AND THAT WINDOW, ALL OF WHICH USED TO BE WRONG,
+and each of which killed this Stratagem on its own:
+
+  1. THE WINDOW IS A FACT THIS MODULE OWNS. can_use() used to read the live
+     turn_tracker.phase. Its only offer is main.py's advance_turn_phase(),
+     which calls advance_phase() FIRST - so at the end of Shooting the clock
+     already reads Charge, and at the end of Fight it has rolled round to
+     Command. Both halves of the WHEN therefore fell through the `elif phase
+     != PHASE_FIGHT` arm and it was never offered. See game/phase_window.py.
+  2. reset_phase() ROTATES, it does not clear. main.py's per-phase reset block
+     runs BEFORE that boundary's own offers (deliberately, so a stale window
+     cannot outlive its phase) - so emptying the ledger there emptied exactly
+     the kills the offer was about to read. The kills of the phase that just
+     ENDED are what this Stratagem asks about, so they move to their own set
+     and the live one starts empty.
+  3. A KILLERLESS DEATH IS DEFERRED, not dropped. main.py's sweep passes
+     `shooting_controller.active_squad or fight_controller.fighting_squad`,
+     and that is regularly NOBODY: remove_dead_models() runs once per frame
+     after the event loop, and _actually_finish_squad() has already nulled
+     active_squad when the LAST weapon group wipes a unit - which is the
+     ordinary way a Windrider unit destroys something. Same cause and same
+     fix as game/montka_pinpoint_counter_offensive.py: the death is parked and
+     credited from the post-activation hooks, where the attacker arrives as an
+     argument and cannot be guessed.
+
 "THE END OF THE FIGHT PHASE", NOT "YOUR FIGHT PHASE" - so the Fight-phase half
 carries no owner check while the Shooting-phase half does. That one printed
 word makes this a REACTIVE move: a unit can destroy an enemy in its opponent's
@@ -50,7 +75,8 @@ as an absence, since a missing lock and a forgotten one look the same.
 THE AI DECLINES (standing Aeldari instruction).
 """
 
-from game import ride_the_wind
+from game import ai_mode, ride_the_wind
+from game.phase_window import PhaseWindow
 from game.stratagems import Stratagem
 from game.turn import PHASE_FIGHT, PHASE_SHOOTING
 
@@ -86,10 +112,19 @@ class OverflightController:
         self.turn_tracker = turn_tracker
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         #: Squads that destroyed an enemy unit this phase - recorded because
         #: the fact cannot be recovered afterwards.
         self._killers_this_phase = set()
+        #: The same, for the phase that just ENDED. reset_phase() rotates the
+        #: live set into this one; the offer reads THIS one, because it is
+        #: made after that reset. See the docstring, point 2.
+        self._killers_ending_phase = set()
+        #: Deaths whose attacker the sweep could not name - see point 3.
+        self._owed = []
+        #: The end-of-phase window this controller's own offer opens, in place
+        #: of a live phase test. See game/phase_window.py.
+        self._window = PhaseWindow()
         self._moving_squad = None
         self._restore_active = None
         self._stratagem = Stratagem(
@@ -97,49 +132,96 @@ class OverflightController:
         )
 
     def reset_phase(self):
+        """ROTATES rather than clears, and closes the window.
+
+        main.py's per-phase reset block runs BEFORE that boundary's own
+        offers, so clearing here would empty exactly the ledger the offer is
+        about to read. An uncredited death does not outlive its phase."""
+        self._killers_ending_phase = self._killers_this_phase
         self._killers_this_phase = set()
+        self._owed = []
+        self._window.close()
 
     def notify_unit_destroyed(self, dead_squad, killer_squad):
         """Fed once per wiped-out squad from main.py's death sweep, with
         whoever was attacking at the time - this engine's only answer to "who
-        killed it", as Szeras' own note records."""
-        if dead_squad is None or killer_squad is None:
+        killed it", as Szeras' own note records.
+
+        A death with no named attacker is PARKED rather than dropped: that is
+        the ordinary case when the last weapon group of an activation wipes a
+        unit. credit_owed_kills() settles it from the post-activation hooks."""
+        if dead_squad is None:
+            return False
+        if killer_squad is None:
+            self._owed.append(dead_squad)
             return False
         if killer_squad.owner == dead_squad.owner:
             return False
         self._killers_this_phase.add(id(killer_squad))
         return True
 
+    def credit_owed_kills(self, killer_squad):
+        """Settle the parked deaths against the unit that has just finished
+        its attacks - the one seam where the attacker arrives as an argument
+        instead of being guessed at."""
+        if killer_squad is None or not self._owed:
+            return False
+        owed, self._owed = self._owed, []
+        credited = False
+        for dead_squad in owed:
+            if dead_squad.owner == killer_squad.owner:
+                continue               # no credit for friendly fire
+            self._killers_this_phase.add(id(killer_squad))
+            credited = True
+        return credited
+
     def destroyed_a_unit_this_phase(self, squad):
         return id(squad) in self._killers_this_phase
 
+    def destroyed_a_unit_in_the_ending_phase(self, squad):
+        """What the offer asks. The live ledger has already been rotated away
+        by the time this boundary's offers run."""
+        return id(squad) in self._killers_ending_phase
+
     def can_use(self, squad):
-        if squad is None or self.stratagem_controller is None or self.turn_tracker is None:
+        if squad is None or self.stratagem_controller is None:
             return False
-        phase = self.turn_tracker.phase
-        if phase == PHASE_SHOOTING:
-            # "End of YOUR Shooting phase".
-            if squad.owner != self.turn_tracker.turn_owner:
-                return False
-        elif phase != PHASE_FIGHT:
-            # "the end of THE Fight phase" - it belongs to nobody, so the
-            # Fight-phase half has no owner check at all.
+        # No live phase test and no owner test here: both are facts about the
+        # BOUNDARY, and the boundary is what armed the window. Reading the
+        # clock meant neither half of the printed WHEN could ever hold.
+        if not self._window.is_open(squad.owner):
             return False
         if not eligible_unit(squad):
             return False
-        if not self.destroyed_a_unit_this_phase(squad):
+        if not self.destroyed_a_unit_in_the_ending_phase(squad):
             return False
         if not any(not m.is_dead() for m in (getattr(squad, "models", ()) or ())):
             return False
         return self.stratagem_controller.can_use(squad.owner, self._stratagem, [squad])
 
-    def offer_at_end_of_phase(self, squads):
-        """Offered at both phase boundaries the WHEN names. `squads` is every
-        squad on the board; can_use() decides which side of the table each
-        half belongs to."""
-        for squad in sorted((s for s in squads if self.can_use(s)),
-                            key=lambda s: (str(s.owner), s.name)):
+    def offer_at_end_of_phase(self, squads, phase_before, ending_player):
+        """Offered at both phase boundaries the WHEN names.
+
+        `phase_before` and `ending_player` are main.py's, captured BEFORE
+        advance_phase() - the clock and turn_owner have both already moved on
+        by the time this runs. The owner rule lives HERE, where the boundary
+        is known, rather than in can_use(), which is asked frames later."""
+        if phase_before == PHASE_SHOOTING:
+            # "End of YOUR Shooting phase".
+            candidates = [s for s in squads if s.owner == ending_player]
+        elif phase_before == PHASE_FIGHT:
+            # "the end of THE Fight phase" - it belongs to nobody, so this
+            # half has no owner check at all.
+            candidates = list(squads)
+        else:
+            return False
+        for squad in sorted(candidates, key=lambda s: (str(s.owner), s.name)):
+            self._window.arm(squad.owner)
+            if not self.can_use(squad):
+                self._window.close()
+                continue
             if squad.owner in self.auto_players or self.decision_manager is None:
+                self._window.close()
                 return False           # no AI path
             self.decision_manager.request(
                 squad.owner,

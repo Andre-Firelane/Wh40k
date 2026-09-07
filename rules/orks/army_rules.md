@@ -4,7 +4,6 @@ Source: <https://wahapedia.ru/wh40k11ed/factions/orks/>
 
 ## Waaagh!
 
-The infamous war cry of the Orks is known and feared throughout the galaxy. When it echoes across the battlefield, bellowed from hundreds or even thousands of greenskin mouths, even the most stalwart warriors fear the onslaught to come.
 If your Army Faction is ORKS, once per battle, at the start of your Command phase, you can call a Waaagh!. If you do, until the start of your next Command phase, the Waaagh! is active for your army and:
 
 - Units from your army with this ability are eligible to declare a charge in a turn in which they Advanced.

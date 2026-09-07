@@ -24,22 +24,38 @@
    ]
   },
   {
-   "name": "2 Doomsday Ark 1",
+   "name": "2 Broadside Battlesuits 1",
    "owner": "Player 2",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 47.56666666666666,
-     "y_in": 9.9,
-     "wounds": 14,
-     "model": "Doomsday Ark",
+     "x_in": 10.423666666666666,
+     "y_in": 9.818999999999999,
+     "wounds": 8,
+     "model": "Broadside Shas'vre",
      "weapons": [
-      "Armoured Bulk",
-      "Doomsday Cannon",
-      "Gauss Flayer Array",
-      "Gauss Flayer Array"
+      "Crushing Bulk",
+      "Heavy Rail Rifle",
+      "Missile Pod",
+      "Missile Pod",
+      "Seeker Missile",
+      "Twin Plasma Rifle"
+     ]
+    },
+    {
+     "x_in": 10.423666666666666,
+     "y_in": 7.356999999999999,
+     "wounds": 8,
+     "model": "Broadside Shas'ui",
+     "weapons": [
+      "Crushing Bulk",
+      "Heavy Rail Rifle",
+      "Missile Pod",
+      "Missile Pod",
+      "Seeker Missile",
+      "Twin Plasma Rifle"
      ]
     }
    ]
@@ -164,64 +180,23 @@
    ]
   },
   {
-   "name": "2 Canoptek Wraiths 1",
+   "name": "2 Riptide Battlesuit 1",
    "owner": "Player 2",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 25.99771428571428,
-     "y_in": 10.016,
-     "wounds": 4,
-     "model": "Canoptek Wraith",
+     "x_in": 45.516666666666666,
+     "y_in": 9.93,
+     "wounds": 14,
+     "model": "Riptide Battlesuit",
      "weapons": [
-      "Vicious Claws"
-     ]
-    },
-    {
-     "x_in": 25.99771428571428,
-     "y_in": 7.948,
-     "wounds": 4,
-     "model": "Canoptek Wraith",
-     "weapons": [
-      "Vicious Claws"
-     ]
-    },
-    {
-     "x_in": 27.7886548207405,
-     "y_in": 8.982,
-     "wounds": 4,
-     "model": "Canoptek Wraith",
-     "weapons": [
-      "Vicious Claws"
-     ]
-    },
-    {
-     "x_in": 24.20677375068806,
-     "y_in": 8.982000000000001,
-     "wounds": 4,
-     "model": "Canoptek Wraith",
-     "weapons": [
-      "Vicious Claws"
-     ]
-    },
-    {
-     "x_in": 25.99771428571428,
-     "y_in": 5.88,
-     "wounds": 4,
-     "model": "Canoptek Wraith",
-     "weapons": [
-      "Vicious Claws"
-     ]
-    },
-    {
-     "x_in": 28.06571428571428,
-     "y_in": 6.434118929947561,
-     "wounds": 4,
-     "model": "Canoptek Wraith",
-     "weapons": [
-      "Vicious Claws"
+      "Ion Accelerator - Standard",
+      "Missile Pod",
+      "Missile Pod",
+      "Riptide Fists",
+      "Twin Fusion Blaster"
      ]
     }
    ]
@@ -346,64 +321,24 @@
    ]
   },
   {
-   "name": "2 Lychguard 1 + Overlord",
+   "name": "2 Hammerhead Gunship 1",
    "owner": "Player 2",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 9.847857142857144,
-     "y_in": 10.213000000000001,
-     "wounds": 2,
-     "model": "Lychguard",
+     "x_in": 14.499999999999998,
+     "y_in": 9.9,
+     "wounds": 14,
+     "model": "Hammerhead Gunship",
      "weapons": [
-      "Hyperphase Sword"
-     ]
-    },
-    {
-     "x_in": 9.847857142857144,
-     "y_in": 8.713000000000001,
-     "wounds": 2,
-     "model": "Lychguard",
-     "weapons": [
-      "Hyperphase Sword"
-     ]
-    },
-    {
-     "x_in": 11.146895248533802,
-     "y_in": 9.463000000000001,
-     "wounds": 2,
-     "model": "Lychguard",
-     "weapons": [
-      "Hyperphase Sword"
-     ]
-    },
-    {
-     "x_in": 8.548819037180486,
-     "y_in": 9.463000000000003,
-     "wounds": 2,
-     "model": "Lychguard",
-     "weapons": [
-      "Hyperphase Sword"
-     ]
-    },
-    {
-     "x_in": 8.548819037180486,
-     "y_in": 10.963000000000001,
-     "wounds": 2,
-     "model": "Lychguard",
-     "weapons": [
-      "Hyperphase Sword"
-     ]
-    },
-    {
-     "x_in": 11.146895248533802,
-     "y_in": 10.963000000000001,
-     "wounds": 6,
-     "model": "Overlord",
-     "weapons": [
-      "Voidscythe"
+      "Accelerator Burst Cannon",
+      "Accelerator Burst Cannon",
+      "Armoured Hull",
+      "Railgun",
+      "Seeker Missile",
+      "Seeker Missile"
      ]
     }
    ]
@@ -628,48 +563,22 @@
    ]
   },
   {
-   "name": "2 Skorpekh Destroyers 1 + Skorpekh Lord",
+   "name": "2 Sky Ray Gunship 1",
    "owner": "Player 2",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 44.008,
-     "y_in": 7.948,
-     "wounds": 3,
-     "model": "Skorpekh Destroyer",
+     "x_in": 51.699999999999996,
+     "y_in": 9.9,
+     "wounds": 14,
+     "model": "Sky Ray Gunship",
      "weapons": [
-      "Skorpekh Hyperphase Weapons"
-     ]
-    },
-    {
-     "x_in": 42.21705946497378,
-     "y_in": 8.982000000000001,
-     "wounds": 3,
-     "model": "Skorpekh Destroyer",
-     "weapons": [
-      "Skorpekh Hyperphase Weapons"
-     ]
-    },
-    {
-     "x_in": 44.008,
-     "y_in": 5.88,
-     "wounds": 3,
-     "model": "Skorpekh Destroyer",
-     "weapons": [
-      "Skorpekh Hyperphase Weapons"
-     ]
-    },
-    {
-     "x_in": 44.008,
-     "y_in": 10.016,
-     "wounds": 7,
-     "model": "Skorpekh Lord",
-     "weapons": [
-      "Enmitic Annihilator",
-      "Flensing Claw",
-      "Hyperphase Harvester"
+      "Accelerator Burst Cannon",
+      "Accelerator Burst Cannon",
+      "Armoured Hull",
+      "Seeker Missile Rack"
      ]
     }
    ]
@@ -738,220 +647,24 @@
    ]
   },
   {
-   "name": "2 Necron Warriors 1 + Technomancer",
+   "name": "2 Devilfish 1",
    "owner": "Player 2",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 34.00228571428571,
-     "y_in": 2.327999,
-     "wounds": 1,
-     "model": "Necron Warrior",
+     "x_in": 24.833333333333332,
+     "y_in": 9.9,
+     "wounds": 13,
+     "model": "Devilfish",
      "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 35.44335285220842,
-     "y_in": 3.1599995,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 32.561218576363004,
-     "y_in": 3.1599995000000014,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 35.44335285220842,
-     "y_in": 4.8240004999999995,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 32.561218576363004,
-     "y_in": 4.8240005,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 34.00228571428571,
-     "y_in": 5.656001,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 34.00228571428571,
-     "y_in": 0.992,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 32.50228571428571,
-     "y_in": 1.3939237886466844,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 35.50228571428571,
-     "y_in": 1.393923788646684,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 36.60036192563903,
-     "y_in": 2.492,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 31.404209502932396,
-     "y_in": 2.4920000000000018,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 37.00228571428571,
-     "y_in": 3.992,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 31.002285714285712,
-     "y_in": 3.9920000000000004,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 36.60036192563903,
-     "y_in": 5.491999999999999,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 31.404209502932396,
-     "y_in": 5.492000000000001,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 32.50228571428571,
-     "y_in": 6.590076211353316,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 34.00228571428571,
-     "y_in": 6.992,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 30.105171397255738,
-     "y_in": 1.7419999999999995,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 37.899400031315686,
-     "y_in": 1.742,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 38.43392060284065,
-     "y_in": 3.2105832004988133,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 34.00228571428571,
-     "y_in": 3.992,
-     "wounds": 4,
-     "model": "Technomancer",
-     "weapons": [
-      "Staff of Light",
-      "Staff of Light"
+      "Accelerator Burst Cannon",
+      "Armoured Hull",
+      "Seeker Missile",
+      "Seeker Missile",
+      "Twin Pulse Carbine",
+      "Twin Pulse Carbine"
      ]
     }
    ]
@@ -978,120 +691,24 @@
    ]
   },
   {
-   "name": "2 Immortals 1 + Plasmancer",
+   "name": "2 Devilfish 2",
    "owner": "Player 2",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 29.999999999999996,
-     "y_in": 6.000000000000001,
-     "wounds": 1,
-     "model": "Immortal",
+     "x_in": 6.2333333333333325,
+     "y_in": 9.9,
+     "wounds": 13,
+     "model": "Devilfish",
      "weapons": [
-      "Close Combat Weapon",
-      "Gauss Blaster"
-     ]
-    },
-    {
-     "x_in": 28.939339828220174,
-     "y_in": 4.939339828220179,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Blaster"
-     ]
-    },
-    {
-     "x_in": 29.611771432346217,
-     "y_in": 7.448888739433603,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Blaster"
-     ]
-    },
-    {
-     "x_in": 31.06066017177982,
-     "y_in": 7.060660171779823,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Blaster"
-     ]
-    },
-    {
-     "x_in": 27.878679656440355,
-     "y_in": 3.878679656440358,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Blaster"
-     ]
-    },
-    {
-     "x_in": 30.77645713530756,
-     "y_in": 8.897777478867205,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Blaster"
-     ]
-    },
-    {
-     "x_in": 32.12132034355964,
-     "y_in": 8.121320343559644,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Blaster"
-     ]
-    },
-    {
-     "x_in": 25.92161495833507,
-     "y_in": 4.0982178221668555,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Blaster"
-     ]
-    },
-    {
-     "x_in": 33.18198051533946,
-     "y_in": 9.181980515339465,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Blaster"
-     ]
-    },
-    {
-     "x_in": 24.23823788593834,
-     "y_in": 4.3260533637646255,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Blaster"
-     ]
-    },
-    {
-     "x_in": 24.14449942836751,
-     "y_in": 7.308859448379255,
-     "wounds": 4,
-     "model": "Plasmancer",
-     "weapons": [
-      "Plasmic Lance",
-      "Plasmic Lance"
+      "Accelerator Burst Cannon",
+      "Armoured Hull",
+      "Seeker Missile",
+      "Seeker Missile",
+      "Twin Pulse Carbine",
+      "Twin Pulse Carbine"
      ]
     }
    ]
@@ -1176,120 +793,22 @@
    ]
   },
   {
-   "name": "2 Immortals 2 + Plasmancer",
+   "name": "2 Piranhas 1",
    "owner": "Player 2",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 13.788571428571426,
-     "y_in": 10.370000000000001,
-     "wounds": 1,
-     "model": "Immortal",
+     "x_in": 20.850016544875675,
+     "y_in": 10.235465089265835,
+     "wounds": 7,
+     "model": "Piranha",
      "weapons": [
-      "Close Combat Weapon",
-      "Tesla Carbine"
-     ]
-    },
-    {
-     "x_in": 13.788571428571426,
-     "y_in": 8.870000000000001,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Tesla Carbine"
-     ]
-    },
-    {
-     "x_in": 15.087609534248084,
-     "y_in": 9.620000000000001,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Tesla Carbine"
-     ]
-    },
-    {
-     "x_in": 12.489533322894768,
-     "y_in": 9.620000000000003,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Tesla Carbine"
-     ]
-    },
-    {
-     "x_in": 15.087609534248084,
-     "y_in": 11.120000000000001,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Tesla Carbine"
-     ]
-    },
-    {
-     "x_in": 13.788571428571426,
-     "y_in": 7.370000000000001,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Tesla Carbine"
-     ]
-    },
-    {
-     "x_in": 12.288571428571425,
-     "y_in": 7.771923788646685,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Tesla Carbine"
-     ]
-    },
-    {
-     "x_in": 15.288571428571426,
-     "y_in": 7.771923788646685,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Tesla Carbine"
-     ]
-    },
-    {
-     "x_in": 16.386647639924742,
-     "y_in": 8.870000000000001,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Tesla Carbine"
-     ]
-    },
-    {
-     "x_in": 16.788571428571426,
-     "y_in": 10.370000000000001,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Tesla Carbine"
-     ]
-    },
-    {
-     "x_in": 13.788571428571426,
-     "y_in": 5.870000000000001,
-     "wounds": 4,
-     "model": "Plasmancer",
-     "weapons": [
-      "Plasmic Lance",
-      "Plasmic Lance"
+      "Armoured Hull",
+      "Piranha Burst Cannon",
+      "Twin Pulse Carbine",
+      "Twin Pulse Carbine"
      ]
     }
    ]
@@ -1358,80 +877,55 @@
    ]
   },
   {
-   "name": "2 Lokhust Destroyers 1 + Lokhust Lord",
+   "name": "2 Kroot Hounds 1",
    "owner": "Player 2",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 48.010285714285715,
-     "y_in": 6.0,
-     "wounds": 3,
-     "model": "Lokhust Destroyer",
+     "x_in": 48.73932890437489,
+     "y_in": 17.42405878467796,
+     "wounds": 1,
+     "model": "Kroot Hound",
      "weapons": [
-      "Close Combat Weapon",
-      "Gauss Cannon"
+      "Ripping Fangs"
      ]
     },
     {
-     "x_in": 48.010285714285715,
-     "y_in": 3.932,
-     "wounds": 3,
-     "model": "Lokhust Destroyer",
+     "x_in": 48.73932890437489,
+     "y_in": 15.924058784677962,
+     "wounds": 1,
+     "model": "Kroot Hound",
      "weapons": [
-      "Close Combat Weapon",
-      "Gauss Cannon"
+      "Ripping Fangs"
      ]
     },
     {
-     "x_in": 49.80122624931193,
-     "y_in": 4.966,
-     "wounds": 3,
-     "model": "Lokhust Destroyer",
+     "x_in": 48.73932890437489,
+     "y_in": 14.424058784677962,
+     "wounds": 1,
+     "model": "Kroot Hound",
      "weapons": [
-      "Close Combat Weapon",
-      "Gauss Cannon"
+      "Ripping Fangs"
      ]
     },
     {
-     "x_in": 46.21934517925949,
-     "y_in": 4.966000000000001,
-     "wounds": 3,
-     "model": "Lokhust Destroyer",
+     "x_in": 50.23932890437489,
+     "y_in": 14.825982573324646,
+     "wounds": 1,
+     "model": "Kroot Hound",
      "weapons": [
-      "Close Combat Weapon",
-      "Gauss Cannon"
+      "Ripping Fangs"
      ]
     },
     {
-     "x_in": 49.80122624931193,
-     "y_in": 7.034,
-     "wounds": 3,
-     "model": "Lokhust Destroyer",
+     "x_in": 48.73932890437489,
+     "y_in": 12.924058784677962,
+     "wounds": 1,
+     "model": "Kroot Hound",
      "weapons": [
-      "Close Combat Weapon",
-      "Gauss Cannon"
-     ]
-    },
-    {
-     "x_in": 48.010285714285715,
-     "y_in": 1.8639999999999999,
-     "wounds": 3,
-     "model": "Lokhust Destroyer",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Cannon"
-     ]
-    },
-    {
-     "x_in": 46.2193451792595,
-     "y_in": 7.034000000000001,
-     "wounds": 6,
-     "model": "Lokhust Lord",
-     "weapons": [
-      "Staff of Light",
-      "Staff of Light"
+      "Ripping Fangs"
      ]
     }
    ]
@@ -1484,7 +978,377 @@
    ]
   },
   {
-   "name": "2 C'tan Shard of the Void Dragon 1",
+   "name": "2 Pathfinder Team 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 27.973571428571425,
+     "y_in": 8.185000000000002,
+     "wounds": 3,
+     "model": "Pathfinder Shas'ui",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Carbine",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 27.973571428571425,
+     "y_in": 6.685000000000002,
+     "wounds": 1,
+     "model": "Pathfinder",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Pistol",
+      "Rail Rifle"
+     ]
+    },
+    {
+     "x_in": 29.272609534248083,
+     "y_in": 7.435000000000002,
+     "wounds": 1,
+     "model": "Pathfinder",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Pistol",
+      "Rail Rifle"
+     ]
+    },
+    {
+     "x_in": 26.674533322894767,
+     "y_in": 7.435000000000003,
+     "wounds": 1,
+     "model": "Pathfinder",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Pistol",
+      "Rail Rifle"
+     ]
+    },
+    {
+     "x_in": 29.272609534248083,
+     "y_in": 8.935000000000002,
+     "wounds": 1,
+     "model": "Pathfinder",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Carbine",
+      "Pulse Pistol",
+      "Semi-automatic Grenade Launcher - EMP"
+     ]
+    },
+    {
+     "x_in": 27.973571428571425,
+     "y_in": 5.185000000000002,
+     "wounds": 1,
+     "model": "Pathfinder",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Carbine",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 26.473571428571425,
+     "y_in": 5.586923788646686,
+     "wounds": 1,
+     "model": "Pathfinder",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Carbine",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 29.473571428571425,
+     "y_in": 5.586923788646686,
+     "wounds": 1,
+     "model": "Pathfinder",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Carbine",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 30.57164763992474,
+     "y_in": 6.685000000000002,
+     "wounds": 1,
+     "model": "Pathfinder",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Carbine",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 25.37549521721811,
+     "y_in": 6.685000000000004,
+     "wounds": 1,
+     "model": "Pathfinder",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Carbine",
+      "Pulse Pistol"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2 Kroot Carnivores 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 32.02642857142857,
+     "y_in": 8.185000000000002,
+     "wounds": 1,
+     "model": "Long-quill",
+     "weapons": [
+      "Close Combat Weapon",
+      "Kroot Pistol",
+      "Kroot Rifle"
+     ]
+    },
+    {
+     "x_in": 32.02642857142857,
+     "y_in": 6.685000000000002,
+     "wounds": 1,
+     "model": "Kroot Carnivore",
+     "weapons": [
+      "Close Combat Weapon",
+      "Kroot Rifle"
+     ]
+    },
+    {
+     "x_in": 33.325466677105226,
+     "y_in": 7.435000000000002,
+     "wounds": 1,
+     "model": "Kroot Carnivore",
+     "weapons": [
+      "Close Combat Weapon",
+      "Kroot Rifle"
+     ]
+    },
+    {
+     "x_in": 33.325466677105226,
+     "y_in": 8.935000000000002,
+     "wounds": 1,
+     "model": "Kroot Carnivore",
+     "weapons": [
+      "Close Combat Weapon",
+      "Kroot Rifle"
+     ]
+    },
+    {
+     "x_in": 30.72739046575191,
+     "y_in": 8.935000000000002,
+     "wounds": 1,
+     "model": "Kroot Carnivore",
+     "weapons": [
+      "Close Combat Weapon",
+      "Kroot Rifle"
+     ]
+    },
+    {
+     "x_in": 32.02642857142857,
+     "y_in": 5.185000000000002,
+     "wounds": 1,
+     "model": "Kroot Carnivore",
+     "weapons": [
+      "Close Combat Weapon",
+      "Kroot Rifle"
+     ]
+    },
+    {
+     "x_in": 33.52642857142857,
+     "y_in": 5.586923788646686,
+     "wounds": 1,
+     "model": "Kroot Carnivore",
+     "weapons": [
+      "Close Combat Weapon",
+      "Kroot Rifle"
+     ]
+    },
+    {
+     "x_in": 32.02642857142857,
+     "y_in": 3.6850000000000023,
+     "wounds": 1,
+     "model": "Kroot Carnivore",
+     "weapons": [
+      "Close Combat Weapon",
+      "Kroot Rifle"
+     ]
+    },
+    {
+     "x_in": 30.487337926463056,
+     "y_in": 3.956383206463415,
+     "wounds": 1,
+     "model": "Kroot Carnivore",
+     "weapons": [
+      "Close Combat Weapon",
+      "Kroot Rifle"
+     ]
+    },
+    {
+     "x_in": 33.56551921639408,
+     "y_in": 3.956383206463415,
+     "wounds": 1,
+     "model": "Kroot Carnivore",
+     "weapons": [
+      "Close Combat Weapon",
+      "Kroot Rifle"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2 Ghostkeel Battlesuit 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 21.911428571428576,
+     "y_in": 22.000000000000004,
+     "wounds": 12,
+     "model": "Ghostkeel Battlesuit",
+     "weapons": [
+      "Cyclic Ion Raker - Standard",
+      "Ghostkeel Fists",
+      "Twin Fusion Blaster"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2 Stealth Battlesuits 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 11.871428571428574,
+     "y_in": 22.000000000000004,
+     "wounds": 2,
+     "model": "Stealth Shas'vre",
+     "weapons": [
+      "Battlesuit Fists",
+      "Fusion Blaster",
+      "Twin Pulse Carbine"
+     ]
+    },
+    {
+     "x_in": 11.871428571428574,
+     "y_in": 20.300000000000004,
+     "wounds": 2,
+     "model": "Stealth Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Burst Cannon"
+     ]
+    },
+    {
+     "x_in": 10.399185384995027,
+     "y_in": 21.150000000000006,
+     "wounds": 2,
+     "model": "Stealth Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Burst Cannon"
+     ]
+    },
+    {
+     "x_in": 10.399185384995029,
+     "y_in": 22.850000000000005,
+     "wounds": 2,
+     "model": "Stealth Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Burst Cannon"
+     ]
+    },
+    {
+     "x_in": 11.871428571428574,
+     "y_in": 18.6,
+     "wounds": 2,
+     "model": "Stealth Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Burst Cannon"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2 Stealth Battlesuits 2",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 7.8428571428571425,
+     "y_in": 22.000000000000004,
+     "wounds": 2,
+     "model": "Stealth Shas'vre",
+     "weapons": [
+      "Battlesuit Fists",
+      "Fusion Blaster",
+      "Twin Pulse Carbine"
+     ]
+    },
+    {
+     "x_in": 7.8428571428571425,
+     "y_in": 20.300000000000004,
+     "wounds": 2,
+     "model": "Stealth Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Burst Cannon"
+     ]
+    },
+    {
+     "x_in": 6.370613956423596,
+     "y_in": 21.150000000000006,
+     "wounds": 2,
+     "model": "Stealth Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Burst Cannon"
+     ]
+    },
+    {
+     "x_in": 6.370613956423597,
+     "y_in": 22.850000000000005,
+     "wounds": 2,
+     "model": "Stealth Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Burst Cannon"
+     ]
+    },
+    {
+     "x_in": 7.8428571428571425,
+     "y_in": 18.6,
+     "wounds": 2,
+     "model": "Stealth Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Burst Cannon"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2 Crisis Sunforge Battlesuits 1 + Commander in Coldstar Battlesuit",
    "owner": "Player 2",
    "placement": "reserves",
    "embarked_in": null,
@@ -1493,13 +1357,389 @@
     {
      "x_in": 0.0,
      "y_in": 0.0,
-     "wounds": 16,
-     "model": "C'tan Shard of the Void Dragon",
+     "wounds": 5,
+     "model": "Crisis Sunforge Shas'vre",
      "weapons": [
-      "Canoptek Tail Blades",
-      "Spear of the Void Dragon",
-      "Spear of the Void Dragon - Strike",
-      "Voltaic Storm"
+      "Battlesuit Fists",
+      "Fusion Blaster",
+      "Fusion Blaster",
+      "Twin Pulse Carbine"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 5,
+     "model": "Crisis Sunforge Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Fusion Blaster",
+      "Fusion Blaster",
+      "Twin Pulse Carbine"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 5,
+     "model": "Crisis Sunforge Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Fusion Blaster",
+      "Fusion Blaster",
+      "Twin Pulse Carbine"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 7,
+     "model": "Commander in Coldstar Battlesuit",
+     "weapons": [
+      "Battlesuit Fists",
+      "Fusion Blaster",
+      "Fusion Blaster",
+      "Fusion Blaster",
+      "Fusion Blaster"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2 Vespid Stingwings 1",
+   "owner": "Player 2",
+   "placement": "reserves",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Vespid Strain Leader",
+     "weapons": [
+      "Neutron Blaster",
+      "Stingwing Claws"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Vespid Stingwing",
+     "weapons": [
+      "Neutron Blaster",
+      "Stingwing Claws"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Vespid Stingwing",
+     "weapons": [
+      "Neutron Blaster",
+      "Stingwing Claws"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Vespid Stingwing",
+     "weapons": [
+      "Neutron Blaster",
+      "Stingwing Claws"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Vespid Stingwing",
+     "weapons": [
+      "Neutron Blaster",
+      "Stingwing Claws"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2 Breacher Team 1 + Cadre Fireblade",
+   "owner": "Player 2",
+   "placement": "embarked",
+   "embarked_in": "2 Devilfish 1",
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior Shas'ui",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol",
+      "Twin Pulse Carbine"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 3,
+     "model": "Cadre Fireblade",
+     "weapons": [
+      "Close Combat Weapon",
+      "Fireblade Pulse Rifle",
+      "Twin Pulse Carbine",
+      "Twin Pulse Carbine"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2 Breacher Team 2 + Cadre Fireblade",
+   "owner": "Player 2",
+   "placement": "embarked",
+   "embarked_in": "2 Devilfish 2",
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior Shas'ui",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol",
+      "Twin Pulse Carbine"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 3,
+     "model": "Cadre Fireblade",
+     "weapons": [
+      "Close Combat Weapon",
+      "Fireblade Pulse Rifle"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2 Ethereal 1",
+   "owner": "Player 2",
+   "placement": "embarked",
+   "embarked_in": "2 Devilfish 1",
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4,
+     "model": "Ethereal",
+     "weapons": [
+      "Honour Stave"
      ]
     }
    ]
@@ -1507,13 +1747,13 @@
  ],
  "armies": {
   "Player 1": "necrons",
-  "Player 2": "necrons"
+  "Player 2": "tau"
  },
  "turn": {
   "battle_round": 1,
   "phase": "Command",
-  "turn_owner": "Player 2",
-  "active_player": "Player 2"
+  "turn_owner": "Player 1",
+  "active_player": "Player 1"
  },
  "command_points": {
   "Player 1": 1,
@@ -1536,23 +1776,23 @@
   },
   "secondary": {
    "deck": [
-    "centre_ground",
+    "secure_no_mans_land",
     "defend_stronghold",
-    "a_tempting_target",
-    "a_grievous_blow",
+    "display_of_might",
+    "centre_ground",
+    "forward_position",
+    "assassination",
     "behind_enemy_lines",
+    "engage_on_all_fronts",
+    "beacon",
+    "a_grievous_blow",
+    "no_prisoners",
+    "plunder",
+    "bring_it_down",
+    "overwhelming_force",
     "cleanse",
     "outflank",
-    "display_of_might",
-    "secure_no_mans_land",
-    "beacon",
-    "plunder",
-    "no_prisoners",
-    "overwhelming_force",
-    "forward_position",
-    "bring_it_down",
-    "assassination",
-    "engage_on_all_fronts"
+    "a_tempting_target"
    ],
    "hand": [],
    "discarded": [],

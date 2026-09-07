@@ -316,6 +316,45 @@ with detachment_on(DG):
     c.true("game/shooting.py's adjuster chain reads it",
            "dlc_mortarions_teachings.adjusted_weapon" in inspect.getsource(shooting_module))
 
+    # THE OTHER READER, and the one that was missing. The line above proves
+    # the DAMAGE maths see the grant; rule 10.05's "may still shoot after
+    # Advancing" is decided somewhere else entirely - by
+    # coldstar.weapon_has_assault(), via shooting.available_shooting_types().
+    # This Stratagem's own docstring promises that benefit and could not
+    # deliver it. Found by the probe that fixed the same defect in Protocol of
+    # the Sudden Storm (reported by a player); see test_awakened_dynasty.py
+    # section 4b for the reported case.
+    from game import coldstar as _cs
+    from game import shooting as _sh
+
+    class _Advanced:
+        def __init__(self, squads):
+            self.advanced_squad_ids = set(squads)
+
+    _mt_unit = terminators()
+    _mt_state = GameState()
+    tk.line_up(_mt_unit, y=20.0)
+    for _m in _mt_unit.models:
+        _mt_state.add_token(_m)
+    _mt_gun = next(x for x in _mt_unit.models[0].weapons
+                   if x.name == "Plaguespurt Gauntlet")
+    c.eq("before: an Advanced unit cannot shoot at all",
+         _sh.available_shooting_types(_mt_unit, _mt_state.tokens,
+                                      _Advanced([_mt_unit])), [])
+    MortarionsTeachingsController(
+        strat(), turn_tracker=tracker_at(PHASE_SHOOTING),
+        shooting_controller=ShootStub(), game_log=Log()).use(_mt_unit)
+    c.true("weapon_has_assault() - the rule-10.05 gate - sees the grant",
+           _cs.weapon_has_assault(_mt_gun, _mt_unit))
+    c.eq("...so the Advanced unit really gets Assault shooting",
+         _sh.available_shooting_types(_mt_unit, _mt_state.tokens,
+                                      _Advanced([_mt_unit])),
+         [_sh.ASSAULT_SHOOTING])
+    c.true("...and a melee weapon still never reaches that gate",
+           not _cs.weapon_has_assault(
+               next(x for x in _mt_unit.models[0].weapons
+                    if x.name == "Manreaper - strike"), _mt_unit))
+
 
 # --- 5. Sickening Impact ------------------------------------------------------
 print("--- 5. Sickening Impact ---")

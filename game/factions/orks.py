@@ -225,6 +225,7 @@ arrangement as game/factions/tau_empire.py and its own points module: each
 datasheet below only points its `points=` field at its entry there, so no
 cost is written down twice. See game/factions/points.py for the structure."""
 
+from game import force_dispositions
 from game.factions import Datasheet, Detachment, Faction, Gear, ModelLine, WargearOption, register_faction
 from game.factions.orks_points import ORKS_POINTS
 from game.units import (
@@ -257,6 +258,7 @@ WAR_HORDE = ORKS.add_detachment(Detachment(
     "War Horde",
     rule_name="Get Stuck In",
     points=3,
+    force_disposition=force_dispositions.TAKE_AND_HOLD,
     # No `setting`: War Horde is the only Ork detachment modelled, and both
     # its rule and its stratagems gate on the ORKS keyword, so there is
     # nothing to declare. This is the position Retaliation Cadre was in until

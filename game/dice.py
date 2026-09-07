@@ -78,6 +78,10 @@ class DiceManager:
         # may throw AFTER the roll has been acknowledged (see the callers in
         # shooting.py/fight.py) - only a brand new roll() clears it.
         self.already_rerolled = set()
+        # Which abilities have already OFFERED to re-roll the roll on the
+        # table. See claim_reroll_offer() - a declined offer must not come
+        # back. Same lifetime as already_rerolled: only a new roll() clears it.
+        self._reroll_offers = set()
         self.damage_per_failure = None  # SAVE_ROLL only: damage a single failed save inflicts, for DicePanel's summary line
 
     @property
@@ -106,6 +110,7 @@ class DiceManager:
         self.rerolled_indices = set()
         self.rerolled_at = None
         self.already_rerolled = set(range(count)) if is_reroll else set()
+        self._reroll_offers = set()
         self.damage_per_failure = damage_per_failure
         return values
 
@@ -169,6 +174,35 @@ class DiceManager:
         roll) is still legal - it is not once any single die of the roll has
         already been re-rolled, since that die would be going twice."""
         return self.pending_values is not None and not self.already_rerolled
+
+    def claim_reroll_offer(self, source):
+        """True the FIRST time `source` asks about re-rolling THIS roll.
+
+        A DECLINED OFFER MUST NOT COME BACK. main.py holds an Advance roll
+        un-acknowledged for as long as a re-roll prompt is open - it has to,
+        because acknowledge() clears pending_values and reroll_die() then
+        refuses to throw anything. So answering "Keep it" leaves exactly the
+        board that produced the question, and the next click on the die asks
+        it again, and again (user: "im letzten spiel wurde ich immer wieder
+        gefragt, ob ich den advance rerollen will mit den destroyern. es war
+        eine schleife bis ich ihn gererollt habe"). Only re-rolling ended it,
+        because that is the one answer that changes the state the offer reads.
+
+        ONE CALL, not an ask/remember pair: an offer that is made and not
+        booked is the bug, so there is no way to do half of it.
+
+        KEYED BY SOURCE, not a single flag, because two abilities can each
+        offer once for their own printed reason (the Autarch's Superlative
+        Strategist and Protocol of the Sudden Storm). Measured: no unit can
+        hold both - one is an Aeldari datasheet ability, the other a Necron
+        Stratagem grant - so today this never fires twice in a row; a shared
+        flag would silently drop the second one if that ever changed.
+
+        Cleared by roll(), so the NEXT Advance gets its own offer."""
+        if self.pending_values is None or source in self._reroll_offers:
+            return False
+        self._reroll_offers.add(source)
+        return True
 
     def reroll_die(self, index):
         """Rule 15.02: re-roll a single die from a multi-die pending roll -

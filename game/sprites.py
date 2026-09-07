@@ -88,11 +88,42 @@ SQUAD_SPRITE_KEYS = {
     "Fire Dragons": "Fire Dragons",
     "Falcon": "Falcon Tank",
     "Wraithguard": "Wraithguard",
-    # Wraithlord.png had been sitting in the folder unused since an earlier
-    # batch - there was no datasheet for it until now. Wraithblades still have
-    # no art, and that absence is pinned in test_wraith_constructs.py so that
-    # adding a file later is a visible change.
     "Wraithlord": "Wraithlord",
+    # The user's file is "Wraith Blades" (two words); the datasheet is one.
+    "Wraithblades": "Wraith Blades",
+    # --- art the user added later, wired here. THE ORDER MATTERS in this
+    # block: _key_for_name() takes the FIRST datasheet name that is a SUBSTRING
+    # of the squad name, so "Autarch Wayleaper" has to come before "Autarch" or
+    # every Wayleaper would draw the plain Autarch's picture. Longest first.
+    "Autarch Wayleaper": "Autarch Wayleaper",
+    "Autarch": "Autarch",
+    # The file is "Spirit Seer" (two words); the datasheet is one.
+    "Spiritseer": "Spirit Seer",
+    # "Vyper" (singular) against the plural datasheet - the same call made for
+    # Windriders, Rangers and the Necron singulars: the FOLDER wins.
+    "Vypers": "Vyper",
+    # "D-Cannon" with a capital C; the datasheet prints a lower-case c.
+    "D-cannon Platform": "D-Cannon Platform",
+    # ...and its two sisters BORROW it (user: "alle wie D-Cannon"). They are one
+    # chassis with three different guns bolted on - which is exactly what
+    # test_support_weapon_platforms.py exists to say - so sharing the art is
+    # the same call the three Kroot Shapers already got.
+    "Shadow Weaver Platform": "D-Cannon Platform",
+    "Vibro Cannon Platform": "D-Cannon Platform",
+    # Corsair Voidscarred take the Voidreavers' art (user: "nimm das Corsair
+    # Sprite, das schon da ist"). TWO corsair files exist, and this is the foot
+    # one: Skyreavers are the JETBIKES and keep "Corsair Skyrunner".
+    "Corsair Voidscarred": "Corsair Voidreavers",
+    "Fire Prism": "Fire Prism",
+    "Night Spinner": "Night Spinner",
+    "Maugan Ra": "Maugan Ra",
+    "Corsair Voidreavers": "Corsair Voidreavers",
+    # "Corsair Skyrunner" is the only file it can belong to: Skyreavers are the
+    # corsair JETBIKES, and Skyrunner is this range's word for a jetbike (the
+    # Warlock Skyrunners' own file is "Warlock Sky Runner"). No datasheet is
+    # named Corsair Skyrunner. Named here because it is the one mapping in this
+    # block inferred from the subject rather than read off a matching name.
+    "Corsair Skyreavers": "Corsair Skyrunner",
     "Asurmen": "Asurmen",
     # The user's file is "JainZar" (one word); the datasheet is Jain Zar.
     "Jain Zar": "JainZar",
@@ -124,6 +155,14 @@ SQUAD_SPRITE_KEYS = {
     "Swooping Hawks": "Swooping Hawks",   # likewise
     "Windriders": "Windrider",
     "Warlock Skyrunners": "Warlock Sky Runner",  # the file spells it as three words
+    # The lone Warlock borrows the Conclave's art (user: "gleiches wie warlock
+    # conclaive") - same model, and the Conclave IS a unit of them.
+    #
+    # LAST OF THE THREE "Warlock..." KEYS ON PURPOSE. _key_for_name() takes the
+    # first datasheet name that is a SUBSTRING of the squad name, and "Warlock"
+    # is a substring of both "Warlock Conclave" and "Warlock Skyrunners" - put
+    # first, it would hand the Conclave's picture to the Skyrunners as well.
+    "Warlock": "Warlock Conclaive",
     "Rangers": "Ranger",
     "Shroud Runners": "Shroud Runners",
     "Baharroth": "Baharroth",
@@ -377,11 +416,25 @@ MODEL_SPRITE_KEYS = {
 #
 # Rail rifle: the art is in Sprites/ under the user's own name, and the
 # convention would otherwise demand "Pathfinder Pulse Carbon - Rail Rifle.png".
-# Nothing reaches it YET - no Rail rifle weapon profile has been supplied, so
-# no Pathfinder ever counts as carrying one - but the mapping is here so that
-# adding the weapon is the only remaining step.
+# It is LIVE - the Retaliation Cadre list fields three rail rifles. (This note
+# used to say "nothing reaches it YET, no Rail rifle weapon profile has been
+# supplied"; that stopped being true when the weapon was added.)
+#
+# Ion rifle: BORROWED art, on user request ("nimm fuer die ion rifles bei den
+# pathfindern bitte auch das rail rifle sprite"). There is no ion rifle image,
+# and the two are the same silhouette - a long-barrelled rifle rather than the
+# carbine the rank and file carry - so reading as "this one has the big gun"
+# matters more than which big gun it is. Exactly the trade already recorded for
+# the Serpent's Scale Platform borrowing the Bright Lance platform's art.
+#
+# Keyed on "Ion Rifle - Standard", not "Ion Rifle": the profile carries its
+# firing MODE in its name (it has an overcharge profile), and this table is
+# matched against the weapon name a model actually holds. The overcharge mode
+# is an alternative ON that instance rather than a second weapon, so it never
+# appears here and needs no second entry.
 WEAPON_SPRITE_KEYS = {
     ("Pathfinder Pulse Carbon", "Rail Rifle"): "Pathfinder Rail Rifle",
+    ("Pathfinder Pulse Carbon", "Ion Rifle - Standard"): "Pathfinder Rail Rifle",
 }
 
 # Where on a given image the token's own base center should line up, as a
@@ -467,12 +520,21 @@ def _biome_texture_path(role):
     (biomes.GROUND / DENSE_COVER / LIGHT_COVER), or None if that folder has
     no file for it - same "missing art is fine" convention as sprite_for().
 
+    None ALSO for a biome that has no art at all - the arena one is DRAWN
+    (game/biomes.py's is_procedural(), game/arena_biome.py). That is not the
+    same "missing art" as above and the renderer must not treat it as one, so
+    the renderer asks is_procedural() BEFORE it asks here; the guard is
+    repeated on this side because the alternative is a crash on
+    os.path.join(..., None) for anyone who calls these in the other order.
+
     The file is found by PREFIX inside the biome's folder rather than by a
     transcribed name (see game/biomes.py for why: the shipped folders spell
     the same role three different ways). Sorted before picking, so a folder
     that somehow holds two candidates answers the same way every run instead
     of following whatever order the filesystem happened to hand back."""
     biome = biomes.current()
+    if biomes.is_procedural(biome):
+        return None
     prefix = biomes.ROLE_PREFIXES[role].lower()
     folder = os.path.join(SPRITES_DIR, biomes.TEXTURE_SUBDIR, biome.folder)
     cache_key = (folder, role)
@@ -497,14 +559,23 @@ FACTION_LOGO_KEYS = {
     # of its datasheets with it), so the lookup goes through the same name
     # the rules use rather than a second list of army names to keep in sync.
     # Drawn by GameStatusPanel beside each player's name. A keyword with no
-    # entry (or an entry with no file) simply gets no badge, same "missing
-    # art is fine" convention as every other lookup in this module.
+    # entry (or an entry with no file) still gets a TILE - the panel fills it
+    # with the faction's monogram instead (see _faction_monogram there), so
+    # adding a badge here is art arriving for an existing tile, not a feature
+    # switching on. DEATH GUARD is the one built faction currently in that
+    # position.
     "AELDARI": "Aeldari Logo",
     "ORKS": "Ork Logo",
     "T'AU EMPIRE": "Tau Logo",
     "NECRONS": "Necron Logo",
+    # Delivered later than the other four. THE FOLDER WINS, as everywhere in
+    # this module: the file is "Deathguard_Logo.jpg" - one word, underscore -
+    # where the other four are "<Faction> Logo" with a space, and the keyword
+    # is two words. Transcribed as it is on disk rather than renamed.
+    "DEATH GUARD": "Deathguard_Logo",
 }
 
+MENU_BACKGROUND_NAME = "main-manu-background"  # Sprites/**/main-manu-background.<ext> - the startup menu's backdrop. The user's own spelling ("manu"); see menu_background_path().
 BLOOD_DECAL_NAME = "Blood"  # Sprites/Blood.<ext> - a small stain left where a model died (see GameState.add_blood_decal / Renderer.draw_blood_decals), purely cosmetic, no rule attached
 # One fixed size for every stain, in inches, rather than one scaled off the
 # dead model's own base. User: "mach die blutflecken immer klein". The old
@@ -522,18 +593,44 @@ BLOOD_DECAL_ALPHA = 255  # full opacity (User: first asked for ~50%, then "könn
 _texture_cache = {}  # (biome folder, role) -> resolved path or None, so switching biome on the map screen re-lists a folder once rather than once per frame; keyed by FOLDER so each biome keeps its own answer
 _file_cache = {}  # base filename (no ext) -> resolved path or None, so a repeated miss doesn't re-stat the disk every frame
 _surface_cache = {}  # (path, target_px) -> pygame.Surface, so scaling only happens once per size actually needed, not every frame
+_menu_background_cache = {}  # (path, w, h) -> cover-scaled backdrop; the window size only changes when the window does, and this is a full-screen smoothscale
 _blood_surface_cache = {}  # target_px -> pygame.Surface, alpha already baked in - separate from _surface_cache since that one's shared with full-opacity unit portraits
 _printed_loadout_cache = {}  # (datasheet, profile class) -> frozenset of printed weapon names or None, so _printed_weapon_names() doesn't walk a datasheet's compositions once per token per frame
 
 
+#: Sprites/ is sorted into one folder per faction, plus the cross-faction files
+#: that stay at the top level (Blood, Dice, Map3, and the Map Textures biomes).
+#: The folders are SEARCHED, not encoded in the mapping tables - every key in
+#: SPRITE_KEYS/MODEL_SPRITE_KEYS/FACTION_LOGO_KEYS is still a bare file name, so
+#: sorting the folder cost those tables nothing and a file can be moved between
+#: factions without touching code.
+#:
+#: Listed rather than derived from the faction modules on purpose: this module
+#: must not import game.factions (that would be a cycle, and sprites are
+#: resolved on the render path), and a folder that is renamed on disk should
+#: fail loudly here rather than silently resolve nothing.
+SPRITE_FACTION_DIRS = ("Aeldari", "Orks", "Tau Empire", "Necrons", "Death Guard")
+
+
 def _resolve_path(base_name):
+    """The file for this key, searched at the top level and then in each
+    faction folder.
+
+    Top level FIRST, so a cross-faction file always wins over a same-named one
+    inside a faction folder - and so anything dropped loose into Sprites/ keeps
+    working, which is how new art arrives before it is sorted."""
     if base_name in _file_cache:
         return _file_cache[base_name]
     resolved = None
-    for ext in _EXTENSIONS:
-        candidate = os.path.join(SPRITES_DIR, base_name + ext)
-        if os.path.isfile(candidate):
-            resolved = candidate
+    folders = [SPRITES_DIR] + [os.path.join(SPRITES_DIR, d)
+                               for d in SPRITE_FACTION_DIRS]
+    for folder in folders:
+        for ext in _EXTENSIONS:
+            candidate = os.path.join(folder, base_name + ext)
+            if os.path.isfile(candidate):
+                resolved = candidate
+                break
+        if resolved is not None:
             break
     _file_cache[base_name] = resolved
     return resolved
@@ -542,7 +639,8 @@ def _resolve_path(base_name):
 def faction_logo_path(faction_keyword):
     """Resolved path to this faction's badge, or None if the faction has no
     entry in FACTION_LOGO_KEYS or its file isn't in Sprites/ - the caller
-    falls back to drawing no badge, same convention as sprite_for()."""
+    draws a monogram tile in that case rather than dropping the badge (see
+    GameStatusPanel._draw_badge), so None here costs a picture, not a row."""
     base_name = FACTION_LOGO_KEYS.get(faction_keyword)
     return _resolve_path(base_name) if base_name is not None else None
 
@@ -568,6 +666,53 @@ def normal_cover_texture_path():
     wall/no-wall, not the terrain CATEGORY - the file it resolves to is the
     biome's Light_Cover one."""
     return _biome_texture_path(biomes.LIGHT_COVER)
+
+
+def menu_background_path():
+    """Resolved path to the main menu's backdrop, or None if the file isn't
+    there - the caller falls back to the flat fill it used before, the same
+    "missing art is fine" convention as every other lookup in this module.
+
+    The file the user supplied sits in Sprites/Death Guard/ rather than loose
+    at the top level. That is fine and deliberately not "corrected": this
+    module already searches the faction folders after the top level, and the
+    standing rule here is that the FOLDER wins over what a name suggests it
+    should be (the same rule that keeps Ghostkheel, Starsythe, Skyray and
+    Deathguard_Logo spelled the way they arrived). Dropping it loose into
+    Sprites/ later keeps working too, because the top level is searched first.
+
+    The name carries the user's own spelling, "manu" and all - transcribing it
+    "correctly" would resolve to nothing."""
+    return _resolve_path(MENU_BACKGROUND_NAME)
+
+
+def menu_background_surface(path, size):
+    """The backdrop scaled to COVER a `size` window, centre-cropped.
+
+    Cover rather than fitted_surface()'s fit: a letterboxed backdrop leaves
+    bars of flat colour down two sides of the screen, which reads as art that
+    failed to load rather than as a background. Aspect ratio is preserved and
+    the overhang is cropped off the middle, so nothing is stretched.
+
+    Cached per (path, size) like every other surface here - a window size only
+    changes when the window does, not per frame, and this is a full-screen
+    smoothscale."""
+    width, height = max(1, int(size[0])), max(1, int(size[1]))
+    cache_key = (path, width, height)
+    cached = _menu_background_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    raw = pygame.image.load(path)
+    raw = raw.convert() if pygame.display.get_surface() is not None else raw
+    src_w, src_h = raw.get_size()
+    scale = max(width / src_w, height / src_h)
+    scaled = pygame.transform.smoothscale(
+        raw, (max(1, round(src_w * scale)), max(1, round(src_h * scale))))
+    surface = pygame.Surface((width, height))
+    surface.blit(scaled, ((width - scaled.get_width()) // 2,
+                          (height - scaled.get_height()) // 2))
+    _menu_background_cache[cache_key] = surface
+    return surface
 
 
 def blood_decal_path():

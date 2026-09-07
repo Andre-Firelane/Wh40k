@@ -143,6 +143,11 @@ class RapidIngressController:
             if on_resolved is not None:
                 on_resolved()
 
+        # NOT tagged for a board pick (game/unit_pick.py). Both reasons that
+        # module refuses apply here, and neither is fixable from this end: a
+        # unit in Strategic Reserves has no token to click, and a unit with a
+        # Homing Beacon is listed TWICE (1 CP and free), which a click cannot
+        # tell apart. The list overlay is the answerable form of this prompt.
         options = [
             (f"Rapid Ingress: {squad.name} (1 CP)", lambda squad=squad: _pick(squad, None))
             for squad in eligible

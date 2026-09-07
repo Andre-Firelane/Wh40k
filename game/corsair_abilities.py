@@ -39,6 +39,7 @@ Shield and the Forceshield, and a module would only forward to it.
 import copy
 
 from game.attached_units import leader_ability
+from game import ai_mode
 
 PIRATICAL_RAIDERS_LABEL = "Piratical Raiders"
 PIRATICAL_HERO_LABEL = "Piratical Hero"
@@ -161,7 +162,7 @@ class PiraticalRaidersController:
     def __init__(self, game_log=None, decision_manager=None, auto_players=()):
         self.game_log = game_log
         self.decision_manager = decision_manager
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._marked = {}       # player -> the enemy squad chosen
 
     def applies(self, squad):
@@ -223,7 +224,7 @@ class PiraticalRaidersController:
                 bearer.owner,
                 "%s: %s - which enemy unit does it hunt this battle?"
                 % (PIRATICAL_RAIDERS_LABEL, bearer.name),
-                [(e.name, (lambda b=bearer, e=e: self._answer(b, e, on_done)))
+                [(e.name, (lambda b=bearer, e=e: self._answer(b, e, on_done)), e)
                  for e in enemies])
             return True
         if on_done is not None:

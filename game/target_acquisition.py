@@ -79,7 +79,7 @@ class TargetAcquisitionController:
         self.decision_manager.request(
             squad.owner,
             f"{squad.name}: {TARGET_ACQUISITION_LABEL} - which unit loses the Benefit of Cover?",
-            [(target.name, (lambda t=target: self._mark(t, squad))) for target in candidates],
+            [(target.name, (lambda t=target: self._mark(t, squad)), target) for target in candidates],
         )
 
     def _mark(self, target, squad):

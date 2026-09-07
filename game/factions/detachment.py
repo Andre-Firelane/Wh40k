@@ -69,10 +69,23 @@ class Detachment:
     detachment "cannot be taken with another <TAG> detachment". Two detachments
     sharing a tag are mutually exclusive however cheap they are, so this is a
     second, independent restriction on top of the points.
+
+    `force_disposition` is the ONE disposition this detachment permits - a
+    game/force_dispositions.py key, transcribed from the same heading `points`
+    comes from and mirrored into rules/*/detachments/*.md. It decides which
+    PRIMARY MISSION a list taking this detachment may play. A list fielding
+    several detachments picks one of the dispositions they grant and writes it
+    down (ArmyList.force_disposition); game/detachments.py's validate() is what
+    checks the pick against this field.
+
+    Note this is a plain string key rather than an import from
+    game/primary_missions.py: this module is pure DATA and the mission engine
+    reads it, not the other way round.
     """
 
     def __init__(self, name, rule_text="", enhancements=(), stratagems=(),
-                 setting=None, rule_name="", description="", points=0, tag=None):
+                 setting=None, rule_name="", description="", points=0, tag=None,
+                 force_disposition=None):
         self.name = name
         self.faction = None
         self.rule_text = rule_text
@@ -83,3 +96,4 @@ class Detachment:
         self.setting = setting
         self.points = points
         self.tag = tag
+        self.force_disposition = force_disposition

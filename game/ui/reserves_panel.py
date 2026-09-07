@@ -60,7 +60,8 @@ class ReservesPanel:
         self._tab_rects = []  # [(rect, owner), ...]
         self._arrow_rects = []  # [(rect, page_delta), ...]
 
-    def draw(self, surface, rect, reserves, dragging_squad=None, visible=True, filter_by_owner=True):
+    def draw(self, surface, rect, reserves, dragging_squad=None, visible=True,
+             filter_by_owner=True, selected_squad=None):
         """`visible` is a TIMING question, not an availability one - decided
         by the caller (main.py: shown during the Movement phase, where both
         Ingress and Disembark can happen, or while a placement is actively
@@ -72,7 +73,14 @@ class ReservesPanel:
         where `reserves` has already been narrowed down to a single, very
         specific squad from outside (Rapid Ingress' reactive window, see
         RapidIngressController.pending_squad) - that squad must stay
-        visible/draggable no matter which tab happens to be selected."""
+        visible/draggable no matter which tab happens to be selected.
+
+        `selected_squad` is the card the player has actually PICKED and is now
+        carrying to the board (PregameController.selected_unit). This strip is
+        where that pick is made and it knew nothing about it - only which card
+        was being DRAGGED, which it filters out - so the chosen card was drawn
+        exactly like its neighbours and the only confirmation was in the left
+        panel."""
         if not visible:
             # Deliberately NOT config.BACKGROUND_COLOR (the board's green) -
             # that made this strip look like more board, which read as the
@@ -151,7 +159,7 @@ class ReservesPanel:
         card_x = row_rect.x
         for squad in page_squads:
             card_rect = pygame.Rect(card_x, row_rect.y, CARD_WIDTH, row_rect.height)
-            self._draw_card(surface, card_rect, squad)
+            self._draw_card(surface, card_rect, squad, selected=squad is selected_squad)
             self._card_rects.append((card_rect, squad))
             card_x += CARD_WIDTH + CARD_MARGIN
 
@@ -174,15 +182,25 @@ class ReservesPanel:
         per_page = fits(content_width - 2 * (ARROW_WIDTH + CARD_MARGIN))
         return per_page, max(1, -(-count // per_page))
 
-    def _draw_card(self, surface, card_rect, squad):
+    def _draw_card(self, surface, card_rect, squad, selected=False):
         """One reserve tile: portrait on the left, text on the right.
 
         The portrait is the fastest way to tell two tiles apart - the name
         ("1 Kroot Carnivores 2") and the loadout below it both have to be
         READ, and this strip is where a unit is picked up, both for an Ingress
         move (20.04) and for pre-game deployment (03.01). Everything that does
-        not fit is cut off by the clip rather than overflowing the tile."""
-        button_style.draw_box(surface, card_rect)
+        not fit is cut off by the clip rather than overflowing the tile.
+
+        `selected` marks the card the player is currently carrying to the
+        board. Drawn with the shared button styling's own active border plus
+        its glow rather than a colour invented here, so a picked card reads the
+        same way a pressed button does everywhere else in this UI."""
+        if selected:
+            button_style.draw_glow(surface, card_rect, button_style.BORDER_HOVER)
+            button_style.draw_box(surface, card_rect,
+                                  border_color=button_style.BORDER_ACTIVE, border_width=2)
+        else:
+            button_style.draw_box(surface, card_rect)
 
         clip_rect = card_rect.inflate(-4, -4)
         previous_clip = surface.get_clip()

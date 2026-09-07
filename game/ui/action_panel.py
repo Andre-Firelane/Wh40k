@@ -3,11 +3,13 @@ import pygame
 from game import warhost_fire_and_fade
 from game import enh_higher_duty
 from game import windrider_overflight
+from game import aura_ruler
 from game import charge, config, consolidate, crushing_impact, epic_challenge, explosives, fall_back, fight, fire_and_fade, firing_deck, formations, greater_good, loadout, movement, overwatch, path_of_the_outcast, pregame, setup, shooting, sprites
 from game.ingress import SHORTENED_BLADE_MIN_ENEMY_DISTANCE_IN
 from game.squad import is_at_half_strength
 from game.turn import PHASE_MOVEMENT, PHASE_SHOOTING, PHASE_CHARGE, PHASE_FIGHT
 from game.ui import button_style
+from game.ui.rules_body import RulesBody
 from game.ui.text_utils import draw_wrapped_text, wrap_text
 
 BUTTON_HEIGHT = 32
@@ -15,6 +17,25 @@ BUTTON_MARGIN = 10
 BUTTON_GAP = 8
 TEXT_MARGIN = 10          # left inset for panel text (buttons use BUTTON_MARGIN)
 ERROR_LINE_HEIGHT = 18
+
+# The range ruler's radius radio (see game/aura_ruler.py). Four columns fits
+# the eight radii into two rows inside a 220px panel: measured, the widest
+# label ("36" at the button font) is 23px and a 4-column cell leaves 31px of
+# text room, so nothing wraps. Rows are DERIVED from the list rather than
+# written down, so a ninth radius cannot silently fall off the bottom.
+RADIO_COLUMNS = 4
+RADIO_HEIGHT = 26
+RADIO_GAP = 4
+
+
+def _radio_rows():
+    """How many rows the radii need. Derived, so the strip grows with the list
+    instead of the last radius falling off the bottom of the panel."""
+    return -(-len(aura_ruler.RADII_IN) // RADIO_COLUMNS)
+# "WHY YOU ARE CHOOSING" - the printed rule under a board pick.
+RULE_BOX_PADDING = 8
+RULE_SCROLLBAR_WIDTH = 5
+RULE_SCROLL_STEP = 24     # pixels per wheel notch
 HINT_COLOR = (135, 155, 170)  # dimmer than PANEL_TEXT_COLOR - explains a UI convention, isn't game state
 ERROR_COLOR = (220, 70, 70)
 ERROR_BOX_BG_COLOR = (40, 20, 20)
@@ -23,6 +44,27 @@ MESSAGE_BOX_PADDING = 8
 PORTRAIT_BOX_PX = 46   # side of one thumbnail cell in a unit listing
 PORTRAIT_GAP = 4
 PORTRAIT_BG_COLOR = (8, 14, 22)  # a shade darker than button_style.BOX_BG_COLOR, so art reads as inset
+
+# The SELECTED-UNIT BOX at the very top of this column (User: "Verlagere die
+# info stattdessen ganz oben in die linke spalte mit Sprite + name in einen
+# abgeschlossenen kasten"), replacing the name plate the renderer used to draw
+# over the board.
+#
+# BESIDE, not above: _draw_unit_portrait() stacks art over text because it is a
+# screen's main heading and full-width strings are what a 220px column is short
+# of - but this box is a permanent fixture on every frame, and a stacked one
+# would cost ~70px off the top of every branch below it. Beside is
+# _draw_unit_row()'s layout and costs about what one thumbnail costs.
+SELECTION_BOX_PORTRAIT_PX = 40
+SELECTION_BOX_PAD = 7
+SELECTION_BOX_GAP = 6           # between the box and whatever the dispatch draws
+# The cyan of renderer.SELECTED_MODEL_COLOR, which is what the anchor ring on
+# the board is drawn in. The box and the rings are the same statement in two
+# places, so they share a colour rather than each picking one - that was the
+# name plate's job too (it used the same constant), and it is the half of it
+# worth keeping.
+SELECTION_BOX_BORDER_COLOR = (0, 220, 255)   # == renderer.SELECTED_MODEL_COLOR
+SELECTION_BOX_BG_COLOR = (10, 30, 36)        # == renderer.SELECTION_LABEL_BG_COLOR
 
 ACTION_REQUIRED_BG_COLOR = (35, 20, 10)
 ACTION_REQUIRED_TEXT_COLOR = (255, 255, 255)
@@ -43,6 +85,33 @@ PILE_IN_BOX_BG_COLOR = (38, 26, 10)
 PILE_IN_NAMES_SHOWN = 4
 
 
+#: How long the cursor must rest on a Stratagem button before its printed
+#: rules appear. User: "sollte das stratagems vollständig angezeigt werden wenn
+#: man ein paar Sekunden über einen stratagems Knopf hovert." Longer than the
+#: datacard's 900ms on purpose: that card opens over the BOARD, where resting
+#: the cursor means "tell me about this model", while the panel is full of
+#: buttons a player is moving between on the way to clicking one.
+STRATAGEM_TIP_DELAY_MS = 1400
+#: Cursor drift this small still counts as resting - without it a hand resting
+#: on a mouse never triggers the dwell at all. Same allowance the datacard
+#: makes, and for the same reason.
+STRATAGEM_TIP_JITTER_PX = 6
+
+
+def _stratagem_name_in(label):
+    """The Stratagem's printed name out of its button label.
+
+    Every one of the seventeen labels is "<name> (<cost>)" optionally followed
+    by " - <summary>" ("Sudden Storm (1 CP) - ranged weapons gain [ASSAULT]
+    this turn"), so the name is what stands before the cost. Split on " (" and
+    not on "(" because a name may legitimately contain a bracket, and the cost
+    is always preceded by a space.
+
+    The COST is deliberately dropped rather than parsed: the corpus prints its
+    own, and two sources for one number is how they come to disagree."""
+    return (label or "").split(" (")[0].strip()
+
+
 class ActionPanel:
     def __init__(self):
         self.header_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE, bold=True)
@@ -52,6 +121,26 @@ class ActionPanel:
         self._buttons = []  # list of (rect, callback)
         self._mouse_pos = (-1, -1)
         self._mouse_down = False
+        # Stratagem buttons drawn this frame, as (rect, printed name) - the
+        # tooltip's subjects. Parallel to _buttons rather than part of it,
+        # because handle_click() destructures that one as a 2-tuple.
+        self._stratagem_buttons = []
+        # Dwell-to-open state for that tooltip, driven by update_tooltip().
+        self._tip_name = None
+        self._tip_since = None
+        self._tip_pos = (0, 0)
+        self._tip_rect = None
+        self.tooltip_name = None
+        # "WHY YOU ARE CHOOSING": the printed rule behind a board pick.
+        # Typeset by game/ui/rules_body.py - the same one the army-rules
+        # reader and the Stratagem tooltip use, so "how are printed rules
+        # set" keeps one answer.
+        self._rules_body = RulesBody()
+        self._rule_scroll = 0
+        self._rule_scroll_max = 0
+        self._rule_view = None    # the clipped body rect, or None
+        self._rule_key = None     # which rule the scroll offset belongs to
+        self._rule_bottom = None  # where the box ended last frame, for tests
 
     def draw(
         self, surface, rect, movement_controller, shooting_controller, coherency_enforcer=None,
@@ -78,6 +167,7 @@ class ActionPanel:
         warhost_fire_and_fade_controller=None,
         targeting_array_controller=None,
         secondary_mission_controller=None,
+        primary_mission_controller=None,
         unmodified_six_controller=None,
         # Death Lord's Chosen - the three a human buys proactively. Appended
         # BY KEYWORD: this chain is positional up to battle_focus_pool, and
@@ -91,12 +181,41 @@ class ActionPanel:
         # alone add nineteen, and this chain is positional for most of its
         # length. A controller joins the list and needs no edit here.
         proactive_stratagems=None,
+        # Rule 01.02.03's model return, which rides the Set Up flow - appended
+        # by keyword for the same reason everything above it is.
+        return_placement_controller=None,
+        # The pending "click a unit on the battlefield" decision, already
+        # resolved against the board by game/unit_pick.pending() - a RECORD,
+        # not a controller, because this panel is the only place that can say
+        # what is being asked while the board carries the answer. Appended by
+        # keyword like everything above it.
+        unit_pick=None,
+        # The printed rule behind a board pick, drawn by _draw_unit_pick_ui().
+        decision_rule=None,
     ):
         surface.fill(config.PANEL_BG_COLOR, rect)
         pygame.draw.rect(surface, config.PANEL_BORDER_COLOR, rect, width=2)
         self._buttons = []
+        self._stratagem_buttons = []
         self._mouse_pos = pygame.mouse.get_pos()
         self._mouse_down = pygame.mouse.get_pressed()[0]
+
+        # WHO IS SELECTED, at the very top, before anything else gets a say.
+        # Drawn here rather than inside _draw_dispatch() for the same reason
+        # _draw_global_toolbar() is: that method is ~40 early-returning
+        # branches, and a fact that holds across all of them must not depend on
+        # which one ran. The selection is exactly such a fact -
+        # movement_controller.selected_squad is this game's phase-crossing
+        # "which unit is the subject" (see game/selection.py), read by every
+        # branch below and by the board's own rings.
+        #
+        # The dispatch is then handed a SHORTER rect. Every branch lays itself
+        # out from rect.y (mostly `rect.y + 40`), so moving that one edge moves
+        # all forty at once - the alternative was editing forty call sites into
+        # agreeing on a new origin, which is how this file earned its scar
+        # about positional call chains.
+        full_rect = rect
+        rect = self._draw_selection_header(surface, rect, movement_controller)
 
         self._draw_dispatch(
             surface, rect, movement_controller, shooting_controller, coherency_enforcer,
@@ -125,9 +244,15 @@ class ActionPanel:
             warhost_fire_and_fade_controller=warhost_fire_and_fade_controller,
             targeting_array_controller=targeting_array_controller,
             secondary_mission_controller=secondary_mission_controller,
+            primary_mission_controller=primary_mission_controller,
             unmodified_six_controller=unmodified_six_controller,
+            return_placement_controller=return_placement_controller,
+            unit_pick=unit_pick,
+            decision_rule=decision_rule,
         )
-        self._draw_global_toolbar(surface, rect, movement_controller, setup_controller)
+        # The FULL rect, not the shortened one: this strip is pinned to the
+        # BOTTOM edge, which the selection box does not move.
+        self._draw_global_toolbar(surface, full_rect, movement_controller)
 
     def _draw_dispatch(
         self, surface, rect, movement_controller, shooting_controller, coherency_enforcer=None,
@@ -160,6 +285,7 @@ class ActionPanel:
         # chain is positional up to battle_focus_pool, and inserting a
         # parameter mid-signature has silently shifted every later one before.
         secondary_mission_controller=None,
+        primary_mission_controller=None,
         unmodified_six_controller=None,
         # Death Lord's Chosen - the three a human buys proactively. Appended
         # BY KEYWORD: this chain is positional up to battle_focus_pool, and
@@ -173,6 +299,10 @@ class ActionPanel:
         # alone add nineteen, and this chain is positional for most of its
         # length. A controller joins the list and needs no edit here.
         proactive_stratagems=None,
+        return_placement_controller=None,
+        unit_pick=None,
+        # The printed rule behind a board pick, drawn by _draw_unit_pick_ui().
+        decision_rule=None,
     ):
         """The old draw() body, verbatim - one big state dispatch with an
         early return per screen (setup/firing-deck/damage-choice/dice-roll/
@@ -181,21 +311,25 @@ class ActionPanel:
         always-visible toolbar (see _draw_global_toolbar()) AFTER whichever
         one of these branches ran, instead of it needing to be duplicated
         into every single return point."""
-        # An open "click a unit on the board" request owns the panel. It is the
-        # only prompt in the game whose answer is a click on the BOARD, so the
-        # panel is the only place that can say what is being asked and - the
-        # whole point - about WHICH objective.
+        # An open "click a unit on the board" decision owns the panel. Its
+        # answer is a click on the BOARD, so the panel is the only place that
+        # can say what is being asked - and, where a subject is given, about
+        # WHICH objective.
         #
-        # User: "Bei Burden of Trust muss immer links in der Spalte das
-        # Objective genannt werden, um das es gerade geht, und ich muss auf der
-        # Map mein Einheit anklicken."
+        # User: "Immer wenn man eine einheit auf dem schlachtfeld waehlen muss
+        # (zb wall of mirrors) will ich die einheit nicht aus einer liste
+        # waehlen, sondern auf dem schlachtfeld. Wie bei overwatch." - and,
+        # earlier, for the one ability that already worked this way: "Bei
+        # Burden of Trust muss immer links in der Spalte das Objective genannt
+        # werden, um das es gerade geht, und ich muss auf der Map mein Einheit
+        # anklicken."
         #
         # First in the dispatch because it is modal in the same sense the
         # damage-allocation screens are: any branch placed above it could hide
         # it, and then the board would be waiting for a click the panel never
         # explained.
-        if secondary_mission_controller is not None and secondary_mission_controller.pending_pick:
-            self._draw_mission_pick_ui(surface, rect, secondary_mission_controller)
+        if unit_pick is not None:
+            self._draw_unit_pick_ui(surface, rect, unit_pick, decision_rule=decision_rule)
             return
 
         # Rule 03.01: the pre-game sequence owns the whole panel while it runs -
@@ -228,12 +362,14 @@ class ActionPanel:
             self._draw_pregame_ui(
                 surface, rect, pregame_controller, setup_controller,
                 ingress_controller, transport_controller,
+                return_placement_controller=return_placement_controller,
             )
             return
 
         if setup_controller is not None and setup_controller.state == setup.PLACING:
             self._draw_setup_ui(surface, rect, setup_controller, ingress_controller, transport_controller,
-                                shortened_blade_controller=shortened_blade_controller)
+                                shortened_blade_controller=shortened_blade_controller,
+                                return_placement_controller=return_placement_controller)
             return
 
         if firing_deck_controller is not None and firing_deck_controller.state == firing_deck.CHOOSING_MODELS:
@@ -392,18 +528,81 @@ class ActionPanel:
             warhost_fire_and_fade_controller=warhost_fire_and_fade_controller,
             targeting_array_controller=targeting_array_controller,
             secondary_mission_controller=secondary_mission_controller,
+            primary_mission_controller=primary_mission_controller,
             unmodified_six_controller=unmodified_six_controller,
         )
 
-    def _draw_global_toolbar(self, surface, rect, movement_controller, setup_controller=None):
+    def _draw_selection_header(self, surface, rect, movement_controller):
+        """The selected unit's art and name, in a closed box at the top of this
+        column. Returns the rect the rest of the panel gets.
+
+        User: "Entferne das Label, das den Squad namen anzeigt, wenn man eine
+        Einheit auswaehlt. das label stoert auf dem spielfeld. Verlagere die
+        info stattdessen ganz oben in die linke spalte mit Sprite + name in
+        einen abgeschlossenen kasten." The renderer used to float a name plate
+        over the unit's topmost model; it is gone (see
+        Renderer.draw_selection()), and this is where it went.
+
+        WITH NOTHING SELECTED THE BOX IS NOT DRAWN AT ALL, and the rect comes
+        back untouched. That is this file's standing convention - no chrome for
+        a control that cannot do anything, the same rule the pager and the
+        confirm button follow on the picking screens - and the alternative, an
+        empty bordered box saying "no unit", would take the same ~54px off
+        every branch below in order to say nothing. `_draw_movement_ui()`
+        already explains the no-selection case in words, which is the branch a
+        player actually reaches by clicking into the void.
+
+        The name is the SAME STRING the movement branch prints below it
+        ("{name} ({n})"), for the reason the removed plate gave: the board and
+        the panel must not disagree about which unit is picked, and a squad
+        name carries the owner digit plus a copy number precisely so two units
+        off one datasheet can be told apart. It is drawn WRAPPED - a merged
+        attached unit measures ~300px against ~130px of room here, so an
+        unwrapped line would be cut off at exactly the copy number that
+        distinguishes it."""
+        squad = movement_controller.selected_squad
+        if squad is None:
+            return rect
+
+        pad = SELECTION_BOX_PAD
+        art_px = SELECTION_BOX_PORTRAIT_PX
+        paths = sprites.portrait_paths(squad, limit=1)
+        text_x = rect.x + TEXT_MARGIN + pad
+        if paths:
+            text_x += art_px + PORTRAIT_GAP + 2
+        text_width = max(20, rect.right - TEXT_MARGIN - pad - text_x)
+
+        label = f"{squad.name} ({len(squad.models)})"
+        lines = wrap_text(self.font, label, text_width) or [label]
+        text_height = len(lines) * ERROR_LINE_HEIGHT
+        # Tall enough for whichever of the two is taller, so a three-line name
+        # cannot spill out of its own box.
+        inner = max(art_px if paths else 0, text_height)
+        box = pygame.Rect(rect.x + TEXT_MARGIN, rect.y + pad,
+                          rect.width - 2 * TEXT_MARGIN, inner + 2 * pad)
+        button_style.draw_box(surface, box, chamfer=6,
+                              bg_color=SELECTION_BOX_BG_COLOR,
+                              border_color=SELECTION_BOX_BORDER_COLOR)
+        if paths:
+            cell = pygame.Rect(box.x + pad, box.centery - art_px // 2, art_px, art_px)
+            button_style.draw_box(surface, cell, chamfer=5, bg_color=PORTRAIT_BG_COLOR)
+            art = sprites.fitted_surface(paths[0], art_px - 6)
+            surface.blit(art, art.get_rect(center=cell.center))
+        text_y = box.centery - text_height // 2
+        for line in lines:
+            surface.blit(self.font.render(line, True, config.PANEL_TEXT_COLOR), (text_x, text_y))
+            text_y += ERROR_LINE_HEIGHT
+
+        top = box.bottom + SELECTION_BOX_GAP
+        return pygame.Rect(rect.x, top, rect.width, rect.bottom - top)
+
+    def _draw_global_toolbar(self, surface, rect, movement_controller):
         """User-Wunsch: "die beiden toggles Los check und Squad move... in
         eine art toolbar links unten... soll immer sichtbar sein und die
-        toggles sollen global gelten." Both used to live inside
+        toggles sollen global gelten." They used to live inside
         _draw_movement_ui() - visible only while a squad was mid-move, and
-        (Move Whole Squad specifically) reset to Off at the start/end of
-        every move, so it never actually behaved like the persistent
-        session preference it was framed as (see movement.py's
-        group_move_enabled/toggle_group_move(), no longer reset anywhere).
+        reset to Off at the start/end of every move, so they never actually
+        behaved like the persistent session preference they were framed as.
         Drawn here, in draw() AFTER _draw_dispatch() returns, so it's
         visible no matter which of that method's many early-return screens
         rendered above it - a fixed strip pinned to the bottom of the whole
@@ -411,35 +610,104 @@ class ActionPanel:
         Registered into self._buttons like any other button - every
         left-panel click in main.py's event loop already routes to
         handle_click() regardless of the current phase/controller state, so
-        clicking these needs no changes there."""
-        button_width = rect.width - 2 * BUTTON_MARGIN
-        toggles = [
-            (
-                "Move Whole Squad: On" if movement_controller.group_move_enabled else "Move Whole Squad: Off",
-                movement_controller.toggle_group_move,
-            ),
-            (
-                "Live LOS Highlight: On" if movement_controller.live_los_highlight_enabled
-                else "Live LOS Highlight: Off",
-                movement_controller.toggle_live_los_highlight,
-            ),
-        ]
-        if setup_controller is not None:
-            toggles.append((
-                "Place as Block: On" if setup_controller.block_placement_enabled else "Place as Block: Off",
-                setup_controller.toggle_block_placement,
-            ))
+        clicking these needs no changes there.
 
-        toolbar_height = len(toggles) * BUTTON_HEIGHT + (len(toggles) + 1) * BUTTON_GAP
+        THE STRIP IS DOWN TO ONE ROW, on two later user decisions:
+
+          * the LOS-check toggle is gone - "den LOS Check Knopf brauch ich
+            nicht mehr. der soll immer aktiviert sein" - so the live
+            line-of-sight highlight has no state left to show (main.py now
+            skips it only while a whole-unit drag is actually running);
+          * the block-deployment and block-movement toggles are one - "ich
+            glaube, dass man Block Deployment und Block Movement
+            zusammenfassen kann. Mir faellt keine Situation ein, wo man das
+            getrennt braeuchte" - so both read one value, in
+            game/whole_unit_drag.py, and one switch drives it.
+
+        What remains draws through _draw_toggle() rather than _draw_button():
+        the row carries an on/off state, and spelling it out as ": On"/": Off"
+        text was the ONLY difference between the two looks (measured: the
+        rendered rows were otherwise pixel-identical)."""
+        button_width = rect.width - 2 * BUTTON_MARGIN
+        # ONE row, not two: "Move Whole Squad" and "Place as Block" were the
+        # same preference asked twice, and the user retired the distinction
+        # ("Block Deployment und Block Movement zusammenfassen... mir faellt
+        # keine Situation ein, wo man das getrennt braeuchte"). Both flags now
+        # read game/whole_unit_drag.py, so either controller can serve the row;
+        # movement_controller is used because it is the one always present.
+        toggles = [
+            ("Drag Whole Unit", movement_controller.group_move_enabled,
+             movement_controller.toggle_group_move),
+            # The RANGE RULER (game/aura_ruler.py). A toggle plus, while it is
+            # on, a radio of radii - the two controls the user asked for, and
+            # in that order because the toggle is what answers "on or off".
+            ("Aura", aura_ruler.is_enabled(), aura_ruler.toggle),
+        ]
+
+        # One shared row height for the whole strip, measured off the widest
+        # label: at 200px "Move Whole Squad" wraps to two lines while "Place
+        # as Block" fits on one, and rows of different heights next to each
+        # other read as a layout accident rather than as one control group.
+        row_height = max(
+            button_style.toggle_height(button_width, label, self.button_font, min_height=BUTTON_HEIGHT)
+            for label, _, _ in toggles
+        )
+        # The radius radio, which exists only while the ruler is on. Same
+        # convention the pager and the confirm button in game/ui/tile_screen.py
+        # follow: no chrome for a control that cannot do anything - eight dead
+        # buttons under an off switch would be eight things to explain.
+        #
+        # A GRID, not eight rows: the panel is 220px wide and eight full-width
+        # rows would be taller than the rest of the toolbar put together, on a
+        # strip that is pinned to the bottom and has to leave room above it.
+        radio_rows = (_radio_rows() if aura_ruler.is_enabled() else 0)
+        radio_height = radio_rows * (RADIO_HEIGHT + BUTTON_GAP)
+
+        toolbar_height = (len(toggles) * row_height + (len(toggles) + 1) * BUTTON_GAP
+                          + radio_height)
         top_y = rect.bottom - toolbar_height
         pygame.draw.line(surface, config.PANEL_BORDER_COLOR, (rect.x, top_y), (rect.right, top_y), width=2)
 
         button_y = top_y + BUTTON_GAP
-        for label, callback in toggles:
-            toggle_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
-            toggle_rect = self._draw_button(surface, toggle_rect, label)
+        for label, is_on, callback in toggles:
+            toggle_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, row_height)
+            toggle_rect = self._draw_toggle(surface, toggle_rect, label, is_on)
             self._buttons.append((toggle_rect, callback))
             button_y += toggle_rect.height + BUTTON_GAP
+        if radio_rows:
+            self._draw_aura_radio(surface, rect.x + BUTTON_MARGIN, button_y, button_width)
+
+    def _draw_aura_radio(self, surface, x, y, width):
+        """The eight radii, as a grid of radio buttons.
+
+        Drawn with button_style's PRESSED look for the live one - the same
+        thing the map screen's biome row does, and for the same reason: a
+        many-way switch where one is always on is exactly what "pressed"
+        already means in this HUD, so a second visual language is not invented
+        for it. Nothing else in this panel has a lasting pressed state, so it
+        cannot be confused with hover."""
+        # self._mouse_pos, not pygame.mouse.get_pos(): draw() samples the
+        # cursor ONCE per frame and every other control in this panel hovers
+        # off that, so reading it again here could disagree with the row above
+        # by a frame - and it is what lets a test drive hover at all.
+        mouse = self._mouse_pos
+        active = aura_ruler.radius_in()
+        cell = (width - (RADIO_COLUMNS - 1) * RADIO_GAP) // RADIO_COLUMNS
+        for index, radius in enumerate(aura_ruler.RADII_IN):
+            column, row = index % RADIO_COLUMNS, index // RADIO_COLUMNS
+            cell_rect = pygame.Rect(x + column * (cell + RADIO_GAP),
+                                    y + row * (RADIO_HEIGHT + BUTTON_GAP),
+                                    cell, RADIO_HEIGHT)
+            button_style.draw_button(
+                surface, cell_rect, f'{radius}"', self.button_font,
+                hovered=cell_rect.collidepoint(mouse),
+                pressed=(radius == active),
+            )
+            # Bound at definition time: the loop variable would otherwise be
+            # read when the click happens, by which point it is 36 for every
+            # button - the classic late-binding closure, and it would make
+            # seven of these eight silently wrong.
+            self._buttons.append((cell_rect, (lambda r: lambda: aura_ruler.set_radius(r))(radius)))
 
     def _draw_text(self, surface, rect, text, y, color=None, font=None, gap=4):
         """The only way this panel prints text: wrapped to the panel's own
@@ -610,43 +878,152 @@ class ActionPanel:
 
         return box_rect.bottom + 8
 
-    def _draw_mission_pick_ui(self, surface, rect, secondary_mission_controller):
-        """The "click a unit on the board" screen: which objective is being
-        decided, what to do, who is eligible, and a way out.
+    def _draw_unit_pick_ui(self, surface, rect, pick, decision_rule=None):
+        """The "click a unit on the board" screen: what is being decided, who
+        is eligible, and any way out the rule itself offers.
 
-        The eligible units are LISTED by name as well as being clickable on the
-        board - without that the player is hunting by trial and error, since
-        nothing on the board itself marks which units qualify."""
-        pick = secondary_mission_controller.pending_pick
+        `pick` is game/unit_pick.py's record - the ONE answer to "is this
+        decision a board pick", shared with main.py's click branch and with the
+        board highlight, so the three cannot disagree about who is eligible.
+
+        The eligible units are LISTED by name as well as being ringed on the
+        board. The ring alone is the faster read, but the names survive a unit
+        standing behind another one and are what a player checks against.
+
+        Every option that is NOT a unit ("Decline", "Cancel", "No more") becomes
+        a button here, because the modal overlay that used to carry them is
+        deliberately not drawn while the board owns the answer. A rule that
+        offers no way out gets no button - that is a mandatory choice, and
+        inventing an escape would change the rule."""
         text_y = self._draw_text(
-            surface, rect, "MISSION", rect.y + 10,
+            surface, rect, "CHOOSE A UNIT", rect.y + 10,
             color=config.PANEL_HEADER_COLOR, font=self.header_font, gap=6,
         )
-        # The objective, in the header font: it is the subject of the question,
-        # not a detail of it.
-        text_y = self._draw_text(
-            surface, rect, pick["subject"], text_y,
-            color=config.PANEL_HEADER_COLOR, font=self.header_font, gap=6,
-        )
-        text_y = self._draw_text(surface, rect, pick["prompt"], text_y, gap=6)
-        eligible = pick["eligible"]
-        if eligible:
+        # The subject, in the header font: where a rule has one it IS the
+        # question ("which objective are we talking about"), not a detail of it.
+        if pick.subject:
+            text_y = self._draw_text(
+                surface, rect, pick.subject, text_y,
+                color=config.PANEL_HEADER_COLOR, font=self.header_font, gap=6,
+            )
+        text_y = self._draw_text(surface, rect, pick.prompt, text_y, gap=6)
+        if pick.squads:
             text_y = self._draw_text(surface, rect, "Eligible units:", text_y, gap=2)
-            for squad in eligible:
+            for squad in pick.squads:
                 text_y = self._draw_text(surface, rect, f"- {squad.name}", text_y, gap=2)
         else:
-            text_y = self._draw_text(surface, rect, "No unit is in range.", text_y, gap=2)
+            text_y = self._draw_text(surface, rect, "No unit is eligible.", text_y, gap=2)
         text_y = self._draw_text(
             surface, rect, "Click one of them on the battlefield.", text_y,
             color=HINT_COLOR, gap=10,
         )
-        r = pygame.Rect(rect.x + BUTTON_MARGIN, text_y,
-                        rect.width - 2 * BUTTON_MARGIN, BUTTON_HEIGHT)
-        r = self._draw_button(surface, r, pick["skip_label"], accent="danger")
-        self._buttons.append((r, secondary_mission_controller.skip_pick))
+        for label, index in pick.skip_options:
+            r = pygame.Rect(rect.x + BUTTON_MARGIN, text_y,
+                            rect.width - 2 * BUTTON_MARGIN, BUTTON_HEIGHT)
+            r = self._draw_button(surface, r, label, accent="danger")
+            self._buttons.append((r, lambda i=index: pick.choose(i)))
+            text_y = r.bottom + BUTTON_GAP
+        self._draw_decision_rule(surface, rect, text_y + 4, decision_rule)
+
+    def _draw_decision_rule(self, surface, rect, y, decision_rule):
+        """The printed rule behind the choice being made on the BOARD.
+
+        User: "immer wenn ich aufgefordert werde durch eine Faehigkeit etwas
+        auf dem Spielfeld auszuwaehlen ... schreibe die Faehigkeit Regel mit in
+        die rechte Spalte, sonst weiss ich gar nicht was ich da auswaehle" -
+        and then, having lived with it: "'why you are choosing' soll in die
+        linke spalte, nicht rechts". It was in the right panel because that
+        column is the emptier one; it belongs here because this is the column
+        the question is already in.
+
+        SCROLLED, not clipped. The right panel had 336px of clear space and
+        could get away with cutting a long rule off at the bottom; this column
+        is already carrying the prompt, the eligible-unit list and the rule's
+        own way out, so a long rule has to stay readable rather than merely
+        fit. button_style.draw_scrollbar() is the same bar the army-rules
+        reader and the hover datacard use.
+
+        The scroll offset is keyed to the rule NAME: a different decision
+        opens its own rule at the top, rather than inheriting an offset
+        measured against something longer.
+
+        Nothing is drawn when there is no rule: an empty framed box reads as
+        something that failed to load."""
+        self._rule_bottom = None
+        self._rule_view = None
+        self._rule_scroll_max = 0
+        if not decision_rule:
+            self._rule_key = None
+            return
+        name, blocks = decision_rule
+        if not blocks:
+            self._rule_key = None
+            return
+        if name != self._rule_key:
+            self._rule_key = name
+            self._rule_scroll = 0
+
+        header = pygame.Rect(rect.x + 6, y, rect.width - 12,
+                             button_style.SUBHEADER_HEIGHT)
+        if header.bottom >= rect.bottom:
+            return                      # no room at this window size
+        button_style.draw_header_bar(surface, header, "WHY YOU ARE CHOOSING",
+                                     self.header_font)
+        body_top = header.bottom + RULE_BOX_PADDING
+
+        # The scrollbar lives inside the box, so the text column loses its
+        # width whether or not the bar is drawn - otherwise the wrap would
+        # change the moment the content grew past the box.
+        box = pygame.Rect(rect.x + 6, body_top - RULE_BOX_PADDING + 4,
+                          rect.width - 12, rect.bottom - body_top - 4)
+        if box.height <= RULE_BOX_PADDING * 2:
+            return
+        text_x = box.x + RULE_BOX_PADDING
+        text_width = box.width - 2 * RULE_BOX_PADDING - RULE_SCROLLBAR_WIDTH - 4
+
+        entries, total = self._rules_body.layout(blocks, text_width)
+        view_height = box.height - 2 * RULE_BOX_PADDING
+        self._rule_scroll_max = max(0, total - view_height)
+        self._rule_scroll = max(0, min(self._rule_scroll, self._rule_scroll_max))
+
+        button_style.draw_box(surface, box)
+        previous_clip = surface.get_clip()
+        view = pygame.Rect(box.x + 2, body_top, box.width - 4, view_height)
+        surface.set_clip(view.clip(previous_clip) if previous_clip else view)
+        for block, offset, height in entries:
+            block_y = body_top + offset - self._rule_scroll
+            if block_y + height < view.top or block_y > view.bottom:
+                continue                # off-screen: skip the whole block
+            self._rules_body.draw_block(surface, block, text_x, block_y,
+                                        text_width, text_x + text_width)
+        surface.set_clip(previous_clip)
+        if self._rule_scroll_max > 0:
+            track = pygame.Rect(box.right - RULE_SCROLLBAR_WIDTH - 4, view.y,
+                                RULE_SCROLLBAR_WIDTH, view.height)
+            button_style.draw_scrollbar(surface, track, self._rule_scroll,
+                                        self._rule_scroll_max,
+                                        view_height / float(total or 1))
+        self._rule_view = view
+        self._rule_bottom = box.bottom
+
+    def handle_rule_scroll(self, pos, dy):
+        """Mouse-wheel scrolling for the rule box. True when it was consumed.
+
+        Takes the POSITION as well as the delta so the wheel only works over
+        the box - everything else on this panel scrolls nothing, and silently
+        eating a wheel event elsewhere would break the board zoom.
+        """
+        if self._rule_view is None or self._rule_scroll_max <= 0:
+            return False
+        if not self._rule_view.collidepoint(pos):
+            return False
+        self._rule_scroll = max(0, min(self._rule_scroll_max,
+                                       self._rule_scroll - dy * RULE_SCROLL_STEP))
+        return True
 
     def _draw_pregame_ui(self, surface, rect, pregame_controller, setup_controller=None,
-                         ingress_controller=None, transport_controller=None):
+                         ingress_controller=None, transport_controller=None,
+                         return_placement_controller=None):
         """Rule 03.01's pre-game sequence. Sub-dispatches on the controller's
         own state, so each step shows only what it is actually asking for.
 
@@ -681,6 +1058,7 @@ class ActionPanel:
             self._draw_pregame_deploying(
                 surface, rect, pregame_controller, setup_controller,
                 ingress_controller, transport_controller, button_width, text_y,
+                return_placement_controller=return_placement_controller,
             )
 
     def _draw_unit_portrait(self, surface, rect, squad, y, gap=4):
@@ -755,7 +1133,12 @@ class ActionPanel:
     def _draw_pregame_formations(self, surface, rect, pregame_controller, button_width, text_y):
         """Declare Battle Formations (03.01 / 18.01 / 20.01), one unit at a
         time, with one button per LEGAL destination."""
-        owner = pregame_controller.human_player
+        # EVERY human owner, one after another - not just "the" human. With
+        # the AI mode off both armies are declared at one keyboard, and this
+        # panel offering only Player 1's units is what left the pre-game
+        # waiting for an opponent who was never going to answer.
+        pending_owners = pregame_controller.humans_with_undeclared_units()
+        owner = pending_owners[0] if pending_owners else pregame_controller.first_human()
         squad = pregame_controller.current_formation_unit(owner)
         remaining = len(pregame_controller.undeclared_units(owner))
 
@@ -765,10 +1148,13 @@ class ActionPanel:
             )
             return
 
-        text_y = self._draw_text(
-            surface, rect, f"Declare Battle Formations ({remaining} left)",
-            text_y, color=HINT_COLOR, gap=6,
-        )
+        # The owner is NAMED whenever more than one army is being declared
+        # here, or the second army's units read as a continuation of the first.
+        heading = f"Declare Battle Formations ({remaining} left)"
+        if len(pending_owners) > 1 or owner not in (None, "Player 1"):
+            heading = f"{owner}: {heading}"
+        text_y = self._draw_text(surface, rect, heading, text_y,
+                                 color=HINT_COLOR, gap=6)
         text_y = self._draw_unit_portrait(surface, rect, squad, text_y)
         text_y = self._draw_text(surface, rect, squad.name, text_y, gap=4)
         # The unit's actual equipment, always - two units off the same
@@ -847,13 +1233,15 @@ class ActionPanel:
             button_y += embark_rect.height + BUTTON_GAP
 
     def _draw_pregame_deploying(self, surface, rect, pregame_controller, setup_controller,
-                                ingress_controller, transport_controller, button_width, text_y):
+                                ingress_controller, transport_controller, button_width, text_y,
+                                return_placement_controller=None):
         """Alternating deployment (03.01). While models are actually being
         dragged into coherency this hands over to the shared Set Up screen, so
         the Confirm/Cancel behaviour is identical to Ingress and Disembark."""
         if setup_controller is not None and setup_controller.state == setup.PLACING:
             self._draw_setup_ui(surface, rect, setup_controller, ingress_controller, transport_controller,
-                                pregame_controller=pregame_controller)
+                                pregame_controller=pregame_controller,
+                                return_placement_controller=return_placement_controller)
             return
 
         active = pregame_controller.active_player
@@ -862,7 +1250,11 @@ class ActionPanel:
             surface, rect, f"{active}: place a unit ({len(pending)} left)", text_y, gap=6,
         )
 
-        if active != pregame_controller.human_player:
+        # "One of the humans", not "the human": with the AI mode off both
+        # armies are deployed at one keyboard, and asking for a single name
+        # here would put up "Waiting for your opponent..." in front of a player
+        # who IS the opponent and is holding the mouse.
+        if active not in pregame_controller.human_players:
             self._draw_text(surface, rect, "Waiting for your opponent...", text_y, color=HINT_COLOR, gap=8)
             return
 
@@ -893,7 +1285,8 @@ class ActionPanel:
         self._buttons.append((auto_rect, lambda: pregame_controller.request_auto_place(selected)))
 
     def _draw_setup_ui(self, surface, rect, setup_controller, ingress_controller=None, transport_controller=None,
-                       pregame_controller=None, shortened_blade_controller=None):
+                       pregame_controller=None, shortened_blade_controller=None,
+                       return_placement_controller=None):
         """Rule 03.02 (Set Up): a reserve unit was dropped on the board and
         is being dragged into coherency before it's confirmed - mirrors
         Movement's MOVING-state Confirm/Cancel, but with no Advance-style
@@ -908,10 +1301,16 @@ class ActionPanel:
         is_ingress = ingress_controller is not None and ingress_controller.is_ingressing(squad)
         is_disembark = transport_controller is not None and transport_controller.is_disembarking(squad)
         is_deployment = pregame_controller is not None and pregame_controller.is_deploying(squad)
+        # Rule 01.02.03's model return, riding the same placement flow - see
+        # game/return_placement.py for why it reuses this rather than growing
+        # its own pending state (Fehlerklasse 25).
+        is_return = (return_placement_controller is not None
+                     and return_placement_controller.pending_squad is squad)
         title_text = (
             "Disembarking" if is_disembark
             else "Ingress Move" if is_ingress
             else "Deploying" if is_deployment
+            else "Returning Models" if is_return
             else "Setting Up"
         )
         text_y = self._draw_text(
@@ -947,6 +1346,13 @@ class ActionPanel:
             # SetupController.
             confirm_callback = pregame_controller.confirm_deployment
             cancel_callback = pregame_controller.cancel_deployment
+        elif is_return:
+            # Confirming has to go through the return controller, not straight
+            # to SetupController: it owns the "these models are back" half and
+            # the on_done the ability is waiting on. Cancelling likewise puts
+            # them back down.
+            confirm_callback = return_placement_controller.confirm
+            cancel_callback = return_placement_controller.cancel
         else:
             confirm_callback = setup_controller.confirm_setup
             cancel_callback = setup_controller.cancel_setup
@@ -1586,6 +1992,7 @@ class ActionPanel:
         targeting_array_controller=None,
         # Appended by keyword like everything above - see draw()'s own warning.
         secondary_mission_controller=None,
+        primary_mission_controller=None,
         unmodified_six_controller=None,
         # Death Lord's Chosen - the three a human buys proactively. Appended
         # BY KEYWORD: this chain is positional up to battle_focus_pool, and
@@ -1599,6 +2006,7 @@ class ActionPanel:
         # alone add nineteen, and this chain is positional for most of its
         # length. A controller joins the list and needs no edit here.
         proactive_stratagems=None,
+        return_placement_controller=None,
     ):
         squad = movement_controller.selected_squad
         turn_tracker = movement_controller.turn_tracker
@@ -1607,6 +2015,18 @@ class ActionPanel:
         if squad is None:
             if in_fight_phase:
                 self._draw_fight_step_status(surface, rect, button_width, fight_controller, pile_in_controller)
+            else:
+                # With nothing picked this column was completely empty except
+                # for the header and the toggle strip - the same 220 px of
+                # nothing the player gets after clicking into the void, which
+                # reads like the game stopped rather than like a state they can
+                # leave. Same reason _draw_fight_step_status exists one line
+                # up, which was added after a real "the AI just froze" report.
+                text_y = self._draw_text(surface, rect, "No unit selected.", rect.y + 40, gap=8)
+                self._draw_text(surface, rect,
+                                "Click one of your models to select its unit. "
+                                "Click empty ground or press ESC to let go.",
+                                text_y, gap=4)
             return
 
         text_y = rect.y + 40
@@ -1624,9 +2044,17 @@ class ActionPanel:
             text_y = self._draw_fight_step_status(surface, rect, button_width, fight_controller, pile_in_controller, start_y=text_y)
             text_y += 10
 
-        squad_label = f"{squad.name} ({len(squad.models)})"
-        text_y = self._draw_unit_portrait(surface, rect, squad, text_y)
-        button_y = self._draw_text(surface, rect, squad_label, text_y, gap=12)
+        # No portrait and no name here any more: _draw_selection_header() has
+        # already drawn both, in its own box at the top of this column, and it
+        # is the SAME squad - this branch's `squad` IS
+        # movement_controller.selected_squad. Printing them twice was costing
+        # ~70px of a 220px column to say the thing directly above it says.
+        #
+        # The other three _draw_unit_portrait() calls in this file stay: each
+        # names a DIFFERENT unit (the Declare-Battle-Formations queue's current
+        # unit, the pre-game pool's picked card, the unit being set up), none
+        # of which is the selection.
+        button_y = text_y + 4
 
         if movement_controller.state == movement.MOVING:
             is_charge = movement_controller.move_mode == "charge"
@@ -1940,7 +2368,9 @@ class ActionPanel:
 
             # Aeldari Battle Focus (army rule): the Agile Manoeuvres this unit
             # could perform right now, each costing one Battle Focus token
-            # rather than CP. The pool's own can_*() methods carry each
+            # rather than CP - which is why they are turquoise and not the
+            # Stratagem violet (user: "colorcode fuer agile manouvers ... soll
+            # aber tuerkis sein"). The pool's own can_*() methods carry each
             # manoeuvre's TRIGGER, so a button appears exactly when the rule
             # allows it - Star Engines only after the unit has really
             # Advanced, which is why it can sit below "Advance" while the
@@ -1965,7 +2395,7 @@ class ActionPanel:
                         continue
                     bf_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
                     bf_rect = self._draw_button(
-                        surface, bf_rect, f"{label}  ({tokens_left} token(s))", accent="stratagem",
+                        surface, bf_rect, f"{label}  ({tokens_left} token(s))", accent="battle_focus",
                     )
                     self._buttons.append((bf_rect, (lambda u=use: u(squad))))
                     button_y += bf_rect.height + BUTTON_GAP
@@ -2034,16 +2464,24 @@ class ActionPanel:
             # opened a prompt chain at the start of the Shooting phase and
             # marched the player through the eligible units in name order,
             # which meant you could say whether to act but never with whom.
-            for action_label, action_def, action_target in (
-                secondary_mission_controller.available_actions_for(squad)
-                if secondary_mission_controller is not None else ()
-            ):
+            # BOTH mission systems own rule-16.01 actions now - the Secondary
+            # deck (Cleanse, Plunder) and the Force Disposition Primary (Secure
+            # Asset, Booby Trap). Each keeps its own eligibility and its own
+            # start(), and the panel simply concatenates what they offer; it
+            # never learns which action belongs to which.
+            _action_offers = []
+            for _owner in (secondary_mission_controller, primary_mission_controller):
+                if _owner is None:
+                    continue
+                for _entry in _owner.available_actions_for(squad):
+                    _action_offers.append((_owner,) + tuple(_entry))
+            for action_owner, action_label, action_def, action_target in _action_offers:
                 action_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
                 action_rect = self._draw_button(surface, action_rect, action_label, accent="confirm")
                 self._buttons.append((
                     action_rect,
-                    lambda a=action_def, sq=squad, t=action_target:
-                        secondary_mission_controller.start_action(a, sq, t),
+                    lambda o=action_owner, a=action_def, sq=squad, t=action_target:
+                        o.start_action(a, sq, t),
                 ))
                 button_y += action_rect.height + BUTTON_GAP
 
@@ -2165,9 +2603,13 @@ class ActionPanel:
                 self._buttons.append((carnage_rect, lambda: unbridled_carnage_controller.use(squad)))
                 button_y += carnage_rect.height + BUTTON_GAP
 
-            # Aeldari Battle Focus, Sudden Strike - above "Fight" for the same
-            # reason as the button just above it: its trigger is the unit being
-            # selected to fight, so the window shuts once Fight is clicked.
+            # Aeldari Battle Focus, Sudden Strike. ONE draw site for its two
+            # windows (see BattleFocusPool.can_sudden_strike): it sits above
+            # "Fight" for the same reason as the button just above it - the
+            # printed trigger is the unit being selected to fight, so that
+            # window shuts once Fight is clicked - and, because "Fight" is
+            # gone by the Consolidation step, the same button then lands
+            # directly above "Consolidate", which is the second window.
             if (battle_focus_pool is not None and squad is not None
                     and battle_focus_pool.can_sudden_strike(squad)):
                 tokens_left = battle_focus_pool.tokens.get(squad.owner, 0)
@@ -2175,7 +2617,7 @@ class ActionPanel:
                 strike_rect = self._draw_button(
                     surface, strike_rect,
                     f"Sudden Strike - Pile-in/Consolidate 6\"  ({tokens_left} token(s))",
-                    accent="stratagem",
+                    accent="battle_focus",
                 )
                 self._buttons.append(
                     (strike_rect, lambda: battle_focus_pool.use_sudden_strike(squad))
@@ -2273,16 +2715,100 @@ class ActionPanel:
         held down. `accent` picks the color variant, per the user's color
         code - None (default blue, "everything else"), "confirm" (green,
         confirm/proceed buttons and Next Phase/End Turn), "danger" (red,
-        Cancel/Decline buttons only), or "stratagem" (violet, any button
-        that spends CP to use a Stratagem). Returns the actual rect drawn
+        Cancel/Decline buttons only), "stratagem" (violet, any button that
+        spends CP to use a Stratagem), or "battle_focus" (turquoise, an
+        Aeldari Agile Manoeuvre, which spends a Battle Focus token rather
+        than CP). Returns the actual rect drawn
         (same x/y/width, but possibly taller to fit wrapped text) - callers
         use ITS height, not BUTTON_HEIGHT, both for the click hit-test area
         and when advancing to the next button below it."""
         hovered = rect.collidepoint(self._mouse_pos)
         pressed = hovered and self._mouse_down
-        return button_style.draw_button(
+        drawn = button_style.draw_button(
             surface, rect, label, self.button_font, hovered=hovered, pressed=pressed, accent=accent,
         )
+        if accent == "stratagem":
+            # RECORDED HERE, not at the seventeen call sites that pass this
+            # accent. The label is the Stratagem's own name plus its cost and
+            # sometimes a summary ("Sudden Storm (1 CP) - ranged weapons gain
+            # [ASSAULT] this turn"), and every one of those sites already has
+            # it in hand - so one line here covers all seventeen AND every
+            # Stratagem button added later, which seventeen edits would not.
+            #
+            # A SEPARATE list from self._buttons on purpose: that one is
+            # destructured as (rect, callback) by handle_click(), so widening
+            # it to a 3-tuple would break every click in the panel.
+            self._stratagem_buttons.append((drawn, _stratagem_name_in(label)))
+        return drawn
+
+    def _draw_toggle(self, surface, rect, label, on):
+        """One on/off switch (see button_style.draw_toggle): the label
+        WITHOUT an "On"/"Off" suffix, plus a sliding knob and a green/grey
+        body that carry the state. Same contract as _draw_button() - the
+        returned rect is the one actually drawn, and callers use ITS height
+        for the hit-test and for stacking the next row.
+
+        Kept separate from _draw_button() rather than folded in as another
+        `accent`: an accent says what a press COSTS (blue free, green
+        proceed, red cancel, violet spends CP), while this says what state
+        the control is IN - a button that is already "on" is not a
+        different kind of spend."""
+        hovered = rect.collidepoint(self._mouse_pos)
+        pressed = hovered and self._mouse_down
+        return button_style.draw_toggle(
+            surface, rect, label, on, self.button_font, hovered=hovered, pressed=pressed,
+        )
+
+    @property
+    def tooltip_rect(self):
+        """The button the tooltip belongs to, or None - so the box can be put
+        BESIDE it rather than under the cursor. It is wider than the panel, and
+        hanging it off the cursor would lay it over the buttons it describes."""
+        return self._tip_rect if self.tooltip_name else None
+
+    def stratagem_at(self, pos):
+        """The printed name of the Stratagem button under `pos`, or None."""
+        for rect, name in self._stratagem_buttons:
+            if rect.collidepoint(pos):
+                return name
+        return None
+
+    def update_tooltip(self, mouse_pos, mouse_down, now_ms):
+        """Decide whether a Stratagem's rules are shown this frame; returns the
+        name to show, or None.
+
+        POLLED once per frame from main.py rather than driven off MOUSEMOTION,
+        for the reason this repo has now hit six times (Fehlerklasse 15):
+        main.py's event chain is a ~48-branch if/elif over CONTROLLER STATE
+        whose bodies almost all handle only clicks, so anything hanging off its
+        back is swallowed the moment any prompt is pending. A poll cannot be
+        swallowed. Same shape as UnitDatacardOverlay.update_hover(), including
+        `now_ms` being INJECTED rather than read here - that is what makes the
+        dwell testable at all.
+
+        The timer resets on a different button, on leaving the buttons, on any
+        mouse button, and on cursor movement beyond STRATAGEM_TIP_JITTER_PX.
+
+        Compared by NAME, not by rect: the panel rebuilds its rects every
+        frame, so identity would reset the dwell on every single frame and the
+        tooltip would never open."""
+        name = self.stratagem_at(mouse_pos)
+        if name is None or mouse_down:
+            self._tip_name = None
+            self._tip_since = None
+            self.tooltip_name = None
+            return None
+        moved = (abs(mouse_pos[0] - self._tip_pos[0]) > STRATAGEM_TIP_JITTER_PX
+                 or abs(mouse_pos[1] - self._tip_pos[1]) > STRATAGEM_TIP_JITTER_PX)
+        if name != self._tip_name or moved:
+            self._tip_name = name
+            self._tip_since = now_ms
+            self._tip_pos = mouse_pos
+        dwelt = (self._tip_since is not None
+                 and now_ms - self._tip_since >= STRATAGEM_TIP_DELAY_MS)
+        self.tooltip_name = name if dwelt else None
+        self._tip_rect = next((r for r, n in self._stratagem_buttons if n == name), None)
+        return self.tooltip_name
 
     def handle_click(self, pos):
         for rect, callback in self._buttons:

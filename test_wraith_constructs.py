@@ -551,8 +551,9 @@ checks.true("the Wraithlord resolves a sprite - the file had been sitting "
             "unused in the folder", sprites.sprite_for(wl.models[0]))
 checks.true("...and it is the Wraithlord file",
             "Wraithlord" in (sprites.sprite_for(wl.models[0]) or ""))
-checks.eq("Wraithblades have no art yet - pinned so adding one is visible",
-          sprites.sprite_for(wb.models[0]), None)
+# ART ARRIVED - this pinned the absence until it did.
+checks.true("Wraithblades draw their own art",
+            "Wraith Blades" in (sprites.sprite_for(wb.models[0]) or ""))
 checks.true("...and they do not borrow the Wraithguard's art by substring match",
             "Wraithguard" not in (sprites.sprite_for(wb.models[0]) or ""))
 

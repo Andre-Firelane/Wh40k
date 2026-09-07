@@ -193,7 +193,7 @@ def fake_events():
     if menu is not None:
         if state["startup_resume_enabled"] is None:
             state["startup_resume_enabled"] = [
-                e for a, _l, e, _n in menu.entries() if a == "resume"
+                e for a, _l, e in menu.entries() if a == "resume"
             ][0]
         rect = _entry(menu, "new_game", screen_rect)
         if rect is not None:

@@ -317,7 +317,16 @@ def harvest(gate, amount):
     return ctrl
 
 
-def inflicted(ctrl):
+def wounds_rolled(ctrl):
+    """How many mortal wounds the ROLL produced - not how many landed.
+
+    Renamed from inflicted(), which is what it was called while it measured
+    `inflicted + remaining`: a sum that is the same whether the session
+    resolves or is abandoned. It was abandoned, for years, against every
+    multi-model target - see the rule 06.02 note in
+    game/mortal_wound_abilities.py. This section is about the three D6
+    outcomes, so the rolled amount is the right measure HERE; that the wounds
+    actually arrive is checked separately below."""
     s = ctrl.mortal_wound_session
     return None if s is None else s.inflicted + s.remaining
 
@@ -327,15 +336,38 @@ c.eq("a 1 does nothing at all - not even a second roll",
      (one.mortal_wound_session, one.is_busy), (None, False))
 
 mid = harvest(2, 3)
-c.eq("a 2 is the bottom of the 2-5 band and inflicts a plain D3", inflicted(mid), 3)
+c.eq("a 2 is the bottom of the 2-5 band and inflicts a plain D3", wounds_rolled(mid), 3)
 five = harvest(5, 2)
-c.eq("a 5 is the top of that band and still a plain D3", inflicted(five), 2)
+c.eq("a 5 is the top of that band and still a plain D3", wounds_rolled(five), 2)
 
 six = harvest(6, 2)
 c.eq("a 6 inflicts D3+3 - the bonus is what the gate value decides",
-     inflicted(six), 5)
+     wounds_rolled(six), 5)
 c.eq("...so a 6 with the SAME D3 beats a 5 by exactly 3",
-     inflicted(harvest(6, 2)) - inflicted(harvest(5, 2)), 3)
+     wounds_rolled(harvest(6, 2)) - wounds_rolled(harvest(5, 2)), 3)
+
+# AND THEY REALLY ARRIVE. Everything above measures what the ROLL produced,
+# which is a sum that holds whether the allocation resolves or is abandoned -
+# and it WAS abandoned: the shared session parks on pending_choice for any
+# multi-model target (this one has 20 models) and nothing drained it, so not
+# one of these mortal wounds was ever applied. Rule 06.02 hands the pick to
+# the target's owner; driven here, and the difference measured.
+_land = harvest(6, 2)
+_intact = [(m, m.current_wounds) for m in near.models]
+_before = sum(w for _, w in _intact)
+c.eq("the target's owner is asked which model takes them",
+     len(_land.pending_damage_choice or []), len(near.models))
+_guard = 0
+while _land.pending_damage_choice and _guard < 20:
+    _land.choose_damage_model(_land.pending_damage_choice[0])
+    _guard += 1
+c.eq("...and all five wounds of a 6 really come off the unit",
+     _before - sum(m.current_wounds for m in near.models), 5)
+c.eq("...leaving nothing open", _land.mortal_wound_session, None)
+# Put the unit back: this is the only check in the file that actually spends
+# the target, and the sections below need the board it was built with.
+for _m, _w in _intact:
+    _m.current_wounds = _w
 
 # The middle band is the one that gets lost: a test that only rolls a 1 and a 6
 # passes just as well with the threshold written as 6+.
@@ -403,7 +435,7 @@ c.eq("confirming a charge move fires Crimson Harvest", ctrl.is_busy, True)
 ctrl.dice_manager.acknowledge(); ctrl.on_dice_acknowledged()   # the 3 -> D3 band
 ctrl.dice_manager.acknowledge(); ctrl.on_dice_acknowledged()   # the D3
 c.eq("...end to end, through the real ChargeController: 2 mortal wounds",
-     inflicted(ctrl), 2)
+     wounds_rolled(ctrl), 2)
 
 # ...and a DECLINED charge does not. This is why the hook is in
 # confirm_charge_move() and not in _finish_charge(), which both paths reach.

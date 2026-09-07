@@ -49,7 +49,7 @@ this engine has no way to make and which a prompt nobody answers would stall on.
 """
 import math
 
-from game import model_return
+from game import ai_mode, model_return
 from game.formation_layout import ring_candidates
 
 INEVITABLE_DEATH_LABEL = "Inevitable Death"
@@ -78,7 +78,7 @@ class InevitableDeathController:
         self.setup_controller = setup_controller
         self.all_tokens = all_tokens if all_tokens is not None else []
         self.turn_tracker = turn_tracker
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         #: (id(squad), turn owner) for every use so far - "once in EACH
         #: opponent's turn", so the turn owner is part of the key.
         self._used = set()

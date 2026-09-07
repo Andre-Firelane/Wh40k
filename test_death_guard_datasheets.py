@@ -14,7 +14,7 @@ Etappe 3 of the Death Guard faction. Sections:
 import inspect
 import pathlib
 
-from testkit import Checks, GameState, TurnTracker, Log, build, script
+from testkit import Checks, GameState, TurnTracker, Log, build, script, list_key
 
 from game import (army_lists, curse_of_the_walking_pox, death_approaches,
                   death_guard_defenders, destroyer_hive, gift_of_contagion,
@@ -23,6 +23,9 @@ from game import (army_lists, curse_of_the_walking_pox, death_approaches,
                   scuttling_walker, spore_laced_shock_waves, sprites)
 from game.factions import death_guard as dg
 from game.factions.death_guard_points import DEATH_GUARD_POINTS
+
+# Asked for by FACTION, not named - see testkit.list_key().
+DG_LIST = list_key("DEATH GUARD")
 from game.factions.faction import faction_keyword_of
 from game.feel_no_pain import current_feel_no_pain
 from game.nurgles_gift import NurglesGiftController
@@ -565,7 +568,7 @@ c.true("...and the +1 for an Afflicted unit is reported when it applies",
 # --- 6. The army list --------------------------------------------------------
 print("--- 6. The army list ---")
 
-squads = army_lists.preview_squads("death_guard", DG)
+squads = army_lists.preview_squads(DG_LIST, DG)
 c.eq("14 units after the two attachments", len(squads), 14)
 c.eq("49 models", sum(len(s.models) for s in squads), 49)
 c.eq("2020 pts (the list says 2015 - four documented deviations)",
@@ -592,7 +595,7 @@ c.true("...so it no longer has its heavy baleflamer",
        "Heavy Baleflamer" not in [w.name for w in by_name["2 Defiler 1"].models[0].weapons])
 
 # The list builds for EITHER player - the name prefix is the only difference.
-p1 = army_lists.preview_squads("death_guard", "Player 1")
+p1 = army_lists.preview_squads(DG_LIST, "Player 1")
 c.eq("it builds for Player 1 too", len(p1), 14)
 c.true("...with Player 1's own names", all(s.name.startswith("1 ") for s in p1))
 
@@ -600,7 +603,7 @@ c.true("...with Player 1's own names", all(s.name.startswith("1 ") for s in p1))
 # took a four-unit slice has been replaced by a full-size one. main.py's guard
 # refuses a map that fields only PART of a list by a name that matches nothing,
 # so what has to hold now is that no map filters this list at all.
-armies = {"Player 1": "aeldari", "Player 2": "death_guard"}
+armies = {"Player 1": "aeldari", "Player 2": DG_LIST}
 for key in ("map1", "map2", "map3"):
     fielded = [s.name for s in squads if maps.get(key).fields(s, armies)]
     c.eq(f"{key} fields the whole Death Guard list", len(fielded), len(squads))
@@ -614,10 +617,10 @@ from game import detachments as detachments_module                  # noqa: E402
 c.eq("the detachment declares its config setting",
      DEATH_LORDS_CHOSEN.setting, "DEATH_LORDS_CHOSEN_PLAYERS")
 c.eq("...and it is what the Death Guard list fields",
-     detachments_module.names_for("death_guard"), ["Death Lord's Chosen"])
+     detachments_module.names_for(DG_LIST), ["Death Lord's Chosen"])
 c.eq("...at its printed Detachment Points cost",
-     detachments_module.points_for("death_guard"), 2)
-c.eq("...which is a legal list", detachments_module.validate("death_guard"), [])
+     detachments_module.points_for(DG_LIST), 2)
+c.eq("...which is a legal list", detachments_module.validate(DG_LIST), [])
 c.true("...and that setting is one game/detachments.py actually writes",
        "DEATH_LORDS_CHOSEN_PLAYERS" in detachments_module.all_settings())
 
@@ -654,7 +657,7 @@ c.eq("the three \"Plague...\" keys cannot shadow each other", len(set(_plague_ke
 # An attached unit resolves each COMPONENT to its own art, not the whole
 # merged squad to one - which is what stops a Plaguecaster-led squad showing
 # eleven Plaguecasters.
-_led = army_lists.preview_squads("death_guard", DG)
+_led = army_lists.preview_squads(DG_LIST, DG)
 _pm_led = next(s for s in _led if s.name.endswith("+ Malignant Plaguecaster"))
 _caster_model = next(m for m in _pm_led.models if m.profile.character)
 _marine_model = next(m for m in _pm_led.models if not m.profile.character)
@@ -663,9 +666,15 @@ c.true("the Plaguecaster in the merged unit shows the Plaguecaster's art",
 c.true("...and the Marines beside him show the Marines' art",
        "Plague Marines" in str(sprites.sprite_for(_marine_model)))
 
-# Still no faction badge - pinned so dropping one in later is a visible change.
-c.true("no Death Guard faction badge yet (only the model art was uploaded)",
-       sprites.faction_logo_path("DEATH GUARD") is None)
+# The faction badge arrived after the model art, and this pin turned over -
+# which is what it was for. Checked at the FILE, not in the table: the name on
+# disk is "Deathguard_Logo.jpg" (one word, underscore) where the other four
+# are "<Faction> Logo" with a space, so THE FOLDER WINS here as everywhere in
+# sprites.py, and a mapping entry pointing at nothing would still read fine.
+_dg_badge = sprites.faction_logo_path("DEATH GUARD")
+c.true("the Death Guard faction badge resolves to a file on disk", _dg_badge is not None)
+c.true("...and it is the one in the Death Guard folder, under its own spelling",
+       "Deathguard_Logo" in str(_dg_badge))
 
 
 # --- 8. Source guards --------------------------------------------------------

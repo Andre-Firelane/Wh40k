@@ -59,6 +59,44 @@ SCOUTS_BEFORE_FIRST_TURN_ROLLOFF = False
 MAX_ROLLOFF_ATTEMPTS = 50
 
 
+class Resume:
+    """A pre-game step's `on_done` continuation, wrapped so it runs ONCE - and
+    so its caller can ask whether it already ran.
+
+    Every hand-off in this file has the same shape: the controller pops a step,
+    calls `step.start(self, on_done)`, and carries on itself if the step
+    answers "nothing to do". Two readings of that protocol shipped side by
+    side, and they contradict each other. enh_solid_image_projection.py's
+    _apply() writes out one of them ("calling on_done AND returning False would
+    run _finish_deployment() twice, and the second run would start a second
+    first-turn roll-off"); test_wraith_constructs.py pins the other on
+    fated_hero, asserting start() returns False *and* that on_done fired.
+
+    Four shipped steps take the second reading, and every one of them made the
+    controller advance TWICE - once through the continuation, once by falling
+    through. Measured through the real main() loop: deployment finished 3x, the
+    Pre-battle Abilities step ran its Scouts queue 3x, and the battle STARTED
+    3x, so the first Command phase scored its Primary and handed out its Core
+    CP three times over (user report: "der erste zug ging noch nicht los und
+    der gegner spieler 2 hat schon 36 VP").
+
+    So the protocol is enforced here rather than merely documented: whichever
+    reading a step takes, the continuation fires at most once, and `fired` tells
+    the caller not to run the rest of the sequence a second time."""
+
+    __slots__ = ("_fn", "fired")
+
+    def __init__(self, fn):
+        self._fn = fn
+        self.fired = False
+
+    def __call__(self):
+        if self.fired:
+            return
+        self.fired = True
+        self._fn()
+
+
 class RollOff:
     """Rule 03.01's roll-off: both players roll a D6, highest wins, ties are
     re-rolled until they aren't.
@@ -146,7 +184,7 @@ class PregameController:
     def __init__(
         self, game_state, setup_controller, dice_manager, decision_manager,
         turn_tracker=None, game_log=None, on_battle_start=None,
-        human_player="Player 1",
+        human_players=("Player 1",),
     ):
         self.game_state = game_state
         self.setup_controller = setup_controller
@@ -155,7 +193,19 @@ class PregameController:
         self.turn_tracker = turn_tracker
         self.game_log = game_log
         self.on_battle_start = on_battle_start
-        self.human_player = human_player
+        # A SET, not one name. With the AI mode switched off there is no AI
+        # side at all, and both armies are played at one keyboard - so every
+        # step that used to ask "is this THE human?" has to ask "is this ONE OF
+        # the humans?". Reported: "ohne angeschalteten KI-Modus geht es direkt
+        # vor beginn der aufstellung nicht weiter. es gibt keinen knopf mit dem
+        # man den roll fuer attacker/defender ausloesen koennte" - Declare
+        # Battle Formations only ever offered Player 1's units, so Player 2's
+        # were never declared, and the roll-off that waits on both never began.
+        #
+        # KEPT AS HANDED, deliberately not copied into a set: main() passes
+        # game/ai_mode.py's live view, and a copy would freeze it in whatever
+        # state the mode happened to be in when the battle was built.
+        self.human_players = human_players
 
         self.state = IDLE
         self.active_player = None
@@ -183,6 +233,10 @@ class PregameController:
         # carries an ability it can never use. Each entry offers
         # start(pregame_controller, on_done) and returns True if it took over
         # (a prompt is on screen); on_done resumes this queue.
+        # A step may ALSO take over by simply calling on_done and then
+        # answering False - four shipped ones do. The driver treats that as
+        # "took over" too, so neither reading of the protocol can advance the
+        # queue twice; see Resume.
         self.prebattle_steps = []
         # ...and the same idea one step EARLIER: abilities whose printed timing
         # is "in the Deploy Armies step", which therefore have to land before
@@ -236,7 +290,7 @@ class PregameController:
         self._formations_done = set()
         self._pending = {owner: [] for owner in self._all_units}
         self.state = FORMATIONS
-        self.active_player = self.human_player
+        self.active_player = self.first_human()
         self._sync_turn_tracker()
         self._log("Pre-battle: Declare Battle Formations (rule 03.01).")
         if self.on_formations_started is not None:
@@ -351,7 +405,7 @@ class PregameController:
 
     def _on_deploy_rolloff(self, winner):
         self.state = DEPLOY_ORDER_CHOICE
-        if winner == self.human_player:
+        if winner in self.human_players:
             self.decision_manager.request(
                 winner,
                 "You won the roll-off. Who places the first unit?",
@@ -405,6 +459,34 @@ class PregameController:
 
     # --- alternating deployment ------------------------------------------
 
+    @property
+    def human_player(self):
+        """The first human owner, under the name this used to be a plain
+        attribute.
+
+        Kept as a forwarding property rather than removed: eight headless
+        harnesses drive deployment through `pregame_ctrl.human_player`, and
+        with the AI mode ON it answers exactly what it always did. The SET is
+        the real answer now, so anything deciding whether to offer a choice
+        must ask `human_players` - see the note on it in __init__."""
+        return self.first_human()
+
+    def first_human(self):
+        """The player the human-facing steps open on.
+
+        The first owner this battle has that nobody answers for - or, if the
+        engine answers for everyone (which no shipped setup does, but a probe
+        can), simply the first owner, so a step can still open on somebody."""
+        owners = self._owners()
+        return next((o for o in owners if o in self.human_players),
+                    owners[0] if owners else None)
+
+    def humans_with_undeclared_units(self):
+        """Every human owner that still owes a Declare Battle Formations
+        answer, in owner order - what the panel walks through."""
+        return [o for o in self._owners()
+                if o in self.human_players and self.undeclared_units(o)]
+
     def pending_units(self, owner=None):
         if owner is None:
             return [s for units in self._pending.values() for s in units]
@@ -432,8 +514,25 @@ class PregameController:
             # has put units back into _pending and returned this controller to
             # DEPLOYING, in which case placing them reaches here again with the
             # flag already set.
-            if self.redeploy_step.start(self, self._finish_deployment):
+            #
+            # `resume.fired` is the other way a step can take over: it may
+            # finish synchronously by calling the continuation and still answer
+            # "nothing to do" (see Resume). Then the rest of the sequence has
+            # already run and falling through would start a SECOND first-turn
+            # roll-off.
+            #
+            # The continuation is _deployment_finished, not _finish_deployment:
+            # a step handing control back has not made the deployment complete
+            # a second time, so it must not log that it did. The genuine second
+            # visit - a redeploy that put units back into _pending - comes
+            # through _advance_if_nothing_to_place() and does log again, which
+            # is honest.
+            resume = Resume(self._deployment_finished)
+            if self.redeploy_step.start(self, resume) or resume.fired:
                 return
+        self._deployment_finished()
+
+    def _deployment_finished(self):
         if SCOUTS_BEFORE_FIRST_TURN_ROLLOFF:
             self._begin_prebattle_abilities(then_rolloff=True)
         else:
@@ -652,7 +751,13 @@ class PregameController:
         unchanged."""
         while self._prebattle_queue:
             step = self._prebattle_queue.pop(0)
-            if step.start(self, self._run_next_prebattle_step):
+            # Two ways a step takes over: True ("a prompt is on screen") or a
+            # continuation it already fired itself. Without the second test the
+            # step's synchronous on_done drains the rest of THIS queue and
+            # starts the Scouts step, and then this loop - now looking at an
+            # empty queue - starts it again. See Resume.
+            resume = Resume(self._run_next_prebattle_step)
+            if step.start(self, resume) or resume.fired:
                 return
         if self.scouts_step is None:
             self.finish_prebattle_abilities()
@@ -667,8 +772,16 @@ class PregameController:
         self._begin_battle()
 
     def _begin_battle(self):
+        # The battle begins ONCE. on_battle_start hands out Core CP and scores
+        # the first Command phase's Primary (main.py's begin_battle), neither
+        # of which is idempotent, so a second call is worth a whole extra round
+        # of VP to whoever holds the most objectives at deployment. The
+        # re-entrancy that produced it is fixed at its source (see Resume), and
+        # this is the backstop: nothing that reaches here twice can pay twice.
+        if self.state == DONE:
+            return
         self.state = DONE
         self.selected_unit = None
-        winner = self.first_player or self.human_player
+        winner = self.first_player or self.first_human()
         if self.on_battle_start is not None:
             self.on_battle_start(winner)

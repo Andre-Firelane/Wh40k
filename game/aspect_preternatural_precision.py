@@ -46,7 +46,7 @@ THE AI DECLINES (standing Aeldari instruction).
 """
 import copy
 
-from game import aeldari_detachments, aspect_shrine, detachment_gate
+from game import aeldari_detachments, ai_mode, aspect_shrine, detachment_gate
 from game.stratagems import Stratagem
 from game.turn import PHASE_SHOOTING
 from game.weapons import RANGED
@@ -136,7 +136,7 @@ class PreternaturalPrecisionController:
         self.turn_tracker = turn_tracker
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._pending = {}
         self._stratagem = Stratagem(
             name=PRETERNATURAL_PRECISION_NAME, cp_cost=PRETERNATURAL_PRECISION_CP,

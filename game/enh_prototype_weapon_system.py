@@ -53,7 +53,7 @@ ai/agent_driver.py.
 
 import copy
 
-from game import enhancements
+from game import ai_mode, enhancements
 from game.weapons import RANGED
 
 PROTOTYPE_WEAPON_SYSTEM = "Prototype Weapon System"
@@ -125,7 +125,7 @@ class PrototypeWeaponSystemController:
     def __init__(self, decision_manager=None, game_log=None, auto_players=()):
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
 
     def _log(self, message, file_only=False):
         if self.game_log is not None:

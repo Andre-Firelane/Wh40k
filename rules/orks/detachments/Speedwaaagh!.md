@@ -1,6 +1,6 @@
 # Speedwaaagh!
 
-**Orks** - 2 DP detachment
+**Orks** - 2 DP detachment - Force Disposition: Reconnaissance
 
 Source: <https://wahapedia.ru/wh40k11ed/factions/orks/>
 
@@ -8,7 +8,6 @@ Source: <https://wahapedia.ru/wh40k11ed/factions/orks/>
 
 ### Turbo Boostas
 
-No self-respecting Speed Freek goes to war without highly tuned, Mek-approved turbo boostas to power them to battle. These devices come in all shapes and sizes, but all give their operators a violent burst of speed, allowing them to close with the enemy at breakneck speed and get stuck in.
 Each time a SPEED FREEKS or TRUKK unit (excluding AIRCRAFT) from your army Advances, it can use its turbo. If it does, do not make an Advance roll for it; instead, until the end of the phase, models in that unit have a Move characteristic of 24" but can only move in one straight line, and until the end of the turn, ranged weapons equipped by those models have the [ASSAULT] ability and that unit cannot declare a charge.
 
 **Designer’s Note:** When a unit uses its turbo, the models in that unit cannot pivot, and they cannot make a move of two or more straight lines (e.g. to navigate around obstacles). That unit also cannot declare a charge, even if another rule would let it declare a charge in a turn in which it Advanced.
@@ -17,25 +16,17 @@ Each time a SPEED FREEKS or TRUKK unit (excluding AIRCRAFT) from your army Advan
 
 ### Kustom Shokk Box - 10 pts
 
-Obtained from a Big Mek for a veritable fortune of teef, this device incorporates a shokk-boosta that enables a Warboss and their steed to take potentially deadly shortcuts through the Warp.
-
 DEFFKILLA WARTRIKE model only. Each time the bearer uses its turbo, its unit can move horizontally through **terrain features**.
 
 ### Dakkamek - 25 pts
-
-Mekboyz with a penchant for overwhelming firepower can always get some more dakka out of a vehicle’s guns.
 
 MEK model only. Each time the bearer uses its Mekaniak ability, until the start of your next Command phase, ranged weapons equipped by the selected VEHICLE model have the [RAPID FIRE 1] ability.
 
 ### Supa-burny Fuel - 15 pts
 
-The highly volatile, Mek-brewed fuel that powers this Wartrike emits particularly large and exceptionally deadly gouts of flame.
-
 DEFFKILLA WARTRIKE model only. Change the Attacks characteristic of the bearer’s killa jet – burna weapon to 3D6, and change the Attacks characteristic of the bearer’s killa jet – cutta weapon to 3.
 
 ### Master Meknologist - 20 pts
-
-A talented gunsmith, even by the standards of his Big Mek rivals, this Ork reserves the finest of his creations for personal use.
 
 BIG MEK model only. Improve the Ballistic Skill characteristic of the bearer’s ranged weapons by 1.
 
@@ -44,8 +35,6 @@ BIG MEK model only. Improve the Ballistic Skill characteristic of the bearer’s
 ### ON DA MOVE - 1CP
 
 *Speedwaaagh! – Strategic Ploy Stratagem*
-
-Speed Freeks live for the thrill of high-octane warfare, rarely letting their feet off the accelerator, even in the most furious fighting.
 
 **WHEN:** Your Movement phase.
 
@@ -57,8 +46,6 @@ Speed Freeks live for the thrill of high-octane warfare, rarely letting their fe
 
 *Speedwaaagh! – Strategic Ploy Stratagem*
 
-No self-respecting Speed Freek stops to aim. Instead, they fire on the move, concentrating hails of dakka on their chosen targets.
-
 **WHEN:** Your Shooting phase, just after a SPEED FREEKS or TRUKK unit from your army has shot.
 
 **TARGET:** That SPEED FREEKS or TRUKK unit.
@@ -68,8 +55,6 @@ No self-respecting Speed Freek stops to aim. Instead, they fire on the move, con
 ### SPESHUL AMMO - 1CP
 
 *Speedwaaagh! – Wargear Stratagem*
-
-Though the cost in teef is high, Mek-crafted speshul ammunition always comes in handy when taking on big targets.
 
 **WHEN:** Your Shooting phase.
 
@@ -81,8 +66,6 @@ Though the cost in teef is high, Mek-crafted speshul ammunition always comes in 
 
 *Speedwaaagh! – Strategic Ploy Stratagem*
 
-Fitted with jagged ploughs, spiked tyres and steel bars, Ork vehicles are potent weapons in their own right.
-
 **WHEN:** Your Fight phase.
 
 **TARGET:** One SPEED FREEKS or TRUKK unit from your army that has not been selected to fight this phase.
@@ -93,8 +76,6 @@ Fitted with jagged ploughs, spiked tyres and steel bars, Ork vehicles are potent
 
 *Speedwaaagh! – Strategic Ploy Stratagem*
 
-Large formations of Ork vehicles throw up columns of dust and clouds of smoke. These combine to shroud and obscure them as they thunder across the battlefield.
-
 **WHEN:** Your opponent’s Shooting phase, just after an enemy unit has selected its targets.
 
 **TARGET:** One ORKS unit from your army that was selected as the target of one or more of the attacking unit’s attacks.
@@ -104,8 +85,6 @@ Large formations of Ork vehicles throw up columns of dust and clouds of smoke. T
 ### EVASIVE MANOOVA - 1CP
 
 *Speedwaaagh! – Strategic Ploy Stratagem*
-
-The wiliest Speed Freeks see no shame in running away, especially when they can always come back and have ’annuva go.
 
 **WHEN:** End of your opponent’s Fight phase.
 

@@ -445,6 +445,7 @@ print("--- 9. Sudden Strike ---")
 import copy as _copy
 
 from game.consolidate import CONSOLIDATE_RANGE_IN, ConsolidateController
+from game import fight as fight_module
 from game.fight import FightController
 from game.pile_in import PILE_IN_RANGE_IN, PILE_IN_TARGET_RANGE_IN, PileInController
 from game.turn import PHASE_FIGHT
@@ -543,6 +544,152 @@ fc9.fought_squad_ids.discard(strikers)
 tracker9.phase_index = PHASES.index(PHASE_MOVEMENT)
 checks.eq("and it is a Fight phase manoeuvre only", p9b.can_sudden_strike(strikers), False)
 tracker9.phase_index = PHASES.index(PHASE_FIGHT)
+
+
+# --------------------------------- 9b. Sudden Strike's second window
+#
+# User report: "ich kann mich ja auch 6 zoll consolidaten. das wird mir aber
+# nicht angeboten beim consolidate". Measured before the fix: with the enemy
+# 4.5" away and the Fight step over, determine_mode() answered None (nothing
+# within the printed 3"), so the unit was offered no consolidation at ALL -
+# and can_sudden_strike() had already shut, so there was no way left to buy
+# the 6" that opens it. The manoeuvre is now offered in a second window, just
+# before the Consolidation move. See BattleFocusPool.can_sudden_strike().
+
+print("--- 9b. Sudden Strike at the Consolidation step ---")
+
+
+def consolidation_scene(gap):
+    """A finished Fight step: both units have fought, nobody bought Sudden
+    Strike, and the enemy sits `gap` inches away."""
+    st = GameState()
+    tr = TurnTracker(first_player="Player 1")
+    tr.phase_index = PHASES.index(PHASE_FIGHT)
+    tr.turn_owner = "Player 1"
+    tr.set_active("Player 1")
+    mine = aeldari(trim(build(STRIKE_TEAM, "Player 1", name="Mine"), 3))
+    foe = trim(build(STRIKE_TEAM, "Player 2", name="Foe"), 3)
+    line_up(mine, x=40.0, y=20.0)
+    line_up(foe, x=40.0, y=20.0 + gap)
+    for squad_ in (mine, foe):
+        for model in squad_.models:
+            st.add_token(model)
+    mover_ = MovementController(turn_tracker=tr, all_tokens=st.tokens,
+                                player_name="Player 1")
+    fc_ = FightController(turn_tracker=tr, all_tokens=st.tokens, game_log=Log())
+    cc_ = ConsolidateController(turn_tracker=tr, all_tokens=st.tokens,
+                                movement_controller=mover_, fight_controller=fc_)
+    pool_ = pool(players=("Player 1", "Player 2"), movement_controller=mover_,
+                 turn_tracker=tr, fight_controller=fc_, all_tokens=st.tokens)
+    pool_.consolidate_controller = cc_
+    pool_.sync_battle_round(1)
+    fc_.fought_squad_ids.update({mine, foe})
+    fc_.state = fight_module.DONE
+    mover_.select(mine.models[0])
+    return {"mine": mine, "foe": foe, "cons": cc_, "mover": mover_,
+            "pool": pool_, "fight": fc_, "state": st, "turn": tr}
+
+
+# The reported board, end to end through the real controllers.
+s9b = consolidation_scene(4.5)
+checks.true("precondition: the enemy is outside the printed 3in but inside 6in",
+            3.0 < s9b["mine"].min_distance_to(s9b["foe"]) <= 6.0)
+checks.eq("without the manoeuvre no consolidation is available at all",
+          s9b["cons"].determine_mode(s9b["mine"]), None)
+checks.true("Sudden Strike is offered at the Consolidation step",
+            s9b["pool"].can_sudden_strike(s9b["mine"]))
+checks.true("and using it there succeeds", s9b["pool"].use_sudden_strike(s9b["mine"]))
+checks.eq("which opens an Engaging Consolidation",
+          s9b["cons"].determine_mode(s9b["mine"]), "engaging")
+s9b["cons"].start_consolidate(s9b["mine"])
+s9b["cons"].toggle_engaging_target(s9b["foe"])
+s9b["cons"].begin_engaging_move()
+checks.eq("and the move itself really reaches 6 inches",
+          round(s9b["mover"].remaining_range[s9b["mine"].models[0].id], 2), 6.0)
+
+# Still engaged: the mode never changes, but the extra 3" of movement does -
+# so the manoeuvre must be offered here too, not only when it unlocks a mode.
+s9c = consolidation_scene(1.2)
+checks.eq("an already-engaged unit consolidates Ongoing either way",
+          s9c["cons"].determine_mode(s9c["mine"]), "ongoing")
+checks.true("it is offered there as well", s9c["pool"].can_sudden_strike(s9c["mine"]))
+s9c["pool"].use_sudden_strike(s9c["mine"])
+s9c["cons"].start_consolidate(s9c["mine"])
+checks.eq("and lengthens the Ongoing Consolidation to 6 inches",
+          round(s9c["mover"].remaining_range[s9c["mine"].models[0].id], 2), 6.0)
+
+# The refusals - this project's standing rule is that the engine must not
+# offer what would buy nothing.
+s9d = consolidation_scene(20.0)
+checks.eq("nothing is reachable even at 6 inches",
+          s9d["cons"].determine_mode(s9d["mine"], reach=6.0), None)
+checks.eq("so the manoeuvre is not offered",
+          s9d["pool"].can_sudden_strike(s9d["mine"]), False)
+
+s9e = consolidation_scene(1.2)
+s9e["cons"].start_consolidate(s9e["mine"])
+checks.eq("precondition: a consolidation move is under way",
+          s9e["mover"].move_mode, "consolidate")
+checks.eq("a token spent now could not lengthen it, so it is refused",
+          s9e["pool"].can_sudden_strike(s9e["mine"]), False)
+
+s9f = consolidation_scene(4.5)
+s9f["fight"].fought_squad_ids.discard(s9f["mine"])
+checks.eq("precondition: a unit that never fought owes no consolidation",
+          s9f["cons"].can_consolidate(s9f["mine"]), False)
+checks.eq("the second window does not apply to it",
+          s9f["pool"].can_sudden_strike(s9f["mine"]), False)
+
+s9g = consolidation_scene(4.5)
+s9g["mine"].sudden_strike_active = True
+checks.eq("and a unit that already has the grant is never offered it twice",
+          s9g["pool"].can_sudden_strike(s9g["mine"]), False)
+
+# Window 1 is untouched: bought before the unit is selected to fight.
+s9h = consolidation_scene(1.2)
+s9h["fight"].fought_squad_ids.clear()
+s9h["fight"].state = fight_module.SELECTING
+s9h["fight"].engaged_at_start = {s9h["mine"], s9h["foe"]}
+checks.true("window 1 (before fighting) still opens",
+            s9h["pool"].can_sudden_strike(s9h["mine"]))
+
+s9h2 = consolidation_scene(4.5)
+s9h2["pool"].consolidate_controller = None
+checks.eq("with no ConsolidateController attached at all, only window 1 exists",
+          s9h2["pool"].can_sudden_strike(s9h2["mine"]), False)
+
+# determine_mode(reach=) must be side-effect free - it is asked from the panel
+# every frame, and a probe that flipped squad.sudden_strike_active instead
+# would leave the grant standing if anything in between raised.
+s9i = consolidation_scene(4.5)
+s9i["cons"].determine_mode(s9i["mine"], reach=6.0)
+checks.eq("asking 'what would 6 inches open' grants nothing",
+          getattr(s9i["mine"], "sudden_strike_active", False), False)
+checks.eq("and the default reach is still the printed 3 inches",
+          s9i["cons"].determine_mode(s9i["mine"]), None)
+
+# The button has to reach the screen - a predicate nothing draws is exactly
+# the "built but never fed" failure this repo has hit six times.
+s9j = consolidation_scene(4.5)
+panel9 = ActionPanel()
+rect9 = pygame.Rect(0, 0, game_config.LEFT_PANEL_WIDTH, 900)
+surf9 = pygame.Surface((game_config.LEFT_PANEL_WIDTH, 900))
+sc9 = ShootingController(all_tokens=s9j["state"].tokens, dice_manager=DiceManager(),
+                         decision_manager=DecisionManager(), player_name="Player 1")
+panel9.draw(surf9, rect9, s9j["mover"], sc9, None,
+            fight_controller=s9j["fight"], consolidate_controller=s9j["cons"],
+            battle_focus_pool=s9j["pool"])
+buttons9 = list(panel9._buttons)
+checks.true("the Consolidation-step panel draws buttons", bool(buttons9))
+spent9 = []
+for rect_, callback_ in buttons9:
+    before = s9j["pool"].tokens["Player 1"]
+    callback_()
+    if s9j["pool"].tokens["Player 1"] < before:
+        spent9.append(rect_)
+    s9j["mine"].sudden_strike_active = False
+    s9j["pool"].tokens["Player 1"] = before
+checks.eq("exactly one of them is Sudden Strike", len(spent9), 1)
 
 
 # ------------------------------------------------------ 10. Fade Back
@@ -846,6 +993,207 @@ _wait_mover.select(_own_squad.models[0])
 _wait_mover.start_battle_focus_move(_own_squad, 5.0)
 checks.eq("its own reactive move does not deadlock it", _ai_blocked(_wait_mover), False)
 _wait_mover.cancel_move()
+
+
+# ------------------------------------------ 13. the turquoise colour code
+
+print("--- 13. turquoise colour code ---")
+
+# User: "colorcode fuer agile manouvers ist momentan lila wie stratagems. soll
+# aber tuerkis sein. (buttons, ueberschriften)".
+#
+# An Agile Manoeuvre spends a Battle Focus TOKEN, not CP, so wearing rule
+# 15.01's violet said the wrong thing about what a click costs. Two halves,
+# and each is asserted where it is actually DRAWN rather than at the constant:
+# the BUTTONS through the real ActionPanel, the UEBERSCHRIFT through the real
+# DecisionOverlay. A palette entry nothing blits is the failure this section
+# exists to catch.
+
+import math
+
+from game.decision import DecisionManager as RealDecisionManager
+from game.ui import button_style
+from game.ui.decision_overlay import DecisionOverlay
+
+TURQUOISE = button_style.BORDER_NORMAL_BATTLE_FOCUS
+VIOLET = button_style.BORDER_NORMAL_STRATAGEM
+
+checks.true("the accent is registered, so accent='battle_focus' is not "
+            "silently the default blue",
+            "battle_focus" in button_style._PALETTES)
+# .get(), not [] - an A/B probe that DELETES the entry made this line raise
+# instead of going red, which hides which check broke. Fourth instance of that
+# lesson in this repo (see the two str.index() guards and the padded-row fix in
+# test_faction_badges.py).
+checks.true("and it is not the default palette under a new name",
+            button_style._PALETTES.get("battle_focus") != button_style._PALETTES[None])
+
+# Turquoise sits BETWEEN this palette's blue and its green, so it is by
+# construction closer to both than they are to each other - inherent to the
+# hue the user named, not a slip. Measured so the tightest pair is written
+# down: the neighbour that shares a panel with these buttons is the default
+# blue ("Move"/"Advance" sit right beside them).
+_gap_blue = math.dist(TURQUOISE, button_style.BORDER_NORMAL)
+_gap_green = math.dist(TURQUOISE, button_style.BORDER_NORMAL_CONFIRM)
+checks.true("turquoise is clearly apart from the default blue beside it "
+            "(dist %.1f)" % _gap_blue, _gap_blue > 60)
+checks.true("and from the confirm green (dist %.1f)" % _gap_green, _gap_green > 60)
+checks.true("and nowhere near the violet it replaces (dist %.1f)"
+            % math.dist(TURQUOISE, VIOLET),
+            math.dist(TURQUOISE, VIOLET) > 150)
+
+
+def accent_pixels(surface, rect):
+    """(turquoise count, violet count) inside this rect. Exact matches only:
+    draw_button() strokes the border in the palette colour undithered, so an
+    exact hit means that palette really drew."""
+    turq = viol = 0
+    for x in range(rect.x, min(rect.right, surface.get_width())):
+        for y in range(rect.y, min(rect.bottom, surface.get_height())):
+            px = surface.get_at((x, y))[:3]
+            if px == TURQUOISE:
+                turq += 1
+            elif px == VIOLET:
+                viol += 1
+    return turq, viol
+
+
+# --- the buttons -----------------------------------------------------------
+# Its OWN scene rather than section 8's: that one has already spent its way
+# through the pool, and a drained pool offers no manoeuvre buttons at all -
+# which would make this section pass by measuring nothing.
+state13 = GameState()
+tracker13 = movement_tracker()
+mover13 = MovementController(turn_tracker=tracker13, all_tokens=state13.tokens,
+                             player_name="Player 1", dice_manager=DiceManager())
+squad13 = aeldari(build(STRIKE_TEAM, "Player 1", name="Colour Guardians"))
+line_up(squad13, x=10.0, y=10.0)
+for model13 in squad13.models:
+    state13.add_token(model13)
+mover13.select(squad13.models[0])
+pool13 = pool(movement_controller=mover13, turn_tracker=tracker13)
+pool13.sync_battle_round(1)
+
+panelc = ActionPanel()
+rectc = pygame.Rect(0, 0, game_config.LEFT_PANEL_WIDTH, 900)
+scc = ShootingController(all_tokens=state13.tokens, dice_manager=DiceManager(),
+                         decision_manager=DecisionManager(), player_name="Player 1")
+colour_surface = pygame.Surface((game_config.LEFT_PANEL_WIDTH, 900))
+colour_surface.fill((0, 0, 0))
+panelc.draw(colour_surface, rectc, mover13, scc, None, battle_focus_pool=pool13)
+
+# Identify the manoeuvre buttons the way section 8 does - by CLICKING them and
+# seeing which spend a token - so this cannot drift from which buttons the
+# rule actually offers.
+manoeuvre_rects = []
+for rect13, callback13 in list(panelc._buttons):
+    before13 = pool13.tokens["Player 1"]
+    callback13()
+    if pool13.tokens["Player 1"] < before13:
+        manoeuvre_rects.append(rect13)
+    pool13.reset_phase([squad13])
+checks.eq("the manoeuvre buttons are on screen to be measured", len(manoeuvre_rects), 2)
+
+for rect13 in manoeuvre_rects:
+    turq13, viol13 = accent_pixels(colour_surface, rect13)
+    checks.true("an Agile Manoeuvre button is drawn in turquoise", turq13 > 0)
+    checks.eq("and carries no Stratagem violet at all", viol13, 0)
+
+# Gegenprobe: a FREE action drawn in the same pass must NOT be turquoise, or
+# this section would pass on a panel that had gone turquoise all over.
+free_rects = [r for r, _ in panelc._buttons if r not in manoeuvre_rects]
+checks.true("there are non-manoeuvre buttons in the same render", bool(free_rects))
+checks.eq("none of them borrowed the turquoise",
+          sum(accent_pixels(colour_surface, r)[0] for r in free_rects), 0)
+
+# Sudden Strike is the fourth manoeuvre button, at its own draw site in a
+# different phase - measured separately rather than assumed to have come along.
+s13 = consolidation_scene(4.5)
+panel13 = ActionPanel()
+strike_surface = pygame.Surface((game_config.LEFT_PANEL_WIDTH, 900))
+strike_surface.fill((0, 0, 0))
+sc13 = ShootingController(all_tokens=s13["state"].tokens, dice_manager=DiceManager(),
+                          decision_manager=DecisionManager(), player_name="Player 1")
+panel13.draw(strike_surface, pygame.Rect(0, 0, game_config.LEFT_PANEL_WIDTH, 900),
+             s13["mover"], sc13, None, fight_controller=s13["fight"],
+             consolidate_controller=s13["cons"], battle_focus_pool=s13["pool"])
+strike_rects = []
+for rect13, callback13 in list(panel13._buttons):
+    before13 = s13["pool"].tokens["Player 1"]
+    callback13()
+    if s13["pool"].tokens["Player 1"] < before13:
+        strike_rects.append(rect13)
+    s13["mine"].sudden_strike_active = False
+    s13["pool"].tokens["Player 1"] = before13
+checks.eq("the Sudden Strike button is on screen", len(strike_rects), 1)
+strike_turq, strike_viol = accent_pixels(strike_surface, strike_rects[0])
+checks.true("Sudden Strike is turquoise too", strike_turq > 0)
+checks.eq("and it dropped the violet as well", strike_viol, 0)
+
+# --- the ueberschrift ------------------------------------------------------
+# DecisionManager.accent is the ONE derived answer the overlay colours by.
+dm13 = RealDecisionManager()
+dm13.request("Player 1", "plain core decision", [("Yes", None)])
+checks.eq("a core/datasheet decision has no accent", dm13.accent, None)
+dm13.choose(0)
+dm13.request("Player 1", "a stratagem", [("Yes", None)], is_stratagem=True)
+checks.eq("a Stratagem prompt is still violet", dm13.accent, "stratagem")
+dm13.choose(0)
+dm13.request("Player 1", "a manoeuvre", [("Yes", None)], is_battle_focus=True)
+checks.eq("an Agile Manoeuvre prompt is turquoise", dm13.accent, "battle_focus")
+checks.eq("and is NOT flagged a Stratagem - it spends a token, not CP",
+          dm13.is_stratagem, False)
+dm13.choose(0)
+checks.eq("an empty queue has no accent", dm13.accent, None)
+
+# The real offer, raised by the pool itself, must carry the flag - a colour
+# nothing sets is the same dead wiring as a palette nothing blits.
+offer_dm = RealDecisionManager()
+offer_pool = pool(decision_manager=offer_dm)
+offer_squad = aeldari(build(STRIKE_TEAM, "Player 1", name="Offer Guardians"))
+line_up(offer_squad, x=10.0, y=10.0)
+checks.true("the pool raises a reactive offer",
+            offer_pool._raise_offer("Player 1", battle_focus.FADE_BACK,
+                                    [offer_squad], "a test"))
+checks.eq("and flags it turquoise, not violet", offer_dm.accent, "battle_focus")
+
+# ...and that the OVERLAY paints it. Same question as the buttons: what
+# reaches the screen.
+overlay13 = DecisionOverlay()
+
+
+def heading_colours(decision_manager):
+    surf = pygame.Surface((900, 700))
+    surf.fill((0, 0, 0))
+    overlay13.draw(surf, decision_manager)
+    found = set()
+    for x in range(900):
+        for y in range(700):
+            found.add(surf.get_at((x, y))[:3])
+    return found
+
+
+TURQ_HEADING = button_style.TEXT_NORMAL_BATTLE_FOCUS
+VIOL_HEADING = button_style.TEXT_NORMAL_STRATAGEM
+painted13 = heading_colours(offer_dm)
+checks.true("the overlay paints the manoeuvre heading turquoise",
+            TURQ_HEADING in painted13 or TURQUOISE in painted13)
+checks.true("and no Stratagem violet appears on it",
+            VIOL_HEADING not in painted13 and VIOLET not in painted13)
+
+strat_dm13 = RealDecisionManager()
+strat_dm13.request("Player 1", "Fire Overwatch (1 CP)", [("Use", None)], is_stratagem=True)
+strat_painted13 = heading_colours(strat_dm13)
+checks.true("a Stratagem overlay is unchanged - still violet",
+            VIOL_HEADING in strat_painted13 or VIOLET in strat_painted13)
+checks.true("and did not turn turquoise",
+            TURQ_HEADING not in strat_painted13 and TURQUOISE not in strat_painted13)
+
+plain_dm13 = RealDecisionManager()
+plain_dm13.request("Player 1", "allocate the wound", [("Model A", None)])
+plain_painted13 = heading_colours(plain_dm13)
+checks.true("and a plain core decision keeps this overlay's own gold",
+            (255, 215, 0) in plain_painted13)
 
 
 checks.finish()

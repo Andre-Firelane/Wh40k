@@ -162,7 +162,20 @@ print("--- 7. wiring ---")
 import pathlib
 _main = pathlib.Path("main.py").read_text(encoding="utf-8")
 c.true("ScoutsStep is given a decision_manager", "decision_manager=decision_manager," in _main)
-c.true("...and told who the human is", 'human_players=("Player 1",)' in _main)
+# The literal ("Player 1",) is gone: who is human is now ONE fact, derived in
+# main() from config.AI_PLAYERS, so this step and the ~84 auto_players gates
+# cannot disagree about it. Pinning the literal would pin the drift.
+c.true("...and told who the human is", "human_players=human_players," in _main)
+c.true("...from the one place that says so",
+       "human_players = ai_mode.humans(sorted(armies), ai_players)" in _main)
+# LIVE, not a snapshot: with the AI mode switched off there is no AI side at
+# all, so both armies' Scouts are offered to the person at the keyboard rather
+# than one of them being taken silently. See game/ai_mode.py.
+c.true("...and it follows the AI-mode switch",
+       "def humans(all_players, ai_players):" in
+       pathlib.Path("game/ai_mode.py").read_text(encoding="utf-8"))
+c.true("...and not from a second literal of its own",
+       'human_players=("Player 1",)' not in _main)
 c.true("...and the move-finished hook is connected",
        "movement_controller.on_scout_move_finished = (" in _main)
 

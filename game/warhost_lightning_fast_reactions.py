@@ -40,7 +40,7 @@ nobody.
 THE AI DECLINES (standing Aeldari instruction).
 """
 
-from game import aeldari_detachments, martial_grace
+from game import aeldari_detachments, ai_mode, martial_grace
 from game.modifiers import Modifier
 from game.stratagems import Stratagem
 from game.turn import PHASE_FIGHT, PHASE_SHOOTING
@@ -94,7 +94,7 @@ class LightningFastReactionsController:
         self.turn_tracker = turn_tracker
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._offered_this_phase = set()
         self._stratagem = Stratagem(
             name=LIGHTNING_FAST_REACTIONS_NAME, cp_cost=LIGHTNING_FAST_REACTIONS_CP,

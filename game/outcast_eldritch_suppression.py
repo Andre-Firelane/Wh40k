@@ -40,7 +40,7 @@ game/presentiment_of_dread.py already writes out.
 THE AI DECLINES (standing Aeldari instruction).
 """
 
-from game import far_reaching_doom
+from game import ai_mode, far_reaching_doom
 from game.battle_shock_after_shooting import BATTLE_SHOCK_PENALTY, BattleShockAfterShooting, any_target
 from game.stratagems import Stratagem
 
@@ -63,7 +63,7 @@ class EldritchSuppressionController(BattleShockAfterShooting):
                          decision_manager=decision_manager, game_log=game_log)
         self.stratagem_controller = stratagem_controller
         self.shooting_controller = shooting_controller
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._pending_hits = ()
         self._stratagem = Stratagem(
             name=ELDRITCH_SUPPRESSION_NAME, cp_cost=ELDRITCH_SUPPRESSION_CP,
@@ -131,6 +131,6 @@ class EldritchSuppressionController(BattleShockAfterShooting):
         self.decision_manager.request(
             squad.owner,
             "%s: which unit takes the test?" % ELDRITCH_SUPPRESSION_NAME,
-            [(t.name, (lambda t=t: self._test(t))) for t in options],
+            [(t.name, (lambda t=t: self._test(t)), t) for t in options],
             is_stratagem=True,
         )

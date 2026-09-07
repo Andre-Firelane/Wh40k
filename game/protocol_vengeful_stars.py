@@ -30,7 +30,7 @@ thing simply does not fire when the killer is out of range or out of sight,
 which is a normal outcome rather than an error.
 """
 
-from game import awakened_dynasty
+from game import ai_mode, awakened_dynasty
 from game.stratagems import Stratagem
 
 VENGEFUL_STARS_CP_COST = 2
@@ -59,7 +59,7 @@ class VengefulStarsController:
         self.game_state = game_state
         self.shooting_controller = shooting_controller
         self.turn_tracker = turn_tracker
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         # worth_using(avenger, killer) -> bool. main.py passes a gate built on
         # game/damage_estimate.py, so the AI spends 2 CP only when the shot is
         # actually worth something; None means "always worth it", which is what

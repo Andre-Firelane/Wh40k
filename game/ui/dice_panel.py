@@ -89,9 +89,37 @@ MATCHUP_MIN_TEXT_PX = 90
 # wound'." The row's dice are spaced further apart while any such label is
 # on screen - a label is wider than a 50px die, and crowding two of them
 # into DICE_GAP would run them into each other.
-CRIT_LABEL_COLOR = (255, 225, 120)
-CRIT_LABEL_GAP = 4        # between the die and its first label line
-CRIT_LABEL_DICE_GAP = 26  # DICE_GAP replacement while labels are shown
+# Drawn as a filled BADGE rather than as loose text. User: "außerdem hätte ich
+# die Labels für crits bei lethal oder sustained gerne etwas auffälliger." Loose
+# 11px gold on a dark panel is the quietest thing on screen, and it is marking
+# the dice that matter most - the ones that bought an extra hit or skipped the
+# wound roll entirely. A solid plate reads at a glance; the text sits DARK on
+# it, which is the strongest contrast available here and the one the success
+# dice already use (dark pips on a light face).
+CRIT_LABEL_COLOR = (18, 14, 6)          # the text ON the badge
+CRIT_LABEL_BG_COLOR = (255, 205, 70)    # the badge itself
+CRIT_LABEL_BORDER_COLOR = (255, 240, 190)
+CRIT_LABEL_PAD_X = 5
+CRIT_LABEL_PAD_Y = 2
+CRIT_LABEL_CHAMFER = 4
+CRIT_LABEL_GAP = 5        # between the die and its badge
+#: How wide a badge may get before its text wraps. Two dice wide: past that a
+#: label starts dictating the whole row's spacing, and "DEVASTATING WOUND" on
+#: two lines is tidier than a row half as long.
+CRIT_LABEL_MAX_WIDTH = 2 * DICE_SIZE
+#: Clear air between two neighbouring badges. The row's gap is DERIVED from the
+#: badge that is actually rendered plus this, rather than being a constant that
+#: has to be kept in step with the font by hand - the labels are as wide as the
+#: words in them, and a fixed guess is how two badges came to sit 5px apart.
+CRIT_LABEL_SEPARATION = 16
+#: Rough vertical allowance for everything that is NOT dice - the matchup row,
+#: the label bar, the result summary and the hint. Only used to decide whether
+#: the panel has to grow WIDER (see _panel_width), never to place anything, so
+#: an approximation is honest here: the real layout still measures itself.
+#: Deliberately generous - guessing too small makes the panel widen a step
+#: early, guessing too big lets it run off the bottom, and only one of those is
+#: visible.
+CHROME_HEIGHT_BUDGET = 200
 HINT_COLOR = (230, 230, 230)
 RESULT_SUMMARY_COLOR = (255, 150, 150)
 REROLL_HIGHLIGHT_COLOR = (255, 210, 0)   # rule 15.02: border of a die currently being re-rolled
@@ -170,6 +198,43 @@ def _ease_in(t):
     return t * ((1.0 - SLIDE_ACCEL_BLEND) + SLIDE_ACCEL_BLEND * t)
 
 
+def _panel_width(bounds_rect, dice_count, gap, row_height, height_budget):
+    """How wide the panel should be for this many dice.
+
+    MAX_PANEL_WIDTH stays the PREFERRED width, because it is a user decision -
+    "das panel sollte vielleicht nicht über die gesamte breite gehen" - and on
+    an ordinary roll nothing here changes it. It stops being a hard cap only
+    when the dice would otherwise stack into more rows than there is room for:
+    a 60-die roll ran 11px past the bottom of the board area at 640px, and
+    growing sideways is the one way to spend fewer rows on the same dice.
+    User: "die größe des würfelpanels muss sich anpassen."
+
+    Widened in whole dice, not by pixels, since a fraction of a die buys
+    nothing - and never past what the board area actually offers, which is the
+    older decision this must not break ("das würfel overlay darf nicht über die
+    seiten panels gehen")."""
+    available = bounds_rect.width - 2 * BACKDROP_MARGIN
+    preferred = min(available, MAX_PANEL_WIDTH)
+    if dice_count <= 0 or row_height <= 0:
+        return preferred
+    width = preferred
+    while width < available:
+        rows = -(-dice_count // _max_per_row(width - 2 * CONTENT_PADDING, gap))
+        if rows * row_height <= height_budget:
+            break
+        width = min(available, width + DICE_SIZE + gap)
+    return width
+
+
+def _max_per_row(text_max_width, gap):
+    """How many dice fit on one row at `gap`, at least one.
+
+    The +gap is the trailing gap the last die does not need: n dice measure
+    n*DICE_SIZE + (n-1)*gap, so adding one gap to both sides of the division
+    makes this exact rather than one-short."""
+    return max(1, (text_max_width + gap) // (DICE_SIZE + gap))
+
+
 class DicePanel:
     def __init__(self):
         self.target_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE, bold=True)
@@ -185,7 +250,7 @@ class DicePanel:
         # Small on purpose: a crit label sits under a single die, so its
         # widest word ("DEVASTATING") is what decides how far apart the dice
         # in a row have to be.
-        self.crit_font = pygame.font.SysFont(config.FONT_NAME, 11, bold=True)
+        self.crit_font = pygame.font.SysFont(config.FONT_NAME, 13, bold=True)
         self._die_rects = []  # [(original_index, rect), ...] from the last draw() - for click detection
         # The backdrop this panel actually put on screen last frame, or None
         # if it drew nothing (no roll, suppressed, finished sliding out).
@@ -346,7 +411,22 @@ class DicePanel:
             return
 
         bounds_rect = bounds_rect if bounds_rect is not None else surface.get_rect()
-        panel_width = min(bounds_rect.width - 2 * BACKDROP_MARGIN, MAX_PANEL_WIDTH)
+        # The width has to be settled BEFORE the layout pass below, because
+        # everything in it centres on the panel - so the dice-row height is
+        # worked out here rather than read back afterwards. It is analytic:
+        # one row is a die plus, while crit labels are up, their wrapped lines.
+        row_gap = self._row_gap(dice_manager, revealed)
+        crit_lines = self._crit_label_lines(dice_manager, revealed)
+        row_height = DICE_SIZE + DICE_GAP
+        if crit_lines:
+            row_height += CRIT_LABEL_GAP + crit_lines * self.crit_font.get_height()
+        # What is left for dice after the chrome above and below them. Measured
+        # against the board area, which is the bound the panel already promises
+        # never to leave.
+        height_budget = (bounds_rect.bottom - config.PLAYER_BANNER_HEIGHT
+                         - DICE_TOP_MARGIN - 2 * BACKDROP_PADDING - CHROME_HEIGHT_BUDGET)
+        panel_width = _panel_width(bounds_rect, len(values), row_gap, row_height,
+                                   height_budget)
         panel_left = bounds_rect.x + (bounds_rect.width - panel_width) // 2
         panel_centerx = panel_left + panel_width // 2
 
@@ -405,7 +485,16 @@ class DicePanel:
             )
             y += LABEL_BAR_GAP
 
-        max_per_row = max(1, (text_max_width + DICE_GAP) // (DICE_SIZE + DICE_GAP))
+        # THE GAP AND THE ROW LENGTH ARE ONE DECISION, and splitting them was a
+        # reported bug: this counted dice per row at DICE_GAP while
+        # _draw_dice_row() laid them out at the wider crit-label spacing
+        # whenever a crit label was on screen. Ten dice then measured 734px
+        # inside a 640px panel and hung 47px off EACH side - user: "die würfel
+        # fliegen optisch aus dem würfelpanel wenn es zu viele werden."
+        #
+        # The gap is computed once, here, and handed down, so the count and the
+        # layout cannot disagree again.
+        max_per_row = _max_per_row(text_max_width, row_gap)
         entrance_elapsed = flicker_elapsed if not revealed else None
         for group in dice_groups:
             if not group:
@@ -414,7 +503,7 @@ class DicePanel:
                 y = self._draw_dice_row(
                     ops, movable_rects, surface, group[row_start:row_start + max_per_row], y,
                     dice_manager, selecting_die and pending and revealed, panel_left, panel_width,
-                    entrance_elapsed=entrance_elapsed,
+                    entrance_elapsed=entrance_elapsed, gap=row_gap,
                 )
                 y += DICE_GAP
             y += GROUP_GAP - DICE_GAP  # extra breathing room between the success/failure blocks
@@ -625,7 +714,7 @@ class DicePanel:
 
     def _draw_dice_row(
         self, ops, movable_rects, surface, row, y, dice_manager, selecting_die, panel_left, panel_width,
-        entrance_elapsed=None,
+        entrance_elapsed=None, gap=None,
     ):
         """entrance_elapsed is only set while the roll hasn't `revealed` yet
         (SLIDING_IN or ROLLING - see draw()) - every die then flickers
@@ -636,13 +725,18 @@ class DicePanel:
         values too, just never split into success/failure rows while not
         revealed, so no information leaks through layout either."""
         # A crit label is wider than the die it belongs to, so the whole row
-        # spreads out while any is on screen (see CRIT_LABEL_DICE_GAP). Only
+        # spreads out while any is on screen (see _row_gap()). Only
         # while `revealed` - entrance_elapsed being set means the dice are
         # still tumbling, and the outcome, including which of them are
         # critical, must not leak through spacing either.
         crit_labels = tuple(getattr(dice_manager, "crit_labels", ()) or ())
         show_crits = bool(crit_labels) and entrance_elapsed is None
-        gap = CRIT_LABEL_DICE_GAP if show_crits else DICE_GAP
+        # `gap` comes from draw(), which used the SAME number to decide how
+        # many dice go in this row - see _row_gap(). Falling back to computing
+        # it here keeps the method usable on its own, but the two must never be
+        # derived independently again.
+        if gap is None:
+            gap = self._row_gap(dice_manager, entrance_elapsed is None)
         total_width = len(row) * DICE_SIZE + (len(row) - 1) * gap
         x = panel_left + (panel_width - total_width) // 2
 
@@ -713,26 +807,86 @@ class DicePanel:
         # The labels themselves, under each critical die. Wrapped on whole
         # words at the die's own width - "DEVASTATING WOUND" is two lines,
         # "LETHAL HIT" fits on one at this size.
-        label_lines = []
-        for text in crit_labels:
-            # Wrapped narrower than the cell it sits in, so two labelled
-            # dice standing next to each other keep a visible gap between
-            # their text rather than reading as one run-on line.
-            label_lines.extend(wrap_text(self.crit_font, text, DICE_SIZE + gap - 10))
+        label_lines = self._crit_label_texts(crit_labels)
         if not label_lines:
             return y + DICE_SIZE
         line_h = self.crit_font.get_height()
+        rendered = [self.crit_font.render(line, True, CRIT_LABEL_COLOR) for line in label_lines]
+        badge_w = max(s.get_width() for s in rendered) + 2 * CRIT_LABEL_PAD_X
+        badge_h = len(rendered) * line_h + 2 * CRIT_LABEL_PAD_Y
         for value, rect in placed:
             if not dice_manager.is_critical(value):
                 continue
-            label_y = rect.bottom + CRIT_LABEL_GAP
-            for line in label_lines:
-                text_surf = self.crit_font.render(line, True, CRIT_LABEL_COLOR)
-                text_rect = text_surf.get_rect(centerx=rect.centerx, y=label_y)
-                movable_rects.append(text_rect)
-                ops.append(lambda s=text_surf, r=text_rect: surface.blit(s, r))
-                label_y += line_h
-        return y + DICE_SIZE + CRIT_LABEL_GAP + len(label_lines) * line_h
+            # ONE badge behind the whole label, not one per line: a two-line
+            # label ("DEVASTATING WOUND") is one thing being said, and two
+            # stacked plates would read as two.
+            badge = pygame.Rect(0, 0, badge_w, badge_h)
+            badge.centerx, badge.y = rect.centerx, rect.bottom + CRIT_LABEL_GAP
+            movable_rects.append(badge)
+            # The text rides the badge rect rather than carrying its own: the
+            # slide-in offset is applied to every rect in movable_rects, and a
+            # separately-tracked text rect would have to be shifted in step.
+            ops.append(lambda b=badge, surfs=tuple(rendered): self._draw_crit_badge(surface, b, surfs))
+        return y + DICE_SIZE + CRIT_LABEL_GAP + badge_h
+
+    def _draw_crit_badge(self, surface, badge, line_surfs):
+        """The filled plate plus its dark text - what makes a critical die
+        readable at a glance instead of a caption under it."""
+        points = button_style.chamfer_points(badge, CRIT_LABEL_CHAMFER)
+        pygame.draw.polygon(surface, CRIT_LABEL_BG_COLOR, points)
+        pygame.draw.lines(surface, CRIT_LABEL_BORDER_COLOR, True, points, 1)
+        y = badge.y + CRIT_LABEL_PAD_Y
+        for surf in line_surfs:
+            surface.blit(surf, surf.get_rect(centerx=badge.centerx, y=y))
+            y += surf.get_height()
+
+    def _row_gap(self, dice_manager, revealed):
+        """The horizontal gap between two dice in a row.
+
+        ONE definition, because two things need the same number and used to
+        work it out separately: draw() to decide how many dice fit on a row,
+        and _draw_dice_row() to place them. Ten dice were then counted at
+        DICE_GAP and laid out at the wider crit spacing, measuring 734px inside
+        a 640px panel - user: "die würfel fliegen optisch aus dem würfelpanel".
+
+        MEASURED off the badge that will actually be drawn, not a constant: a
+        badge is as wide as the words in it, and the row has to hold it. Only
+        once `revealed`, since which dice are critical must not leak through
+        spacing while they are still tumbling."""
+        crit_labels = tuple(getattr(dice_manager, "crit_labels", ()) or ())
+        if not crit_labels or not revealed:
+            return DICE_GAP
+        width = self._crit_badge_width(crit_labels)
+        return max(DICE_GAP, width - DICE_SIZE + CRIT_LABEL_SEPARATION)
+
+    def _crit_badge_width(self, crit_labels):
+        lines = self._crit_label_texts(crit_labels)
+        if not lines:
+            return 0
+        return max(self.crit_font.size(line)[0] for line in lines) + 2 * CRIT_LABEL_PAD_X
+
+    def _crit_label_texts(self, crit_labels):
+        """The wrapped lines a crit label is drawn as.
+
+        Wrapped narrower than the cell it sits in, so two labelled dice
+        standing next to each other keep a visible gap between their text
+        rather than reading as one run-on line.
+
+        Its own method because draw() has to know how TALL a labelled row will
+        be before it can choose the panel's width, and re-deriving that would
+        be the same two-places-one-answer split that put the dice outside the
+        panel in the first place."""
+        lines = []
+        for text in crit_labels:
+            lines.extend(wrap_text(self.crit_font, text, CRIT_LABEL_MAX_WIDTH))
+        return lines
+
+    def _crit_label_lines(self, dice_manager, revealed):
+        """How many label lines a row carries - 0 when none are shown."""
+        if not revealed:
+            return 0
+        crit_labels = tuple(getattr(dice_manager, "crit_labels", ()) or ())
+        return len(self._crit_label_texts(crit_labels))
 
     def _draw_die_face(self, surface, rect, bg_color, border_color, border_width):
         """User: use the Sprites/Dice.png sprite for the die face, tinted

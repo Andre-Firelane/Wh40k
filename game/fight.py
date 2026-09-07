@@ -2,7 +2,7 @@ from game import attached_units
 from game import aux_experimental_modifications, awakened_dynasty, montka_pinpoint_counter_offensive, destroyer_cult, destroyer_hive, dlc_grim_reapers, gift_of_contagion, guardian_protocols, protocol_hungry_void, implacable_eradication, mechanical_augmentation, monster_hunters, plagues, plasmacyte, reroll_scope
 from game import way_of_the_short_blade
 from game.ard_as_nails import ARD_AS_NAILS_WOUND_PENALTY, ard_as_nails_wound_modifier_applies
-from game.damage_resolution import DamageAllocationSession, DevastatingWoundAllocationSession, MortalWoundAllocationSession, displayed_save_threshold
+from game.damage_resolution import DamageAllocationSession, DevastatingWoundAllocationSession, MortalWoundAllocationSession, displayed_save_threshold, save_is_impossible, AUTO_FAILED_SAVE
 from game.dice import ATTACKS_ROLL, HIT_ROLL, SAVE_ROLL, WOUND_ROLL
 from game.dice_notation import DiceNotationRoll, describe as describe_dice_notation
 from game.ferocious_rage import ferocious_rage_adjusted_weapon
@@ -279,12 +279,15 @@ class FightController:
         self.remaining_weapon_types = []
         self.current_group = None
         self.pending_step = None     # "attacks" | "hit" | "wound" | "save" | "allocate" | None
+        # See shooting.py's field of the same name: set when a Save roll was
+        # skipped because no model of the target could ever pass it.
+        self._save_not_rolled = None
         self.damage_session = None
         self.devastating_wound_session = None  # DevastatingWoundAllocationSession, rule 24.10
         self._devastating_crits = 0  # crits pulled out of the current wound roll for [DEVASTATING WOUNDS]
         self._pending_crit_split = 0  # critical wounds pulled out of the current wound roll for their OWN Save roll - Spirit Conclave's Stave of Kurnous grants them [PRECISION]; see game/critical_wound_split.py and _begin_crit_split_save(). The MELEE twin of shooting.py's _pending_crit_ap_crits, added when the first source to say 'makes an attack' rather than 'a ranged attack' arrived.
         self._used_other_melee_weapon = set()  # rule 24.11: models locked out of further non-[EXTRA ATTACKS] weapons
-        self._hazardous_count = 0  # distinct [HAZARDOUS] weapon groups used this activation, rule 24.15
+        self._hazardous_count = 0  # [HAZARDOUS] weapons USED this activation - one roll each, rule 24.15
         self._lethal_hits_auto_wounds = 0  # rule 24.23: hits chosen to auto-wound, folded into normal_wounds once the (possibly skipped) wound roll resolves
         self._twin_linked_used = False  # rule 24.38: whether this group's one-time re-roll offer has already been made/used
         self._hit_reroll_used = False  # Monster Hunters (user-supplied): whether this group's one-time Hit-roll re-roll offer has already been made/used - the hit-step twin of _twin_linked_used
@@ -480,6 +483,53 @@ class FightController:
             and (not fights_first_only or squad_has_fights_first(squad))
         ]
 
+    def _forced_fighter_for(self, player):
+        """Rule 15.12's outstanding "must be the next unit you select to
+        fight" for `player`, or None - the ONE reading of the constraint.
+
+        A constraint whose squad is no longer eligible (destroyed before its
+        turn came up) simply lapses, and the stale entry is dropped here.
+
+        Shared by eligible_to_select_now() and _announce_whose_turn()
+        because the two disagreeing is exactly the shape this repo keeps
+        consolidating: the announcement would otherwise read "select a unit
+        (A, B)" while only A can actually be picked."""
+        forced = self.forced_next_fighter.get(player)
+        if forced is None:
+            return None
+        if self._is_eligible_to_fight(forced):
+            return forced
+        del self.forced_next_fighter[player]
+        return None
+
+    def force_next_fighter(self, player, squad):
+        """Rule 15.12 (Counteroffensive): grant "it must be the next unit
+        you select to fight" AND hand rule 12.04's alternation to `player`
+        so that clause can actually bind.
+
+        BOTH halves, in one place, because the second one was missing and
+        made the stratagem a no-op that still charged 2 CP (reported from a
+        game: "ich habe gerade counter offinsive benutzt, aber die ki hat
+        dann trotzdem zugeschlagen"). The window is "just after an enemy
+        unit has resolved its attacks", and _actually_finish_current_fight()
+        runs _settle_turn_state() BEFORE it fires that callback - so by the
+        time this grant exists, alternation has already picked whose turn it
+        is, and nothing recomputed it. Measured on the reported board: with
+        both AI units having charged (Fights First, 11.04) and neither of
+        the human's having, the settle handed the turn straight back to the
+        AI; eligible_to_select_now() then read forced_next_fighter for the
+        AI (whose_turn), found none, and offered its Chaos Spawn as normal.
+
+        sub_step is deliberately NOT rewound to FIGHTS_FIRST. The "must be
+        next" clause is the stronger of the printed effect's two and already
+        narrows selection to exactly this squad regardless of sub-step;
+        rewinding would additionally give every OTHER Fights First unit a
+        second pass through a sub-step that was already finished."""
+        self.forced_next_fighter[player] = squad
+        if self.state == SELECTING and self.whose_turn is not None:
+            self.whose_turn = player
+            self._settle_turn_state()
+
     def eligible_to_select_now(self):
         """Squads the current selecting player can pick from right now.
         Rule 15.12 (Counteroffensive): if that player has an outstanding
@@ -489,11 +539,9 @@ class FightController:
         selection resumes."""
         if self.state != SELECTING:
             return []
-        forced = self.forced_next_fighter.get(self.whose_turn)
+        forced = self._forced_fighter_for(self.whose_turn)
         if forced is not None:
-            if self._is_eligible_to_fight(forced):
-                return [forced]
-            del self.forced_next_fighter[self.whose_turn]
+            return [forced]
         return self._eligible_fighters(self.whose_turn, self.sub_step == FIGHTS_FIRST)
 
     def can_pass(self):
@@ -553,7 +601,9 @@ class FightController:
         Announced only when it CHANGES, so a per-frame caller cannot spam it."""
         if self.state != SELECTING:
             return
-        eligible = self._eligible_fighters(self.whose_turn, self.sub_step == FIGHTS_FIRST)
+        forced = self._forced_fighter_for(self.whose_turn)
+        eligible = [forced] if forced is not None else self._eligible_fighters(
+            self.whose_turn, self.sub_step == FIGHTS_FIRST)
         if not eligible:
             return
         key = (self.whose_turn, self.sub_step, tuple(sorted(s.name for s in eligible)))
@@ -569,6 +619,15 @@ class FightController:
         First to Remaining Combats once neither player has one, and ending
         the Fight step once neither player has anything left at all."""
         if self.state != SELECTING:
+            return
+        # Rule 15.12: an outstanding "must be the next unit you select to
+        # fight" pins the turn to its owner, whatever sub-step alternation
+        # happens to be in - otherwise the loop below could hand the turn
+        # away again on the FIGHTS_FIRST pass and the constraint would never
+        # bind. Checked here rather than relying on the grant having set
+        # Squad.fights_first first, so the two are not order-dependent.
+        if self._forced_fighter_for(self.whose_turn) is not None:
+            self._announce_whose_turn()
             return
         while True:
             if self.sub_step == FIGHTS_FIRST:
@@ -1394,11 +1453,7 @@ class FightController:
             )
 
         elif self.pending_step == "save":
-            damage_weapon = melta_adjusted_weapon(weapon, group["pairs"], target_squad)
-            if self._precision_choice_needed(weapon, target_squad):
-                self._offer_precision_choice(rolls, damage_weapon, target_squad, weapon_label, self.fighting_squad.owner)
-            else:
-                self._begin_damage_allocation(rolls, damage_weapon, target_squad, priority_group=None)
+            self._continue_after_save(rolls, weapon, target_squad, weapon_label, group)
 
         elif self.pending_step == "save_crit_split":
             # The critical share's own Save roll - see _begin_crit_split_save().
@@ -1408,11 +1463,7 @@ class FightController:
             # is exactly one of the things that changes.
             split_weapon = critical_wound_split.adjusted_weapon(
                 weapon, group["pairs"][0][0], self.fighting_squad)
-            damage_weapon = melta_adjusted_weapon(split_weapon, group["pairs"], target_squad)
-            if self._precision_choice_needed(split_weapon, target_squad):
-                self._offer_precision_choice(rolls, damage_weapon, target_squad, weapon_label, self.fighting_squad.owner)
-            else:
-                self._begin_damage_allocation(rolls, damage_weapon, target_squad, priority_group=None)
+            self._continue_after_save(rolls, split_weapon, target_squad, weapon_label, group)
 
         elif self.pending_step == "allocate":
             # See shooting.py's identical branch: routes to whichever of
@@ -1635,6 +1686,11 @@ class FightController:
             # dice-notation, suppressing the preview line entirely.
             melta_weapon = melta_adjusted_weapon(weapon, self.current_group["pairs"], target_squad)
             damage_preview = None if melta_weapon.damage_notation is not None else melta_weapon.damage
+            if self._skip_impossible_save(target_squad, weapon, save_threshold, normal_wounds):
+                self._continue_after_save(
+                    [AUTO_FAILED_SAVE] * normal_wounds, weapon,
+                    target_squad, weapon_label, self.current_group)
+                return
             self.dice_manager.roll(
                 count=normal_wounds, sides=6,
                 label=f"Save Roll: {weapon_label} ({normal_wounds} wound(s))",
@@ -1726,7 +1782,10 @@ class FightController:
         saved, failed = self.damage_session.saved, self.damage_session.failed
         weapon_label = self.current_group["weapon_label"]
         summary = f"{weapon_label} save roll"
-        if rolls is not None:
+        if self._save_not_rolled is not None:
+            summary += f" ({self._save_not_rolled})"
+            self._save_not_rolled = None
+        elif rolls is not None:
             summary += f" {rolls}"
         self._log(f"{summary}: {saved} saved, {failed} failed.")
         self.damage_session = None
@@ -1798,6 +1857,11 @@ class FightController:
             weapon, self.current_group["pairs"][0][0], self.fighting_squad)
         melta_weapon = melta_adjusted_weapon(
             split_weapon, self.current_group["pairs"], target_squad)
+        if self._skip_impossible_save(target_squad, split_weapon, save_threshold, crits):
+            self._continue_after_save(
+                [AUTO_FAILED_SAVE] * crits, split_weapon, target_squad,
+                self.current_group["weapon_label"], self.current_group)
+            return
         self.dice_manager.roll(
             count=crits, sides=6,
             label="Save Roll (%s): %d critical wound(s)" % (split_label, crits),
@@ -2229,6 +2293,29 @@ class FightController:
             owner, f"{weapon_label}: [PRECISION] - prioritize a visible CHARACTER for allocation?", options,
         )
 
+    def _continue_after_save(self, rolls, weapon, target_squad, weapon_label, group):
+        """The melee twin of shooting.py's method of the same name: everything
+        that happens once a group's Save roll is settled, whether it was
+        acknowledged or never made at all (_skip_impossible_save())."""
+        damage_weapon = melta_adjusted_weapon(weapon, group["pairs"], target_squad)
+        if self._precision_choice_needed(weapon, target_squad):
+            self._offer_precision_choice(rolls, damage_weapon, target_squad, weapon_label, self.fighting_squad.owner)
+        else:
+            self._begin_damage_allocation(rolls, damage_weapon, target_squad, priority_group=None)
+
+    def _skip_impossible_save(self, target_squad, weapon, save_threshold, wounds):
+        """See shooting.py's method of the same name - same user report, same
+        one predicate in game/damage_resolution.py, asked of EVERY model of the
+        target rather than the representative the panel is sized from."""
+        if wounds <= 0 or not save_is_impossible(target_squad, weapon, self.waaagh):
+            self._save_not_rolled = None
+            return False
+        needed = save_threshold if save_threshold is not None else 7
+        self._save_not_rolled = f"not rolled - no save is possible, needed {needed}+"
+        self._log(f"{self.current_group['weapon_label']}: no save is possible "
+                  f"(needed {needed}+), so {wounds} wound(s) go straight through.")
+        return True
+
     def _begin_damage_allocation(self, rolls, weapon, target_squad, priority_group):
         # Death Lord's Chosen's Lethal Ichor counts melee wound ALLOCATIONS -
         # one per die, INCLUDING the ones that go on to be saved. That number
@@ -2425,11 +2512,21 @@ class FightController:
         self._hold_still_crits = 0
         weapon_key = self.current_group["weapon_key"] if self.current_group else None
         pairs = self.current_group["pairs"] if self.current_group else None
-        # Rule 24.15 ([HAZARDOUS]): count this as one of the "[HAZARDOUS]
-        # weapons you selected in the Select Weapons step" - once per group
-        # actually fought with (i.e. with eligible pairs), not per model.
-        if pairs and pairs[0][1].hazardous:
-            self._hazardous_count += 1
+        # Rule 24.15 ([HAZARDOUS]): "roll one D6 for each [HAZARDOUS] weapon
+        # that was used to make one or more of those attacks" - a COUNT of
+        # weapons, not one per group. `pairs` is one entry per (model, weapon)
+        # and is already filtered to those eligible to swing, so its length is
+        # exactly "the weapons that were used". Same reading as its ranged
+        # twin in game/shooting.py.
+        #
+        # Asked of the ADJUSTED weapon for the same reason that one does it: a
+        # keyword handed out at runtime lives on _adjusted_weapon()'s copy,
+        # never on the printed profile, so reading pairs[0][1] here would
+        # silently ignore every grant. No melee grant exists today - this is
+        # the shape, kept identical to its ranged twin so the next one works.
+        _haz_target = self.current_group.get("target_squad") if self.current_group else None
+        if pairs and self._adjusted_weapon(pairs, _haz_target).hazardous:
+            self._hazardous_count += len(pairs)
         # Rule 24.26 ([ONE SHOT]): mark every model+weapon pair that just
         # fought so _melee_attack_groups() never offers them again, for the
         # rest of the game (never reset, unlike _used_other_melee_weapon).

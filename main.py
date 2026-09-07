@@ -11,6 +11,7 @@ from ai.agent_driver import AIMemory, take_one_action
 from ai.claude_agent import ClaudeAgent
 # from ai.mock_agent import MockAgent  # free/offline alternative - no API key or network needed
 from game import attached_units, battle_focus, biomes, charge, config, consolidate, crushing_impact, enhancements, epic_challenge, explosives, fall_back, fight, firing_deck, greater_good, line_of_sight, maps, movement, overwatch, pregame, setup, shooting, starflare_ignition, status_effects, strands_of_fate
+from game import montka, prompt_rule, unit_pick
 from game.arrokon_protocol import ArrokonProtocolController
 from game.shortened_blade import ShortenedBladeController
 from game.torchstar_gambit import TorchstarGambitController
@@ -47,6 +48,7 @@ from game.insane_bravery import InsaneBraveryController
 from game.game_log import GameLog
 from game.missions import MissionController
 from game.secondary_missions import SecondaryMissionController
+from game.primary_missions import PrimaryMissionController
 from game.actions import ActionController
 from game.ingress import IngressController
 from game.firing_deck import FiringDeckController
@@ -89,6 +91,7 @@ from game.ard_as_nails import ArdAsNailsController
 from game.ammo_runt import AmmoRuntController
 from game.grot_orderly import GrotOrderlyController, unit_has_grot_orderly
 from game.reanimation_protocols import ReanimationProtocolsController
+from game.return_placement import ReturnPlacementController
 from game.technomancer import TechnomancerController
 from game.resurrection_orb import ResurrectionOrbController
 from game.mortal_wound_abilities import (
@@ -290,8 +293,15 @@ from game.aux_guided_fire import GuidedFireController
 from game.epc_experimental_ammunition import (
     MODE_STRENGTH, MODE_STRENGTH_AP_HAZARDOUS, ExperimentalAmmunitionController)
 from game import detachments
+from game import aura_ruler
 from game.ui.map_select import MapSelectScreen
-from game.ui.ai_busy_badge import AiBusyBadge, draw_auto_play_dot
+# The module AND the class, aliased apart on purpose: main() holds a local
+# called `game_menu`, and a local shadowing its own module inside a
+# 4000-line function is exactly CLAUDE.md's error class 23 waiting to happen.
+from game.ui import game_menu as game_menu_module
+from game.ui.game_menu import GameMenu
+from game import ai_mode
+from game.ui.ai_busy_badge import AiBusyBadge, ai_mode_toggle_rect, draw_ai_mode_toggle
 from game.ui.decision_overlay import DecisionOverlay
 from game.ui.stratagem_notice_overlay import StratagemNoticeOverlay
 from game.ui.waaagh_notice_overlay import WaaaghNoticeOverlay
@@ -299,6 +309,7 @@ from game.ui.turn_start_overlay import TurnStartOverlay
 from game.ui.fight_warning_overlay import FightWarningOverlay
 from game.ui.turn_plan_overlay import TurnPlanOverlay
 from game.ui.dice_panel import DicePanel
+from game.ui.army_rules_overlay import ArmyRulesOverlay
 from game.ui.game_status_panel import GameStatusPanel
 from game.ui.log_panel import LogPanel
 from game.ui.mission_cards import MissionCardsOverlay
@@ -306,6 +317,9 @@ from game.ui.mission_draw_overlay import MissionDrawOverlay
 from game.ui.battle_end_overlay import BattleEndOverlay
 from game.ui.player_banner import PlayerBanner
 from game.ui.reserves_panel import ReservesPanel
+from ai import connection as ai_connection
+from game.ui.ai_offline_overlay import AIOfflineOverlay
+from game.ui.stratagem_tooltip import StratagemTooltip
 from game.ui.unit_datacard import UnitDatacardOverlay
 
 LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
@@ -412,6 +426,65 @@ def _enhancement_lines(state, owner):
     return lines
 
 
+def run(map_key=None):
+    """The APPLICATION: a menu, a battle, and back around again.
+
+    main() is ONE BATTLE - it builds a board, an army pair and forty-odd
+    controllers as its own locals, and they die with it. That is what makes
+    "Start New Game" from the in-game menu cheap: a genuinely new map and new
+    armies is only reachable by LEAVING main() and calling it again, and there
+    is no teardown to write because there is no state to tear down.
+
+    WHY THE MENU LIVES HERE AND NOT IN main(). All ten headless harnesses call
+    main.main() directly. Putting the menu one level up means a screen that
+    waits for a click is simply not on their path - so unlike MAP_SELECT and
+    ARMY_SELECT, START_MENU needs no opt-out in ten files and no source guard
+    to make sure a future harness remembers one.
+
+    What has to be reset between battles is short, and this is the whole list:
+    config.LOAD_SCENE (else "new game" would reopen the same save for ever) and
+    the map key (else --map's answer would be re-applied to a battle that was
+    supposed to ask). Everything else is either a main() local or is rewritten
+    from scratch each run by maps/army_lists/detachments.apply_to_config().
+    config.BIOME and the two army settings deliberately survive: they are the
+    defaults the pickers open on, so the second battle opens on the first
+    battle's choices."""
+    load_dotenv()
+    pygame.init()
+
+    # The one window, opened once. See main()'s own note on why it must not be
+    # re-created per battle.
+    fullscreen = config.FULLSCREEN
+    pygame.display.set_mode((0, 0), pygame.FULLSCREEN if fullscreen else 0)
+    pygame.display.set_caption("WH40k Board - Step 4")
+    screen = pygame.display.get_surface()
+
+    cli_map_key = map_key
+    while True:
+        # Skipped when --load named a file: that is already an answer to the
+        # question this screen asks, the same way --map answers the map picker.
+        if config.START_MENU and not config.LOAD_SCENE:
+            path = scene_io.newest()
+            answer = GameMenu(save_path=path,
+                              save_note=scene_io.summary(path) if path else None).run(screen)
+            if answer == game_menu_module.QUIT:
+                break
+            if answer == game_menu_module.RESUME:
+                config.LOAD_SCENE = path
+                map_key = scene_io.map_key_in(path)
+
+        outcome = main(map_key=map_key)
+
+        if outcome != game_menu_module.NEW_GAME:
+            break
+        # A restart is a NEW battle: never the same save again, and back to
+        # asking unless the command line already answered.
+        config.LOAD_SCENE = None
+        map_key = cli_map_key
+
+    pygame.quit()
+
+
 def main(map_key=None):
     load_dotenv()  # picks up ANTHROPIC_API_KEY from the project's local .env, if present
     pygame.init()
@@ -432,9 +505,18 @@ def main(map_key=None):
     # allerdings gerne noch die Map auswählen"), and a screen needs a window to
     # be drawn on. Nothing between here and apply_to_config() reads a board
     # dimension, which is what makes the swap safe.
+    # ONE WINDOW FOR THE WHOLE APPLICATION. run() opens it before the menu, so
+    # by the time a battle starts there already is one; a harness that calls
+    # main() directly still gets one here. Calling set_mode() again per battle
+    # would re-create the display surface underneath every convert_alpha()'d
+    # sprite game/sprites.py has cached at module level - those caches are
+    # keyed by path and are meant to outlive a battle, so the display they
+    # were converted against has to outlive it too.
     fullscreen = config.FULLSCREEN
-    screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN if fullscreen else 0)
-    pygame.display.set_caption("WH40k Board - Step 4")
+    screen = pygame.display.get_surface()
+    if screen is None:
+        screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN if fullscreen else 0)
+        pygame.display.set_caption("WH40k Board - Step 4")
 
     # WHICH BATTLEFIELD this run is played on (User: "ich hätte gerne eine 2te
     # map ... es soll zusätzlich existieren"). Board size, deployment zones,
@@ -449,8 +531,10 @@ def main(map_key=None):
     if map_key is None and config.MAP_SELECT and not config.LOAD_SCENE:
         map_key = MapSelectScreen(default=config.MAP).run(screen)
         if map_key is None:
-            pygame.quit()
-            return
+            # Abandoning a pre-battle screen answers the MENU, not the process:
+            # run() owns the window's lifetime now, so main() never calls
+            # pygame.quit() itself.
+            return game_menu_module.QUIT
 
     # apply_to_config() has to happen before ANY of the board dimensions below
     # are read: the whole engine and the AI read config.BOARD_WIDTH_IN/
@@ -499,8 +583,7 @@ def main(map_key=None):
     if config.ARMY_SELECT and not config.LOAD_SCENE:
         chosen = ArmySelectScreen(defaults=armies).run(screen)
         if chosen is None:
-            pygame.quit()
-            return
+            return game_menu_module.QUIT
         armies = chosen
     # Writes the army keys, and each list's DEFAULT detachment through
     # game/detachments.py - the one part of a list that genuinely cannot be
@@ -719,6 +802,36 @@ def main(map_key=None):
         tokens_source=lambda: state.tokens, game_log=game_log,
     )
     secondary_mission_controller.set_action_controller(action_controller)
+    # The human's FORCE DISPOSITION Primary Mission (user-supplied - the AI
+    # keeps "Hold the Line"; see game/primary_missions.py). WHICH mission it is
+    # follows from the Force Disposition the chosen army list declares, so
+    # nothing is passed in here.
+    #
+    # Built AFTER action_controller, not before: two of the five missions carry
+    # an Objective Action and this controller is handed that collaborator on
+    # the next line. Constructor order in main() is load-bearing and no suite
+    # can see it - see test_event_chain_wiring.py's AST guard, written after
+    # three UnboundLocalErrors of exactly this shape.
+    primary_mission_controller = PrimaryMissionController(
+        player=(config.PRIMARY_MISSION_CARD_PLAYERS[0]
+                if config.PRIMARY_MISSION_CARD_PLAYERS else "Player 1"),
+        mission_controller=mission_controller, turn_tracker=turn_tracker,
+        game_log=game_log, action_controller=action_controller,
+    )
+    # The same callables the Secondary deck takes, and for the same reason:
+    # a board measured once is a board that no longer exists by scoring time.
+    primary_mission_controller.set_tokens_source(lambda: state.tokens)
+    primary_mission_controller.set_squads_source(state.all_squads)
+    primary_mission_controller.set_objectives_source(lambda: state.objectives)
+    primary_mission_controller.set_zones_source(lambda: state.deployment_zones)
+    # Terrain areas (13.01) - Death Trap's Booby Trap action traps them, and
+    # its turn-start snapshot records which enemies were standing in which.
+    primary_mission_controller.set_terrain_source(lambda: state.terrain_areas)
+    # Which Primary each side is on, once, file_only - the same provenance the
+    # [setup] line above records for the map and biome. A Force Disposition is
+    # a list-building declaration and appears NOWHERE on the board, so without
+    # this a log cannot be matched to the mission that was being played.
+    primary_mission_controller.announce()
     if turn_tracker.started:
         # The legacy instant scene starts mid-Command-phase; the pre-game path
         # does all of this in begin_battle() instead, once there is actually an
@@ -744,7 +857,8 @@ def main(map_key=None):
         # what either player's deployment happens to already be standing on.
         for objective in state.objectives:
             objective.update_control(state.tokens)
-        mission_controller.score_primary(state.objectives, turn_tracker.active_player)
+        mission_controller.score_primary(state.objectives, turn_tracker.active_player,
+                                         turn_tracker.battle_round)
         # Round 1's two Secondary Mission cards. Idempotent by battle
         # round, so the Command-phase hook in advance_turn_phase() cannot
         # draw a second pair for the same round.
@@ -835,6 +949,41 @@ def main(map_key=None):
     # Orks.
     waaagh_controller.orks_players = waaagh_module.qualifying_players(
         entry["squad"] for entry in scene_units)
+    # WHO THE ENGINE ANSWERS FOR, read ONCE and frozen for this whole battle.
+    #
+    # This is the switch (user: "es muss also eine weiche geben. je nachdem ob
+    # KI aktiv ist oder nicht"). It used to be the literal ("Player 2",),
+    # written out at 82 call sites below, with four more spellings of the same
+    # fact elsewhere - game/scouts.py's human_players, game/pregame.py's and
+    # game/plagues.py's singular human_player, and ai/deployment_ai.py's
+    # ai_players. One fact, five places, is how the two halves drift apart.
+    #
+    # FROZEN IS THE POINT, not a shortcut: every controller below normalises
+    # what it is handed in its own __init__, so nothing can change under a
+    # controller mid-battle - which is exactly why the question is asked before
+    # main() runs at all (see run() and game/ui/ai_mode_select.py) rather than
+    # from a toggle during play.
+    #
+    # A player NOT listed here is a human and gets a DecisionManager prompt for
+    # every choice the printed rule gives them. A player listed here gets the
+    # rule's own deterministic answer, free and with no API call - see
+    # config.AI_PLAYERS for why the determinism has to live on this side and
+    # never inside the rule.
+    # `armies` is {player -> army key}, so its keys ARE the players in this
+    # battle - derived rather than a second pair of literals.
+    # LIVE, not a tuple, and that is the whole of the "one switch" fix: this
+    # single object is handed to all ~83 gates below, and its membership test
+    # asks game/ai_mode.py whether the mode is on. Frozen members, live
+    # membership - so the switch reaches gates that are built once, here, and
+    # never rebuilt.
+    #
+    # It also gates the OTHER channel for free: both AI entry points already
+    # open with `if not ai_players: return`, and this reads as empty while the
+    # mode is off - so the frame tick and the single-step "A" key stop too,
+    # without either of them having to learn about the mode.
+    ai_players = ai_mode.players(p for p in sorted(armies) if p in config.AI_PLAYERS)
+    human_players = ai_mode.humans(sorted(armies), ai_players)
+
     # Retaliation Cadre's Stim Injectors (1 CP): a reactive Stratagem offered
     # at rule 10.02's "select targets" step, so it's shared by
     # shooting_controller and fight_controller below the same way
@@ -848,15 +997,14 @@ def main(map_key=None):
         stratagem_controller, decision_manager=decision_manager, turn_tracker=turn_tracker, game_log=game_log,
     )
     # War Horde's 'Ard as Nails - the same "just after an enemy unit has
-    # selected its targets" trigger, but answered DETERMINISTICALLY for the AI
-    # side rather than asked about (user: "hier auch deterministisch"). Player 2
-    # is this project's AI player throughout main.py, so it is the one whose
-    # answer the controller gives itself; a human running Orks still gets a
-    # DecisionManager prompt, gated on the same three conditions. See
-    # game/ard_as_nails.py.
+    # selected its targets" trigger, but answered DETERMINISTICALLY for a side
+    # the engine plays rather than asked about (user: "hier auch
+    # deterministisch"). `ai_players` above is the one place that says which
+    # side that is; a human running Orks gets a DecisionManager prompt instead.
+    # See game/ard_as_nails.py.
     ard_as_nails_controller = ArdAsNailsController(
         stratagem_controller, decision_manager=decision_manager, turn_tracker=turn_tracker, game_log=game_log,
-        auto_players=("Player 2",),
+        auto_players=ai_players,
     )
     # Flash Gitz' Ammo Runt (user-supplied): offered when the unit is
     # selected to shoot, once per battle. Handed to ShootingController the
@@ -865,7 +1013,7 @@ def main(map_key=None):
     # instruction the AI uses it at the first opportunity instead of being
     # asked, while a human running Orks keeps the choice.
     ammo_runt_controller = AmmoRuntController(
-        decision_manager=decision_manager, game_log=game_log, auto_players=("Player 2",),
+        decision_manager=decision_manager, game_log=game_log, auto_players=ai_players,
     )
     # Kill Rig's Spirit of Gork (user-supplied): resolved at the start of
     # each Fight phase. Same auto_players shape as 'Ard as Nails above -
@@ -874,7 +1022,7 @@ def main(map_key=None):
     # rather than being asked; a human keeps the DecisionManager prompt.
     spirit_of_gork_controller = SpiritOfGorkController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
-        all_tokens=state.tokens, auto_players=("Player 2",),
+        all_tokens=state.tokens, auto_players=ai_players,
     )
     # Painboy's Grot Orderly (user-supplied wargear): resolved in its owner's
     # Command phase. Same auto_players shape again - per explicit user
@@ -907,7 +1055,7 @@ def main(map_key=None):
     )
     grot_orderly_controller = GrotOrderlyController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
-        game_state=state, auto_players=("Player 2",),
+        game_state=state, auto_players=ai_players,
         position_valid=lambda model, x, y: setup_controller.position_valid(
             model, x, y, squad=model.squad,
         ),
@@ -936,16 +1084,16 @@ def main(map_key=None):
 
     reanimation_controller = ReanimationProtocolsController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
-        game_state=state, auto_players=("Player 2",),
+        game_state=state, auto_players=ai_players,
         position_valid=_necron_position_valid,
     )
     technomancer_controller = TechnomancerController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
-        game_state=state, auto_players=("Player 2",),
+        game_state=state, auto_players=ai_players,
     )
     resurrection_orb_controller = ResurrectionOrbController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
-        game_state=state, auto_players=("Player 2",),
+        game_state=state, auto_players=ai_players,
         position_valid=_necron_position_valid,
     )
     # The Kroot War Shaper's Root of Honour. Offered at the start of EVERY
@@ -964,7 +1112,7 @@ def main(map_key=None):
     root_of_honour_controller = RootOfHonourController(
         decision_manager=decision_manager, game_log=game_log,
         all_squads=lambda: [t.squad for t in state.tokens if t.squad is not None],
-        auto_players=("Player 2",),
+        auto_players=ai_players,
     )
     # The real line-of-sight test, so "visible to this model" means what it
     # means everywhere else rather than a second approximation of it. Named
@@ -979,30 +1127,30 @@ def main(map_key=None):
 
     living_lightning_controller = LivingLightningController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
-        game_state=state, auto_players=("Player 2",),
+        game_state=state, auto_players=ai_players,
         target_pick=_best_damage_target,
         visible=_psychic_visible,
     )
     matter_absorption_controller = MatterAbsorptionController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
-        game_state=state, auto_players=("Player 2",), target_pick=_best_damage_target,
+        game_state=state, auto_players=ai_players, target_pick=_best_damage_target,
     )
     crimson_harvest_controller = CrimsonHarvestController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
-        game_state=state, auto_players=("Player 2",), target_pick=_best_damage_target,
+        game_state=state, auto_players=ai_players, target_pick=_best_damage_target,
     )
     # Krootox Rampagers' Kroot Linebreakers - Crimson Harvest's sibling in
     # game/mortal_wound_abilities.py, on the same charge hook. It is the
     # only one that also owes a Battle-shock test, hence battle_shock.
     kroot_linebreakers_controller = KrootLinebreakersController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
-        game_state=state, auto_players=("Player 2",), target_pick=_best_damage_target,
+        game_state=state, auto_players=ai_players, target_pick=_best_damage_target,
         battle_shock=battle_shock_controller,
     )
     wraith_form_controller = WraithFormController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
         game_state=state, movement_controller=movement_controller,
-        auto_players=("Player 2",), target_pick=_best_damage_target,
+        auto_players=ai_players, target_pick=_best_damage_target,
     )
     # Retaliation Cadre's Internal Grenade Racks: Wraith Form's own trigger and
     # geometry (see game/enh_internal_grenade_racks.py), but per BEARER MODEL
@@ -1010,7 +1158,7 @@ def main(map_key=None):
     internal_grenade_racks_controller = InternalGrenadeRacksController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
         game_state=state, movement_controller=movement_controller,
-        auto_players=("Player 2",), target_pick=_best_damage_target,
+        auto_players=ai_players, target_pick=_best_damage_target,
     )
     # Retaliation Cadre's Puretide Engram Neurochip - NOT Commander Farsight's
     # "Puretide's Teachings" discount registered further down; two rules under
@@ -1024,23 +1172,23 @@ def main(map_key=None):
     # where it first clears last round's mark and then offers this round's.
     admired_leader_controller = AdmiredLeaderController(
         game_state=state, decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",))
+        auto_players=ai_players)
     # Spirit Conclave's Light of Clarity prints the SAME Command-phase sentence,
     # so it is the same machine with its own keyword clause and its own flag -
     # see game/command_phase_mark.py for why that is four carriers, not two.
     light_of_clarity_controller = LightOfClarityController(
         game_state=state, decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",))
+        auto_players=ai_players)
     # Stave of Kurnous - the same Command-phase sentence again, with the
     # TITANIC exclusion that only IT prints.
     stave_of_kurnous_controller = StaveOfKurnousController(
         game_state=state, decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",))
+        auto_players=ai_players)
     # Rune of Mists - the THIRD carrier of that same Command-phase sentence,
     # and the one that does NOT print the TITANIC exclusion above.
     rune_of_mists_controller = RuneOfMistsController(
         game_state=state, decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",))
+        auto_players=ai_players)
     # The two "target the bearer's unit with <NAMED> for 0CP" Enhancements -
     # one shared class, two names. Protector of the Paths is kept in a local
     # because its SECOND clause (the Snap Shooting threshold) reads the latch
@@ -1088,7 +1236,7 @@ def main(map_key=None):
     # two stratagems do - "just after an enemy unit has selected its targets".
     kroot_packmates_controller = KrootPackmatesController(
         decision_manager=decision_manager, game_state=state, turn_tracker=turn_tracker,
-        game_log=game_log, auto_players=("Player 2",),
+        game_log=game_log, auto_players=ai_players,
     )
     shooting_target_reactions = (
         stim_injectors_controller, ard_as_nails_controller, psychic_shield_controller,
@@ -1131,18 +1279,18 @@ def main(map_key=None):
     # datasheet, and both reach WRAITH CONSTRUCT units by range.
     spirit_mark_controller = SpiritMarkController(
         decision_manager=decision_manager, game_log=game_log, all_tokens=state.tokens,
-        auto_players=("Player 2",))
+        auto_players=ai_players)
     tears_of_isha_controller = TearsOfIshaController(
         dice_manager=dice_manager, decision_manager=decision_manager,
         game_log=game_log, game_state=state, all_tokens=state.tokens,
-        auto_players=("Player 2",))
+        auto_players=ai_players)
     # The Voidscarred's Piratical Raiders (a battle-long mark chosen before the
     # first turn) and Kharseth's Fury of the Void (a turn-long one placed by a
     # hit). Both ride the adjuster chain, so both are built before the attack
     # controllers that take them.
     piratical_raiders_controller = PiraticalRaidersController(
         game_log=game_log, decision_manager=decision_manager,
-        auto_players=("Player 2",))
+        auto_players=ai_players)
     fury_of_the_void_controller = FuryOfTheVoidController(
         decision_manager=decision_manager, game_log=game_log)
     doom_controller = DoomController(
@@ -1200,7 +1348,7 @@ def main(map_key=None):
     # and exists for exactly this - see game/movement.py's _begin_move().
     spirit_stone_controller = SpiritStoneOfRaelythController(
         game_state=state, decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",))
+        auto_players=ai_players)
     movement_controller.on_move_started.append(spirit_stone_controller.on_move_started)
     movement_controller.on_move_finished.append(spirit_stone_controller.on_move_finished)
     # The Spiritseer's Spirit Mark: "when this model STARTS OR ENDS a move" -
@@ -1214,7 +1362,7 @@ def main(map_key=None):
     higher_duty_controller = HigherDutyController(
         game_state=state, movement_controller=movement_controller,
         decision_manager=decision_manager, turn_tracker=turn_tracker,
-        game_log=game_log, auto_players=("Player 2",), all_tokens=state.tokens)
+        game_log=game_log, auto_players=ai_players, all_tokens=state.tokens)
     movement_controller.on_move_finished.append(higher_duty_controller.on_move_finished)
     movement_controller.on_move_finished.append(wraith_form_controller.on_move_finished)
     movement_controller.on_move_finished.append(
@@ -1270,7 +1418,7 @@ def main(map_key=None):
     # shooting movers stay next to each other.
     fire_and_fade_controller = FireAndFadeController(
         movement_controller=movement_controller, decision_manager=decision_manager,
-        all_tokens=state.tokens, game_log=game_log, auto_players=("Player 2",),
+        all_tokens=state.tokens, game_log=game_log, auto_players=ai_players,
     )
     # His OTHER ability: a mark placed on the unit he HIT, read by every
     # other KROOT unit in the army until the end of the turn.
@@ -1285,25 +1433,29 @@ def main(map_key=None):
     # exists for (added for Neocapacitor Shields).
     drone_harassment_controller = DroneHarassmentController(
         battle_shock=battle_shock_controller, decision_manager=decision_manager,
-        game_log=game_log, auto_players=("Player 2",), target_pick=_best_damage_target,
+        game_log=game_log, auto_players=ai_players, target_pick=_best_damage_target,
     )
     # Kroot Farstalkers' Bounty Hunters: chosen once before the battle and
     # read by BOTH attack steps, since its text says "an attack".
     bounty_hunters_controller = BountyHuntersController(
-        game_log=game_log, target_pick=_best_damage_target)
+        game_log=game_log, target_pick=_best_damage_target,
+        # target_pick stays the AI's ranking; decision_manager is what lets a
+        # HUMAN name their own bounty instead of having one estimated for them.
+        # This controller had neither and picked for both sides.
+        decision_manager=decision_manager, auto_players=ai_players)
     # The Vespid Strain Leader's Oversight Drone - offered from
     # ShootingController.start_shooting() only, like Nova Charge.
     oversight_drone_controller = OversightDroneController(
         decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",))
+        auto_players=ai_players)
     # Vespid Stingwings' Airborne Agility - offered at the END of a turn, to
     # whoever's turn it is NOT.
     ride_the_wind_controller = RideTheWindController(
         decision_manager=decision_manager, game_state=state, game_log=game_log,
-        all_tokens=state.tokens, auto_players=("Player 2",))
+        all_tokens=state.tokens, auto_players=ai_players)
     airborne_agility_controller = AirborneAgilityController(
         decision_manager=decision_manager, game_state=state, game_log=game_log,
-        auto_players=("Player 2",))
+        auto_players=ai_players)
     # Retaliation Cadre's Prototype Weapon System and Advanced Acquisition
     # Cadre's Unmasking Suite: both open on "selected to shoot" and close on
     # "until those attacks are resolved"/"until this unit has shot", which is
@@ -1311,10 +1463,10 @@ def main(map_key=None):
     # so both are passed in and driven from there, not from this loop.
     prototype_weapon_system_controller = PrototypeWeaponSystemController(
         decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",))
+        auto_players=ai_players)
     unmasking_suite_controller = UnmaskingSuiteController(
         game_state=state, decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",))
+        auto_players=ai_players)
     shooting_controller = ShootingController(
         obstacles=state.obstacles, game_log=game_log, dice_manager=dice_manager, turn_tracker=turn_tracker,
         all_tokens=state.tokens, movement_controller=movement_controller, terrain_areas=state.terrain_areas,
@@ -1404,7 +1556,7 @@ def main(map_key=None):
     # The Autarch's Superlative Strategist, and the seam it needed - see below.
     superlative_strategist_controller = SuperlativeStrategistController(
         dice_manager=dice_manager, decision_manager=decision_manager,
-        game_log=game_log, auto_players=("Player 2",))
+        game_log=game_log, auto_players=ai_players)
     face_of_death_controller = FaceOfDeathController(
         battle_shock_controller=battle_shock_controller,
         decision_manager=decision_manager, game_log=game_log)
@@ -1464,7 +1616,7 @@ def main(map_key=None):
     drakolithe_controller = DrakolitheController(
         dice_manager=dice_manager, decision_manager=decision_manager,
         game_log=game_log, game_state=state, all_tokens=state.tokens,
-        auto_players=("Player 2",))
+        auto_players=ai_players)
     movement_controller.drakolithe = drakolithe_controller
     # Corsair Skyreavers' Raid and Run. Its eligibility is SAMPLED during the
     # Fight phase - the same problem Retro-thrusters has and the same answer -
@@ -1472,12 +1624,12 @@ def main(map_key=None):
     raid_and_run_controller = RaidAndRunController(
         movement_controller=movement_controller, dice_manager=dice_manager,
         decision_manager=decision_manager, game_log=game_log,
-        all_tokens=state.tokens, auto_players=("Player 2",))
+        all_tokens=state.tokens, auto_players=ai_players)
     # The Starfangs' Hallucinogen Grenades fire at the start of the OPPONENT'S
     # Shooting phase, so the offer goes to the other player.
     hallucinogen_grenades_controller = HallucinogenGrenadesController(
         decision_manager=decision_manager, game_log=game_log,
-        all_tokens=state.tokens, auto_players=("Player 2",))
+        all_tokens=state.tokens, auto_players=ai_players)
     # The Clanblade's Cornered Prey is the only thing in the Fall Back flow
     # that needs the board; without it that controller degrades to "no bearer
     # nearby", which is what every harness gets.
@@ -1486,7 +1638,7 @@ def main(map_key=None):
     # phase, so it is offered from the phase change rather than from a hook.
     elemental_ensnarement_controller = ElementalEnsnarementController(
         dice_manager=dice_manager, decision_manager=decision_manager,
-        game_log=game_log, all_tokens=state.tokens, auto_players=("Player 2",))
+        game_log=game_log, all_tokens=state.tokens, auto_players=ai_players)
     shooting_controller.on_squad_finished_shooting.append(suppression_controller.offer_after_shooting)
     # The Falcon's Fire Support marks one unit it just hit - the same
     # "after this model has shot" moment Suppression Volley uses.
@@ -1564,12 +1716,41 @@ def main(map_key=None):
         state, obstacles=state.obstacles, all_tokens=state.tokens, game_log=game_log,
         board_width_in=board.width_in, board_height_in=board.height_in,
     )
+    # Rule 01.02.03: a model put back on the battlefield is SET UP, so a human
+    # sets it up. One controller for all eight abilities that return a model -
+    # see game/return_placement.py. It forks on auto_players: the AI lands on
+    # the spots the ability computed, exactly as before, and a human gets those
+    # spots as a starting point inside an ordinary SetupController placement.
+    #
+    # Built HERE because it needs setup_controller, which is constructed a few
+    # lines up - and assigned onto the abilities below rather than passed into
+    # their constructors, because those run ~600 lines earlier. main() is a
+    # 4000-line function in which construction order is real (Fehlerklasse 23),
+    # and test_event_chain_wiring.py section 4 checks exactly this shape.
+    return_placement_controller = ReturnPlacementController(
+        setup_controller=setup_controller, game_state=state, game_log=game_log,
+        auto_players=ai_players,
+    )
+    reanimation_controller.placer = return_placement_controller
+    grot_orderly_controller.placer = return_placement_controller
+    unquenchable_resolve_controller.placer = return_placement_controller
+    # The Resurrection Orb is a SECOND DOOR into reanimation_protocols.reanimate()
+    # - the army rule's own controller is not the only funnel (Fehlerklasse 9).
+    # Undying Legions is the third and is built AFTER this line, so it takes its
+    # placer as a constructor argument instead.
+    resurrection_orb_controller.placer = return_placement_controller
+
     # Rule 03.01's pre-game sequence. Built even when disabled (it just stays
     # IDLE) so every gate below can read it unconditionally.
     pregame_controller = PregameController(
         state, setup_controller, dice_manager, decision_manager,
         turn_tracker=turn_tracker, game_log=game_log,
         on_battle_start=lambda first_player: begin_battle(first_player),
+        # THE SAME live view every rule gate gets. It used to take the default
+        # ("Player 1"), so the pre-game believed in one human whatever
+        # config.AI_PLAYERS said - and with the AI mode off it waited forever
+        # for an opponent that no longer existed.
+        human_players=human_players,
     )
     # The DEATH GUARD army rule, Nurgle's Gift (game/nurgles_gift.py). Built
     # unconditionally, like the Awakened Dynasty protocols further down: with
@@ -1582,7 +1763,7 @@ def main(map_key=None):
         # The same single fact PregameController itself was constructed with,
         # read off it rather than repeated - a second literal "Player 1" here
         # is exactly how the two would drift apart.
-        human_player=pregame_controller.human_player, game_log=game_log,
+        human_players=pregame_controller.human_players, game_log=game_log,
     )
     nurgles_gift_controller = NurglesGiftController(
         turn_tracker=turn_tracker, game_log=game_log, plague_choice=plague_choice,
@@ -1605,18 +1786,26 @@ def main(map_key=None):
     # a game with no Death Guard in it.
     barrage_of_filth_controller = BarrageOfFilthController(
         decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",), target_pick=_best_damage_target,
+        auto_players=ai_players, target_pick=_best_damage_target,
     )
     shooting_controller.barrage_of_filth = barrage_of_filth_controller
     pestilent_fallout_controller = PestilentFalloutController(
         turn_tracker=turn_tracker, game_log=game_log,
-        auto_players=("Player 2",), target_pick=_best_damage_target,
+        auto_players=ai_players, target_pick=_best_damage_target,
+        # target_pick is the AI's ranking and stays that; decision_manager is
+        # what lets a HUMAN pick instead of having it applied to them. This
+        # controller had auto_players and no way to ask - see its own comment.
+        decision_manager=decision_manager,
     )
     lethal_ichor_controller = LethalIchorController(
         dice_manager=dice_manager, game_log=game_log,
     )
     curse_of_the_walking_pox_controller = CurseOfTheWalkingPoxController(
         game_log=game_log, game_state=state, position_valid=_necron_position_valid,
+        # Built after setup_controller, so this one can take the placer
+        # directly - the two above are constructed ~700 lines earlier and get
+        # it assigned instead (Fehlerklasse 23).
+        placer=return_placement_controller,
     )
     spore_laced_controller = SporeLacedShockWavesController(
         dice_manager=dice_manager, game_log=game_log, game_state=state,
@@ -1630,7 +1819,7 @@ def main(map_key=None):
     shooting_controller.spore_laced = spore_laced_controller
     eater_plague_controller = EaterPlagueController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
-        game_state=state, auto_players=("Player 2",), target_pick=_best_damage_target,
+        game_state=state, auto_players=ai_players, target_pick=_best_damage_target,
         visible=_psychic_visible,
         # The printed TYPHUS clause of Curse of the Walking Pox: models killed
         # by this psychic power count as killed by a POXWALKER attack. Wired
@@ -1682,6 +1871,19 @@ def main(map_key=None):
     # armies, so an empty first look is not final. Settles on the first frame
     # that can see both armies and is never recomputed after that.
     player_factions = {}
+
+    def current_player_factions():
+        """{player: faction keyword}, derived once and then reused.
+
+        TWO readers, which is why it is a function and not two copies of the
+        same three lines: the Game Status panel's badge row, and the turn-start
+        banner's own badge (user: "baue dort bitte auch das fraktions Logo
+        ein"). A second copy is how one of them ends up answering with a
+        half-built pre-game roster while the other has settled."""
+        nonlocal player_factions
+        if len(player_factions) < 2:
+            player_factions = derive_player_factions(_all_squads(state, pregame_controller))
+        return player_factions
 
     ingress_controller = IngressController(
         setup_controller, state, state.tokens, game_log=game_log, turn_tracker=turn_tracker,
@@ -1836,7 +2038,7 @@ def main(map_key=None):
     ))
     layered_wards_controller = LayeredWardsController(
         stratagem_controller, decision_manager=decision_manager,
-        game_log=game_log, auto_players=("Player 2",),
+        game_log=game_log, auto_players=ai_players,
     )
     # "Any phase, when a friendly AELDARI VEHICLE unit suffers a mortal wound."
     # MortalWoundAllocationSession is built at a dozen call sites and rolls
@@ -1848,7 +2050,7 @@ def main(map_key=None):
     vectored_engines_controller = VectoredEnginesController(
         stratagem_controller, turn_tracker=turn_tracker,
         decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",),
+        auto_players=ai_players,
     )
 
     # --- Path of the Outcast's three --------------------------------------
@@ -1859,16 +2061,16 @@ def main(map_key=None):
     eldritch_suppression_controller = EldritchSuppressionController(
         stratagem_controller, battle_shock_controller=battle_shock_controller,
         shooting_controller=shooting_controller, decision_manager=decision_manager,
-        game_log=game_log, auto_players=("Player 2",),
+        game_log=game_log, auto_players=ai_players,
     )
     casting_back_the_veil_controller = CastingBackTheVeilController(
         stratagem_controller, decision_manager=decision_manager,
-        game_log=game_log, auto_players=("Player 2",),
+        game_log=game_log, auto_players=ai_players,
     )
     nomads_controller = NomadsOfTheHiddenWayController(
         stratagem_controller, movement_controller=movement_controller,
         dice_manager=dice_manager, decision_manager=decision_manager,
-        game_log=game_log, auto_players=("Player 2",),
+        game_log=game_log, auto_players=ai_players,
     )
     for _outcast in (eldritch_suppression_controller, casting_back_the_veil_controller,
                      nomads_controller):
@@ -1895,7 +2097,7 @@ def main(map_key=None):
     shield_nodes_controller = ShieldNodesController(
         stratagem_controller, turn_tracker=turn_tracker, objectives=state.objectives,
         decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",),
+        auto_players=ai_players,
     )
     # "just after an enemy unit has selected its targets" - the same instant
     # Stim Injectors and Psychic Shield react at, in BOTH phases because its
@@ -1907,12 +2109,12 @@ def main(map_key=None):
         stratagem_controller, shooting_controller=shooting_controller,
         turn_tracker=turn_tracker, game_state=state,
         decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",),
+        auto_players=ai_players,
     )
     cost_of_victory_controller = CostOfVictoryController(
         stratagem_controller, game_state=state, turn_tracker=turn_tracker,
         all_tokens=state.tokens, decision_manager=decision_manager,
-        game_log=game_log, auto_players=("Player 2",),
+        game_log=game_log, auto_players=ai_players,
     )
     # --- Windrider Host's six -------------------------------------------
     # Four panel buttons, one reactive save and one end-of-phase move. All
@@ -1947,7 +2149,7 @@ def main(map_key=None):
     spiralling_evasion_controller = SpirallingEvasionController(
         stratagem_controller, turn_tracker=turn_tracker,
         decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",),
+        auto_players=ai_players,
     )
     # A TUPLE on this controller and a list on the fight one - the two
     # were built differently, so appending here is the wrong verb.
@@ -1956,7 +2158,7 @@ def main(map_key=None):
     overflight_controller = OverflightController(
         stratagem_controller, movement_controller=movement_controller,
         turn_tracker=turn_tracker, decision_manager=decision_manager,
-        game_log=game_log, auto_players=("Player 2",),
+        game_log=game_log, auto_players=ai_players,
     )
     # --- Warhost's six ---------------------------------------------------
     blitzing_firepower_controller = proactive_stratagems.add(BlitzingFirepowerController(
@@ -1969,7 +2171,7 @@ def main(map_key=None):
     lightning_fast_reactions_controller = LightningFastReactionsController(
         stratagem_controller, turn_tracker=turn_tracker,
         decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",),
+        auto_players=ai_players,
     )
     shooting_controller.target_reactions = tuple(
         shooting_controller.target_reactions) + (lightning_fast_reactions_controller,)
@@ -1977,7 +2179,7 @@ def main(map_key=None):
     feigned_retreat_controller = FeignedRetreatController(
         stratagem_controller, turn_tracker=turn_tracker,
         decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",),
+        auto_players=ai_players,
     )
     # "Just after an ASURYANI unit Falls Back" - a moment this engine did not
     # publish until now. ASSIGNED rather than appended to: the controller's
@@ -1989,7 +2191,7 @@ def main(map_key=None):
         stratagem_controller, movement_controller=movement_controller,
         turn_tracker=turn_tracker, dice_manager=dice_manager,
         decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",),
+        auto_players=ai_players,
     )
     shooting_controller.on_squad_finished_shooting.append(
         warhost_fire_and_fade_controller.offer_after_shooting)
@@ -1998,7 +2200,7 @@ def main(map_key=None):
         all_tokens=state.tokens, board_width_in=config.BOARD_WIDTH_IN,
         board_height_in=config.BOARD_HEIGHT_IN,
         decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",),
+        auto_players=ai_players,
     )
     # Skyborne Sanctuary is printed by TWO detachments, word for word - one
     # module, one instance per printing, each with its own gate. Aspect Host's
@@ -2009,7 +2211,7 @@ def main(map_key=None):
             fight_controller=fight_controller, game_state=state,
             all_tokens=state.tokens, turn_tracker=turn_tracker,
             decision_manager=decision_manager, game_log=game_log,
-            auto_players=("Player 2",),
+            auto_players=ai_players,
         )
         for setting in (martial_grace.SETTING,)
     ]
@@ -2020,7 +2222,7 @@ def main(map_key=None):
             observer, target, state.obstacles, state.tokens)),
         shooting_controller=shooting_controller, fight_controller=fight_controller,
         turn_tracker=turn_tracker, decision_manager=decision_manager,
-        game_log=game_log, auto_players=("Player 2",),
+        game_log=game_log, auto_players=ai_players,
     ))
     blades_from_beyond_controller = proactive_stratagems.add(BladesFromBeyondController(
         stratagem_controller, fight_controller=fight_controller,
@@ -2029,27 +2231,27 @@ def main(map_key=None):
     soul_bridge_controller = proactive_stratagems.add(SoulBridgeController(
         stratagem_controller, all_tokens=state.tokens, turn_tracker=turn_tracker,
         decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",),
+        auto_players=ai_players,
     ))
     spirit_token_controller = proactive_stratagems.add(SpiritTokenController(
         stratagem_controller, objectives=state.objectives,
         movement_controller=movement_controller, turn_tracker=turn_tracker,
         decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",),
+        auto_players=ai_players,
     ))
     # Wraithbone Armour reacts in BOTH attack phases, like Lightning-Fast
     # Reactions above.
     wraithbone_armour_controller = WraithboneArmourController(
         stratagem_controller, turn_tracker=turn_tracker,
         decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",),
+        auto_players=ai_players,
     )
     shooting_controller.target_reactions = tuple(
         shooting_controller.target_reactions) + (wraithbone_armour_controller,)
     fight_controller.target_reactions.append(wraithbone_armour_controller)
     crushing_strides_controller = CrushingStridesController(
         dice_manager=dice_manager, decision_manager=decision_manager,
-        game_log=game_log, game_state=state, auto_players=("Player 2",),
+        game_log=game_log, game_state=state, auto_players=ai_players,
         target_pick=_best_damage_target,
         stratagem_controller=stratagem_controller, turn_tracker=turn_tracker,
     )
@@ -2069,7 +2271,7 @@ def main(map_key=None):
         PreternaturalPrecisionController(
             stratagem_controller, shooting_controller=shooting_controller,
             turn_tracker=turn_tracker, decision_manager=decision_manager,
-            game_log=game_log, auto_players=("Player 2",),
+            game_log=game_log, auto_players=ai_players,
         ))
     # To Their Final Breath is Undying Spite's twin, so it takes the same three
     # seams: the Fight-phase reaction list, the death sweep, and the
@@ -2077,13 +2279,13 @@ def main(map_key=None):
     to_their_final_breath_controller = ToTheirFinalBreathController(
         stratagem_controller, fight_controller=fight_controller, game_state=state,
         turn_tracker=turn_tracker, decision_manager=decision_manager,
-        game_log=game_log, auto_players=("Player 2",),
+        game_log=game_log, auto_players=ai_players,
     )
     fight_controller.target_reactions.append(to_their_final_breath_controller)
     khaines_vengeance_controller = KhainesVengeanceController(
         stratagem_controller, dice_manager=dice_manager, all_tokens=state.tokens,
         turn_tracker=turn_tracker, decision_manager=decision_manager,
-        game_log=game_log, auto_players=("Player 2",),
+        game_log=game_log, auto_players=ai_players,
     )
     # "Just after an enemy unit IS SELECTED to Fall Back" - the OTHER Fall Back
     # instant, one word apart from Feigned Retreat's.
@@ -2096,7 +2298,7 @@ def main(map_key=None):
         transport_controller=transport_controller, fight_controller=fight_controller,
         game_state=state, all_tokens=state.tokens, turn_tracker=turn_tracker,
         decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",),
+        auto_players=ai_players,
     ))
     # Vaul's Vengeance fires "after that enemy unit has finished making its
     # attacks", which is one instant in each attack phase.
@@ -2152,16 +2354,23 @@ def main(map_key=None):
     wall_of_mirrors_controller = WallOfMirrorsController(
         stratagem_controller, game_state=state, turn_tracker=turn_tracker,
         all_tokens=state.tokens, decision_manager=decision_manager, game_log=game_log,
+        # auto_players, like every other reactive Stratagem: this controller
+        # READS it and never used to be given it, so the AI fell through to
+        # _maybe_resolve_decision() and paid a real API call. Inert until now
+        # only because no shipped list fields this detachment.
+        auto_players=ai_players,
     )
     photon_grenades_controller = PhotonGrenadesController(
         stratagem_controller, turn_tracker=turn_tracker, all_tokens=state.tokens,
         battle_shock_controller=battle_shock_controller,
         decision_manager=decision_manager, game_log=game_log,
+        auto_players=ai_players,
     )
     combat_embarkation_controller = CombatEmbarkationController(
         stratagem_controller, transport_controller=transport_controller,
         turn_tracker=turn_tracker, all_tokens=state.tokens,
         decision_manager=decision_manager, game_log=game_log,
+        auto_players=ai_players, charge_controller=charge_controller,
     )
     # Both react to "an enemy unit has declared a charge". The list is CHAINED
     # (see game/charge.py), so each gets its own window instead of the first
@@ -2190,6 +2399,7 @@ def main(map_key=None):
     pinpoint_controller = PinpointCounterOffensiveController(
         stratagem_controller, turn_tracker=turn_tracker,
         decision_manager=decision_manager, game_log=game_log,
+        auto_players=ai_players,
     )
     # Read by BOTH attack steps - "an attack", not "a ranged attack".
     shooting_controller.pinpoint_counter_offensive = pinpoint_controller
@@ -2197,12 +2407,14 @@ def main(map_key=None):
     pulse_onslaught_controller = PulseOnslaughtController(
         stratagem_controller, turn_tracker=turn_tracker,
         decision_manager=decision_manager, game_log=game_log,
+        auto_players=ai_players,
     )
     shooting_controller.on_squad_finished_shooting.append(
         pulse_onslaught_controller.offer_after_shooting)
     counterfire_defence_controller = CounterfireDefenceController(
         stratagem_controller, turn_tracker=turn_tracker,
         decision_manager=decision_manager, game_log=game_log,
+        auto_players=ai_players,
     )
     # "just after an enemy unit has selected its targets" - the same instant
     # Stim Injectors and Kroot Packmates react at.
@@ -2210,10 +2422,18 @@ def main(map_key=None):
         counterfire_defence_controller,)
 
     # --- Advanced Acquisition Cadre's three -------------------------------
-    marker_beacon_controller = proactive_stratagems.add(MarkerBeaconController(
+    # NOT on the proactive registry: its printed WHEN is "End of your Movement
+    # phase", and Objective.controlled_by is only recomputed at a phase
+    # boundary (14.02) - so a mid-phase button could only ever see the board as
+    # it stood BEFORE anything moved, which is the one case the Stratagem is
+    # not for. Offered from the end-of-Movement-phase block instead, right
+    # after update_control(). Reported: "Stratagem marker beacon wird nie
+    # angeboten".
+    marker_beacon_controller = MarkerBeaconController(
         stratagem_controller, turn_tracker=turn_tracker, objectives=state.objectives,
         all_tokens=state.tokens, decision_manager=decision_manager, game_log=game_log,
-    ))
+        auto_players=ai_players,
+    )
     microdrone_support_controller = proactive_stratagems.add(MicrodroneSupportController(
         stratagem_controller, action_controller=action_controller,
         turn_tracker=turn_tracker, game_log=game_log,
@@ -2228,6 +2448,7 @@ def main(map_key=None):
                                      shooting_controller.last_ranged_attack_turn)
             for m in squad.models if not m.is_dead()),
         decision_manager=decision_manager, game_log=game_log,
+        auto_players=ai_players,
     )
     shooting_controller.target_reactions = tuple(shooting_controller.target_reactions) + (
         autoreactive_camouflage_controller,)
@@ -2254,7 +2475,7 @@ def main(map_key=None):
     sudden_storm_controller = SuddenStormController(
         stratagem_controller, turn_tracker=turn_tracker, game_log=game_log,
         dice_manager=dice_manager, decision_manager=decision_manager,
-        auto_players=("Player 2",),
+        auto_players=ai_players,
     )
     conquering_tyrant_controller = ConqueringTyrantController(
         stratagem_controller, turn_tracker=turn_tracker,
@@ -2263,12 +2484,16 @@ def main(map_key=None):
     undying_legions_controller = UndyingLegionsController(
         stratagem_controller, dice_manager=dice_manager,
         decision_manager=decision_manager, game_log=game_log, game_state=state,
-        position_valid=_necron_position_valid, auto_players=("Player 2",),
+        position_valid=_necron_position_valid, auto_players=ai_players,
+        # Rule 01.02.03: the models this Stratagem brings back are SET UP, so a
+        # human sets them up. Built after return_placement_controller, hence a
+        # constructor argument rather than an assignment.
+        placer=return_placement_controller,
     )
     eternal_revenant_controller = EternalRevenantController(
         stratagem_controller, decision_manager=decision_manager, game_log=game_log,
         game_state=state, position_valid=_necron_position_valid,
-        auto_players=("Player 2",),
+        auto_players=ai_players,
     )
 
     def _vengeful_stars_worth_it(avenger, killer):
@@ -2281,7 +2506,7 @@ def main(map_key=None):
     vengeful_stars_controller = VengefulStarsController(
         stratagem_controller, decision_manager=decision_manager, game_log=game_log,
         game_state=state, shooting_controller=shooting_controller,
-        turn_tracker=turn_tracker, auto_players=("Player 2",),
+        turn_tracker=turn_tracker, auto_players=ai_players,
         worth_using=_vengeful_stars_worth_it,
     )
 
@@ -2317,7 +2542,7 @@ def main(map_key=None):
     sickening_impact_controller = SickeningImpactController(
         stratagem_controller, dice_manager=dice_manager,
         decision_manager=decision_manager, turn_tracker=turn_tracker,
-        game_log=game_log, game_state=state, auto_players=("Player 2",),
+        game_log=game_log, game_state=state, auto_players=ai_players,
     )
 
     def _undying_spite_worth_it(attacker, defender):
@@ -2336,7 +2561,7 @@ def main(map_key=None):
         stratagem_controller, dice_manager=dice_manager,
         decision_manager=decision_manager, turn_tracker=turn_tracker,
         fight_controller=fight_controller, game_log=game_log, game_state=state,
-        auto_players=("Player 2",), worth_using=_undying_spite_worth_it,
+        auto_players=ai_players, worth_using=_undying_spite_worth_it,
     )
     # "Just after an enemy unit has selected its targets" - the list every
     # reaction of that timing sits in. Appended rather than passed at
@@ -2357,14 +2582,14 @@ def main(map_key=None):
     # attack controllers are handed it.
     fated_hero_controller = FatedHeroController(
         game_state=state, game_log=game_log, decision_manager=decision_manager,
-        auto_players=("Player 2",))
+        auto_players=ai_players)
     # Yvraine's Herald of Ynnead marks an enemy unit at the start of the
     # Fight phase and BOTH attack steps read it - "makes an attack", not
     # "a melee attack" - so it is built here beside Fated Hero, which has
     # the same two readers for the same reason.
     herald_of_ynnead_controller = HeraldOfYnneadController(
         decision_manager=decision_manager, game_log=game_log,
-        all_tokens=state.tokens, auto_players=("Player 2",))
+        all_tokens=state.tokens, auto_players=ai_players)
     fight_controller.herald_of_ynnead = herald_of_ynnead_controller
     shooting_controller.herald_of_ynnead = herald_of_ynnead_controller
     # Aspect Host's Path of the Warrior: one choice per unit per phase, made
@@ -2373,7 +2598,7 @@ def main(map_key=None):
     # reason - two readers, so it has to exist before either is finished.
     path_of_the_warrior_controller = PathOfTheWarriorController(
         decision_manager=decision_manager, game_log=game_log,
-        turn_tracker=turn_tracker, auto_players=("Player 2",))
+        turn_tracker=turn_tracker, auto_players=ai_players)
     fight_controller.path_of_the_warrior = path_of_the_warrior_controller
     shooting_controller.path_of_the_warrior = path_of_the_warrior_controller
     # Armoured Warhost's Guiding Presence: chosen at the start of its owner's
@@ -2384,7 +2609,7 @@ def main(map_key=None):
     # Seer's Eye takes.
     guiding_presence_controller = GuidingPresenceController(
         game_state=state, decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",),
+        auto_players=ai_players,
         visible=lambda observer, other: line_of_sight.has_line_of_sight(
             observer, other, state.obstacles, state.tokens, state.terrain_areas),
     )
@@ -2403,14 +2628,14 @@ def main(map_key=None):
     word_of_the_phoenix_controller = WordOfThePhoenixController(
         dice_manager=dice_manager, game_state=state, game_log=game_log,
         setup_controller=setup_controller, all_tokens=state.tokens,
-        decision_manager=decision_manager, auto_players=("Player 2",))
+        decision_manager=decision_manager, auto_players=ai_players)
     # Inevitable Death moves a LIVING model to where somebody else died,
     # so unlike every other user of this shape it returns nothing to the
     # board and only needs the spot search.
     inevitable_death_controller = InevitableDeathController(
         game_state=state, game_log=game_log, decision_manager=decision_manager,
         setup_controller=setup_controller, all_tokens=state.tokens,
-        turn_tracker=turn_tracker, auto_players=("Player 2",))
+        turn_tracker=turn_tracker, auto_players=ai_players)
     fight_controller.fated_hero = fated_hero_controller
     # Raid and Run samples "was eligible to fight this phase" off the fight
     # controller, which is built after it - so the back-reference is filled in
@@ -2431,6 +2656,18 @@ def main(map_key=None):
             if undying_legions_controller.maybe_offer(target):
                 break
         vengeful_stars_controller.maybe_offer()
+        # Mont'ka's Pinpoint Counter-Offensive: the death sweep regularly
+        # cannot name the killer (active_squad is already None once the
+        # activation has closed, which is exactly the case where a unit was
+        # wiped out), so it stashes the death and is answered HERE, where the
+        # attacker arrives as an argument. Same deferral as Vengeful Stars
+        # directly above, and for the same reason.
+        pinpoint_controller.maybe_offer(shooter_squad)
+        # Overflight's kill ledger has the same hole and is settled the same
+        # way: the sweep hands it killer_squad=None whenever the last weapon
+        # group of an activation wipes a unit, which is the ordinary way a
+        # Windrider unit destroys something.
+        overflight_controller.credit_owed_kills(shooter_squad)
 
     shooting_controller.on_squad_finished_shooting.append(_necron_after_enemy_shooting)
 
@@ -2467,6 +2704,13 @@ def main(map_key=None):
             # Vaul's Vengeance: "after that enemy unit has finished making its
             # attacks" - the melee half of the same instant.
             vauls_vengeance_controller.on_attacker_finished(_fighter)
+            # Pinpoint Counter-Offensive's WHEN is "any phase", so the melee
+            # attacker answers the same owed deaths the shooting hook does.
+            pinpoint_controller.maybe_offer(_fighter)
+            # Overflight's Fight-phase half needs the same settlement - it is
+            # the half that belongs to nobody, so it fires in the opponent's
+            # turn too.
+            overflight_controller.credit_owed_kills(_fighter)
         if _previous_finished_fighting is not None:
             _previous_finished_fighting(*args)
 
@@ -2558,7 +2802,7 @@ def main(map_key=None):
     lucid_eye_controller = LucidEyeController(
         game_state=state, fate_pool=fate_dice_pool,
         decision_manager=decision_manager, game_log=game_log,
-        auto_players=("Player 2",))
+        auto_players=ai_players)
     # Windrider Host's Echoes of Ulthanesh - the deployment ZONES are the real
     # condition, so it gets the shapes rather than a board half.
     echoes_of_ulthanesh_controller = EchoesOfUlthaneshController(
@@ -2592,11 +2836,36 @@ def main(map_key=None):
     # Rule 15.12: fight_controller can't take a CounteroffensiveController
     # constructor dependency (this controller needs a FightController
     # reference itself) - wired as a plain callback instead.
-    fight_controller.on_unit_finished_fighting = lambda squad: counteroffensive_controller.offer_after(squad, decision_manager)
+    #
+    # CHAINED, not assigned. on_unit_finished_fighting is a single SLOT, and a
+    # plain assignment here silently threw away the seven abilities the block
+    # ~120 lines above hangs off the same instant (Undying Legions, Curse of
+    # the Walking Pox, Lethal Ichor, Undying Spite, To Their Final Breaths,
+    # Malevolent Souls, Vaul's Vengeance). Every one of them had a green suite,
+    # because those drive the controllers directly - only the source shows a
+    # slot being written twice. test_event_chain_wiring.py section 9 now
+    # refuses a second bare assignment to any single-slot callback in main().
+    #
+    # ORDER: the after-attack abilities resolve first and the Counteroffensive
+    # offer last - 15.12 reacts to a fight that is over, so everything that
+    # fight still owes has to have happened by then.
+    _fight_finished_before_counteroffensive = fight_controller.on_unit_finished_fighting
+
+    def _after_unit_finished_fighting(squad):
+        if _fight_finished_before_counteroffensive is not None:
+            _fight_finished_before_counteroffensive(squad)
+        counteroffensive_controller.offer_after(squad, decision_manager)
+
+    fight_controller.on_unit_finished_fighting = _after_unit_finished_fighting
     consolidate_controller = ConsolidateController(
         game_log=game_log, turn_tracker=turn_tracker, all_tokens=state.tokens,
         movement_controller=movement_controller, fight_controller=fight_controller, objectives=state.objectives,
     )
+    # Battle Focus' Sudden Strike is offered in a second window, just before
+    # the unit makes its Consolidation move - see can_sudden_strike(). Wired
+    # HERE and not at the pool's constructor ~100 lines up, because this
+    # controller does not exist yet up there.
+    battle_focus_pool.consolidate_controller = consolidate_controller
     coherency_enforcer = CoherencyEnforcer(all_tokens=state.tokens, game_log=game_log)
     renderer = Renderer(render_scale=render_ppi / config.PIXELS_PER_INCH)
     action_panel = ActionPanel()
@@ -2615,8 +2884,14 @@ def main(map_key=None):
     decision_overlay = DecisionOverlay()
     stratagem_notice_overlay = StratagemNoticeOverlay()
     waaagh_notice_overlay = WaaaghNoticeOverlay()
+    ai_offline_overlay = AIOfflineOverlay()
     turn_start_overlay = TurnStartOverlay()
     fight_warning_overlay = FightWarningOverlay()
+    army_rules_overlay = ArmyRulesOverlay()
+    # The in-game half of the game menu (user: "im spiel öffnet ein druck auf
+    # ESC das menü"). Same object as the startup screen, different host - see
+    # game/ui/game_menu.py for why the two are one class.
+    game_menu = GameMenu(in_game=True)
     turn_plan_overlay = TurnPlanOverlay()
     # User: "immer wenn die KI ein Stratagem benutzt will ich ein prompt
     # haben... das ich wegklicken muss" - only when the ACTING player is
@@ -2635,6 +2910,7 @@ def main(map_key=None):
     )
     player_banner = PlayerBanner()
     unit_datacard = UnitDatacardOverlay()
+    stratagem_tooltip = StratagemTooltip()
     agent = ClaudeAgent(model=config.AI_MODEL, planning_model=config.AI_PLANNING_MODEL)  # swap for MockAgent() for a free/offline smoke test
     ai_memory = AIMemory()
     last_shown_turn_plan = None  # object identity of the AIMemory.turn_plan last shown via turn_plan_overlay - see run_ai_action()
@@ -2644,6 +2920,22 @@ def main(map_key=None):
     # reminder - goes through this one object, so the three read as the same
     # HUD element instead of three hand-drawn rects that drift apart.
     ai_busy_badge = AiBusyBadge()
+    ai_toggle_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE, bold=True)
+    # Where the switch was drawn LAST frame. The rect is produced by drawing,
+    # and the click arrives before the next draw, so the hit-test reads this
+    # rather than recomputing the geometry - two computations of one rect is
+    # how a control ends up clickable somewhere it is not drawn.
+    ai_toggle_rect = None
+
+    def _set_ai_mode(on, source):
+        """The one place the mode changes, so every route logs it the same.
+
+        The log line is what made the reported bug legible in the first place
+        ("Player 2: auto-play OFF" at line 17, a CP spent at line 175), so it
+        keeps its shape and gains the source that flipped it."""
+        ai_mode.set_enabled(on)
+        game_log.add(f"Player 2: AI mode {'ON' if on else 'OFF'} ({source}).")
+        return on
     # The side panels are the only things covered while the AI is busy (User:
     # "damit man nicht in die Versuchung kommt, irgendwelche Knoepfe druecken
     # zu wollen") - the board itself stays fully legible, which was the whole
@@ -2758,6 +3050,18 @@ def main(map_key=None):
     # has_valid_target() per candidate squad, itself a full LOS/range sweep
     # - uncached, that would re-run every rendered frame the screen stays
     # open AND a second time per click attempt.
+    def board_unit_pick():
+        """The pending decision as a CLICK-A-UNIT-ON-THE-BOARD pick, or None.
+
+        Derived fresh rather than cached in a frame local, because resolving one
+        pick can enqueue the next decision inside the very same event (Burden of
+        Trust walks one objective at a time), and a record captured at the top
+        of the frame would then be answering for a question that is already
+        gone. game/unit_pick.pending() is the ONE definition; the event branch,
+        the left panel, the board highlight and the decision overlay all read
+        this and nothing else, so they cannot disagree about who is eligible."""
+        return unit_pick.pending(decision_manager, state.tokens)
+
     fire_overwatch_targets_cache = {"key": None, "result": set()}
 
     def get_fire_overwatch_eligible_squads():
@@ -2801,7 +3105,7 @@ def main(map_key=None):
         # reason (the first moment both armies are fully on the table).
         enh_strategic_conqueror.offer(
             state.all_squads(), state.objectives, decision_manager=decision_manager,
-            game_log=game_log, auto_players=("Player 2",))
+            game_log=game_log, auto_players=ai_players)
 
         # Battle round 1's tokens. advance_turn_phase() would hand them out at
         # the first phase change anyway (sync_battle_round() is idempotent),
@@ -2829,7 +3133,8 @@ def main(map_key=None):
         command_points.gain_core_cp()
         for objective in state.objectives:
             objective.update_control(state.tokens)
-        mission_controller.score_primary(state.objectives, turn_tracker.active_player)
+        mission_controller.score_primary(state.objectives, turn_tracker.active_player,
+                                         turn_tracker.battle_round)
         # Round 1's two Secondary Mission cards, for the same reason the three
         # lines above run here: advance_turn_phase() never runs for the battle's
         # very first Command phase, so the draw would otherwise be a round late.
@@ -2855,7 +3160,12 @@ def main(map_key=None):
         # way so that if that ever changes, an answer beats an announcement.
         # battle_end_overlay ahead of all of them: once the battle is over
         # nothing else is worth reading, and nothing behind it can be acted on.
-        for overlay in (battle_end_overlay,
+        # ai_offline_overlay right behind battle_end: it does not announce
+        # something that happened IN the battle, it announces that the AI has
+        # stopped playing it - so every notice behind it is about a game whose
+        # rules of engagement just changed, and reading them first would be
+        # reading them under a false assumption.
+        for overlay in (battle_end_overlay, ai_offline_overlay,
                         fight_warning_overlay, turn_start_overlay, turn_plan_overlay,
                         mission_draw_overlay, stratagem_notice_overlay, waaagh_notice_overlay):
             if overlay.is_pending:
@@ -2866,6 +3176,12 @@ def main(map_key=None):
         """Rule 07.01: raise the result once the last round has been played.
         Idempotent - BattleEndOverlay.show() only ever fires once."""
         if turn_tracker.battle_over:
+            # The Primary's "FINAL SCORING" box (Unstoppable Force's central
+            # objectives) pays here, BEFORE the overlay reads the ledger -
+            # scoring after it would show a final score missing its last 5 VP.
+            # Idempotent on its own, exactly like show() below, because this
+            # runs on every frame once the battle is over.
+            primary_mission_controller.score_end_of_battle()
             battle_end_overlay.show(mission_controller)
 
     def advance_turn_phase():
@@ -3036,6 +3352,41 @@ def main(map_key=None):
         # chosen once and lasts the battle, so it is not touched here.
         tempting_trap_controller.reset_phase(_detachment_squads)
         photon_grenades_controller.reset_phase(_detachment_squads)
+        # The end-of-phase reaction windows (see game/phase_window.py).
+        # Cleared HERE, which runs before this boundary's own offers further
+        # down, so the previous window is gone before a new one is armed.
+        wall_of_mirrors_controller.reset_phase()
+        cost_of_victory_controller.reset_phase()
+        webway_tunnel_controller.reset_phase()
+        marker_beacon_controller.reset_phase()
+        # Both printings of Skyborne Sanctuary. They used to read the live
+        # clock instead, which at this seam has already rolled past Fight all
+        # the way to Command - so neither was ever offered.
+        for _skyborne in skyborne_sanctuary_controllers:
+            _skyborne.reset_phase()
+        # An unattributed death does not outlive the phase it happened in.
+        pinpoint_controller.reset_phase()
+        # Mont'ka's Killing Blow is not a Stratagem and expires nothing - this
+        # RE-DERIVES Squad.montka_killing_blow, which is how the detachment
+        # rule reaches game/coldstar.py's weapon_has_assault() (rule 10.05)
+        # without threading a turn_tracker through _attack_groups()'s eleven
+        # call sites on the hottest shooting path.
+        #
+        # HERE rather than per-frame because nothing it reads is geometric,
+        # which is the whole reason game/nurgles_gift.py sweeps every frame:
+        # the detachment setting is written once by detachments.apply_to_config()
+        # before the battle, the faction keyword is a datasheet reference, and
+        # the only input that moves at all is turn_tracker.battle_round - which
+        # moves inside the advance_phase() call at the top of this function.
+        # Every phase change rather than only a round change, for the reason
+        # battle_focus_pool.sync_battle_round() gives below: an idempotent
+        # refresh must not depend on catching one exact moment.
+        #
+        # On-board units only, like every reset around it. That cannot go
+        # stale: the flag is read from available_shooting_types() during a
+        # Shooting phase, and a unit arriving from Reserves cannot move again
+        # that phase, so rule 10.05 never asks about one that missed a stamp.
+        montka.refresh_killing_blow(_detachment_squads, turn_tracker)
         aggressive_mobility_controller.reset_phase(_detachment_squads)
         combat_debarkation_controller.reset_phase(_detachment_squads)
         focused_fire_controller.reset_phase(_detachment_squads)
@@ -3135,31 +3486,43 @@ def main(map_key=None):
         if mover_before is not None:
             resurrection_orb_controller.offer_at_end_of_phase({t.squad for t in state.tokens if t.squad is not None}, mover_before)
         # Overflight: "End of your Shooting phase or the end of the Fight
-        # phase". One offer covering both, because can_use() is what knows
-        # which side of the table each half belongs to - the Shooting half is
-        # the turn owner's, the Fight half is nobody's.
-        if phase_before in (PHASE_SHOOTING, PHASE_FIGHT):
-            overflight_controller.offer_at_end_of_phase(
-                {t.squad for t in state.tokens if t.squad is not None})
+        # phase". One offer covering both, and the controller now owns which
+        # side of the table each half belongs to - so it is handed the two
+        # facts it cannot read here any more: `phase_before` and
+        # `mover_before`, both captured BEFORE advance_phase(). It used to
+        # read turn_tracker.phase and turn_tracker.turn_owner itself, and by
+        # this point both have already moved on, so it was never offered.
+        overflight_controller.offer_at_end_of_phase(
+            {t.squad for t in state.tokens if t.squad is not None},
+            phase_before, mover_before)
         if phase_before == PHASE_FIGHT:
             atomic_energy_controller.resolve_end_of_fight_phase({t.squad for t in state.tokens if t.squad is not None})
+            # EVERY end-of-Fight-phase offer below takes `mover_before`, NOT
+            # turn_tracker.turn_owner. Fight is the last phase, so
+            # advance_phase() up at the top of this function has ALREADY
+            # flipped turn_owner to the next player - reading it here named
+            # exactly the wrong side for all four of these. Reported for Wall
+            # of Mirrors: "Frage kam am Anfang der Gegner Runde". mover_before
+            # is the player whose Fight phase actually just ended, and it is
+            # what the Resurrection Orb offer above already uses.
+            #
             # Kauyon's Wall of Mirrors: "End of your opponent's Fight phase",
             # so the offer goes to whoever is NOT the player whose phase just
             # ended. A phase boundary, not a turn one - it fires even when the
             # turn continues.
-            wall_of_mirrors_controller.offer_at_end_of_fight_phase(turn_tracker.turn_owner)
+            wall_of_mirrors_controller.offer_at_end_of_fight_phase(mover_before)
             # Cost of Victory: "end of your OPPONENT'S Fight phase", so the
             # same side as Wall of Mirrors above - whoever is NOT the player
             # whose phase just ended.
             cost_of_victory_controller.offer_at_end_of_fight_phase(
                 {t.squad for t in state.tokens if t.squad is not None},
-                turn_tracker.turn_owner)
+                mover_before)
             # Webway Tunnel: the same "end of your OPPONENT'S Fight phase" as
             # Cost of Victory above, and the same withdrawal minus the dead
             # models that one brings back.
             webway_tunnel_controller.offer_at_end_of_fight_phase(
                 {t.squad for t in state.tokens if t.squad is not None},
-                turn_tracker.turn_owner)
+                mover_before)
             # Skyborne Sanctuary says "End of THE Fight phase" - it belongs to
             # nobody, so both players are offered it and no owner is passed.
             for _skyborne in skyborne_sanctuary_controllers:
@@ -3167,12 +3530,14 @@ def main(map_key=None):
                     {t.squad for t in state.tokens if t.squad is not None})
             # The Stonesinger's Elemental Ensnarement: "at the end of YOUR Fight
             # phase", so it is offered to the player whose phase just ended -
-            # the opposite side from Wall of Mirrors directly above it.
+            # the opposite side from Wall of Mirrors directly above it. Its
+            # first argument is the RECIPIENT, not an `ending_player`, and the
+            # two happen to be the same value here for exactly that reason.
             # Raid and Run's own end-of-Fight-phase window, before the
             # ensnarement offer so the two prompts cannot collide.
             raid_and_run_controller.reset_phase()
             elemental_ensnarement_controller.offer_at_end_of_fight(
-                turn_tracker.turn_owner,
+                mover_before,
                 {t.squad for t in state.tokens if t.squad is not None})
         if ending_player is not None:
             # Rule 11.04: "Until the end of the turn" - Fights First from a
@@ -3318,6 +3683,19 @@ def main(map_key=None):
             # would otherwise see 6 at exactly the instant it should fire.
             secondary_mission_controller.begin_end_of_turn(
                 ending_player, battle_round=battle_round_before)
+            # The human's Force Disposition Primary. Its "END OF YOUR TURN"
+            # boxes score here, automatically - a Primary offers no "cash in or
+            # keep" choice, so unlike the deck above nothing is asked.
+            #
+            # Called for BOTH players' turn ends, like the deck: the boxes
+            # themselves decide which applies, and this is also where the
+            # per-turn bookkeeping resets. battle_round_before for the same
+            # reason it is used above - advance_phase() has already run.
+            #
+            # BEFORE action_controller.reset_for_turn() below, because this is
+            # what completes and reads this turn's Secure Asset action.
+            primary_mission_controller.begin_end_of_turn(
+                ending_player, battle_round=battle_round_before)
             # Rule 16.01's bookkeeping is per TURN ("it started another action
             # this turn", and both locks last "until the end of the turn").
             # AFTER begin_end_of_turn(), which is what completes this turn's
@@ -3336,11 +3714,15 @@ def main(map_key=None):
         if turn_tracker.phase == PHASE_COMMAND:
             command_points.gain_core_cp()
             battle_shock_controller.reset_command_phase()
-            # Primary mission ("Hold the Line", user-supplied): 3 points per
-            # objective controlled at the start of your own Command phase -
-            # objective.controlled_by was already recomputed for this exact
-            # boundary a few lines up.
-            mission_controller.score_primary(state.objectives, turn_tracker.active_player)
+            # Primary mission ("Hold the Line", user-supplied):
+            # PRIMARY_POINTS_PER_OBJECTIVE per objective controlled at the
+            # start of your own Command phase, from battle round
+            # PRIMARY_FIRST_SCORING_ROUND onward - objective.controlled_by was
+            # already recomputed for this exact boundary a few lines up. Both
+            # the rate and the round band live in game/missions.py; this is the
+            # hook, not the rule.
+            mission_controller.score_primary(state.objectives, turn_tracker.active_player,
+                                             turn_tracker.battle_round)
             # "Am Anfang jeder Runde zieht man zwei neue Missionen" - resolved as
             # the start of the card player's OWN Command phase, which happens
             # exactly once per battle round. turn_owner, not active_player: this
@@ -3352,6 +3734,11 @@ def main(map_key=None):
             # once they are dead. Snapshotted at the top of EVERY turn, either
             # player's, because that card scores at the end of a turn.
             secondary_mission_controller.snapshot_turn_start()
+            # The Primary's own three turn-start snapshots (which enemies stood
+            # in which terrain area, which stood on a central objective, which
+            # objectives I held). Same instant, same reason as the line above:
+            # all three are facts that are gone by the time a box asks.
+            primary_mission_controller.snapshot_turn_start()
             # "Burden of Trust" offers its guards both WHEN DRAWN and at the
             # start of each of your turns. Run BEFORE the draw deliberately: on
             # the turn the card is drawn this finds it not yet in hand and does
@@ -3551,6 +3938,17 @@ def main(map_key=None):
             stave_of_kurnous_controller.begin_command_phase(turn_tracker.turn_owner)
             rune_of_mists_controller.begin_command_phase(turn_tracker.turn_owner)
         if phase_before == PHASE_COMMAND:
+            # The Force Disposition Primary's "END OF CMD PHASE" boxes, for the
+            # player whose Command phase just ended (mover_before).
+            #
+            # THE END, not the start, and that is not the same instant "Hold the
+            # Line" scores at a few hundred lines up: Battle Shock is resolved
+            # in this phase, a battle-shocked unit's OC becomes a dash
+            # (01.07/02.02), and objective control is recomputed on the way out
+            # - so who controls what can genuinely differ between the two.
+            # battle_round_before, because advance_phase() has already run.
+            primary_mission_controller.end_of_command_phase(
+                mover_before, battle_round=battle_round_before)
             # Reanimation Protocols: "at the end of your Command phase, each
             # friendly unit with this ability that is on the battlefield
             # activates". A QUEUE - every eligible unit gets its own labelled
@@ -3623,6 +4021,12 @@ def main(map_key=None):
         # overwatch.py's redesign) - it's its own board-click-driven state
         # now, not a DecisionManager text-button list.
         if phase_before == PHASE_MOVEMENT:
+            # Marker Beacon: "End of your Movement phase". This block runs
+            # AFTER update_control() at the top of advance_turn_phase(), which
+            # is exactly what it needs - an objective taken by the move that
+            # just happened is controlled_by this player only from that
+            # recompute onwards.
+            marker_beacon_controller.offer_at_end_of_movement_phase(mover_before)
             # The Farseer's Guide: "at the end of your Movement phase, select
             # one enemy unit". Before the Flickerjump roll below for the same
             # reason that one goes before Rapid Ingress - a decision already
@@ -3669,7 +4073,18 @@ def main(map_key=None):
         if phase_before == PHASE_CHARGE:
             heroic_intervention_controller.offer(mover_before, decision_manager)
 
-    dragging_reserve_squad = None  # rule 03.02: squad being dragged from the Reserves panel onto the board
+    # Rule 03.02: the unit the player has PICKED out of the Reserves strip and
+    # is now carrying to the board. Renamed from dragging_reserve_squad because
+    # "being dragged" stopped being true: a plain click on a card now keeps the
+    # unit carried (the ghost follows the cursor and the card leaves the strip,
+    # so the state is impossible to miss), which is what lets the line-formation
+    # right-drag place it in ONE gesture instead of two. The left button's own
+    # press-drag-release still works exactly as it did.
+    #
+    # One flag deliberately, not "picked" plus "held": all three gestures that
+    # can put the unit down go through _place_picked_unit(), so "where does the
+    # carried unit go" has one answer rather than three.
+    picked_reserve_squad = None
 
     def show_loading_overlay(message):
         """Full-window dim + centered message, for a synchronous ENGINE
@@ -3735,6 +4150,75 @@ def main(map_key=None):
         )
         pygame.display.flip()
 
+    def _mission_slots():
+        """Everything carrying mission state, by the name the snapshot files
+        it under. ONE definition, read by the writer and by the --load path -
+        a saver and a loader that disagreed about which slot is which would
+        restore a Primary's latches into the Secondary's deck."""
+        return {
+            "ledger": mission_controller,
+            "secondary": secondary_mission_controller,
+            "primary": primary_mission_controller,
+        }
+
+    def _activation_slots():
+        """Everything holding "this unit has already acted this turn", by the
+        slot game/activation_state.py files it under. ONE definition, read by
+        the writer and by the --load path, for exactly the reason
+        _mission_slots() above is one: a saver and a loader that disagreed
+        about which slot is which would restore the Charge ledger into the
+        Shooting one."""
+        return {
+            "movement": movement_controller,
+            "shooting": shooting_controller,
+            "charge": charge_controller,
+            "fight": fight_controller,
+            "pile_in": pile_in_controller,
+            "consolidate": consolidate_controller,
+            "battle_shock": battle_shock_controller,
+            "greater_good": greater_good_controller,
+        }
+
+    def _save_scene(reason, path=None, quiet=False):
+        """Write the board position, and say where it went.
+
+        ONE writer, because there are now three callers with three reasons -
+        F9 (turn a reported failure into a fixture), the menu's Save Game
+        entry, and the per-round autosave - and every one of them has to pass
+        the same five things to capture(). Three copies of that argument list
+        is three chances for one of them to quietly stop recording the armies,
+        which is the line that makes a snapshot restorable at all.
+
+        `path` names the file; the default is a timestamped one, so a manual
+        save is never overwritten by the next autosave. `quiet` keeps the line
+        out of the on-screen log - the autosave fires every battle round and
+        would otherwise push five notices of its own past whatever the player
+        was reading."""
+        if path is None:
+            path = os.path.join(scene_io.SCENES_DIR,
+                                f"scene_{time.strftime('%Y%m%d_%H%M%S')}.json")
+        written = scene_io.write(
+            scene_io.capture(state, battle_map.key, turn_tracker, command_points,
+                             armies=armies, missions=_mission_slots(),
+                             activation=_activation_slots()),
+            path,
+        )
+        game_log.add(f"Board position {reason} to {written} "
+                     f"(reload it with --load {written})", file_only=quiet)
+        return written
+
+    def _open_game_menu():
+        """Raise the in-game menu. Two callers: ESC, and the MENU button.
+
+        The line drag is ended first because it is POLLED outside the event
+        loop (update_line_drag, below) and so is not covered by the menu's
+        `continue` - a right button held down when the menu opened would keep
+        dragging models around under the scrim, and its release would be
+        swallowed. end_line_drag() is idempotent, so calling it when nothing is
+        dragging costs nothing."""
+        input_manager.end_line_drag()
+        game_menu.show()
+
     def _any_pending_damage_choice():
         """Whether any controller is currently waiting for the HUMAN
         (clicking which of THEIR OWN models takes a wound/mortal wound -
@@ -3789,6 +4273,27 @@ def main(map_key=None):
                 deadly_vectors_controller, lethal_ichor_controller,
                 spore_laced_controller, sickening_impact_controller,
                 internal_grenade_racks_controller,
+                # Aspect Host's Khaine's Vengeance runs a Desperate Escape
+                # test on the falling-back unit, which belongs to the TURN
+                # OWNER - so a human victim's allocation is a genuine board
+                # click and needs the same one-frame pause.
+                khaines_vengeance_controller,
+                # The six mortal-wound carriers: rule 06.02 hands the pick to
+                # the TARGET's owner, so a human target is the same race.
+                living_lightning_controller, matter_absorption_controller,
+                crimson_harvest_controller, eater_plague_controller,
+                kroot_linebreakers_controller, crushing_strides_controller,
+                # Isha's Fury, the Grenade Pack Flyover, the Grav-inhibitor
+                # Field and Flickerjump. Four more allocations that belong to
+                # the TARGET's owner (06.02), so a human victim is the same
+                # same-frame race the rest of this list guards. All four
+                # already block the phase in _has_unresolved_declaration(),
+                # already have a click branch below, and already draw their
+                # eligible models - this list was the only one of the three
+                # that was short, and the only one nothing was checking. See
+                # test_event_chain_wiring.py's section 12.
+                ishas_fury_controller, grenade_pack_controller,
+                grav_inhibitor_controller, flickerjump_controller,
             )
         )
 
@@ -3872,6 +4377,29 @@ def main(map_key=None):
             # guard - the third report of this class was a move the phase
             # change walked straight over.
             or higher_duty_controller.is_busy
+            # An out-of-phase move that is still OPEN. ONE term for all twelve
+            # modes rather than one per owning controller: this gate had no
+            # movement_controller term at all, and the eleven abilities that
+            # grant such a move would otherwise each have to remember to add
+            # themselves here - the hand-maintained list game/ui/action_panel.py
+            # already records growing wrong once ("scout" was missing from it).
+            # The two above are in this gate for an unrelated reason (they hold
+            # active_player); the other ten had nothing waiting on them, so a
+            # "Next Phase" click orphaned a paid-for move - select(None) clears
+            # the state but neither move_mode nor the model positions.
+            #
+            # AND state == MOVING, and that half is load-bearing rather than
+            # defensive: select(None) leaves move_mode set while clearing the
+            # state, so without it a finished move would block the phase for
+            # ever with nothing on screen to clear it - the deadlock section 10
+            # of test_event_chain_wiring.py exists to prevent. Nothing here can
+            # deadlock the other way either: action_panel.py's
+            # `if movement_controller.state == movement.MOVING:` appends a
+            # Confirm and a Cancel unconditionally, so every mode this term can
+            # see has a resolution routed from the panel.
+            or (movement_controller.state == movement.MOVING
+                and movement_controller.move_mode
+                in movement.MovementController.OUT_OF_PHASE_MOVE_MODES)
             # The Secondary Mission deck still owes the human a prompt (cash a
             # completed card in, or discard one for CP). Opened at the end of a
             # turn, so without this the next phase could roll over the top of a
@@ -3907,6 +4435,20 @@ def main(map_key=None):
             or undying_spite_controller.is_busy
             or to_their_final_breath_controller.is_busy
             or khaines_vengeance_controller.is_busy
+            # Both halves, or this gate is a deadlock rather than a guard:
+            # is_busy alone blocked the phase while NOTHING in the event
+            # chain could resolve the hazard step it was waiting on.
+            or khaines_vengeance_controller.pending_damage_choice is not None
+            # The six mortal-wound carriers. An allocation that is still open
+            # must not be rolled over by a phase change - and with the click
+            # branches above they are now resolvable, so this is a guard
+            # rather than the deadlock the Khaine's line above used to be.
+            or living_lightning_controller.pending_damage_choice is not None
+            or matter_absorption_controller.pending_damage_choice is not None
+            or crimson_harvest_controller.pending_damage_choice is not None
+            or eater_plague_controller.pending_damage_choice is not None
+            or kroot_linebreakers_controller.pending_damage_choice is not None
+            or crushing_strides_controller.pending_damage_choice is not None
             or malevolent_souls_controller.is_busy
             # Retaliation Cadre's Internal Grenade Racks owes a
             # dice-then-allocation cycle, and its Puretide Engram Neurochip
@@ -3958,9 +4500,14 @@ def main(map_key=None):
         frame, same contract as run_ai_action().
 
         Deliberately API-call-free (see ai/deployment_ai.py's module
-        docstring), so starting a game costs nothing."""
+        docstring), so starting a game costs nothing.
+
+        A no-op when nobody is automatic: with config.AI_PLAYERS empty both
+        sides are played by hand, and there is no side for this to act for."""
+        if not ai_players:
+            return
         deployment_ai.take_pregame_action(
-            pregame_controller, setup_controller, "Player 2",
+            pregame_controller, setup_controller, ai_players[0],
             board.width_in, board.height_in,
             objectives=state.objectives, game_log=game_log,
         )
@@ -3968,12 +4515,36 @@ def main(map_key=None):
     def run_ai_action():
         """The one call every "A" keypress (and, while ai_auto_play is on,
         every single frame - see the main loop below) makes: resolve
-        exactly ONE pending decision for Player 2 and return."""
+        exactly ONE pending decision for the AI's own side and return.
+
+        A no-op when nobody is automatic: with config.AI_PLAYERS empty there is
+        no side for the agent to play, and calling it would have it spend a
+        human's CP - and a real API call doing it."""
         nonlocal last_shown_turn_plan
+        if not ai_players:
+            return
+        # The agent stopped answering at some point: say so ONCE and stop
+        # asking. take_one_action() is already a no-op in this state, so this
+        # is only the announcement - but it has to be raised from somewhere
+        # that runs every frame the AI would have acted, and this is that
+        # place. See ai/connection.py.
+        if not ai_connection.is_online():
+            if ai_offline_overlay.show(ai_connection.reason()):
+                game_log.add(f"The AI stopped playing: {ai_connection.reason()}. "
+                             "The battle continues without it.")
+            return
         take_one_action(
             agent, ai_memory, state, turn_tracker, movement_controller, shooting_controller,
             charge_controller, fight_controller, battle_shock_controller, pile_in_controller,
             decision_manager, dice_manager, game_log, coherency_enforcer=coherency_enforcer,
+            # WHICH side the agent plays, from the one place that says so.
+            # take_one_action() still defaults to "Player 2" for its other
+            # callers; naming it here means this call cannot disagree with the
+            # auto_players every controller above was built with. Appended as a
+            # KEYWORD and the leading arguments left positional - this chain is
+            # thirteen positional parameters long, and rewriting it was how a
+            # wrong name (ai_memory for memory) got in on the first attempt.
+            player=ai_players[0],
             mission_controller=mission_controller,
             on_thinking=show_thinking_overlay, advance_phase_fn=ai_advance_phase,
             command_reroll_controller=command_reroll_controller, explosives_controller=explosives_controller,
@@ -4056,7 +4627,16 @@ def main(map_key=None):
         shooting_controller.cancel()
         advance_turn_phase()
 
-    ai_auto_play = False  # Shift+A toggles this - while on, Player 2 acts on its own every frame, no keypress needed
+    # THE ONE AI SWITCH. Shift+A and the board's AI toggle both flip it, and
+    # it governs BOTH channels the AI ever acts through: this frame tick, and
+    # the ~83 `auto_players` gates inside the ability and Stratagem
+    # controllers. Those gates used to ignore it entirely - see game/ai_mode.py
+    # for the reported game where that spent a CP with the dot off.
+    #
+    # Set here rather than left at the module default, in the same place and
+    # to the same value the `ai_auto_play` local it replaces used to start
+    # at: a battle opens with the AI idle until it is switched on.
+    ai_mode.set_enabled(False)
     if fullscreen:
         game_log.add("Fullscreen mode - press ESC to quit.")
 
@@ -4078,6 +4658,11 @@ def main(map_key=None):
     # below) should greet the very start of the game too, not just every
     # turn after it.
     previous_turn_owner = None
+    # The AUTOSAVE's edge (user: "Auto save pro Schlachtrunde"). Seeded with
+    # the round the battle actually starts on, NOT None: a loaded scene resumes
+    # mid-battle, and a None here would write a fresh autosave over the very
+    # file that was just opened before a single frame had been played.
+    previous_battle_round = turn_tracker.battle_round
 
     if config.LOAD_SCENE:
         # A saved board position replaces the opening sequence outright: it
@@ -4099,6 +4684,15 @@ def main(map_key=None):
         # would be silently thrown away.
         begin_battle((loaded.get("turn") or {}).get("turn_owner") or "Player 1")
         complaints += scene_io.restore_turn(loaded, turn_tracker, command_points)
+        # AFTER begin_battle() for the same reason the turn state is: starting
+        # the battle draws round 1's Secondary cards and zeroes the score, so a
+        # ledger put back before it would be silently overwritten.
+        complaints += scene_io.restore_missions(loaded, _mission_slots())
+        # AFTER begin_battle() as well, and here the ordering has teeth: it
+        # clears set_up_this_turn on every unit it can find (rule 18.02), so a
+        # restore that ran first would have the flag wiped straight back off.
+        complaints += scene_io.restore_activation(
+            loaded, [e["squad"] for e in scene_units], _activation_slots())
         game_log.add(
             f"Loaded {os.path.basename(config.LOAD_SCENE)}: battle round "
             f"{turn_tracker.battle_round}, {turn_tracker.phase} phase, "
@@ -4137,18 +4731,29 @@ def main(map_key=None):
         # battle, which is why its own printed text names this step.
         _student_of_kauyon_step = StudentOfKauyonStep(
             decision_manager=decision_manager, game_log=game_log,
-            auto_players=("Player 2",))
+            auto_players=ai_players)
+        # _all_squads(), NOT _player_squads()/state.all_squads(): this is the
+        # Declare Battle Formations step, and register_unit() deliberately puts
+        # NOTHING into state.tokens/reserves/embarked_squads while
+        # PREGAME_DEPLOYMENT is on - so all three containers those two read are
+        # EMPTY here and both steps below were silently handed nothing.
+        # Reported: "experimental cadre waffen upgrades greifen alle nicht".
+        # _all_squads()'s own docstring names this exact trap; the units live in
+        # pregame_controller.army(owner) until they are placed.
         for _owner in ("Player 1", "Player 2"):
-            _student_of_kauyon_step.start(_player_squads(state, _owner), _owner)
+            _student_of_kauyon_step.start(
+                [s for s in _all_squads(state, pregame_controller) if s.owner == _owner],
+                _owner)
         # The three Experimental Prototype Cadre weapon upgrades - permanent
         # changes to one named weapon, applied once and idempotent.
-        enh_prototype_weapons.apply_all(state.all_squads(), game_log=game_log)
+        enh_prototype_weapons.apply_all(
+            _all_squads(state, pregame_controller), game_log=game_log)
         # Mont'ka's Strike Swiftly runs in Resolve Pre-battle Abilities and
         # MUST come before the Scouts step it feeds - hence the ordered list
         # rather than another named attribute. See game/enh_strike_swiftly.py.
         pregame_controller.prebattle_steps.append(StrikeSwiftlyStep(
             decision_manager=decision_manager, game_log=game_log,
-            auto_players=("Player 2",), game_state=state))
+            auto_players=ai_players, game_state=state))
         # The Wraithlord's Fated Hero also runs in Resolve Pre-battle Abilities.
         # Unlike Strike Swiftly it has NO ordering constraint - it grants nothing
         # another step reads - so it simply joins the list. The AI answers it
@@ -4167,7 +4772,7 @@ def main(map_key=None):
         # goes in deploy_armies_steps, not here.
         pregame_controller.deploy_armies_steps.append(EtherealPathwayStep(
             game_state=state, decision_manager=decision_manager,
-            game_log=game_log, auto_players=("Player 2",)))
+            game_log=game_log, auto_players=ai_players))
         # Kauyon's Solid-image Projection Unit fires "after both players have
         # deployed", which is EARLIER than Resolve Pre-battle Abilities - so it
         # is its own hook rather than a member of the list above.
@@ -4177,10 +4782,10 @@ def main(map_key=None):
         # live runs, and the second is handed the first's on_done.
         prince_of_corsairs_step = PrinceOfCorsairsStep(
             game_state=state, decision_manager=decision_manager, game_log=game_log,
-            auto_players=("Player 2",))
+            auto_players=ai_players)
         _solid_image_step = SolidImageProjectionStep(
             game_state=state, decision_manager=decision_manager, game_log=game_log,
-            auto_players=("Player 2",))
+            auto_players=ai_players)
 
         class _RedeployChain:
             """Both redeployment abilities fire at the same instant, and
@@ -4201,8 +4806,15 @@ def main(map_key=None):
                     if on_done is not None:
                         on_done()
                     return False
-                nxt = lambda: self._run(index + 1, pregame_controller, on_done)
-                if self.steps[index].start(pregame_controller, nxt):
+                # One-shot, and asked afterwards whether it fired: a link may
+                # hand control back by CALLING nxt and still answer "nothing to
+                # do" (prince_of_corsairs.py does exactly that), and falling
+                # through would then run the rest of the chain a second time.
+                # Same enforcement, same reason as PregameController's own two
+                # hand-offs - see game/pregame.py's Resume.
+                nxt = pregame.Resume(
+                    lambda: self._run(index + 1, pregame_controller, on_done))
+                if self.steps[index].start(pregame_controller, nxt) or nxt.fired:
                     return True
                 return self._run(index + 1, pregame_controller, on_done)
 
@@ -4216,8 +4828,11 @@ def main(map_key=None):
         # Rule 24.31 (SCOUTS), resolved in the Pre-battle Abilities step.
         pregame_controller.scouts_step = ScoutsStep(
             movement_controller, game_log=game_log,
+            # ai_players passed EXPLICITLY: its default in
+            # ai/deployment_ai.py used to be ("Player 2",), so a caller that
+            # forgot it silently handed the AI somebody else's Scouts move.
             on_resolve=lambda pre, squad, branch, distance: deployment_ai.resolve_scouts(
-                pre, squad, branch, distance,
+                pre, squad, branch, distance, ai_players=ai_players,
                 movement_controller=movement_controller, setup_controller=setup_controller,
                 board_w_in=board.width_in, board_h_in=board.height_in,
                 objectives=state.objectives, game_log=game_log,
@@ -4227,16 +4842,116 @@ def main(map_key=None):
             # the unit was popped - so a human's Scouts move was never offered
             # at all (user report). These two lines are what actually open it.
             decision_manager=decision_manager,
-            # Player 1 is the human throughout this engine - the AI is the
-            # literal string "Player 2" everywhere in ai/, so this is the same
-            # single fact, not a second list to keep in sync.
-            human_players=("Player 1",),
+            # The same single fact as ai_players above, read from the one
+            # place that holds it - this used to be its own literal
+            # ("Player 1",), which is a second list to keep in sync with the
+            # first and the reason a rule and its switch can drift apart.
+            human_players=human_players,
         )
         # A confirmed OR cancelled scout move resumes the SCOUTS queue; without
         # the cancel half a declined drag would strand the pre-game.
         movement_controller.on_scout_move_finished = (
             pregame_controller.scouts_step.on_scout_move_finished)
 
+    def _carrying_a_unit():
+        """Whether a board click means "put the carried unit HERE" rather than
+        what it normally means.
+
+        Not simply "is something picked": a unit that cannot actually be placed
+        right now (another placement still open, an arrival not yet eligible)
+        must NOT make the branch match, because a branch that matches and then
+        does nothing swallows the click - this repo's error class 15 in
+        miniature, and the clicks it would swallow are the ones that adjust the
+        placement already in progress."""
+        if pregame_controller.awaiting_drop:
+            return pregame_controller.can_deploy(pregame_controller.selected_unit)
+        return (picked_reserve_squad is not None
+                and setup_controller.can_start_setup(picked_reserve_squad))
+
+    def _place_picked_unit(x_in, y_in):
+        """Set the unit the player is CARRYING down at (x_in, y_in) - a card
+        picked out of the pre-game pool (rule 03.01) or out of the Reserves
+        strip (20.04). True if a placement really opened.
+
+        THE ONE ANSWER to "where does the carried unit go", read by all three
+        gestures that can put it down: a plain left click on the board, the
+        left-drag's release, and the line-formation right-drag. Three copies of
+        this would be three chances for one of them to skip
+        rapid_ingress_controller.consume() or to leave the card carried after
+        it had been placed.
+
+        Order matters and is not arbitrary: a pre-game pick wins, because the
+        Reserves strip during 03.01 IS the undeployed pool (main.py's
+        reserves_to_show swaps it out) - so the two can never actually both be
+        set, and stating the precedence keeps that from being an accident.
+
+        Success is read off setup_controller, not off a return value:
+        start_ingress() refuses silently for a unit that is not eligible yet
+        (rule 20.03) and start_deployment() for one that is not in the active
+        player's pool, and in both cases nothing is placed. The line drag has
+        to know the difference - it must not open a gesture over a unit that is
+        still in reserve."""
+        nonlocal picked_reserve_squad
+        if pregame_controller.awaiting_drop:
+            pregame_controller.start_deployment(
+                pregame_controller.selected_unit, x_in, y_in)
+            return setup_controller.state == setup.PLACING
+        squad = picked_reserve_squad
+        if squad is None or not setup_controller.can_start_setup(squad):
+            # SetupController is single-slot: with another placement still open
+            # start_ingress() would take the unit OUT of state.reserves and
+            # then find start_setup() a no-op, leaving it on neither the board
+            # nor the reserve list. The card simply stays carried until the
+            # placement in progress is confirmed or cancelled.
+            return False
+        # The card stops being carried whether or not IngressController accepts
+        # it - a refused arrival was never removed from state.reserves, so it
+        # is simply back in the strip, and leaving it stuck to the cursor would
+        # hide the log line that says why.
+        picked_reserve_squad = None
+        ingress_controller.start_ingress(squad, x_in, y_in)
+        # Rule 15.07: this was the one attempt the Rapid Ingress window bought
+        # - used up the instant it is dropped on the board, whether or not
+        # IngressController accepts it. setup_controller is passed here (unlike
+        # ai/agent_driver.py's own auto-ingress call) so a chained Fire
+        # Overwatch offer defers until this placement actually concludes
+        # instead of hijacking it mid-drag - see consume()'s own docstring for
+        # the full bug report this fixes.
+        rapid_ingress_controller.consume(squad, setup_controller=setup_controller)
+        return setup_controller.state == setup.PLACING
+
+    def _board_gesture_blocked():
+        """Modal state that owns the board's clicks: a line-formation drag may
+        not START underneath one.
+
+        A NAMED predicate, read once ahead of the event chain - not the chain
+        doing this by accident, which is the failure this whole gesture is
+        wired to avoid. The distinction worth writing down: a VIEW may never be
+        gated (that is why pointer tracking and the ALT ruler sit outside the
+        chain), but an ACTION may, and this one mutates model positions.
+        "Never gate" was never the lesson; "never gate ACCIDENTALLY, by falling
+        into the elif chain" is.
+
+        Reuses _front_notice() rather than re-listing seven overlays, because
+        that helper is already the single home of the notice set - a second
+        list here is exactly the kind of copy that goes stale the next time an
+        overlay is added.
+
+        Only the START is gated. update_line_drag() and end_line_drag() never
+        are: if something becomes pending mid-drag, the gesture still has to
+        run to its release, or it strands half-written positions with no route
+        to a commit."""
+        return (
+            _front_notice() is not None
+            or decision_manager.is_pending
+            or dice_manager.is_pending
+            or coherency_enforcer.pending_squad is not None
+            or _any_pending_damage_choice()
+        )
+
+    # Bound BEFORE the loop so every natural exit (the window's close box, the
+    # battle ending) already answers QUIT, and only the menu ever changes it.
+    outcome = game_menu_module.QUIT
     running = True
     while running:
         # User report: dismissing a prompt (a DecisionManager choice, or a
@@ -4260,7 +4975,12 @@ def main(map_key=None):
         # run_ai_action() simply waits one frame - by which point the
         # render has already caught up to "prompt gone"/"model gone" -
         # before resuming.
-        ai_action_paused_this_frame = _any_pending_damage_choice()
+        # ...and while the game menu is up. Seeded here rather than tested at
+        # the AI's call sites because this one flag is ALREADY read by both of
+        # them - the "A" key branch and the auto-play tick - and the auto-play
+        # tick runs OUTSIDE the event loop, so the menu's own `continue` does
+        # not cover it. One term here, instead of two copies of the question.
+        ai_action_paused_this_frame = _any_pending_damage_choice() or game_menu.is_pending
         for event in pygame.event.get():
             # Where the cursor is and what it hovers is a VIEW fact, never a
             # decision - so it is tracked here, before the state-gated chain
@@ -4279,17 +4999,151 @@ def main(map_key=None):
             if event.type == pygame.MOUSEMOTION:
                 input_manager.track_pointer(event.pos, state.tokens, board)
 
+            # The army-rules reader owns every event while it is open, and it
+            # is asked HERE - ahead of the state-gated chain - for the reason
+            # that chain has swallowed five controls already (error class 15).
+            # It is a VIEW: it resolves no decision, so it must not be reachable
+            # only when nothing else is pending. `continue` because it really
+            # does consume the event: the click that dismisses it must not also
+            # land on the board underneath.
+            # The GAME MENU owns every event while it is open, and it is asked
+            # FIRST - ahead of the state-gated chain for the same reason the
+            # reader below is (error class 15), and ahead of the reader because
+            # it is drawn over it. Its answer is picked up by take_action()
+            # after the loop rather than acted on here: an overlay cannot write
+            # main()'s locals, and reading it in one place is what stops one
+            # press being served twice.
+            if game_menu.is_pending:
+                game_menu.handle_event(event, screen.get_rect())
+                continue
+
+            # The MENU button in the board's top-right corner, its own
+            # pre-chain `if` for exactly the reason above: roughly forty of the
+            # chain's branches gate on CONTROLLER STATE with no event.type
+            # term, so this press would be matched and dropped by the first
+            # pending one - and a stuck prompt is precisely the state a player
+            # most wants to reach the menu from. Below the reader's block, so
+            # that while the reader is open the click dismisses the reader
+            # instead; that falls out of the order rather than needing a test.
+            if (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and not army_rules_overlay.is_pending
+                    and game_menu.button_rect(board_rect_screen).collidepoint(event.pos)):
+                _open_game_menu()
+                continue
+
+            # The AI switch, directly under the MENU button and for the same
+            # pre-chain reason: it sits ON the board, so without its own `if`
+            # up here the press would either be eaten by one of the ~40
+            # state-gated branches or fall through to the board and start a
+            # camera pan. `continue`, so the click that flips the mode cannot
+            # also do something to the board underneath it.
+            #
+            # Hit-tested against the rect the last frame DREW (ai_toggle_rect),
+            # not a freshly computed one: the switch steps down out of the MENU
+            # button's way, and a second computation of that geometry is how a
+            # control ends up clickable somewhere it is not drawn.
+            if (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and not army_rules_overlay.is_pending
+                    and ai_toggle_rect is not None
+                    and ai_toggle_rect.collidepoint(event.pos)):
+                _set_ai_mode(not ai_mode.enabled(), "AI toggle")
+                continue
+
+            if army_rules_overlay.is_pending:
+                army_rules_overlay.handle_event(event)
+                continue
+
+            # The line-formation drag (right button), and deliberately its OWN
+            # top-level `if` rather than a branch of the chain below. The chain
+            # is ~48 if/elif branches and roughly forty of them gate on
+            # CONTROLLER STATE with no event.type term at all - so a button-3
+            # press matches the first pending one, that branch's body wants
+            # button == 1, and the event is gone. Exactly the states a player
+            # most wants to re-form a unit in (a decision prompt, a dice roll,
+            # Fire Overwatch) are the ones that would swallow it. Same lesson,
+            # and the same shape, as the ALT ruler two entry points above and
+            # below this one.
+            #
+            # No `continue` after this: both events still fall through into the
+            # chain, harmlessly (every event.button/event.pos read in it is
+            # behind button == 1). Skipping the rest would drop
+            # camera.update_pan and re-introduce a swallow of its own.
+            if (event.type == pygame.MOUSEBUTTONDOWN and event.button == 3
+                    and board_rect_screen.collidepoint(event.pos)):
+                if input_manager.begin_line_drag(
+                    event.pos, state.tokens, board, movement_controller,
+                    setup_controller, blocked=_board_gesture_blocked(),
+                    # ...and if the player is CARRYING a unit, the press point
+                    # is where it lands: one gesture sets it down AND forms it
+                    # up, instead of "drop it, then re-form it" (user: "ohne
+                    # zwischen step?"). Exactly the same call the left button's
+                    # own board branch makes, so both buttons put a carried
+                    # unit in the same place.
+                    start_placement=_place_picked_unit,
+                ):
+                    # A left press may already have started a pan; if it did,
+                    # the view would slide under the gesture and the far end of
+                    # the line would run away from the cursor at double rate.
+                    camera.end_pan()
+            elif event.type == pygame.MOUSEBUTTONUP and event.button == 3:
+                # NOT gated on the board rect: a gesture released over the left
+                # panel still has to finish cleanly.
+                input_manager.end_line_drag()
+            elif event.type == pygame.WINDOWFOCUSLOST:
+                # Belt and braces over the poll's own held-button failsafe. The
+                # poll rests on pygame.mouse.get_pressed() going False when the
+                # window loses focus, and that is an ASSUMPTION about this SDL
+                # build which cannot be measured under the dummy video driver
+                # the harnesses use. This costs three lines and removes the
+                # dependency: whichever notices first ends the drag, and
+                # end_line_drag() is idempotent so both noticing is harmless.
+                input_manager.end_line_drag()
+
             if event.type == pygame.QUIT:
                 running = False
-            elif fullscreen and event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                # User: "im vollbild modus beendet ESC das spiel" - same
-                # priority as the window's own close button (QUIT, right
-                # above), deliberately checked before any of the
-                # controller-state gates below (same reasoning as "A"/mouse
-                # wheel further down: those gate on STATE, not event type, so
-                # ESC could otherwise get silently swallowed whenever a dice
-                # roll/decision/etc. happened to be pending).
-                running = False
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                # ESC is a LADDER, innermost rung first: put down a carried
+                # reserves card, else let go of the selected unit, else quit in
+                # fullscreen.
+                #
+                # User: "im vollbild modus beendet ESC das spiel" - that
+                # decision is intact, it just sits one rung lower now, so in
+                # fullscreen quitting takes two presses while a unit is
+                # selected. Named rather than done quietly, because it changes
+                # a recorded choice.
+                #
+                # The deselect half is the keyboard counterpart of clicking
+                # into the void (game/input_handler.py's _void_press_px): the
+                # selection now survives a camera pan, so it needs a
+                # deliberate way to be let go of.
+                #
+                # Still checked before any of the controller-state gates below
+                # (same reasoning as "A"/mouse wheel further down: those gate
+                # on STATE, not event type, so ESC could otherwise get silently
+                # swallowed whenever a dice roll/decision/etc. happened to be
+                # pending). Same priority as the window's own close button
+                # (QUIT, right above).
+                #
+                # The carried-card rung is the escape hatch for the pick that
+                # now OUTLIVES its release: while a reserves card is carried,
+                # every board click sets it down, so without a way to let go of
+                # it a stray pick would have to be placed and then cancelled.
+                # Only the Reserves pick, not the pre-game pool's: that one is
+                # consumed by the very next board click and cannot linger.
+                if picked_reserve_squad is not None:
+                    picked_reserve_squad = None
+                elif movement_controller.selected_squad is not None:
+                    movement_controller.select(None)
+                else:
+                    # THE BOTTOM RUNG CHANGED, and it changes a recorded
+                    # decision (user: "im vollbild modus beendet ESC das
+                    # spiel"). ESC no longer ends the process; it opens a menu
+                    # that CONTAINS Quit - which is what the user asked for
+                    # ("im spiel öffnet ein druck auf ESC das menü"). Two
+                    # differences worth naming: quitting now takes one press
+                    # more, and it works in a WINDOW as well, where ESC used to
+                    # do nothing at all. One behaviour instead of two.
+                    _open_game_menu()
             elif event.type == pygame.KEYDOWN and event.key in (pygame.K_F9, pygame.K_p):
                 # Save the whole board position, so whatever just went wrong can
                 # be re-opened with `python main.py --load <file>` and turned
@@ -4300,13 +5154,7 @@ def main(map_key=None):
                 # squad_positions.txt and could only be read by a human - its own
                 # comment asked for it to go once something better existed. P
                 # still works so the habit is not broken.
-                stamp = time.strftime("%Y%m%d_%H%M%S")
-                path = scene_io.write(
-                    scene_io.capture(state, battle_map.key, turn_tracker, command_points,
-                                     armies=armies),
-                    os.path.join("scenes", f"scene_{stamp}.json"),
-                )
-                game_log.add(f"Board position saved to {path} (reload it with --load {path})")
+                _save_scene("saved with F9")
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_a:
                 # Rule-agnostic AI trigger (see CLAUDE.md, "Schritt 3"): resolves
                 # exactly ONE pending decision for Player 2 and stops - press
@@ -4331,8 +5179,7 @@ def main(map_key=None):
                 # the roll is known - are exactly when one of those state gates
                 # is active, so "A" did nothing at the moments that mattered.
                 if getattr(event, "mod", 0) & pygame.KMOD_SHIFT:
-                    ai_auto_play = not ai_auto_play
-                    game_log.add(f"Player 2: auto-play {'ON' if ai_auto_play else 'OFF'} (Shift+A).")
+                    _set_ai_mode(ai_mode.toggle(), "Shift+A")
                 elif (
                     not dice_panel.is_busy and not stratagem_notice_overlay.is_pending and not mission_draw_overlay.is_pending
                     and not waaagh_notice_overlay.is_pending
@@ -4364,7 +5211,20 @@ def main(map_key=None):
                 # itself never resolves a game decision, so there's no
                 # reason it should ever be blocked by one.
                 mouse_pos = pygame.mouse.get_pos()
-                if board_rect_screen.collidepoint(mouse_pos):
+                if action_panel.handle_rule_scroll(mouse_pos, event.y):
+                    # "WHY YOU ARE CHOOSING" in the left panel scrolls. It only
+                    # claims the wheel while the cursor is over its box AND
+                    # there is something to scroll, so every other wheel use -
+                    # board zoom, the log, the datacard - is untouched.
+                    pass
+                elif unit_datacard.handle_scroll(event.y):
+                    # An open datacard owns the wheel: it is drawn OVER the
+                    # board, so zooming the board under it is not what the
+                    # cursor is pointing at. It only claims the wheel while it
+                    # is both visible and actually scrollable, so a short card
+                    # still zooms as before.
+                    pass
+                elif board_rect_screen.collidepoint(mouse_pos):
                     local = (mouse_pos[0] - board_rect_screen.x, mouse_pos[1] - board_rect_screen.y)
                     camera.zoom_at(local, WHEEL_ZOOM_STEP ** event.y)
                 elif log_rect.collidepoint(mouse_pos):
@@ -4444,6 +5304,14 @@ def main(map_key=None):
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     stratagem_notice_overlay.dismiss()
                     ai_action_paused_this_frame = True
+            elif ai_offline_overlay.is_pending:
+                # "Connection lost" - nothing to choose, so the same
+                # must-click-away handling as the two notices above. It is
+                # ABOVE them in the chain for the same reason it leads
+                # _front_notice(): it changes who is playing.
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    ai_offline_overlay.dismiss()
+                    ai_action_paused_this_frame = True
             elif waaagh_notice_overlay.is_pending:
                 # User: "ich will... ein prompt... das ich weg klicken muss,
                 # wenn ein waagh ausgerufen wird" - same "must-click-away,
@@ -4454,11 +5322,42 @@ def main(map_key=None):
             elif decision_manager.is_pending:
                 # A decision break point takes priority over everything else -
                 # even a pending dice roll - until the player picks an option.
+                #
+                # TWO WAYS TO ANSWER ONE QUEUE. When the options name UNITS that
+                # are all standing on the board, the decision is answered by
+                # CLICKING one of them (user: "Immer wenn man eine einheit auf
+                # dem schlachtfeld waehlen muss (zb wall of mirrors) will ich
+                # die einheit nicht aus einer liste waehlen, sondern auf dem
+                # schlachtfeld. Wie bei overwatch."); otherwise the modal
+                # overlay carries it exactly as before. Both go through
+                # decision_manager.choose(index), so there is one resolution
+                # path and not two that could drift.
+                #
+                # It stays INSIDE this branch on purpose. The branch swallows
+                # every other click while a decision is open, which is what
+                # keeps a non-modal pick from letting "Next Phase" be clicked
+                # out from under an unanswered question - the hazard the modal
+                # box used to cover by simply being in the way.
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    index = decision_overlay.handle_click(event.pos)
-                    if index is not None:
-                        decision_manager.choose(index)
-                        ai_action_paused_this_frame = True
+                    pick = board_unit_pick()
+                    if pick is not None:
+                        # Left panel first: that is where the rule's own way out
+                        # ("Decline"/"Cancel") is drawn now that the overlay is
+                        # not. Same shape as crushing_impact's CHOOSING_ENEMY.
+                        # A click on an ineligible unit is IGNORED rather than
+                        # guessed at - pick.pick() checks eligibility itself.
+                        if left_panel_rect.collidepoint(event.pos):
+                            action_panel.handle_click(event.pos)
+                            ai_action_paused_this_frame = True
+                        elif board_rect_screen.collidepoint(event.pos):
+                            clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                            if clicked is not None and pick.pick(clicked.squad):
+                                ai_action_paused_this_frame = True
+                    else:
+                        index = decision_overlay.handle_click(event.pos)
+                        if index is not None:
+                            decision_manager.choose(index)
+                            ai_action_paused_this_frame = True
             elif dice_manager.is_pending:
                 # Game is paused until the pending dice roll is clicked away -
                 # except rule 15.02's Command Re-roll, offered in the left
@@ -4576,6 +5475,16 @@ def main(map_key=None):
                         spore_laced_controller.on_dice_acknowledged()
                         eater_plague_controller.on_dice_acknowledged()
                         sickening_impact_controller.on_dice_acknowledged()
+                        # Spirit Conclave's Crushing Strides. THIS LINE WAS
+                        # MISSING: the D6s were rolled, nobody told the
+                        # controller, so the mortal wounds were never inflicted
+                        # AND its own _pending latch turned the Stratagem off
+                        # for the rest of the battle.
+                        crushing_strides_controller.on_dice_acknowledged()
+                        # Aspect Host's Khaine's Vengeance. Also missing, and
+                        # worse: its is_busy sits in the phase-advance gate, so
+                        # an unresolved hazard step froze the phase for good.
+                        khaines_vengeance_controller.on_dice_acknowledged()
                         pregame_controller.on_dice_acknowledged()  # rule 03.01 roll-offs
             elif crushing_impact_controller.pending_damage_choice is not None:
                 if (
@@ -4599,29 +5508,6 @@ def main(map_key=None):
                     clicked = input_manager.token_at_event(state.tokens, board, event.pos)
                     if clicked is not None and clicked in internal_grenade_racks_controller.pending_damage_choice:
                         internal_grenade_racks_controller.choose_damage_model(clicked)
-            elif secondary_mission_controller.pending_pick:
-                # A Secondary Mission asking the human to CLICK ONE OF THEIR
-                # UNITS on the board (Burden of Trust's guards). Placed here -
-                # after the notices, the decision overlay and a pending dice
-                # roll, but ahead of every controller-state branch and so ahead
-                # of the generic board branch - because a click on the board
-                # would otherwise fall through to the camera/selection handler
-                # and be swallowed. That is error class 15 in CLAUDE.md, and it
-                # is the reason this branch exists at all rather than the
-                # picking living inside InputManager.
-                #
-                # Same shape as crushing_impact's CHOOSING_ENEMY below: left
-                # panel clicks go to the panel (that is where the "No guard
-                # here" button lives), board clicks resolve to a squad. A click
-                # on an ineligible unit is IGNORED rather than guessed at -
-                # choose_picked_unit() checks eligibility itself.
-                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    if left_panel_rect.collidepoint(event.pos):
-                        action_panel.handle_click(event.pos)
-                    elif board_rect_screen.collidepoint(event.pos):
-                        clicked = input_manager.token_at_event(state.tokens, board, event.pos)
-                        if clicked is not None and clicked.squad is not None:
-                            secondary_mission_controller.choose_picked_unit(clicked.squad)
             elif crushing_impact_controller.state == crushing_impact.CHOOSING_ENEMY:
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     if left_panel_rect.collidepoint(event.pos):
@@ -4676,6 +5562,64 @@ def main(map_key=None):
                     clicked = input_manager.token_at_event(state.tokens, board, event.pos)
                     if clicked is not None and clicked in deadly_vectors_controller.pending_damage_choice:
                         deadly_vectors_controller.choose_damage_model(clicked)
+            elif lethal_ichor_controller.pending_damage_choice is not None:
+                # Real user report: "die ki hat nach der schussphase in ihrem
+                # zug 2 einfach aufgehört zu agieren". Reproduced from the log:
+                # it ended on "Spore-laced Shock Waves: <unit> suffers 3 mortal
+                # wound(s)" and nothing after it.
+                #
+                # These three controllers were asked about their
+                # pending_damage_choice in TWO places - _blocked() (so the
+                # phase cannot advance) and _any_pending_damage_choice() (so
+                # run_ai_action() is skipped) - and had no click branch here at
+                # all, so no input could ever clear the choice they were being
+                # blocked on. A total deadlock, and one only a Death Guard
+                # opponent reaches, which is why it survived until now: all
+                # three abilities belong to that faction.
+                #
+                # The "built, never fed" class again (VengefulStarsController,
+                # Path of the Outcast's dice acknowledgement, Sudden Storm's
+                # advance re-roll), in the one variant no behaviour test sees:
+                # built, blocked ON, never made clickable. Section 6 of
+                # test_event_chain_wiring.py is the guard against a fourth.
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in lethal_ichor_controller.pending_damage_choice:
+                        lethal_ichor_controller.choose_damage_model(clicked)
+            elif spore_laced_controller.pending_damage_choice is not None:
+                # The branch the reported hang sat on.
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in spore_laced_controller.pending_damage_choice:
+                        spore_laced_controller.choose_damage_model(clicked)
+            elif sickening_impact_controller.pending_damage_choice is not None:
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in sickening_impact_controller.pending_damage_choice:
+                        sickening_impact_controller.choose_damage_model(clicked)
+            elif (
+                event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                and right_panel_rect.collidepoint(event.pos)
+                and (rules_player := game_status_panel.army_rules_player_at(event.pos))
+            ):
+                # The "see rules" links, ONE PER PLAYER. Their own branch ABOVE
+                # the Next Phase button's, because both live in the right panel
+                # and the first matching branch wins - and reading a rule must
+                # never be able to advance the phase. It resolves no decision,
+                # so it is not gated on anything being pending.
+                #
+                # The panel answers WHICH player's link was hit, so the reader
+                # opens on that army alone rather than on both.
+                army_rules_overlay.show(armies, rules_player)
             elif (
                 event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
                 and right_panel_rect.collidepoint(event.pos)
@@ -4871,6 +5815,73 @@ def main(map_key=None):
                     clicked = input_manager.token_at_event(state.tokens, board, event.pos)
                     if clicked is not None and clicked in ishas_fury_controller.pending_damage_choice:
                         ishas_fury_controller.choose_damage_model(clicked)
+            elif khaines_vengeance_controller.pending_damage_choice is not None:
+                # Aspect Host's Khaine's Vengeance: a Desperate Escape test on
+                # every model of the falling-back unit, so its owner picks who
+                # falls. THIS BRANCH WAS MISSING while the controller's is_busy
+                # already blocked the phase advance - built, blocking, and not
+                # clickable, which is a hard hang rather than a silent no-op.
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in khaines_vengeance_controller.pending_damage_choice:
+                        khaines_vengeance_controller.choose_damage_model(clicked)
+            # The six carriers of game/mortal_wound_abilities.py's shared
+            # allocation session. NONE of them had a branch here, so against
+            # any multi-model target the session parked on pending_choice and
+            # the mortal wounds were never applied at all - see that module's
+            # rule 06.02 note. One branch each, in the canonical form, because
+            # that is what test_event_chain_wiring.py sections 3 and 6 read.
+            elif living_lightning_controller.pending_damage_choice is not None:
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in living_lightning_controller.pending_damage_choice:
+                        living_lightning_controller.choose_damage_model(clicked)
+            elif matter_absorption_controller.pending_damage_choice is not None:
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in matter_absorption_controller.pending_damage_choice:
+                        matter_absorption_controller.choose_damage_model(clicked)
+            elif crimson_harvest_controller.pending_damage_choice is not None:
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in crimson_harvest_controller.pending_damage_choice:
+                        crimson_harvest_controller.choose_damage_model(clicked)
+            elif eater_plague_controller.pending_damage_choice is not None:
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in eater_plague_controller.pending_damage_choice:
+                        eater_plague_controller.choose_damage_model(clicked)
+            elif kroot_linebreakers_controller.pending_damage_choice is not None:
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in kroot_linebreakers_controller.pending_damage_choice:
+                        kroot_linebreakers_controller.choose_damage_model(clicked)
+            elif crushing_strides_controller.pending_damage_choice is not None:
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in crushing_strides_controller.pending_damage_choice:
+                        crushing_strides_controller.choose_damage_model(clicked)
             elif explosives_controller.pending_damage_choice is not None:
                 if (
                     event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
@@ -4996,7 +6007,7 @@ def main(map_key=None):
                             # is less tiring than dragging them.
                             pregame_controller.select_unit(clicked_squad)
                         elif clicked_squad is not None:
-                            dragging_reserve_squad = clicked_squad
+                            picked_reserve_squad = clicked_squad
                             # Homing Beacon (user-supplied wargear item): set the
                             # placement rule for the WHOLE drag (not just after
                             # the drop) so the green/red overlay is accurate from
@@ -5009,18 +6020,23 @@ def main(map_key=None):
                             )
                 elif left_panel_rect.collidepoint(event.pos):
                     action_panel.handle_click(event.pos)
-                elif board_rect_screen.collidepoint(event.pos) and pregame_controller.awaiting_drop:
-                    # Rule 03.01: a unit is selected from the pre-game pool and
-                    # this click says where it goes. Intercepted ahead of the
-                    # normal board handling, which would otherwise read it as a
+                elif board_rect_screen.collidepoint(event.pos) and _carrying_a_unit():
+                    # Rules 03.01/20.04: a unit is being CARRIED - picked out of
+                    # the pre-game pool or out of the Reserves strip - and this
+                    # click says where it goes. Intercepted ahead of the normal
+                    # board handling, which would otherwise read it as a
                     # selection/move gesture.
+                    #
+                    # The reserves half is new: a card used to be placeable only
+                    # by a held left-drag, so a plain click on one did nothing
+                    # visible and the pick was thrown away on release. Now the
+                    # strip answers a click the way the pre-game pool always
+                    # has, which is also what gives the right-drag a carried
+                    # unit to work with.
                     local = camera.to_native_px(
                         (event.pos[0] - board_rect_screen.x, event.pos[1] - board_rect_screen.y)
                     )
-                    drop_x_in, drop_y_in = board.to_in(*local)
-                    pregame_controller.start_deployment(
-                        pregame_controller.selected_unit, drop_x_in, drop_y_in,
-                    )
+                    _place_picked_unit(*board.to_in(*local))
                 elif board_rect_screen.collidepoint(event.pos):
                     input_manager.handle_event(event, state.tokens, board, movement_controller, setup_controller)
                     # Später-Liste (Kamera-Scrolling/Viewport): left-drag to
@@ -5040,29 +6056,30 @@ def main(map_key=None):
                     # plain selection click, so the model is only armed here
                     # and picked up on the first motion. Panning would
                     # otherwise start underneath it and both would run at once.
-                    if input_manager.dragging_token is None and input_manager.pending_move_token is None:
+                    # ...and not while a line-formation drag is live either:
+                    # that gesture is already writing this squad's positions,
+                    # and panning under it moves the frame the line's far end
+                    # is measured in.
+                    if (input_manager.dragging_token is None
+                            and input_manager.pending_move_token is None
+                            and not input_manager.line_drag_active):
                         camera.begin_pan(event.pos)
-            elif event.type == pygame.MOUSEBUTTONUP and event.button == 1 and dragging_reserve_squad is not None:
-                # Rule 20.04: drop the dragged reserves-panel card - if it
-                # lands on the board, start an Ingress move there (checks
-                # battle round eligibility and, at confirm time, the extra
-                # set-up-distance/enemy-proximity constraints on top of
-                # plain Set Up); otherwise it's simply not picked up (still
-                # in reserves).
+            elif event.type == pygame.MOUSEBUTTONUP and event.button == 1 and picked_reserve_squad is not None:
+                # Rule 20.04: the end of a left-DRAG out of the Reserves strip -
+                # if it lands on the board the card goes down there (Ingress
+                # checks battle round eligibility, and at confirm time the extra
+                # set-up-distance/enemy-proximity constraints on top of plain
+                # Set Up).
+                #
+                # A release anywhere ELSE no longer throws the pick away: the
+                # unit stays carried, so a plain click on a card is a pick
+                # rather than a flicker, and the line-formation right-drag has
+                # something to place. Putting it back down is the same click it
+                # always was, and Cancel in the left panel returns it to
+                # reserves if the spot turns out to be wrong.
                 if board_rect_screen.collidepoint(event.pos):
                     local = (event.pos[0] - board_rect_screen.x, event.pos[1] - board_rect_screen.y)
-                    x_in, y_in = board.to_in(*camera.to_native_px(local))
-                    ingress_controller.start_ingress(dragging_reserve_squad, x_in, y_in)
-                    # Rule 15.07: this was the one attempt the Rapid Ingress
-                    # window bought - used up the instant it's dropped on
-                    # the board, whether or not IngressController accepts it.
-                    # setup_controller is passed here (unlike ai/agent_driver.
-                    # py's own auto-ingress call) so a chained Fire Overwatch
-                    # offer defers until this placement actually concludes
-                    # instead of hijacking it mid-drag - see consume()'s own
-                    # docstring for the full bug report this fixes.
-                    rapid_ingress_controller.consume(dragging_reserve_squad, setup_controller=setup_controller)
-                dragging_reserve_squad = None
+                    _place_picked_unit(*board.to_in(*camera.to_native_px(local)))
             elif event.type in (pygame.MOUSEMOTION, pygame.MOUSEBUTTONUP):
                 # Später-Liste (Kamera-Scrolling/Viewport): update the pan
                 # BEFORE input_manager sees this same motion event, so its
@@ -5075,6 +6092,23 @@ def main(map_key=None):
                 if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                     camera.end_pan()
 
+        # What the game menu was pressed for, read ONCE per frame. Polled here
+        # rather than acted on inside the event branch because an overlay
+        # cannot write main()'s locals, and take_action() clears the answer as
+        # it hands it over - the same idiom as
+        # unshrouded_truth_controller.take_pending_placement() below.
+        _menu_answer = game_menu.take_action() if game_menu.is_pending else None
+        if _menu_answer == game_menu_module.RESUME:
+            game_menu.dismiss()
+        elif _menu_answer == game_menu_module.SAVE:
+            _save_scene("saved from the menu")
+        elif _menu_answer is not None:
+            # NEW_GAME or QUIT: both END this battle. run() reads the answer
+            # and either comes back round for a new one or closes the window.
+            game_menu.dismiss()
+            outcome = _menu_answer
+            running = False
+
         # The ALT ruler (User: "sorge bitte dafür, dass ich immer entfernungen
         # messen kann. mit alt"). Polled from the modifier's live state instead
         # of the KEYDOWN/KEYUP pair this used to be, because that pair lived
@@ -5084,6 +6118,13 @@ def main(map_key=None):
         # already tracked and the origin snaps to whatever the cursor really
         # sits on.
         input_manager.update_measuring(bool(pygame.key.get_mods() & pygame.KMOD_ALT))
+
+        # Same argument as the line above, and the same shape. The gesture's
+        # CONTINUATION is polled so no branch can lose it, and a lost
+        # MOUSEBUTTONUP (ALT+TAB, focus loss) cannot strand a drag that is
+        # actively rewriting model positions - worse than the ruler's version
+        # of that bug, which only stranded a drawing.
+        input_manager.update_line_drag(bool(pygame.mouse.get_pressed()[2]))
 
         # Seer Council's Unshrouded Truth ends with "your unit must make an
         # ingress move this phase", and the user read that as immediate ("der
@@ -5096,8 +6137,43 @@ def main(map_key=None):
         # cannot re-arm a placement already in progress.
         _owed_arrival = unshrouded_truth_controller.take_pending_placement()
         if _owed_arrival is not None:
-            dragging_reserve_squad = _owed_arrival
+            picked_reserve_squad = _owed_arrival
             ingress_controller.homing_beacon_bearer = None
+
+        # A carried card now OUTLIVES the release that picked it up, so it also
+        # needs an expiry - without one it would survive into the Shooting
+        # phase, and IngressController.can_ingress() checks the battle round
+        # but never the PHASE (see reserves_panel_visible's own note), so the
+        # next board click would sneak an out-of-phase arrival. Polled once a
+        # frame rather than hooked onto the phase change, because the pick can
+        # also lapse for reasons that are not a phase boundary: the unit was
+        # placed by something else, destroyed with its transport, or arrived
+        # via the AI's own path. Deliberately AFTER the arming above, so an
+        # owed arrival gets its frame.
+        #
+        # ...EXCEPT for the one squad a Rapid Ingress window is open for, and
+        # that exception is the whole of rule 15.07: its window opens as the
+        # opponent's Movement phase ENDS (see the offer site above - it fires
+        # after advance_phase(), so the clock already reads Shooting), so the
+        # phase test below matched EVERY Rapid Ingress. A human who bought it
+        # picked the card up and the very next frame took it away again.
+        #
+        # Reported: "Ich habe im letzten spiel als player 2 rapid ingress fuer
+        # den shard of the voiddragen verwendet, konnte aber danach keine
+        # einheit platzieren" - and in that game's log the window opens at line
+        # 259, one line after "Player 1: Shooting phase begins", and closes
+        # unused at line 313. Nothing to do with who the AI is: the AI reaches
+        # its reserves through ai/deployment_ai.py and never through this pick,
+        # which is why only a human could meet it.
+        #
+        # Narrowed to that ONE squad rather than "any pending window", so the
+        # guard keeps doing its job: every other reserve unit still cannot be
+        # walked in out of phase on the back of somebody else's Stratagem.
+        if picked_reserve_squad is not None and (
+                picked_reserve_squad not in state.reserves
+                or (turn_tracker.phase != PHASE_MOVEMENT
+                    and picked_reserve_squad is not rapid_ingress_controller.pending_squad)):
+            picked_reserve_squad = None
 
         # `turn_tracker.started` gates the whole block: during the pre-game
         # sequence (rule 03.01) nobody has a turn yet, and without this the
@@ -5134,15 +6210,44 @@ def main(map_key=None):
             # stratagem_notice_overlay/waaagh_notice_overlay/dice_manager
             # already gate every further AI action the exact same way, so
             # this one reordering serializes the whole chain.
-            turn_start_overlay.show(turn_tracker.turn_owner, turn_tracker.turn_number_for(turn_tracker.turn_owner))
+            turn_start_overlay.show(
+                turn_tracker.turn_owner,
+                turn_tracker.turn_number_for(turn_tracker.turn_owner),
+                faction_keyword=current_player_factions().get(turn_tracker.turn_owner),
+            )
             if turn_tracker.turn_owner == "Player 2":
                 camera.zoom = camera.min_zoom
                 camera.pan_x = 0.0
                 camera.pan_y = 0.0
             previous_turn_owner = turn_tracker.turn_owner
 
+        # THE AUTOSAVE (user: "Auto save pro Schlachtrunde"), so the menu's
+        # Resume entry has something to offer without anyone having learned
+        # about F9.
+        #
+        # A ROUND boundary, and that is not just what was asked for - it is the
+        # only instant at which the snapshot is complete BY CONSTRUCTION rather
+        # than by serialising a dozen more things. Everything the mission
+        # controllers keep that cannot go into JSON at all - live squad
+        # references, id()-keyed sets, an open board pick's callbacks - is
+        # turn-scoped and therefore empty here.
+        #
+        # Outside the event loop for the same reason the block above is: it
+        # must not be reachable only when no branch happened to claim the
+        # frame. Held back while anything is pending, so the file is written
+        # from a settled board rather than from the middle of a dice roll.
+        if turn_tracker.started and turn_tracker.battle_round != previous_battle_round:
+            if (not decision_manager.is_pending and not dice_manager.is_pending
+                    and _front_notice() is None
+                    and coherency_enforcer.pending_squad is None
+                    and not _any_pending_damage_choice()):
+                previous_battle_round = turn_tracker.battle_round
+                _save_scene(f"autosaved at the start of battle round {turn_tracker.battle_round}",
+                            path=os.path.join(scene_io.SCENES_DIR, scene_io.AUTOSAVE_NAME),
+                            quiet=True)
+
         if (
-            ai_auto_play and not dice_panel.is_busy and not stratagem_notice_overlay.is_pending and not mission_draw_overlay.is_pending
+            ai_mode.enabled() and not dice_panel.is_busy and not stratagem_notice_overlay.is_pending and not mission_draw_overlay.is_pending
             and not waaagh_notice_overlay.is_pending
             and not turn_start_overlay.is_pending and not turn_plan_overlay.is_pending
             and not fight_warning_overlay.is_pending
@@ -5316,7 +6421,19 @@ def main(map_key=None):
             eternal_revenant_controller.notify_destroyed([dead])
             state.add_blood_decal(dead.x_in, dead.y_in)
             if movement_controller.selected_model is dead:
-                movement_controller.select(None)
+                # Re-anchor onto a surviving squadmate instead of dropping the
+                # whole pick. Now that the selection is drawn as a UNIT, losing
+                # it because one model of it died reads as the pick vanishing
+                # for no reason the player can see - and the line-of-sight
+                # highlight is measured FROM the anchor (see the anchor block
+                # further down), so leaving a corpse as the anchor would measure
+                # sight lines from a dead model. See game/selection.py.
+                movement_controller.selection.reanchor()
+                if movement_controller.selected_squad is None:
+                    # Whole unit wiped: fall through to the full select(None),
+                    # which is what also resets the move state and errors -
+                    # reanchor() only answers "who is picked".
+                    movement_controller.select(None)
             if input_manager.hovered_token is dead:
                 input_manager.hovered_token = None
             # Rule 18.03/18.05: a destroyed TRANSPORT's passengers must
@@ -5356,7 +6473,12 @@ def main(map_key=None):
                 # hangs off this branch's own unit_is_destroyed() judgement
                 # rather than re-deriving one.
                 secondary_mission_controller.record_destroyed_squad(dead.squad)
-                # Third consumer of the same judgement: the Kroot Flesh
+                # ...and a third: four of the five Force Disposition Primary
+                # Missions have a box that counts or asks about destroyed enemy
+                # UNITS. There is deliberately no model-level twin - not one of
+                # those boxes counts models.
+                primary_mission_controller.record_destroyed_squad(dead.squad)
+                # Fourth consumer of the same judgement: the Kroot Flesh
                 # Shaper's Rites of Feasting upgrades its unit's Feel No Pain
                 # from 6+ to 5+ for the rest of the battle once that unit has
                 # "destroyed one or more enemy units in the Fight phase".
@@ -5399,17 +6521,25 @@ def main(map_key=None):
                 deadly_demise_controller.maybe_start_next()
 
         anchor = movement_controller.selected_model
-        if anchor is None or movement_controller.group_move_enabled or not movement_controller.live_los_highlight_enabled:
-            # QoL "Move Whole Squad" drag (game/movement.py's
-            # apply_group_drag()) moves every model in the squad on every
-            # single mouse-motion event - skip the live LOS highlight
-            # entirely while it's on, rather than adding its own per-frame
-            # cost (already an identified hot path, see VISIBILITY_SAMPLE_POINTS
-            # above) on top of that. User follow-up request: the same cost
-            # exists for a normal single-model drag too, so it's now its own
-            # persistent toggle (movement_controller.live_los_highlight_enabled,
-            # game/movement.py's toggle_live_los_highlight()) - off by
-            # default, same as Move Whole Squad's own LOS skip above.
+        if anchor is None or input_manager.dragging_group or input_manager.dragging_setup_group:
+            # A whole-unit drag (game/movement.py's apply_group_drag(),
+            # game/setup.py's block placement) moves every model in the unit on
+            # every single mouse-motion event - skip the live LOS highlight
+            # while one is IN PROGRESS rather than adding its own cost
+            # (measured at 8.3 ms per recompute on a 142-model map2 board, i.e.
+            # half a frame; already an identified hot path, see
+            # VISIBILITY_SAMPLE_POINTS above) on top of that.
+            #
+            # IN PROGRESS, not "the preference is on", and that distinction is
+            # load-bearing: the highlight itself no longer has a toggle at all
+            # (user decision - "den LOS Check Knopf brauch ich nicht mehr. der
+            # soll immer aktiviert sein"), and the whole-unit-drag preference
+            # now defaults to ON since it absorbed block placement's default.
+            # Gated on the preference, those two decisions would cancel out -
+            # the highlight would be off by default, which is exactly what the
+            # user asked to stop. input_manager sets these two on mouse-down
+            # and clears them on mouse-up, so this pays the cost of nothing
+            # while the player is merely hovering with a model selected.
             visibility_cache["key"] = None
             visible_models = set()
         else:
@@ -5506,7 +6636,7 @@ def main(map_key=None):
         board_surface.set_clip(board_clip)
 
         renderer.draw(
-            board_surface, board, state.tokens, state.obstacles, turn_tracker.active_player,
+            board_surface, board, state.tokens, state.obstacles,
             deployment_zones=state.deployment_zones, blood_decals=state.blood_decals,
             terrain_areas=state.terrain_areas,
         )
@@ -5523,11 +6653,30 @@ def main(map_key=None):
             board_surface, board, state.tokens,
             reach_of=nurgles_gift_controller.reach_of,
         )
+        # The RANGE RULER (game/aura_ruler.py), drawn right after the aura it
+        # is modelled on so the two share a place in the stack: under the
+        # models, over the ground, because both are facts about the ground
+        # rather than a tint on the miniatures.
+        #
+        # ONLY the model that was clicked - "wenn ich ein spezifisches Modell
+        # anklicke soll nur die Aura dieses Modells angezeigt werden" - and
+        # active_radius() is the single question that answers both "is the
+        # ruler on" and "how big", so the toolbar and this cannot disagree
+        # about what is on screen.
+        #
+        # The anchor is passed rather than re-derived: selection.py owns which
+        # model the click landed on, and it is the same anchor the
+        # line-of-sight highlight is measured from, so the ruler and that
+        # highlight cannot end up pointing at different models.
+        renderer.draw_range_aura(
+            board_surface, board, movement_controller.selected_squad,
+            aura_ruler.active_radius(), model=movement_controller.selected_model,
+        )
         # User request: always show what a TRANSPORT (18.02) is carrying,
         # not just while actively disembarking it - see
         # Renderer.draw_embarked_passengers()'s own docstring.
         renderer.draw_embarked_passengers(
-            board_surface, board, state.tokens, state.embarked_squads, turn_tracker.active_player,
+            board_surface, board, state.tokens, state.embarked_squads,
         )
         # Rules 03.02/20.04: show where the unit being placed could legally
         # end up (green) or not (red) - already while it's still being
@@ -5535,7 +6684,7 @@ def main(map_key=None):
         # while fine-adjusting its models afterward. One representative
         # model of the squad, since they all share the same base size.
         placement_squad = (
-            dragging_reserve_squad if dragging_reserve_squad is not None
+            picked_reserve_squad if picked_reserve_squad is not None
             else setup_controller.setting_up_squad if setup_controller.state == setup.PLACING
             # Rule 03.01: a unit picked from the pre-game pool but not yet
             # dropped - same "show me where this may go before I commit"
@@ -5566,7 +6715,12 @@ def main(map_key=None):
                 # inside - one source of truth, so "green" and "the model is
                 # allowed to stop here" cannot drift apart.
                 position_valid_fn = setup_controller.placement_validator(placement_squad)
-                session_key = ("setup", setup_controller.placement_generation)
+                # Not placement_generation directly: for a model RETURN the
+                # legal ground is drawn from where the squadmates stand, and
+                # they move while the player positions them - see
+                # SetupController.overlay_cache_key(). Completed below, once
+                # the model the band belongs to is known.
+                session_key = ("setup", None)
             else:
                 # Still being dragged out of the Reserves panel - nothing has
                 # been dropped yet, so there is no placement to ask.
@@ -5574,20 +6728,74 @@ def main(map_key=None):
                     placement_squad, token, x_in, y_in,
                 )
                 session_key = ("reserve-drag", id(placement_squad))
-            # Which model to show it for matters now that a unit can have
-            # mixed base sizes (an attached unit, rule 19.01): whichever one
-            # is actually being dragged, else the largest base, whose legal
-            # ground is a subset of every other model's and is therefore the
-            # safe thing to show before you have picked one up.
-            overlay_token = (
+            # ONE PICTURE FOR THE WHOLE UNIT. The overlay used to draw legal
+            # CENTRES, which is a different curve per base size, so a model had
+            # to be nominated to draw for - the biggest, on the claim that its
+            # legal ground is a subset of every other model's. Coherency broke
+            # that claim (it GROWS with the radius while terrain and edges
+            # shrink with it): measured on Warriors + Overlord, 8.6 sq.in were
+            # legal for the big model only and 9.3 for the small one only, so
+            # neither mask was safe for the other.
+            #
+            # Base-edge zones have no such problem - they are evaluated for a
+            # point-sized base, so the red half is the same for everyone. Only
+            # the coherency band still depends on which model is being placed,
+            # because "the others" is a different set for each; it gets its own
+            # cache key.
+            placing_now = (
+                setup_controller.placing_models
+                if placement_squad is setup_controller.setting_up_squad
+                and setup_controller.placing_models
+                else placement_squad.models
+            )
+            band_token = (
                 input_manager.dragging_token
-                if input_manager.dragging_token in placement_squad.models
-                else max(placement_squad.models, key=lambda m: m.radius_in)
+                if input_manager.dragging_token in placing_now
+                else (placing_now[0] if placing_now else None)
             )
+            if placement_squad is setup_controller.setting_up_squad:
+                keep_out_fn, band_fn = setup_controller.base_edge_zones(
+                    placement_squad, band_token)
+                band_key = ("band", setup_controller.overlay_cache_key(band_token))
+            else:
+                # Not a SetupController placement yet (a reserves drag, an
+                # undropped pool pick): the owning controller answers per
+                # position, so the keep-out zone is that predicate asked for a
+                # point-sized base. Nothing to stay coherent with yet.
+                def keep_out_fn(x_in, y_in, _fn=position_valid_fn, _t=band_token):
+                    if _t is None:
+                        return False
+                    real = _t.radius_in
+                    _t.radius_in = 0.0
+                    try:
+                        return not _fn(_t, x_in, y_in)
+                    finally:
+                        _t.radius_in = real
+                band_fn = None
+                band_key = None
+            if session_key == ("setup", None):
+                session_key = ("setup", setup_controller.overlay_cache_key(None))
             renderer.draw_placement_overlay(
-                board_surface, board, overlay_token, position_valid_fn,
+                board_surface, board, keep_out_fn, band_fn,
                 (session_key, len(state.tokens)),
+                band_key=(band_key, len(state.tokens)) if band_key else None,
             )
+            # ...and say WHICH unit that legal ground belongs to. Only for a
+            # unit whose models are actually standing on the board: a reserves
+            # drag and an undropped pool pick are not placed yet, so outlining
+            # them would ring stale positions they are not on. The pool pick
+            # gets its answer in the reserves strip instead (selected_squad
+            # there), and the drag gets the ghost that follows the cursor.
+            if (placement_squad is setup_controller.setting_up_squad
+                    and setup_controller.state == setup.PLACING):
+                # ...and, for a PARTIAL placement (rule 01.02.03's model
+                # return), WHICH models are the new ones: the unit outline is
+                # equally true of the survivors standing beside them.
+                renderer.draw_placement_identity(
+                    board_surface, board, placement_squad,
+                    placing_models=(setup_controller.placing_models
+                                    if setup_controller.is_partial else None),
+                )
         # User report: the objective label used to be drawn permanently and
         # constantly covered the terrain/models under it - now it only
         # slides out on hover over a small "i" icon, so the current mouse
@@ -5607,6 +6815,16 @@ def main(map_key=None):
         renderer.draw_objectives(
             board_surface, board, state.objectives, state.tokens, hover_native_px=objective_hover_native_px,
         )
+        # Death Trap's operation markers. Drawn HERE, in the live pass, rather
+        # than on the cached static terrain layer: that layer is keyed on the
+        # identity and length of the terrain list, so an area becoming trapped
+        # mid-battle would never invalidate it. Without a marker the board
+        # simply does not say which ruins are trapped, and the mission is
+        # unplayable by eye.
+        renderer.draw_terrain_markers(
+            board_surface, board,
+            primary_mission_controller.trapped_areas_on_board(), label="TRAPPED",
+        )
         renderer.draw_visibility_highlight(board_surface, board, visible_models)
         renderer.draw_shoot_targets(board_surface, board, shoot_targets)
         renderer.draw_shoot_targets(board_surface, board, charge_target_models)
@@ -5619,6 +6837,41 @@ def main(map_key=None):
         renderer.draw_shoot_targets(board_surface, board, crushing_impact_choosable_models)
         renderer.draw_shoot_targets(board_surface, board, greater_good_target_models)
         renderer.draw_shoot_targets(board_surface, board, fire_overwatch_target_models)
+        # The units a pending decision can be answered by clicking. Same rings
+        # as Fire Overwatch's, because that is the look the request named.
+        # Derived ONCE for the whole frame's drawing: the rings here, the left
+        # panel's screen and the decision overlay's stand-aside are three views
+        # of one fact and must not be able to disagree.
+        frame_unit_pick = board_unit_pick()
+        # WHAT the rule being answered actually says, for the right panel.
+        # User: "immer wenn ich aufgefordert werde durch eine Fähigkeit etwas
+        # auf dem Spielfeld auszuwählen... schreibe die Fähigkeit Regel mit in
+        # die rechte Spalte, sonst weiß ich gar nicht was ich da auswähle."
+        #
+        # Only for a BOARD pick, which is the one prompt shape that draws no
+        # overlay at all (it would cover the units being clicked) - every other
+        # decision already puts its full text on screen in the overlay.
+        #
+        # The candidate rules are the DECIDING player's own units plus the ones
+        # being offered: the ability doing the asking is nearly always the
+        # asker's (Living Lightning is the Plasmancer's), but a couple read off
+        # the target instead. game/prompt_rule.py caches, so this costs one
+        # lookup per prompt rather than one per frame.
+        frame_decision_rule = None
+        if frame_unit_pick is not None:
+            _rule_owner = decision_manager.player
+            _rule_entry = (army_lists.get(armies[_rule_owner])
+                           if armies.get(_rule_owner) else None)
+            if _rule_entry is not None:
+                _rule_squads = [s for s in state.all_squads() if s.owner == _rule_owner]
+                _rule_squads.extend(frame_unit_pick.squads)
+                _name, _blocks = prompt_rule.for_prompt(
+                    frame_unit_pick.prompt, _rule_squads,
+                    _rule_entry.faction_keyword, _rule_entry.detachments)
+                if _blocks:
+                    frame_decision_rule = (_name, _blocks)
+        renderer.draw_shoot_targets(
+            board_surface, board, unit_pick.target_models(frame_unit_pick, state.tokens))
         renderer.draw_assigning_model_highlight(board_surface, board, explosives_controller.acting_model)
         if attack_pair is not None:
             renderer.draw_attack_arrow(board_surface, board, attack_pair[0], attack_pair[1])
@@ -5629,6 +6882,16 @@ def main(map_key=None):
         renderer.draw_damage_choice_highlight(board_surface, board, fight_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, explosives_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, ishas_fury_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, khaines_vengeance_controller.pending_damage_choice)
+        # The six mortal-wound carriers - see their branches in the event
+        # chain. A blocked-on choice that is never drawn is the same hang with
+        # a better ending: the board would not say which models are pickable.
+        renderer.draw_damage_choice_highlight(board_surface, board, living_lightning_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, matter_absorption_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, crimson_harvest_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, eater_plague_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, kroot_linebreakers_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, crushing_strides_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, grenade_pack_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, grav_inhibitor_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, flickerjump_controller.pending_damage_choice)
@@ -5637,14 +6900,27 @@ def main(map_key=None):
         renderer.draw_damage_choice_highlight(board_surface, board, crushing_impact_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, fall_back_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, deadly_vectors_controller.pending_damage_choice)
+        # Without these four the choice is pending, the AI is paused on it and
+        # the board shows nothing - the human is being waited on with no way to
+        # tell. Same list as the click branches above; section 6 of
+        # test_event_chain_wiring.py requires the two lists to agree.
+        renderer.draw_damage_choice_highlight(board_surface, board, lethal_ichor_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, spore_laced_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, sickening_impact_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, internal_grenade_racks_controller.pending_damage_choice)
         renderer.draw_assigning_model_highlight(board_surface, board, fight_assigning_model)
         renderer.draw_assigning_model_highlight(board_surface, board, shoot_assigning_model)
         renderer.draw_status_labels(board_surface, board, status_by_token)
-        renderer.draw_selected_model(board_surface, board, movement_controller.selected_model)
+        renderer.draw_selection(board_surface, board, movement_controller.selection)
         renderer.draw_forbidden_engagement_ranges(board_surface, board, movement_controller, state.tokens)
         renderer.draw_move_range(board_surface, board, movement_controller)
         renderer.draw_move_feedback(board_surface, board, movement_controller, input_manager.dragging_token)
         renderer.draw_measure_tool(board_surface, board, input_manager)
+        # Unconditionally per frame, at frame-body indent - the pinned pattern
+        # for a view-level control in this chain. The method self-gates on
+        # line_drag_active, so there is nothing here for a state branch to get
+        # between.
+        renderer.draw_line_drag(board_surface, board, input_manager)
 
         # Später-Liste (Kamera-Scrolling/Viewport): board_surface itself was
         # just drawn at full (supersampled) native resolution, completely
@@ -5725,19 +7001,30 @@ def main(map_key=None):
             # Mission owns the panel while it lasts - it is the only place that
             # can name WHICH objective is being decided.
             secondary_mission_controller=secondary_mission_controller,
+            primary_mission_controller=primary_mission_controller,
             unmodified_six_controller=unmodified_six_controller,
+            # Rule 01.02.03's model return, which reuses the Set Up flow -
+            # appended by keyword like everything after fate_dice_pool.
+            return_placement_controller=return_placement_controller,
+            unit_pick=frame_unit_pick,
+            # "WHY YOU ARE CHOOSING": the printed rule behind a board
+            # pick. It lived in the right panel, which is the emptier
+            # column - but the question is already in THIS one, and the
+            # user asked for it to follow ("'why you are choosing' soll
+            # in die linke spalte, nicht rechts").
+            decision_rule=frame_decision_rule,
         )
         # Drawn after the left panel itself (so their expanded/slid-out
         # state renders on top of the board, not underneath the panel) but
         # anchored off left_panel_rect - see MissionCardsOverlay's docstring.
         mission_cards_overlay.draw(screen, left_panel_rect, mission_controller,
-                                   secondary_mission_controller)
-        if len(player_factions) < 2:
-            player_factions = derive_player_factions(_all_squads(state, pregame_controller))
+                                   secondary_mission_controller,
+                                   primary_controller=primary_mission_controller)
         # Appended and passed by keyword: this call site is positional up to
         # fate_dice_pool, and the tests that drive this panel are too.
         game_status_panel.draw(screen, right_panel_rect, turn_tracker, command_points, mission_controller,
-                               battle_focus_pool, fate_dice_pool, player_factions=player_factions)
+                               battle_focus_pool, fate_dice_pool,
+                               player_factions=current_player_factions())
         # config.LOG_HEIGHT is what the log wants; the Game Status panel above
         # it gets the room it needs first. Clamped against that panel's real
         # button rect (drawn one line above, so it is this frame's) rather than
@@ -5761,7 +7048,7 @@ def main(map_key=None):
         reserves_panel_visible = (
             turn_tracker.phase == PHASE_MOVEMENT
             or setup_controller.state == setup.PLACING
-            or dragging_reserve_squad is not None
+            or picked_reserve_squad is not None
             or rapid_ingress_controller.pending_squad is not None
             # Rule 03.01: during the pre-game the same strip is the pool of
             # units still waiting to be deployed.
@@ -5788,16 +7075,20 @@ def main(map_key=None):
             )
         reserves_panel.draw(
             screen, reserves_panel_rect, reserves_to_show,
-            dragging_squad=dragging_reserve_squad, visible=reserves_panel_visible,
+            dragging_squad=picked_reserve_squad, visible=reserves_panel_visible,
             # Rule 15.07: reserves_to_show is already narrowed down to the
             # ONE squad this Rapid Ingress window is for in that case - it
             # must stay visible/draggable regardless of which Player 1/
             # Player 2 tab happens to be selected, so the panel's own
             # owner filter is switched off for exactly that case.
             filter_by_owner=rapid_ingress_controller.pending_squad is None,
+            # Rule 03.01: which card the player picked out of the pool. This
+            # strip is where that pick happens and it had no way to show it -
+            # the chosen card looked exactly like its neighbours.
+            selected_squad=pregame_controller.selected_unit,
         )
-        if dragging_reserve_squad is not None:
-            renderer.draw_reserve_drag_ghost(screen, dragging_reserve_squad, pygame.mouse.get_pos())
+        if picked_reserve_squad is not None:
+            renderer.draw_reserve_drag_ghost(screen, picked_reserve_squad, pygame.mouse.get_pos())
         player_banner.draw(
             screen, coherency_enforcer, battle_shock_controller=battle_shock_controller,
             turn_tracker=turn_tracker, all_tokens=state.tokens,
@@ -5837,18 +7128,69 @@ def main(map_key=None):
         else:
             # Same reasoning one tier down: a decision is only clickable once
             # every notice is gone, so it waits its turn too.
-            decision_overlay.draw(screen, decision_manager, state.all_squads())
+            decision_overlay.draw(screen, decision_manager, state.all_squads(),
+                                  board_pick=frame_unit_pick is not None)
 
+        # POLLED, never a chain branch - the card is a VIEW, and every view
+        # control in this loop is polled for the reason CLAUDE.md's
+        # Fehlerklasse 15 records five times over (see update_hover()).
         ctrl_held = pygame.key.get_mods() & (pygame.KMOD_LCTRL | pygame.KMOD_RCTRL)
+        _datacard_token = input_manager.hovered_token
+        _modal_up = (
+            decision_manager.is_pending or stratagem_notice_overlay.is_pending
+            or mission_draw_overlay.is_pending or waaagh_notice_overlay.is_pending
+            or turn_start_overlay.is_pending or turn_plan_overlay.is_pending
+            or fight_warning_overlay.is_pending or army_rules_overlay.is_pending
+            or game_menu.is_pending
+        )
+        # The Stratagem tooltip: rest on a Stratagem button and its printed
+        # WHEN/TARGET/EFFECT appear. POLLED beside the datacard, never as a
+        # chain branch, for the reason that card's own update_hover() writes
+        # out (Fehlerklasse 15) - and drawn HERE rather than inside the panel
+        # because the mission strip slides out over the panel's edge and would
+        # paint across a box drawn earlier in the frame.
+        _tip_name = action_panel.update_tooltip(
+            pygame.mouse.get_pos(), any(pygame.mouse.get_pressed()),
+            pygame.time.get_ticks(),
+        ) if not _modal_up else None
+        if _tip_name:
+            # WHOSE Stratagem it is comes from the unit the panel is drawing
+            # for, not from whose turn it is: the reactive ones (Fire Overwatch,
+            # Heroic Intervention, the Aeldari Fate dice) are bought during the
+            # OPPONENT's turn, and looking the text up in the wrong army's
+            # detachments would find nothing exactly when it is most wanted.
+            _tip_squad = movement_controller.selected_squad
+            _tip_owner = _tip_squad.owner if _tip_squad is not None else turn_tracker.turn_owner
+            _tip_entry = (army_lists.get(armies[_tip_owner])
+                          if armies.get(_tip_owner) else None)
+            if _tip_entry is not None:
+                stratagem_tooltip.draw(
+                    screen, _tip_entry.faction_keyword, _tip_entry.detachments,
+                    _tip_name, pygame.mouse.get_pos(),
+                    anchor_rect=action_panel.tooltip_rect,
+                )
         if (
-            ctrl_held and input_manager.hovered_token is not None
-            and not decision_manager.is_pending and not stratagem_notice_overlay.is_pending and not mission_draw_overlay.is_pending
-            and not waaagh_notice_overlay.is_pending
-            and not turn_start_overlay.is_pending and not turn_plan_overlay.is_pending
-            and not fight_warning_overlay.is_pending
+            decision_manager.is_pending or stratagem_notice_overlay.is_pending
+            or mission_draw_overlay.is_pending or waaagh_notice_overlay.is_pending
+            or turn_start_overlay.is_pending or turn_plan_overlay.is_pending
+            or fight_warning_overlay.is_pending
+        ):
+            # A modal is up. The card is drawn over the board, so it would sit
+            # on top of the very prompt that has to be answered first.
+            _datacard_token = None
+        if army_rules_overlay.is_pending:
+            # The reader is drawn over the board, so the hover card would sit
+            # on top of the very text that was just opened.
+            _datacard_token = None
+        if game_menu.is_pending:
+            # Same again for the menu, which is drawn over everything.
+            _datacard_token = None
+        if unit_datacard.update_hover(
+            _datacard_token, pygame.mouse.get_pos(), ctrl_held,
+            any(pygame.mouse.get_pressed()), pygame.time.get_ticks(),
         ):
             unit_datacard.draw(
-                screen, input_manager.hovered_token, pygame.mouse.get_pos(),
+                screen, _datacard_token, pygame.mouse.get_pos(),
                 transport_controller=transport_controller,
             )
 
@@ -5877,33 +7219,52 @@ def main(map_key=None):
                 board_rect_screen, dim_rects=ai_busy_dim_rects, pulse=True,
                 avoid_rects=(dice_panel.last_backdrop_rect,),
             )
-        elif ai_auto_play:
-            # Persistent reminder that Player 2 is driving itself right now
-            # (Shift+A toggles it) - easy to lose track of otherwise, since
-            # unlike the "Claude is thinking..." badge this has no single
-            # moment it flashes at.
-            #
-            # A DOT, not a badge, and in the OPPOSITE corner (User: "dieses
-            # AutoPlay-enabled Label kannst du eigentlich weglassen. Ersatz:
-            # ein kleiner roter Punkt... Als Riesenlabel brauchen wir nur das
-            # Claude is thinking"). It shared the top-left corner with the busy
-            # badge, and the busy badge is flashed ON TOP of an already-drawn
-            # frame - so the wider AUTO-PLAY label stuck out from behind the
-            # narrower "Claude is thinking...". Opposite corners cannot
-            # overlap; a smaller badge in the same corner still could.
-            #
-            # This is also a MODE, not a wait, which is why it never dims the
-            # panels: several windows inside the AI's turn are genuinely the
-            # human's (reactive stratagems, Fire Overwatch, wound allocation -
-            # see CLAUDE.md), and locking the panels would lock the player out
-            # of their own decisions.
-            draw_auto_play_dot(screen, board_rect_screen)
+        # THE AI SWITCH, drawn every frame in BOTH states - it is the control
+        # as well as the indicator (user: "auesserdem waere ein toggle in der
+        # oberflaeche gut fuer den KI Modus. vielleicht dort, wo jetzt der rote
+        # punkt ist"). Its predecessor was a red dot that only existed while
+        # the mode was ON, so there was nothing to click to turn it back on.
+        #
+        # Deliberately NOT inside the `if ai_memory.is_planning` chain above:
+        # those are transient "the AI is busy" badges, this is a persistent
+        # mode. The MENU button owns the same corner, so the switch steps clear
+        # of it - avoid_rects, the same word AiBusyBadge already uses.
+        #
+        # Drawn here, over the board and after the panels, so the rect handed
+        # back is exactly what the event loop hit-tests.
+        ai_toggle_rect = draw_ai_mode_toggle(
+            screen, board_rect_screen, ai_mode.enabled(), ai_toggle_font,
+            avoid_rects=(game_menu.button_rect(board_rect_screen),),
+        )
+
+        # LAST, over everything including the notices: it is the one overlay the
+        # player opened deliberately, and it owns every event while it is up
+        # (see the branch at the top of the event loop), so nothing behind it
+        # can be acted on anyway.
+        army_rules_overlay.draw(screen)
+
+        # The MENU button, and then the menu itself - the very last two things
+        # in the frame. The button is hidden while either overlay is up: it
+        # would be drawn on top of the scrim that is covering the board it
+        # belongs to, and its click is not offered there either (see the
+        # pre-chain block), so drawing it would promise a control that does
+        # nothing.
+        if not game_menu.is_pending and not army_rules_overlay.is_pending:
+            game_menu.draw_button(screen, board_rect_screen, pygame.mouse.get_pos())
+        # LAST of all, over every notice and both readers: it is the way out of
+        # the game, so nothing may cover it.
+        if game_menu.is_pending:
+            game_menu.draw(screen, pygame.mouse.get_pos())
 
         pygame.display.flip()
         clock.tick(config.FPS)
 
     game_log.close()
-    pygame.quit()
+    # What the APPLICATION should do next - QUIT, or NEW_GAME when the in-game
+    # menu asked for a fresh battle. run() loops on this; a harness calling
+    # main() directly is free to ignore it, exactly as it ignored the None
+    # this used to return.
+    return outcome
 
 
 ORKS_ARMY = army_lists.ORKS_ARMY
@@ -5958,6 +7319,10 @@ def _parse_args(argv):
              "Without this, config.PREGAME_DEPLOYMENT decides.",
     )
     parser.add_argument(
+        "--no-menu", dest="start_menu", action="store_false", default=None,
+        help="skip the game menu and go straight to picking a battlefield.",
+    )
+    parser.add_argument(
         "--load", dest="load_scene", default=None, metavar="FILE",
         help="open a board position saved with F9 instead of setting up a new "
              "battle - every model back where it stood, same round, same phase, "
@@ -5998,5 +7363,7 @@ if __name__ == "__main__":
         # also need --map. An explicit --map still wins, and main() then
         # refuses the mismatch rather than placing the army on the wrong board.
         if _map_key is None:
-            _map_key = scene_io.read(_args.load_scene).get("map")
-    main(map_key=_map_key)
+            _map_key = scene_io.map_key_in(_args.load_scene)
+    if _args.start_menu is not None:
+        config.START_MENU = _args.start_menu
+    run(map_key=_map_key)

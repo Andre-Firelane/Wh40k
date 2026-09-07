@@ -24,9 +24,10 @@ import os
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 import testkit as tk  # noqa: E402
-from game import config, secondary_missions as sm  # noqa: E402
+from game import config, secondary_missions as sm, unit_pick  # noqa: E402
 from game.command_points import CommandPointManager  # noqa: E402
 from game.decision import DecisionManager  # noqa: E402
+from game import missions  # noqa: E402
 from game.missions import MissionController  # noqa: E402
 from game.turn import PHASES, PHASE_SHOOTING, TurnTracker  # noqa: E402
 from game.factions import aeldari as ae  # noqa: E402
@@ -942,33 +943,34 @@ checks.true("drawing it opens the guard gate", bot_dec.is_pending)
 checks.true("the gate offers declining",
             any("unguarded" in lbl.lower() for lbl in tk.options_of(bot_dec)))
 tk.pick_option(bot_dec, "Assign guards")
-# The guard is now picked by CLICKING THE UNIT ON THE BOARD, not from a list of
-# names (user: "ich muss auf der Map mein Einheit anklicken"), so the chain
-# hands out pending_pick requests instead of decisions. Each names the objective
-# it is about - that is the whole reason the request carries a `subject`.
+# The guard is picked by CLICKING THE UNIT ON THE BOARD, not from a list of
+# names (user: "ich muss auf der Map mein Einheit anklicken"). Since every such
+# prompt in the game works this way now, the chain hands its requests to the
+# ordinary DecisionManager with the options tagged, and game/unit_pick.py is
+# what turns one into a click. Each names the objective it is about - that is
+# the whole reason the request carries a `subject`.
 asked = []
-while bot_ctrl.pending_pick:
-    pick = bot_ctrl.pending_pick
-    asked.append(pick["subject"])
-    checks.true(f"the request names an objective ({pick['subject']})",
-                any(o.name == pick["subject"] for o in board.objectives))
-    checks.true("it says what to do", "click" in pick["prompt"].lower())
+while unit_pick.pending(bot_dec, bot_box) is not None:
+    pick = unit_pick.pending(bot_dec, bot_box)
+    asked.append(pick.subject)
+    checks.true(f"the request names an objective ({pick.subject})",
+                any(o.name == pick.subject for o in board.objectives))
+    checks.true("it says what to do", "click" in pick.prompt.lower())
     # Only units actually IN RANGE are eligible - a guard has to be in range to
     # count for anything, so offering one that is not would be a choice the
     # card cannot honour.
-    for squad in pick["eligible"]:
-        checks.true(f"{squad.name} really is in range of {pick['subject']}",
+    for squad in pick.squads:
+        checks.true(f"{squad.name} really is in range of {pick.subject}",
                     is_within_range_of_objective(
-                        squad, [o for o in board.objectives if o.name == pick["subject"]]))
-    if any(sq is on_centre for sq in pick["eligible"]):
+                        squad, [o for o in board.objectives if o.name == pick.subject]))
+    if any(sq is on_centre for sq in pick.squads):
         # A click on an INELIGIBLE unit is ignored, not guessed at.
         checks.eq("clicking a unit that is not eligible does nothing",
-                  bot_ctrl.choose_picked_unit(elsewhere), False)
-        checks.true("...and the request is still open", bot_ctrl.pending_pick is not None)
-        checks.true("clicking the eligible one takes",
-                    bot_ctrl.choose_picked_unit(on_centre))
+                  pick.pick(elsewhere), False)
+        checks.true("...and the request is still open", bot_dec.is_pending)
+        checks.true("clicking the eligible one takes", pick.pick(on_centre))
     else:
-        bot_ctrl.skip_pick()
+        pick.choose(pick.skip_options[0][1])
 checks.true("at least one objective was asked about", bool(asked))
 checks.eq("only objectives with a unit in range are asked about",
           all(any(is_within_range_of_objective(sq, [o for o in board.objectives if o.name == name])
@@ -982,6 +984,7 @@ checks.eq("and it scores",
           sm.BURDEN_OF_TRUST.score(bot_ctrl._context(card=sm.BURDEN_OF_TRUST)),
           sm.BURDEN_OF_TRUST_VP_PER_OBJECTIVE)
 checks.eq("the controller is idle once the chain is done", bot_ctrl.is_busy, False)
+checks.eq("...and nothing is left pending anywhere", bot_dec.is_pending, False)
 
 # "Until your next turn": the assignment LAPSES and is offered again at the
 # start of each of your turns. That is what makes the card a burden - you have
@@ -999,18 +1002,19 @@ checks.eq("declining leaves nothing guarded that turn",
 # so a fresh assignment REPLACES the old set rather than adding to it.
 bot_ctrl.start_of_turn("Player 1")
 tk.pick_option(bot_dec, "Assign guards")
-while bot_ctrl.pending_pick:
-    if any(sq is on_centre for sq in bot_ctrl.pending_pick["eligible"]):
-        bot_ctrl.choose_picked_unit(on_centre)
+while unit_pick.pending(bot_dec, bot_box) is not None:
+    pick = unit_pick.pending(bot_dec, bot_box)
+    if any(sq is on_centre for sq in pick.squads):
+        pick.pick(on_centre)
     else:
-        bot_ctrl.skip_pick()
+        pick.choose(pick.skip_options[0][1])
 checks.eq("a new turn's assignment replaces the old set, it does not add to it",
           len(bot_ctrl.card_state["burden_of_trust"]["guards"]), 1)
 
 # Not at the start of the OPPONENT's turn, and not when the card is not held.
 bot_ctrl.start_of_turn("Player 2")
 checks.eq("the enemy's turn opens no guard window",
-          bot_dec.is_pending or bot_ctrl.pending_pick is not None, False)
+          bot_dec.is_pending, False)
 empty_ctrl, _, _, empty_dec, _, _, _, _ = make(cards=[sm.CENTRE_GROUND])
 empty_ctrl.set_objectives_source(lambda: board.objectives)
 empty_ctrl.hand = [sm.CENTRE_GROUND]
@@ -2112,8 +2116,11 @@ checks.eq("Player 1 scores no No Mercy points - they play the deck",
           mission.score_secondary_end_of_turn("Player 1"), 0)
 checks.eq("their Secondary ledger is untouched by it",
           mission.secondary_points.get("Player 1", 0), 0)
+# One kill, at the standard Secondary's own rate - pinned against the CONSTANT,
+# which has been retuned once (1 -> 3, user: "secondary gibt 3 statt 1").
 checks.eq("Player 2 still scores No Mercy normally",
-          mission.score_secondary_end_of_turn("Player 2"), 1)
+          mission.score_secondary_end_of_turn("Player 2"),
+          missions.SECONDARY_POINTS_PER_KILL)
 checks.true("plays_secondary_cards reflects the config",
             mission.plays_secondary_cards("Player 1"))
 checks.eq("and the AI is not on it", mission.plays_secondary_cards("Player 2"), False)
@@ -2199,9 +2206,15 @@ checks.true("every removed model is reported",
 checks.true("an open mission prompt blocks the phase from advancing",
             "or secondary_mission_controller.is_busy" in main_src)
 
+# The strip is handed BOTH mission systems now: this deck for the hand, and the
+# Force Disposition Primary for the card at the top of it. Checked as two
+# separate needles rather than as one exact multi-line call - that is what this
+# was, and it went red the moment a second argument arrived, which is a guard
+# failing on formatting instead of on meaning.
 checks.eq("the strip is handed the deck",
-          main_src.count("mission_cards_overlay.draw(screen, left_panel_rect, mission_controller,\n"
-                         "                                   secondary_mission_controller)"), 1)
+          main_src.count("mission_cards_overlay.draw(screen, left_panel_rect, mission_controller,"), 1)
+checks.true("...and the Primary controller alongside it",
+            "primary_controller=primary_mission_controller)" in main_src)
 # NOT drawn directly any more: it goes through main.py's _front_notice(), so
 # only the front-most modal is ever on screen. test_one_modal_at_a_time.py
 # owns that rule; here we only pin that this notice takes part in it.

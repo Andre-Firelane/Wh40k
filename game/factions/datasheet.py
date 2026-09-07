@@ -227,7 +227,8 @@ class Datasheet:
     def gear_for(self, model_line_name):
         return [g for g in self.gear_options if g.model_line_name == model_line_name]
 
-    def points_for(self, composition_index=0, unit_index=1, choices=None, gear=None):
+    def points_for(self, composition_index=0, unit_index=1, choices=None, gear=None,
+                   weapon_counts=None):
         """What one unit built from this datasheet costs: its points list's
         own price for that unit size, plus every priced wargear option the
         `choices` actually select (see game/factions/points.py for why a
@@ -260,7 +261,31 @@ class Datasheet:
             for option, take in per_option.items()
         )
         wargear_cost += self._gear_cost(gear)
+        wargear_cost += self._per_weapon_cost(weapon_counts)
         return base + wargear_cost
+
+    def _per_weapon_cost(self, weapon_counts):
+        """What this unit's "per <weapon>" prices come to, given what it ended
+        up carrying.
+
+        The published list prices some options PER WEAPON rather than per swap
+        - "per T'au flamer 5 pts" - and the two only agree while the printed
+        default carries none of it. Two datasheets here break that: Crisis
+        Fireknife and Crisis Starscythe Battlesuits come with one of the priced
+        weapon per model as standard. See game/factions/points.py for the
+        user-supplied list that settles which reading is right.
+
+        `weapon_counts` is a {normalised weapon name: count} map of the FINISHED
+        unit, which only build_squad() can produce - so a caller pricing a build
+        it has not made gets the per-swap figure and, for those two datasheets,
+        an answer that is short by the default's own weapons. Named rather than
+        guarded, because every caller in this engine goes through build_squad().
+        """
+        if not weapon_counts:
+            return 0
+        priced = getattr(self.points, "per_weapon", None) or {}
+        return sum(price * weapon_counts.get(_normalise_weapon(item), 0)
+                   for item, price in priced.items())
 
     def _gear_cost(self, gear):
         """What the selected `gear` adds. Counts repeats (an item with
@@ -301,6 +326,13 @@ def _resolved_choices(datasheet, lines, choices):
             per_option[option] = min(take, line.count)
         resolved[line.name] = per_option
     return resolved
+
+
+def _normalise_weapon(name):
+    """One spelling for a weapon name, so a points list's "per T'au flamer" and
+    a profile's "T'au Flamer" are the same key. The published lists and the
+    weapon profiles disagree on case and punctuation as a matter of course."""
+    return "".join(ch for ch in (name or "").lower() if ch.isalnum())
 
 
 def _requested_count(value):
@@ -529,9 +561,19 @@ def build_squad(
                 # choice however many models it dresses.
                 applied_gear.setdefault(line.name, []).append(gear_name)
 
+    # What the unit ENDED UP carrying, for the "per <weapon>" prices - see
+    # Datasheet._per_weapon_cost(). Counted here rather than re-derived there,
+    # so the price and the models can never disagree.
+    built_weapons = {}
+    for model in models:
+        for weapon in model.weapons:
+            key = _normalise_weapon(weapon.name)
+            built_weapons[key] = built_weapons.get(key, 0) + 1
     squad = Squad(
         name or datasheet.name, models, owner=owner,
-        points=datasheet.points_for(composition_index=composition_index, unit_index=unit_index, choices=choices, gear=applied_gear),
+        points=datasheet.points_for(composition_index=composition_index, unit_index=unit_index,
+                                    choices=choices, gear=applied_gear,
+                                    weapon_counts=built_weapons),
     )
     # Which datasheet this unit came from - the only way rule 19.01's
     # "Leader and support units can only lead specific bodyguard units"

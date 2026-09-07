@@ -1122,13 +1122,20 @@ def take_pregame_action(pregame_ctrl, setup_controller, player, board_w_in, boar
 
 def resolve_scouts(pregame_ctrl, squad, branch, distance, movement_controller=None,
                    setup_controller=None, board_w_in=None, board_h_in=None,
-                   objectives=(), game_log=None, ai_players=("Player 2",)):
+                   objectives=(), game_log=None, ai_players=()):
     """Rule 24.31 for one unit. Wired into ScoutsStep.on_resolve; returns True
     if the AI actually used the ability.
 
     Deterministic, like the rest of the pre-game. Only the AI's own units are
     touched - a human's Scouts unit is left to the human (returning False just
-    means "declined", which 24.31 always permits)."""
+    means "declined", which 24.31 always permits).
+
+    `ai_players` DEFAULTS TO EMPTY, so a caller that forgets it touches nothing.
+    It used to default to ("Player 2",), which meant the same thing as long as
+    Player 2 was always the AI - and would have quietly resolved a HUMAN's
+    Scouts move the moment that stopped being true. main.py passes
+    config.AI_PLAYERS through explicitly; see its comment for why that is the
+    one place the fact lives."""
     if squad.owner not in ai_players:
         return False
 

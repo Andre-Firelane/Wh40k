@@ -484,7 +484,7 @@ c.eq("a loaded transport is not parked on garrison duty",
 # choosing which good unit to waste. Role now orders the candidates, and points
 # only break ties within a role.
 #
-# THE SCENE IS BUILT FROM army_lists.build_necrons(), not from datasheets picked
+# THE SCENE IS BUILT FROM the shipped necrons list, not from datasheets picked
 # here. The first draft of this section hand-passed composition indices and got
 # a 2-model 55-point Lokhust squad where the real list fields 6 models at 170 -
 # which silently inverted the very comparison being asserted. That is CLAUDE.md's
@@ -514,7 +514,7 @@ def necron_scene():
     state = GameState()
     maps.MAPS["map2"].build(state)
     built = []
-    army_lists.build_necrons("Player 2", lambda sq, *a, **kw: built.append(sq), state=state)
+    army_lists.get("necrons").build("Player 2", lambda sq, *a, **kw: built.append(sq), state=state)
     squads, state.tokens = {}, []
     for squad in built:
         spots = NECRON_SPOTS.get(squad.name)

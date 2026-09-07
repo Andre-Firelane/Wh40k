@@ -44,17 +44,22 @@ class CounteroffensiveController:
     end-of-turn clearing (main.py's advance_turn_phase()) already covers
     it correctly with no new cleanup needed.
 
-    "Must be the next unit you select to fight" is FightController.
-    forced_next_fighter (see fight.py's eligible_to_select_now()): once
-    granted, it narrows that player's selection down to exactly this squad
-    the moment it's their turn to pick, regardless of which sub-step
-    (Fights First / Remaining Combats) rule 12.04's alternation currently
-    happens to be in - the forced-fighter check runs BEFORE the normal
-    sub-step-based eligibility check, and Squad.fights_first is read live
-    (not cached) wherever alternation asks "does this player have anything
-    eligible", so the granted unit is picked up correctly whenever
-    alternation next reaches this player, with no extra bookkeeping needed
-    here for whatever sub-step happens to be active at grant time."""
+    "Must be the next unit you select to fight" goes through
+    FightController.force_next_fighter(), which sets the constraint AND
+    hands rule 12.04's alternation to this player.
+
+    That second half is NOT optional, and this docstring used to claim it
+    was ("the granted unit is picked up correctly whenever alternation next
+    reaches this player, with no extra bookkeeping needed here"). It is
+    wrong: alternation does not "next reach" this player at all. The window
+    is "just after an enemy unit has resolved its attacks", and the one
+    place that fires it - _actually_finish_current_fight() - has already run
+    _settle_turn_state() by then. So whose_turn is fixed BEFORE this grant
+    exists, and if the settle handed the turn back to the opponent (which it
+    does whenever they still have a Fights First unit and this player has
+    none) the constraint is filed under a player who is not selecting and
+    binds nothing. Reported from a game: 2 CP spent, the AI's next unit
+    swung anyway."""
 
     def __init__(self, stratagem_controller, fight_controller, all_tokens=None, turn_tracker=None, game_log=None):
         self.stratagem_controller = stratagem_controller
@@ -77,16 +82,20 @@ class CounteroffensiveController:
         if just_fought_squad is None:
             return
         reactor = _other_player(just_fought_squad.owner)
-        eligible = [
+        # Sorted because _all_squads() is a SET: without this the offered
+        # options come back in a different order from run to run, which is
+        # both unpleasant to click and makes any test that picks "option 0"
+        # non-deterministic.
+        eligible = sorted((
             squad for squad in self._all_squads()
             if squad.owner == reactor and self.fight_controller._is_eligible_to_fight(squad)
             and self.stratagem_controller.can_use(reactor, self._stratagem, [squad])
-        ]
+        ), key=lambda s: s.name)
         if not eligible:
             return
 
         options = [
-            (f"Counteroffensive: {squad.name} (2 CP)", lambda squad=squad: self._pick(reactor, squad))
+            (f"Counteroffensive: {squad.name} (2 CP)", lambda squad=squad: self._pick(reactor, squad), squad)
             for squad in eligible
         ]
         options.append(("Decline", None))
@@ -101,7 +110,13 @@ class CounteroffensiveController:
     def _grant(self, controller, player, targets):
         squad = targets[0]
         squad.fights_first = True
-        self.fight_controller.forced_next_fighter[player] = squad
+        # Both halves of "it must be the next unit you select to fight" -
+        # the constraint AND handing rule 12.04's alternation back to this
+        # player. Writing forced_next_fighter directly (as this did) set
+        # only the first: the settle in _actually_finish_current_fight()
+        # runs BEFORE this callback, so whose_turn was already decided and
+        # eligible_to_select_now() went on reading the OTHER player's entry.
+        self.fight_controller.force_next_fighter(player, squad)
         if self.game_log is not None:
             self.game_log.add(
                 f"{player}: Counteroffensive - {squad.name} gains Fights First and must fight next (rule 15.12)."

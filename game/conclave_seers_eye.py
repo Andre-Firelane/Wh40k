@@ -60,6 +60,7 @@ from game import (aeldari_detachments, ignore_characteristic_modifiers,
                   shepherds_of_the_dead)
 from game.stratagems import Stratagem
 from game.turn import PHASE_FIGHT, PHASE_SHOOTING
+from game import ai_mode
 
 SEERS_EYE_NAME = "Seer's Eye"
 SEERS_EYE_CP = 1
@@ -156,7 +157,7 @@ class SeersEyeController:
         self.turn_tracker = turn_tracker
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._pending = {}
         self._stratagem = Stratagem(
             name=SEERS_EYE_NAME, cp_cost=SEERS_EYE_CP, effect=self._mark,
@@ -235,7 +236,7 @@ class SeersEyeController:
                     squad.owner,
                     "%s: %s ignores AP and Damage penalties against which unit?"
                     % (SEERS_EYE_NAME, squad.name),
-                    [(e.name, (lambda s=squad, e=e: self.use(s, e)))
+                    [(e.name, (lambda s=squad, e=e: self.use(s, e)), e)
                      for e in candidates],
                     is_stratagem=True,
                 )

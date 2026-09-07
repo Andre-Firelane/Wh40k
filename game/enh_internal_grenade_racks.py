@@ -52,7 +52,7 @@ never stalls on a prompt nobody will answer. That is a rule answering its own
 prompt, not an AI path (the standing T'au rule).
 """
 
-from game import enhancements, wraith_form
+from game import ai_mode, enhancements, wraith_form
 
 INTERNAL_GRENADE_RACKS = "Internal Grenade Racks"
 MORTAL_WOUND_THRESHOLD = 4          # "for each 4+"
@@ -109,7 +109,7 @@ class InternalGrenadeRacksController:
         self.game_log = game_log
         self.game_state = game_state
         self.movement_controller = movement_controller
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         # target_pick(attacker, candidates) -> chosen squad; main.py passes the
         # shared damage-value ranking, so a non-human owner answers by the same
         # measure every other deterministic target choice here uses.
@@ -151,7 +151,7 @@ class InternalGrenadeRacksController:
             options = [
                 (f"{INTERNAL_GRENADE_RACKS}: {t.name} ({GRENADE_RACK_DICE} D6, "
                  f"1 mortal wound per {MORTAL_WOUND_THRESHOLD}+)",
-                 (lambda target=t, m=model: self._use(squad, m, target)))
+                 (lambda target=t, m=model: self._use(squad, m, target)), t)
                 for t in targets
             ]
             options.append(("Decline", None))

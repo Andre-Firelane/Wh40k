@@ -39,7 +39,7 @@ Back, which is the whole TARGET clause.
 THE AI DECLINES (standing Aeldari instruction).
 """
 
-from game import aeldari_detachments, martial_grace, move_exceptions
+from game import aeldari_detachments, ai_mode, martial_grace, move_exceptions
 from game.stratagems import Stratagem
 from game.turn import PHASE_MOVEMENT
 
@@ -71,7 +71,7 @@ class FeignedRetreatController:
         self.turn_tracker = turn_tracker
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._stratagem = Stratagem(
             name=FEIGNED_RETREAT_NAME, cp_cost=FEIGNED_RETREAT_CP, effect=self._grant,
         )

@@ -18,7 +18,14 @@ new bullet at the end. Better still: check whether it belongs here at all. A
 tactic expressed as a NUMBER on an option (a wound threshold, charge odds, a
 threat figure) is followed reliably; the same tactic expressed as prose here is
 optional and competes with everything else for attention.
+
+The two VP RATES are interpolated from game/missions.py rather than written
+out - see ai/planner_prompt.py for why a stale rate here is worse than no
+rate at all.
 """
+
+from game.missions import (PRIMARY_FIRST_SCORING_ROUND, PRIMARY_POINTS_PER_OBJECTIVE,
+                           SECONDARY_POINTS_PER_KILL)
 
 TACTICAL_SYSTEM_PROMPT = (
     # ---------------------------------------------------------------- role
@@ -68,10 +75,13 @@ TACTICAL_SYSTEM_PROMPT = (
     # ----------------------------------------------------- what winning is
     "== WHAT WINNING LOOKS LIKE ==\n"
     "You win on Victory Points, not by destroying the enemy army. The Primary mission (\"Hold the "
-    "Line\") pays 3 VP for each objective your side controls, scored at the start of every one of "
-    "your own Command phases - control goes to whichever player has the higher total Objective "
+    f"Line\") pays {PRIMARY_POINTS_PER_OBJECTIVE} VP for each objective your side controls, scored "
+    f"at the start of every one of your own Command phases from battle round "
+    f"{PRIMARY_FIRST_SCORING_ROUND} onward (round 1 pays nothing) "
+    "- control goes to whichever player has the higher total Objective "
     "Control among models on the objective's terrain area, and a tie means nobody. The Secondary "
-    "(\"No Mercy\") pays 1 VP per enemy unit destroyed, at the end of your own turn. Ground pays "
+    f"(\"No Mercy\") pays {SECONDARY_POINTS_PER_KILL} VP per enemy unit destroyed, at the end of "
+    "your own turn. Ground pays "
     "round after round and a kill pays once, so holding objectives usually beats hunting units, and "
     "an army that survives untouched while the enemy holds every objective has lost.\n"
     "  Each objective is shown as uncontrolled, yours or the enemy's, with both sides' OC totals - "

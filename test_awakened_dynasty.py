@@ -215,6 +215,72 @@ c.eq("a 5 is kept - a D6 averages 3.5, so re-rolling it loses on average",
      ss4.maybe_offer_advance_reroll(led5), False)
 
 
+# --- 4b. the REPORTED bug: Advance, then shoot -------------------------------
+# User: "Stratagem 'Protocoll of the sudden storm' scheint nicht funktioniert
+# zu haben. ich konnte nach dem vorruecken nicht mehr schiessen mit den necron
+# kriegern." Reproduced from logs/game_20260903_212846.log line 652: the AI
+# bought it, Advanced 6", and then its Warriors never fired.
+#
+# Section 4 above measured adjusted_weapon() - the DAMAGE-maths half - and was
+# green throughout, which is exactly why this survived. Rule 10.05's gate is a
+# DIFFERENT reader: shooting.available_shooting_types() asks
+# coldstar.weapon_has_assault(), and that function knew three grants and not
+# this one. So the one thing 1 CP buys - "I closed the distance and shot
+# anyway" - was the one thing it did not do.
+print("--- 4b. Sudden Storm: the Advance-then-shoot gate ---")
+
+from game import coldstar, shooting
+
+
+class _Advanced:
+    """The one thing available_shooting_types() reads off a MovementController."""
+
+    def __init__(self, squads):
+        self.advanced_squad_ids = set(squads)
+
+
+_gate_turn = turn_at(PHASE_MOVEMENT)
+_gate_unit = led_warriors(name="2 Necron Warriors 11")
+_gate_state = GameState()
+tk.line_up(_gate_unit, y=20.0)
+for _m in _gate_unit.models:
+    _gate_state.add_token(_m)
+_gate_gun = next(x for x in _gate_unit.models[0].weapons if x.weapon_type == "ranged")
+
+c.eq("BEFORE the Stratagem: an Advanced unit cannot shoot at all",
+     shooting.available_shooting_types(_gate_unit, _gate_state.tokens,
+                                       _Advanced([_gate_unit])), [])
+
+protocol_sudden_storm.SuddenStormController(
+    strat_controller(turn=_gate_turn), turn_tracker=_gate_turn).use(_gate_unit)
+
+# Both readers, separately - the bug was that they DISAGREED.
+c.eq("the adjuster chain grants [ASSAULT]",
+     protocol_sudden_storm.adjusted_weapon(_gate_gun, _gate_unit).assault, True)
+c.eq("...and so does weapon_has_assault(), the rule-10.05 gate",
+     coldstar.weapon_has_assault(_gate_gun, _gate_unit), True)
+
+c.eq("AFTER it: the Advanced unit gets Assault shooting - the reported case",
+     shooting.available_shooting_types(_gate_unit, _gate_state.tokens,
+                                       _Advanced([_gate_unit])),
+     [shooting.ASSAULT_SHOOTING])
+c.eq("...and a unit that did NOT Advance still shoots normally",
+     shooting.available_shooting_types(_gate_unit, _gate_state.tokens, _Advanced([])),
+     [shooting.NORMAL_SHOOTING])
+
+# The counter-check, without which the section would pass on an engine that
+# handed [ASSAULT] to everything: MELEE weapons are untouched, and the grant
+# dies with the turn.
+c.eq("melee weapons never reach the gate",
+     coldstar.weapon_has_assault(
+         next(x for x in _gate_unit.models[0].weapons if x.weapon_type == "melee"),
+         _gate_unit), False)
+protocol_sudden_storm.SuddenStormController(
+    strat_controller(turn=_gate_turn), turn_tracker=_gate_turn).expire_for_turn([_gate_unit])
+c.eq("...and the gate closes again at the end of the turn",
+     coldstar.weapon_has_assault(_gate_gun, _gate_unit), False)
+
+
 # --- 5. Protocol of the Conquering Tyrant -----------------------------------
 print("--- 5. Conquering Tyrant ---")
 
@@ -245,6 +311,39 @@ ct.reset_phase([shooters])
 c.eq("the grant expires at the end of the phase",
      protocol_conquering_tyrant.is_active(shooters), False)
 
+
+# The Advance re-roll, and the loop it used to be. Same seam as the Autarch's
+# Superlative Strategist, so the check is deliberately the same shape: main.py
+# keeps the roll un-acknowledged while the prompt is open, so declining left
+# the board unchanged and the next click asked again (user: "es war eine
+# schleife bis ich ihn gererollt habe").
+from game.decision import DecisionManager as _DM  # noqa: E402
+from game.dice import ADVANCE_ROLL  # noqa: E402
+
+state_sr = GameState()
+storm_unit = led_warriors(name="2 Necron Warriors 14")
+tk.line_up(storm_unit, x=20.0, y=20.0)
+state_sr.tokens = list(storm_unit.models)
+storm_unit.sudden_storm_advance_reroll = True
+c.true("the grant is up and a CHARACTER is leading",
+       protocol_sudden_storm.advance_reroll_available(storm_unit))
+
+dice_sr, dec_sr = DiceManager(), _DM()
+ss_ctrl = protocol_sudden_storm.SuddenStormController(
+    strat_controller(), dice_manager=dice_sr, decision_manager=dec_sr,
+    game_log=tk.Log(), auto_players=("Player 1",))   # this unit's owner is P2
+script(2, 2, 2, 2, default=2)
+dice_sr.roll(1, 6, label="Advance", roll_kind=ADVANCE_ROLL, target_squad=storm_unit)
+c.true("the re-roll is offered once", ss_ctrl.maybe_offer_advance_reroll(storm_unit))
+c.true("...and the prompt is open", dec_sr.is_pending)
+dec_sr.choose(1)                                    # "Keep it"
+c.true("...declining does NOT bring it back for the same roll",
+       not ss_ctrl.maybe_offer_advance_reroll(storm_unit))
+c.eq("...and the die is still there to acknowledge", dice_sr.pending_values, [2])
+dice_sr.roll(1, 6, label="Advance", roll_kind=ADVANCE_ROLL, target_squad=storm_unit)
+c.true("the NEXT Advance is offered again",
+       ss_ctrl.maybe_offer_advance_reroll(storm_unit))
+dec_sr.choose(1)
 
 # --- 6. Protocol of the Undying Legions --------------------------------------
 print("--- 6. Undying Legions ---")

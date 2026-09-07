@@ -64,6 +64,31 @@ HEAVY = (
     # A handful of frames: it clicks a map tile and two army tiles, then reads
     # the built battlefield, so it is by far the cheapest thing here.
     ("smoke_setup_screens.py", ()),
+    # A dozen frames, and the only harness that drives main.run() - so it is
+    # the one place the menu, the ESC rung, the board button, the AI pause and
+    # the whole restart loop are proved against the real thing rather than
+    # against a source guard.
+    ("smoke_game_menu.py", ()),
+    # Also only a few dozen frames, and it proves a CHAIN no suite can reach:
+    # a real click reaching the controller and main.py then handing that live
+    # selection to the renderer. Cheap enough to belong in the automatic sweep
+    # rather than in the run-it-by-hand set - the whole point of it is the
+    # failure class where each link is unit-tested and the chain is not.
+    ("smoke_selection.py", ("map2",)),
+    # ~45 frames, and it proves the chain that fails WORST when it breaks: a
+    # decision whose options name units is answered by clicking one on the
+    # board, and if that click never arrives the game is blocked on a prompt
+    # nobody can answer (Fehlerklasse 25) rather than quietly doing nothing.
+    ("smoke_unit_pick.py", ("map2",)),
+    # Same argument: a few dozen frames, and it proves the one thing no suite
+    # can - that a right-press really reaches the gesture through main()'s
+    # state-gated chain, and that the polled continuation runs under a modal.
+    ("smoke_line_drag.py", ("map2",)),
+    # ~20 frames, and it proves the other half of that chain: a click on a real
+    # card in the Reserves strip, and a right-press that sets the carried unit
+    # down AND forms it up in the same gesture. The pair "nothing placed yet" /
+    # "placed and dragging" is the whole difference between one gesture and two.
+    ("smoke_pool_line_drag.py", ("map2",)),
     ("smoke_log_input.py", ("map2",)),
     ("smoke_pregame.py", ("map2",)),
     ("selfplay.py", ("map2", "1500")),

@@ -207,13 +207,32 @@ MISSING_BY_FOLDER = {
 
 BLOCK_TAGS = {"div", "p", "tr", "table", "h1", "h2", "h3", "h4", "ul", "ol"}
 
-# Interface furniture and badges whose text is not rule text, dropped whole.
+# Interface furniture, badges and PROSE THAT IS NOT RULE TEXT, dropped whole.
 #   btnFaqErrataToggle - the errata "Show"/"Hide" control, which sits INSIDE
 #     the errata block and so lands mid-sentence in the rendered markdown.
 #   EnhUpgrade - an "UPGRADE" badge nested inside an enhancement's NAME span,
 #     which glues itself onto the name ("Negation EmittersUPGRADE"). Same kind
 #     of glued-on badge as the "2DP" in a detachment's own heading.
-SKIP_CLASSES = ("btnFaqErrataToggle", "EnhUpgrade")
+#   ShowFluff - the lore paragraph printed above a rule ("In war, as in all
+#     things, the Aeldari bring the full might of their intellect..."). User,
+#     after reading the army rules in game: "keine hintergrund info texte und
+#     example texte in den armeeregeln bitte. nur reine regeltexte."
+#     This is WAHAPEDIA'S OWN classification, not a guess about which
+#     sentences read like flavour - the site hangs its show/hide-fluff toggle
+#     on exactly this class. Measured: it marks the lore above every army
+#     rule, every detachment rule and every enhancement, plus a stratagem's
+#     own legend; 2796 occurrences across the ten cached pages, and not one
+#     of them carries a rule.
+#   redExample - the worked example some rules print underneath themselves
+#     ("Example: A unit of Lokhust Destroyers (which have a Wounds
+#     characteristic of 3)..."). An illustration of the rule, not the rule.
+#
+# DROPPED AT THE SCRAPE rather than filtered by the reader, and that is the
+# choice worth writing down. The corpus exists so `git diff` answers "did GW
+# change this rule?" - flavour is pure noise in that diff, and a reader-side
+# filter would have to GUESS which paragraphs are flavour, because a marker
+# the reader could trust would have to be written here anyway.
+SKIP_CLASSES = ("btnFaqErrataToggle", "EnhUpgrade", "ShowFluff", "redExample")
 
 # Stands in for one level of list indentation until the whitespace pass is done.
 INDENT = "\x02"
@@ -846,15 +865,23 @@ def safe_filename(name):
 HEADING_RE = re.compile(r"<h([1-4])[^>]*>(.*?)</h\1>", re.S)
 # "Kauyon2DP" - the detachment's points cost is glued onto its own heading.
 DP_RE = re.compile(r"^(.*?)(\d+)DP$")
+# ...and so is its FORCE DISPOSITION, as an icon's tooltip in the same span:
+#     <h2 ...>Warhost<span class="dpPts">
+#       <img title="Force Disposition: Reconnaissance" ...>3DP</span></h2>
+FORCE_DISPOSITION_RE = re.compile(r'title="Force Disposition:\s*([^"]+)"')
 RULE_TITLES = ("detachment rule", "detachment rules")
 ENHANCEMENT_RE = re.compile(
     r'<ul class="EnhancementsPts">(.*?)</ul>(.*?)(?=<ul class="EnhancementsPts">|\Z)', re.S)
 STRATAGEM_RE = re.compile(r'<div class="str11Wrap">(.*?)(?=<div class="str11Wrap">|\Z)', re.S)
+# A stratagem's lore line ("str11Legend ShowFluff") is deliberately ABSENT
+# here. Every other block of flavour on the page is dropped by SKIP_CLASSES
+# above, but this one is lifted out by its own regex, so the class never
+# reaches the renderer - it has to be left unread instead. Same rule, one
+# more place, because of how this section is parsed.
 STRATAGEM_FIELDS = (
     ("name", re.compile(r'class="str11HeadBlock str11Name"[^>]*>(.*?)</div>', re.S)),
     ("cp", re.compile(r'<div class="str11CP">(.*?)</div>', re.S)),
     ("type", re.compile(r'<div class="str11Type[^"]*">(.*?)</div>', re.S)),
-    ("legend", re.compile(r'<div class="str11Legend[^"]*">(.*?)</div>', re.S)),
     ("text", re.compile(r'<div class="str11Text">(.*?)</div>\s*</div>', re.S)),
 )
 
@@ -863,6 +890,31 @@ def page_headings(page_html):
     return [(match.start(), match.end(), int(match.group(1)),
              re.sub(r"\s+", " ", re.sub("<[^>]+>", "", match.group(2))).strip())
             for match in HEADING_RE.finditer(page_html)]
+
+
+def heading_force_dispositions(page_html):
+    """{stripped heading title: Force Disposition} for every heading carrying one.
+
+    A SECOND pass over the RAW heading html, because page_headings() strips the
+    tags to build its title and the disposition lives in an <img> tooltip - the
+    stripping that turns the heading into "Warhost3DP" is exactly what throws
+    it away.
+
+    Read off the HEADING rather than off the page's detachment FILTER list,
+    which carries the same fact in a data-det-name attribute: that list spells
+    Kauyon with a CYRILLIC o (U+043E), the same trap this file already
+    documents for dsLeftColKW's Cyrillic C. The heading spells it in Latin, and
+    rules/tau_empire/detachments/ is already named from the heading.
+    """
+    out = {}
+    for match in HEADING_RE.finditer(page_html):
+        raw = match.group(2)
+        found = FORCE_DISPOSITION_RE.search(raw)
+        if not found:
+            continue
+        title = re.sub(r"\s+", " ", re.sub("<[^>]+>", "", raw)).strip()
+        out[title] = found.group(1).strip()
+    return out
 
 
 def chunks(page_html, level):
@@ -900,7 +952,7 @@ def parse_enhancements(body_html):
 
 
 def parse_stratagems(body_html):
-    """[{name, cp, type, legend, text}] - text holds the WHEN/TARGET/EFFECT."""
+    """[{name, cp, type, text}] - text holds the WHEN/TARGET/EFFECT."""
     out = []
     for blob in STRATAGEM_RE.findall(body_html):
         entry = {}
@@ -923,6 +975,7 @@ def parse_faction_page(page_html):
     detachments = []
     current = None
     in_army = False
+    dispositions = heading_force_dispositions(page_html)
     for title, body in chunks(page_html, 2):
         lowered = title.lower()
         named = DP_RE.match(title)
@@ -931,6 +984,9 @@ def parse_faction_page(page_html):
             current = {
                 "name": named.group(1).strip(),
                 "dp": int(named.group(2)),
+                # Keyed on the SAME stripped title chunks() produced, so the
+                # two passes cannot disagree about which heading is which.
+                "force_disposition": dispositions.get(title, ""),
                 "rule": [],
                 "enhancements": [],
                 "stratagems": [],
@@ -968,7 +1024,13 @@ def render_army_rules(faction_name, slug, army_rules):
 
 def render_detachment(faction_name, slug, detachment):
     out = ["# %s" % detachment["name"], ""]
-    out.append("**%s** - %d DP detachment" % (faction_name, detachment["dp"]))
+    line = "**%s** - %d DP detachment" % (faction_name, detachment["dp"])
+    if detachment.get("force_disposition"):
+        # The Force Disposition decides which Primary Mission a list playing
+        # this detachment may take (game/force_dispositions.py). It is printed
+        # on the detachment, so it is transcribed here rather than assigned.
+        line += " - Force Disposition: %s" % detachment["force_disposition"]
+    out.append(line)
     out.append("")
     out.append("Source: <%s>" % FACTION_URL.format(slug=slug))
     out.append("")
@@ -1004,9 +1066,6 @@ def render_detachment(faction_name, slug, detachment):
             out.append("")
             if item["type"]:
                 out.append("*%s*" % item["type"])
-                out.append("")
-            if item["legend"]:
-                out.append(item["legend"])
                 out.append("")
             if item["text"]:
                 out.append(item["text"])

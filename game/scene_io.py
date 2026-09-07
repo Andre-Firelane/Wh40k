@@ -15,9 +15,18 @@ missing the dominant factor.
 WHAT IS AND IS NOT STORED. Only what varies. The map's terrain, objectives and
 deployment zones are rebuilt from the map key, and the armies are rebuilt by
 whoever builds the scene - a snapshot never carries datasheets, wargear or
-points. It carries where everything IS: per model a position and its remaining
-wounds, per unit whether it is on the board, in reserves or embarked, plus the
-turn state and command points.
+points. It carries where everything IS: per model a position, its remaining
+wounds and WHICH model it is, per unit whether it is on the board, in reserves or
+embarked, plus the turn state, command points, and what everybody has already
+done this turn (game/activation_state.py).
+
+The per-model identity is not decoration. A snapshot holds a unit's SURVIVORS;
+the scene it is restored into holds the unit as BUILT. Pairing them off in
+order therefore handed a character's remaining wounds to whichever trooper
+happened to sit at that index and deleted the character instead - reported as
+"Schaden auf Einheiten wurde nicht gespeichert", and true in the worst way:
+the survivor came back above its own maximum wounds, i.e. undamaged. See
+_match_models().
 
 That is deliberate rather than lazy. Rebuilding a unit from a dump would mean
 re-deriving its composition, wargear choices and attached-unit structure, all
@@ -40,12 +49,118 @@ and anything derived from the above.
 
 import json
 import os
+import time
+
+from game import activation_state
 
 FORMAT_VERSION = 1
+
+# Where snapshots live. Named here rather than spelled out at each call site
+# because three things now agree on it: F9's manual save, the per-round
+# autosave, and newest(), which is what the menu's Resume entry offers.
+SCENES_DIR = "scenes"
+AUTOSAVE_NAME = "autosave.json"
 
 BOARD = "board"
 RESERVES = "reserves"
 EMBARKED = "embarked"
+
+
+def _profile_name(model):
+    return getattr(getattr(model, "profile", None), "name", None)
+
+
+def _weapon_names(model):
+    return sorted(getattr(weapon, "name", "") or ""
+                  for weapon in (getattr(model, "weapons", None) or ()))
+
+
+def _match_models(saved, models):
+    """Pair each saved model with the model in the rebuilt unit that it IS.
+
+    WHY THIS IS NOT A ZIP. A snapshot stores the SURVIVORS of a unit, in the
+    order the live unit had them; the scene it is restored into has the unit
+    as it was BUILT, casualties included. Matching them by position was wrong
+    in exactly the way that looks like "the damage was not saved":
+
+        1 Skorpekh Destroyers 1 + Skorpekh Lord, one model left on 5 wounds
+
+    is the Lord (7W) on 5 - and positionally the one surviving model is the
+    FIRST built one, a plain Destroyer with 3 wounds, which then came back at
+    5/3, i.e. undamaged and with the Lord deleted instead of the Destroyers.
+    The same shape hits every attached unit (19.01), because the character is
+    always at the tail: an Immortal was routinely handed the Plasmancer's
+    wounds while the Plasmancer itself was the model dropped.
+
+    THREE PASSES, narrowing. Each saved model takes the first still-unclaimed
+    scene model that answers:
+
+      1. the same datasheet line AND the same weapons - which is what tells a
+         Storm Guardian with a fusion gun from the one next to it,
+      2. the same datasheet line - the fallback for a model whose weapon list
+         was in flux when the save was taken (game/firing_deck.py and
+         game/support_turret.py both lend weapons across models for the length
+         of an activation),
+      3. anything left, in order - which is exactly the old behaviour, and so
+         is also what a snapshot written before models carried an identity
+         still gets.
+
+    Returns (matched, casualties, unidentified): the scene models in SAVED
+    order, the scene models nothing claimed, and how many entries had to fall
+    through to pass 3 despite naming a datasheet line (the honest complaint -
+    a roster that no longer matches, rather than a model that simply died)."""
+    remaining = list(models)
+    matched = [None] * len(saved)
+    unidentified = 0
+
+    def _take(index, predicate):
+        for model in remaining:
+            if predicate(model):
+                remaining.remove(model)
+                matched[index] = model
+                return True
+        return False
+
+    for index, entry in enumerate(saved):
+        line, weapons = entry.get("model"), entry.get("weapons")
+        if line is None or weapons is None:
+            continue
+        _take(index, lambda m, l=line, w=list(weapons):
+              _profile_name(m) == l and _weapon_names(m) == w)
+    for index, entry in enumerate(saved):
+        line = entry.get("model")
+        if matched[index] is not None or line is None:
+            continue
+        _take(index, lambda m, l=line: _profile_name(m) == l)
+    for index, entry in enumerate(saved):
+        if matched[index] is not None:
+            continue
+        if entry.get("model") is not None:
+            unidentified += 1
+        _take(index, lambda m: True)
+    return matched, remaining, unidentified
+
+
+def _make_casualty(model, squad, state):
+    """Put a model the snapshot does not list where a dead one belongs.
+
+    Not merely dropped, which is what this used to do. Zero wounds is how this
+    engine spells "destroyed" (Token.is_dead), and Squad.destroyed_models is
+    where a casualty's last position is read from by everything that can bring
+    one back or measure from it - Reanimation Protocols, Undying Legions,
+    Grot Orderly, Vengeful Stars. A restored battle that had lost three Necron
+    Warriors should have three Warriors to reanimate, the way the battle it
+    was saved from did. Same treatment _evict() gives a wiped-out unit, and
+    for the same reason; no kill is recorded here either, because that VP is
+    already in the restored ledger."""
+    if model in state.tokens:
+        state.tokens.remove(model)
+    model.current_wounds = 0
+    destroyed = getattr(squad, "destroyed_models", None)
+    if destroyed is None:
+        squad.destroyed_models = [model]
+    elif model not in destroyed:
+        destroyed.append(model)
 
 
 def _squad_entries(state):
@@ -76,10 +191,19 @@ def _squad_entries(state):
     return entries
 
 
-def capture(state, map_key, turn_tracker=None, command_points=None, armies=None):
-    """The current board position as a plain dict, ready for write()."""
+def capture(state, map_key, turn_tracker=None, command_points=None, armies=None,
+            missions=None, activation=None):
+    """The current board position as a plain dict, ready for write().
+
+    `missions` is {slot: controller} for anything carrying mission state - see
+    capture_missions() next door, which is what builds it. `activation` is the
+    same shape for anything holding "this unit has already acted this turn"
+    (see game/activation_state.py). Keyword-only in spirit and optional like
+    every argument before it: a caller that has neither to hand writes exactly
+    the file it always did."""
     squads = []
-    for name, (squad, placement, transport_name) in _squad_entries(state).items():
+    entries = _squad_entries(state)
+    for name, (squad, placement, transport_name) in entries.items():
         squads.append({
             "name": name,
             "owner": squad.owner,
@@ -93,8 +217,16 @@ def capture(state, map_key, turn_tracker=None, command_points=None, armies=None)
             # and the closest thing to a threshold in this engine is the 0.05"
             # overlap epsilon. A snapshot that is exact leaves no room to
             # wonder whether a case failed to reproduce because of the file.
+            # WHICH model, not just how many. Positions and wounds are put
+            # back onto the rebuilt unit by _match_models(), and without an
+            # identity to match on it could only pair them off in order -
+            # which quietly moved a character's remaining wounds onto a
+            # trooper and deleted the character instead. The datasheet line
+            # plus the weapon list is enough to tell every model of every
+            # shipped roster apart, and it costs nothing to derive.
             "models": [
-                {"x_in": m.x_in, "y_in": m.y_in, "wounds": m.current_wounds}
+                {"x_in": m.x_in, "y_in": m.y_in, "wounds": m.current_wounds,
+                 "model": _profile_name(m), "weapons": _weapon_names(m)}
                 for m in squad.models
             ],
         })
@@ -116,7 +248,57 @@ def capture(state, map_key, turn_tracker=None, command_points=None, armies=None)
         }
     if command_points is not None:
         data["command_points"] = dict(command_points.cp)
+    if missions:
+        # Each controller writes its own slot: what is battle-scoped and what
+        # is scoped to one turn is a fact about that controller's rules, not
+        # about the file format, so the knowledge stays where the state lives.
+        saved = {slot: ctrl.save_state()
+                 for slot, ctrl in missions.items() if ctrl is not None}
+        if saved:
+            data["missions"] = saved
+    # WHO HAS ALREADY ACTED. Written unconditionally, because the per-unit half
+    # of it (the flags on Squad itself) needs no collaborator - only the
+    # controller ledgers do. An untouched board still writes nothing: every
+    # field in there is left out when it holds its default.
+    acted = activation_state.capture(
+        [squad for squad, _p, _t in entries.values()], activation)
+    if acted:
+        data["activation"] = acted
     return data
+
+
+def restore_missions(data, missions):
+    """Put the VP ledger, the Secondary deck and the Primary's latches back.
+
+    Separate from restore() for the same ordering reason restore_turn() is:
+    whatever begins the battle draws battle round 1's cards and zeroes the
+    score, so applying this before that would be quietly thrown away. Returns
+    the same kind of complaint list.
+
+    A snapshot written before this existed simply has no "missions" section
+    and restores exactly as it always did - the same way `armies` was added,
+    and the reason FORMAT_VERSION does not move for it."""
+    problems = []
+    saved = data.get("missions") or {}
+    if not saved:
+        return problems
+    for slot, controller in (missions or {}).items():
+        if controller is None or slot not in saved:
+            continue
+        result = controller.load_state(saved[slot])
+        if result:
+            problems.extend(result)
+    return problems
+
+
+def restore_activation(data, squads, controllers=None):
+    """Put "who has already acted this turn" back - see restore_missions()
+    just above for why this is its own function and not part of restore().
+
+    Same ordering rule, and here it has TEETH: begin_battle() clears
+    set_up_this_turn on every unit it can find, so this has to run after it or
+    rule 18.02's lock is wiped straight back off again."""
+    return activation_state.restore(data.get("activation"), squads, controllers)
 
 
 def write(data, path):
@@ -151,7 +333,80 @@ def armies_in(path):
     return dict(armies) if armies else None
 
 
-def restore(data, state, squads=None):
+def map_key_in(path):
+    """The battlefield this snapshot was taken on.
+
+    Its own function because TWO callers need it before anything is built -
+    `--load` on the command line and the main menu's Resume entry - and the
+    map has to be known earlier than everything else, since the whole engine
+    reads the board dimensions out of config (see maps.apply_to_config)."""
+    return read(path).get("map")
+
+
+def newest(directory=None):
+    """The most recently written snapshot in `directory`, or None.
+
+    By MTIME, tie-broken on name. Not by the timestamp in the default
+    `scene_YYYYMMDD_HHMMSS` filename: the autosave is not named that way, and
+    a file dropped in by hand is newest by having arrived. The name tie-break
+    only exists so the answer is deterministic when two files share a second.
+
+    Returns None for a missing directory rather than raising - "there is
+    nothing to resume" is an ordinary answer here, and the menu greys its
+    Resume entry on it.
+
+    `directory` defaults to SCENES_DIR read AT CALL TIME, not baked into the
+    signature: as a default argument it would be bound once at import, and
+    then pointing this module somewhere else - which is exactly what a test
+    with a throwaway folder does - would silently keep listing the real one."""
+    directory = directory if directory is not None else SCENES_DIR
+    try:
+        names = os.listdir(directory)
+    except OSError:
+        return None
+    paths = [os.path.join(directory, name) for name in names if name.endswith(".json")]
+    # The newest one that can actually be READ. A .json in this folder is not
+    # necessarily a snapshot - a half-written file, one from a newer format, or
+    # something dropped in by hand - and returning it would offer the menu a
+    # Resume it then has to grey out, hiding the perfectly good save sitting
+    # behind it. Reading each candidate costs one small parse and stops at the
+    # first hit, so in the normal case it is exactly one file.
+    for path in sorted(paths, key=lambda p: (os.path.getmtime(p), os.path.basename(p)),
+                       reverse=True):
+        try:
+            read(path)
+        except (OSError, ValueError, json.JSONDecodeError):
+            continue
+        return path
+    return None
+
+
+def summary(path):
+    """One line describing a snapshot, or None when it cannot be read.
+
+    None is the honest-eligibility half (CLAUDE.md error class 5): a corrupt
+    file, or one from a newer format, greys the Resume entry out instead of
+    being offered and then failing on the click. That is why this swallows
+    the error rather than letting the menu wrap every press in a try."""
+    try:
+        data = read(path)
+    except (OSError, ValueError, json.JSONDecodeError):
+        return None
+    turn = data.get("turn") or {}
+    parts = [str(data.get("map") or "?")]
+    if turn.get("battle_round") is not None:
+        parts.append(f"battle round {turn['battle_round']}")
+    if turn.get("turn_owner"):
+        parts.append(str(turn["turn_owner"]))
+    try:
+        stamp = time.strftime("%d %b %H:%M", time.localtime(os.path.getmtime(path)))
+        parts.append(stamp)
+    except OSError:
+        pass
+    return "   -   ".join(parts)
+
+
+def restore(data, state, squads=None, evict_missing=True):
     """Move an already-built scene into the position `data` describes.
 
     The scene must already contain the same units - see the module docstring
@@ -178,9 +433,38 @@ def restore(data, state, squads=None):
     problems = []
     wanted = {entry["name"]: entry for entry in data.get("squads", [])}
 
-    for name in by_name:
-        if name not in wanted:
-            problems.append(f"the scene has {name!r}, the snapshot does not")
+    missing = [name for name in by_name if name not in wanted]
+    for name in missing:
+        problems.append(f"the scene has {name!r}, the snapshot does not "
+                        "- destroyed before the save")
+    # A unit the snapshot does not mention was WIPED OUT before it was taken:
+    # capture() walks the same three lists GameState.all_squads() does, and a
+    # squad with no models is in none of them. Reporting that and leaving the
+    # rebuilt squad alone is not enough - on the legacy already-deployed path
+    # (--no-deployment) register_unit() has already put it on the board, so it
+    # comes back at FULL STRENGTH. Measured, and it is the one way a restore
+    # can silently hand somebody an extra unit.
+    #
+    # Zero models is how this engine spells "destroyed" everywhere else, so
+    # that is what eviction produces; the Tokens move to destroyed_models,
+    # which is where the rest of the engine looks for a casualty's last
+    # position (19.02/19.04, Reanimation Protocols, Vengeful Stars).
+    #
+    # NOT recorded as kills. Those deaths were scored in the battle this
+    # snapshot came from, and their VP is restored with the rest of the
+    # mission state - counting them again would pay for every casualty twice.
+    #
+    # The valve: if the snapshot matched NOTHING, it belongs to another roster
+    # entirely, and evicting on that basis would quietly delete both armies.
+    # Say so instead and change nothing.
+    if evict_missing and len(by_name) > len(missing):
+        for name in missing:
+            _evict(by_name[name], state)
+    elif missing:
+        problems.append(
+            f"the snapshot names none of this scene's {len(by_name)} units "
+            "- wrong roster or wrong build; nothing was removed"
+        )
     for name in wanted:
         if name not in by_name:
             problems.append(f"the snapshot has {name!r}, the scene does not")
@@ -196,24 +480,62 @@ def restore(data, state, squads=None):
                 f"{len(squad.models)} in the scene"
             )
             continue
-        # Casualties: the snapshot is the shorter list, so the tail of the
-        # scene's unit did not survive. Dropped straight out rather than left
-        # at zero wounds - remove_dead_models() has already run by the time a
-        # position is captured, so a restored scene should look the same.
-        casualties = squad.models[len(models):]
-        squad.models = squad.models[:len(models)]
+        # Casualties are whatever the snapshot does not name - NOT the tail of
+        # the built unit. See _match_models() for the failure that distinction
+        # exists to stop.
+        matched, casualties, unidentified = _match_models(models, squad.models)
+        if unidentified:
+            problems.append(
+                f"{name!r}: {unidentified} model(s) in the snapshot name a "
+                "datasheet line this unit does not have - matched by position "
+                "instead"
+            )
+        squad.models = matched
         for model in casualties:
-            if model in state.tokens:
-                state.tokens.remove(model)
-        for model, saved in zip(squad.models, models):
+            _make_casualty(model, squad, state)
+        for model, saved in zip(matched, models):
             model.x_in = saved["x_in"]
             model.y_in = saved["y_in"]
             if saved.get("wounds") is not None:
-                model.current_wounds = saved["wounds"]
+                # Clamped, because a snapshot written before models carried an
+                # identity can only be matched by position - and that put a
+                # 7-wound character's 5 remaining wounds onto a 3-wound
+                # trooper, i.e. restored it ABOVE its own maximum and so
+                # healthier than it went in. Nothing in this engine ever
+                # stands above its profile (a Shield Drone raises both), so
+                # the clamp cannot cost a legitimate value.
+                maximum = getattr(getattr(model, "profile", None), "wounds", None)
+                wounds = saved["wounds"]
+                model.current_wounds = (wounds if maximum is None
+                                        else min(wounds, maximum))
         squad.battle_shocked = entry.get("battle_shocked", False)
 
     _restore_placement(wanted, by_name, state, problems)
     return problems
+
+
+def _evict(squad, state):
+    """Take a unit off the board the way a casualty leaves it.
+
+    Mirrors what GameState does when the last model of a squad dies: out of
+    every list it could be in, models moved to destroyed_models (their
+    coordinates are what several rules read a casualty's last position from),
+    and models emptied - which is the test the whole engine uses for
+    "destroyed"."""
+    for model in list(squad.models):
+        if model in state.tokens:
+            state.tokens.remove(model)
+    if squad in state.reserves:
+        state.reserves.remove(squad)
+    if squad in state.embarked_squads:
+        state.embarked_squads.remove(squad)
+    squad.embarked_in = None
+    destroyed = getattr(squad, "destroyed_models", None)
+    if destroyed is None:
+        squad.destroyed_models = list(squad.models)
+    else:
+        destroyed.extend(m for m in squad.models if m not in destroyed)
+    squad.models = []
 
 
 def restore_turn(data, turn_tracker=None, command_points=None):

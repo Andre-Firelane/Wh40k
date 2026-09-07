@@ -1,0 +1,147 @@
+{
+  "format": 1,
+  "key": "tau_recon",
+  "name": "T'au Empire (Recon)",
+  "faction_keyword": "T'AU EMPIRE",
+  "army_rule": "For The Greater Good",
+  "detachments": ["Advanced Acquisition Cadre", "Auxiliary Cadre", "Experimental Prototype Cadre"],
+  "force_disposition": "reconnaissance",
+  "sort_order": 75,
+  "note": "App export \"Tau - RC 1k\". 20 list entries, 17 units after three attachments, 78 models, 1985 pts - and every one of the twenty prices agrees with the export. THE FIRST LIST HERE TO FIELD THREE DETACHMENTS: 1+1+1 DP is exactly the budget, and none of the three prints an exclusion tag. Reconnaissance is Advanced Acquisition Cadre's disposition, so the Primary Mission is Reconnaissance Sweep. Transports are decided in play rather than written down (user), so no entry declares one.",
+  "roster": [
+    {
+      "datasheet": "Kroot Carnivores",
+      "color": [120, 90, 40],
+      "note": "Printed default: a Long-quill and nine Carnivores.",
+      "leaders": [{"datasheet": "Kroot Flesh Shaper", "color": [150, 115, 60]}]
+    },
+    {
+      "datasheet": "Kroot Carnivores",
+      "color": [120, 90, 40],
+      "leaders": [{"datasheet": "Kroot Flesh Shaper", "color": [150, 115, 60]}]
+    },
+    {
+      "datasheet": "Pathfinder Team",
+      "color": [90, 180, 140],
+      "gear": {"Pathfinder Shas'ui": ["Gun Drone", "Gun Drone", "Grav-inhibitor Drone"]},
+      "choices": {
+        "Pathfinder": {"Pulse Carbine -> Ion Rifle": 3},
+        "Pathfinder Shas'ui": {"+ Semi-automatic Grenade Launcher": 1}
+      },
+      "note": "Three ION rifles (+5 each - 85 plus 15 is the export's 100), and the grenade launcher on the SHAS'UI, who keeps his pulse carbine: the printed option is an addition, not a swap.",
+      "leaders": [{"datasheet": "Darkstrider", "color": [170, 200, 140]}]
+    },
+
+    {
+      "datasheet": "Commander in Coldstar Battlesuit",
+      "color": [130, 150, 200],
+      "gear": {
+        "Commander in Coldstar Battlesuit": [
+          "Marker Drone", "Shield Drone",
+          "Cyclic Ion Blaster", "Missile Pod", "Weapon Support System"
+        ]
+      },
+      "choices": {
+        "Commander in Coldstar Battlesuit": {
+          "High-output Burst Cannon -> Airbursting Fragmentation Projector": 1
+        }
+      },
+      "note": "One replacement plus THREE DIFFERENT items from the 'up to three of the following' menu - the build that could not be expressed before, because that menu was modelled as a handful of fixed bundles and a Weapon Support System is not a weapon at all."
+    },
+    {
+      "datasheet": "Commander in Coldstar Battlesuit",
+      "color": [130, 150, 200],
+      "gear": {
+        "Commander in Coldstar Battlesuit": [
+          "Marker Drone", "Shield Drone",
+          "Plasma Rifle", "Plasma Rifle", "Plasma Rifle"
+        ]
+      },
+      "choices": {
+        "Commander in Coldstar Battlesuit": {
+          "High-output Burst Cannon -> Plasma Rifle": 1
+        }
+      },
+      "enhancement": "Plasma Accelerator Rifle",
+      "note": "Four plasma rifles (one replacement plus three added), which is what the Enhancement needs: it upgrades one of the bearer's own Plasma Rifle weapons."
+    },
+    {
+      "datasheet": "Commander in Enforcer Battlesuit",
+      "color": [140, 160, 210],
+      "gear": {
+        "Commander in Enforcer Battlesuit": [
+          "Shield Drone", "Shield Drone",
+          "Plasma Rifle", "Plasma Rifle", "T'au Flamer"
+        ]
+      },
+      "choices": {
+        "Commander in Enforcer Battlesuit": {"Burst Cannon -> Cyclic Ion Blaster": 1}
+      },
+      "enhancement": "Thermoneutronic Projector",
+      "note": "The WARLORD, which nothing in this engine reads. His T'au flamer is what the Enhancement upgrades, so it is not interchangeable with the other two support picks."
+    },
+    {"datasheet": "The Twin Lance", "color": [210, 190, 120],
+     "note": "No LEADER line on its datasheet, so it always fights alone."},
+
+    {
+      "datasheet": "Ghostkeel Battlesuit",
+      "color": [110, 130, 175],
+      "choices": {
+        "Ghostkeel Battlesuit": {
+          "Fusion Collider -> Cyclic Ion Raker": 1,
+          "Twin T'au Flamer -> Twin Fusion Blaster": 1
+        }
+      },
+      "enhancement": "Unmasking Suite"
+    },
+    {
+      "datasheet": "Ghostkeel Battlesuit",
+      "color": [110, 130, 175],
+      "choices": {
+        "Ghostkeel Battlesuit": {"Twin T'au Flamer -> Twin Fusion Blaster": 1}
+      },
+      "note": "Keeps its printed fusion collider, which is the 30 points between the two."
+    },
+    {"datasheet": "Krootox Rampagers", "composition_index": 1, "color": [130, 100, 55],
+     "note": "The six-model build."},
+    {
+      "datasheet": "Pathfinder Team",
+      "color": [90, 180, 140],
+      "gear": {"Pathfinder Shas'ui": ["Gun Drone", "Gun Drone", "Grav-inhibitor Drone"]},
+      "choices": {
+        "Pathfinder": {"Pulse Carbine -> Ion Rifle": 3},
+        "Pathfinder Shas'ui": {"+ Semi-automatic Grenade Launcher": 1}
+      }
+    },
+    {
+      "datasheet": "Piranhas",
+      "color": [110, 165, 200],
+      "choices": {"Piranhas": {"Piranha Burst Cannon -> Piranha Fusion Blaster": 1}},
+      "gear": {"Piranhas": ["Seeker Missile", "Seeker Missile"]},
+      "note": "Fusion blaster in place of the burst cannon, and both seeker missiles. Free either way - neither is on the published list's wargear dict - so the army still comes to 1985."
+    },
+    {
+      "datasheet": "Piranhas",
+      "color": [110, 165, 200],
+      "choices": {"Piranhas": {"Piranha Burst Cannon -> Piranha Fusion Blaster": 1}},
+      "gear": {"Piranhas": ["Seeker Missile", "Seeker Missile"]},
+      "note": "Fusion blaster in place of the burst cannon, and both seeker missiles. Free either way - neither is on the published list's wargear dict - so the army still comes to 1985."
+    },
+    {
+      "datasheet": "Stealth Battlesuits",
+      "color": [100, 100, 150],
+      "gear": {"Stealth Shas'vre": ["Gun Drone", "Marker Drone"],
+               "Stealth Shas'ui": ["Homing Beacon"]},
+      "choices": {"Stealth Shas'vre": {"Burst Cannon -> Fusion Blaster": 1}}
+    },
+    {
+      "datasheet": "Stealth Battlesuits",
+      "color": [100, 100, 150],
+      "gear": {"Stealth Shas'vre": ["Gun Drone", "Marker Drone"],
+               "Stealth Shas'ui": ["Homing Beacon"]},
+      "choices": {"Stealth Shas'vre": {"Burst Cannon -> Fusion Blaster": 1}}
+    },
+    {"datasheet": "Vespid Stingwings", "color": [150, 120, 190]},
+    {"datasheet": "Vespid Stingwings", "color": [150, 120, 190]}
+  ]
+}

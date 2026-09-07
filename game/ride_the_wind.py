@@ -59,7 +59,7 @@ the clause silently inert, which reads like a broken rule instead of a typo in
 a setting.
 """
 
-from game import aeldari_detachments, config
+from game import aeldari_detachments, ai_mode, config
 from game.strategic_reserves import withdraw_to_reserves
 
 RIDE_THE_WIND_LABEL = "Ride the Wind"
@@ -146,7 +146,7 @@ class RideTheWindController:
         self.game_state = game_state
         self.game_log = game_log
         self.all_tokens = all_tokens if all_tokens is not None else []
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self.battle_size = battle_size
         #: How many have been pulled back during the turn currently ending.
         self._withdrawn_this_turn = 0

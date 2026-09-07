@@ -40,6 +40,7 @@ three characters: they come as a set or not at all.
 import random
 
 from game.attached_units import leader_ability
+from game import ai_mode
 
 WAY_OF_THE_BLADE_LABEL = "Way of the Blade"
 YVRAINES_CHAMPION_LABEL = "Yvraine's Champion"
@@ -197,7 +198,7 @@ class HeraldOfYnneadController:
         self.decision_manager = decision_manager
         self.game_log = game_log
         self.all_tokens = all_tokens if all_tokens is not None else []
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._marked = {}          # player -> the enemy Squad chosen this phase
 
     def applies(self, squad):
@@ -250,7 +251,7 @@ class HeraldOfYnneadController:
             squad.owner,
             "%s: %s - which unit does Ynnead mark?"
             % (HERALD_OF_YNNEAD_LABEL, squad.name),
-            [(t.name, (lambda t=t: self.mark(squad, t))) for t in options])
+            [(t.name, (lambda t=t: self.mark(squad, t)), t) for t in options])
         return True
 
     def _pick(self, options):

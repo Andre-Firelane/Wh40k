@@ -35,6 +35,7 @@ WHAT DIFFERS IS THE TRIGGER, and it is a mouthful with four separate conditions:
 """
 
 from game.squad import edge_distance
+from game import ai_mode
 
 KROOT_PACKMATES_RANGE_IN = 6.0
 KROOT_PACKMATES_LABEL = "Kroot Packmates"
@@ -75,7 +76,7 @@ class KrootPackmatesController:
         self.game_state = game_state
         self.turn_tracker = turn_tracker
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._used_this_turn = {}   # player -> the turn number it was spent on
         self._owed = None           # (reacting squad, the enemy that shot)
 

@@ -25,7 +25,7 @@ face the pool can actually use.
 the "any or all modifiers" clauses this engine auto-resolves, both directions
 here are live: a player may want a cheaper Stratagem available or a dearer one.
 """
-from game import enhancements
+from game import ai_mode, enhancements
 from game.strands_of_fate import STRATAGEM_BY_FATE_VALUE
 
 LUCID_EYE = "Lucid Eye"
@@ -81,7 +81,7 @@ class LucidEyeController:
         self.fate_pool = fate_pool
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
 
     def _squads(self):
         seen, out = set(), []

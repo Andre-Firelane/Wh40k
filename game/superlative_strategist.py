@@ -37,6 +37,7 @@ re-rolled and the rest kept - the same "re-rolling an average result wins
 nothing" reasoning Sudden Storm and Reanimation Protocols already use.
 """
 from game.attached_units import leader_ability
+from game import ai_mode
 
 SUPERLATIVE_STRATEGIST_LABEL = "Superlative Strategist"
 
@@ -59,7 +60,7 @@ class SuperlativeStrategistController:
         self.dice_manager = dice_manager
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
 
     def maybe_offer_advance_reroll(self, squad):
         """Called from main.py while the Advance roll is still PENDING.
@@ -72,6 +73,10 @@ class SuperlativeStrategistController:
             return False
         values = self.dice_manager.pending_values or []
         if not values:
+            return False
+        # ONCE per roll - see DiceManager.claim_reroll_offer(). Both Advance
+        # re-roll offers share that seam, so neither can loop.
+        if not self.dice_manager.claim_reroll_offer(SUPERLATIVE_STRATEGIST_LABEL):
             return False
         if squad.owner in self.auto_players or self.decision_manager is None:
             if values[0] >= ADVANCE_REROLL_FLOOR:

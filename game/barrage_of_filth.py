@@ -29,6 +29,8 @@ deterministic target choice in this engine uses, so it costs no API call.
 of the turn. One clock, and it is the shorter one.
 """
 
+from game import ai_mode
+
 
 class BarrageOfFilthController:
     """Fed from ShootingController.on_squad_finished_shooting."""
@@ -37,7 +39,7 @@ class BarrageOfFilthController:
                  target_pick=None):
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         # target_pick(attacker, candidates) -> squad. main.py passes the shared
         # damage-value ranking; None falls back to name order, which keeps a
         # headless test reproducible.
@@ -71,7 +73,7 @@ class BarrageOfFilthController:
                 or self.decision_manager is None:
             return self._use(shooter_squad, self._pick(shooter_squad, candidates))
         options = [(f"Barrage of Filth: {t.name}",
-                    (lambda target=t: self._use(shooter_squad, target)))
+                    (lambda target=t: self._use(shooter_squad, target)), t)
                    for t in candidates]
         self.decision_manager.request(
             shooter_squad.owner,

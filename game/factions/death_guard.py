@@ -21,6 +21,7 @@ prints them at all, so they take the plain names - see game/weapons.py's own
 Death Guard section header for what has to happen if that changes.
 """
 
+from game import force_dispositions
 from game.factions.datasheet import Datasheet, Gear, ModelLine, WargearOption
 from game.factions.death_guard_points import DEATH_GUARD_POINTS
 from game.factions.detachment import Detachment, Enhancement
@@ -460,6 +461,7 @@ DEATH_LORDS_CHOSEN = DEATH_GUARD.add_detachment(Detachment(
     rule_name="Deadly Vectors",
     setting="DEATH_LORDS_CHOSEN_PLAYERS",
     points=2,
+    force_disposition=force_dispositions.PRIORITY_ASSETS,
     rule_text=(
         "Deadly Vectors: in your opponent's Command phase, roll 2D6 for each "
         "Afflicted enemy unit, subtracting 1 from the result if that unit is Below "

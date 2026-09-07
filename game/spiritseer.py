@@ -73,7 +73,7 @@ TEARS_OF_ISHA_RANGE_IN = 6.0
 SPIRITSEER_LONE_OPERATIVE_RANGE_IN = 12.0   # rule 24.24's default X
 
 
-from game import wraith_construct
+from game import ai_mode, wraith_construct
 
 def _living(squad):
     return [m for m in (getattr(squad, "models", ()) or ()) if not m.is_dead()]
@@ -146,7 +146,7 @@ class SpiritMarkController:
         self.decision_manager = decision_manager
         self.game_log = game_log
         self.all_tokens = all_tokens if all_tokens is not None else []
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._pairs = {}            # player -> set of (id(friendly), id(enemy))
         self._used_this_turn = set()   # players who have already used it this turn
 
@@ -237,7 +237,7 @@ class SpiritMarkController:
             bearer_squad.owner,
             "%s: which friendly WRAITH CONSTRUCT unit gains [SUSTAINED HITS 1]?"
             % SPIRIT_MARK_LABEL,
-            [(f.name, (lambda x=f: self._pick_enemy(bearer_squad, x, enemies)))
+            [(f.name, (lambda x=f: self._pick_enemy(bearer_squad, x, enemies)), f)
              for f in friends]
             + [("Do not use it", lambda: False)],
         )
@@ -249,7 +249,7 @@ class SpiritMarkController:
         self.decision_manager.request(
             bearer_squad.owner,
             "%s: against which enemy unit?" % SPIRIT_MARK_LABEL,
-            [(e.name, (lambda x=e: self.mark(bearer_squad, friendly_squad, x)))
+            [(e.name, (lambda x=e: self.mark(bearer_squad, friendly_squad, x)), e)
              for e in enemies],
         )
         return True
@@ -292,7 +292,7 @@ class TearsOfIshaController:
         # position_valid(model, x, y) - injected by main.py from the setup
         # controller, so this module owns no placement-legality opinion.
         self.position_valid = position_valid
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._used_this_turn = set()    # id(squad) already selected this turn
 
     def candidates(self, bearer_squad):

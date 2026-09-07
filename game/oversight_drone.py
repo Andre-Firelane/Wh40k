@@ -35,6 +35,7 @@ the same reading Nova Charge takes of the same shape, and the same reason.
 import copy
 
 from game.weapons import MELEE
+from game import ai_mode
 
 OVERSIGHT_DRONE_LABEL = "Oversight Drone"
 
@@ -66,7 +67,7 @@ class OversightDroneController:
     def __init__(self, decision_manager=None, game_log=None, auto_players=()):
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._used = set()   # id(model) of drones already spent - never cleared
 
     def can_use(self, squad):

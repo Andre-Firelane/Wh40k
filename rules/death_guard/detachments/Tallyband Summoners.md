@@ -1,6 +1,6 @@
 # Tallyband Summoners
 
-**Death Guard** - 2 DP detachment
+**Death Guard** - 2 DP detachment - Force Disposition: Disruption
 
 Source: <https://wahapedia.ru/wh40k11ed/factions/death-guard/>
 
@@ -8,7 +8,6 @@ Source: <https://wahapedia.ru/wh40k11ed/factions/death-guard/>
 
 ### Reverberant Rancidity
 
-Reality rings like a struck bell as it rebels against the sheer wrongness of Nurgle’s daemons. Borne upon these jarring waves of metaphysical disease, magnified and redoubled with every dolorous peal, the Plague God’s myriad infections spread and multiply all the faster.
 While a PLAGUE LEGIONS unit from your army is within 7" of one or more DEATH GUARD units from your army, that PLAGUE LEGIONS unit has the **Nurgle’s Gift** ability.
 
 While a DEATH GUARD unit from your army is within 7" of one or more PLAGUE LEGIONS units from your army, add 3" to that DEATH GUARD units **Contagion Range**.
@@ -26,8 +25,6 @@ No PLAGUE LEGIONS models from your army can be your WARLORD.
 
 ### Beckoning Blight - 20 pts
 
-This unclean gift infects its host with animaluminescent fungus. Once their spirit is riddled with incorporeal mycelia, it begins to glow. This sickly radiance acts like a guiding lantern to the daemons of Nurgle, who follow its glare into realspace.
-
 DEATH GUARD model only. Each time a PLAGUE LEGIONS unit from your army is set up on the battlefield using the **Deep Strike** ability, if it is set up wholly within 12" of the bearer, it can be set up anywhere that is more than 6" horizontally away from all enemy models, instead of more than 8".
 
 Errata
@@ -40,19 +37,13 @@ Change to:
 
 ### Fell Harvester - 10 pts
 
-This repugnant daemon weapon extrudes swaying tendrils with lamprey maws to strike at the foe.
-
 DEATH GUARD model only. Add 2 to the Attacks characteristic of the bearer’s melee weapons.
 
 ### Entropic Knell - 15 pts
 
-Every booming peal of this cursed bell spreads rot, lesions and buboes across the foes’ bodies, sending them fleeing in terror and disgust.
-
 GREAT UNCLEAN ONE only. In the Battle-shock step of your opponent’s Command phase, each enemy unit within 6" of the bearer that is below its Starting Strength must take a Battle-shock test, subtracting 1 from that test.
 
 ### Tome of Bounteous Blessings - 20 pts
-
-The slurred and vomit-wet incantations from this malodorous tome bolster Nurgle’s daemons.
 
 MALIGNANT PLAGUECASTER only. Each time a PLAGUE LEGIONS unit within 12" of the bearer takes a Battle-shock test, add 1 to that test and, if that test is passed, one model in that unit regains up to D3 lost wounds (if that unit is a BATTLELINE unit and that test is passed, up to D3 destroyed models can be returned to that unit instead).
 
@@ -61,8 +52,6 @@ MALIGNANT PLAGUECASTER only. Each time a PLAGUE LEGIONS unit within 12" of the b
 ### PERSISTENT PESTS - 1CP
 
 *Tallyband Summoners – Strategic Ploy Stratagem*
-
-There is no simple way to wholly cleanse a Nurgling infestation once it has taken root.
 
 **WHEN:** Any phase.
 
@@ -76,8 +65,6 @@ There is no simple way to wholly cleanse a Nurgling infestation once it has take
 
 *Tallyband Summoners – Battle Tactic Stratagem*
 
-The daemons of Nurgle grasp their victims tightly with rotting talons and coiling tentacles, their clutch as inescapable as entropy itself.
-
 **WHEN:** Fight phase.
 
 **TARGET:** One DEATH GUARD unit from your army that has not been selected to fight this phase.
@@ -87,8 +74,6 @@ The daemons of Nurgle grasp their victims tightly with rotting talons and coilin
 ### ALL IS ROT - 1CP
 
 *Tallyband Summoners – Strategic Ploy Stratagem*
-
-Death Guard warriors open fire into foes already embattled by Nurgle’s daemons, knowing that no matter who they hit, all will wither and rot.
 
 **WHEN:** Your Shooting phase.
 
@@ -100,8 +85,6 @@ Death Guard warriors open fire into foes already embattled by Nurgle’s daemons
 
 *Tallyband Summoners – Strategic Ploy Stratagem*
 
-The ephemeral structures of realspace have no power to halt the onset of Nurgle's Great Unclean Ones; they crumble, rot and burst apart before their unholy bulk.
-
 **WHEN:** Your Movement phase or your Charge phase.
 
 **TARGET:** One PLAGUE LEGIONS MONSTER unit from your army that has not been selected to move or charge this phase.
@@ -112,8 +95,6 @@ The ephemeral structures of realspace have no power to halt the onset of Nurgle'
 
 *Tallyband Summoners – Strategic Ploy Stratagem*
 
-Countless diseases blossom in the unreal flesh of Nurgle's daemon childer, manifestations of his blessings to be spread to all.
-
 **WHEN:** Your Shooting phase.
 
 **TARGET:** One PLAGUE LEGIONS unit from your army.
@@ -123,8 +104,6 @@ Countless diseases blossom in the unreal flesh of Nurgle's daemon childer, manif
 ### MIRESLICK - 1CP
 
 *Tallyband Summoners – Strategic Ploy Stratagem*
-
-Beneath the tread of Nurgle’s daemons, even ferrocrete or plasteel soon turns to a quagmire of rotting matter, in which their unlucky enemies begin to sink and become trapped.
 
 **WHEN:** Your opponent’s Movement phase, when an enemy unit (excluding MONSTERS and VEHICLES) is selected to Fall Back.
 

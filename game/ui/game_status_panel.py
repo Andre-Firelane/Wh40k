@@ -2,7 +2,7 @@ import pygame
 
 from game import config, sprites
 from game.turn import PHASES
-from game.ui import button_style
+from game.ui import button_style, faction_badge
 from game.ui.text_utils import draw_wrapped_text, wrap_text, wrapped_text_height
 
 ROW_HEIGHT = 24
@@ -16,12 +16,53 @@ BOX_INNER_PADDING = 8    # padding between a group's border and its own text
 
 # --- faction badge row (top group) ---
 LOGO_BOX = 58            # px, the square tile one faction badge is drawn in
-LOGO_PADDING = 4         # px between that tile's frame and the artwork inside it
 LOGO_GAP = 6             # px between a tile and the Round bar sitting between the two
 NAME_ROW_HEIGHT = 20     # px reserved for the "P1: AELDARI" line under the tiles
 LABEL_MIN_GAP = 10       # px the two labels must keep between them, or the "P1: " prefixes are dropped (see _badge_labels)
-ACTIVE_BORDER_WIDTH = 3  # the active player's tile gets a thicker frame, see _draw_badge()
-ACTIVE_GLOW_COLOR = (120, 100, 20)  # dim gold ring just outside that frame, so it reads as a glow rather than a hard outline
+# What a faction tile LOOKS like moved to game/ui/faction_badge.py when the
+# turn-start banner became its second consumer. Re-exported rather than
+# imported at each use site, so every reader of this module - the tests
+# included - keeps the names it already had and this panel's pixels are
+# unchanged by construction.
+LOGO_PADDING = faction_badge.LOGO_PADDING
+ACTIVE_BORDER_WIDTH = faction_badge.ACTIVE_BORDER_WIDTH
+ACTIVE_GLOW_COLOR = faction_badge.ACTIVE_GLOW_COLOR
+MONOGRAM_LENGTH = faction_badge.MONOGRAM_LENGTH
+MONOGRAM_COLOR = faction_badge.MONOGRAM_COLOR
+MONOGRAM_FONT_SIZES = faction_badge.MONOGRAM_FONT_SIZES
+
+# The "see army rules" link under the badge labels. User: "es fehlt noch ein
+# ort, wo man armeeregel und detachment regeln anschauen kann... dort soll
+# irgendwo ein kleiner link sein 'see army rules' unter den logos und
+# volkernamen."
+#
+# Drawn as a LINK - small, underlined, in the panel's accent - rather than as a
+# button_style button, and that is the point of the wording: a button in this
+# column spends something or advances the game ("Next Phase"), while this only
+# opens a reader. Making it look like the End Turn button would say it costs
+# something.
+ARMY_RULES_LINK_TEXT = "see rules"
+#: The fallback when a link will not fit under its own badge tile.
+#:
+#: MEASURED, and the binding constraint is the CENTRING, not the total width:
+#: each link is centred under a LOGO_BOX tile whose centre sits LOGO_BOX/2 =
+#: 29px from the panel's content edge, so a link may be at most 58px wide
+#: including its click padding. The old "see army rules" is 75px + 8px of pad
+#: = 83px, which hangs 12px off each side of the panel. "see rules" is 47 + 8
+#: = 55px and fits with 3px to spare. Two of the old label WOULD have packed
+#: side by side (166px inside a 200px column) - it is where they have to SIT
+#: that rules them out.
+ARMY_RULES_LINK_SHORT_TEXT = "rules"
+ARMY_RULES_LINK_COLOR = (130, 190, 235)
+ARMY_RULES_LINK_HOVER_COLOR = (190, 230, 255)
+ARMY_RULES_LINK_HEIGHT = 18   # px reserved for the link row under the labels
+ARMY_RULES_LINK_PAD = 4       # px of slack around the text for an easier click target
+
+
+#: The placeholder tile's text. Re-exported (not re-implemented) so this
+#: module and the banner cannot disagree about what a faction is called when
+#: its art is missing.
+_faction_monogram = faction_badge.monogram
 
 
 class GameStatusPanel:
@@ -41,6 +82,9 @@ class GameStatusPanel:
         self.button_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE - 1, bold=True)
         self.badge_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE - 4, bold=True)
         self._button_rect = None
+        self._army_rules_rects = []   # [(player, rect)] from the last frame
+        # The same typesetting the army rules reader and the stratagem tooltip
+        self.link_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE - 4)
 
     @property
     def button_rect(self):
@@ -51,6 +95,43 @@ class GameStatusPanel:
         keep the log strip below it (see config.LOG_HEIGHT)."""
         return self._button_rect
 
+    @property
+    def army_rules_rects(self):
+        """[(player, rect)] for the rules links drawn last frame, [] when none
+        were. They hang off the badge row, so a game with no badges (a
+        hand-built squad with no datasheet) has no links either - there would
+        be no faction to look rules up for."""
+        return list(self._army_rules_rects)
+
+    def army_rules_player_at(self, pos):
+        """WHICH player's rules link `pos` hit, or None.
+
+        Renamed from handle_army_rules_click(), which returned a bool: with
+        one link per player the answer is no longer yes/no, and keeping the
+        old name while changing what the value MEANS is the silent drift this
+        repo renames to avoid (error class 11).
+
+        Still a method of its own rather than a second return value from
+        handle_click(): the two answers mean completely different things to
+        main(), and a caller that conflated them would advance the phase when
+        the player asked to read a rule."""
+        for player, rect in self._army_rules_rects:
+            if rect.collidepoint(pos):
+                return player
+        return None
+
+    def _link_text(self, half_width):
+        """The link label, shortened if it would hang off the panel.
+
+        `half_width` is how far a link may reach either side of its tile's
+        centre - LOGO_BOX/2, since the tiles hug the content edges. Same
+        degrade-on-measurement shape as _badge_labels() above, and measured
+        for the same reason: the label that fits one centred link does not
+        necessarily fit one centred under each tile."""
+        for text in (ARMY_RULES_LINK_TEXT, ARMY_RULES_LINK_SHORT_TEXT):
+            if self.link_font.size(text)[0] + 2 * ARMY_RULES_LINK_PAD <= 2 * half_width:
+                return text
+        return ARMY_RULES_LINK_SHORT_TEXT
 
     def _status_lines(self, turn_tracker, badges):
         """The plain text rows under the Round counter.
@@ -101,13 +182,27 @@ class GameStatusPanel:
         """The two players' faction badges, left to right, or None when this
         game can't show them.
 
-        Returns [(player, faction_keyword, logo_path), ...] in a stable
-        player order, and only when EVERY player has art to show. A row with
-        one tile filled and one empty reads worse than the plain "Active
-        Player: X" line it replaces, so a faction with no entry in
-        sprites.FACTION_LOGO_KEYS (or no file for it) falls the whole group
-        back to that text instead - same "missing art is fine, and never
-        half-drawn" convention the rest of the sprite lookup uses.
+        Returns [(player, faction_keyword, logo_path_or_None), ...] in a
+        stable player order, and only when every player's FACTION IS KNOWN -
+        the art is optional, and a player whose faction has no logo file gets
+        a monogram tile instead (see _draw_badge / _faction_monogram).
+
+        This gate used to require ART for both players, and that turned out
+        to be the wrong all-or-nothing: user, seeing the panel during an
+        Aeldari-vs-Death-Guard game ("das rechte panel sieht wieder
+        zurueckgesetzt aus. das hatten wir mal ueberarbeitet ua. mit logos
+        der fraktionen"). Death Guard is the one built faction with no badge
+        file, so ONE missing image collapsed the whole group back to its
+        pre-rework text form - and with it the gold active-player frame and
+        the compact CP/VP/BF columns, which have nothing to do with logos.
+        The old reasoning ("a half-filled row reads worse than the line it
+        replaced") was about an EMPTY tile; a monogram tile is neither empty
+        nor half-drawn, so it is not the trade that argument weighed.
+
+        A missing KEYWORD still falls the group back to text, and for the
+        same reason it always did: without one there is nothing to draw AND
+        nothing to write, so the tile really would be empty. That is the case
+        for a hand-built Squad with no datasheet (see faction_keyword_of).
 
         Player order comes from turn_tracker.player_turn_count rather than
         from `player_factions`: the tracker holds both player names for the
@@ -120,10 +215,9 @@ class GameStatusPanel:
         row = []
         for player in players:
             keyword = player_factions.get(player)
-            path = sprites.faction_logo_path(keyword) if keyword is not None else None
-            if path is None:
+            if keyword is None:
                 return None
-            row.append((player, keyword, path))
+            row.append((player, keyword, sprites.faction_logo_path(keyword)))
         return row or None
 
     def _badge_labels(self, row, available_width):
@@ -142,33 +236,23 @@ class GameStatusPanel:
             return prefixed
         return [keyword for _, keyword, _ in row]
 
-    def _draw_badge(self, surface, tile_rect, logo_path, active):
-        """One faction badge: the artwork inside a chamfered tile, framed in
-        the panel's usual cyan - or in the header gold, thicker and doubled
-        for a glow, when this is the active player. That frame is what
-        replaced the "(Active)" line of text (user request), so it has to be
-        readable at a glance rather than a subtle tint.
+    def _monogram_font(self, text, box_px):
+        """Kept as a method because the panel's own tests drive it; the search
+        and its cache live in game/ui/faction_badge.py, which is the one place
+        that decides how a tile is lettered."""
+        return faction_badge.font_for(text, box_px)
 
-        Whose frame lights up is turn_tracker.active_player, exactly the
-        value the replaced line showed - the transient "whose decision is
+    def _draw_badge(self, surface, tile_rect, logo_path, active, keyword=None):
+        """One faction badge - see game/ui/faction_badge.draw().
+
+        Whose frame lights up is turn_tracker.active_player, exactly the value
+        the replaced "(Active)" line showed - the transient "whose decision is
         this right now" flag, NOT turn_owner (see game/turn.py). It flipping
-        mid-turn onto the defender during a save roll is the intended
-        reading here: this marks who the game is waiting on."""
-        # Outer ring first, tile on top of it: draw_box() fills as well as
-        # outlines, so drawing the larger one second would paint over the
-        # tile it is supposed to sit around.
-        if active:
-            button_style.draw_box(
-                surface, tile_rect.inflate(4, 4), chamfer=5,
-                border_color=ACTIVE_GLOW_COLOR, border_width=1,
-            )
-        border = config.PANEL_HEADER_COLOR if active else button_style.BOX_BORDER_COLOR
-        button_style.draw_box(
-            surface, tile_rect, chamfer=4, border_color=border,
-            border_width=ACTIVE_BORDER_WIDTH if active else 1,
-        )
-        art = sprites.fitted_surface(logo_path, tile_rect.width - 2 * LOGO_PADDING)
-        surface.blit(art, art.get_rect(center=tile_rect.center))
+        mid-turn onto the defender during a save roll is the intended reading
+        here: this marks who the game is waiting on. The turn-start banner
+        passes a different answer to the same flag, which is why the shared
+        function takes it rather than working it out."""
+        faction_badge.draw(surface, tile_rect, logo_path, active, keyword)
 
     def draw(self, surface, rect, turn_tracker, command_points=None, mission_controller=None,
              battle_focus_pool=None, fate_dice_pool=None, player_factions=None):
@@ -229,9 +313,9 @@ class GameStatusPanel:
             y = tile_y + LOGO_BOX + 4
 
             labels = self._badge_labels(badges, content_width)
-            for tile, (player, _, path), label in zip((left_tile, right_tile), badges, labels):
+            for tile, (player, keyword, path), label in zip((left_tile, right_tile), badges, labels):
                 active = player == turn_tracker.active_player
-                badge_positions.append((tile, path, active))
+                badge_positions.append((tile, path, active, keyword))
                 text_surf = self.badge_font.render(
                     label, True,
                     config.PANEL_HEADER_COLOR if active else config.PANEL_TEXT_COLOR,
@@ -244,9 +328,30 @@ class GameStatusPanel:
                 else:
                     label_positions.append((text_surf, (content_x + content_width - text_surf.get_width(), y)))
             y += NAME_ROW_HEIGHT
+            # ONE LINK PER PLAYER, each centred under its OWN badge, because
+            # each now opens only that player's rules. User: "außerdem sollten
+            # dort 2 links sein einer für Spieler 1 und einer für Spieler 2".
+            #
+            # The label had to shorten to fit: two "see army rules" (75px
+            # each) plus their padding overrun the 220px panel by 3px, and
+            # they would collide long before that on a narrower one. The badge
+            # above already says which player it is, so the link does not
+            # repeat it. Laid out here with the rest of the group so the box
+            # below grows to include it.
+            self._army_rules_rects = []
+            link_text = self._link_text(LOGO_BOX / 2)
+            link_surf = self.link_font.render(link_text, True, ARMY_RULES_LINK_COLOR)
+            for tile, (player, _keyword, _path) in zip((left_tile, right_tile), badges):
+                link_rect = link_surf.get_rect(centerx=tile.centerx, y=y)
+                self._army_rules_rects.append(
+                    (player, link_rect.inflate(2 * ARMY_RULES_LINK_PAD,
+                                               2 * ARMY_RULES_LINK_PAD)))
+            y += ARMY_RULES_LINK_HEIGHT
         else:
             # No badge art for both players: fall back to the plain bar plus
             # an "Active Player" line, which is what this group was before.
+            # No link either - without a faction there is nothing to look up.
+            self._army_rules_rects = []
             round_bar_rect = pygame.Rect(content_x, y, content_width, button_style.SUBHEADER_HEIGHT)
             y = round_bar_rect.bottom + 6
 
@@ -270,10 +375,24 @@ class GameStatusPanel:
             button_style.draw_header_bar(surface, round_bar_rect, round_label, self.label_font, center=True)
         else:
             button_style.draw_header_bar(surface, round_bar_rect, round_label, self.label_font, text_margin=8)
-        for tile, path, active in badge_positions:
-            self._draw_badge(surface, tile, path, active)
+        for tile, path, active, keyword in badge_positions:
+            self._draw_badge(surface, tile, path, active, keyword)
         for text_surf, pos in label_positions:
             surface.blit(text_surf, pos)
+        if self._army_rules_rects:
+            # Underlined and brightening on hover - the two things that say
+            # "this is clickable" without borrowing the button look.
+            mouse_pos = pygame.mouse.get_pos()
+            link_text = self._link_text(LOGO_BOX / 2)
+            for _player, link_rect in self._army_rules_rects:
+                hovered = link_rect.collidepoint(mouse_pos)
+                color = ARMY_RULES_LINK_HOVER_COLOR if hovered else ARMY_RULES_LINK_COLOR
+                link_surf = self.link_font.render(link_text, True, color)
+                link_pos = link_surf.get_rect(
+                    centerx=link_rect.centerx, y=link_rect.y + ARMY_RULES_LINK_PAD)
+                surface.blit(link_surf, link_pos)
+                pygame.draw.line(surface, color, (link_pos.x, link_pos.bottom),
+                                 (link_pos.right, link_pos.bottom))
         for line, pos in line_positions:
             line_surf = self.font.render(line, True, config.PANEL_TEXT_COLOR)
             surface.blit(line_surf, pos)
@@ -465,6 +584,7 @@ class GameStatusPanel:
         self._button_rect = button_style.draw_button(
             surface, button_rect, label, self.button_font, hovered=hovered, pressed=pressed, accent="confirm",
         )
+
 
     def handle_click(self, pos):
         return self._button_rect is not None and self._button_rect.collidepoint(pos)

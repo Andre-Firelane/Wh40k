@@ -37,6 +37,7 @@ instance would follow the model out of this unit and into the next battle.
 import copy
 
 from game.weapons import MELEE
+from game import ai_mode
 
 BOUNTY_HUNTERS_LABEL = "Bounty Hunters"
 PECHRA_LABEL = "Pech'ra"
@@ -80,8 +81,11 @@ class BountyHuntersController:
     pairing of two units, and a field on one of them would have to be cleaned
     up by whoever kills the other."""
 
-    def __init__(self, game_log=None, target_pick=None):
+    def __init__(self, game_log=None, target_pick=None, decision_manager=None,
+                 auto_players=()):
         self.game_log = game_log
+        self.decision_manager = decision_manager
+        self.auto_players = ai_mode.players(auto_players)
         # target_pick(hunter, candidates) -> squad, so the AI uses the same
         # damage-value ranking as every other deterministic target choice;
         # None falls back to name order, which keeps a test reproducible.
@@ -95,10 +99,24 @@ class BountyHuntersController:
         """"At the start of the battle, select one unit from your opponent's
         army" - once, for every Farstalker unit on the table.
 
-        Not optional and not a prompt: the printed text says "select", and with
-        the choice made before a single model has moved there is nothing to
-        judge it on that a player could not judge better next turn. The pick is
-        deterministic so a replay and a test agree."""
+        NOT OPTIONAL, so there is no Decline: the printed text says "select".
+        The only decision is WHICH enemy unit, and that one is the player's.
+
+        IT USED TO BE NOBODY'S. This method picked for every hunter on the
+        table, human-owned ones included, using the injected target_pick -
+        which main.py fills with the AI's own damage-value ranking. The
+        justification written here was that "with the choice made before a
+        single model has moved there is nothing to judge it on that a player
+        could not judge better next turn", and that is an argument about
+        whether the choice is WORTH making, which is not the engine's to settle
+        (user: "die Funktion selbst soll nicht deterministisch sein"). A player
+        who knows which enemy unit they intend to hunt should be allowed to say
+        so, even if an estimator would have guessed differently.
+
+        The AI's pick is unchanged and still costs no API call. Returns the
+        pairs it decided outright; a human's are raised as prompts instead, one
+        per hunting unit - DecisionManager is a queue, so several chain rather
+        than overwrite one another."""
         picked = []
         for hunter in sorted((s for s in squads if unit_has_bounty_hunters(s)),
                              key=lambda s: s.name):
@@ -108,14 +126,28 @@ class BountyHuntersController:
                              key=lambda s: s.name)
             if not enemies:
                 continue
-            target = (self.target_pick(hunter, enemies) if self.target_pick
-                      else enemies[0]) or enemies[0]
-            self._bounties[id(hunter)] = target
-            picked.append((hunter, target))
-            if self.game_log:
-                self.game_log.add(
-                    f"{hunter.name} takes a bounty on {target.name} (Bounty Hunters).")
+            if (hunter.owner not in self.auto_players
+                    and self.decision_manager is not None and len(enemies) > 1):
+                self.decision_manager.request(
+                    hunter.owner,
+                    f"{hunter.name}: Bounty Hunters - take a bounty on which unit?",
+                    [(t.name, (lambda h=hunter, target=t: self._take(h, target)), t)
+                     for t in enemies],
+                )
+                continue
+            picked.append(self._take(hunter, (self.target_pick(hunter, enemies)
+                                              if self.target_pick else enemies[0])
+                                     or enemies[0]))
         return picked
+
+    def _take(self, hunter, target):
+        """Record one bounty. The one place the mark is written, so the human's
+        answer and the AI's own pick cannot end up meaning different things."""
+        self._bounties[id(hunter)] = target
+        if self.game_log:
+            self.game_log.add(
+                f"{hunter.name} takes a bounty on {target.name} (Bounty Hunters).")
+        return (hunter, target)
 
     def applies(self, attacking_squad, target_squad):
         """Whether THIS attack is against this unit's own bounty."""

@@ -35,6 +35,8 @@ Path of the Outcast - and a new granted move that forgets to register is
 exactly how it happened the second time.
 """
 
+from game import ai_mode
+
 RAID_AND_RUN_LABEL = "Raid and Run"
 
 #: "a move of up to D3+3 inches" - the same distance for both branches.
@@ -78,7 +80,7 @@ class RaidAndRunController:
         self.game_log = game_log
         self.fight_controller = fight_controller
         self.all_tokens = all_tokens if all_tokens is not None else []
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         #: "was eligible to fight THIS PHASE" - sampled while the phase runs,
         #: because it cannot be recomputed once the phase has ended.
         self._was_eligible = set()

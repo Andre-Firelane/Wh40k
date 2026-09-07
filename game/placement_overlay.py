@@ -39,10 +39,26 @@ flat 0.25" grid needs for the disembark case. The subdivision is spread across
 frames under a call budget so a placement never stalls the window, and the
 coarse mask is shown meanwhile.
 
-WHAT GREEN MEANS: the predicate is evaluated at the model's CENTRE and already
-accounts for its base radius, so green is "this model's centre may go here" -
-its base is then guaranteed to fit. That is also why two models of a unit with
-mixed base sizes (an attached unit, rule 19.01) get two different masks.
+WHAT THE COLOURS MEAN - BASE EDGES, NOT CENTRES. User: "momentan ist die
+Grenze des overlays so dass der Base Mittelpunkt bis zur Grenze gehen kann.
+intuitiver waere aber der Baserand ... bei Baserand muss jedes Modell
+unabhaengig von der Basegroesse den selben Abstand einhalten."
+
+Both masks are evaluated for a POINT-SIZED base, which is what makes them one
+picture for the whole unit instead of one curve per base size:
+
+  * RED is ground no part of any base may touch - board edge, Dense terrain,
+    other models, and whatever the placing rule adds.
+  * GREEN is 09.02's coherency band, which reads the other way round: the base
+    must REACH it. Only drawn for a model RETURN, where the survivors are the
+    anchor that makes it exact.
+
+Both readings are the rule itself, not an approximation of it: every test in
+this engine is measured edge to edge, so "the base is clear of the red" and
+"the base touches the green" are literally the predicates - see
+SetupController.base_edge_zones(). Which is also why the mask no longer
+depends on WHICH model is being placed for the red half; it used to, and
+main.py had to guess a representative one.
 """
 
 import pygame
@@ -65,9 +81,20 @@ REFINE_BUDGET_PER_FRAME = 300
 # Illegal ground is DIMMED (dark red wash) rather than painted red, so terrain
 # and models underneath stay readable; legal ground gets only a faint tint, and
 # the boundary carries the actual information.
-VALID_COLOR = (70, 235, 115, 48)
+VALID_COLOR = (0, 0, 0, 0)          # legal ground is left alone - see below
 INVALID_COLOR = (105, 8, 8, 120)
-EDGE_COLOR = (150, 255, 175, 235)
+EDGE_COLOR = (190, 60, 60, 235)
+
+# The keep-out layer now paints ONLY what is forbidden: with base-edge
+# semantics the legal area is most of the board, and washing it green said
+# nothing while hiding the terrain under it. The edge is red for the same
+# reason - it is the line a base may not cross.
+
+# The coherency band is the opposite: it is the small region the base has to
+# reach, so THAT is what gets the green tint and the bright outline.
+BAND_COLOR = (70, 235, 115, 44)
+BAND_OUTSIDE_COLOR = (0, 0, 0, 0)
+BAND_EDGE_COLOR = (150, 255, 175, 235)
 EDGE_WIDTH_PX = 3
 
 
@@ -142,7 +169,16 @@ class PlacementOverlay:
 
     MAX_CACHED_MASKS = 4
 
-    def __init__(self):
+    def __init__(self, valid_color=VALID_COLOR, invalid_color=INVALID_COLOR,
+                 edge_color=EDGE_COLOR):
+        """`valid_color`/`invalid_color`/`edge_color` say what this layer MEANS.
+
+        Two layers use it with opposite palettes: the keep-out layer paints the
+        forbidden side, the coherency band paints the required side. Same mask
+        machinery, because the only difference is which side is the message."""
+        self.valid_color = valid_color
+        self.invalid_color = invalid_color
+        self.edge_color = edge_color
         self._masks = {}          # key -> _Mask
         self._surface = None
         self._surface_key = None
@@ -180,8 +216,8 @@ class PlacementOverlay:
         sharp instead of being blurred along with the fill."""
         small = pygame.Surface((mask.fine_cols, mask.fine_rows), pygame.SRCALPHA)
         pixels = pygame.PixelArray(small)
-        valid_px = small.map_rgb(VALID_COLOR)
-        invalid_px = small.map_rgb(INVALID_COLOR)
+        valid_px = small.map_rgb(self.valid_color)
+        invalid_px = small.map_rgb(self.invalid_color)
         for r in range(mask.fine_rows):
             row = mask.fine[r]
             for c in range(mask.fine_cols):
@@ -200,11 +236,11 @@ class PlacementOverlay:
                 x0, y0 = c * cell_px, r * cell_px
                 x1, y1 = x0 + cell_px, y0 + cell_px
                 if c == 0 or not row[c - 1]:
-                    pygame.draw.line(out, EDGE_COLOR, (x0, y0), (x0, y1), EDGE_WIDTH_PX)
+                    pygame.draw.line(out, self.edge_color, (x0, y0), (x0, y1), EDGE_WIDTH_PX)
                 if c + 1 >= mask.fine_cols or not row[c + 1]:
-                    pygame.draw.line(out, EDGE_COLOR, (x1, y0), (x1, y1), EDGE_WIDTH_PX)
+                    pygame.draw.line(out, self.edge_color, (x1, y0), (x1, y1), EDGE_WIDTH_PX)
                 if r == 0 or not mask.fine[r - 1][c]:
-                    pygame.draw.line(out, EDGE_COLOR, (x0, y0), (x1, y0), EDGE_WIDTH_PX)
+                    pygame.draw.line(out, self.edge_color, (x0, y0), (x1, y0), EDGE_WIDTH_PX)
                 if below is None or not below[c]:
-                    pygame.draw.line(out, EDGE_COLOR, (x0, y1), (x1, y1), EDGE_WIDTH_PX)
+                    pygame.draw.line(out, self.edge_color, (x0, y1), (x1, y1), EDGE_WIDTH_PX)
         return out

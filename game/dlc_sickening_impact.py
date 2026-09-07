@@ -34,7 +34,7 @@ anything to hit at all, since 1 CP for an average of ~0.83 mortal wounds per
 engaged model is a good trade for a unit that just charged, and the alternative
 (measuring expected damage) needs a target profile the mortal wounds ignore.
 """
-from game import death_lords_chosen
+from game import ai_mode, death_lords_chosen
 from game.damage_resolution import MortalWoundAllocationSession
 from game.squad import ENGAGEMENT_RANGE_IN, model_engaged_with
 from game.stratagems import Stratagem
@@ -78,7 +78,7 @@ class SickeningImpactController:
         self.turn_tracker = turn_tracker
         self.game_log = game_log
         self.game_state = game_state
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._stratagem = Stratagem(
             SICKENING_IMPACT_LABEL, SICKENING_IMPACT_CP, self._effect,
             # Every charging TERMINATOR unit has its own "just after it ends a
@@ -132,15 +132,22 @@ class SickeningImpactController:
         return self.maybe_offer(squad)
 
     def maybe_offer(self, squad):
-        if not self.can_use(squad) or not self.is_worth_using(squad):
+        # is_worth_using() is the AI's verdict and is applied INSIDE the auto
+        # branch below, not here. It used to run above the split - the second
+        # place in the repo that did, after 'Ard as Nails - so a human was only
+        # ever shown this Stratagem when the engine already thought it was
+        # worth the CP.
+        if not self.can_use(squad):
             return False
         targets = engaged_targets(squad, self._tokens())
         if squad.owner in self.auto_players or self.decision_manager is None:
+            if not self.is_worth_using(squad):
+                return False
             best = max(targets, key=lambda t: (dice_against(squad, t), t.name))
             return self.use(squad, best)
         options = [(f"Sickening Impact (1 CP): {t.name} "
                     f"({dice_against(squad, t)}D6)",
-                    (lambda target=t: self.use(squad, target)))
+                    (lambda target=t: self.use(squad, target)), t)
                    for t in targets]
         options.append(("Decline", None))
         self.decision_manager.request(

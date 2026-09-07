@@ -44,7 +44,7 @@ NOT here - they are shared with three other abilities and live in
 game/model_return.py.
 """
 
-from game import model_return
+from game import ai_mode, model_return
 from game.formation_layout import returning_positions
 from game.squad import ENGAGEMENT_RANGE_IN
 
@@ -93,18 +93,40 @@ def recoverable_wounds(squad):
     return missing + sum(m.profile.wounds for m in revivable_models(squad))
 
 
+def can_reroll(squad, rolled):
+    """Whether the Necron Warriors re-roll is available AT ALL - the printed
+    permission, plus the one case where taking it would buy literally nothing.
+
+    "You can re-roll the dice to see how many wounds are reanimated" is
+    UNCONDITIONAL: the unit either has the ability or it does not. So the only
+    thing filtered here is inertness - a unit that can use just one more wound
+    gains nothing from a better roll, whatever it rolled, and offering that is
+    the "never offer what buys nothing" mistake this repo keeps out
+    (Fehlerklasse 5).
+
+    WHAT IS DELIBERATELY NOT HERE is whether the re-roll is a good IDEA. That
+    is should_reroll() below, and it is the AI's policy - see there."""
+    if not any(getattr(m.profile, "reanimation_reroll", False) for m in _alive(squad)):
+        return False
+    if rolled >= REANIMATION_DICE_SIDES:
+        return False        # already the best the die can do
+    return recoverable_wounds(squad) >= REANIMATION_REROLL_FLOOR
+
+
 def should_reroll(squad, rolled):
-    """Necron Warriors: "you can re-roll the dice to see how many wounds are
-    reanimated". Optional, so somebody has to decide - this is the
-    deterministic answer, used for the AI and offered to a human.
+    """Whether the AI takes the re-roll. ITS POLICY, NOT THE RULE.
 
     Re-roll a 1 and nothing else. A D3 averages 2, so re-rolling a 2 wins
     nothing on average and risks losing a wound; re-rolling a 1 can only help.
-    And only when the unit could actually USE a second wound, since a unit
-    that is one wound short of perfect gains nothing from a better roll."""
-    if not any(getattr(m.profile, "reanimation_reroll", False) for m in _alive(squad)):
-        return False
-    return rolled < REANIMATION_REROLL_FLOOR and recoverable_wounds(squad) >= REANIMATION_REROLL_FLOOR
+
+    THIS USED TO GATE THE HUMAN'S PROMPT TOO, and that was the bug (user: "die
+    KI soll das zwar deterministisch anwenden, aber die Funktion selbst soll
+    nicht deterministisch sein"). A human who rolled a 2 was never offered the
+    re-roll at all, because the engine had already decided for them that it was
+    not worth it. "Is this a good idea" is exactly the kind of judgement that
+    belongs to whoever is playing the unit; the rule's own permission is
+    can_reroll() above, and that is what the offer is gated on now."""
+    return can_reroll(squad, rolled) and rolled < REANIMATION_REROLL_FLOOR
 
 
 def _engaged_enemy_squads(squad, all_tokens):
@@ -151,13 +173,21 @@ def placement_validator(squad, all_tokens=(), position_valid=None):
     return _valid
 
 
-def reanimate(squad, wounds, all_tokens=(), position_valid=None, game_state=None):
+def reanimate(squad, wounds, all_tokens=(), position_valid=None, game_state=None,
+              placer=None):
     """Spend `wounds` reanimated wounds on `squad`, per 02.02.04 + 01.02.03.
 
     Returns (wounds_spent, revived_models). `wounds_spent` can be less than
     `wounds` - a unit simply may not have that much to recover, and a model
     with nowhere legal to stand does not come back at all. Both are legal
     outcomes of the printed rule, and the surplus is lost rather than banked.
+
+    `placer`, if given, is a ReturnPlacementController: rule 01.02.03 says a
+    returning model is SET UP, and setting up is the controlling player's job.
+    With one, a HUMAN gets the engine's spots as a starting point and drags
+    from there; an owner in its auto_players lands on them outright, which is
+    what this did for everyone. None keeps that older path for every caller
+    that has not been handed one.
     """
     remaining = max(0, int(wounds))
     spent = 0
@@ -191,6 +221,21 @@ def reanimate(squad, wounds, all_tokens=(), position_valid=None, game_state=None
 
     valid = placement_validator(squad, all_tokens, position_valid)
     spots = returning_positions(squad, [m for m, _ in plan], position_valid=valid)
+
+    if placer is not None:
+        # The spots become a STARTING POINT rather than the answer. Only the
+        # models that found one are handed over; a model with nowhere legal to
+        # stand still stays down, so nobody is asked to place something the
+        # rule did not return.
+        revived = placer.place(
+            squad,
+            [model for model, _give in plan],
+            spots,
+            wounds=[give for _model, give in plan],
+            validator=valid,
+        )
+        spent += sum(give for (model, give) in plan if model in revived)
+        return spent, revived
 
     revived = []
     for (model, give), spot in zip(plan, spots):
@@ -238,7 +283,8 @@ class ReanimationProtocolsController:
     UNITS_MUST_HAVE_SOMETHING_TO_GAIN = True
 
     def __init__(self, dice_manager=None, decision_manager=None, game_log=None,
-                 game_state=None, position_valid=None, auto_players=()):
+                 game_state=None, position_valid=None, auto_players=(),
+                 placer=None):
         self.dice_manager = dice_manager
         self.decision_manager = decision_manager
         self.game_log = game_log
@@ -247,7 +293,11 @@ class ReanimationProtocolsController:
         # own predicate, so "somewhere legal" means what it means everywhere
         # else. The Engagement Range half is added by placement_validator().
         self.position_valid = position_valid
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
+        # ReturnPlacementController - rule 01.02.03's "set up" half. Optional,
+        # so a test or a headless harness that does not hand one over keeps the
+        # engine-picked positions this always used.
+        self.placer = placer
         self._queue = []            # squads still owed a roll this Command phase
         self._current = None        # the squad whose die is on the table
         self._reroll_offered = False
@@ -341,9 +391,17 @@ class ReanimationProtocolsController:
         values = (self.dice_manager.last_values if self.dice_manager is not None else None) or [1]
         rolled = values[0]
 
-        if not self._reroll_offered and should_reroll(squad, rolled):
+        # OFFERED on the printed permission, DECIDED on the AI's policy. The
+        # gate used to be should_reroll() for both, so a human who rolled a 2
+        # or a 3 never saw the option - the engine answered a judgement call on
+        # their behalf. can_reroll() is the rule; should_reroll() is now only
+        # consulted inside the auto branch.
+        if not self._reroll_offered and can_reroll(squad, rolled):
             self._reroll_offered = True
             if squad.owner in self.auto_players or self.decision_manager is None:
+                if not should_reroll(squad, rolled):
+                    self._apply_and_advance(squad, rolled)
+                    return True
                 self._log(f"[reanimation] {squad.name}: rolled a {rolled}, re-rolling it.",
                           file_only=True)
                 self._roll(squad, is_reroll=True)
@@ -370,6 +428,7 @@ class ReanimationProtocolsController:
             all_tokens=self._tokens(),
             position_valid=self.position_valid,
             game_state=self.game_state,
+            placer=self.placer,
         )
         if not spent:
             self._log(f"[reanimation] {squad.name}: rolled a {rolled}, nothing to recover.",

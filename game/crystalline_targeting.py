@@ -94,7 +94,7 @@ class CrystallineTargetingController:
         self.decision_manager.request(
             squad.owner,
             f"{squad.name}: {CRYSTALLINE_TARGETING_LABEL} - which unit is easier to hurt?",
-            [(target.name, (lambda t=target: self._mark(t, squad))) for target in candidates],
+            [(target.name, (lambda t=target: self._mark(t, squad)), target) for target in candidates],
         )
 
     def _mark(self, target, squad):

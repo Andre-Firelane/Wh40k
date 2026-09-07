@@ -493,9 +493,26 @@ checks.true("no AI path for any of the Anhrathe abilities",
                      "fury_of_the_void", "raid_and_run", "aethersense",
                      "prince_of_corsairs", "hallucinogen_grenades")))
 
+ART = {  # datasheets whose art the user has since supplied
+    'Corsair Skyreavers': 'Corsair Skyrunner.png',
+    'Corsair Voidreavers': 'Corsair Voidreavers.png',
+    # The Voidscarred BORROW the Voidreavers' file (user decision). Both
+    # are foot corsairs; the Skyreavers are the jetbikes and keep theirs -
+    # which is what the three lines together assert.
+    'Corsair Voidscarred': 'Corsair Voidreavers.png',
+}
 for sheet in SHEETS:
     sq = build(sheet, n=30)
-    checks.eq("%s has no art yet - pinned so adding one is visible" % sheet.name,
-              sprites.sprite_for(sq.models[0]), None)
+    _p = sprites.sprite_for(sq.models[0])
+    if sheet.name in ART:
+        # AT THE MODEL, so a key naming a file that is not on disk fails here
+        # rather than passing on a mapping table nobody checked. Named file, so
+        # a datasheet quietly borrowing a NEIGHBOUR's art by substring match
+        # fails too - which is how "Autarch" would shadow "Autarch Wayleaper".
+        checks.true("%s draws its own art" % sheet.name,
+                    ART[sheet.name] in (_p or ""))
+    else:
+        checks.eq("%s has no art yet - pinned so adding one is visible" % sheet.name,
+                  _p, None)
 
 checks.finish()

@@ -135,20 +135,24 @@ checks.eq("...and so does Kauyon, so the pick is unambiguous either way",
           tau_granted["Kauyon"], fd.RECONNAISSANCE)
 
 # MEASURED CONSEQUENCE, pinned so it cannot drift unnoticed: the shipped lists
-# now reach ALL FIVE missions. The dormant column emptied one T'au list at a
-# time - Death Trap with the Prototypes list (Disruption) and Unstoppable Force
-# with the Retaliation Cadre one (Purge the Foe) - which is exactly the visible
-# change this pin was set for. Nothing here is built-and-never-played any more.
+# reach FOUR of the five missions. The dormant column had emptied one T'au list
+# at a time - Death Trap with the Prototypes list (Disruption) and Unstoppable
+# Force with the Retaliation Cadre one (Purge the Foe) - and then the Prototypes
+# list was RETIRED on user request ("diese liste kann weg"), which put Death Trap
+# back. It is the only one, and it is one line from being live again: Disruption
+# is granted by Auxiliary Cadre and by Windrider Host, both already modelled, so
+# any list declaring either brings it back.
 reachable = sorted({pm.mission_for(e.force_disposition).name
                     for e in army_lists.ARMY_LISTS})
-checks.eq("the shipped lists reach ALL five missions", reachable,
-          sorted(m.name for m in pm.ALL_MISSIONS))
 dormant = sorted(m.name for m in pm.ALL_MISSIONS if m.name not in reachable)
-checks.eq("...leaving none dormant", dormant, [])
-checks.eq("Death Trap is reached by the Prototypes list",
+checks.eq("the shipped lists reach four of the five missions",
+          reachable,
+          sorted(m.name for m in pm.ALL_MISSIONS if m.name != "Death Trap"))
+checks.eq("...leaving Death Trap dormant, and only it", dormant, ["Death Trap"])
+# The list that used to play it is gone, so nothing declares Disruption at all.
+checks.eq("no shipped list declares Disruption",
           [e.key for e in army_lists.ARMY_LISTS
-           if pm.mission_for(e.force_disposition).name == "Death Trap"],
-          ["tau_epc"])
+           if e.force_disposition == fd.DISRUPTION], [])
 checks.eq("...and Unstoppable Force by the Retaliation Cadre one",
           [e.key for e in army_lists.ARMY_LISTS
            if pm.mission_for(e.force_disposition).name == "Unstoppable Force"],
@@ -275,14 +279,22 @@ SELECT_SRC = open("game/ui/army_select.py", encoding="utf-8").read()
 # one definition, and each consumer checked by its own call expression.
 checks.eq("there is exactly ONE definition",
           SELECT_SRC.count("def force_disposition_summary("), 1)
+# The tile draws it as one of its header BLOCKS. It used to be its own
+# self.font.render(...) line, which is what this pin matched; the four blocks
+# now go through one wrapped list so the height arithmetic and the drawing
+# cannot disagree about how many lines there are (user: "Oben ueberlagert sich
+# text"). Matched on the call expression, not on the render call it sits in.
 checks.true("the tile draws it",
-            "self.font.render(force_disposition_summary(entry), True, TEXT_COLOR)"
-            in SELECT_SRC)
+            "(self.font, TEXT_COLOR, force_disposition_summary(entry))" in SELECT_SRC)
 checks.true("the header note draws it too, so the two cannot disagree",
             "{force_disposition_summary(entry)}" in SELECT_SRC)
-# The header height is a LINE COUNT and the tile now draws four header lines.
-# A fifth line without moving this is how the header eats the portrait grid.
-checks.true("_header_height() budgets four header lines",
+# The header height is MEASURED off those wrapped blocks now, so a fifth line -
+# or a name that wraps to two - moves the grid instead of being written over
+# the summary. The flat four-line reading survives only as the answer for a
+# caller with no width to wrap to.
+checks.true("_header_height() measures the real wrapped blocks",
+            "self._blocks_height(self._header_blocks(entry, text_width))" in SELECT_SRC)
+checks.true("...with the old flat reading only as the no-width fallback",
             "4 * self.font.get_height() + 26" in SELECT_SRC)
 
 

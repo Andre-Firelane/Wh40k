@@ -476,4 +476,72 @@ c.eq("...and the opposite corner owns the other two",
 c.true("a zone centred on the board owns none - there is no direction to face",
        own_board_edges(brd, DeploymentZone("P", [(BW / 2, BH / 2, 6.0, 6.0)])) == [])
 
+
+# --------------------------------------------------------------------------
+# 9. No Man's Land objectives do not reach into a deployment zone
+# --------------------------------------------------------------------------
+print("--- 9. objectives and zones do not overlap ---")
+
+# THE BUG THIS EXISTS FOR (map3, user report): "die beiden mittleren objectives
+# ragen in die austellungszonen hinein. das ist schlecht fuer manche Missionen,
+# die als Bedingung 'outside of your deployment zone' haben." Measured before
+# the fix: 15.3% of each central objective's area stood inside a deployment
+# zone, its far corner 12.01" from the board centre against the 9" hole - so a
+# unit could hold the middle objective while standing in its own zone.
+#
+# WHY NOTHING CAUGHT IT. map3's own suite already checked that these two
+# objectives are No Man's Land - but it asked about the objective's CENTRE,
+# which was inside the hole all along. The AREA is what a unit stands on and
+# what rule 14.02 measures, and nothing looked at it.
+#
+# Written as a CROSS-MAP invariant rather than a map3 line, because it is a
+# property every board must have and the two older maps already had it: an
+# objective is either a HOME objective (wholly inside its owner's zone, by
+# design) or it is No Man's Land (wholly outside BOTH zones). Nothing may
+# straddle. A fourth map inherits the check for free.
+
+
+def area_points(objective, n=70):
+    """A grid over the objective's own footprint - every feature, walls
+    included, since a model standing on a wall is standing on the objective."""
+    features = objective.terrain_area.features
+    xs = [f.min_x for f in features] + [f.max_x for f in features]
+    ys = [f.min_y for f in features] + [f.max_y for f in features]
+    for i in range(n + 1):
+        for j in range(n + 1):
+            x = min(xs) + (max(xs) - min(xs)) * i / n
+            y = min(ys) + (max(ys) - min(ys)) * j / n
+            if any(f.contains_point(x, y) for f in features):
+                yield x, y
+
+
+checked_home = checked_nml = 0
+for key in ("map1", "map2", "map3"):
+    battle_map = maps.get(key)
+    state = GameState()
+    battle_map.build(state)
+    zones = state.deployment_zones
+    for objective in state.objectives:
+        ox, oy = sm.objective_centre(objective)
+        owners = [z.owner for z in zones if z.contains_point(ox, oy)]
+        points = list(area_points(objective))
+        in_zone = sum(1 for x, y in points
+                      if any(z.contains_point(x, y) for z in zones))
+        if owners:
+            # A HOME objective. It is supposed to be in its owner's zone, and
+            # checking that keeps the sampler honest: without it, "0 points in
+            # a zone" would also pass on a sampler that found no points at all.
+            checked_home += 1
+            c.true(f"{key}: {objective.name} is a home objective, wholly in {owners[0]}'s zone",
+                   in_zone == len(points) and len(points) > 100)
+        else:
+            checked_nml += 1
+            pct = 100.0 * in_zone / len(points) if points else 0.0
+            c.eq(f"{key}: {objective.name} is No Man's Land and stays out of both zones "
+                 f"({pct:.1f}% of {len(points)} sampled points)", in_zone, 0)
+
+# Live guard: a loop that classified nothing would pass every line above.
+c.true(f"the sweep is live - {checked_nml} No Man's Land and {checked_home} home objectives",
+       checked_nml >= 8 and checked_home >= 6)
+
 c.finish()

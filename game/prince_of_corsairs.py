@@ -32,6 +32,8 @@ everything where it wanted it, and moving three units at random makes its own
 deployment worse. Recorded as a decision rather than left as an omission.
 """
 
+from game import ai_mode
+
 PRINCE_OF_CORSAIRS_LABEL = "Prince of Corsairs"
 
 #: "select up to three AELDARI units".
@@ -55,7 +57,7 @@ class PrinceOfCorsairsStep:
         self.game_state = game_state
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self.redeployed = {}        # player -> [squads]
 
     def _squads(self):
@@ -130,7 +132,7 @@ class PrinceOfCorsairsStep:
                 player,
                 "%s: redeploy a unit into Strategic Reserves? (%d left)"
                 % (PRINCE_OF_CORSAIRS_LABEL, self.remaining(player)),
-                [(s.name, (lambda p=player, s=s: self._answer(p, s, pregame_controller, on_done)))
+                [(s.name, (lambda p=player, s=s: self._answer(p, s, pregame_controller, on_done)), s)
                  for s in options]
                 + [("No more", (lambda: self._finish(on_done)))])
             return True

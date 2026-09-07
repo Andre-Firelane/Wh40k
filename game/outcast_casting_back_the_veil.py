@@ -35,7 +35,7 @@ battle, and there is no reset. That absence is the thing most likely to be
 THE AI DECLINES (standing Aeldari instruction).
 """
 
-from game import far_reaching_doom
+from game import ai_mode, far_reaching_doom
 from game.stratagems import Stratagem
 
 CASTING_BACK_THE_VEIL_NAME = "Casting Back the Veil"
@@ -82,7 +82,7 @@ class CastingBackTheVeilController:
         self.stratagem_controller = stratagem_controller
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._pending_hits = ()
         self._stratagem = Stratagem(
             name=CASTING_BACK_THE_VEIL_NAME, cp_cost=CASTING_BACK_THE_VEIL_CP,
@@ -137,7 +137,7 @@ class CastingBackTheVeilController:
         self.decision_manager.request(
             squad.owner,
             "%s: which unit?" % CASTING_BACK_THE_VEIL_NAME,
-            [(t.name, (lambda t=t: self._mark(t))) for t in options],
+            [(t.name, (lambda t=t: self._mark(t)), t) for t in options],
             is_stratagem=True,
         )
 

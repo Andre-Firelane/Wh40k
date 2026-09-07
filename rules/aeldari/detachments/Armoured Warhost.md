@@ -1,6 +1,6 @@
 # Armoured Warhost
 
-**Aeldari** - 1 DP detachment
+**Aeldari** - 1 DP detachment - Force Disposition: Reconnaissance
 
 Source: <https://wahapedia.ru/wh40k11ed/factions/aeldari/>
 
@@ -8,14 +8,11 @@ Source: <https://wahapedia.ru/wh40k11ed/factions/aeldari/>
 
 ### Skilled Crews
 
-Asuryani vehicle crews are amongst the galaxy’s most naturally gifted pilots and gunners. They can coax every last iota of performance from the formidable machines and weapon systems under their control.
 Friendly AELDARI VEHICLE units’ ranged attacks have [ASSAULT].
 
 ## Enhancements
 
 ### Spirit Stone of Raelyth - 20 pts
-
-This spirit stone contains the essence of Bonesinger Raelyth. Those Asuryani psykers who bear this item to battle can draw upon the fallen artisan’s talents.
 
 AELDARI PSYKER model only.
 
@@ -24,8 +21,6 @@ AELDARI PSYKER model only.
 
 ### Guiding Presence - 25 pts
 
-This seer is closely attuned to their craftworld’s vehicles. Communicating with the souls inhabiting hull‑mounted spirit stones can sharpen the tactical awareness of spirits and crew.
-
 AELDARI PSYKER model only. At the start of your Shooting phase, select one **visible** friendly AELDARI VEHICLE unit within 6" of this model. That VEHICLE unit’s ranged attacks have +1 to **hit rolls**.
 
 ## Stratagems
@@ -33,8 +28,6 @@ AELDARI PSYKER model only. At the start of your Shooting phase, select one **vis
 ### LAYERED WARDS - 1CP
 
 *Armoured Warhost Stratagem*
-
-The wraithbone superstructure of this vehicle has been interlaced with warding runes, enabling its hull to resist incoming fire.
 
 **WHEN:** Any phase, when a friendly AELDARI VEHICLE unit suffers a **mortal wound**.
 
@@ -45,8 +38,6 @@ The wraithbone superstructure of this vehicle has been interlaced with warding r
 ### SOULSIGHT - 1CP
 
 *Armoured Warhost Stratagem*
-
-Spirit stones containing the souls of gifted seers have been embedded into this vehicle’s targeting matrices. The essences within lend guidance even in death.
 
 **WHEN:** Your Shooting phase, when a friendly AELDARI VEHICLE unit is **selected to shoot**.
 
@@ -61,8 +52,6 @@ Spirit stones containing the souls of gifted seers have been embedded into this 
 ### VECTORED ENGINES - 1CP
 
 *Armoured Warhost Stratagem*
-
-The result of exquisite and ingenious Aeldari engineering, vectored engines enable grav vehicles to evade their enemies while maintaining accurate fire.
 
 **WHEN:** Your Movement phase, when a friendly AELDARI VEHICLE unit makes a **fall-back move**.
 

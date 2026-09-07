@@ -100,6 +100,69 @@ for name in ("Objective East", "Objective West"):
     c.true(f"...but inside the hole, so it belongs to nobody",
            math.hypot(ox - CX, oy - CY) < HOLE
            and not any(z.contains_point(ox, oy) for z in ST.deployment_zones))
+    # ...and so does its whole AREA, which is the half this used to miss. The
+    # centre was always in the hole; the footprint reached 12.01" out and put
+    # 15.3% of the objective inside a deployment zone (user report). The
+    # cross-map form of this lives in test_deployment_shapes.py section 9.
+    area = objective.terrain_area
+    corner_r = max(
+        math.hypot(x - CX, y - CY)
+        for f in area.features
+        for x in (f.min_x, f.max_x) for y in (f.min_y, f.max_y))
+    c.true(f"...area included: its furthest corner is {corner_r:.2f}\" out, inside the "
+           f"{HOLE:.0f}\" hole", corner_r < HOLE)
+
+# The size and position that buy it, and the THREE things they trade off. The
+# pieces are scaled to 0.675 of the measured 7.48 x 10.85 and slid 1.2" toward
+# the board centre: at the measured centre the piece is 6.13" out from the
+# middle of a 9" circle, so nothing bigger than scale 0.508 fits there whatever
+# its shape - room has to come from the position, not just the size.
+east = next(o for o in ST.objectives if o.name == "Objective East")
+foot = east.terrain_area.features[0]
+c.true(f"the central pieces are scaled to fit the hole "
+       f"({foot.width_in:.2f} x {foot.height_in:.2f} of 7.48 x 10.85)",
+       abs(foot.width_in / 7.48 - 0.675) < 0.01
+       and abs(foot.height_in / 10.85 - 0.675) < 0.01)
+c.true("...keeping the measured aspect, so it still reads as the same piece",
+       abs((foot.height_in / foot.width_in) - (10.85 / 7.48)) < 0.01)
+c.true("...moved toward the board centre, not away from it",
+       math.hypot(foot.x_in - CX, foot.y_in - CY) < math.hypot(35.87 - CX, 20.22 - CY))
+
+# THE CORRIDOR between the pair, which is what stops the pieces simply being
+# slid further in until they are big again (User: "es soll aber noch ein
+# corridor zwischen den objectives bleiben"). The ART's own gap is 4.26"; this
+# keeps at least that, and it has to stay wider than the 4.2" base of a Falcon
+# or Wave Serpent - the widest thing that has to drive through the middle.
+west = next(o for o in ST.objectives if o.name == "Objective West")
+wfoot = west.terrain_area.features[0]
+lane = abs(max(foot.min_x, wfoot.min_x) - min(foot.max_x, wfoot.max_x))
+ART_CORRIDOR = 4.26          # the gap the measured pieces left, at their size
+GRAV_TANK_IN = 4.2           # Falcon / Wave Serpent base, the widest in play
+c.true(f"a corridor is left between the two central pieces ({lane:.2f}\")",
+       lane >= ART_CORRIDOR)
+c.true(f"...wide enough for the widest base in the game ({GRAV_TANK_IN}\")",
+       lane > GRAV_TANK_IN)
+
+# The pair stay a MIRROR pair, so both remain exactly as far from the board
+# centre - which is what makes both of them "central" for the Primary missions
+# that read that.
+c.true("the two central pieces are still mirror images about the board centre",
+       abs((foot.x_in + wfoot.x_in) / 2 - CX) < 0.01
+       and abs((foot.y_in + wfoot.y_in) / 2 - CY) < 0.01)
+
+# The DRAWN ring clears too, at the zoom the board is played at - without this
+# the fix is correct and still looks broken, which is how it was reported.
+from game import renderer as _r  # noqa: E402  (local to this check)
+
+PLAY_PPI = 62.0                      # measured elsewhere in this repo
+ring_grow = _r.OBJECTIVE_OUTLINE_INFLATE_PX / PLAY_PPI
+ring_r = max(
+    math.hypot(x - CX, y - CY)
+    for f in east.terrain_area.features
+    for x in (f.min_x - ring_grow, f.max_x + ring_grow)
+    for y in (f.min_y - ring_grow, f.max_y + ring_grow))
+c.true(f"the drawn outline clears the arc in play too ({ring_r:.2f}\" < {HOLE:.0f}\")",
+       ring_r < HOLE)
 
 # An army has to FIT. This is the measurement that killed the rectangle
 # approximation (see game/shapes.py): a staircase of 16 strips leaves a grav
@@ -266,8 +329,16 @@ for owner in ("Player 1", "Player 2"):
     home = deployment_ai._home_objective(owner, ST.objectives, own)
     needs.append(round(observation.garrison_reach_needed_in(home, ST.objectives), 1))
 c.eq("both players need the same reach from home", needs[0], needs[1])
-c.eq("...and it is 15.9 inches - the nearest other objective is one of the two "
-     "central pieces, so a 12in gun still cannot hold home usefully", needs[0], 15.9)
+# 16.8", up from 15.9" when the two central pieces sat where the art measured
+# them. They were slid 1.2" toward the board centre so their footprints clear
+# the deployment zones (see game/maps.py), and the nearest other objective to a
+# home objective IS one of that pair - so the reach a home garrison needs grew
+# with the move. The number is READ OFF THE BOARD rather than set, which is the
+# whole point of garrison_reach_needed_in(); what matters is that it stays well
+# past a 12" gun, so the conclusion it was written for is unchanged.
+c.eq("...and it is 16.8 inches - the nearest other objective is still one of the "
+     "two central pieces, which moved 1.2in in", needs[0], 16.8)
+c.true("...so a 12in gun still cannot hold home usefully", needs[0] > 12.0)
 
 
 # --------------------------------------------------------------------------
@@ -343,5 +414,142 @@ for objective in ST.objectives:
     pts = R.objective_outline_points(_board, objective.terrain_area)
     anchor = min(pts, key=lambda p: p[0] + p[1])
     c.true(f"{objective.name}: the icon anchor is a point ON the outline", anchor in pts)
+
+
+# --------------------------------------------------------------------------
+print("--- 7. pieces that touch, touch ---")
+
+# User: "bei map 3 gibt es kleine luecken, durch die man durchschiessen kann
+# zwischen den gelaendestuecken ... schiebe sie so zusammen, dass da keine
+# luecken sind, wenn gelaendestuecke sich beruehren sollten."
+#
+# The cause was the percentile fit (see game/maps.py): trimming both pieces of
+# a touching pair opened seams of 0.15" to 0.43". What is pinned here is the
+# RESULT, in a form that catches a re-measurement sliding a sliver back in: a
+# pair is either flush or clearly apart, never a hair's breadth from meeting.
+
+
+def _seg_point(p, a, b):
+    ax, ay = a
+    bx, by = b
+    dx, dy = bx - ax, by - ay
+    length_sq = dx * dx + dy * dy
+    t = 0.0 if length_sq == 0 else max(0.0, min(1.0, ((p[0] - ax) * dx + (p[1] - ay) * dy) / length_sq))
+    return math.hypot(p[0] - (ax + t * dx), p[1] - (ay + t * dy))
+
+
+def _inside(p, poly):
+    sign = 0
+    for i in range(len(poly)):
+        ax, ay = poly[i]
+        bx, by = poly[(i + 1) % len(poly)]
+        cross = (bx - ax) * (p[1] - ay) - (by - ay) * (p[0] - ax)
+        if abs(cross) < 1e-12:
+            continue
+        side = 1 if cross > 0 else -1
+        if sign == 0:
+            sign = side
+        elif side != sign:
+            return False
+    return True
+
+
+def _crosses(p1, p2, p3, p4):
+    def cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    return (((cross(p3, p4, p1) > 0) != (cross(p3, p4, p2) > 0))
+            and ((cross(p1, p2, p3) > 0) != (cross(p1, p2, p4) > 0)))
+
+
+def gap(a, b):
+    """Inches between two (possibly rotated) rectangles; 0 if they meet."""
+    A, B = a.corners(), b.corners()
+    if any(_inside(p, B) for p in A) or any(_inside(p, A) for p in B):
+        return 0.0
+    for i in range(len(A)):
+        for j in range(len(B)):
+            if _crosses(A[i], A[(i + 1) % len(A)], B[j], B[(j + 1) % len(B)]):
+                return 0.0
+    best = float("inf")
+    for i in range(len(A)):
+        best = min(best, min(_seg_point(p, A[i], A[(i + 1) % len(A)]) for p in B))
+    for j in range(len(B)):
+        best = min(best, min(_seg_point(p, B[j], B[(j + 1) % len(B)]) for p in A))
+    return best
+
+
+# A gap narrower than this is not a lane anybody chose to leave - it is a
+# leftover seam. The number has room on both sides and is not a guess: the
+# nearest pair that is genuinely apart on this board stands 2.7" apart, and
+# the widest base in either army is 4.2" across, so nothing legitimate lives
+# in between.
+SLIVER_IN = 1.0
+slivers = []
+touching = []
+for i in range(len(feet)):
+    for j in range(i + 1, len(feet)):
+        d = gap(feet[i], feet[j])
+        if d == 0.0:
+            touching.append((i, j))
+        elif d < SLIVER_IN:
+            slivers.append((round(feet[i].x_in, 2), round(feet[j].x_in, 2), round(d, 3)))
+c.eq(f"no pair of pieces is left within {SLIVER_IN}in of touching without touching",
+     slivers, [])
+# Four measured contacts, and the map is symmetric, so eight.
+c.eq("the four contacts the art draws are built, on both halves", len(touching), 8)
+c.true("...and each is an exact contact, not an overlap",
+       all(gap(feet[i], feet[j]) == 0.0 for i, j in touching))
+
+# The rule is "close what the art draws closed", NOT "glue every neighbour":
+# the cross-braced bar and the -52.5-degree barricade stand 2.35" apart in the
+# source image, and they stay apart here. Without this the check above would
+# also pass on a board that simply pushed everything into one lump.
+bar = next(o for o in feet if approx(o.width_in, 2.05, 0.01) and o.x_in < 30)
+turned_barricade = next(o for o in feet if approx(o.angle_deg, -52.5, 0.01) and o.x_in < 30)
+c.true(f"the one pair the art leaves open stays open ({gap(bar, turned_barricade):.2f}in)",
+       gap(bar, turned_barricade) > 2.0)
+
+# The contact that mattered for play. Every other piece involved is a
+# barricade - Light terrain, which never blocked sight - but these two are
+# ruins, and their WALLS stood 0.15" apart and facing each other, which is a
+# slot a line of sight threads. Both halves of that are checked: the walls
+# themselves (what stops a shooter standing INSIDE one of the two areas,
+# where rule 13.10 is switched off) and the sightline (what stops everyone
+# else).
+row_ruins = [a for a in ST.terrain_areas
+             if 27.0 < a.features[0].x_in < 33.0 and a.features[0].y_in < 12.0
+             and any(f.category == "dense" for f in a.features)]
+c.eq("the centre-line row is two ruins, not one", len(row_ruins), 2)
+row_walls = [[f for f in a.features if f.category == "dense"] for a in row_ruins]
+c.true("...and their walls meet, closing the slot a shot used to thread",
+       min(gap(u, v) for u in row_walls[0] for v in row_walls[1]) == 0.0)
+
+
+class _Probe:
+    """A point-sized model, so the check measures the terrain and not a base.
+    Duck-typed on purpose - line_of_sight.py documents this stand-in shape for
+    ai/observation.py's own probes, and a probe with no squad has no army."""
+
+    def __init__(self, x_in, y_in):
+        self.x_in = x_in
+        self.y_in = y_in
+        self.radius_in = 0.02
+
+
+from game import line_of_sight as los  # noqa: E402  (local to this section)
+
+obstacles = [o for area in ST.terrain_areas for o in area.features]
+open_lanes = [round(29.90 + 0.01 * k, 2) for k in range(21)
+              if los.has_line_of_sight(_Probe(29.90 + 0.01 * k, 4.0),
+                                       _Probe(29.90 + 0.01 * k, 15.0),
+                                       obstacles, (), ST.terrain_areas)]
+c.eq("nothing can shoot through the centre-line ruins any more", open_lanes, [])
+# ...and the same check has to be able to say YES, or it would also pass on a
+# board where every shot is blocked. The nearest genuinely open lane is 1" off
+# the row's east edge.
+c.true("...while open ground beside them is still open ground",
+       los.has_line_of_sight(_Probe(34.0, 4.0), _Probe(34.0, 15.0),
+                             obstacles, (), ST.terrain_areas))
+
 
 c.finish()

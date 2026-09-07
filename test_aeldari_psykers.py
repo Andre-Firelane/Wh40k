@@ -387,10 +387,25 @@ checks.true("no AI path for any of the three",
             not any(n in ai_src for n in
                     ("runes_of_fortune", "misfortune", "spirit_mark", "tears_of_isha")))
 
+ART = {  # datasheets whose art the user has since supplied
+    'Spiritseer': 'Spirit Seer.png',
+    # The lone Warlock BORROWS the Conclave's file - same model, and the
+    # Conclave is a unit of them (user decision).
+    'Warlock': 'Warlock Conclaive.png',
+}
 for sheet in (ae.WARLOCK, ae.SPIRITSEER):
     sq = build(sheet, n=30)
-    checks.eq("%s has no art yet - pinned so adding one is visible" % sheet.name,
-              sprites.sprite_for(sq.models[0]), None)
+    _p = sprites.sprite_for(sq.models[0])
+    if sheet.name in ART:
+        # AT THE MODEL, so a key naming a file that is not on disk fails here
+        # rather than passing on a mapping table nobody checked. Named file, so
+        # a datasheet quietly borrowing a NEIGHBOUR's art by substring match
+        # fails too - which is how "Autarch" would shadow "Autarch Wayleaper".
+        checks.true("%s draws its own art" % sheet.name,
+                    ART[sheet.name] in (_p or ""))
+    else:
+        checks.eq("%s has no art yet - pinned so adding one is visible" % sheet.name,
+                  _p, None)
 # The Farseer Skyrunner has no file of its own and DELIBERATELY borrows the foot
 # Farseer's: same character, and the closest thing in the folder. Pinned as a
 # decision, because _key_for_name()'s substring matching would have produced the

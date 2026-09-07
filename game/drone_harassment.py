@@ -27,6 +27,7 @@ the same reasoning Crimson Harvest records for its own trigger.
 """
 
 from game.squad import edge_distance
+from game import ai_mode
 
 DRONE_HARASSMENT_RANGE_IN = 12.0
 DRONE_HARASSMENT_LABEL = "Drone Harassment Tactics"
@@ -67,7 +68,7 @@ class DroneHarassmentController:
         self.battle_shock = battle_shock
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         # target_pick(attacker, candidates) -> squad, so the AI uses the same
         # damage-value ranking as every other deterministic target choice.
         self.target_pick = target_pick
@@ -90,7 +91,7 @@ class DroneHarassmentController:
         if len(targets) == 1 or squad.owner in self.auto_players or self.decision_manager is None:
             return self._use(squad, self._pick(squad, targets))
         options = [(f"{DRONE_HARASSMENT_LABEL}: {t.name}",
-                    (lambda target=t: self._use(squad, target))) for t in targets]
+                    (lambda target=t: self._use(squad, target)), t) for t in targets]
         self.decision_manager.request(
             squad.owner,
             f"{squad.name}: Drone Harassment Tactics - which unit takes the test?",

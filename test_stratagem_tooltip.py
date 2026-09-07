@@ -43,7 +43,12 @@ from game.ui.stratagem_tooltip import StratagemTooltip  # noqa: E402
 c = tk.Checks("detachment stratagems")
 
 W, H = 1600, 900
-SHIPPED = ("aeldari", "necrons", "orks", "tau", "death_guard")
+# ONE list per shipped faction, derived rather than written down: this block
+# cares that every faction can be reached, not which of its lists answers.
+# A hardcoded tuple here goes stale whenever a list is retired, and does it
+# as a SystemExit out of army_lists.get() rather than as a red line.
+from game import army_lists as _al  # noqa: E402
+SHIPPED = tuple(f.lists[0].key for f in _al.factions())
 
 
 def read(path):

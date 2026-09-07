@@ -9,15 +9,29 @@ What this pins down:
   * player_factions() derives who fields what from the units themselves
     (game/factions/faction.py), the same way battle_focus decides whose army
     is ASURYANI - so swapping an army list cannot leave a stale label behind.
-  * the badge row only appears when BOTH players have art, and otherwise the
-    panel falls all the way back to the plain text layout it had before -
-    a half-filled badge row reads worse than the line it replaced.
+  * the badge row appears whenever both players' FACTIONS are known. A
+    faction with no logo file gets a monogram tile ("DEATH GUARD" -> "DG")
+    rather than dropping the whole group. It used to require ART from both,
+    and that was wrong: user, during an Aeldari-vs-Death-Guard game ("das
+    rechte panel sieht wieder zurueckgesetzt aus. das hatten wir mal
+    ueberarbeitet ua. mit logos der fraktionen") - one missing image took the
+    gold active-player frame and the compact CP/VP/BF columns down with it,
+    and neither has anything to do with logos.
+  * a missing KEYWORD still drops the row, because then the tile really would
+    be empty - there is nothing to draw AND nothing to write.
   * the highlight really follows turn_tracker.active_player, measured in gold
     pixels inside each tile rather than by reading back the flag that put
     them there.
 
+ALL FIVE built factions now have badge art (Death Guard's arrived last), so
+the monogram path is unreachable from any shipped roster - it is the net for
+the next faction, not something a real game shows today. That is measured
+here in both directions: every shipped keyword resolves to a file, AND the
+monogram is exercised through a CONSTRUCTED faction, the same treatment this
+repo gives every other rule no built roster can reach.
+
 Every rendering check is A/B'd against a probe that empties
-sprites.FACTION_LOGO_KEYS, which is the whole of the pre-change world here:
+sprites.FACTION_LOGO_KEYS, which is the whole of the pre-art world here:
 without it a green run would only prove the scene never reaches the feature.
 """
 
@@ -29,7 +43,7 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 import pygame
 
 import testkit as tk
-from game import config, sprites
+from game import army_lists, config, sprites
 from game.factions import build_squad
 from game.factions.aeldari import GUARDIAN_DEFENDERS
 from game.factions.faction import faction_keyword_of, player_factions
@@ -49,8 +63,10 @@ TAU = "T'AU EMPIRE"
 
 @contextlib.contextmanager
 def no_logo_art():
-    """The pre-change world: no faction has a badge, so the panel can only
-    draw the old text layout."""
+    """The pre-art world: no faction has a badge file, so every tile falls
+    back to its monogram. Still an A/B worth having after the fallback was
+    added - it is now the difference between artwork and lettering rather
+    than between a badge row and no badge row."""
     saved = dict(sprites.FACTION_LOGO_KEYS)
     sprites.FACTION_LOGO_KEYS.clear()
     try:
@@ -99,11 +115,13 @@ checks.eq("a faction with no badge resolves to nothing",
 checks.eq("...and so does no faction at all", sprites.faction_logo_path(None), None)
 
 
-# --- 3. the badge row appears only when it can be drawn whole ---------
+# --- 3. the badge row appears whenever both FACTIONS are known --------
 
 panel = GameStatusPanel()
 tracker = TurnTracker(first_player="Player 1")
 BOTH = {"Player 1": "AELDARI", "Player 2": "ORKS"}
+# The gemeldete pairing, and the reason this gate moved off "has art".
+MIXED = {"Player 1": "AELDARI", "Player 2": "NO SUCH FACTION"}
 
 row = panel._badge_row(tracker, BOTH)
 checks.true("both players' badges are found", row is not None and len(row) == 2)
@@ -111,13 +129,53 @@ checks.eq("Player 1 is on the left, in tracker order", [player for player, _, _ 
           ["Player 1", "Player 2"])
 checks.eq("no factions at all means no badge row", panel._badge_row(tracker, None), None)
 checks.eq("...and neither does an empty mapping", panel._badge_row(tracker, {}), None)
-checks.eq("one player missing drops the whole row, rather than half-drawing it",
-          panel._badge_row(tracker, {"Player 1": "AELDARI"}), None)
-checks.eq("a faction with no art drops it too",
-          panel._badge_row(tracker, {"Player 1": "AELDARI", "Player 2": "NO SUCH FACTION"}), None)
+checks.eq("one player with no faction at all drops the row - nothing to draw AND "
+          "nothing to write", panel._badge_row(tracker, {"Player 1": "AELDARI"}), None)
+
+# The regression this section exists for: a faction with no art keeps its
+# tile. Pinned as "row survives" AND "that tile's path is None", so a future
+# change that quietly resolved some placeholder FILE would still show up.
+mixed_row = panel._badge_row(tracker, MIXED) or []
+checks.true("a faction with no art keeps the row", len(mixed_row) == 2)
+# Indexed through a padded copy rather than mixed_row directly: an A/B probe
+# that puts the old art gate back makes this row None, and a test that CRASHES
+# hides which check broke instead of naming it. Third time in this repo (see
+# the two str.index() guards).
+padded = list(mixed_row) + [(None, None, "missing")] * (2 - len(mixed_row))
+checks.eq("...with art on the side that has it", padded[0][2] is not None, True)
+checks.eq("...and no path on the side that does not", padded[1][2], None)
 with no_logo_art():
-    checks.eq("A/B: with no badge art at all there is no row",
-              panel._badge_row(tracker, BOTH), None)
+    artless = panel._badge_row(tracker, BOTH)
+    checks.true("A/B: with no badge art at all the row still stands", artless is not None)
+    # `or []` for the same reason as `padded` above: red, not a crash.
+    checks.eq("...and every tile is then a monogram",
+              [path for _, _, path in (artless or [])], [None, None])
+
+# --- 3b. the monogram itself ------------------------------------------
+# Two characters for every faction, so the two tiles stay symmetrical
+# whichever one is missing art. A single initial was the obvious first form
+# and reads as a typo rather than as a badge.
+checks.eq("a two-word keyword gives its initials", gsp._faction_monogram("DEATH GUARD"), "DG")
+checks.eq("an apostrophe does not break the split", gsp._faction_monogram(TAU), "TE")
+checks.eq("a one-word keyword gives its first two letters",
+          gsp._faction_monogram("AELDARI"), "AE")
+checks.eq("no keyword gives no monogram", gsp._faction_monogram(None), "")
+checks.true("every built faction's monogram is two characters",
+            all(len(gsp._faction_monogram(k)) == 2 for k in sprites.FACTION_LOGO_KEYS))
+
+# The monogram is UNREACHABLE from a shipped roster - measured, not assumed,
+# because "the fallback never fires" is exactly the claim that rots silently.
+#
+# Asked of the ARMY LISTS, not of FACTION_LOGO_KEYS' own keys: over its own
+# keys this is a tautology, and the A/B probe proved it - deleting the Death
+# Guard entry left the suite green, because the deleted keyword is then not
+# in the dict to be checked. The honest question is "can a faction this build
+# can FIELD show a monogram", and only the roster can answer that. A sixth
+# army list without art now turns this line red and names the faction.
+FIELDABLE = sorted({entry.faction_keyword for entry in army_lists.ARMY_LISTS})
+checks.eq("every fieldable faction has badge art, so no real game shows a monogram",
+          [k for k in FIELDABLE if sprites.faction_logo_path(k) is None], [])
+checks.true("...and that is asked of all five army lists", len(FIELDABLE) == 5)
 
 
 # --- 4. the labels under the tiles ------------------------------------
@@ -206,12 +264,36 @@ with no_logo_art():
     plain_p2 = render(BOTH, "Player 2")
 checks.true("A/B: with no art the same call renders differently",
             pygame.image.tobytes(plain_p1, "RGB") != pygame.image.tobytes(p1_active, "RGB"))
-# Deliberately not "no gold at all" in that region: the fallback's own
-# full-width Round bar prints its title in the same header gold. The claim
-# is that WHO IS ACTIVE stops moving any gold there, which is what having no
-# highlight to draw means.
-checks.eq("A/B: without badges the active player changes nothing in that region",
-          count_color(plain_p1, left_tile, GOLD), count_color(plain_p2, left_tile, GOLD))
+# The half that MOVED when the art gate became a keyword gate: this used to
+# assert the highlight stops existing without art. It must not - losing the
+# gold frame was the reported regression, and the frame is drawn around the
+# tile, not around the picture inside it.
+checks.true("A/B: without art the active player STILL moves the gold frame",
+            count_color(plain_p1, left_tile, GOLD) > 100
+            and count_color(plain_p2, left_tile, GOLD)
+            < count_color(plain_p1, left_tile, GOLD) / 4)
+
+# --- 5b. the monogram tile is really filled ---------------------------
+# Measured strictly INSIDE the frame, so the border and its glow cannot be
+# counted as content: an empty framed square was the exact thing the old
+# all-or-nothing rule was avoiding, and this is the line that says a
+# monogram tile is not one.
+inner = right_tile.inflate(-2 * gsp.ACTIVE_BORDER_WIDTH - 4, -2 * gsp.ACTIVE_BORDER_WIDTH - 4)
+mixed_p1 = render(MIXED, "Player 1")
+mixed_p2 = render(MIXED, "Player 2")
+box_bg = gsp.button_style.BOX_BG_COLOR
+blank = count_color(mixed_p1, inner, box_bg, tolerance=30)
+checks.true("the artless tile has lettering inside it, not just a frame",
+            inner.width * inner.height - blank > 200)
+checks.true("the artless tile still takes the gold frame when its player is active",
+            count_color(mixed_p2, right_tile, GOLD) > 100
+            and count_color(mixed_p1, right_tile, GOLD) < 30)
+# The monogram is sized to its tile rather than to a fixed point size, so a
+# future LOGO_BOX change cannot silently push the lettering over the frame.
+box_px = gsp.LOGO_BOX - 2 * gsp.LOGO_PADDING
+for text in ("DG", "AE", "TE"):
+    width, height = panel._monogram_font(text, box_px).size(text)
+    checks.true(f"the {text} monogram fits its tile", width <= box_px and height <= box_px)
 
 
 # --- 6. the line the badges replaced ----------------------------------
@@ -269,8 +351,15 @@ long_form_button = panel.button_rect.copy()
 short = pygame.Surface((W, H))
 panel.draw(short, RECT, tracker, cp, mission, player_factions=BOTH)
 short_form_button = panel.button_rect.copy()
+# The saving is real but no longer huge: the badge group also carries the
+# "see army rules" link now (ARMY_RULES_LINK_HEIGHT), which the long form has
+# no room for and does not draw. Asserted against the two constants that make
+# up the difference rather than a bare margin, so a future row added to either
+# form moves this line instead of silently eating the headroom.
 checks.true("the columns replace the two labelled groups, not add to them",
-            short_form_button.top < long_form_button.top - 40)
+            short_form_button.top < long_form_button.top - gsp.ARMY_RULES_LINK_HEIGHT)
+checks.true("...and the links are what the badge form spends its saving on",
+            len(panel.army_rules_rects) == 2)
 
 # ---------------------------------------------------------------------------
 # Battle Focus joins the same column, abbreviated

@@ -31,6 +31,7 @@ not from its unit - because the printed text says "within 12" of this model".
 """
 
 from game.squad import edge_distance
+from game import ai_mode
 
 ROOT_OF_HONOUR_RANGE_IN = 12.0
 
@@ -66,7 +67,7 @@ class RootOfHonourController:
         # A callable returning every unit on the table, so the controller never
         # holds a list that goes stale as units die.
         self.all_squads = all_squads
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._used = set()   # id(model) of War Shapers that have spent it
 
     # -- eligibility ------------------------------------------------------
@@ -120,7 +121,7 @@ class RootOfHonourController:
         targets = self.eligible_targets(model)
         if squad.owner in self.auto_players or self.decision_manager is None:
             return self._use(model, self._pick(targets))
-        options = [(f"Free {t.name} from Battle-shock", (lambda target=t: self._use(model, target)))
+        options = [(f"Free {t.name} from Battle-shock", (lambda target=t: self._use(model, target)), t)
                    for t in targets]
         options.append(("Decline", None))
         self.decision_manager.request(

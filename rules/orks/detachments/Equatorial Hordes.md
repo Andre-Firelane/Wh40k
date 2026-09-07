@@ -1,6 +1,6 @@
 # Equatorial Hordes
 
-**Orks** - 1 DP detachment
+**Orks** - 1 DP detachment - Force Disposition: Disruption
 
 Source: <https://wahapedia.ru/wh40k11ed/factions/orks/>
 
@@ -8,20 +8,15 @@ Source: <https://wahapedia.ru/wh40k11ed/factions/orks/>
 
 ### Jungle Know-Wotz
 
-The Ork tribes of the Equatorial Jungle know their territories all too well, and can always find a kunnin’ trail by which they can sneak up on their quarry
 In the **Declare Battle Formations** step, select up to three friendly MOB/KOMMANDOS units. Those units have **Scouts 6"** until the end of the battle.
 
 ## Enhancements
 
 ### Kunnin’ Hunta - 25 pts
 
-It takes both brutality and kunnin’ to stalk the monstrous carnivores of Armageddon’s deep jungles. The same talents can be applied to hunting battlefield foes.
-
 BEASTBOSS/INFANTRY WARBOSS model only. (Once per turn, per unit) In your opponent’s Movement phase, when an enemy unit ends a move within 8" of this unit, if this unit is **unengaged**, this unit can make a **normal move** of up to D3+3".
 
 ### Unkillable Scourge - 25 pts
-
-Having survived the perilous jungles long enough to claim rule over Armageddon’s equatorial tribes, this Ork leader has built up an impressive immunity to staying dead.
 
 BEASTBOSS/INFANTRY WARBOSS model only. When this model is **destroyed**, if this unit has not been **selected to fight** this phase, roll one D6, with +1 to that roll if the Waaagh! is active for this unit:
 
@@ -33,8 +28,6 @@ BEASTBOSS/INFANTRY WARBOSS model only. When this model is **destroyed**, if this
 
 *Equatorial Hordes Stratagem*
 
-Orks erupting as though from nowhere amidst hails of dakka and flurries of ferocious choppa blows can cause spectacular devastation.
-
 **WHEN:** Your Shooting phase or the Fight phase, when a friendly **hidden** MOB unit is **selected to attack**.
 
 **TARGET:** That MOB unit.
@@ -45,8 +38,6 @@ Orks erupting as though from nowhere amidst hails of dakka and flurries of feroc
 
 *Equatorial Hordes Stratagem*
 
-Extricating themselves from dense jungle terrain takes some Orks longer than others, but the latecomers arrive just in time to bolster their warband’s ranks.
-
 **WHEN:** Your Command phase.
 
 **TARGET:** One friendly MOB/KOMMANDOS unit.
@@ -56,8 +47,6 @@ Extricating themselves from dense jungle terrain takes some Orks longer than oth
 ### DEY’RE OVER ‘ERE - 1CP
 
 *Equatorial Hordes Stratagem*
-
-Pointing and shouting can prove a surprisingly effective way of rooting out hidden enemies.
 
 **WHEN:** Start of your Shooting phase.
 

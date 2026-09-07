@@ -35,6 +35,7 @@ uses REAL engine objects - the only thing faked is the random number source.
 
 import sys
 
+from game import config as _config
 from game import dice as _dice_mod
 from game.decision import DecisionManager
 from game.dice import DiceManager
@@ -137,6 +138,35 @@ class Log:
 
     def has(self, needle):
         return bool(self.find(needle))
+
+
+# ------------------------------------------------------------- config flags
+
+class settings_as:
+    """Set game.config constants for one block and put them back.
+
+    EIGHT COPIES OF THIS EXISTED before it moved here - one per detachment
+    suite - and a ninth was about to be written for the Aeldari panel tests.
+    config is a module, so a suite that leaves one set changes what every
+    later suite measures; a detachment flag is exactly the kind of global a
+    test has to switch on and cannot afford to forget.
+
+    __enter__ returns self, which one of the eight did not do. Nothing used
+    the `as` form, so delegating is behaviour-neutral for all eight."""
+
+    def __init__(self, **values):
+        self.values = values
+
+    def __enter__(self):
+        self.old = {k: getattr(_config, k) for k in self.values}
+        for key, value in self.values.items():
+            setattr(_config, key, value)
+        return self
+
+    def __exit__(self, *exc):
+        for key, value in self.old.items():
+            setattr(_config, key, value)
+        return False
 
 
 # ----------------------------------------------------------------- squads
@@ -242,3 +272,31 @@ def pick_option(decision_manager, needle):
             decision_manager.choose(i)
             return True
     return False
+
+
+# ------------------------------------------------------- army lists by faction
+
+def list_key(faction_keyword):
+    """The key of a shipped army list for this faction, for a suite that needs
+    ONE to stage a scene with.
+
+    Ask for a faction, do not name a key. A suite that says "death_guard"
+    breaks when that list is renamed, retired or replaced - and it breaks as a
+    SystemExit out of army_lists.get(), which is a crash rather than a
+    diagnosable red line. Measured when the Prototypes list was retired: ten
+    suites went red, and most of them did not care WHICH list they got, only
+    that it was of the right faction.
+
+    A faction with no list at all raises here, loudly and by name: that is a
+    real change to what the build ships, and it should stop the suite rather
+    than let it quietly measure nothing.
+    """
+    from game import army_lists
+    lists = army_lists.lists_for(faction_keyword)
+    if not lists:
+        known = sorted({e.faction_keyword for e in army_lists.ARMY_LISTS})
+        raise SystemExit(
+            "no shipped army list for %r - this build fields %s"
+            % (faction_keyword, ", ".join(known))
+        )
+    return lists[0].key

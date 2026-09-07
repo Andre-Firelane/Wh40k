@@ -102,15 +102,25 @@ class ConsolidateController:
             return False
         return squad in self.fight_controller.fought_squad_ids
 
-    def determine_mode(self, squad):
+    def determine_mode(self, squad, reach=None):
         """Rule 12.08 BEFORE MOVING: the mode isn't a free choice - exactly
         one applies, in this priority order. None means nothing applies at
-        all (not engaged, no enemy within 3", no objective within 3")."""
+        all (not engaged, no enemy within 3", no objective within 3").
+
+        `reach` overrides the distance this asks about, and exists for one
+        caller: game/battle_focus.py's Sudden Strike, which needs to know
+        whether the manoeuvre would open a consolidation that is closed
+        right now - "would 6" buy this unit anything?". Passing the number
+        rather than flipping squad.sudden_strike_active for the duration
+        keeps it side-effect free: this runs from the panel every frame, and
+        a probe that mutates the squad leaves the grant standing if anything
+        in between raises."""
         if squad.is_engaged(self.all_tokens):
             return ONGOING
-        if any(squad.min_distance_to(s) <= _reach(squad) for s in self._enemy_squads(squad)):
+        reach = _reach(squad) if reach is None else reach
+        if any(squad.min_distance_to(s) <= reach for s in self._enemy_squads(squad)):
             return ENGAGING
-        if self._objectives_within(squad):
+        if self._objectives_within(squad, reach):
             return OBJECTIVE
         return None
 
@@ -120,10 +130,11 @@ class ConsolidateController:
     def eligible_engaging_targets(self, squad):
         return {s for s in self._enemy_squads(squad) if squad.min_distance_to(s) <= _reach(squad)}
 
-    def _objectives_within(self, squad):
+    def _objectives_within(self, squad, reach=None):
+        reach = _reach(squad) if reach is None else reach
         return [
             obj for obj in self.objectives
-            if any(obj.terrain_area.distance_to_model(m) <= _reach(squad) for m in squad.models)
+            if any(obj.terrain_area.distance_to_model(m) <= reach for m in squad.models)
         ]
 
     def start_consolidate(self, squad):

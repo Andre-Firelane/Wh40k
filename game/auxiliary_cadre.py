@@ -247,7 +247,7 @@ class AuxiliaryCadreController:
                 player,
                 f"{squad.name}: Harnessed Alien Instincts - prey-mark one enemy unit "
                 f'within 12" (+3" detection range against it until the end of the turn)?',
-                [(target.name, (lambda t=target: self.mark(player, t))) for target in candidates]
+                [(target.name, (lambda t=target: self.mark(player, t)), target) for target in candidates]
                 + [("Do not mark", lambda: None)],
             )
             return True

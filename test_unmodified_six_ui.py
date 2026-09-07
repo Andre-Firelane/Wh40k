@@ -233,7 +233,9 @@ c.true("...and it says how many tokens are left", any("1 token" in l for l in la
 sc["ctrl"].start(aspect_shrine)
 labels = draw_labels(sc)
 # "Only a Cancel" among the SCREEN's own buttons - _draw_global_toolbar()
-# always adds its two toggles afterwards, by design (they are global).
+# always adds its own toggle rows afterwards, by design (they are global).
+# Those go through _draw_toggle(), not _draw_button(), so they do not show up
+# in `labels` at all any more - see test_toggle_switches.py.
 c.true("while selecting, a Cancel is offered", "Cancel" in labels)
 c.eq("...and the ability button is gone while picking",
      [l for l in labels if "Aspect Shrine" in l], [])

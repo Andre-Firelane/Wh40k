@@ -42,10 +42,10 @@ a whole-army judgement this engine cannot make - the same call Cost of Victory
 records.
 """
 
-from game import aeldari_detachments, engagement, martial_grace
+from game import aeldari_detachments, ai_mode, engagement, martial_grace
 from game.stratagems import Stratagem
 from game.strategic_reserves import withdraw_to_reserves
-from game.turn import PHASE_FIGHT
+from game.phase_window import PhaseWindow
 
 WEBWAY_TUNNEL_NAME = "Webway Tunnel"
 WEBWAY_TUNNEL_CP = 1
@@ -101,7 +101,10 @@ class WebwayTunnelController:
         self.board_height_in = board_height_in
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
+        # The end-of-Fight-phase window this controller's own offer opens.
+        # NOT a live turn_tracker.phase test - see game/phase_window.py.
+        self._window = PhaseWindow()
         self._stratagem = Stratagem(
             name=WEBWAY_TUNNEL_NAME, cp_cost=WEBWAY_TUNNEL_CP, effect=self._withdraw,
         )
@@ -113,7 +116,10 @@ class WebwayTunnelController:
     def can_use(self, squad):
         if squad is None or self.stratagem_controller is None or self.game_state is None:
             return False
-        if self.turn_tracker is not None and self.turn_tracker.phase != PHASE_FIGHT:
+        # The window is the one this controller's own offer opened, not a
+        # live phase test: the offer runs AFTER advance_phase(), so the clock
+        # already reads the next phase. See game/phase_window.py.
+        if not self._window.is_open(squad.owner):
             return False
         if not eligible_unit(squad):
             return False
@@ -127,14 +133,29 @@ class WebwayTunnelController:
             return False
         return self.stratagem_controller.can_use(squad.owner, self._stratagem, [squad])
 
+    def reset_phase(self):
+        """The window lasts exactly one phase boundary. main.py clears it in
+        the per-phase reset block, which runs BEFORE that boundary's offers."""
+        self._window.close()
+
     def offer_at_end_of_fight_phase(self, squads, ending_player):
         """`ending_player` is whose turn the Fight phase belonged to, so the
-        offer goes to everyone ELSE - "your OPPONENT'S Fight phase"."""
+        offer goes to everyone ELSE - "your OPPONENT'S Fight phase".
+
+        Must be main.py's `mover_before`: turn_tracker.turn_owner has already
+        flipped to the next player by the time this runs."""
+        # Armed BEFORE the eligibility loop, because can_use() below asks the
+        # window: the window IS this offer's own "right moment", and the offer
+        # is only ever made at the boundary that owns it. Closed again if
+        # nothing was actually put to the player.
         for squad in sorted((s for s in squads if s.owner != ending_player),
                             key=lambda s: (str(s.owner), s.name)):
+            self._window.arm(squad.owner)
             if not self.can_use(squad):
+                self._window.close()
                 continue
             if squad.owner in self.auto_players or self.decision_manager is None:
+                self._window.close()
                 return False           # no AI path
             self.decision_manager.request(
                 squad.owner,

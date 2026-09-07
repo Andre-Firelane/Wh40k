@@ -274,6 +274,215 @@ def _stack_leftovers(squad, chosen, origin_x, origin_y):
     return [chosen.get(i, (origin_x, origin_y)) for i in range(len(squad.models))]
 
 
+# ---------------------------------------------------------------- line layout
+#
+# Edge-to-edge clearance between neighbours in a LINE, and deliberately NOT
+# MODEL_GAP_IN. That 1.5" is a ring-packing convention (it leaves a 0.63" base
+# standing 0.24" clear of its neighbour); a line is shoulder to shoulder or it
+# is not a line. Measured on 20 Boyz, spread against rule 09.02's 9" limit:
+#
+#     frontage      6       8       9
+#     gap 0.10   6.06"   8.36"   9.70"
+#     gap 1.50  13.60"  18.26"  20.99"
+#
+# i.e. the ring convention puts the unit outside the limit at EVERY width,
+# because 1.5" is charged on the depth axis as well as laterally.
+LINE_GAP_IN = 0.1
+
+
+def line_frontage(models, length_in, gap_in=LINE_GAP_IN):
+    """How many models per rank a drag of `length_in` is asking for: an int in
+    [1, len(models)].
+
+    `+ 1` because k models span k-1 pitches, not k.
+
+    The pitch uses the MEAN base radius, and that is a real choice rather than
+    a shrug. The width of a rank depends on which models end up in it, which is
+    decided AFTER the frontage, so the nominal pitch is unavoidably an
+    estimate. Measured on the 22-model mob (mean 0.662"), a 14" drag gives:
+    smallest-base pitch 11 models, a rank ~14.3" wide - WIDER than the line the
+    player drew; largest-base pitch 7 models, ~8.8", leaving nearly half the
+    line empty; mean pitch 10 models, ~12.9". The mean errs slightly narrow, so
+    the formation is never wider than the line - the right direction when the
+    whole promise of the gesture is a visible width."""
+    n = len(models)
+    if n == 0:
+        return 0
+    mean_r = sum(m.radius_in for m in models) / n
+    pitch = 2 * mean_r + gap_in
+    if pitch <= 0:
+        return n
+    return max(1, min(n, int(length_in / pitch) + 1))
+
+
+def line_shape(models, length_in, gap_in=LINE_GAP_IN):
+    """(frontage, ranks, models in each rank) for a drag of `length_in`.
+
+    Split out from line_positions() so the on-screen readout and the actual
+    slot generation cannot drift: "10 wide x 2 deep" in the label and the block
+    the player is looking at are the same answer, computed once."""
+    n = len(models)
+    if n == 0:
+        return 0, 0, []
+    frontage = line_frontage(models, length_in, gap_in)
+    ranks = -(-n // frontage)
+    per_rank = [min(frontage, n - r * frontage) for r in range(ranks)]
+    return frontage, ranks, per_rank
+
+
+def line_positions(squad, start_in, end_in, depth_toward=None, origins=None,
+                   frontage=None, front=(), gap_in=LINE_GAP_IN):
+    """One (x, y) per model of `squad`, IN SQUAD ORDER, laid out in ranks along
+    the segment start_in -> end_in. Rank 1's centres sit on that segment; the
+    remaining ranks grow toward `depth_toward`.
+
+    WHY A LINE IS SAFE HERE, WHEN pack_positions() ARGUES AGAINST ONE. That
+    argument is entirely about SEARCH - "the spots worth standing on are
+    exactly the ones with a wall nearby", and "a blocked slot costs one slot,
+    not the placement" - and it is right for an agent that has to FIND a spot
+    and cannot afford to fail. Here a human DRAWS the line, can see the wall,
+    and a refused drag costs one gesture. So that half does not transfer.
+
+    Its three GUARANTEES do, and are met differently:
+      * per-model legality -> delegated to the caller's own clamp
+        (MovementController.clamp_move / SetupController.clamp_drag), which
+        already stops a model at terrain, an enemy base, the board edge and its
+        own remaining movement;
+      * squadmates never overlap -> BY CONSTRUCTION, via the per-pair pitch
+        below;
+      * rule 09.02 coherency -> also by construction: the largest gap inside a
+        generated line is the lateral gap and the rank-to-rank gap, both well
+        under COHERENCY_RANGE_IN. A generated formation is always coherent; it
+        only breaks when a clamp holds someone short, which is exactly what the
+        live readout is there to show.
+
+    THE PITCH IS PER PAIR, not per unit, and that is not a refinement - it is
+    what makes the feature work at all for rule 19.01 attached units. Measured
+    on 21 Necron Warriors + a Technomancer (0.63" among 0.98"), spread against
+    09.02's 9" limit:
+
+        frontage        3      4      5      6      7      8
+        per pair     8.35"  6.45"  5.54"  6.06"  7.34"  8.36"   <- legal throughout
+        uniform     12.96"  9.83"  9.04"  9.83" 11.77" 13.31"   <- illegal at every width
+
+    For a homogeneous unit the two are the same number, so it costs nothing in
+    the common case.
+
+    Those spreads are for the models taken in squad order. The exact figure
+    shifts by a few tenths with the unit's CURRENT shape, because which rank
+    the wide model lands in depends on `origins` - measured, the same unit
+    scattered rather than in order reads 9.05" at frontage 3, i.e. across the
+    limit rather than just inside it. So a caller that wants to tell the player
+    which widths are legal has to sweep them against the real origins at the
+    moment the gesture starts, not against a table.
+
+    AND THAT IS WHY match_models_to_slots() MUST NOT BE USED HERE. Its contract
+    assumes the slot COORDINATES are fixed independently of who stands in them;
+    with a per-pair pitch they are not. Measured, re-assigning models across a
+    variable-pitch line produced base overlaps in 69 of 133 cases - every one
+    of them a mixed-base unit, i.e. it would break this for precisely every
+    attached unit. The order-preserving "dress the ranks" rule below lands
+    within a mean +0.04" (worst +0.90") of the minimax optimum, at 0.03 ms
+    against 0.9-1.9 ms, and it never crosses two models' paths.
+
+    `origins` is where each model is walking FROM, defaulting to where it
+    currently stands. It exists because during a live drag the tokens hold the
+    PREVIOUS frame's preview: reading them would make the ordering a function
+    of the drag's history - unreproducible, untestable, and it lets a model
+    stopped at a wall ratchet along it frame by frame. MovementController
+    passes last_waypoint, SetupController its gesture-start snapshot.
+
+    `front` are models that must land in rank 1 (game/front_rank.py's melee
+    characters). Passed in rather than derived, following this module's own
+    convention for base_angle: the pure part lives here, the judgement stays
+    with the caller - and in the Movement phase that judgement has to be gated
+    on whether the unit can afford it."""
+    models = squad.models
+    n = len(models)
+    if n == 0:
+        return []
+
+    ax, ay = (start_in[0] + end_in[0]) / 2.0, (start_in[1] + end_in[1]) / 2.0
+    dx, dy = end_in[0] - start_in[0], end_in[1] - start_in[1]
+    length = math.hypot(dx, dy)
+    if length < 1e-9:
+        # A press with no travel yet. Any axis will do and the caller redraws
+        # every frame; a fixed one keeps the first frame from spinning.
+        ux, uy = 1.0, 0.0
+        length = 0.0
+    else:
+        ux, uy = dx / length, dy / length
+    px, py = -uy, ux  # left-hand normal; the depth axis
+
+    if depth_toward is not None:
+        # Grow the ranks toward the unit rather than away from it. Measured,
+        # the other direction costs a mean +2.24" (worst +7.40") of longest
+        # walk - on the 22-model mob at frontage 4, 2.05" against 9.05", which
+        # against a 5" move is the difference between reachable and not.
+        offset = (depth_toward[0] - ax) * px + (depth_toward[1] - ay) * py
+        if offset < -1e-9:
+            px, py = -px, -py
+    # If depth_toward lies ON the line (or is absent) the raw left-hand normal
+    # stands, which is deterministic and has a genuinely useful side effect
+    # worth documenting rather than apologising for: reversing the drag flips
+    # `u`, which flips the normal - so dragging the other way mirrors which
+    # side the unit forms on. That is the only control the player has in the
+    # one case where the geometry has no opinion.
+
+    if frontage is None:
+        frontage = line_frontage(models, length, gap_in)
+    frontage = max(1, min(n, int(frontage)))
+
+    if origins is None:
+        origins = [(m.x_in, m.y_in) for m in models]
+
+    def depth_proj(i):
+        return (origins[i][0] - ax) * px + (origins[i][1] - ay) * py
+
+    def lateral_proj(i):
+        return (origins[i][0] - ax) * ux + (origins[i][1] - ay) * uy
+
+    # "Dress the ranks": nearest the line becomes rank 1, then each rank is
+    # sorted along the line. Order-preserving, so no two models' paths cross -
+    # which in this engine is not only tidier but cheaper, since crossing means
+    # two models contending for the same ground at commit time.
+    order = sorted(range(n), key=lambda i: (depth_proj(i), lateral_proj(i)))
+    if front:
+        head = [i for i, m in enumerate(models) if m in front]
+        head_set = set(head)
+        order = head + [i for i in order if i not in head_set]
+
+    rows = [order[r:r + frontage] for r in range(0, n, frontage)]
+    rows = [sorted(row, key=lateral_proj) for row in rows]
+
+    out = [None] * n
+    depth = 0.0
+    previous_max_r = None
+    for row in rows:
+        radii = [models[i].radius_in for i in row]
+        if previous_max_r is not None:
+            # Rank-to-rank spacing off the two ranks' WIDEST models: that makes
+            # any cross-rank pair clear on the depth axis alone, whatever their
+            # lateral offsets happen to be.
+            depth += previous_max_r + max(radii) + gap_in
+        previous_max_r = max(radii)
+
+        offsets = [0.0]
+        for k in range(1, len(row)):
+            offsets.append(offsets[-1] + radii[k - 1] + radii[k] + gap_in)
+        # Each rank centred on its OWN width, not on the widest rank's: a rank
+        # holding a 0.98" character really is wider than one that does not, and
+        # centring per rank keeps the block symmetric instead of stepped. It
+        # cannot create an overlap, because a narrower rank's models sit
+        # between the columns above them.
+        centre = offsets[-1] / 2.0
+        for k, i in enumerate(row):
+            lateral = offsets[k] - centre
+            out[i] = (ax + ux * lateral + px * depth,
+                      ay + uy * lateral + py * depth)
+    return out
+
+
 def bridge_count(placed):
     """How many coherency edges this placement has whose loss would split the
     unit - i.e. how many single points of failure rule 09.02 is resting on.

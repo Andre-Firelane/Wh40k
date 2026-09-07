@@ -693,9 +693,14 @@ def test_scouts():
     )
     before = (sum(m.x_in for m in kroot.models) / len(kroot.models),
               sum(m.y_in for m in kroot.models) / len(kroot.models))
+    # ai_players PASSED EXPLICITLY. Its default used to be ("Player 2",) and
+    # is now (), so a caller that forgets it resolves nothing - which is the
+    # point of the flip: forgetting is now a loud no-op instead of the AI
+    # silently taking a human's move. Every call in this block names it, and
+    # the human-unit check below would otherwise pass for the wrong reason.
     moved = deployment_ai.resolve_scouts(
         ctrl, kroot, "scout_move", 7.0, movement_controller=mc,
-        objectives=state.objectives,
+        objectives=state.objectives, ai_players=("Player 2",),
     )
     after = (sum(m.x_in for m in kroot.models) / len(kroot.models),
              sum(m.y_in for m in kroot.models) / len(kroot.models))
@@ -722,7 +727,7 @@ def test_scouts():
         model.x_in, model.y_in = before[0] + (i % 5) * 1.6, before[1] + 3.0
     blocked = deployment_ai.resolve_scouts(
         ctrl, kroot, "scout_move", 7.0, movement_controller=mc,
-        objectives=state.objectives,
+        objectives=state.objectives, ai_players=("Player 2",),
     )
     ended = [(m.x_in, m.y_in) for m in kroot.models]
     check("a scout move into an enemy's 8\" bubble is refused or shortened",
@@ -736,7 +741,8 @@ def test_scouts():
     from game.factions.orks import DEFFKOPTAS
     koptas = build_squad(DEFFKOPTAS, "Player 2", name="2 Deffkoptas 1")
     state.add_reserve_squad(koptas)
-    took = deployment_ai.resolve_scouts(ctrl, koptas, "reserve_redeploy", 7.0)
+    took = deployment_ai.resolve_scouts(ctrl, koptas, "reserve_redeploy", 7.0,
+                                       ai_players=("Player 2",))
     check("a [DEEP STRIKE] unit does not redeploy out of reserves",
           not took and koptas in state.reserves)
 
@@ -745,14 +751,244 @@ def test_scouts():
     check("the AI leaves a human unit's Scouts option alone",
           not deployment_ai.resolve_scouts(
               ctrl, human_kroot, "scout_move", 7.0, movement_controller=mc,
-              objectives=state.objectives,
+              objectives=state.objectives, ai_players=("Player 2",),
           ))
 
     check("the DEDICATED TRANSPORT branch reports empty (unreachable today)",
           scouts.eligible_transports_for_scout_move(ctrl, "Player 2") == [])
 
 
+def test_hotseat_formations():
+    """AI MODE OFF: both armies are declared at one keyboard.
+
+    Reported: "und ausserdem geht es ohne angeschalteten KI-Modus direkt vor
+    beginn der aufstellung nicht weiter. es gibt keinen knopf mit dem man den
+    roll fuer attacker/defender ausloesen koennte."
+
+    The roll-off was never the problem - it opens by itself once BOTH owners
+    have declared. What could not happen was Player 2's declaration:
+    PregameController was built with the default human_player "Player 1"
+    (main() never passed it one), and the panel offered that owner's units and
+    nobody else's. So the step sat on "Waiting for your opponent..." for an
+    opponent who, with the AI switched off, was the person holding the mouse.
+    """
+    section("Hotseat: both armies declared by hand")
+    # This suite runs headless without pygame imported at all; the panel half
+    # below needs a display and fonts.
+    import pygame
+    pygame.display.init()
+    pygame.font.init()
+    if pygame.display.get_surface() is None:
+        pygame.display.set_mode((1, 1))
+    from game.ui.action_panel import ActionPanel
+
+    # --- the controller half ------------------------------------------
+    _bm, _state, _setup, dice, _dec, _tt, ctrl, _started = _build_scene()
+    p1, p2 = _p1_army(), _p2_army()
+    ctrl.human_players = ("Player 1", "Player 2")
+    ctrl.start({"Player 1": p1, "Player 2": p2})
+
+    check("the step opens on a human", ctrl.first_human() == "Player 1")
+    check("both owners owe a declaration",
+          ctrl.humans_with_undeclared_units() == ["Player 1", "Player 2"])
+
+    for squad in p1:
+        ctrl.declare(squad, pregame.DEPLOY)
+    ctrl.finish_formations_for("Player 1")
+    check("one army declared is NOT enough to start the roll-off",
+          ctrl.state == pregame.FORMATIONS)
+    check("...and the SECOND army is now the one that owes it",
+          ctrl.humans_with_undeclared_units() == ["Player 2"])
+
+    for squad in p2:
+        ctrl.declare(squad, pregame.DEPLOY)
+    ctrl.finish_formations_for("Player 2")
+    check("both armies declared begins the deployment roll-off",
+          ctrl.state == pregame.DEPLOY_ROLLOFF)
+    check("...and it really asks for a die", dice.is_pending)
+
+    # --- the PANEL half, which is where the dead end actually was ------
+    # The controller could always be TOLD about a second owner; what could not
+    # happen was being OFFERED one, so this drives the real ActionPanel.
+    _bm2, _s2, _setup2, _d2, _dec2, _tt2, ctrl2, _st2 = _build_scene()
+    q1, q2 = _p1_army(), _p2_army()
+    ctrl2.human_players = ("Player 1", "Player 2")
+    ctrl2.start({"Player 1": q1, "Player 2": q2})
+    panel = ActionPanel()
+    surface = pygame.Surface((260, 900))
+    rect = pygame.Rect(0, 0, 260, 900)
+
+    def _buttons_drawn(controller):
+        """How many declaration buttons the REAL panel puts up right now.
+
+        _draw_pregame_formations() directly rather than draw(): the public
+        entry takes forty-odd collaborators positionally (the narrative this
+        file carries), and the branch that had the defect is this one."""
+        panel._buttons = []
+        panel._draw_pregame_formations(surface, rect, controller, 200, 10)
+        return len(panel._buttons)
+
+    check("the panel offers the first army's units", _buttons_drawn(ctrl2) > 0)
+    for squad in q1:
+        ctrl2.declare(squad, pregame.DEPLOY)
+    ctrl2.finish_formations_for("Player 1")
+    check("...and still offers buttons once that army is done - for the OTHER one",
+          _buttons_drawn(ctrl2) > 0)
+    check("...which is really Player 2's turn to declare",
+          ctrl2.humans_with_undeclared_units() == ["Player 2"])
+    for squad in q2:
+        ctrl2.declare(squad, pregame.DEPLOY)
+    ctrl2.finish_formations_for("Player 2")
+    check("...and the roll-off begins from the panel path too",
+          ctrl2.state == pregame.DEPLOY_ROLLOFF)
+
+    # --- the pre-fix world ---------------------------------------------
+    # One human, which is what main() used to leave the default at: the second
+    # army is nobody's to declare, and the roll-off never begins.
+    _bm3, _s3, _setup3, _d3, _dec3, _tt3, ctrl3, _st3 = _build_scene()
+    r1, r2 = _p1_army(), _p2_army()
+    ctrl3.human_players = ("Player 1",)
+    ctrl3.start({"Player 1": r1, "Player 2": r2})
+    for squad in r1:
+        ctrl3.declare(squad, pregame.DEPLOY)
+    ctrl3.finish_formations_for("Player 1")
+    check("with one human the second army is nobody's to declare",
+          ctrl3.humans_with_undeclared_units() == [])
+    check("...and the pre-game stops before the roll-off - the reported dead end",
+          ctrl3.state == pregame.FORMATIONS)
+    panel._buttons = []
+    panel._draw_pregame_formations(surface, rect, ctrl3, 200, 10)
+    check("...with the panel showing no button at all to get past it",
+          panel._buttons == [])
+
+
+# --------------------------------------------------------------------------
+# 9. The battle starts EXACTLY once (rule 03.01's hand-offs)
+# --------------------------------------------------------------------------
+class _ResumingStep:
+    """A pre-battle / redeploy step in the shape four shipped ones really have:
+    it finishes synchronously by CALLING on_done, and then answers False -
+    "nothing to do".
+
+    Not invented for this test: fated_hero.FatedHeroController._next() and
+    enh_strike_swiftly.StrikeSwiftlyStep._next_player() both end
+    `done(); return False`, and test_wraith_constructs.py pins exactly that
+    pair of facts. enh_solid_image_projection.py's _apply() documents the
+    opposite reading of the same protocol. The controller has to survive both."""
+
+    def __init__(self):
+        self.starts = 0
+
+    def start(self, pregame_controller, on_done=None):
+        self.starts += 1
+        if on_done is not None:
+            on_done()
+        return False
+
+
+def test_battle_starts_once():
+    section("The battle starts exactly once")
+
+    class _Log:
+        def __init__(self):
+            self.lines = []
+
+        def add(self, message, file_only=False, category=None):
+            self.lines.append(message)
+
+    log = _Log()
+    battle_map, state, setup, dice, decisions, tt, ctrl, started = _build_scene("map2")
+    ctrl.game_log = log
+    p1, p2 = _p1_army(), _p2_army()
+
+    # Two pre-battle steps and one redeploy step, all of the hazardous shape.
+    steps = [_ResumingStep(), _ResumingStep()]
+    ctrl.prebattle_steps.extend(steps)
+    redeploy = _ResumingStep()
+    ctrl.redeploy_step = redeploy
+
+    # Spy on the Pre-battle Abilities hand-back directly. Without it the only
+    # visible symptom of a double-walked queue is the battle starting twice -
+    # which _begin_battle()'s own guard would hide, and then a probe on the
+    # driver would look harmless while the driver was broken.
+    finishes = []
+    _real_finish = ctrl.finish_prebattle_abilities
+
+    def _counting_finish():
+        finishes.append(1)
+        return _real_finish()
+
+    ctrl.finish_prebattle_abilities = _counting_finish
+
+    ctrl.start({"Player 1": p1, "Player 2": p2})
+    ctrl.finish_formations_for("Player 1")
+    ctrl.finish_formations_for("Player 2")
+    _drain_dice(ctrl, dice)
+    if decisions.is_pending:
+        decisions.choose(0)  # human won the roll-off: "I place first"
+    guard = 0
+    while ctrl.state == pregame.DEPLOYING and guard < 40:
+        guard += 1
+        squad = (ctrl.pending_units(ctrl.active_player) or [None])[0]
+        if squad is None:
+            break
+        zone = deployment.zone_for(state.deployment_zones, ctrl.active_player)
+        if not _auto_place(ctrl, setup, squad, zone):
+            ctrl.give_up_on(squad)
+    _drain_dice(ctrl, dice)
+
+    check("the pre-game reached DONE", ctrl.state == pregame.DONE, ctrl.state)
+    # The reported symptom: on_battle_start hands out Core CP and scores the
+    # first Command phase's Primary (main.py's begin_battle), so a second call
+    # is a whole extra round of VP before a model has moved.
+    check("the battle starts exactly ONCE", len(started) == 1, f"{started}")
+    check("deployment completes once", 
+          log.lines.count("Pre-battle: deployment complete.") == 1,
+          f"{log.lines.count('Pre-battle: deployment complete.')}")
+    check("one first-turn roll-off, not three",
+          log.lines.count(
+              "Pre-battle: roll off to decide who takes the first turn (rule 03.01).") == 1)
+    # Each hand-off is entered once - the queue is not re-walked behind the
+    # step that already drained it.
+    check("each pre-battle step starts once",
+          [s.starts for s in steps] == [1, 1], f"{[s.starts for s in steps]}")
+    check("the redeploy hook starts once", redeploy.starts == 1, f"{redeploy.starts}")
+    check("the Pre-battle Abilities step hands back once, not once per step",
+          len(finishes) == 1, f"{len(finishes)}")
+
+    # The backstop, independent of who called: once the pre-game is DONE,
+    # beginning the battle again pays nothing.
+    ctrl.finish_prebattle_abilities()
+    ctrl._begin_battle()
+    check("_begin_battle() is idempotent", len(started) == 1, f"{started}")
+
+    # And the hazard is real rather than modelled: a shipped step behaves this
+    # way, so the enforcement has to live in the controller.
+    from game import fated_hero
+
+    class _EmptyState:
+        tokens = []
+
+    fired = []
+    real_step = fated_hero.FatedHeroController(game_state=_EmptyState())
+    returned = real_step.start(None, lambda: fired.append(1))
+    check("a shipped step really does fire on_done and answer False",
+          returned is False and len(fired) == 1, f"{returned} {fired}")
+
+    # main.py's _RedeployChain composes two steps behind the ONE redeploy slot
+    # and hands the second the first's on_done - the same protocol, and a
+    # shipped link (prince_of_corsairs.py) takes the hazardous reading of it.
+    # Source-guarded because the chain is a local class inside main(), which no
+    # unit test can reach.
+    main_src = io.open("main.py", encoding="utf-8").read()
+    check("main.py's redeploy chain uses the one-shot continuation",
+          "nxt = pregame.Resume(" in main_src)
+    check("...and reads whether it already fired",
+          "or nxt.fired:" in main_src)
+
+
 def main():
+    test_hotseat_formations()
     test_zone_geometry()
     test_formations()
     test_rolloff()
@@ -763,6 +999,7 @@ def main():
     test_overlay_wiring()
     test_set_up_this_turn()
     test_scouts()
+    test_battle_starts_once()
 
     print(f"\n{'=' * 60}")
     print(f"passed {len(PASS)}, failed {len(FAIL)}")

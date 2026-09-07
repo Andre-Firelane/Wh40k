@@ -25,6 +25,8 @@ wounds is never eligible at all, so a unit in perfect health simply gets no
 offer rather than a wasted roll.
 """
 
+from game import ai_mode
+
 TECHNOMANCER_RANGE_IN = 6.0
 TECHNOMANCER_DICE_SIDES = 3
 
@@ -52,7 +54,7 @@ class TechnomancerController:
         self.decision_manager = decision_manager
         self.game_log = game_log
         self.game_state = game_state
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._used_this_turn = set()   # id(target model)
         self._pending = None
 

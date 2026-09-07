@@ -40,7 +40,7 @@ be discovered. Fixing it properly means re-entering DECLARING_TARGETS with the
 roll already made, which is a change to the charge sequence itself.
 """
 
-from game import kauyon, tau_detachments
+from game import ai_mode, kauyon, tau_detachments
 from game.squad import edge_distance
 from game.stratagems import Stratagem
 from game.transport import EMBARK_RANGE_IN
@@ -53,20 +53,22 @@ COMBAT_EMBARKATION_NAME = "Combat Embarkation"
 class CombatEmbarkationController:
     def __init__(self, stratagem_controller, transport_controller=None,
                  turn_tracker=None, all_tokens=None, decision_manager=None,
-                 game_log=None, auto_players=()):
+                 game_log=None, auto_players=(), charge_controller=None):
         self.stratagem_controller = stratagem_controller
         self.transport_controller = transport_controller
         self.turn_tracker = turn_tracker
         self.all_tokens = all_tokens if all_tokens is not None else []
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = tuple(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._stratagem = Stratagem(
             name=COMBAT_EMBARKATION_NAME, cp_cost=COMBAT_EMBARKATION_CP, effect=self._embark,
             allow_repeat_target=True,   # each enemy charge is its own window
         )
+        self.charge_controller = charge_controller
         self._pending = None      # (squad, transport_token)
         self._resume = None
+        self._charging = None     # whose declaration this window belongs to
 
     def _log(self, message):
         if self.game_log is not None:
@@ -117,12 +119,21 @@ class CombatEmbarkationController:
         if reactor in self.auto_players or self.decision_manager is None:
             return False
         self._resume = on_resolved
+        self._charging = charging_squad
         options = []
         for squad in candidates:
             for transport in self.transports_for(squad):
                 options.append((
                     f"{squad.name} -> {transport.profile.name}",
                     (lambda s=squad, t=transport: self._accept(s, t)),
+                    # Tagged with the EMBARKING unit, so the usual case - one
+                    # transport in range - is answered by clicking it on the
+                    # board. A unit with two transports in range lands in the
+                    # list twice, and game/unit_pick.py refuses the whole prompt
+                    # then: a click says "this unit", which cannot pick between
+                    # two vehicles. Falling back to the list is always
+                    # answerable, so the ambiguous case simply reads as before.
+                    squad,
                 ))
         self.decision_manager.request(
             reactor,
@@ -146,6 +157,7 @@ class CombatEmbarkationController:
 
     def _embark(self, controller, player, targets):
         pending, self._pending = self._pending, None
+        reopened = False
         if pending is not None:
             squad, transport_token = pending
             self.transport_controller.embark(squad, transport_token, require_move=False)
@@ -153,9 +165,38 @@ class CombatEmbarkationController:
                 f"{COMBAT_EMBARKATION_NAME}: {squad.name} boards "
                 f"{transport_token.profile.name} to escape the charge."
             )
-        self._finish()
+            # "If it does, your opponent can select new targets for that
+            # charge." Hand declaration back with the roll intact, instead of
+            # resuming into a move that would still be resolved against the
+            # unit now sitting inside the vehicle - embark() takes its models
+            # out of the token list but leaves their coordinates alone, so
+            # check_charge_engagement() happily engages a phantom.
+            if self.charge_controller is not None:
+                reopened = self.charge_controller.reopen_target_selection(squad)
+        self._finish(reopened=reopened)
 
-    def _finish(self):
+    def _finish(self, reopened=False):
+        """Hand the chain on, exactly as the declaration-reaction protocol says.
+
+        The resume is called even when the declaration has been RE-OPENED, and
+        that is deliberate: swallowing it here would stop the chain by accident
+        and leave ChargeController's own window_is_open() guard unreachable -
+        a branch no input can reach is the shape this repo keeps finding rotted
+        (an A/B probe caught exactly that). Instead the guard does its job: it
+        sees the re-opened declaration, the chain ends without calling
+        _start_declared_move(), and any reactor still queued behind this one is
+        correctly skipped, because the declaration those reactors were
+        answering no longer stands.
+
+        NOTE, measured rather than assumed: there is deliberately no
+        turn_tracker.set_active() here. Its sibling on this chain
+        (game/kauyon_photon_grenades.py) restores the charging player in its
+        own _finish(), but only because the Battle-shock test it starts moves
+        active_player in the first place. Nothing on this Stratagem's path
+        moves it, so "restoring" it would be a no-op dressed up as a fix.
+        """
+        del reopened          # the CHARGE controller owns that fact, not this
+        self._charging = None
         resume, self._resume = self._resume, None
         if resume is not None:
             resume()

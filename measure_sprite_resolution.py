@@ -129,7 +129,7 @@ for ppi, clip in ((config.PIXELS_PER_INCH * config.RENDER_SUPERSAMPLE, False),
     cam.zoom = MAX_ZOOM
     vis = cam.visible_rect()
     for _ in range(2):
-        r.draw(surf, board, state.tokens, state.obstacles, "Player 1",
+        r.draw(surf, board, state.tokens, state.obstacles,
                deployment_zones=state.deployment_zones, blood_decals=state.blood_decals,
                terrain_areas=state.terrain_areas)
     n = 15
@@ -137,7 +137,7 @@ for ppi, clip in ((config.PIXELS_PER_INCH * config.RENDER_SUPERSAMPLE, False),
     for _ in range(n):
         if clip:
             surf.set_clip(vis)
-        r.draw(surf, board, state.tokens, state.obstacles, "Player 1",
+        r.draw(surf, board, state.tokens, state.obstacles,
                deployment_zones=state.deployment_zones, blood_decals=state.blood_decals,
                terrain_areas=state.terrain_areas)
         if clip:

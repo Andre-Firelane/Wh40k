@@ -28,6 +28,10 @@ pygame.init()
 pygame.display.set_mode((1600, 900))
 
 import testkit as tk
+
+# Asked for by FACTION, not named: a suite that hardcodes a list key breaks
+# when that list is retired, and breaks as a crash rather than a red line.
+DG_LIST = tk.list_key("DEATH GUARD")
 from game import army_lists, config, maps, prompt_rule, rules_text
 from game.turn import TurnTracker
 from game.ui import rules_body
@@ -57,7 +61,7 @@ print("\n1) The two reported prompts resolve to their printed rule")
 name, blocks = look_up("necrons", LIVING_LIGHTNING)
 c.eq("NECRON IMMORTALS: the leader's ability is found", name, "Living Lightning")
 c.true("...and it has printed text", bool(blocks))
-name_dg, blocks_dg = look_up("death_guard", BARRAGE)
+name_dg, blocks_dg = look_up(DG_LIST, BARRAGE)
 c.eq("DEATH GUARD: the Defiler's ability is found", name_dg, "Barrage of Filth")
 c.true("...and it has printed text", bool(blocks_dg))
 
@@ -101,7 +105,7 @@ c.eq("the Farseer's Guide resolves from a prompt without the tag",
 FALLOUT = ("1 Plague Marines 1 + Malignant Plaguecaster: "
            "Pestilent Fallout - enfeeble which unit?")
 c.eq("DEATH GUARD: Pestilent Fallout too",
-     look_up("death_guard", FALLOUT)[0], "Pestilent Fallout (Psychic)")
+     look_up(DG_LIST, FALLOUT)[0], "Pestilent Fallout (Psychic)")
 c.eq("stripping the tag is what does it", prompt_rule._bare("Guide (Psychic)"), "Guide")
 c.eq("...and a name without one is left alone", prompt_rule._bare("Living Lightning"), None)
 c.true("the bare alias is still whole-word matched",
@@ -111,7 +115,7 @@ print("\n1c) Only rules that are ON THE TABLE are candidates")
 # The same prompt, asked against the WRONG army's units, must not resolve -
 # otherwise the panel could explain a rule nobody is fielding.
 c.eq("Living Lightning is not found among Death Guard units",
-     look_up("death_guard", LIVING_LIGHTNING, army("death_guard")[1])[0], None)
+     look_up(DG_LIST, LIVING_LIGHTNING, army(DG_LIST)[1])[0], None)
 c.eq("Barrage of Filth is not found among Necron units",
      look_up("necrons", BARRAGE, army("necrons")[1])[0], None)
 

@@ -36,7 +36,7 @@ game/raid_and_run.py uses for its own D3+3".
 THE AI DECLINES (standing Aeldari instruction).
 """
 
-from game import far_reaching_doom
+from game import ai_mode, far_reaching_doom
 from game.dice_notation import D6, DiceNotationRoll
 from game.stratagems import Stratagem
 
@@ -68,7 +68,7 @@ class NomadsOfTheHiddenWayController:
         self.dice_manager = dice_manager
         self.decision_manager = decision_manager
         self.game_log = game_log
-        self.auto_players = set(auto_players)
+        self.auto_players = ai_mode.players(auto_players)
         self._roll = None
         self._moving_squad = None
         self._stratagem = Stratagem(

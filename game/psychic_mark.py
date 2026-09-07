@@ -174,7 +174,7 @@ class PsychicMark:
                 f'{squad.name}: {self.ability_name} - select one enemy unit within '
                 f'{self.range_in:g}" and visible. Friendly AELDARI models {self.effect_text} '
                 "against it until the start of your next Command phase.",
-                [(target.name, (lambda t=target: self.mark(player, t))) for target in options]
+                [(target.name, (lambda t=target: self.mark(player, t)), target) for target in options]
                 + [(f"Do not use {self.ability_name}", lambda: None)],
             )
 
