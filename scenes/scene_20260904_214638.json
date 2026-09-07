@@ -1,0 +1,847 @@
+{
+ "format": 1,
+ "map": "map3",
+ "squads": [
+  {
+   "name": "1 Immortals 2 + Plasmancer",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 14.35135135135135,
+     "y_in": 37.74324324324324,
+     "wounds": 1
+    },
+    {
+     "x_in": 13.293892115382853,
+     "y_in": 38.807094719843676,
+     "wounds": 1
+    },
+    {
+     "x_in": 12.90129932877754,
+     "y_in": 37.359382419728256,
+     "wounds": 1
+    },
+    {
+     "x_in": 14.743944137956664,
+     "y_in": 39.19095554335866,
+     "wounds": 1
+    },
+    {
+     "x_in": 13.958758564746038,
+     "y_in": 36.29553094312782,
+     "wounds": 1
+    },
+    {
+     "x_in": 15.801403373925162,
+     "y_in": 38.12710406675823,
+     "wounds": 1
+    },
+    {
+     "x_in": 15.408810587319849,
+     "y_in": 36.67939176664281,
+     "wounds": 1
+    },
+    {
+     "x_in": 12.236432879414355,
+     "y_in": 39.87094619644411,
+     "wounds": 1
+    },
+    {
+     "x_in": 13.583629704321377,
+     "y_in": 40.64334728839086,
+     "wounds": 1
+    },
+    {
+     "x_in": 11.455926751120513,
+     "y_in": 38.52842881645387,
+     "wounds": 1
+    },
+    {
+     "x_in": 11.451247306203731,
+     "y_in": 36.97552159621327,
+     "wounds": 4
+    }
+   ]
+  },
+  {
+   "name": "2 Defiler 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 29.0,
+     "y_in": 16.0,
+     "wounds": 18
+    }
+   ]
+  },
+  {
+   "name": "1 C'tan Shard of the Void Dragon 1",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 19.378378378378375,
+     "y_in": 24.932432432432435,
+     "wounds": 16
+    }
+   ]
+  },
+  {
+   "name": "2 Daemon Prince of Nurgle 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 34.0,
+     "y_in": 20.0,
+     "wounds": 10
+    }
+   ]
+  },
+  {
+   "name": "1 Lokhust Destroyers 1 + Lokhust Lord",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 11.058377160996919,
+     "y_in": 29.239251181506905,
+     "wounds": 3
+    },
+    {
+     "x_in": 11.129157584339602,
+     "y_in": 27.172462819900563,
+     "wounds": 3
+    },
+    {
+     "x_in": 9.06236922273326,
+     "y_in": 27.10168239655788,
+     "wounds": 3
+    },
+    {
+     "x_in": 11.199938007682285,
+     "y_in": 25.10567445829422,
+     "wounds": 3
+    },
+    {
+     "x_in": 13.266726369288628,
+     "y_in": 25.176454881636904,
+     "wounds": 3
+    },
+    {
+     "x_in": 13.195945945945946,
+     "y_in": 27.243243243243246,
+     "wounds": 3
+    },
+    {
+     "x_in": 13.125165522603263,
+     "y_in": 29.310031604849588,
+     "wounds": 6
+    }
+   ]
+  },
+  {
+   "name": "2 Plagueburst Crawler 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 37.50703588947489,
+     "y_in": 2.1043321210496932,
+     "wounds": 12
+    }
+   ]
+  },
+  {
+   "name": "1 Lychguard 1 + Overlord",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 21.294529206957172,
+     "y_in": 27.175756805541887,
+     "wounds": 2
+    },
+    {
+     "x_in": 21.236567616352694,
+     "y_in": 29.320335657907684,
+     "wounds": 2
+    },
+    {
+     "x_in": 20.30123489519403,
+     "y_in": 28.33304000779576,
+     "wounds": 2
+    },
+    {
+     "x_in": 22.17190033751136,
+     "y_in": 30.30763130801961,
+     "wounds": 2
+    },
+    {
+     "x_in": 23.38114646871849,
+     "y_in": 29.378297248512162,
+     "wounds": 2
+    },
+    {
+     "x_in": 22.33783783783783,
+     "y_in": 28.277027027027025,
+     "wounds": 6
+    }
+   ]
+  },
+  {
+   "name": "2 Foetid Bloat-drone 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 34.529842699525965,
+     "y_in": 16.88627572237381,
+     "wounds": 10
+    }
+   ]
+  },
+  {
+   "name": "1 Skorpekh Destroyers 1 + Skorpekh Lord",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 26.181375846159796,
+     "y_in": 36.040399363331645,
+     "wounds": 5
+    }
+   ]
+  },
+  {
+   "name": "2 Foetid Bloat-drone 2",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 35.31221811875841,
+     "y_in": 25.485708246834868,
+     "wounds": 10
+    }
+   ]
+  },
+  {
+   "name": "1 Doomsday Ark 1",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 4.986486486486487,
+     "y_in": 26.716216216216214,
+     "wounds": 14
+    }
+   ]
+  },
+  {
+   "name": "2 Myphitic Blight-hauler 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 47.581842559590086,
+     "y_in": 12.678718045652474,
+     "wounds": 10
+    }
+   ]
+  },
+  {
+   "name": "1 Canoptek Wraiths 1",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 18.81081081081081,
+     "y_in": 36.689189189189186,
+     "wounds": 4
+    },
+    {
+     "x_in": 17.557695841898898,
+     "y_in": 38.33428094185494,
+     "wounds": 4
+    },
+    {
+     "x_in": 19.60894457571967,
+     "y_in": 38.596964462462324,
+     "wounds": 4
+    },
+    {
+     "x_in": 16.304580872986985,
+     "y_in": 39.979372694520706,
+     "wounds": 4
+    },
+    {
+     "x_in": 18.285443769596046,
+     "y_in": 40.79168665683073,
+     "wounds": 4
+    },
+    {
+     "x_in": 20.40707834062853,
+     "y_in": 40.50473973573547,
+     "wounds": 4
+    }
+   ]
+  },
+  {
+   "name": "2 Myphitic Blight-hauler 2",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 25.0,
+     "y_in": 8.0,
+     "wounds": 10
+    }
+   ]
+  },
+  {
+   "name": "1 Necron Warriors 1 + Technomancer",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 15.658403469199435,
+     "y_in": 31.006582565319892,
+     "wounds": 1
+    },
+    {
+     "x_in": 15.596586859783747,
+     "y_in": 29.343730186182963,
+     "wounds": 1
+    },
+    {
+     "x_in": 17.129384176983255,
+     "y_in": 31.78447400075855,
+     "wounds": 1
+    },
+    {
+     "x_in": 17.005750958151875,
+     "y_in": 28.458769242484692,
+     "wounds": 1
+    },
+    {
+     "x_in": 18.538548275351385,
+     "y_in": 30.89951305706028,
+     "wounds": 1
+    },
+    {
+     "x_in": 18.476731665935695,
+     "y_in": 29.23666067792335,
+     "wounds": 1
+    },
+    {
+     "x_in": 14.527008820845424,
+     "y_in": 31.71710313340846,
+     "wounds": 1
+    },
+    {
+     "x_in": 15.665119908992855,
+     "y_in": 32.7736285154585,
+     "wounds": 1
+    },
+    {
+     "x_in": 17.1790157146823,
+     "y_in": 33.11955079198317,
+     "wounds": 1
+    },
+    {
+     "x_in": 15.472086055780725,
+     "y_in": 27.58106287489948,
+     "wounds": 1
+    },
+    {
+     "x_in": 18.663049079354405,
+     "y_in": 32.66218036834376,
+     "wounds": 1
+    },
+    {
+     "x_in": 16.95611942045283,
+     "y_in": 27.12369245126007,
+     "wounds": 1
+    },
+    {
+     "x_in": 19.71957446140444,
+     "y_in": 31.52406928019633,
+     "wounds": 1
+    },
+    {
+     "x_in": 18.470015226142273,
+     "y_in": 27.469614727784744,
+     "wounds": 1
+    },
+    {
+     "x_in": 20.065496737929116,
+     "y_in": 30.010173474506885,
+     "wounds": 1
+    },
+    {
+     "x_in": 13.256729447484354,
+     "y_in": 32.51484388930188,
+     "wounds": 1
+    },
+    {
+     "x_in": 12.668020884113542,
+     "y_in": 31.067131526439496,
+     "wounds": 1
+    },
+    {
+     "x_in": 15.372448818610705,
+     "y_in": 25.95310000995461,
+     "wounds": 1
+    },
+    {
+     "x_in": 16.90039534689546,
+     "y_in": 25.624727866079297,
+     "wounds": 1
+    },
+    {
+     "x_in": 21.04557790832288,
+     "y_in": 32.22529310948369,
+     "wounds": 1
+    },
+    {
+     "x_in": 17.067567567567565,
+     "y_in": 30.12162162162162,
+     "wounds": 4
+    }
+   ]
+  },
+  {
+   "name": "2 Chaos Spawn 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 33.738937450419286,
+     "y_in": 7.516046200967004,
+     "wounds": 4
+    },
+    {
+     "x_in": 31.75719015300772,
+     "y_in": 8.107063670422821,
+     "wounds": 4
+    }
+   ]
+  },
+  {
+   "name": "1 Immortals 1 + Plasmancer",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 5.0161156648516565,
+     "y_in": 29.893570116503387,
+     "wounds": 1
+    },
+    {
+     "x_in": 3.6564551026630774,
+     "y_in": 29.92395359275341,
+     "wounds": 1
+    },
+    {
+     "x_in": 6.375776227040236,
+     "y_in": 29.863186640253364,
+     "wounds": 1
+    },
+    {
+     "x_in": 2.2967945404744974,
+     "y_in": 29.954337069003437,
+     "wounds": 1
+    },
+    {
+     "x_in": 5.7263294221959695,
+     "y_in": 31.238038940566955,
+     "wounds": 1
+    },
+    {
+     "x_in": 7.0859899843845495,
+     "y_in": 31.207655464316932,
+     "wounds": 1
+    },
+    {
+     "x_in": 7.735436789228815,
+     "y_in": 29.83280316400334,
+     "wounds": 1
+    },
+    {
+     "x_in": 3.007008297818811,
+     "y_in": 31.298805893067005,
+     "wounds": 1
+    },
+    {
+     "x_in": 8.445650546573129,
+     "y_in": 31.177271988066906,
+     "wounds": 1
+    },
+    {
+     "x_in": 9.095097351417394,
+     "y_in": 29.802419687753314,
+     "wounds": 1
+    },
+    {
+     "x_in": 4.36666886000739,
+     "y_in": 31.26842241681698,
+     "wounds": 4
+    }
+   ]
+  },
+  {
+   "name": "2 Chaos Spawn 2",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 32.57114106948585,
+     "y_in": 15.348501791017064,
+     "wounds": 4
+    },
+    {
+     "x_in": 34.244110482485226,
+     "y_in": 14.132854908419773,
+     "wounds": 4
+    }
+   ]
+  },
+  {
+   "name": "2 Plague Marines 1 + Malignant Plaguecaster",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 38.814773951098935,
+     "y_in": 11.456829567620215,
+     "wounds": 2
+    },
+    {
+     "x_in": 38.97166203803868,
+     "y_in": 12.948602381481756,
+     "wounds": 2
+    },
+    {
+     "x_in": 41.6903858384255,
+     "y_in": 11.077717453006649,
+     "wounds": 2
+    },
+    {
+     "x_in": 37.431350369156654,
+     "y_in": 8.557054081200862,
+     "wounds": 2
+    },
+    {
+     "x_in": 40.5848504688128,
+     "y_in": 12.02480886951246,
+     "wounds": 2
+    },
+    {
+     "x_in": 37.76106105538432,
+     "y_in": 7.274087375535584,
+     "wounds": 2
+    },
+    {
+     "x_in": 42.05113543764429,
+     "y_in": 8.092715616405185,
+     "wounds": 2
+    },
+    {
+     "x_in": 40.746538114040064,
+     "y_in": 7.363726848211062,
+     "wounds": 2
+    },
+    {
+     "x_in": 40.89944594246616,
+     "y_in": 8.622778179917727,
+     "wounds": 2
+    },
+    {
+     "x_in": 37.30344726684602,
+     "y_in": 5.714081472913403,
+     "wounds": 2
+    },
+    {
+     "x_in": 37.601304841089714,
+     "y_in": 12.338585043391944,
+     "wounds": 4
+    }
+   ]
+  },
+  {
+   "name": "2 Poxwalkers 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 50.357142857142854,
+     "y_in": 36.35,
+     "wounds": 1
+    },
+    {
+     "x_in": 51.570611967152075,
+     "y_in": 35.46824452422827,
+     "wounds": 1
+    },
+    {
+     "x_in": 51.72750005409182,
+     "y_in": 36.96001733808981,
+     "wounds": 1
+    },
+    {
+     "x_in": 50.20025477020311,
+     "y_in": 34.85822718613846,
+     "wounds": 1
+    },
+    {
+     "x_in": 52.7840810771613,
+     "y_in": 34.58648904845654,
+     "wounds": 1
+    },
+    {
+     "x_in": 51.577177533322484,
+     "y_in": 33.60928560610208,
+     "wounds": 1
+    },
+    {
+     "x_in": 53.34068848486594,
+     "y_in": 36.03622382612052,
+     "wounds": 1
+    },
+    {
+     "x_in": 53.09785725104078,
+     "y_in": 37.57003467617963,
+     "wounds": 1
+    },
+    {
+     "x_in": 50.04336668326337,
+     "y_in": 33.36645437227691,
+     "wounds": 1
+    },
+    {
+     "x_in": 53.99755018717052,
+     "y_in": 33.704733572684816,
+     "wounds": 1
+    }
+   ]
+  },
+  {
+   "name": "2 Poxwalkers 2",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 1.5,
+     "y_in": 11.75,
+     "wounds": 1
+    },
+    {
+     "x_in": 2.7134691100092208,
+     "y_in": 10.86824452422827,
+     "wounds": 1
+    },
+    {
+     "x_in": 2.8703571969489623,
+     "y_in": 12.360017338089813,
+     "wounds": 1
+    },
+    {
+     "x_in": 1.3431119130602571,
+     "y_in": 10.258227186138456,
+     "wounds": 1
+    },
+    {
+     "x_in": 1.656888086939742,
+     "y_in": 13.241772813861544,
+     "wounds": 1
+    },
+    {
+     "x_in": 3.9269382200184415,
+     "y_in": 9.98648904845654,
+     "wounds": 1
+    },
+    {
+     "x_in": 2.7200346761796266,
+     "y_in": 9.009285606102075,
+     "wounds": 1
+    },
+    {
+     "x_in": 4.483545627723087,
+     "y_in": 11.436223826120516,
+     "wounds": 1
+    },
+    {
+     "x_in": 4.240714393897925,
+     "y_in": 12.970034676179628,
+     "wounds": 1
+    },
+    {
+     "x_in": 1.1862238261205142,
+     "y_in": 8.766454372276913,
+     "wounds": 1
+    }
+   ]
+  },
+  {
+   "name": "2 Deathshroud Terminators 1 + Typhus",
+   "owner": "Player 2",
+   "placement": "reserves",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 6
+    }
+   ]
+  },
+  {
+   "name": "2 Deathshroud Terminators 2",
+   "owner": "Player 2",
+   "placement": "reserves",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4
+    }
+   ]
+  }
+ ],
+ "armies": {
+  "Player 1": "necrons",
+  "Player 2": "death_guard"
+ },
+ "turn": {
+  "battle_round": 1,
+  "phase": "Shooting",
+  "turn_owner": "Player 2",
+  "active_player": "Player 2"
+ },
+ "command_points": {
+  "Player 1": 1,
+  "Player 2": 2
+ },
+ "missions": {
+  "ledger": {
+   "primary_points": {
+    "Player 1": 0,
+    "Player 2": 36
+   },
+   "secondary_points": {
+    "Player 1": 0,
+    "Player 2": 0
+   },
+   "unscored_kills": {
+    "Player 1": 0,
+    "Player 2": 0
+   }
+  },
+  "secondary": {
+   "deck": [
+    "defend_stronghold",
+    "cleanse",
+    "display_of_might",
+    "secure_no_mans_land",
+    "engage_on_all_fronts",
+    "assassination",
+    "overwhelming_force",
+    "no_prisoners",
+    "a_grievous_blow",
+    "a_tempting_target",
+    "beacon",
+    "centre_ground",
+    "outflank",
+    "plunder",
+    "behind_enemy_lines",
+    "forward_position",
+    "bring_it_down"
+   ],
+   "hand": [],
+   "discarded": [],
+   "drawn_round": null,
+   "scored_round": 1,
+   "scored_vp_this_round": 0,
+   "destroyed_characters": [],
+   "picks": {}
+  },
+  "primary": {
+   "points": 0,
+   "battle_scored": false,
+   "announced": true,
+   "trapped": []
+  }
+ }
+}
