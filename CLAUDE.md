@@ -8285,13 +8285,25 @@ ganze zeit hatte. lag es an objective secured?"*
   MockAgent-Lauf schafft gemessen ~7 Phasenwechsel je 3000 Frames gegen die ~50 einer Schlacht.
 - **OFFEN und beim User erfragt: die RUNDENBANDE der Karte.** Sie trägt neben dem
   Endrunden-Zeitpunkt ein `min_battle_round=2`, das unter diesem Zeitpunkt **niemals greifen
-  kann** — CLAUDE.md hielt das schon als Kuriosum fest. Beacon und Burden of Trust, die denselben
-  Zeitpunkt tragen, haben KEINE Bande; Beacons Badge wurde seinerzeit ausdrücklich beim User
-  erfragt. Eine gedruckte Karte trägt keine Bande, die nie gilt — es ist also entweder die Bande
+  kann**. Eine gedruckte Karte trägt keine Bande, die nie gilt — es ist also entweder die Bande
   zu viel oder der Zeitpunkt falsch, und im zweiten Fall wertet die Karte am Ende JEDES
   gegnerischen Zuges ab Runde 2, was genau die Beobachtung des Users erklärt (Home Objective die
   ganze Zeit gehalten, in den Runden 2-4 nichts bekommen). Nicht geraten, sondern der WORTLAUT
   erfragt (Fehlerklasse 13).
+  - **Drei Messungen, die den offenen Punkt schärfen** (Nachtrag, nachdem der User sagte "dann war
+    es aber ein anzeige Fehler, mein home objective war die ganze Zeit in meiner Farbe"):
+    1. **Das BRETT hat nicht gelogen.** `renderer.draw_objectives()` färbt aus
+       `objective.controlled_by` — GENAU dem Feld, das `_defend_stronghold()` liest. Farbe und
+       Karte können per Konstruktion nicht auseinanderlaufen; "die ganze Zeit meine Farbe" heißt
+       also, die Bedingung war die ganze Zeit erfüllt.
+    2. **Die KARTE widerspricht sich auf dem Schirm.** `info_rows()` zeigt für sie
+       `WHEN end of enemy turn, round 5` UND `FROM battle round 2` übereinander, und ihr
+       `text` öffnet mit beiden Klauseln in einem Satz. Beacon, das denselben Zeitpunkt trägt,
+       zeigt nur die WHEN-Zeile. Das ist der ANZEIGE-Fehler, den der User meint — kein
+       Rendering-Fehler, sondern der sichtbar gewordene Datenwiderspruch.
+    3. **Sie ist die EINZIGE der 18 Karten mit einer Rundenbande** überhaupt, und die ist inert.
+    Die FROM-Zeile wird deshalb NICHT vorsorglich unterdrückt: das wäre kosmetisch und löschte
+    genau das Signal, an dem der Widerspruch überhaupt aufgefallen ist.
 
 ## Später-Liste (bewusst zurückgestellt)
 
