@@ -40,6 +40,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
+import pygame
 import runpy
 
 MAP = "map2"
@@ -61,6 +62,8 @@ config.PLAYER2_ARMY = "necrons"
 config.ARMY_SELECT = False
 
 seen = {"human_opened": 0, "ai_opened": 0, "human_placed": [], "staged": False,
+        "damaged": [], "queued": [], "engine_seated": [], "opened_for": [],
+        "confirmed": 0, "placer": None,
         "activations": 0, "survivors_moved": 0, "green_fraction": None,
         "band_drawn": None, "keepout_same": None, "radius_intact": None,
         "identity_frames": 0, "ringed": None, "unit_size": None}
@@ -82,6 +85,29 @@ def spy_identity(self, surface, board, squad, placing_models=None):
     return _real_identity(self, surface, board, squad, placing_models=placing_models)
 
 
+if NEUTRALIZE:
+    # ...and the SECOND pre-fix world this probe now covers: place()'s fork
+    # folded "somebody is already placing" in with "this is the AI", so a
+    # human's second reanimating unit had its models seated by the engine.
+    # Restored by putting can_start_setup() back into the auto branch, which is
+    # exactly how the line read.
+    _pre_fix_place = ReturnPlacementController.place
+
+    def _silent_place(self, squad, models, spots, **kwargs):
+        setup_ctrl = self.setup_controller
+        if (setup_ctrl is not None and squad.owner not in self.auto_players
+                and not setup_ctrl.can_start_setup(squad)):
+            self.auto_players = set(self.auto_players) | {squad.owner}
+            try:
+                return _pre_fix_place(self, squad, models, spots, **kwargs)
+            finally:
+                self.auto_players = {p for p in self.auto_players
+                                     if p != squad.owner}
+        return _pre_fix_place(self, squad, models, spots, **kwargs)
+
+    ReturnPlacementController.place = _silent_place
+
+
 def spy_rings(self, surface, board, models):
     if models:
         seen["ringed"] = len(models)
@@ -95,14 +121,27 @@ _real_place = ReturnPlacementController.place
 
 
 def spy_place(self, squad, models, spots, **kwargs):
+    seen["placer"] = self
     before = {m.id: (m.x_in, m.y_in) for m in squad.models}
     result = _real_place(self, squad, models, spots, **kwargs)
     opened = self.setup_controller is not None and \
         self.setup_controller.state == setup_mod.PLACING
+    # WHOSE placement, not merely that one is open: with a queue in front of
+    # it, setup.state is PLACING for the unit ALREADY being placed, so
+    # "state == PLACING" alone cannot tell a queued unit from a seated one.
+    mine = (opened and self.setup_controller.setting_up_squad is squad)
     if squad.owner in self.auto_players:
         seen["ai_opened"] += 1 if opened else 0
-    elif opened:
+    elif not mine and opened:
+        # Somebody else's placement is open. Either this one queued behind it
+        # (correct) or the engine seated it (the reported bug).
+        if getattr(self, "_waiting", None):
+            seen["queued"].append(squad.name)
+        else:
+            seen["engine_seated"].append(squad.name)
+    elif mine:
         seen["human_opened"] += 1
+        seen["opened_for"].append(squad.name)
         placing = list(self.setup_controller.placing_models)
         seen["human_placed"].append((squad.name, len(placing), len(squad.models)))
         seen["unit_size"] = len(squad.models)
@@ -160,12 +199,48 @@ def spy_place(self, squad, models, spots, **kwargs):
 NO_RING_NOTE = (chr(10) + "  *** NOTHING WAS RINGED - the board never said "
                 "which models came back.")
 
+if NEUTRALIZE:
+    # THE ROLL-HOLD, the primary half: without it _apply_and_advance() puts the
+    # next unit's die on the table over an open placement, which is what made
+    # the silent seating reachable at all.
+    def _roll_ahead(self, squad, rolled):
+        self._apply(squad, rolled)
+        self._roll_next()
+
+    rp.ReanimationProtocolsController._apply_and_advance = _roll_ahead
+
 ReturnPlacementController.place = spy_place
+
+# THE CONFIRM IS STAGED, and it has to be. selfplay answers no prompt belonging
+# to the HUMAN outside the pre-game (the documented harness limit), so nothing
+# ever presses Confirm - and with the queue holding the next unit behind an
+# open placement, a passive run measures exactly ONE placement and never
+# reaches the half this was extended for. Pressed through the controller's own
+# confirm(), which is the call game/ui/action_panel.py hands to the button.
+_real_flip_rp = pygame.display.flip
+
+
+def _flip_rp(*args, **kwargs):
+    placer = seen.get("placer")
+    if placer is not None and placer.is_busy:
+        seen["confirm_wait"] = seen.get("confirm_wait", 0) + 1
+        if seen["confirm_wait"] % 30 == 0 and placer.confirm():
+            seen["confirmed"] += 1
+    return _real_flip_rp(*args, **kwargs)
+
+
+pygame.display.flip = _flip_rp
 
 _real_begin = rp.ReanimationProtocolsController.begin_command_phase
 
 
 def spy_begin(self, squads, player):
+    # TWO units, not one. A single damaged unit cannot show the defect this
+    # was extended for: place()'s fork used to fold "somebody is already
+    # placing" in with "this is the AI", so the SECOND unit to reanimate in one
+    # Command phase had its models seated by the engine with no prompt and no
+    # distinguishing log line. Measured before the fix, the placement opened
+    # for the FIRST unit twice.
     if not seen["staged"] and player not in config.AI_PLAYERS:
         for squad in sorted(squads, key=lambda s: s.name):
             if squad.owner == player and len(squad.models) > 3:
@@ -174,9 +249,11 @@ def spy_begin(self, squads, player):
                 for model in list(squad.models[:2]):
                     squad.models.remove(model)
                     squad.destroyed_models.append(model)
-                seen["staged"] = True
+                seen["damaged"].append(squad.name)
                 print(f"[staged] killed 2 models of {squad.name}")
-                break
+                if len(seen["damaged"]) == 2:
+                    seen["staged"] = True
+                    break
     result = _real_begin(self, squads, player)
     if result:
         seen["activations"] += 1
@@ -207,12 +284,23 @@ if seen["keepout_same"] is not None:
           f"   (must be 0 different - one line for the unit)")
     print(f"coherency band drawn            : {seen['band_drawn']}")
     print(f"the model's radius survived it  : {seen['radius_intact']}")
+print(f"units staged as damaged         : {', '.join(seen['damaged']) or 'none'}")
+print(f"placements opened, per unit     : {', '.join(seen['opened_for']) or 'none'}")
+print(f"queued behind an open placement : {', '.join(seen['queued']) or 'none'}")
+print(f"confirmed by the probe          : {seen['confirmed']}")
+print(f"seated by the ENGINE for a human: {', '.join(seen['engine_seated']) or 'none'}"
+      f"   (must be none)")
 print(f"identity draws on the board     : {seen['identity_frames']}")
 print(f"models ringed as RETURNING      : {seen['ringed']}"
       f" of {seen['unit_size']} in the unit")
 
 ok = (seen["human_opened"] > 0 and seen["ai_opened"] == 0
       and seen["survivors_moved"] == 0
+      # THE QUEUE: no human's models may be seated by the engine because
+      # somebody else's placement happened to be open, and no unit may get a
+      # second placement while another gets none.
+      and not seen["engine_seated"]
+      and len(seen["opened_for"]) == len(set(seen["opened_for"]))
       and all(p < t for _n, p, t in seen["human_placed"])
       # The overlay must show a RING, not the map. 20% is a deliberately loose
       # ceiling: the exact figure moves with where the survivors stand, and the
@@ -232,6 +320,11 @@ if seen["ringed"] is None and seen["human_opened"]:
     print(NO_RING_NOTE)
 if seen["ai_opened"]:
     print("\n  *** A PLACEMENT WAS OPENED FOR THE AI - it would stall or cost a call.")
+if seen["engine_seated"]:
+    print("\n*** THE ENGINE SEATED A HUMAN'S MODELS because another "
+          "placement was open - the reported bug.")
+if len(seen["opened_for"]) != len(set(seen["opened_for"])):
+    print("\n*** ONE UNIT GOT TWO PLACEMENTS while another got none.")
 
 print("\n" + ("PASS - the human places, the AI lands, the board says which"
                if ok else "FAIL"))

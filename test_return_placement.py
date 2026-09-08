@@ -265,8 +265,16 @@ for module, wiring in sorted(ROUTED.items()):
 NOT_ROUTED = {
     "spiritseer": "TearsOfIsha.resolve() has no caller - unreachable for both "
                   "sides, so routing it is speculative work behind a dead path",
-    "protocol_eternal_revenant": "returns a CHARACTER into a unit of one, where "
-                                 "there are no survivors to stand in coherency with",
+    # The reason used to read "there are no survivors to stand in coherency
+    # with", which is an argument about COHERENCY and not about who picks the
+    # spot - and a one-model unit has no coherency constraint at all, so it is
+    # the case where free placement is EASIEST rather than least needed. The
+    # honest reason is that its two siblings below share the same single-model
+    # ring return, and wiring one of the three alone would leave this list
+    # saying different things about the same shape.
+    "protocol_eternal_revenant": "single-model ring return, shared with "
+                                 "enh_phoenix_gem and word_of_the_phoenix - "
+                                 "the three move together or not at all",
     "enh_phoenix_gem": "same single-model ring return as the Revenant",
     "word_of_the_phoenix": "returns up to D3+1 at once behind two dice rolls; "
                            "its own offer landed first and the placement half "

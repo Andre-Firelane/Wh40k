@@ -1,0 +1,151 @@
+{
+  "format": 1,
+  "key": "aeldari_warhost",
+  "name": "Aeldari (Warhost)",
+  "faction_keyword": "AELDARI",
+  "army_rule": "Battle Focus",
+  "detachments": ["Warhost"],
+  "force_disposition": "reconnaissance",
+  "sort_order": 11,
+  "note": "User-supplied export '1k sc', 2000 pts. Warhost alone is 3 DP, the whole budget, and it grants exactly Reconnaissance - so the Force Disposition is not a choice here, and the Primary Mission is Reconnaissance Sweep. Five attached units (19.01), the Avatar standing alone because its datasheet prints no LEADER line at all. The export names the Avatar WARLORD; nothing in this engine reads a warlord, so it is recorded here and nowhere else.",
+  "roster": [
+    {
+      "datasheet": "Dire Avengers",
+      "color": [70, 150, 220],
+      "note": "The export prices this at 70, the transcribed points list at 75 - the standing deviation for this datasheet (verify_rules_vs_engine.py reports it), so the army totals 2005 here against the export's 2000. Two Aspect Shrine tokens are not written down anywhere: they are granted at build time as starting strength // 5.",
+      "choices": {
+        "Dire Avenger Exarch": {
+          "Exarch -> second Avenger Shuriken Catapult": 1
+        }
+      },
+      "leaders": [
+        {
+          "datasheet": "Asurmen",
+          "color": [240, 240, 250]
+        }
+      ]
+    },
+    {
+      "datasheet": "Guardian Defenders",
+      "color": [90, 170, 210],
+      "note": "The Heavy Weapon Platform's Bright Lance is its DEFAULT weapon, not an option - the four alternatives the printed sheet offers are not modelled (a standing named gap), and this list happens to want the one that is.",
+      "leaders": [
+        {
+          "datasheet": "Farseer",
+          "color": [150, 130, 200],
+          "enhancement": "Timeless Strategist",
+          "choices": {
+            "Farseer": {
+              "Witchblade -> Singing Spear": 1
+            }
+          }
+        },
+        {
+          "datasheet": "Warlock Conclave",
+          "color": [150, 120, 200],
+          "composition_index": 1,
+          "choices": {
+            "Warlock": {
+              "Witchblade -> Singing Spear": 4
+            }
+          }
+        }
+      ]
+    },
+    {
+      "datasheet": "Howling Banshees",
+      "color": [230, 220, 210],
+      "choices": {
+        "Howling Banshee Exarch": {
+          "Exarch -> Executioner": 1
+        }
+      },
+      "leaders": [
+        {
+          "datasheet": "Jain Zar",
+          "color": [235, 225, 215]
+        }
+      ]
+    },
+    {
+      "datasheet": "Striking Scorpions",
+      "color": [110, 180, 100],
+      "composition_index": 1,
+      "choices": {
+        "Striking Scorpion Exarch": {
+          "Exarch -> Biting Blade + Shuriken Pistol": 1
+        }
+      },
+      "leaders": [
+        {
+          "datasheet": "Autarch",
+          "color": [215, 175, 95],
+          "choices": {
+            "Autarch": {
+              "Shuriken Pistol -> Dragon Fusion Gun": 1,
+              "Star Glaive -> Scorpion Chainsword": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "datasheet": "Warp Spiders",
+      "color": [200, 200, 230],
+      "choices": {
+        "Warp Spider Exarch": {
+          "Exarch -> Powerblade Array": 1
+        }
+      },
+      "leaders": [
+        {
+          "datasheet": "Lhykhis",
+          "color": [180, 190, 220]
+        }
+      ]
+    },
+    {
+      "datasheet": "Avatar of Khaine",
+      "color": [230, 90, 60]
+    },
+    {
+      "datasheet": "Falcon",
+      "color": [95, 140, 190],
+      "choices": {
+        "Falcon": {
+          "Scatter Laser -> Bright Lance": 1
+        }
+      }
+    },
+    {
+      "datasheet": "War Walkers",
+      "color": [130, 155, 175],
+      "composition_index": 1,
+      "note": "Both walkers swap BOTH their Shuriken Cannons, which is what the export's '4x Bright lance' over two models means.",
+      "choices": {
+        "War Walker": {
+          "2x Shuriken Cannon -> 2x Bright Lance": 2
+        }
+      }
+    },
+    {
+      "datasheet": "Windriders",
+      "color": [120, 155, 130],
+      "composition_index": 1,
+      "choices": {
+        "Windrider": {
+          "Twin Shuriken Catapult -> Scatter Laser": 6
+        }
+      }
+    },
+    {
+      "datasheet": "Wraithguard",
+      "color": [225, 225, 195],
+      "choices": {
+        "Wraithguard": {
+          "Wraithcannon -> D-scythe": 5
+        }
+      }
+    }
+  ]
+}

@@ -183,7 +183,7 @@ def from_file(key, directory=None):
     return from_army_file(army_io.load(os.path.join(directory, f"{key}.json")))
 
 
-# The eight shipped lists, each one file in armies/. Everything about a list -
+# The shipped lists, each one file in armies/. Everything about a list -
 # its name, faction, army rule, detachments, Force Disposition and every unit -
 # lives in that file; nothing is repeated here, because a list written down
 # twice is a list that drifts.

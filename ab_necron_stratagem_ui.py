@@ -65,20 +65,36 @@ def run(suite):
 
 # 1. THE CHAIN, one stage at a time. Renaming the parameter in the LAST stage
 # is the exact half-wiring action_panel.py's comment describes.
-# The parameter name appears in all three signatures, so the anchor carries its
-# NEIGHBOURS - _draw_movement_ui() is the only one that lists it between
-# conquering_tyrant_controller and path_of_the_outcast_controller.
-_LAST_STAGE = ("        conquering_tyrant_controller=None," + NL
-               + "        hungry_void_controller=None," + NL
-               + "        path_of_the_outcast_controller=None,")
-_LAST_STAGE_OFF = ("        conquering_tyrant_controller=None," + NL
-                   + "        hungry_void_controller_renamed=None," + NL
-                   + "        path_of_the_outcast_controller=None,")
+# The parameter name and its three neighbours appear IDENTICALLY in all three
+# signatures - the chain is deliberately uniform - so the anchor reaches up to
+# the one comment that differs. _draw_movement_ui() is the LAST stage, which is
+# the one action_panel.py's own scar is about: "added to draw() and
+# _draw_movement_ui() and forwarded through both, but not to THIS signature".
+_LAST_STAGE = ("        # Appended, not slotted in: draw() forwards everything above positionally." + NL
+               + "        sudden_storm_controller=None," + NL
+               + "        conquering_tyrant_controller=None," + NL
+               + "        hungry_void_controller=None,")
+_LAST_STAGE_OFF = ("        # Appended, not slotted in: draw() forwards everything above positionally." + NL
+                   + "        sudden_storm_controller=None," + NL
+                   + "        conquering_tyrant_controller=None," + NL
+                   + "        hungry_void_controller_renamed=None,")
 
-# ...and the forwarding hop INTO that stage, likewise pinned by its neighbour.
-_FORWARD = ("            hungry_void_controller=hungry_void_controller," + NL
-            + "            blooming_pestilence_controller=blooming_pestilence_controller,")
-_FORWARD_OFF = "            blooming_pestilence_controller=blooming_pestilence_controller,"
+# ...and the forwarding hop INTO that stage. draw() -> _draw_dispatch() and
+# _draw_dispatch() -> _draw_movement_ui() forward the same three names in the
+# same order, so the anchor reaches up to the positional tail that differs.
+_FORWARD = ("            arrokon_controller, torchstar_controller, unbridled_carnage_controller, ere_we_go_controller," + NL
+            + "            tactical_acumen_controller," + NL
+            + "            flickerjump_controller," + NL
+            + "            battle_focus_pool," + NL
+            + "            sudden_storm_controller=sudden_storm_controller," + NL
+            + "            conquering_tyrant_controller=conquering_tyrant_controller," + NL
+            + "            hungry_void_controller=hungry_void_controller,")
+_FORWARD_OFF = ("            arrokon_controller, torchstar_controller, unbridled_carnage_controller, ere_we_go_controller," + NL
+                + "            tactical_acumen_controller," + NL
+                + "            flickerjump_controller," + NL
+                + "            battle_focus_pool," + NL
+                + "            sudden_storm_controller=sudden_storm_controller," + NL
+                + "            conquering_tyrant_controller=conquering_tyrant_controller,")
 
 # 2. HUNGRY VOID GAINS an owner clause it does not print.
 _VOID_PHASE = ("            if self.turn_tracker.phase != PHASE_FIGHT:" + NL

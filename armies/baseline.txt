@@ -126,6 +126,112 @@
   Lhykhis x1 (180,190,220) [Brood Twain, Spider's Fangs, Weaverender] {}
   enhancements: -
 
+### aeldari_warhost / Player 1
+1 Dire Avengers 1 + Asurmen | deploy | pts=210 | models=6
+  components: Dire Avengers/bodyguard, Asurmen/leader
+  Dire Avenger Exarch x1 (70,150,220) [Avenger Shuriken Catapult, Avenger Shuriken Catapult, Close Combat Weapon] {}
+  Dire Avenger x4 (70,150,220) [Avenger Shuriken Catapult, Close Combat Weapon] {}
+  Asurmen x1 (240,240,250) [Bloody Twins, Sword of Asur] {}
+  enhancements: -
+1 Guardian Defenders 1 + Farseer + Warlock Conclave | deploy | pts=290 | models=16
+  components: Guardian Defenders/bodyguard, Farseer/leader, Warlock Conclave/leader
+  Heavy Weapon Platform x1 (90,170,210) [Bright Lance, Close Combat Weapon] {}
+  Guardian Defender x10 (90,170,210) [Close Combat Weapon, Shuriken Catapult] {}
+  Farseer x1 (150,130,200) [Eldritch Storm, Shuriken Pistol, Singing Spear, Singing Spear] {}
+  Warlock x4 (150,120,200) [Destructor, Shuriken Pistol, Singing Spear, Singing Spear] {}
+  enhancements: Timeless Strategist
+1 Howling Banshees 1 + Jain Zar | deploy | pts=190 | models=6
+  components: Howling Banshees/bodyguard, Jain Zar/leader
+  Howling Banshee Exarch x1 (230,220,210) [Executioner, Shuriken Pistol] {}
+  Howling Banshee x4 (230,220,210) [Banshee Blade, Shuriken Pistol] {}
+  Jain Zar x1 (235,225,215) [Blade of Destruction, Silent Death] {}
+  enhancements: -
+1 Striking Scorpions 1 + Autarch | deploy | pts=220 | models=11
+  components: Striking Scorpions/bodyguard, Autarch/leader
+  Striking Scorpion Exarch x1 (110,180,100) [Biting Blade, Shuriken Pistol] {}
+  Striking Scorpion x9 (110,180,100) [Scorpion Chainsword, Shuriken Pistol] {}
+  Autarch x1 (215,175,95) [Dragon Fusion Gun, Scorpion Chainsword] {}
+  enhancements: -
+1 Warp Spiders 1 + Lhykhis | deploy | pts=240 | models=6
+  components: Warp Spiders/bodyguard, Lhykhis/leader
+  Warp Spider Exarch x1 (200,200,230) [Close Combat Weapon, Powerblade Array] {}
+  Warp Spider x4 (200,200,230) [Close Combat Weapon, Death Spinner] {}
+  Lhykhis x1 (180,190,220) [Brood Twain, Spider's Fangs, Weaverender] {}
+  enhancements: -
+1 Avatar of Khaine 1 | deploy | pts=250 | models=1
+  components: -
+  Avatar of Khaine x1 (230,90,60) [The Wailing Doom, The Wailing Doom - Strike, The Wailing Doom - Sweep] {}
+  enhancements: -
+1 Falcon 1 | deploy | pts=130 | models=1
+  components: -
+  Falcon x1 (95,140,190) [Bright Lance, Pulse Laser, Twin Shuriken Catapult, Wraithbone Hull] {}
+  enhancements: -
+1 War Walkers 1 | deploy | pts=160 | models=2
+  components: -
+  War Walker x2 (130,155,175) [Bright Lance, Bright Lance, War Walker Feet] {}
+  enhancements: -
+1 Windriders 1 | deploy | pts=170 | models=6
+  components: -
+  Windrider x6 (120,155,130) [Close Combat Weapon, Scatter Laser] {}
+  enhancements: -
+1 Wraithguard 1 | deploy | pts=145 | models=5
+  components: -
+  Wraithguard x5 (225,225,195) [Close Combat Weapon, D-scythe] {}
+  enhancements: -
+
+### aeldari_warhost / Player 2
+2 Dire Avengers 1 + Asurmen | deploy | pts=210 | models=6
+  components: Dire Avengers/bodyguard, Asurmen/leader
+  Dire Avenger Exarch x1 (70,150,220) [Avenger Shuriken Catapult, Avenger Shuriken Catapult, Close Combat Weapon] {}
+  Dire Avenger x4 (70,150,220) [Avenger Shuriken Catapult, Close Combat Weapon] {}
+  Asurmen x1 (240,240,250) [Bloody Twins, Sword of Asur] {}
+  enhancements: -
+2 Guardian Defenders 1 + Farseer + Warlock Conclave | deploy | pts=290 | models=16
+  components: Guardian Defenders/bodyguard, Farseer/leader, Warlock Conclave/leader
+  Heavy Weapon Platform x1 (90,170,210) [Bright Lance, Close Combat Weapon] {}
+  Guardian Defender x10 (90,170,210) [Close Combat Weapon, Shuriken Catapult] {}
+  Farseer x1 (150,130,200) [Eldritch Storm, Shuriken Pistol, Singing Spear, Singing Spear] {}
+  Warlock x4 (150,120,200) [Destructor, Shuriken Pistol, Singing Spear, Singing Spear] {}
+  enhancements: Timeless Strategist
+2 Howling Banshees 1 + Jain Zar | deploy | pts=190 | models=6
+  components: Howling Banshees/bodyguard, Jain Zar/leader
+  Howling Banshee Exarch x1 (230,220,210) [Executioner, Shuriken Pistol] {}
+  Howling Banshee x4 (230,220,210) [Banshee Blade, Shuriken Pistol] {}
+  Jain Zar x1 (235,225,215) [Blade of Destruction, Silent Death] {}
+  enhancements: -
+2 Striking Scorpions 1 + Autarch | deploy | pts=220 | models=11
+  components: Striking Scorpions/bodyguard, Autarch/leader
+  Striking Scorpion Exarch x1 (110,180,100) [Biting Blade, Shuriken Pistol] {}
+  Striking Scorpion x9 (110,180,100) [Scorpion Chainsword, Shuriken Pistol] {}
+  Autarch x1 (215,175,95) [Dragon Fusion Gun, Scorpion Chainsword] {}
+  enhancements: -
+2 Warp Spiders 1 + Lhykhis | deploy | pts=240 | models=6
+  components: Warp Spiders/bodyguard, Lhykhis/leader
+  Warp Spider Exarch x1 (200,200,230) [Close Combat Weapon, Powerblade Array] {}
+  Warp Spider x4 (200,200,230) [Close Combat Weapon, Death Spinner] {}
+  Lhykhis x1 (180,190,220) [Brood Twain, Spider's Fangs, Weaverender] {}
+  enhancements: -
+2 Avatar of Khaine 1 | deploy | pts=250 | models=1
+  components: -
+  Avatar of Khaine x1 (230,90,60) [The Wailing Doom, The Wailing Doom - Strike, The Wailing Doom - Sweep] {}
+  enhancements: -
+2 Falcon 1 | deploy | pts=130 | models=1
+  components: -
+  Falcon x1 (95,140,190) [Bright Lance, Pulse Laser, Twin Shuriken Catapult, Wraithbone Hull] {}
+  enhancements: -
+2 War Walkers 1 | deploy | pts=160 | models=2
+  components: -
+  War Walker x2 (130,155,175) [Bright Lance, Bright Lance, War Walker Feet] {}
+  enhancements: -
+2 Windriders 1 | deploy | pts=170 | models=6
+  components: -
+  Windrider x6 (120,155,130) [Close Combat Weapon, Scatter Laser] {}
+  enhancements: -
+2 Wraithguard 1 | deploy | pts=145 | models=5
+  components: -
+  Wraithguard x5 (225,225,195) [Close Combat Weapon, D-scythe] {}
+  enhancements: -
+
 ### orks / Player 1
 1 Kill Rig 1 | deploy | pts=145 | models=1
   components: -

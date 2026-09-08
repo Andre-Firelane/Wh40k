@@ -91,8 +91,9 @@ class HungryVoidController:
                 return False
         # "that has not been selected to fight this phase" - the engine already
         # keeps that ledger, so it is read rather than re-derived.
-        if False:
-            return False
+        if self.fight_controller is not None:
+            if squad in getattr(self.fight_controller, "fought_squad_ids", ()) or ():
+                return False
         return self.stratagem_controller.can_use(squad.owner, self._stratagem, [squad])
 
     def use(self, squad):

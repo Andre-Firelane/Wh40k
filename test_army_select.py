@@ -56,19 +56,24 @@ def _read(path):
 print("\n=== 1. the list registry ===")
 
 keys = [entry.key for entry in army_lists.ARMY_LISTS]
-c.eq("eight lists on offer", keys,
-     ["aeldari", "orks", "necrons", "tau", "tau_montka",
+c.eq("nine lists on offer", keys,
+     ["aeldari", "aeldari_warhost", "orks", "necrons", "tau", "tau_montka",
       "tau_retaliation", "tau_recon", "death_guard"])
-# FIVE FACTIONS, SIX LISTS - the first time any faction here has more than one,
-# which is what the two-step "pick a people, then a list" flow was built for and
-# had only ever been measured against a made-up registry.
+# FIVE FACTIONS, NINE LISTS - two of them with a real choice underneath, which
+# is what the two-step "pick a people, then a list" flow was built for and had
+# only ever been measured against a made-up registry.
 c.eq("...across five factions", len(army_lists.factions()), 5)
 c.eq("...and the T'au have four of them",
      [e.key for e in army_lists.lists_for("T'AU EMPIRE")],
      ["tau", "tau_montka", "tau_retaliation", "tau_recon"])
-c.true("every other faction still has exactly one",
-       all(len(army_lists.lists_for(f.key)) == 1
-           for f in army_lists.factions() if f.key != "T'AU EMPIRE"))
+# Pinned as the whole MAPPING rather than as "every other faction has exactly
+# one": that older shape said something true about a registry in which only the
+# T'au had a choice, and it stopped being the claim worth making the moment a
+# second faction got one. A count per faction moves visibly whenever any list is
+# added, wherever it lands.
+c.eq("...and each faction offers exactly this many",
+     {f.key: len(army_lists.lists_for(f.key)) for f in army_lists.factions()},
+     {"AELDARI": 2, "ORKS": 1, "NECRONS": 1, "T'AU EMPIRE": 4, "DEATH GUARD": 1})
 c.eq("every list is reachable by key", sorted(army_lists.BY_KEY), sorted(keys))
 
 # The tile's own text: name / logo / detachment, per the user's description of
@@ -373,7 +378,8 @@ walk.back()
 c.eq("Back from a list step returns to the faction", walk.stage, STAGE_FACTION)
 c.eq("...and forgets that faction", walk.factions_chosen.get("Player 1"), None)
 walk.choose("AELDARI")
-c.eq("...so another faction can be picked", [i.key for i in walk.items], ["aeldari"])
+c.eq("...so another faction can be picked", [i.key for i in walk.items],
+     ["aeldari", "aeldari_warhost"])
 c.eq("Back at the very first step does nothing", ArmySelectScreen().back(), False)
 
 # Changing faction after a list was already recorded must DROP that list -
@@ -384,7 +390,8 @@ swap.back()                    # back to Player 1's list step
 swap.back()                    # back to Player 1's faction step
 swap.choose("AELDARI")
 c.eq("re-picking a faction clears the list under it", swap.choices.get("Player 1"), None)
-c.eq("...and offers the new faction's lists", [i.key for i in swap.items], ["aeldari"])
+c.eq("...and offers the new faction's lists", [i.key for i in swap.items],
+     ["aeldari", "aeldari_warhost"])
 
 # A key from the wrong step is refused rather than stored.
 wrong = ArmySelectScreen()
@@ -1145,10 +1152,20 @@ c.true("so no shipped map carries a partial roster at all",
 #   - the MECHANISM half ("{p} resolves to the owner, an unpicked list
 #     contributes nothing, a list BOTH players picked contributes twice") is
 #     what a future map depends on, so it is pinned.
-_keys = [e.key for e in army_lists.ARMY_LISTS]
-_first, _second = _keys[0], _keys[1]
+# Two lists from DIFFERENT factions, and that is load-bearing rather than
+# tidy: the check below tells P1's contributions from P2's by matching the name
+# MINUS its owner digit, so it needs two lists whose unit names do not overlap.
+# Taking ARMY_LISTS[0] and [1] used to do that by accident and stopped the day a
+# faction got a second list - two Aeldari lists share half their datasheets, and
+# the failure looks like a bug in roster_for() rather than like a sample that
+# went stale. The disjointness is asserted, so a future overlap says so here.
+_first = army_lists.ARMY_LISTS[0].key
+_second = next(e.key for e in army_lists.ARMY_LISTS
+               if e.faction_keyword != army_lists.ARMY_LISTS[0].faction_keyword)
 _p1 = sorted(s.name for s in army_lists.preview_squads(_first, "Player 1"))[:2]
 _p2 = sorted(s.name for s in army_lists.preview_squads(_second, "Player 1"))[:2]
+c.true("the two sampled lists share no unit name",
+       not ({n[2:] for n in _p1} & {n[2:] for n in _p2}))
 
 
 def _templated(names):

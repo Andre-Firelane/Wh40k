@@ -2651,8 +2651,8 @@ Bewegungsphasen-Einheit), und in beiden muss die Einheit schon auf dem Brett ste
 
 ## Armeen (armies/*.json) und Listenauswahl
 
-**Die ACHT Listen sind DATEN: je eine `armies/<key>.json`.** Fünf Fraktionen, und die T'au stellen
-vier davon (siehe die Tabelle unten). Jede Datei ist vollständig — Name, Fraktion, Armeeregel,
+**Die NEUN Listen sind DATEN: je eine `armies/<key>.json`.** Fünf Fraktionen, und die T'au stellen
+vier davon, die Aeldari zwei (siehe die Tabelle unten). Jede Datei ist vollständig — Name, Fraktion, Armeeregel,
 Detachments, Force Disposition und jeder Eintrag —, und `ARMY_LISTS` entsteht aus einem
 VERZEICHNIS-SCAN. Nichts davon steht ein zweites Mal im Quelltext; eine Liste, die man zweimal
 aufschreibt, driftet.
@@ -3027,6 +3027,30 @@ dazukommen.
   Primary — das Paar gewährt zwei, die Bitte nannte aber ein Detachment und keine andere Mission.
   Erste Liste hier, bei der die Wahl wirklich zwei verschiedene Antworten hat (das T'au-Paar gewährt
   zweimal dieselbe).
+- **Aeldari (Warhost) — `aeldari_warhost`, 10 Listeneinträge, 10 Einheiten, 60 Modelle, 2005 pts**
+  (User-Export "1k sc", 2000 pts). **Zweite Aeldari-Liste**, also das zweite Volk mit einer echten
+  Wahl in Stufe zwei des Auswahl-Screens. **FÜNF** Attached Units: Asurmen in Dire Avengers,
+  Farseer (Enhancement **Timeless Strategist**) + Warlock Conclave in Guardian Defenders, Jain Zar
+  in Howling Banshees, **Autarch in Striking Scorpions**, Lhykhis in Warp Spiders. Dazu Avatar of
+  Khaine (allein, siehe oben), Falcon, War Walkers, Windriders, Wraithguard.
+  - **Warhost allein = 3 DP, also das ganze Budget**, und es gewährt genau Reconnaissance — die
+    Force Disposition ist hier KEINE Wahl, und die Primary ist Reconnaissance Sweep.
+  - **Sie macht drei Dinge scharf, die vorher "dormant by roster" waren**: das Detachment Warhost
+    (Martial Grace), sein Panel-Stratagem, und mit Timeless Strategist das **erste Aeldari-
+    Enhancement, das eine ausgelieferte Liste überhaupt kauft** — die anderen 27 bleiben dormant.
+    Beide Prüfungen, die das behaupteten, waren auf `get("aeldari")` verengt und blieben deshalb
+    GRÜN, während ihre eigene Begründung veraltete (die Mont'ka-Fehlerform); sie sweepen jetzt
+    über JEDE ausgelieferte Aeldari-Liste.
+  - **EINE Punkte-Abweichung, und es ist die bekannte**: Dire Avengers 75 statt der gedruckten 70
+    (`verify_rules_vs_engine.py` führt sie), also 2005 gegen die 2000 des Exports. Jede andere der
+    sechzehn Zeilen stimmt auf den Punkt, inklusive Farseer 65 + 15 = 80.
+  - **Aspect Shrine Tokens stehen NICHT in der Datei** — sie werden beim Bau als
+    `starting strength // 5` vergeben, und die 1/1/2/1 des Exports kommen genau so heraus.
+  - **Die Bright Lance der Heavy Weapon Platform ist die DEFAULT-Waffe, keine Option** — die vier
+    gedruckten Alternativen sind weiter nicht modelliert (stehende benannte Lücke), und diese Liste
+    will zufällig die eine, die es gibt.
+  - **Der Export nennt den Avatar WARLORD**; nichts in dieser Engine liest einen Warlord (belegter
+    No-op), also steht das in der `note` der Datei und sonst nirgends.
 - **Necrons — 15 Listeneinträge, 9 Einheiten, 68 Modelle, 2020 pts**, Awakened Dynasty. Default für
   Player 2 (`config.PLAYER2_ARMY = "necrons"`). **SECHS** Anbindungen: Overlord in die Lychguard,
   Technomancer in die Necron Warriors, je ein Plasmancer in jede der ZWEI Immortals-Einheiten
@@ -4840,6 +4864,7 @@ die Evidenz; zwei Läufe erzeugen 56 byte-identische Dateien.
 | Liste | Detachment | Disposition | Primary Mission |
 |---|---|---|---|
 | Aeldari | Seer Council + Path of the Outcast | Priority Assets | **Secure Asset** |
+| Aeldari (`aeldari_warhost`) | Warhost | Reconnaissance | **Reconnaissance Sweep** |
 | Orks | War Horde | Take and Hold | **Battlefield Dominance** |
 | Necrons | Awakened Dynasty | Take and Hold | **Battlefield Dominance** |
 | T'au (`tau`) | Kauyon + Adv. Acquisition Cadre | Reconnaissance | **Reconnaissance Sweep** |
@@ -8350,10 +8375,12 @@ Stratagems und 24 Enhancements (hier stand zuerst 30 — nachgezählt am Korpus 
 6+6+6+6+6+3+3; die falsche Zahl hatte ausgerechnet die beiden Detachments übersprungen, die
 weniger als sechs drucken); die bleiben Daten und sind die nächste Arbeit — dieselbe
 Dreiteilung wie beim T'au-Nachzug (6 Regeln → 25 Stratagems → 19 Enhancements). `stratagems=`
-und `enhancements=` sind deshalb LEER, mit dem Grund darüber. **Die Aeldari-Liste fieldet
-weiter Seer Council** (User-Entscheidung): die sieben sind deklariert und einzeln per
-`selfplay.py` verifiziert, aber nichts am Default-Spiel ändert sich — dieselbe Behandlung wie
-die 27 Datenblätter, die in keiner Demo-Armee stehen.
+und `enhancements=` sind deshalb LEER, mit dem Grund darüber. **Die damals einzige
+Aeldari-Liste fieldete weiter Seer Council** (User-Entscheidung): die sieben waren deklariert
+und einzeln per `selfplay.py` verifiziert, aber nichts am Default-Spiel änderte sich — dieselbe
+Behandlung wie die 27 Datenblätter, die in keiner Demo-Armee stehen. **Seit `aeldari_warhost`
+(2026-09-08) ist WARHOST wirklich gefieldet**, also sind von den sieben noch fünf ungefieldet;
+der Default (`config.PLAYER1_ARMY`) ist unverändert `aeldari`.
 
 | # | Detachment | DP | Regel | Naht |
 |---|---|---|---|---|
@@ -8609,8 +8636,11 @@ dass diese Zeile sich bewegt. Volle Regression **153 Suiten, ~12980 Prüfungen, 
 1 bekannt**, `python run_tests.py --smoke` komplett grün, und **ein echter `selfplay.py map2`-Lauf
 je Detachment** mit dieser Liste temporär gefieldet.
 
-**Kein KI-Pfad** (User-Vorgabe), für alle 36 als Negativraum geprüft. **Keine Demo-Armee ändert
-sich** — die Aeldari-Liste fieldet weiter Seer Council.
+**Kein KI-Pfad** (User-Vorgabe), für alle 36 als Negativraum geprüft. **Keine Demo-Armee änderte
+sich** — die damals einzige Aeldari-Liste fieldete weiter Seer Council. **Seit `aeldari_warhost`
+(2026-09-08) ist Warhost gefieldet**, seine sechs Stratagems sind also nicht mehr dormant; von den
+neunzehn PANEL-Knöpfen der Fraktion sind damit vier statt drei im echten Spiel erreichbar (der
+Rest von Warhost ist reaktiv und kommt gar nicht auf die Registry).
 
 ## Werden die Aeldari-Stratagems überhaupt ANGEBOTEN? (Prüfung, 2026-09-07)
 
@@ -8711,7 +8741,7 @@ zeichnet das Panel in den meisten Phasen **gar nichts**, weil
 Abwesenheit misst die Auswahl, nicht das Stratagem. §4 fragt die Owner-Klausel
 deshalb bei `can_use()`, wo sie lebt, und pinnt die Panel-Folge daneben.
 
-### Enhancements: alle 28 verdrahtet, alle 28 DORMANT
+### Enhancements: alle 28 verdrahtet, 27 davon DORMANT
 
 `test_aeldari_enhancements.py` 496 → **515**. §7 vergibt jede der 28 über
 `enhancements.grant()` und misst Aktivierung, Punkte, das Detachment-Tor
@@ -8719,15 +8749,22 @@ deshalb bei `can_use()`, wo sie lebt, und pinnt die Panel-Folge daneben.
 mit gelöschtem Tor) und 19.04 im SELBEN Frame. **Der Träger wird GESUCHT**
 (`spec.can_bear`), nicht transkribiert — eine Tabelle wäre die zweite Kopie.
 
-**§9 die Dormanz, gemessen und benannt:** `build_aeldari()` vergibt **keins**,
-`enhancements.grant()` hat außerhalb des T'au-Wrappers **null** Aufrufer, also
-ist `is_active()` für alle 28 im echten Spiel False. Kein Wiring-Fehler,
-sondern „dormant by construction" wie das EPC-Trio vor der dritten T'au-Liste —
-und **nicht durch erfundenen Roster-Inhalt behoben** (welche Enhancements eine
-Liste kauft, ist die Aussage der Liste). Die zweite, schwerere Hälfte: die
-ausgelieferte Liste deklariert **2 von 8** Detachments, also sind **30 von 42**
-Stratagem-Controllern im echten Spiel unerreichbar — Suite und Sonden setzen
-die Flagge deshalb selbst.
+**§9 die Dormanz, gemessen und benannt:** damals vergab keine ausgelieferte
+Liste eines der 28 — „dormant by construction" wie das EPC-Trio vor der dritten
+T'au-Liste, und **nicht durch erfundenen Roster-Inhalt behoben** (welche
+Enhancements eine Liste kauft, ist die Aussage der Liste). Die zweite,
+schwerere Hälfte: die ausgelieferten Listen deklarieren nur einen Teil der acht
+Detachments, der Rest ihrer Stratagem-Controller ist im echten Spiel
+unerreichbar — Suite und Sonden setzen die Flagge deshalb selbst.
+
+**STAND SEIT `aeldari_warhost` (2026-09-08): 1 von 28 gekauft, 3 von 8
+Detachments deklariert.** Timeless Strategist ist das erste Aeldari-Enhancement,
+das eine ausgelieferte Liste wirklich kauft. **Und beide Zeilen waren auf
+`get("aeldari")` verengt, blieben also GRÜN, während ihre Begründung veraltete**
+— dieselbe Form wie Mont'kas [ASSAULT]-Lücke, deren Rechtfertigung ebenfalls
+unter einer grünen Zusicherung ablief. Beide sweepen jetzt über JEDE
+ausgelieferte Aeldari-Liste und pinnen die Zahl statt der Erzählung; A/B belegt
+(Liste entfernt → beide Suiten rot mit den alten Zahlen).
 
 **Nebenbefund:** der AST-Zähler musste sein, weil `army_lists.py`
 `enhancements.grant()` in seinem eigenen DOCSTRING erwähnt — ein Teilstring-Zähler

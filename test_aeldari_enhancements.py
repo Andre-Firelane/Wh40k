@@ -2588,14 +2588,18 @@ c.eq("...and none is on the proactive Stratagem registry",
 # --- 9. the dormancy, measured and NAMED -----------------------------------
 print("--- 9. dormant by roster ---")
 
-# NO SHIPPED ARMY LIST BUYS AN AELDARI ENHANCEMENT. All 28 are built, wired and
-# tested above, and from here not one of them is ever live in a real game - the
-# same "dormant by construction" state the Experimental Prototype Cadre trio
-# was in until a T'au list equipped their guns.
+# EXACTLY ONE of the 28 is bought by a shipped list, and 27 are still dormant.
+#
+# This used to read "NO shipped army list buys an Aeldari Enhancement", scoped
+# to the single Aeldari list that existed - and it stayed GREEN when a second
+# one arrived buying Timeless Strategist, because it only ever asked the first.
+# That is the Mont'ka failure shape in miniature: the justification went stale
+# while the assertion held. So the sweep is over EVERY shipped Aeldari list now,
+# and the count is the claim.
 #
 # Named rather than left to be rediscovered, and deliberately NOT fixed by
 # inventing roster content: which Enhancements a list buys is the list's own
-# statement, and the Aeldari list the user supplied buys none.
+# statement.
 from game import army_lists as _al  # noqa: E402
 
 _al_src = io.open("game/army_lists.py", encoding="utf-8").read()
@@ -2625,24 +2629,35 @@ _ar_calls = [n for n in _ast.walk(_ast.parse(_ar_src))
              and n.func.value.id == "enhancements"]
 c.eq("...the ONE builder grants in exactly two places (a unit and its leaders)",
      len(_ar_calls), 2)
-_aeldari_roster = _al.get("aeldari").roster
-c.eq("...while the shipped Aeldari list asks for no Enhancement at all",
-     [e.enhancement for e in _aeldari_roster if e.enhancement]
-     + [l.enhancement for e in _aeldari_roster for l in e.leaders if l.enhancement], [])
+_aeldari_lists = [e for e in _al.ARMY_LISTS if e.faction_keyword == "AELDARI"]
+c.eq("two shipped lists field this faction",
+     [e.key for e in _aeldari_lists], ["aeldari", "aeldari_warhost"])
+_bought = sorted({n for e in _aeldari_lists for n in e.enhancement_names()})
+# Asked of the LOADED lists rather than grepped out of a builder's source: army
+# lists are data now, and enhancement_names() reads the same roster the game
+# builds from.
+c.eq("...and between them buy exactly one Enhancement",
+     _bought, ["Timeless Strategist"])
+c.eq("...which is a real Warhost Enhancement, not a name nothing resolves",
+     SPECS["Timeless Strategist"].detachment, "Warhost")
+c.eq("...leaving 27 of the 28 dormant by roster",
+     len(SPECS) - len(_bought), 27)
 
-# THE SECOND HALF OF THE SAME GAP, and the heavier one: the shipped list
-# declares two of the eight detachments, so six of them - and every Enhancement
-# and Stratagem they carry - cannot be reached in a real game at all.
-_declared = set(_al.get("aeldari").detachments)
-c.eq("the shipped Aeldari list declares two of the eight detachments",
-     (len(_declared), len(AELDARI_DETACHMENTS)), (2, 8))
+# THE SECOND HALF OF THE SAME GAP, and the heavier one: the shipped lists
+# declare three of the eight detachments between them, so five of them - and
+# every Enhancement and Stratagem they carry - cannot be reached in a real game
+# at all.
+_declared = {d for e in _aeldari_lists for d in e.detachments}
+c.eq("the shipped lists declare three of the eight detachments",
+     (len(_declared), len(AELDARI_DETACHMENTS)), (3, 8))
+c.eq("...namely these", sorted(_declared),
+     ["Path of the Outcast", "Seer Council", "Warhost"])
 _reachable = sorted(n for n, s in SPECS.items() if s.detachment in _declared)
-c.eq("...so only these six Enhancements belong to a fielded detachment",
-     len(_reachable), 6)
-c.eq("...and not even those six are ever granted",
-     [n for n in _reachable
-      if n in [e.enhancement for e in _aeldari_roster]
-      + [l.enhancement for e in _aeldari_roster for l in e.leaders]], [])
+c.eq("...so only these ten Enhancements belong to a fielded detachment",
+     len(_reachable), 10)
+c.eq("...and nine of even those ten are never granted",
+     [n for n in _reachable if n not in _bought], sorted(set(_reachable) - set(_bought)))
+c.eq("...which is nine", len([n for n in _reachable if n not in _bought]), 9)
 
 
 c.finish()

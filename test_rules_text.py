@@ -231,7 +231,7 @@ print("--- 7. army and detachment rules ---")
 
 # User: "es fehlt noch ein ort, wo man armeeregel und detachment regeln
 # anschauen kann." Same corpus, two more section shapes.
-from game import army_lists  # noqa: E402
+from game import army_io, army_lists  # noqa: E402
 
 empty_rules, empty_detachments = [], []
 for entry in army_lists.ARMY_LISTS:
@@ -243,7 +243,15 @@ for entry in army_lists.ARMY_LISTS:
         if not body or not name:
             empty_detachments.append(f"{entry.name}/{detachment}")
 
-checks.true("there are eight lists to check", len(army_lists.ARMY_LISTS) == 8)
+# LIVENESS, not a claim about the registry: a sweep that stops finding lists
+# reports zero empty rules and reads like a pass. Measured against the FILES in
+# armies/ rather than against a number, because the exact registry is
+# test_army_select.py's to pin and a count restated here is the second copy that
+# goes stale (error class 10) - a ninth list should cost one line there, not two.
+_army_files = [n for n in os.listdir(army_io.ARMIES_DIR) if n.endswith(".json")]
+checks.true("there are lists to check at all", len(army_lists.ARMY_LISTS) > 0)
+checks.eq("...and every army file in armies/ is one of them",
+          len(army_lists.ARMY_LISTS), len(_army_files))
 # Every one of them, because a missing rule shows as an empty panel rather
 # than as an error - the exact silent failure this module degrades into.
 checks.eq("every shipped list's army rule resolves", empty_rules, [])

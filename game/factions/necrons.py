@@ -671,10 +671,20 @@ AWAKENED_DYNASTY = NECRONS.add_detachment(Detachment(
         "time a model in this unit makes an attack, add 1 to the Hit roll."
     ),
     enhancements=[
-        # Recorded as data only. Enhancements are not a system in this engine
-        # (CLAUDE.md's Spaeter-Liste) - there is no army-building step to buy
-        # one with, and granting one means setting a field on a model's
-        # UnitProfile by hand after build_squad().
+        # RECORDED AS DATA ONLY - and the reason is no longer the one that
+        # used to stand here. That said "Enhancements are not a system in this
+        # engine", which went stale the moment game/enhancements.py was built:
+        # forty-seven are engine-wired today across fourteen T'au and Aeldari
+        # detachments, with a registry, a bearer predicate and a UnitProfile
+        # field each. Same class as the Mont'ka justification that rotted while
+        # its assertion stayed green.
+        #
+        # The real reason is a ROSTER fact: armies/necrons.json buys none of
+        # these four, so wiring them would produce four rules that are dormant
+        # by construction - exactly where the twenty-eight Aeldari and seven
+        # T'au Enhancements sit. Naming it is the honest move; inventing roster
+        # content to reach them is not. test_necron_datasheets.py pins the gap
+        # from both sides, so it cannot quietly close or quietly widen.
         Enhancement("Veil of Darkness", 20, description=(
             "Once per battle, at the end of your opponent's turn, if this unit is "
             "unengaged, place it in strategic reserves with Deep Strike until the start "

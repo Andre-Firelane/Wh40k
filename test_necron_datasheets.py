@@ -387,4 +387,69 @@ c.eq("the two Destroyer datasheets keep their own art",
       != sprites.sprite_for(build(nec.LOKHUST_HEAVY_DESTROYERS, composition_index=0).models[0])),
      True)
 
+# --------------------------------------------------------------------------
+# the four Enhancements are DATA, and that is a roster fact - pinned both ways
+# --------------------------------------------------------------------------
+print("--- the Enhancement gap ---")
+
+# Awakened Dynasty prints four Enhancements. NONE of them is engine-wired:
+# game/enhancements.py's registry holds forty-seven specs across fourteen T'au
+# and Aeldari detachments and not one Necron entry.
+#
+# THAT IS A DECISION, NOT AN OVERSIGHT, and the reason is a ROSTER fact rather
+# than a mechanism one: armies/necrons.json buys none of the four, so wiring
+# them would produce four rules dormant by construction - exactly where the
+# twenty-eight Aeldari and seven T'au Enhancements sit. Inventing roster
+# content to reach them is the move this repo does not make.
+#
+# PINNED FROM BOTH SIDES so it can neither close nor widen quietly: if a later
+# session wires one, the count moves; if a fifth is printed, the corpus count
+# moves; and if a list ever buys one, the roster check moves.
+
+import json as _enh_json                                             # noqa: E402
+import pathlib as _enh_path                                          # noqa: E402
+
+from game import enhancements as _enh                                # noqa: E402
+
+_PRINTED = ["Veil of Darkness", "Nether-realm Casket",
+            "Phasal Subjugator", "Enaegic Dermal Bond"]
+
+c.eq("Awakened Dynasty prints four Enhancements",
+     [e.name for e in nec.AWAKENED_DYNASTY.enhancements], _PRINTED)
+
+# The registry is LIVE - without this the difference below would pass by
+# measuring an empty registry.
+c.true("the Enhancement registry is live (%d wired)" % len(_enh.ENHANCEMENTS),
+       len(_enh.ENHANCEMENTS) >= 40)
+c.eq("...and none of the four is among them",
+     [n for n in _PRINTED if n in _enh.ENHANCEMENTS], [])
+c.eq("...nor is any other Necron detachment Enhancement",
+     sorted({s.detachment for s in _enh.ENHANCEMENTS.values()}
+            & set(nec.NECRONS.detachments)), [])
+
+# The ROSTER half, which is the actual reason.
+_roster = _enh_json.loads(
+    _enh_path.Path("armies/necrons.json").read_text(encoding="utf-8"))
+_bought = sorted({e["enhancement"] for e in _roster["roster"]
+                  if isinstance(e, dict) and e.get("enhancement")})
+c.eq("the shipped Necron list buys no Enhancement", _bought, [])
+c.eq("...while it DOES field the detachment, so the six Stratagems are live",
+     _roster["detachments"], ["Awakened Dynasty"])
+
+# ...and the PRINTED corpus still names exactly these four, so a fifth
+# appearing on Wahapedia turns this red rather than being silently absent.
+_md = _enh_path.Path("rules/necrons/detachments/Awakened Dynasty.md").read_text(
+    encoding="utf-8")
+# The trailing parenthetical is stripped: the corpus prints "Phasal
+# Subjugator (Aura)" where the datasheet records the bare name - the same
+# "(Aura)"/"(Psychic)" suffix game/rules_text.py already carries an alias for,
+# and 29 of 264 printed ability titles have it.
+_headings = [line[4:].split(" - ")[0].strip().split(" (")[0].strip()
+             for line in _md.splitlines() if line.startswith("### ")]
+c.true("the corpus was read", len(_headings) >= 10)
+c.eq("the printed Enhancements are exactly the four the datasheet records",
+     [h for h in _headings if h in _PRINTED], _PRINTED)
+c.eq("...and the datasheet invents none the corpus does not print",
+     [n for n in _PRINTED if n not in _headings], [])
+
 c.finish()

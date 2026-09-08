@@ -148,7 +148,7 @@ def scan(directory=None):
     problems of the ones that were skipped.
 
     Returns (armies, problems). Ordering is explicit rather than alphabetical so
-    the eight shipped lists keep the order the army-select screen has always
+    the shipped lists keep the order the army-select screen has always
     shown them in, and an imported list lands at the end instead of in the
     middle of the T'au."""
     directory = directory if directory is not None else ARMIES_DIR
