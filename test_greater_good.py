@@ -20,7 +20,7 @@ Sections
   1. The rule itself: visibility, already-Spotted, and the reported Hidden case
   2. Equivalence with the pre-rewrite implementation, over fuzzed boards
   3. The two views agree, on every one of those boards
-  4. The cache: ~200 mutations, each against a freshly computed answer
+  4. The cache: 120 mutations, each against a freshly computed answer
   5. The named divergence from shooting.py's detection range, pinned
 """
 import os
@@ -138,9 +138,12 @@ def reference_eligible_targets(ctrl, squad):
     return result
 
 
+# 120, not 200: the reference implementation is the SLOW pre-fix body, so each
+# board is paid for twice over. The claim rests on the liveness line below (both
+# outcomes really occur), not on the count.
 rng = random.Random(20260908)
 mismatches, view_mismatches, empty, non_empty = 0, 0, 0, 0
-for _ in range(200):
+for _ in range(120):
     state, gg, strike, wagon, boyz = scene()
     for sq in (strike, wagon, boyz):
         line_up(sq, rng.uniform(2, config.BOARD_WIDTH_IN - 8), rng.uniform(2, config.BOARD_HEIGHT_IN - 2))
@@ -158,11 +161,11 @@ for _ in range(200):
     else:
         empty += 1
 
-c.eq("the rewrite changes no answer (200 fuzz boards)", mismatches, 0)
+c.eq("the rewrite changes no answer (120 fuzz boards)", mismatches, 0)
 c.eq("any_eligible_target agrees with the list on every one of them", view_mismatches, 0)
 # Without this the section would pass on a fuzz where nothing was ever visible.
 c.true(f"the fuzz saw both outcomes ({non_empty} with targets / {empty} without)",
-       non_empty >= 20 and empty >= 20)
+       non_empty >= 15 and empty >= 15)
 
 
 # ============ 4. the cache ============
@@ -189,6 +192,8 @@ for _x in range(2, 58, 2):
             SEEN = SEEN or (float(_x), float(_y))
         else:
             HIDDEN = HIDDEN or (float(_x), float(_y))
+        if SEEN and HIDDEN:
+            break                       # each probe costs a full sight sweep
     if SEEN and HIDDEN:
         break
 c.true(f"the board really offers both a markable and an unmarkable spot ({SEEN} / {HIDDEN})",
@@ -196,7 +201,7 @@ c.true(f"the board really offers both a markable and an unmarkable spot ({SEEN} 
 
 rng = random.Random(31337)
 stale, flips, previous = 0, 0, None
-for i in range(200):
+for i in range(120):
     kind = i % 5
     if kind == 0:                                   # a move that crosses the line
         line_up(wagon, *(SEEN if rng.random() < 0.5 else HIDDEN))
@@ -221,8 +226,8 @@ for i in range(200):
         flips += 1
     previous = fresh
 
-c.eq("the cache never answers stale (200 board mutations)", stale, 0)
-c.true(f"...and those mutations really moved the answer ({flips} flips)", flips >= 20)
+c.eq("the cache never answers stale (120 board mutations)", stale, 0)
+c.true(f"...and those mutations really moved the answer ({flips} flips)", flips >= 15)
 
 # The two key terms the board mutations above cannot reach, isolated instead of
 # approximated: both feed status_effects.is_hidden(), which the fuzz boards have

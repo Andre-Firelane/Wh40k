@@ -31,6 +31,8 @@ ShootingController/GameState objects and real datasheets throughout.
 Run: python test_arrokon_protocol.py
 """
 import os
+import ast
+import pathlib
 import sys
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
@@ -411,10 +413,17 @@ check("and best_available_tier says so", small_scene["arrokon"].best_available_t
 # scene must now be accepted.
 original_tiers = ap.ARROKON_TIERS
 ap.ARROKON_TIERS = ((11, 2), (1, 1))
+# best_available_tier() caches on BOARD state (positions, wounds, round, who has
+# shot) - deliberately not on the engine's own source, and ARROKON_TIERS is a
+# module constant that nothing in a real game can move. This probe moves it
+# anyway, so it has to clear the memo itself; without this line the check reads
+# a perfectly correct answer to the question asked one line earlier.
+small_scene["arrokon"]._tier_cache_key = None
 check("A/B: with the tier at 1+ model the same scene IS offered",
       small_scene["arrokon"].can_use(small_scene["shooter"]),
       "so the refusal above came from the size check, not another clause")
 ap.ARROKON_TIERS = original_tiers
+small_scene["arrokon"]._tier_cache_key = None
 check("tiers restored", ap.ARROKON_TIERS == original_tiers)
 
 # Out of range is out of reach: a big unit the shooter cannot legally shoot at
@@ -506,6 +515,101 @@ check("the option text quotes the tier", "[SUSTAINED HITS 2]" in text, text[:160
 expected_detail = f"2 Target 1 ({ap.alive_model_count(scene['target'])} models)"
 check("and names the target it applies to", expected_detail in text, f"want {expected_detail!r} in {text[:200]!r}")
 check("and says it must come before shooting", "BEFORE" in text)
+
+
+# ============================================ 8. one sweep per frame, not two
+print("\n8) the panel asks once, and the answer is cached")
+
+# The reported cost: game/ui/action_panel.py called can_use() and then
+# best_available_tier() in the same frame, and can_use() ENDS in
+# best_available_tier(), so the has_valid_target() sweep ran twice - up to
+# 660 ms each on a 179-model board. This is that claim as a counter, not as a
+# measurement: a number in a comment cannot go red when someone re-splits them.
+count_scene = shooting_scene(CRISIS_STARSCYTHE, GRETCHIN, 11)
+_ctrl = count_scene["arrokon"]
+_sweeps = [0]
+_real_qualifying = ap.ArrokonProtocolController._qualifying
+
+
+def _counting_qualifying(self, squad, by_tier):
+    _sweeps[0] += 1
+    return _real_qualifying(self, squad, by_tier)
+
+
+ap.ArrokonProtocolController._qualifying = _counting_qualifying
+try:
+    _ctrl._tier_cache_key = None
+    tier = _ctrl.offer_tier(count_scene["shooter"])
+    check("offer_tier answers with the tier itself", tier == 2, f"got {tier}")
+    check("one call, one sweep", _sweeps[0] == 1, f"got {_sweeps[0]}")
+
+    # What the panel does now: the tier AND the yes/no, same frame.
+    _sweeps[0] = 0
+    _tier = _ctrl.offer_tier(count_scene["shooter"])
+    _yes = _ctrl.can_use(count_scene["shooter"])
+    check("the panel's tier and its button cost ONE sweep between them",
+          _sweeps[0] == 0, f"got {_sweeps[0]} (cached), tier={_tier} can_use={_yes}")
+    check("and they cannot disagree", (_tier > 0) == _yes)
+
+    _sweeps[0] = 0
+    for _ in range(30):
+        _ctrl.can_use(count_scene["shooter"])
+    check("30 more frames on an unchanged board cost none", _sweeps[0] == 0, f"got {_sweeps[0]}")
+
+    # The cache is keyed on the board, so a board change is seen. Killing every
+    # model of the target drops it below the 6-model tier - and alive_model_count()
+    # reads current_wounds, which is exactly why the fingerprint carries them.
+    for _m in count_scene["target"].models:
+        _m.current_wounds = 0
+    check("a target wiped out this frame drops the tier to 0",
+          _ctrl.offer_tier(count_scene["shooter"]) == 0)
+finally:
+    ap.ArrokonProtocolController._qualifying = _real_qualifying
+
+# best_available_tier() short-circuits at the RICHEST tier, so it must not stop
+# at the first name it happens to meet. That only has an observable meaning on a
+# board with two enemy units on DIFFERENT tiers - the single-target scene above
+# cannot tell the two orderings apart, which is precisely why a probe that
+# removed the tier ordering sailed through the first version of this section.
+# The 6-model unit is named "2 Aaa..." so it sorts FIRST alphabetically: with
+# name ordering the answer would be 1, with tier ordering it is 2.
+mixed = shooting_scene(CRISIS_STARSCYTHE, GRETCHIN, 11)
+_small = trim(build_squad(GRETCHIN, "Player 2", name="2 Aaa Small 1", composition_index=0), 6)
+for _i, _m in enumerate(_small.models):
+    _m.x_in, _m.y_in = 20.0 + _i * 1.5, 27.5
+    mixed["state"].add_token(_m)
+mixed["arrokon"]._tier_cache_key = None
+
+_full = mixed["arrokon"].qualifying_target_squads(mixed["shooter"])
+check("the scene really offers both tiers",
+      sorted(ap.sustained_hits_for_target(t) for t in _full) == [1, 2],
+      f"got {[(t.name, ap.sustained_hits_for_target(t)) for t in _full]}")
+check("and the tier-1 unit really does sort first by NAME",
+      sorted(t.name for t in _full)[0] == "2 Aaa Small 1")
+check("best_available_tier returns the RICHEST tier, not the first by name",
+      mixed["arrokon"].best_available_tier(mixed["shooter"]) == 2)
+check("the two views agree on the tier",
+      mixed["arrokon"].best_available_tier(mixed["shooter"])
+      == max((ap.sustained_hits_for_target(t) for t in _full), default=0))
+check("qualifying_target_squads still returns printed (name) order",
+      [t.name for t in _full] == sorted(t.name for t in _full))
+
+
+# The panel shape itself, at the SOURCE. With the cache in place a second ask is
+# free, so re-splitting the call back into can_use() + best_available_tier()
+# changes no ANSWER and no behaviour test can see it - but it is the reported
+# bug, and it would quietly return the moment the cache key gets stricter.
+_panel_src = pathlib.Path("game/ui/action_panel.py").read_text(encoding="utf-8")
+_panel_tree = ast.parse(_panel_src)
+_arrokon_calls = sorted({
+    node.func.attr for node in ast.walk(_panel_tree)
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    and isinstance(node.func.value, ast.Name) and node.func.value.id == "arrokon_controller"
+})
+check("the panel asks Arro'kon exactly one QUESTION - offer_tier - plus the click",
+      _arrokon_calls == ["offer_tier", "use"], f"got {_arrokon_calls}")
+check("...so neither can_use nor best_available_tier is asked there again",
+      not ({"can_use", "best_available_tier"} & set(_arrokon_calls)))
 
 
 # ===================================================================== summary

@@ -26,6 +26,7 @@ a 12" gun, and from a home objective the nearest ground anybody fights over is
 Every claim that the change did something runs A/B against the pre-fix world.
 """
 
+import ast
 import io
 import sys
 
@@ -410,16 +411,32 @@ c.eq("A/B: points alone reproduce the reported swap exactly",
 
 
 # ===========================================================================
-# 6. one fitness definition, three readers
+# 6. one fitness definition, two readers
 # ===========================================================================
-# The over-garrison pass picks a keeper out of two or three units, its
-# planner-facing twin reports the same keeper, and the lone pass decides
-# whether one unit hands the job over. Answering that from two orderings would
-# have let the first keep the very unit the third was changed to stop choosing.
+# _garrison_surplus() picks the keepers out of two or three units, and the
+# lone pass decides whether one unit hands the job over. Answering that from
+# two orderings would have let the first keep the very unit the second was
+# changed to stop choosing.
+#
+# It used to be THREE readers: the over-garrison correction and the report it
+# sends the planner each sorted their own copy of the same list. They are one
+# call now, which is what let the keeper rule learn about threats in one place.
+#
+# COUNTED AS CALLS, by AST, not as occurrences of the name. The old form was
+# src.count("_garrison_fitness(") - 1, and it stayed green through this very
+# change only because a mention in a DOCSTRING replaced the reader that went
+# away - the "a guard that matches its own explanation" failure this repo has
+# now paid for five times.
 
 src = io.open("ai/agent_driver.py", encoding="utf-8").read()
-c.eq("_garrison_fitness is defined exactly once", src.count("def _garrison_fitness("), 1)
-c.eq("...and read from three places", src.count("_garrison_fitness(") - 1, 3)
+tree = ast.parse(src)
+c.eq("_garrison_fitness is defined exactly once",
+     sum(1 for n in ast.walk(tree)
+         if isinstance(n, ast.FunctionDef) and n.name == "_garrison_fitness"), 1)
+c.eq("...and CALLED from two places",
+     sum(1 for n in ast.walk(tree)
+         if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+         and n.func.id == "_garrison_fitness"), 2)
 c.true("no garrison site sorts on points alone any more",
        "key=_garrison_cost_key" not in src)
 

@@ -27,6 +27,7 @@ from game import line_of_sight
 # For REACTIVE_MOVE_MODES - the set of move_modes a player can have OPEN
 # during the opponent's turn, which _is_blocked() has to hold still for.
 from game.movement import MovementController, take_to_the_skies_pays
+from game import objective_control
 from game import overwatch as overwatch_module
 from game import pathfinding
 from game import protocol_conquering_tyrant
@@ -8139,13 +8140,60 @@ def _planned_garrisons(plan, squads_by_name, state, player):
     return garrisons
 
 
-def _uncontested_objectives(state, player):
-    """The objectives this player holds that no enemy is close enough to take.
+def _enemies_near_objective(objective, state, player):
+    """The enemy models close enough to contest `objective` next turn - one
+    definition of "near", read by both questions asked about it below
+    (how MUCH they could bring, and whether there is anyone at all)."""
+    return [
+        token for token in state.tokens
+        if token.squad is not None and token.squad.owner != player
+        and objective.terrain_area.distance_to_model(token) <= observation.GARRISON_THREAT_RANGE_IN
+    ]
 
-    Both halves are the ones ai/observation.py already reports to the planner
-    as "your_units_here"/"enemy_units_within_12in", deliberately: this check
-    has to agree with the numbers the plan was written against, or it corrects
-    orders on grounds the planner was never shown."""
+
+def _uncontested_objectives(state, player):
+    """The objectives this player controls that no enemy is near at all.
+
+    Still the strict reading, and still what _lone_garrison_swaps() wants:
+    handing an objective to a cheaper unit is a fair trade when nobody is
+    coming for it, and a different proposition when something is 12" away. The
+    over-garrison pass is the one that now works in Objective Control instead
+    - see _held_objectives()."""
+    return [objective for objective, _threat_oc in _held_objectives(state, player)
+            if not _enemies_near_objective(objective, state, player)]
+
+
+def _held_objectives(state, player):
+    """[(objective, threat_oc)] for every objective this player controls -
+    threat_oc being the Objective Control the enemy could bring onto it next
+    turn, i.e. the bar this player's garrison actually has to clear.
+
+    THIS USED TO BE _uncontested_objectives(), and returned only the
+    objectives no enemy was within GARRISON_THREAT_RANGE_IN of. Reported as
+    "die necrons kommen immer nicht so richtig von ihrem home objective weg.
+    sowohl necron warriors als auch immortals klumpen auf dem home objective":
+    an enemy inside that range switched the whole over-garrison pass OFF for
+    that objective, so any number of units could sit on it indefinitely. In
+    the reported game an Avatar of Khaine stood about 12" from P2 Home from
+    turn 2 onward, and a 270-point, 21-model Necron Warriors blob spent the
+    rest of the battle parked behind an objective an 11-model Immortals unit
+    was already holding - measured off that log, it advanced two inches in
+    five turns.
+
+    A THREAT JUSTIFIES A GARRISON, NOT AN UNLIMITED ONE, and rule 14.02 says
+    exactly how big a garrison that is: control goes to the higher Objective
+    Control total, so what a defender needs is more OC than the enemy can
+    bring, not more units than the enemy has. Measured on the reported board:
+    the Avatar's OC is 5, the Immortals' 21, the Necron Warriors' 41 - so the
+    Immortals hold it against that threat on their own and every one of those
+    41 points of OC was surplus. See _garrison_surplus(), which spends this
+    number.
+
+    Both halves of "do we control it" remain the ones ai/observation.py
+    already reports to the planner as "your_units_here"/"enemy_units_
+    within_12in", deliberately: this check has to agree with the numbers the
+    plan was written against, or it corrects orders on grounds the planner was
+    never shown."""
     out = []
     for objective in state.objectives:
         oc = objective.level_of_control(state.tokens)
@@ -8153,13 +8201,50 @@ def _uncontested_objectives(state, player):
         theirs = max((v for k, v in oc.items() if k != player), default=0)
         if ours <= 0 or ours <= theirs:
             continue
-        threatened = any(
-            token.squad is not None and token.squad.owner != player
-            and objective.terrain_area.distance_to_model(token) <= observation.GARRISON_THREAT_RANGE_IN
-            for token in state.tokens
-        )
-        if not threatened:
-            out.append(objective)
+        # Summed over MODELS rather than taken from level_of_control(), which
+        # only counts what is standing ON the marker: the units that make an
+        # objective worth defending are precisely the ones not on it yet.
+        threat_oc = sum(objective_control.effective_oc(token, state.tokens, objective)
+                        for token in _enemies_near_objective(objective, state, player))
+        out.append((objective, threat_oc))
+    return out
+
+
+def _garrison_surplus(plan, squads_by_name, state, player):
+    """[(objective, keepers, freed)] - which of the units this plan parks on an
+    objective are actually needed to hold it, and which are spare.
+
+    ONE definition, read by both the report to the planner
+    (_over_garrison_problems()) and the correction that runs when the planner
+    does not act on it. It was written out twice, and the two copies were the
+    same six lines - the shape this codebase keeps having to consolidate, and
+    one that would have drifted the moment either side learned about threats.
+
+    HOW MANY ARE KEPT is rule 14.02's own arithmetic: units are taken in
+    _garrison_fitness() order - the unit best suited to standing there, then
+    the cheapest - until their Objective Control exceeds what the enemy can
+    bring (see _held_objectives()). For an objective nobody is near, threat_oc
+    is 0 and the first keeper's own OC clears it, so exactly one unit is kept
+    and the behaviour is the one this pass has always had. The `keepers and`
+    guard is what makes that true rather than nearly true: without it a unit
+    whose OC is 0 - battle-shocked, rule 01.07 - would keep the loop running
+    and free nobody."""
+    garrisons = _planned_garrisons(plan, squads_by_name, state, player)
+    out = []
+    for objective, threat_oc in _held_objectives(state, player):
+        squads = garrisons.get(objective.name, [])
+        if len(squads) < 2:
+            continue
+        keepers, freed, oc = [], [], 0
+        for squad in sorted(squads, key=lambda sq: _garrison_fitness(sq, objective, state)):
+            if keepers and oc > threat_oc:
+                freed.append(squad)
+                continue
+            keepers.append(squad)
+            oc += sum(objective_control.effective_oc(m, state.tokens, objective)
+                      for m in squad.models)
+        if freed:
+            out.append((objective, keepers, freed))
     return out
 
 
@@ -8187,13 +8272,17 @@ def _garrison_fitness(squad, objective, state):
     function and _cheaper_garrison_candidates() for why role has to come first
     and why the reach half is a separate term from the ratio.
 
-    ALL THREE SITES, deliberately. The over-garrison pass picks a keeper out of
-    two or three units, its planner-facing twin reports the same keeper, and
-    the lone-garrison pass decides whether one unit should hand the job to
-    another. Those are one question asked three times, and answering it from
-    two different orderings is exactly the quiet drift this codebase keeps
-    consolidating away - it would have let the over-garrison pass keep the very
-    unit the lone pass was rewritten to stop choosing."""
+    BOTH SITES, deliberately: _garrison_surplus() picks the keepers out of two
+    or three units, and the lone-garrison pass decides whether one unit should
+    hand the job to another. Those are one question asked twice, and answering
+    it from two different orderings is exactly the quiet drift this codebase
+    keeps consolidating away - it would have let the over-garrison pass keep
+    the very unit the lone pass was rewritten to stop choosing.
+
+    It used to be THREE sites: the over-garrison correction and the report it
+    sends to the planner first each sorted their own copy of the same list.
+    They are one call now (_garrison_surplus()), which is what let the keeper
+    rule learn about threats in one place instead of two."""
     reach_needed = observation.garrison_reach_needed_in(
         objective, getattr(state, "objectives", ()))
     return (combat_focus.home_garrison_rank(squad, reach_needed),
@@ -8397,21 +8486,16 @@ def _over_garrison_problems(plan, squads_by_name, state, player):
     _validate_turn_plan() keeps the cheapest and frees the rest if it does
     not."""
     problems = []
-    garrisons = _planned_garrisons(plan, squads_by_name, state, player)
-    for objective in _uncontested_objectives(state, player):
-        squads = garrisons.get(objective.name, [])
-        if len(squads) < 2:
-            continue
-        keeper, *freed = sorted(
-            squads, key=lambda sq: _garrison_fitness(sq, objective, state))
+    for objective, keepers, freed in _garrison_surplus(plan, squads_by_name, state, player):
         problems.append(
-            f"{len(squads)} of your units are all left standing on {objective.name}: "
+            f"{len(keepers) + len(freed)} of your units are all left standing on "
+            f"{objective.name}: "
             + ", ".join(f"{s.name} ({s.points} pts)" if s.points is not None else s.name
-                        for s in squads)
-            + f". No enemy is within {observation.GARRISON_THREAT_RANGE_IN:.0f}\" of it and you "
-            f"already control it, so one unit holds it just as well as three - control is decided "
-            f"by the higher Objective Control total, not by how many units are present. Leave "
-            f"{keeper.name} there and give "
+                        for s in keepers + freed)
+            + ". You already control it, and control is decided by the higher Objective Control "
+            f"total, not by how many units are present - "
+            + ", ".join(s.name for s in keepers)
+            + " already out-controls anything the enemy can bring onto it. Leave that there and give "
             + ", ".join(s.name for s in freed)
             + " a real job somewhere the game is being decided"
         )
@@ -8794,6 +8878,49 @@ def _validate_turn_plan(plan, player, state, turn_tracker, game_log=None):
         # destination rather than the waypoint. Clamped onto the reachable part
         # of the same line: the unit still goes where the plan was heading, and
         # the plan's own exposure reasoning now applies to a point it reaches.
+        # THE MIRROR OF THE CLAMP BELOW: an ACTIVE order to a point the unit is
+        # already standing AROUND. Measured on the reported board, all 74
+        # models where the log leaves them: the 21-model Necron blob ordered to
+        # (34,8) - 1.97" from its centroid and inside its own formation - moved
+        # 0.00", while the same blob on the same board ordered to points
+        # outside its formation moved 2.50" and 4.72". Nothing was stuck: the
+        # models on the far side of the spot would have had to walk backwards
+        # into their own squadmates, so every rung of _advance_toward()'s
+        # ladder came back with nothing and the unit spent its move on a no-op.
+        #
+        # ONLY FOR AN ACTIVE ROLE, and that is the whole scope of this check.
+        # A PASSIVE role - hold/screen/stage - plus a coordinate inside the
+        # formation says "stay where you are", which is a coherent order the
+        # unit carries out correctly by standing still; dropping it there would
+        # be this pass overruling an intent the planner really had. That is
+        # also what the reported turn actually was: role "hold" next to a
+        # reason describing a reposition. The unit obeyed the field, which is
+        # the right half to obey - what frees it is the over-garrison pass
+        # below, which has a rule saying it must leave.
+        #
+        # The order is DROPPED rather than replaced, for the reason every other
+        # check in this file drops one: a coordinate is picked for a property,
+        # and this code cannot pick a replacement that serves a purpose it
+        # cannot see. Without one the movement options come from the engine and
+        # are legal by construction - and the unit gets its real options back,
+        # since a named position also suppresses the Advance and the
+        # move-to-target ones (see _handle_movement()). That is the actual cost
+        # of the no-op: not that it fails, but that it crowds out the rest.
+        spot = entry.get("position")
+        if spot is not None and squad.models and id(squad) not in reserve_ids \
+                and entry.get("role") not in ("hold", "screen", "stage") \
+                and geometry.point_inside_hull(spot, [(m.x_in, m.y_in) for m in squad.models]):
+            entry["position"] = None
+            entry["reason"] = (
+                f"{entry.get('reason') or ''} (The ordered position was inside this unit's own "
+                f"formation, so it was already there and the coordinate was dropped - move it "
+                f"somewhere it is not already standing, or leave it be.)").strip()
+            corrections.append(
+                f"{name}: ordered to ({spot[0]:.0f},{spot[1]:.0f}), which is inside its own "
+                f"formation - it is already standing there, so the position was dropped "
+                f"(a {len(squad.models)}-model unit cannot move onto a point in its own middle)"
+            )
+
         spot = entry.get("position")
         if spot is not None and squad.models and id(squad) not in reserve_ids:
             # Advance counted in: clamping to the flat Move characteristic
@@ -8906,13 +9033,7 @@ def _validate_turn_plan(plan, player, state, turn_tracker, game_log=None):
     # explained: this is the third report of it, and the previous two answers
     # were a prompt paragraph and a pair of observation fields, both of which
     # the planner then had in front of it while doing it again.
-    garrisons = _planned_garrisons(plan, squads_by_name, state, player)
-    for objective in _uncontested_objectives(state, player):
-        squads = garrisons.get(objective.name, [])
-        if len(squads) < 2:
-            continue
-        keeper, *freed = sorted(
-            squads, key=lambda sq: _garrison_fitness(sq, objective, state))
+    for objective, keepers, freed in _garrison_surplus(plan, squads_by_name, state, player):
         for squad in freed:
             entry = plan["unit_plans"].get(squad.name)
             if entry is None:
@@ -8955,10 +9076,11 @@ def _validate_turn_plan(plan, player, state, turn_tracker, game_log=None):
             # and a reason that argues both ways is not better than one that
             # argues the wrong way.
             entry["reason"] = (
-                f"Freed from garrisoning {objective.name} - {keeper.name} holds it alone "
-                f"(rules 14.01-14.02: control is the higher OC total, not how many units are "
-                f"present). Move this unit forward and put its points to work somewhere the "
-                f"game is being decided."
+                f"Freed from garrisoning {objective.name} - "
+                + ", ".join(s.name for s in keepers)
+                + " already out-controls anything the enemy can bring onto it (rules 14.01-14.02: "
+                "control is the higher OC total, not how many units are present). Move this unit "
+                "forward and put its points to work somewhere the game is being decided."
             )
             # Says what actually changed rather than a fixed phrase. The
             # reported Kill Rig is why: its role was ALREADY "advance" and only
@@ -8971,10 +9093,11 @@ def _validate_turn_plan(plan, player, state, turn_tracker, game_log=None):
             if had_spot is not None:
                 did.append(f"garrison spot ({had_spot[0]:.0f},{had_spot[1]:.0f}) dropped")
             corrections.append(
-                f"{squad.name}: {' and '.join(did) or 'freed'} - {len(squads)} of our units were "
-                f"left standing on {objective.name} with no enemy within "
-                f"{observation.GARRISON_THREAT_RANGE_IN:.0f}\" (rules 14.01-14.02: control is the "
-                f"higher OC total, so {keeper.name} holds it alone)"
+                f"{squad.name}: {' and '.join(did) or 'freed'} - "
+                f"{len(keepers) + len(freed)} of our units were left standing on "
+                f"{objective.name} (rules 14.01-14.02: control is the higher OC total, and "
+                + ", ".join(s.name for s in keepers)
+                + " already out-controls anything the enemy can bring onto it)"
             )
 
     # Rule 14.01-14.02 again, for the case the pass above cannot see: ONE unit
@@ -9989,38 +10112,36 @@ def _handle_greater_good_for_squad(agent, memory, player, all_tokens, squad, gre
     Observers or marked anything - a gap of the same shape as Explosives
     before _handle_explosives_for_squad() existed.
 
-    Real perf bug found while verifying this against the actual demo
-    scene: can_use()'s OWN last check is eligible_targets(), a full-
-    precision line_of_sight() scan of every one of the squad's models
-    against every model of every not-yet-Spotted enemy squad - up to a
-    few SECONDS on this board's terrain/model count. A squad that has the
-    ability but currently sees no eligible target was getting that whole
-    scan re-run on EVERY take_one_action() call for the rest of the phase
-    (nothing here cached "no target" the way declined_shoot/declined_
-    charge/declined_explosives already cache an explicit decline) -
-    dozens of multi-second re-scans per phase. Fixed by caching a False
-    can_use() result too, not just an explicit "no_mark" choice - safe
-    because nothing that can_use() checks (ability/observer/shot/battle-
-    shocked status, or which enemies are visible-and-unSpotted) can
-    change again mid-Shooting-phase; positions are frozen until the next
-    Movement phase, and marks/shots-fired only accumulate, never revert.
-    The one exception is greater_good_controller.state != IDLE (some
-    OTHER squad's - possibly the human's own - marking flow currently
-    open): that's genuinely transient, so it's checked separately and
-    left uncached, retried plainly on the next call instead."""
+    declined_greater_good therefore holds ONLY an explicit "no_mark" from
+    the model - a real decline, exactly like declined_shoot/declined_charge.
+    It used to also swallow "can_use() said no" and "no targets", for perf:
+    can_use()'s last clause is a full line-of-sight sweep (measured at
+    4732 ms on a 179-model board), and re-running it on every
+    take_one_action() call was seconds per phase.
+
+    That is now GreaterGoodController.any_eligible_target()'s own cache,
+    which is both faster and stricter, and dropping the two extra entries
+    fixes a real bug the old comment argued itself into. It claimed
+    "positions are frozen until the next Movement phase" - they are not.
+    The opponent's reactive moves (MovementController.REACTIVE_MOVE_MODES)
+    and the active player's own out-of-phase moves both happen mid-Shooting
+    phase, so a squad that saw nothing at the start of the phase would never
+    look again after an enemy Fade Back moved into view.
+
+    greater_good_controller.state != IDLE stays uncached and unchanged:
+    some OTHER squad's marking flow (possibly the human's) being open is
+    genuinely transient, and retrying plainly next call is right."""
     if squad.name in memory.declined_greater_good:
         return False
     if greater_good_controller.state != greater_good_module.IDLE:
         return False  # someone else's flow is open right now - transient, don't cache
     if not greater_good_controller.can_use(squad, shooting_controller):
-        memory.declined_greater_good.add(squad.name)
         return False
 
     greater_good_controller.start(squad)  # free - no CP, just enters target selection
     targets = sorted(greater_good_controller.eligible_targets(squad), key=lambda s: s.name)
     if not targets:
         greater_good_controller.cancel()
-        memory.declined_greater_good.add(squad.name)
         return True
 
     options = [{"type": "no_mark", "squad": squad.name, "description": f"{squad.name}: don't become an Observer"}]
@@ -10624,6 +10745,62 @@ def _shooting_specialist_charge_block(squad):
     )
 
 
+def _charge_trade_note(squad, target):
+    """What this charge is WORTH and what it COSTS, in the same points-per-turn
+    the planner is already given for the same pairing.
+
+    THE REPORTED FAILURE, and why this is an option-text change rather than a
+    second charge block. A 21-model Necron Warriors blob charged an Avatar of
+    Khaine; measured against those two datasheets, the charge removes 7.5
+    points a turn (0.0 models - 3% of a one-model unit) while the Avatar's own
+    attacks take 89.1 points of Necron Warriors back every turn the fight
+    lasts, and the fight in the log did exactly that: 2 of 21 models reached
+    engagement range and dealt zero wounds.
+
+    Both numbers already existed. ai/observation.py's threat_assessment()
+    reports them, and in the very log this was reported from the PLANNER - the
+    one decision that receives them - refused this charge three turns running
+    and said why ("Charging the Avatar trades down badly (345 vs 250 pts)").
+    The tactical layer made it, because squad_summary() carries no valuation at
+    all and the option said only how likely the roll was. That is an A/B on the
+    information, run by the game itself: the same model family, the same board,
+    the same turn, right with the numbers and wrong without them.
+
+    So this is the same fix the odds already are, ten lines up - the option
+    text is where a charge's trade-offs belong in this file, and for the same
+    stated reason ("it belongs in the option's own text rather than being
+    something Claude is expected to infer").
+
+    A SECOND WITHHOLDING BLOCK WAS MEASURED AND REJECTED, and the measurement
+    is why this is not one. Over the two AI armies against every shipped enemy
+    list - 2070 attacker/defender pairings - the reported charge sits at
+    gain/loss 0.08, in the worst 1.7%, but the population it would have to be
+    separated from is continuous: among units the existing shooting-specialist
+    block does not already stop, the share of the target a charge removes runs
+    0.01, 0.01, 0.02, 0.03 (the reported case), 0.04, 0.05, 0.06, 0.07, 0.08
+    with no gap anywhere in it, and the cheap-screen charges that tie up a gun
+    line sit in the same range as the hopeless ones. A threshold there would
+    land inside an overlap and decide by whichever enemy happened to stand
+    nearest - the exact failure _shooting_specialist_charge_block()'s own
+    docstring records for the per-target ratio it rejected. Withholding is the
+    right answer for a choice that should NEVER be taken; this one sometimes
+    should.
+
+    Returns "" for a pairing that cannot be valued (an unpriced army, or a unit
+    with nothing that attacks), rather than a zero that would read as "this
+    charge is worthless"."""
+    gain = observation.damage_value(squad, target, melee=True)
+    loss = observation.damage_value(target, squad, melee=True)
+    got = observation.expected_kills(squad, target, melee=True)
+    if got is None:
+        return ""
+    return (
+        f" - it would remove about {got['models_killed_per_turn']:.1f} of its models "
+        f"({gain:.0f} pts/turn) and that unit's own attacks would take about "
+        f"{loss:.0f} pts/turn of this squad back for as long as the fight lasts"
+    )
+
+
 def _handle_charge(agent, memory, player, all_tokens, charge_controller, movement_controller, on_thinking, crushing_impact_controller=None, plan=None, game_log=None):
     # Resume a charge this player already declared, now that its roll has
     # been acknowledged (by a human click, in a PREVIOUS frame) and
@@ -10672,6 +10849,12 @@ def _handle_charge(agent, memory, player, all_tokens, charge_controller, movemen
                     "type": "charge_target", "squad": squad.name, "target": t.name,
                     "description": (
                         f"{squad.name}: charge {t.name}"
+                        # The trade, per target. This is the choice the whole
+                        # note exists for: two reachable enemies read as
+                        # interchangeable when the option says only their
+                        # names, and on the reported board they were worth 57
+                        # and 7.5 points a turn.
+                        + _charge_trade_note(squad, t)
                         + (" [the target your turn plan assigned to this squad]" if t is planned_target else "")
                     ),
                 }
@@ -10845,6 +11028,13 @@ def _handle_charge(agent, memory, player, all_tokens, charge_controller, movemen
                     f"charge roll has to come up {needed}+ "
                     f"({_charge_roll_probability(needed):.0f}% chance); "
                     "declaring uses up this unit's charge for the phase whether or not the roll gets there"
+                    # HOW LIKELY it is was added here for a reported failure;
+                    # WHAT IT IS WORTH is the other half of the same sentence,
+                    # and its absence is the reported one now. See
+                    # _charge_trade_note(): a 92% charge that removes nothing
+                    # and costs the squad 89 points a turn read exactly like a
+                    # 92% charge that wins the game.
+                    + _charge_trade_note(candidate, nearest_enemy)
                 )
         planned_target = _planned_enemy_target(candidate, plan, all_tokens)
         if planned_target is not None:

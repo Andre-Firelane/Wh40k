@@ -4464,8 +4464,11 @@ reaktiv). Split Fire, und die Weapon Abilities [ANTI-X]/[ASSAULT]/[BLAST]/[CLEAV
 - **Benefit of Cover (13.08)** wird pro Schütze geprüft; bei Uneinigkeit wird die Gruppe in zwei
   unabhängige Sequenzen geteilt.
 - **Performance**: `has_line_of_sight()`/`model_fully_visible()` filtern Obstacles/Modelle vorab per
-  Bounding-Box (mathematisch identische Ergebnisse, per 400 Fuzz-Vergleichen belegt);
-  `valid_target_models()` dedupliziert pro SQUAD; mehrere UI-Caches.
+  Bounding-Box (mathematisch identische Ergebnisse); `valid_target_models()` dedupliziert pro SQUAD;
+  mehrere UI-Caches. Dazu seit der T'au-Lag-Meldung ein zweiter, verlustfreier Hebel im
+  Punktpaar-Loop selbst — siehe `## Die Schussphase war mit T'au unspielbar`. **Die hier früher
+  behauptete Belegung "per 400 Fuzz-Vergleichen" hatte keine Datei**: zu `game/line_of_sight.py`
+  gab es überhaupt keine Suite, bis `test_line_of_sight.py` sie angelegt hat.
 - **"Change a die to an unmodified 6" ist ein PANEL-BUTTON, kein Prompt** (User: "momentan werde
   ich bei aeldari jedes mal gefragt, ob ich aspect shrine tokens verwenden will ... nach jedem
   wurf. kann das nicht eine option im linken panel sein, statt eines overlays? command reroll
@@ -4518,6 +4521,141 @@ reaktiv). Split Fire, und die Weapon Abilities [ANTI-X]/[ASSAULT]/[BLAST]/[CLEAV
 - **Hausregel**: befreundete Modelle blockieren keine Sichtlinie — am BEOBACHTER festgemacht (beide
   Enden auszunehmen würde Modell-Blockade ganz abschaffen). Gegnerische blockieren unverändert,
   Screening funktioniert also weiter.
+
+## Die Schussphase war mit T'au unspielbar (2026-09-08)
+
+**Gemeldet:** *"wenn man tau spielt ist die shooting phase sehr laggy. ich denke es liegt an for
+the greater good. da diese fähigkeit eine unendliche reichweite hat, müssen alle gegnerischen
+einheiten auf LOS geprüft werden."* **Die Vermutung stimmt und war untertrieben.**
+
+- **Reproduziert vor jeder Änderung**, map2, `armies/tau.json` gegen `armies/orks.json`, 179
+  Modelle: `GreaterGoodController.eligible_targets()` für "1 Breacher Team 1 + Cadre Fireblade"
+  (11 Modelle) kostet **4732 ms** — 1048 Sichtprüfungen à 4.52 ms. Und das lief **pro Frame**:
+  `action_panel.py:2322` fragt im `_draw_movement_ui()`-Zweig jeden Frame
+  `greater_good_controller.can_use()`, und das endete auf `bool(self.eligible_targets(squad))`.
+  Der teure Fall ist genau der gemeldete: zu einer Einheit, die NIEMAND sieht, bricht `any()` nie
+  ab, und das sind zwölf von vierzehn.
+- **Die Regel hat wirklich keine Reichweitengrenze** ("an enemy unit that is visible"), es fehlt
+  also der Vorfilter, den `shooting.py`s `_model_can_reach()` vor jedem LoS-Aufruf hat.
+- **Warum es überlebt hat, und das ist Fehlerklasse 10 in einer eigenen Form:** in `main.py` stand
+  seit einem früheren Bericht ein Cache dafür, samt der gemessenen Zahl ("~0.8s per
+  eligible_targets() call"). Er ist auf `CHOOSING_TARGET` gekeyt — das Brett-Highlight NACH dem
+  Knopfdruck. Der `can_use()`-Pfad läuft im IDLE-Zustand, dort gibt er ein leeres Set zurück.
+  **Eine Zahl gemessen, einen Cache gebaut — für einen der zwei Aufrufpfade.**
+- **Und deshalb traf es nur den MENSCHEN:** `ai/agent_driver.py` merkte sich sein Nein in
+  `memory.declined_greater_good` und fragte einmal pro Einheit.
+
+### Der stärkste Hebel liegt in `line_of_sight.py` und hilft der ganzen Engine
+
+`has_line_of_sight()` prüft 576 Punktpaare und lief für JEDES die Hindernis-, Blocker- und
+Area-Listen von vorne durch. Steht eine Wand dazwischen, blockiert sie fast jedes Paar — und wird
+jedes Mal erst an ihrer Listenposition gefunden. **`_first_blocker()` merkt sich den zuletzt
+erfolgreichen Blocker und testet ihn zuerst.**
+
+- **Verlustfrei per Konstruktion:** pro Punktpaar ist das Ergebnis ein ODER über drei
+  seiteneffektfreie Prädikate, und ein ODER darf umsortiert werden. Gemessen, mit zufälligen
+  Positionen, Basisgrößen und Blockern: **map1 4.56x, map2 5.00x, map3 7.75x, je 0/150
+  Abweichungen** — map3 mit seinen acht gedrehten Stücken profitiert am stärksten und ist die
+  teuerste Karte. In beiden Fällen schneller, **nie langsamer** (blockiert 5.08x, gemischt 1.67x).
+- **8 Module, 35 Aufrufstellen** lesen `has_line_of_sight`/`model_fully_visible` — auch
+  `ai/observation.py` und `ai/agent_driver.py`, also profitieren die KI-Zugzeiten mit.
+- **DIE FALLE, und sie steht namentlich im Docstring:** das Memo darf NICHT über
+  `has_line_of_sight()`-Aufrufgrenzen hinweg geteilt werden, obwohl das der offensichtliche
+  nächste Schritt ist (`eligible_targets()` fragt tausendmal nach derselben Wand).
+  `_blocking_models()` schließt PAARABHÄNGIG aus (beide Einheiten, und per Hausregel die ganze
+  Armee des Beobachters), `_obscuring_areas_between()` ebenso. **Nur OBSTACLES sind
+  paarunabhängig.** Ohne diesen Satz löscht die nächste Optimierungsrunde still die Hausregel
+  "befreundete Einheiten blockieren nicht" — zwei A/B-Sonden halten die Grenze.
+
+### `greater_good.py`: drei verlustfreie Änderungen plus ein Cache
+
+- **`is_detectable` vorziehen und pro DEFENDER einmal rechnen.** Es hängt nur vom Defender und vom
+  beobachtenden Squad ab, nie vom einzelnen `friendly` — wurde aber je Paar neu gerechnet und stand
+  rechts vom `and`, also erst NACH der teuren Hälfte. Gemessen **0.0023 ms je Modell gegen 4.52 ms
+  je Sichtprüfung, 2000x billiger**.
+- **Ein Generator, zwei Sichten** (`eligible_targets()` und `any_eligible_target()`), Muster
+  `army_rule_text()`/`army_rule_blocks()`. `can_use()` braucht nur ein `bool` und baute die ganze
+  Liste.
+- **Feindeinheiten NACH DISTANZ**, nächste zuerst. Für ein `any()` verlustfrei, und nebenbei
+  behoben: `enemy_squads` war ein SET, die Rückgabereihenfolge also lauf-instabil.
+- **Der Cache liegt im CONTROLLER**, nicht in `main.py` — Vorbild ist
+  `ShootingController.weapon_eligibility()` ("called every frame to render"), nicht Muster A. Ein
+  Panel-Argument wäre Fehlerklasse 22 durch eine dreistufige positionelle Kette gewesen, und die
+  Panel-Suiten bauen das Panel selbst, hätten also einen zweiten Antwortpfad gebraucht. So
+  profitieren Panel, Klickvalidierung und KI-Pfad zugleich.
+- **Der Schlüssel ist EXAKT, nicht heuristisch.** `len(state.tokens)` als "das Brett hat sich
+  geändert"-Proxy (wie die vier main.py-Caches) verpasst Bewegungen, und in der Schussphase bewegen
+  die reaktiven Züge des Gegners und die eigenen `OUT_OF_PHASE_MOVE_MODES` sehr wohl Modelle.
+  **`game/board_epoch.py` ist der geteilte Fingerabdruck** (Position + `current_wounds` + Länge),
+  gelesen von Greater Good und Arro'kon; gemessen **0.099 ms je Frame** gegen den 4732-ms-Sweep.
+  Gecacht wird NUR die teure letzte Klausel — die sieben billigen Tore bleiben live, damit der Knopf
+  verschwindet, sobald die Einheit markiert oder geschossen hat.
+- **Ein echter KI-Fehler fiel mit:** `agent_driver.py`s Kommentar behauptete "positions are frozen
+  until the next Movement phase" und cachte darauf ein "can_use() sagte nein". Mit den reaktiven
+  Zügen ist das falsch — eine Einheit, die zu Beginn der Phase nichts sah, fragte nach einem
+  gegnerischen Fade Back nie wieder. `declined_greater_good` hält jetzt nur noch das EXPLIZITE
+  "no_mark" des Modells.
+
+### Zweiter Verursacher, beim Messen gefunden: Arro'kon rechnete zweimal
+
+`action_panel.py` fragte `arrokon_controller.can_use(squad)` und danach `best_available_tier(squad)`
+— und `can_use()` ENDET in `best_available_tier()`. Derselbe `has_valid_target()`-Sweep zweimal pro
+Frame, gemessen bis **660 ms** je Aufruf (Broadside Battlesuits). `offer_tier()` ist jetzt die eine
+Frage (`can_use()` ist `offer_tier(squad) > 0`), plus Tier-Kurzschluss (Kandidaten absteigend, der
+erste Treffer IST das Maximum, weil `ARROKON_TIERS` nur 2 und 1 kennt) und derselbe Cache.
+
+### Ergebnis, im ECHTEN Spiel gemessen
+
+`measure_shooting_frame_cost.py` (neu — im Repo gab es **kein** Skript, das Schussphasen- oder
+Sichtlinienkosten misst) fährt `selfplay.py`s echte `main()`-Schleife mit T'au als **Player 1**:
+
+| gestellt, auf der gemeldeten Einheit | gefixt | `--neutralize` |
+|---|---|---|
+| erster Aufruf (kalt) | **320 ms** (440 Sichtprüfungen) | **2020 ms** (737) |
+| jeder Folgeframe | **0.015 ms** | **2026 ms** |
+| `ActionPanel.draw` in der Schussphase | 1.6 ms Mittel | max 295 ms |
+
+2026 ms je Frame sind 0.49 FPS — genau "sehr laggy". Im Dauerbetrieb Faktor ~135 000.
+
+**Warum die gemeldete Einheit GESTELLT wird und das benannt ist:** über 1600 Frames landet die
+Rotation etwa EINMAL auf der teuren Klausel (die sieben billigen Tore fangen den Rest ab), eine
+passive Zahl ruhte also auf einer einzigen Stichprobe. Gemessen wird der ECHTE Controller gegen das
+Brett, das `main()` gebaut hat; gestellt ist nur, WELCHE Frage gestellt wird — dieselbe Begründung
+wie bei `verify_sudden_storm_wiring.py`. Arro'kon erreicht in diesem Lauf seine eigenen Tore nie und
+meldet das als benannten Grund statt als stille Null; die Ein-Sweep-Behauptung hält stattdessen ein
+ZÄHLER in `test_arrokon_protocol.py` Abschnitt 8.
+
+### Getestet
+
+- **Neu `test_line_of_sight.py` (21/21)** und **`test_greater_good.py` (20/20)** — zu BEIDEN
+  Modulen gab es vorher gar keine Suite, und genau deshalb konnte ein 4.7-Sekunden-Sweep pro Frame
+  unbemerkt bleiben. Beide fahren eine Vor-Fix-Referenz IM TEST gegen die neue Fassung (400 bzw.
+  120 Fuzz-Bretter, 0 Abweichungen), beide mit einer LIVENESS-Zeile: ein Fuzz, der 400-mal dasselbe
+  liefert, hat nichts gemessen.
+- `test_arrokon_protocol.py` 67 → **80/80** (Abschnitt 8: der Sweep-ZÄHLER, ein Brett mit ZWEI
+  Tiers, und ein AST-Wächter auf das Panel).
+- **21 A/B-Sonden über drei Dateien, alle wie deklariert.** Zwei sind ausdrücklich als
+  NICHT-beißend deklariert, mit gemessener Begründung: eine verlustfreie Umsortierung darf eine
+  Korrektheitssuite nicht rot machen, und eine Sonde, die das erzwingen wollte, wäre eine Suite,
+  die auf richtigem Code scheitert.
+- **SECHS Sonden bissen zuerst nicht, und alle sechs waren Befunde über den TEST**
+  (Fehlerklasse 24): die Cache-Mutationen bewegten Modelle um ±9" auf offenem Boden, wo das Ziel
+  durchgehend sichtbar blieb — vier Sonden, die den Schlüssel ausweideten, kamen glatt durch.
+  Abschnitt 4 MISST jetzt zwei Positionen, die die Antwort wirklich trennen, und verlangt ≥15
+  Flips. Dazu: der Panel-Doppelaufruf ist hinter dem Cache für jeden Verhaltenstest unsichtbar
+  (jetzt ein AST-Wächter), und die Tier-Reihenfolge ist auf einem Brett mit EINEM Ziel bedeutungslos
+  (jetzt zwei Tiers). **Lehre: ein Cache-Test beweist nichts, solange nicht gezeigt ist, dass seine
+  Mutationen die Antwort ändern.**
+- **Ein Wächter matchte seinen eigenen Kommentar** — die `detection_range`-Abweichung wird per AST
+  auf den Aufrufausdruck geprüft, weil der erklärende Kommentar daneben beide Keywords nennt.
+  Fünfte Instanz dieser Falle.
+- Volle Regression **195 Suiten, ~17258 Prüfungen, 194 grün / 0 rot / 1 bekannt**, alle neun
+  schweren Skripte, `selfplay.py` auf map2 und map3.
+- **BEWUSST NICHT MITGEÄNDERT:** `game/detection_range.py:35-49`s dokumentierte Abweichung
+  (`eligible_targets()` ruft `is_detectable()` ohne `prey_marks`/`unmasking`). Die neue Zeile sieht
+  `shooting.py`s `_detectable_models()` jetzt zum Verwechseln ähnlich, deshalb steht die Lücke als
+  Kommentar am Aufrufort UND als Testzeile — eine bewusst offene Lücke, die nur ein Kommentar hält,
+  ist keine.
 
 ## Regelengine — Nahkampf
 

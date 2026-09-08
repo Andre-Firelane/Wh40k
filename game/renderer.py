@@ -2,7 +2,7 @@ import math
 
 import pygame
 
-from game import arena_biome, biomes, config, movement, sprites, status_effects
+from game import arena_biome, biomes, config, geometry, movement, sprites, status_effects
 from game import placement_overlay
 from game.placement_overlay import PlacementOverlay
 from game.squad import ENGAGEMENT_RANGE_IN, strongest_model
@@ -465,31 +465,12 @@ def objective_outline_points(board, terrain_area, inflate_px=OBJECTIVE_OUTLINE_I
     return [tuple(round(v) for v in board.to_px(x, y)) for x, y in _convex_hull(points)]
 
 
-def _convex_hull(points):
-    """Monotone chain. Returns the hull in order; a degenerate input (all
-    points collinear or identical) comes back as-is so the caller still has
-    something to draw."""
-    pts = sorted(set(points))
-    if len(pts) < 3:
-        return pts
-
-    # The epsilon is not decoration: a ruin's walls are inset by half their
-    # thickness so their outer edge lies EXACTLY on the footprint's, and after
-    # the same inflation those corners are collinear with it. Tested against a
-    # bare 0 the cross product comes out at ~1e-15 rather than 0 and the wall
-    # corners survive as vertices, which turns a rectangle into a six-sided
-    # outline that is a rectangle everywhere except in the vertex list.
-    eps = 1e-9
-
-    def half(seq):
-        out = []
-        for p in seq:
-            while len(out) >= 2 and (out[-1][0] - out[-2][0]) * (p[1] - out[-2][1])                     - (out[-1][1] - out[-2][1]) * (p[0] - out[-2][0]) <= eps:
-                out.pop()
-            out.append(p)
-        return out
-    hull = half(pts)[:-1] + half(pts[::-1])[:-1]
-    return hull or pts
+# Moved to game/geometry.py when ai/agent_driver.py became its second caller
+# and could not import this module (pygame, per-frame draw path). Re-exported
+# under the old private name so every caller and every pixel test here is
+# unchanged by construction - the same forwarding idiom selection.py uses for
+# selected_squad.
+_convex_hull = geometry.convex_hull
 
 
 def _crossing(v0, v1):

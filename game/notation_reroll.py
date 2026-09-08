@@ -36,7 +36,7 @@ class DamageRerollOffer:
 
     def __init__(self, label, decision_manager=None, dice_manager=None, game_log=None,
                  owner=None, weapon_name="", prompt_suffix="", automatic_faces=(),
-                 notation=None, roll_name="Damage"):
+                 notation=None, roll_name="Damage", offerable=True):
         self.label = label          # the ability's own name, for the prompt and the log
         # Which roll this is, for the prompt and the log - "Damage" or
         # "Attacks". The rest of the class does not care which.
@@ -56,6 +56,15 @@ class DamageRerollOffer:
         # names the DIE, not the total - a D6+2 showing a 1 arrives here as a
         # 3. Same distinction Branching Fates' face_for_total() had to make.
         self.notation = notation
+        # Whether the "you can re-roll" QUESTION may be asked at all, as
+        # opposed to whether there is a die left to ask about (can_offer()).
+        # A source can be mandatory-only: the D-cannon's Structural Collapse
+        # re-rolls a 1 without asking, and grants the free re-roll ONLY
+        # against a TITANIC target - two clauses of one printed sentence,
+        # served by one of these objects. Without this the mandatory half
+        # fired on a 1 and the optional half fired on everything else, which
+        # is a free re-roll on every shot the rule never granted.
+        self.offerable = offerable
 
     def can_offer(self):
         """Whether this Damage die still has its one re-roll left.
@@ -106,7 +115,7 @@ class DamageRerollOffer:
         DiceNotationRoll), so it does the throwing; this object only asks the
         question. The caller must not continue on its own once this returned
         True (DecisionManager.request() never resolves inline)."""
-        if self.decision_manager is None or not self.can_offer():
+        if self.decision_manager is None or not self.offerable or not self.can_offer():
             return False
         options = [
             (f"{self.label}: re-roll the {self.roll_name} roll ({total})", lambda: self._chose(on_resolved, True)),

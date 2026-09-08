@@ -420,8 +420,16 @@ class DamageAllocationSession:
         if (self.damage_reroll is not None
                 and self.damage_reroll.auto_reroll_for(amount)):
             if self.log is not None:
-                self.log.add("%s: re-rolling %s's Damage roll of 1."
-                             % (self.damage_reroll.label, self.weapon.name))
+                # `log` is a CALLABLE here, not the GameLog object: this class
+                # is handed `self._log`/a lambda by every one of its builders,
+                # and calls it as `self.log(...)` at nine other sites. This one
+                # line was written in the OTHER of this repo's two logging
+                # idioms (`self.game_log.add(...)`, which ~90 controllers use),
+                # and crashed the moment a D-cannon actually rolled a 1 - the
+                # only weapon that can reach this branch at all. See section
+                # 17d of test_event_chain_wiring.py.
+                self.log("%s: re-rolling %s's Damage roll of 1."
+                         % (self.damage_reroll.label, self.weapon.name))
             self._after_damage_reroll(model, roll, amount, True)
             return
         if self.damage_reroll is not None and self.damage_reroll.maybe_offer(

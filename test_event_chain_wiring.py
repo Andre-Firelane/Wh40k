@@ -1507,6 +1507,116 @@ for _ctrl in ("wraith_form_controller", "drakolithe_controller",
             "%s.pending_damage_choice" % _ctrl in _MW_GATE_BODY)
 
 # --------------------------------------------------------------------------
+# 17d. a CALLABLE log is never used as the GameLog OBJECT
+# --------------------------------------------------------------------------
+print("=== 17d. a callable log is never called as .log.add(...) ===")
+
+# THE MIRROR OF 17b, one level in. 17b guards the CALLER ("what you hand a
+# session as log= must be callable"); this guards the CALLEE ("a class that
+# stores a callable must not then treat it as the object").
+#
+# This repo runs TWO logging idioms, told apart only by the FIELD NAME:
+#
+#   self.game_log -> the GameLog OBJECT, written as self.game_log.add(msg).
+#                    ~90 controllers.
+#   self.log      -> a CALLABLE (a bound _log, or a lambda), written as
+#                    self.log(msg). Four modules: damage_resolution,
+#                    dice_notation, feel_no_pain, hazard.
+#
+# damage_resolution.py's automatic Damage re-roll branch was written in the
+# first idiom against a field holding the second. It shipped because the ONLY
+# weapon that can reach that branch is the D-cannon (Structural Collapse,
+# "re-roll a Damage roll of 1"), and firing it crashed the game outright:
+#   AttributeError: 'function' object has no attribute 'add'
+# Its suite held throughout - it drove auto_reroll_for() directly and pinned
+# the source string "auto_reroll_for(amount)", and both of those are true of a
+# branch whose body has never run.
+#
+# A behaviour test cannot see the NEXT crossing, because the line does not
+# exist yet. Hence a source sweep - and by AST, not substring: `.log.add(` also
+# matches game/strategic_reserves.py's withdraw_to_reserves(log=...), whose
+# `log` parameter really is the object (all nine callers pass log=self.game_log)
+# and which is therefore correct. What is being pinned is the SELF-attribute
+# contract, so that is what gets parsed.
+
+_LOG_FIELD_CLASSES = {}     # module -> {class names that store a callable self.log}
+for _name, _tree in _mw_trees.items():
+    for _cls in [n for n in ast.walk(_tree) if isinstance(n, ast.ClassDef)]:
+        for _fn in [n for n in _cls.body
+                    if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and n.name == "__init__"]:
+            if "log" not in [a.arg for a in _fn.args.args + _fn.args.kwonlyargs]:
+                continue
+            for _st in ast.walk(_fn):
+                if not isinstance(_st, ast.Assign):
+                    continue
+                for _t in _st.targets:
+                    if (isinstance(_t, ast.Attribute) and _t.attr == "log"
+                            and isinstance(_t.value, ast.Name) and _t.value.id == "self"
+                            and isinstance(_st.value, ast.Name) and _st.value.id == "log"):
+                        _LOG_FIELD_CLASSES.setdefault(_name, set()).add(_cls.name)
+
+# Liveness: a sweep that stops finding the contract reports no violations and
+# reads exactly like a pass.
+ck.true("the sweep found the callable-log classes (it is not vacuous): %d in %d module(s)"
+        % (sum(len(v) for v in _LOG_FIELD_CLASSES.values()), len(_LOG_FIELD_CLASSES)),
+        len(_LOG_FIELD_CLASSES) >= 4)
+for _known in ("damage_resolution.py", "dice_notation.py", "feel_no_pain.py", "hazard.py"):
+    ck.true("%s is in the sweep" % _known, _known in _LOG_FIELD_CLASSES)
+
+
+def _self_log_add_lines(tree):
+    """Lines calling self.log.add(...) - the crossing, as an AST shape."""
+    out = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "add"):
+            continue
+        inner = node.func.value
+        if (isinstance(inner, ast.Attribute) and inner.attr == "log"
+                and isinstance(inner.value, ast.Name) and inner.value.id == "self"):
+            out.append(node.lineno)
+    return out
+
+
+for _name in sorted(_LOG_FIELD_CLASSES):
+    _bad = _self_log_add_lines(_mw_trees[_name])
+    ck.eq("%s never calls .add() on its callable log" % _name, _bad, [])
+    # The positive half: the contract is real, not assumed. A module that
+    # stores `log` and never calls it would make the check above vacuous.
+    _calls_it = any(
+        isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+        and n.func.attr == "log" and isinstance(n.func.value, ast.Name)
+        and n.func.value.id == "self"
+        for n in ast.walk(_mw_trees[_name]))
+    ck.true("...and really does CALL it, so the contract is callable", _calls_it)
+
+# And the caller half, generalised from 17b to every one of these classes: a
+# construction site that hands one of them the GameLog object is the same bug
+# seen from the other end.
+_LOG_CLASS_NAMES = {c for v in _LOG_FIELD_CLASSES.values() for c in v}
+
+
+def _log_ctor_calls(tree):
+    out = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if ((isinstance(func, ast.Name) and func.id in _LOG_CLASS_NAMES)
+                or (isinstance(func, ast.Attribute) and func.attr in _LOG_CLASS_NAMES)):
+            out.append(node)
+    return out
+
+
+_ctor_sites = sum(len(_log_ctor_calls(t)) for t in _mw_trees.values())
+ck.true("the caller sweep is live - %d construction site(s)" % _ctor_sites,
+        _ctor_sites >= 10)
+_bad_ctors = sorted(n for n, t in _mw_trees.items()
+                    if not all(_mw_log_arg_ok(c) for c in _log_ctor_calls(t)))
+ck.eq("no callable-log class is handed the GameLog object", _bad_ctors, [])
+
+# --------------------------------------------------------------------------
 # 18. An offer that names ONE unit out of several must let the player CHOOSE
 # --------------------------------------------------------------------------
 # REPORTED: "cost of victory wird mir pauschal angeboten, aber ich habe 3

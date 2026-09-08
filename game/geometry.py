@@ -100,3 +100,70 @@ def max_unblocked_fraction_models(p1, p2, models, inflate_radius=0.0):
         if entry_t < min_t:
             min_t = entry_t
     return max(0.0, min_t)
+
+
+def convex_hull(points):
+    """Monotone chain. Returns the hull in order; a degenerate input (all
+    points collinear or identical) comes back as-is so the caller still has
+    something to draw.
+
+    Lives here rather than in game/renderer.py, which had it privately while
+    it was the only caller. The second caller is ai/agent_driver.py, deciding
+    whether a plan has ordered a unit to a point inside its own footprint, and
+    it cannot import the renderer: that module pulls pygame and runs on the
+    per-frame draw path. game/renderer.py imports the name from here, so every
+    pixel test of the objective outline is unchanged by construction.
+
+    The epsilon is not decoration: a ruin's walls are inset by half their
+    thickness so their outer edge lies EXACTLY on the footprint's, and after
+    the same inflation those corners are collinear with it. Tested against a
+    bare 0 the cross product comes out at ~1e-15 rather than 0 and the wall
+    corners survive as vertices, which turns a rectangle into a six-sided
+    outline that is a rectangle everywhere except in the vertex list."""
+    pts = sorted(set(points))
+    if len(pts) < 3:
+        return pts
+
+    eps = 1e-9
+
+    def half(seq):
+        out = []
+        for p in seq:
+            while len(out) >= 2 and (out[-1][0] - out[-2][0]) * (p[1] - out[-2][1]) \
+                    - (out[-1][1] - out[-2][1]) * (p[0] - out[-2][0]) <= eps:
+                out.pop()
+            out.append(p)
+        return out
+    hull = half(pts)[:-1] + half(pts[::-1])[:-1]
+    return hull or pts
+
+
+def point_inside_hull(point, points):
+    """Is `point` inside the convex hull of `points` - i.e. are the points
+    standing AROUND it rather than off to one side?
+
+    The question ai/agent_driver.py asks about a turn plan's coordinate: a
+    unit ordered "toward" a spot in the middle of its own formation has
+    nowhere to go, because the models on the far side of it would have to walk
+    backwards into their own squadmates. Measured on the reported board - all
+    74 models where the log leaves them - a 21-model blob ordered to a point
+    1.97" away and inside itself moved 0.00", while the same blob on the same
+    board ordered to points outside its formation moved 2.50" and 4.72".
+
+    A point ON the hull boundary counts as inside: a unit whose front rank
+    stands exactly on the ordered spot has arrived at it. Fewer than three
+    distinct points cannot enclose anything, so a one- or two-model unit is
+    never "standing around" a spot - which is right: those can always simply
+    walk to it."""
+    hull = convex_hull(list(points))
+    if len(hull) < 3:
+        return False
+    eps = 1e-9
+    px, py = point
+    for i, (ax, ay) in enumerate(hull):
+        bx, by = hull[(i + 1) % len(hull)]
+        # Monotone chain returns counter-clockwise, so an interior point is
+        # left of (or on) every directed edge.
+        if (bx - ax) * (py - ay) - (by - ay) * (px - ax) < -eps:
+            return False
+    return True

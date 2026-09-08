@@ -2252,10 +2252,14 @@ class ActionPanel:
             )
             can_battle_shock_now = battle_shock_controller is not None and battle_shock_controller.can_roll(squad)
             can_explosives_now = explosives_controller is not None and explosives_controller.can_use(squad)
-            # Retaliation Cadre's The Arro'kon Protocol: can_use() already
-            # refuses when nothing this unit could shoot at has 6+ models, so
-            # the tier below is guaranteed non-zero whenever the button shows.
-            can_arrokon_now = arrokon_controller is not None and arrokon_controller.can_use(squad)
+            # Retaliation Cadre's The Arro'kon Protocol. ONE call for both the
+            # button and its label: can_use() ends IN best_available_tier(), so
+            # asking both (as this did) ran the same has_valid_target() sweep
+            # per candidate enemy unit TWICE per frame - measured at up to
+            # 660 ms each on a 179-model board. offer_tier() is that one sweep;
+            # a non-zero tier IS "can use", so the two can no longer disagree.
+            arrokon_tier = arrokon_controller.offer_tier(squad) if arrokon_controller is not None else 0
+            can_arrokon_now = arrokon_tier > 0
             # Every proactive detachment Stratagem on offer for this unit, as
             # (label, callback). Asked once here rather than per Stratagem so
             # the panel never learns their names - see
@@ -2271,7 +2275,6 @@ class ActionPanel:
             # they arrive in detachment_stratagem_buttons above like every
             # other one, and the "nothing to do here" hint below finally
             # accounts for them.
-            arrokon_tier = arrokon_controller.best_available_tier(squad) if can_arrokon_now else 0
             can_crushing_impact_now = crushing_impact_controller is not None and crushing_impact_controller.can_use(squad)
             # War Horde's Unbridled Carnage: can_use() already refuses for a
             # unit that cannot fight this phase, so the button never offers a

@@ -4394,9 +4394,23 @@ class ShootingController:
                 # "you can". The face is derived from the notation because the
                 # D-cannon's Damage is D6+2, so a die of 1 reads as a total of
                 # 3 - see game/structural_collapse.py.
+                #
+                # THE SECOND CLAUSE IS EXCLUSIVE, AND IT IS GATED ON THE
+                # TARGET: "if that attack targets a TITANIC unit, you can
+                # re-roll the Damage roll INSTEAD". So exactly one of the two
+                # halves is live per attack - the free re-roll REPLACES the
+                # automatic one rather than stacking with it. Without the gate
+                # the offer half fired against every target, handing out a free
+                # re-roll on every D-cannon roll that was not a 1; the
+                # predicate written for exactly this had no caller at all.
+                # Nothing built carries TITANIC, so the TITANIC branch is
+                # measured-inert today - see structural_collapse.py.
+                titanic = structural_collapse.targets_titanic(target_squad)
                 damage_reroll = DamageRerollOffer(
                     structural_collapse.STRUCTURAL_COLLAPSE_LABEL,
-                    automatic_faces=structural_collapse.STRUCTURAL_COLLAPSE_AUTOMATIC_FACES,
+                    automatic_faces=(() if titanic
+                                     else structural_collapse.STRUCTURAL_COLLAPSE_AUTOMATIC_FACES),
+                    offerable=titanic,
                     notation=weapon.damage_notation, **common,
                 )
             elif enh_breath_of_vaul.damage_reroll_applies(self.active_squad, weapon):

@@ -3008,18 +3008,27 @@ def main(map_key=None):
     # Cache for "For The Greater Good"'s Mark Spotted Target board highlight
     # (rule, game/greater_good.py): GreaterGoodController.eligible_targets()
     # does a full has_line_of_sight() sweep between every one of the acting
-    # squad's models and every model of every enemy squad on the board, with
-    # no caching of its own - unlike get_shoot_targets() above, nothing
-    # guarded this from being recomputed both every single rendered frame
-    # AND a second time on every click attempt while the "Mark Spotted
-    # Target" screen was up. Real user report ("the game crashed when I
-    # clicked Mark Spotted Target with the Stealth Battlesuits" - actually a
-    # multi-second-per-frame freeze, not a crash, on this scene's ~130-model
-    # board): measured ~0.8s per eligible_targets() call in an equivalent
-    # stress scenario - at that cost per frame the game is all but frozen
-    # for as long as the screen stays open. Same fix as get_shoot_targets():
-    # one cached computation per actual state change, shared between
-    # rendering and click validation.
+    # squad's models and every model of every enemy squad on the board -
+    # unlike get_shoot_targets() above, nothing guarded this from being
+    # recomputed both every single rendered frame AND a second time on every
+    # click attempt while the "Mark Spotted Target" screen was up. Real user
+    # report ("the game crashed when I clicked Mark Spotted Target with the
+    # Stealth Battlesuits" - actually a multi-second-per-frame freeze, not a
+    # crash). Same fix as get_shoot_targets(): one cached computation per
+    # actual state change, shared between rendering and click validation.
+    #
+    # THIS CACHE ONLY EVER COVERED HALF THE PROBLEM, and the other half was
+    # the whole of a second report ("wenn man tau spielt ist die shooting
+    # phase sehr laggy"). It is keyed on state == CHOOSING_TARGET, i.e. the
+    # highlight AFTER the button is pressed; the panel calls can_use() every
+    # frame BEFORE that, in state IDLE, where this returns an empty set and
+    # helps not at all. Measured on a 179-model map2 board: 4732 ms per
+    # eligible_targets() call, every frame a T'au unit was selected.
+    # can_use() now goes through GreaterGoodController.any_eligible_target(),
+    # which has a cache of its own with a stricter key (positions included,
+    # see game/board_epoch.py) - so this one is no longer the only guard, and
+    # its own key deliberately stays as it is: acting_squad is only ever set
+    # while a marking flow is open, which is a moment when nothing moves.
     greater_good_targets_cache = {"key": None, "result": set()}
 
     def get_greater_good_eligible_squads():

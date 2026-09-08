@@ -297,6 +297,99 @@ checks.true("...and the session re-rolls it without a prompt",
 checks.true("the re-roll's dice label no longer names one ability for all three",
             "Sunforge re-roll" not in res)
 
+# --- 5b. ...and the re-roll BRANCH actually runs -----------------------------
+# Everything above proves the offer is BUILT and that its predicate answers
+# correctly. None of it ever let a Damage roll of 1 resolve, so the body of the
+# branch had never executed once - and it crashed on its first real firing
+# (user report: AttributeError: 'function' object has no attribute 'add').
+# A source-string guard and a direct predicate call both hold perfectly while
+# the branch body is broken; only running it can tell.
+print("--- 5b. the mandatory re-roll, end to end ---")
+
+
+def fire_dcannon(first_die, second_die=None, target_sheet=ae.WRAITHLORD):
+    """One failed save from a D-cannon, resolved through the REAL controller.
+
+    A MULTI-WOUND target on purpose: excess damage does not spill over, so
+    against 1-wound Guardians a re-rolled 8 and a kept 3 both read as 1."""
+    scene = tk.shooting_scene(ae.D_CANNON_PLATFORM, target_sheet, attacker_owner="Player 2")
+    sc = scene["shooting"]
+    sc.active_squad = scene["attacker"]
+    gun = DCannonProfile()
+    # Through _begin_resolution() so current_group is the real thing:
+    # on_dice_acknowledged() returns early without one, and a probe that skips
+    # it measures nothing while looking like a pass.
+    sc._begin_resolution("dcannon", gun.name, [(scene["attacker"].models[0], gun)], scene["target"])
+    before = sum(m.current_wounds for m in scene["target"].models)
+    sc._begin_damage_allocation([1], gun, scene["target"], None)
+    if sc.damage_session.pending_choice:
+        sc.choose_damage_model(sc.damage_session.pending_choice[0])
+    sc.dice_manager.last_values = [first_die]
+    sc.dice_manager.acknowledge()
+    # A probe that restores the reported crash must turn this section RED, not
+    # kill the whole suite: an aborted run says nothing about WHICH assurance
+    # broke, and this repo has paid that lesson seventeen times. The crash is
+    # recorded and reported as a failed check by the caller instead.
+    crash = None
+    try:
+        sc.on_dice_acknowledged()
+        again = (sc.damage_session is not None
+                 and sc.damage_session.pending_damage_roll is not None)
+        if again and second_die is not None:
+            sc.dice_manager.last_values = [second_die]
+            sc.dice_manager.acknowledge()
+            sc.on_dice_acknowledged()
+    except Exception as exc:                      # noqa: BLE001 - see above
+        crash, again = "%s: %s" % (type(exc).__name__, exc), False
+    after = sum(m.current_wounds for m in scene["target"].models)
+    return dict(damage=before - after, rerolled=again, scene=scene, crash=crash,
+                asked=scene["decision"].is_pending)
+
+
+hit = fire_dcannon(1, 6)
+checks.eq("firing the D-cannon does not crash (the reported traceback)",
+          hit["crash"], None)
+checks.true("a Damage roll of 1 really is thrown again", hit["rerolled"])
+checks.true("...without asking anything", not hit["asked"])
+checks.eq("...and the re-rolled 6 lands as D6+2 = 8 damage", hit["damage"], 8)
+checks.true("...and the log says which ability spent the die",
+            any("Structural Collapse" in l and "re-rolling" in l
+                for l in hit["scene"]["log"].lines))
+# A/B in the same suite: the branch must not fire on any other face, or
+# "it was re-rolled" would be true of every shot.
+kept = fire_dcannon(4)
+checks.eq("...on any face, not just a 1", kept["crash"], None)
+checks.true("a die of 4 is not re-rolled", not kept["rerolled"])
+checks.eq("...and lands as D6+2 = 6 damage", kept["damage"], 6)
+
+# THE SECOND CLAUSE IS GATED ON THE TARGET. "you can re-roll the Damage roll
+# INSTEAD" needs a TITANIC unit opposite; without one the offer half must never
+# open. Un-gated it fired on every roll that was not a 1 - a free re-roll the
+# rule never granted, and the session parked on the prompt so the damage never
+# landed at all (measured: 0 instead of 6).
+checks.true("no prompt is raised against a non-TITANIC target", not kept["asked"])
+
+# ...and the TITANIC branch is written, not merely absent. Nothing built
+# carries the keyword, so it is staged by hand - the same treatment the
+# believed-no-op predicate itself gets.
+_tit = tk.shooting_scene(ae.D_CANNON_PLATFORM, ae.WRAITHLORD, attacker_owner="Player 2")
+for _m in _tit["target"].models:
+    _m.profile = type(_m.profile.__class__.__name__ + "Titanic",
+                      (_m.profile.__class__,), {"titanic": True})()
+checks.true("the staged target really reads as TITANIC",
+            structural_collapse.targets_titanic(_tit["target"]))
+_tsc = _tit["shooting"]
+_tsc.active_squad = _tit["attacker"]
+_tgun = DCannonProfile()
+_tsc._begin_resolution("dcannon", _tgun.name,
+                       [(_tit["attacker"].models[0], _tgun)], _tit["target"])
+_tsc._begin_damage_allocation([1], _tgun, _tit["target"], None)
+_toffer = _tsc.damage_session.damage_reroll
+checks.true("against TITANIC the free re-roll IS offerable",
+            getattr(_toffer, "offerable", False))
+checks.eq("...and it REPLACES the automatic one ('instead'), not stacks with it",
+          sorted(getattr(_toffer, "automatic_faces", ())), [])
+
 
 # --- 6. Sonic Destruction ---------------------------------------------------
 print("--- 6. Sonic Destruction ---")

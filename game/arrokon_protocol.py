@@ -64,6 +64,7 @@ IS checked, via is_battlesuit_unit()'s rule 19.03 keyword pooling.
 
 import copy
 
+from game import board_epoch
 from game.retaliation_cadre import is_battlesuit_unit, stratagem_target_ok
 from game.stratagems import Stratagem
 from game.turn import PHASE_SHOOTING
@@ -158,6 +159,14 @@ class ArrokonProtocolController:
         self.game_log = game_log
         self._stratagem = Stratagem(name="The Arro'kon Protocol", cp_cost=ARROKON_CP_COST, effect=self._grant)
 
+        # Perf, not rules: best_available_tier() costs a has_valid_target()
+        # sweep per candidate enemy unit - up to 660 ms in one call on a
+        # 179-model map2 board - and the left panel used to trigger it TWICE
+        # per frame (can_use(), then best_available_tier() again for the
+        # label). See best_available_tier() for what the key covers.
+        self._tier_cache_key = None
+        self._tier_cache_result = 0
+
     def reset_phase(self, squads=()):
         """End of phase: the grant expires ("until the end of the phase").
 
@@ -188,61 +197,119 @@ class ArrokonProtocolController:
         # itself, which is on the hot resolution path) needs it.
         from game.shooting import available_shooting_types
 
+        return list(self._qualifying(squad, by_tier=False))
+
+    def _qualifying(self, squad, by_tier):
+        """The ONE definition, as a generator so best_available_tier() can stop
+        at its first hit. `by_tier` picks the ORDER only, never the membership:
+        qualifying_target_squads() wants printed order (it feeds the AI's option
+        list), best_available_tier() wants richest-first so the first hit IS the
+        maximum - ARROKON_TIERS only holds 2 and 1, so there is nothing above
+        the first one found. Name is the tiebreak in both, so both are total."""
+        if self.shooting_controller is None or squad is None:
+            return
+        # Local import: game/shooting.py imports arrokon_adjusted_weapon()
+        # from this module at module level, so a module-level import back the
+        # other way would be a cycle. Only this method (never the adjuster
+        # itself, which is on the hot resolution path) needs it.
+        from game.shooting import available_shooting_types
+
         types = available_shooting_types(squad, self.all_tokens, self.movement_controller)
         if not types:
-            return []
-        candidates = sorted(
-            {
-                t.squad for t in self.all_tokens
-                if t.squad is not None and t.squad.owner != squad.owner and sustained_hits_for_target(t.squad) > 0
-            },
-            key=lambda s: s.name,
-        )
-        return [
-            target for target in candidates
+            return
+        candidates = {
+            t.squad for t in self.all_tokens
+            if t.squad is not None and t.squad.owner != squad.owner and sustained_hits_for_target(t.squad) > 0
+        }
+        key = ((lambda s: (-sustained_hits_for_target(s), s.name)) if by_tier
+               else (lambda s: s.name))
+        for target in sorted(candidates, key=key):
             if any(
                 self.shooting_controller.has_valid_target(
                     squad, shooting_type, self.all_tokens, target_filter=lambda s, t=target: s is t,
                 )
                 for shooting_type in types
-            )
-        ]
+            ):
+                yield target
 
     def best_available_tier(self, squad):
         """The highest [SUSTAINED HITS X] this unit could currently get, or 0
         if none - the number the button/prompt quotes, so the choice is made
         against a value rather than a bare yes/no (same reasoning as
-        _matchup_hint() and the charge odds elsewhere in this project)."""
-        targets = self.qualifying_target_squads(squad)
-        return max((sustained_hits_for_target(t) for t in targets), default=0)
+        _matchup_hint() and the charge odds elsewhere in this project).
+
+        CACHED, because this is a per-frame path and an expensive one: each
+        candidate costs a has_valid_target() sweep, measured at up to 660 ms for
+        one call (Broadside Battlesuits on a 179-model map2 board). Key terms,
+        each earning its place:
+          * the squad asking, and board_epoch.fingerprint() - positions, and
+            wound totals, which here are not a nicety: alive_model_count() reads
+            exactly those to pick the tier, so a model dying can lower it;
+          * battle_round/turn_owner;
+          * len(shot_squad_ids) and active_squad, which change what
+            available_shooting_types() answers.
+        can_use()'s own cheap gates stay OUTSIDE the memo - including the
+        15.01/CP one, which changes when someone buys something without any
+        model moving."""
+        key = (
+            squad,
+            board_epoch.fingerprint(self.all_tokens),
+            getattr(self.turn_tracker, "battle_round", None),
+            getattr(self.turn_tracker, "turn_owner", None),
+            len(getattr(self.shooting_controller, "shot_squad_ids", ())),
+            getattr(self.shooting_controller, "active_squad", None),
+        )
+        if key != self._tier_cache_key:
+            self._tier_cache_key = key
+            best = next(self._qualifying(squad, by_tier=True), None)
+            self._tier_cache_result = sustained_hits_for_target(best) if best is not None else 0
+        return self._tier_cache_result
+
+    def offer_tier(self, squad):
+        """The tier this unit would get if the Stratagem were bought RIGHT NOW,
+        or 0 if it cannot be bought at all - can_use()'s own gates, answered
+        with the NUMBER the button quotes instead of a bare yes/no.
+
+        It exists because the panel needed both: game/ui/action_panel.py asked
+        can_use() and then best_available_tier() in the same frame, and since
+        can_use() ends IN best_available_tier(), that was the same expensive
+        sweep computed twice per frame. One call now answers both, and
+        arrokon_tier can no longer disagree with can_arrokon_now."""
+        return self._offer_tier(squad)
 
     def can_use(self, squad):
+        """Unchanged in meaning and signature - `offer_tier(squad) > 0`. Kept as
+        its own name because ai/agent_driver.py and the Stratagem plumbing ask
+        this question in the yes/no form."""
+        return self.offer_tier(squad) > 0
+
+    def _offer_tier(self, squad):
         if squad is None or self.shooting_controller is None:
-            return False
+            return 0
         if self.turn_tracker is not None:
             # WHEN: "Your Shooting phase" - the user's own, not the opponent's.
             if self.turn_tracker.phase != PHASE_SHOOTING:
-                return False
+                return 0
             if squad.owner != self.turn_tracker.active_player:
-                return False
+                return 0
         if getattr(squad, "arrokon_protocol_active", False):
             return False  # already up on this unit - nothing left to buy
         if not stratagem_target_ok(squad):
-            return False
+            return 0
         if not is_battlesuit_unit(squad):
-            return False
+            return 0
         # TARGET: "has not been selected to shoot this phase". can_shoot()
         # carries that (shot_squad_ids) plus the phase check and "has some
         # weapon group left to fire"; active_squad is the one case it can't
         # see - a unit mid-activation HAS been selected to shoot, but only
         # lands in shot_squad_ids once that activation finishes.
         if self.shooting_controller.active_squad is squad:
-            return False
+            return 0
         if not self.shooting_controller.can_shoot(squad):
-            return False
+            return 0
         if not self.stratagem_controller.can_use(squad.owner, self._stratagem, [squad]):
             return False  # rule 15.01's once-per-phase/one-target-per-phase, CP, and 01.07's battle-shock block
-        return self.best_available_tier(squad) > 0
+        return self.best_available_tier(squad)
 
     def use(self, squad):
         """Spends the CP and puts the grant up. TARGET is trivial (always

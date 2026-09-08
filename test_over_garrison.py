@@ -33,6 +33,7 @@ from ai import agent_driver, observation
 from game import config, maps
 from game import combat_focus
 from game import army_lists
+from game.objective_control import effective_oc
 from game.factions import orks, tau_empire
 
 c = Checks("over-garrison (rules 14.01-14.02)")
@@ -156,7 +157,8 @@ if garrison_problems:
     text = garrison_problems[0]
     c.true("it names all three units", all(
         n in text for n in ("2 Boyz 1 + Warboss", "2 Gretchin 2", "2 Kill Rig 1")))
-    c.true("it says which one keeps it (the cheapest)", "Leave 2 Gretchin 2 there" in text)
+    c.true("it says which one keeps it (the cheapest)",
+           "2 Gretchin 2 already out-controls" in text and "Leave that there" in text)
     c.true("it does not ask for the Tankbustas", "2 Tankbustas 1" not in text)
 c.eq("the contested Central Objective is not reported",
      [p for p in problems if "Central Objective" in p], [])
@@ -194,7 +196,8 @@ c.eq("the Tankbustas on the contested objective are untouched",
      ("hold", (32.0, 18.0)))
 c.eq("two corrections logged", sum(1 for line in log.lines if "14.01-14.02" in line), 2)
 c.true("the log names the rule and the keeper",
-       any("14.01-14.02" in line and "2 Gretchin 2 holds it alone" in line for line in log.lines))
+       any("14.01-14.02" in line and "2 Gretchin 2 already out-controls" in line
+           for line in log.lines))
 # The Kill Rig's role was ALREADY "advance", so a line claiming it rewrote the
 # role would be false on the one order whose rewrite mattered most.
 rig_line = next(l for l in log.lines if "2 Kill Rig 1" in l)
@@ -208,12 +211,15 @@ c.true("the Boyz' line reports both changes",
 # ------------------------- 5. A/B: without the backstop, the orders stand
 
 state, turn, squads = scene()
-saved = agent_driver._uncontested_objectives
-agent_driver._uncontested_objectives = lambda *a, **k: []
+# Patches _held_objectives, not _uncontested_objectives: the over-garrison
+# pass reads the former (it needs the threat's Objective Control, not just
+# whether anyone is near), and the latter now serves only _lone_garrison_swaps.
+saved = agent_driver._held_objectives
+agent_driver._held_objectives = lambda *a, **k: []
 try:
     plan, log = validate(state, turn, reported_plan())
 finally:
-    agent_driver._uncontested_objectives = saved
+    agent_driver._held_objectives = saved
 c.eq("A/B: pre-fix, the Boyz keep their hold order",
      plan["unit_plans"]["2 Boyz 1 + Warboss"]["role"], "hold")
 c.eq("A/B: pre-fix, the Kill Rig keeps its garrison coordinate",
@@ -232,7 +238,17 @@ c.eq("a single garrison unit is not a problem",
 plan, log = validate(state, turn, solo)
 c.eq("...and is not rewritten", plan["unit_plans"]["2 Gretchin 2"]["role"], "hold")
 
-# An enemy within 12" makes reinforcing legitimate.
+# A THREAT SETS THE BAR, IT DOES NOT SWITCH THE PASS OFF. This used to assert
+# the opposite - an enemy anywhere within 12" exempted the objective entirely,
+# so any number of units could sit on it for the rest of the battle. Reported
+# as "die necrons kommen immer nicht so richtig von ihrem home objective weg.
+# sowohl necron warriors als auch immortals klumpen auf dem home objective":
+# in that game an Avatar of Khaine stood about 12" off P2 Home from turn 2 on,
+# and a 270-point Necron Warriors blob spent four turns parked behind an
+# objective an Immortals unit was already holding.
+#
+# Rule 14.02 says how big a garrison a threat justifies: control is the higher
+# Objective Control total, so the bar is the enemy's OC, not their presence.
 state, turn, squads = scene(extra_p1=[
     ("1 Kroot Carnivores 1", tau_empire.KROOT_CARNIVORES, [(30.0, 18.0)])])
 threatened = next(
@@ -242,10 +258,33 @@ threatened = next(
         terrain_areas=state.terrain_areas)["objectives"] if o["name"] == HOME)
 c.true("scene check: the enemy really is within 12\" now",
        threatened["enemy_units_within_12in"] != [])
-c.eq("a threatened objective may be reinforced - nothing reported",
-     [p for p in problems_for(state, turn, reported_plan()) if HOME in p], [])
+home = next(o for o in state.objectives if o.name == HOME)
+threat_oc = dict((o.name, t) for o, t in agent_driver._held_objectives(state, "Player 2"))[HOME]
+c.eq("scene check: one Kroot model is worth 2 OC", threat_oc, 2)
+c.true("the keeper alone already out-controls it",
+       sum(effective_oc(m) for m in squads["2 Gretchin 2"].models) > threat_oc)
+c.eq("a threatened objective is still trimmed to what holds it",
+     len([p for p in problems_for(state, turn, reported_plan()) if HOME in p]), 1)
 plan, log = validate(state, turn, reported_plan())
-c.eq("...and nothing is rewritten", plan["unit_plans"]["2 Boyz 1 + Warboss"]["role"], "hold")
+c.eq("...and the surplus is freed", plan["unit_plans"]["2 Boyz 1 + Warboss"]["role"], "advance")
+c.eq("...while the keeper stays", plan["unit_plans"]["2 Gretchin 2"]["role"], "hold")
+
+# THE BAR IS REAL, not a formality: a threat big enough to out-control the
+# keeper keeps a SECOND unit there. Without this the rule above would be
+# indistinguishable from "always keep exactly one".
+state, turn, squads = scene(extra_p1=[
+    ("1 Kroot Carnivores 1", tau_empire.KROOT_CARNIVORES,
+     [(26.0 + 0.9 * i, 18.0) for i in range(10)]),
+    ("1 Kroot Carnivores 2", tau_empire.KROOT_CARNIVORES,
+     [(26.0 + 0.9 * i, 19.5) for i in range(10)])])
+threat_oc = dict((o.name, t) for o, t in agent_driver._held_objectives(state, "Player 2"))[HOME]
+gretchin_oc = sum(effective_oc(m) for m in squads["2 Gretchin 2"].models)
+c.true("scene check: the threat now out-controls the keeper alone",
+       threat_oc > gretchin_oc)
+plan, log = validate(state, turn, reported_plan())
+c.eq("a bigger threat keeps a second unit on the objective",
+     plan["unit_plans"]["2 Boyz 1 + Warboss"]["role"], "hold")
+c.eq("...and still frees the rest", plan["unit_plans"]["2 Kill Rig 1"]["position"], None)
 
 # An objective the enemy out-controls is not ours to over-garrison.
 state, turn, squads = scene()
