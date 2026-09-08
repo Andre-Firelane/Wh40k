@@ -1,0 +1,153 @@
+{
+  "format": 1,
+  "key": "aeldari_warhost_guardians",
+  "name": "Aeldari (Warhost, Guardians)",
+  "faction_keyword": "AELDARI",
+  "army_rule": "Battle Focus",
+  "detachments": ["Warhost"],
+  "force_disposition": "reconnaissance",
+  "sort_order": 12,
+  "note": "User-supplied export '1k sc', 1995 pts. The second Warhost list, and the first roster here that fields the SAME entry more than once - two Guardian Defenders blocks with their own Farseer and Warlock Conclave, two War Walkers units, two D-cannon Platforms. It buys no Enhancement at all, so Warhost's four stay dormant. The export names the Avatar WARLORD; nothing in this engine reads a warlord, so it is recorded here and nowhere else.",
+  "roster": [
+    {
+      "datasheet": "Dire Avengers",
+      "color": [70, 150, 220],
+      "composition_index": 1,
+      "note": "10 models, so TWO Aspect Shrine tokens - granted at build time as starting strength // 5, never written down. The export prices this at 140, the transcribed points list at 150: one of the three standing deviations this list carries (verify_rules_vs_engine.py reports all three).",
+      "choices": {
+        "Dire Avenger Exarch": {
+          "Exarch -> second Avenger Shuriken Catapult": 1
+        }
+      },
+      "leaders": [
+        {
+          "datasheet": "Asurmen",
+          "color": [240, 240, 250]
+        }
+      ]
+    },
+    {
+      "datasheet": "Guardian Defenders",
+      "color": [90, 170, 210],
+      "leaders": [
+        {
+          "datasheet": "Farseer",
+          "color": [150, 130, 200],
+          "choices": {
+            "Farseer": {
+              "Witchblade -> Singing Spear": 1
+            }
+          }
+        },
+        {
+          "datasheet": "Warlock Conclave",
+          "color": [150, 120, 200],
+          "choices": {
+            "Warlock": {
+              "Witchblade -> Singing Spear": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "datasheet": "Guardian Defenders",
+      "color": [90, 170, 210],
+      "note": "The second copy, identical to the first. Nothing distinguishes them but the copy number the builder appends to the squad name - which is the identifier the AI's plan orders, the map rosters and a saved scene all address a unit by.",
+      "leaders": [
+        {
+          "datasheet": "Farseer",
+          "color": [150, 130, 200],
+          "choices": {
+            "Farseer": {
+              "Witchblade -> Singing Spear": 1
+            }
+          }
+        },
+        {
+          "datasheet": "Warlock Conclave",
+          "color": [150, 120, 200],
+          "choices": {
+            "Warlock": {
+              "Witchblade -> Singing Spear": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "datasheet": "Storm Guardians",
+      "color": [110, 190, 200],
+      "note": "The two Power Swords are ADDRESSED to models 4 and 5 rather than counted, so they land on Guardians that did NOT give up their Shuriken Pistol for a Flamer or a Fusion Gun. The export does not say which models carry what - both distributions are legal - so this follows the call the other shipped Aeldari list already made for the identical loadout.",
+      "choices": {
+        "Storm Guardian": {
+          "Shuriken Pistol -> Flamer": 2,
+          "Shuriken Pistol -> Fusion Gun": 2,
+          "Close Combat Weapon -> Power Sword": [4, 5]
+        }
+      },
+      "leaders": [
+        {
+          "datasheet": "Eldrad Ulthran",
+          "color": [170, 140, 210]
+        },
+        {
+          "datasheet": "Warlock Conclave",
+          "color": [150, 120, 200],
+          "choices": {
+            "Warlock": {
+              "Witchblade -> Singing Spear": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "datasheet": "Avatar of Khaine",
+      "color": [230, 90, 60]
+    },
+    {
+      "datasheet": "D-cannon Platform",
+      "color": [160, 175, 140],
+      "note": "The only Aeldari entry priced by how many copies the army already fields: 110 for the first, 125 for the second. The export prints both numbers, which is what makes the tiering visible at all - and neither platform is attached to a Guardian Defenders block, even though its datasheet supports one."
+    },
+    {
+      "datasheet": "D-cannon Platform",
+      "color": [160, 175, 140]
+    },
+    {
+      "datasheet": "Striking Scorpions",
+      "color": [110, 180, 100],
+      "note": "The Exarch keeps its printed default - Scorpion Chainsword, Scorpion's Claw and Shuriken Pistol - so this entry takes no wargear option at all."
+    },
+    {
+      "datasheet": "War Walkers",
+      "color": [130, 155, 175],
+      "composition_index": 1,
+      "choices": {
+        "War Walker": {
+          "2x Shuriken Cannon -> 2x Bright Lance": 2
+        }
+      }
+    },
+    {
+      "datasheet": "War Walkers",
+      "color": [130, 155, 175],
+      "composition_index": 1,
+      "choices": {
+        "War Walker": {
+          "2x Shuriken Cannon -> 2x Bright Lance": 2
+        }
+      }
+    },
+    {
+      "datasheet": "Wraithguard",
+      "color": [225, 225, 195],
+      "choices": {
+        "Wraithguard": {
+          "Wraithcannon -> D-scythe": 5
+        }
+      }
+    }
+  ]
+}

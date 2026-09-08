@@ -1,7 +1,7 @@
 {
   "format": 1,
   "key": "aeldari_warhost",
-  "name": "Aeldari (Warhost)",
+  "name": "Aeldari (Warhost, Aspects)",
   "faction_keyword": "AELDARI",
   "army_rule": "Battle Focus",
   "detachments": ["Warhost"],

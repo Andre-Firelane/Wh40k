@@ -232,6 +232,128 @@
   Wraithguard x5 (225,225,195) [Close Combat Weapon, D-scythe] {}
   enhancements: -
 
+### aeldari_warhost_guardians / Player 1
+1 Dire Avengers 1 + Asurmen | deploy | pts=285 | models=11
+  components: Dire Avengers/bodyguard, Asurmen/leader
+  Dire Avenger Exarch x1 (70,150,220) [Avenger Shuriken Catapult, Avenger Shuriken Catapult, Close Combat Weapon] {}
+  Dire Avenger x9 (70,150,220) [Avenger Shuriken Catapult, Close Combat Weapon] {}
+  Asurmen x1 (240,240,250) [Bloody Twins, Sword of Asur] {}
+  enhancements: -
+1 Guardian Defenders 1 + Farseer + Warlock Conclave | deploy | pts=210 | models=14
+  components: Guardian Defenders/bodyguard, Farseer/leader, Warlock Conclave/leader
+  Heavy Weapon Platform x1 (90,170,210) [Bright Lance, Close Combat Weapon] {}
+  Guardian Defender x10 (90,170,210) [Close Combat Weapon, Shuriken Catapult] {}
+  Farseer x1 (150,130,200) [Eldritch Storm, Shuriken Pistol, Singing Spear, Singing Spear] {}
+  Warlock x2 (150,120,200) [Destructor, Shuriken Pistol, Singing Spear, Singing Spear] {}
+  enhancements: -
+1 Guardian Defenders 2 + Farseer + Warlock Conclave | deploy | pts=210 | models=14
+  components: Guardian Defenders/bodyguard, Farseer/leader, Warlock Conclave/leader
+  Heavy Weapon Platform x1 (90,170,210) [Bright Lance, Close Combat Weapon] {}
+  Guardian Defender x10 (90,170,210) [Close Combat Weapon, Shuriken Catapult] {}
+  Farseer x1 (150,130,200) [Eldritch Storm, Shuriken Pistol, Singing Spear, Singing Spear] {}
+  Warlock x2 (150,120,200) [Destructor, Shuriken Pistol, Singing Spear, Singing Spear] {}
+  enhancements: -
+1 Storm Guardians 1 + Eldrad Ulthran + Warlock Conclave | deploy | pts=295 | models=14
+  components: Storm Guardians/bodyguard, Eldrad Ulthran/leader, Warlock Conclave/leader
+  Serpent's Scale Platform x1 (110,190,200) [Close Combat Weapon] {}
+  Storm Guardian x2 (110,190,200) [Close Combat Weapon, Flamer] {}
+  Storm Guardian x2 (110,190,200) [Close Combat Weapon, Fusion Gun] {}
+  Storm Guardian x2 (110,190,200) [Power Sword, Shuriken Pistol] {}
+  Storm Guardian x4 (110,190,200) [Close Combat Weapon, Shuriken Pistol] {}
+  Eldrad Ulthran x1 (170,140,210) [Mind War, Shuriken Pistol, Staff of Ulthamar and Witchblade] {}
+  Warlock x2 (150,120,200) [Destructor, Shuriken Pistol, Singing Spear, Singing Spear] {}
+  enhancements: -
+1 Avatar of Khaine 1 | deploy | pts=250 | models=1
+  components: -
+  Avatar of Khaine x1 (230,90,60) [The Wailing Doom, The Wailing Doom - Strike, The Wailing Doom - Sweep] {}
+  enhancements: -
+1 D-cannon Platform 1 | deploy | pts=110 | models=1
+  components: -
+  D-cannon Platform x1 (160,175,140) [Close Combat Weapon, D-cannon, Shuriken Catapult] {}
+  enhancements: -
+1 D-cannon Platform 2 | deploy | pts=125 | models=1
+  components: -
+  D-cannon Platform x1 (160,175,140) [Close Combat Weapon, D-cannon, Shuriken Catapult] {}
+  enhancements: -
+1 Striking Scorpions 1 | deploy | pts=75 | models=5
+  components: -
+  Striking Scorpion Exarch x1 (110,180,100) [Scorpion Chainsword, Scorpion's Claw, Shuriken Pistol] {}
+  Striking Scorpion x4 (110,180,100) [Scorpion Chainsword, Shuriken Pistol] {}
+  enhancements: -
+1 War Walkers 1 | deploy | pts=160 | models=2
+  components: -
+  War Walker x2 (130,155,175) [Bright Lance, Bright Lance, War Walker Feet] {}
+  enhancements: -
+1 War Walkers 2 | deploy | pts=160 | models=2
+  components: -
+  War Walker x2 (130,155,175) [Bright Lance, Bright Lance, War Walker Feet] {}
+  enhancements: -
+1 Wraithguard 1 | deploy | pts=145 | models=5
+  components: -
+  Wraithguard x5 (225,225,195) [Close Combat Weapon, D-scythe] {}
+  enhancements: -
+
+### aeldari_warhost_guardians / Player 2
+2 Dire Avengers 1 + Asurmen | deploy | pts=285 | models=11
+  components: Dire Avengers/bodyguard, Asurmen/leader
+  Dire Avenger Exarch x1 (70,150,220) [Avenger Shuriken Catapult, Avenger Shuriken Catapult, Close Combat Weapon] {}
+  Dire Avenger x9 (70,150,220) [Avenger Shuriken Catapult, Close Combat Weapon] {}
+  Asurmen x1 (240,240,250) [Bloody Twins, Sword of Asur] {}
+  enhancements: -
+2 Guardian Defenders 1 + Farseer + Warlock Conclave | deploy | pts=210 | models=14
+  components: Guardian Defenders/bodyguard, Farseer/leader, Warlock Conclave/leader
+  Heavy Weapon Platform x1 (90,170,210) [Bright Lance, Close Combat Weapon] {}
+  Guardian Defender x10 (90,170,210) [Close Combat Weapon, Shuriken Catapult] {}
+  Farseer x1 (150,130,200) [Eldritch Storm, Shuriken Pistol, Singing Spear, Singing Spear] {}
+  Warlock x2 (150,120,200) [Destructor, Shuriken Pistol, Singing Spear, Singing Spear] {}
+  enhancements: -
+2 Guardian Defenders 2 + Farseer + Warlock Conclave | deploy | pts=210 | models=14
+  components: Guardian Defenders/bodyguard, Farseer/leader, Warlock Conclave/leader
+  Heavy Weapon Platform x1 (90,170,210) [Bright Lance, Close Combat Weapon] {}
+  Guardian Defender x10 (90,170,210) [Close Combat Weapon, Shuriken Catapult] {}
+  Farseer x1 (150,130,200) [Eldritch Storm, Shuriken Pistol, Singing Spear, Singing Spear] {}
+  Warlock x2 (150,120,200) [Destructor, Shuriken Pistol, Singing Spear, Singing Spear] {}
+  enhancements: -
+2 Storm Guardians 1 + Eldrad Ulthran + Warlock Conclave | deploy | pts=295 | models=14
+  components: Storm Guardians/bodyguard, Eldrad Ulthran/leader, Warlock Conclave/leader
+  Serpent's Scale Platform x1 (110,190,200) [Close Combat Weapon] {}
+  Storm Guardian x2 (110,190,200) [Close Combat Weapon, Flamer] {}
+  Storm Guardian x2 (110,190,200) [Close Combat Weapon, Fusion Gun] {}
+  Storm Guardian x2 (110,190,200) [Power Sword, Shuriken Pistol] {}
+  Storm Guardian x4 (110,190,200) [Close Combat Weapon, Shuriken Pistol] {}
+  Eldrad Ulthran x1 (170,140,210) [Mind War, Shuriken Pistol, Staff of Ulthamar and Witchblade] {}
+  Warlock x2 (150,120,200) [Destructor, Shuriken Pistol, Singing Spear, Singing Spear] {}
+  enhancements: -
+2 Avatar of Khaine 1 | deploy | pts=250 | models=1
+  components: -
+  Avatar of Khaine x1 (230,90,60) [The Wailing Doom, The Wailing Doom - Strike, The Wailing Doom - Sweep] {}
+  enhancements: -
+2 D-cannon Platform 1 | deploy | pts=110 | models=1
+  components: -
+  D-cannon Platform x1 (160,175,140) [Close Combat Weapon, D-cannon, Shuriken Catapult] {}
+  enhancements: -
+2 D-cannon Platform 2 | deploy | pts=125 | models=1
+  components: -
+  D-cannon Platform x1 (160,175,140) [Close Combat Weapon, D-cannon, Shuriken Catapult] {}
+  enhancements: -
+2 Striking Scorpions 1 | deploy | pts=75 | models=5
+  components: -
+  Striking Scorpion Exarch x1 (110,180,100) [Scorpion Chainsword, Scorpion's Claw, Shuriken Pistol] {}
+  Striking Scorpion x4 (110,180,100) [Scorpion Chainsword, Shuriken Pistol] {}
+  enhancements: -
+2 War Walkers 1 | deploy | pts=160 | models=2
+  components: -
+  War Walker x2 (130,155,175) [Bright Lance, Bright Lance, War Walker Feet] {}
+  enhancements: -
+2 War Walkers 2 | deploy | pts=160 | models=2
+  components: -
+  War Walker x2 (130,155,175) [Bright Lance, Bright Lance, War Walker Feet] {}
+  enhancements: -
+2 Wraithguard 1 | deploy | pts=145 | models=5
+  components: -
+  Wraithguard x5 (225,225,195) [Close Combat Weapon, D-scythe] {}
+  enhancements: -
+
 ### orks / Player 1
 1 Kill Rig 1 | deploy | pts=145 | models=1
   components: -

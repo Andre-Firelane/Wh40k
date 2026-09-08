@@ -56,10 +56,11 @@ def _read(path):
 print("\n=== 1. the list registry ===")
 
 keys = [entry.key for entry in army_lists.ARMY_LISTS]
-c.eq("nine lists on offer", keys,
-     ["aeldari", "aeldari_warhost", "orks", "necrons", "tau", "tau_montka",
-      "tau_retaliation", "tau_recon", "death_guard"])
-# FIVE FACTIONS, NINE LISTS - two of them with a real choice underneath, which
+c.eq("ten lists on offer", keys,
+     ["aeldari", "aeldari_warhost", "aeldari_warhost_guardians", "orks",
+      "necrons", "tau", "tau_montka", "tau_retaliation", "tau_recon",
+      "death_guard"])
+# FIVE FACTIONS, TEN LISTS - two of them with a real choice underneath, which
 # is what the two-step "pick a people, then a list" flow was built for and had
 # only ever been measured against a made-up registry.
 c.eq("...across five factions", len(army_lists.factions()), 5)
@@ -73,7 +74,7 @@ c.eq("...and the T'au have four of them",
 # added, wherever it lands.
 c.eq("...and each faction offers exactly this many",
      {f.key: len(army_lists.lists_for(f.key)) for f in army_lists.factions()},
-     {"AELDARI": 2, "ORKS": 1, "NECRONS": 1, "T'AU EMPIRE": 4, "DEATH GUARD": 1})
+     {"AELDARI": 3, "ORKS": 1, "NECRONS": 1, "T'AU EMPIRE": 4, "DEATH GUARD": 1})
 c.eq("every list is reachable by key", sorted(army_lists.BY_KEY), sorted(keys))
 
 # The tile's own text: name / logo / detachment, per the user's description of
@@ -379,7 +380,7 @@ c.eq("Back from a list step returns to the faction", walk.stage, STAGE_FACTION)
 c.eq("...and forgets that faction", walk.factions_chosen.get("Player 1"), None)
 walk.choose("AELDARI")
 c.eq("...so another faction can be picked", [i.key for i in walk.items],
-     ["aeldari", "aeldari_warhost"])
+     ["aeldari", "aeldari_warhost", "aeldari_warhost_guardians"])
 c.eq("Back at the very first step does nothing", ArmySelectScreen().back(), False)
 
 # Changing faction after a list was already recorded must DROP that list -
@@ -391,7 +392,7 @@ swap.back()                    # back to Player 1's faction step
 swap.choose("AELDARI")
 c.eq("re-picking a faction clears the list under it", swap.choices.get("Player 1"), None)
 c.eq("...and offers the new faction's lists", [i.key for i in swap.items],
-     ["aeldari", "aeldari_warhost"])
+     ["aeldari", "aeldari_warhost", "aeldari_warhost_guardians"])
 
 # A key from the wrong step is refused rather than stored.
 wrong = ArmySelectScreen()

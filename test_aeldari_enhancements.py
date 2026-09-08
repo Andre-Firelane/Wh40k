@@ -2630,8 +2630,8 @@ _ar_calls = [n for n in _ast.walk(_ast.parse(_ar_src))
 c.eq("...the ONE builder grants in exactly two places (a unit and its leaders)",
      len(_ar_calls), 2)
 _aeldari_lists = [e for e in _al.ARMY_LISTS if e.faction_keyword == "AELDARI"]
-c.eq("two shipped lists field this faction",
-     [e.key for e in _aeldari_lists], ["aeldari", "aeldari_warhost"])
+c.eq("three shipped lists field this faction",
+     [e.key for e in _aeldari_lists], ["aeldari", "aeldari_warhost", "aeldari_warhost_guardians"])
 _bought = sorted({n for e in _aeldari_lists for n in e.enhancement_names()})
 # Asked of the LOADED lists rather than grepped out of a builder's source: army
 # lists are data now, and enhancement_names() reads the same roster the game

@@ -2686,8 +2686,8 @@ Bewegungsphasen-Einheit), und in beiden muss die Einheit schon auf dem Brett ste
 
 ## Armeen (armies/*.json) und Listenauswahl
 
-**Die NEUN Listen sind DATEN: je eine `armies/<key>.json`.** Fünf Fraktionen, und die T'au stellen
-vier davon, die Aeldari zwei (siehe die Tabelle unten). Jede Datei ist vollständig — Name, Fraktion, Armeeregel,
+**Die ZEHN Listen sind DATEN: je eine `armies/<key>.json`.** Fünf Fraktionen, und die T'au stellen
+vier davon, die Aeldari drei (siehe die Tabelle unten). Jede Datei ist vollständig — Name, Fraktion, Armeeregel,
 Detachments, Force Disposition und jeder Eintrag —, und `ARMY_LISTS` entsteht aus einem
 VERZEICHNIS-SCAN. Nichts davon steht ein zweites Mal im Quelltext; eine Liste, die man zweimal
 aufschreibt, driftet.
@@ -3062,7 +3062,7 @@ dazukommen.
   Primary — das Paar gewährt zwei, die Bitte nannte aber ein Detachment und keine andere Mission.
   Erste Liste hier, bei der die Wahl wirklich zwei verschiedene Antworten hat (das T'au-Paar gewährt
   zweimal dieselbe).
-- **Aeldari (Warhost) — `aeldari_warhost`, 10 Listeneinträge, 10 Einheiten, 60 Modelle, 2005 pts**
+- **Aeldari (Warhost, Aspects) — `aeldari_warhost`, 10 Listeneinträge, 10 Einheiten, 60 Modelle, 2005 pts**
   (User-Export "1k sc", 2000 pts). **Zweite Aeldari-Liste**, also das zweite Volk mit einer echten
   Wahl in Stufe zwei des Auswahl-Screens. **FÜNF** Attached Units: Asurmen in Dire Avengers,
   Farseer (Enhancement **Timeless Strategist**) + Warlock Conclave in Guardian Defenders, Jain Zar
@@ -3086,6 +3086,34 @@ dazukommen.
     will zufällig die eine, die es gibt.
   - **Der Export nennt den Avatar WARLORD**; nichts in dieser Engine liest einen Warlord (belegter
     No-op), also steht das in der `note` der Datei und sonst nirgends.
+- **Aeldari (Warhost, Guardians) — `aeldari_warhost_guardians`, 11 Listeneinträge, 11 Einheiten,
+  70 Modelle, 2025 pts** (User-Export "1k sc", 1995 pts). Zweite Warhost-Liste, dieselben 3 DP und
+  dieselbe Reconnaissance — **also das erste Volk mit DREI Listen**, und das erste Paar hier, das
+  sich nicht am Detachment unterscheiden lässt: deshalb heißen die beiden jetzt "(Warhost,
+  Aspects)" und "(Warhost, Guardians)".
+  - **Der erste Roster überhaupt, der denselben Eintrag MEHRFACH fieldet**: zwei Guardian-Defenders-
+    Blöcke mit je eigenem Farseer und Warlock Conclave, zwei War Walkers, zwei D-cannon Platforms.
+    Auseinandergehalten werden sie allein über die Kopiennummer, die der Builder an den Squad-Namen
+    hängt — und das ist der Identifier, den Planbefehle, Teilroster und Snapshots adressieren. Im
+    echten Spiel belegt: `1 Guardian Defenders 1/2`, `1 Farseer 1/2`, und die drei Conclaves als
+    `1 Warlock Conclave 1/2/3`, über den GANZEN Roster durchgezählt.
+  - **Die zwei D-cannon Platforms sind die einzige Stelle, an der die KOPIEN-Staffelung sichtbar
+    wird**: 110 für die erste, 125 für die zweite. Der Export druckt beide Zahlen, und die Engine
+    trifft sie ohne Zutun — der einzige Aeldari-Eintrag mit `PointsTier(to_unit=1)`.
+  - **DREI Punkte-Abweichungen, alle bekannt** (Dire Avengers 150/140, Eldrad 130/120, Storm
+    Guardians 110/100), zusammen +30 — daher 2025 gegen die 1995 des Exports. Jede andere Zeile
+    stimmt, inklusive der zwei D-cannon-Stufen.
+  - **Die zwei Power Swords der Storm Guardians sind per MODELL-INDEX adressiert** (`[4, 5]`), also
+    landen sie nicht auf den Guardians, die ihre Shuriken Pistol für Flamer/Fusion Gun abgegeben
+    haben. Der Export sagt nicht, welches Modell was trägt — beide Verteilungen sind legal —, also
+    folgt das der Entscheidung, die die andere Aeldari-Liste für dasselbe Loadout schon getroffen
+    hat.
+  - **Das "Serpent shield" des Export-Eintrags ist WARGEAR, keine Waffe** — es steht in der
+    `Wargear Abilities`-Spalte des Korpus und gewährt der Einheit 5+ Invulnerable. Gemessen:
+    `invulnerable_save.effective_invulnerable_save()` liefert für Plattform UND Storm Guardians 5+,
+    es fehlt also nichts, obwohl die Waffenliste des Modells nur die Close Combat Weapon zeigt.
+  - **Sie kauft KEIN Enhancement**, also bleiben Warhosts vier weiter dormant und die Zahl "1 von
+    28 gekauft" steht unverändert.
 - **Necrons — 15 Listeneinträge, 9 Einheiten, 68 Modelle, 2020 pts**, Awakened Dynasty. Default für
   Player 2 (`config.PLAYER2_ARMY = "necrons"`). **SECHS** Anbindungen: Overlord in die Lychguard,
   Technomancer in die Necron Warriors, je ein Plasmancer in jede der ZWEI Immortals-Einheiten
@@ -4900,6 +4928,7 @@ die Evidenz; zwei Läufe erzeugen 56 byte-identische Dateien.
 |---|---|---|---|
 | Aeldari | Seer Council + Path of the Outcast | Priority Assets | **Secure Asset** |
 | Aeldari (`aeldari_warhost`) | Warhost | Reconnaissance | **Reconnaissance Sweep** |
+| Aeldari (`aeldari_warhost_guardians`) | Warhost | Reconnaissance | **Reconnaissance Sweep** |
 | Orks | War Horde | Take and Hold | **Battlefield Dominance** |
 | Necrons | Awakened Dynasty | Take and Hold | **Battlefield Dominance** |
 | T'au (`tau`) | Kauyon + Adv. Acquisition Cadre | Reconnaissance | **Reconnaissance Sweep** |

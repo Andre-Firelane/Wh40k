@@ -804,10 +804,12 @@ from game.factions import aeldari as _ae                             # noqa: E40
 
 _aeldari_lists = [e for e in army_lists.ARMY_LISTS
                   if e.faction_keyword == "AELDARI"]
-c.eq("two shipped lists field the Aeldari",
-     [e.key for e in _aeldari_lists], ["aeldari", "aeldari_warhost"])
+c.eq("three shipped lists field the Aeldari",
+     [e.key for e in _aeldari_lists], ["aeldari", "aeldari_warhost", "aeldari_warhost_guardians"])
 _declared = {d for e in _aeldari_lists for d in e.detachments}
 _all_dets = set(_ae.AELDARI.detachments)
+# Still three: the second Warhost list declares the same detachment as the
+# first, so a list can be added without widening the reach at all.
 c.eq("between them they declare three of the eight detachments",
      (len(_declared), len(_all_dets)), (3, 8))
 c.eq("...Seer Council, Path of the Outcast and Warhost", sorted(_declared),
