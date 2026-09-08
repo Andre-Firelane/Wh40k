@@ -25,7 +25,7 @@ prompt only goes through DecisionManager when the winner is the human -
 routing the AI's answer through there could consult the agent.
 """
 
-from game import deployment
+from game import attached_units, deployment
 from game.squad import (
     INFILTRATORS_MIN_ENEMY_DISTANCE_IN,
     infiltrators_clear_of_enemies,
@@ -45,6 +45,13 @@ DONE = "done"
 DEPLOY = "deploy"
 RESERVES = "reserves"
 EMBARK = "embark"
+#: A SUPPORT WEAPON platform joining a Guardian Defenders unit ("Support
+#: Artillery": "At the start of the Declare Battle Formations step, this model
+#: can join one GUARDIAN DEFENDERS unit from your army"). Its target is a
+#: SQUAD, where EMBARK's is a transport TOKEN - both ride in the same slot of
+#: the declaration, because a unit has exactly one destination and the two are
+#: mutually exclusive by the printed text (a joined unit cannot embark).
+JOIN = "join"
 
 # The official sequence is Deploy Armies -> Determine First Turn -> Resolve
 # Pre-battle Abilities, and the order matters: a Scouts move (24.32) is a
@@ -355,11 +362,49 @@ class PregameController:
             out[id(transport)] = self.squads_assigned_to(transport)
         return out
 
-    def declare(self, squad, destination, transport_token=None):
-        """Record one unit's Declare Battle Formations answer."""
+    def squads_joining(self, target_squad):
+        """The SUPPORT WEAPON platforms declared to join `target_squad`."""
+        return [
+            s for s in self.army(target_squad.owner)
+            if self.declaration_for(s) == (JOIN, target_squad)
+        ]
+
+    def joins_map(self, owner):
+        """id(target squad) -> the platforms declared into it. The shape
+        assignments_map() has for transports, for the same reason: the panel
+        and the AI both need "what is already joined here" to ask
+        formations.support_join_errors() the one-per-unit question."""
+        out = {}
+        for squad in self.army(owner):
+            destination, target = self.declaration_for(squad)
+            if destination == JOIN and target is not None:
+                out.setdefault(id(target), []).append(squad)
+        return out
+
+    def destinations_map(self, owner):
+        """id(unit) -> its declared destination, for the units that have one.
+        What formations.eligible_join_targets() needs to refuse a host that is
+        already declared into a TRANSPORT."""
+        return {id(s): self.declaration_for(s)[0]
+                for s in self.army(owner) if id(s) in self._declared}
+
+    def declare(self, squad, destination, transport_token=None, join_target=None):
+        """Record one unit's Declare Battle Formations answer.
+
+        A declaration that names no target where one is required is REFUSED
+        rather than stored as a bare destination - "embark, in nothing" and
+        "join, nobody" are not answers, and storing them would make the unit
+        look declared while nothing could resolve it."""
         if destination == EMBARK and transport_token is None:
             return
-        self._declared[id(squad)] = (destination, transport_token if destination == EMBARK else None)
+        if destination == JOIN and join_target is None:
+            return
+        target = None
+        if destination == EMBARK:
+            target = transport_token
+        elif destination == JOIN:
+            target = join_target
+        self._declared[id(squad)] = (destination, target)
         return True
 
     def finish_formations_for(self, owner):
@@ -368,6 +413,42 @@ class PregameController:
         for squad in self.army(owner):
             if id(squad) not in self._declared:
                 self._declared[id(squad)] = (DEPLOY, None)
+
+        # Support Artillery FIRST, and the order is load-bearing. The printed
+        # text puts the join "at the start of the Declare Battle Formations
+        # step", and mechanically the merged unit is what everything below has
+        # to act on: a platform joined to a unit held in Reserves goes to
+        # Reserves with it, and _pending must never list the platform as a
+        # separate thing to place.
+        for squad in list(self.army(owner)):
+            destination, target = self.declaration_for(squad)
+            if destination != JOIN or target is None:
+                continue
+            merged = attached_units.attach(squad, target, game_state=self.game_state)
+            # attach() mutates the host in place today and says so is its own
+            # business, not the caller's - so the result is re-bound, and the
+            # host's declaration travels with it if it ever stops being the
+            # same object. Without that, the merged unit would fall back to
+            # the DEPLOY default and a Reserves declaration would be lost.
+            if merged is not target:
+                if id(target) in self._declared:
+                    self._declared[id(merged)] = self._declared.pop(id(target))
+                self._all_units[owner] = [
+                    merged if s is target else s for s in self._all_units.get(owner, ())
+                ]
+            self._log(
+                f"{owner}: {squad.name} joins {merged.name} for the battle "
+                f"(Support Artillery, rule 19.01)."
+            )
+        # The absorbed platforms are no longer units of this army - attach()
+        # has emptied them and taken them off the board. Dropped here for the
+        # same reason attach() drops them from the GameState lists: a squad
+        # with no models left in army() is a unit that every later pass has to
+        # remember to skip.
+        self._all_units[owner] = [
+            s for s in self._all_units.get(owner, ())
+            if getattr(s, "absorbed_into", None) is None
+        ]
 
         for squad in self.army(owner):
             destination, transport = self.declaration_for(squad)

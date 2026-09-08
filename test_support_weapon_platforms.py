@@ -517,4 +517,244 @@ for sheet, _p2, _g2 in SHEETS:
         checks.eq("%s has no art yet - pinned so adding one is visible" % sheet.name,
                   _p, None)
 
+# --- 6. Support Artillery: the Declare Battle Formations DECISION -----------
+#
+# The rule was transcribed and the MECHANISM existed - rule 19.01's SUPPORT
+# role, can_attach() and the pairing table have been in place since these three
+# were built - but nothing ever ASKED. The printed text puts the join in the
+# Declare Battle Formations step; a list that baked it in would be answering a
+# question the player is supposed to be asked. User: "im pre game muss man sich
+# entscheiden ob die Support weapons (d-cannons) an einen Guardian Trupp
+# angeschlossen werden sollen oder allein stehen."
+print("--- 6. Support Artillery at Declare Battle Formations ---")
+
+import pygame                                                     # noqa: E402
+from game import config, formations, maps, pregame                # noqa: E402
+from game.decision import DecisionManager                         # noqa: E402
+from game.dice import DiceManager                                 # noqa: E402
+from game.game_state import GameState                             # noqa: E402
+from game.setup import SetupController                            # noqa: E402
+from game.turn import TurnTracker                                 # noqa: E402
+from game.ui.action_panel import ActionPanel                      # noqa: E402
+
+
+def _stage(*extra):
+    """A real PregameController on a real map, holding one platform, two
+    Guardian Defenders units and whatever else the caller adds.
+
+    A REAL controller rather than a stub: this whole feature is a declaration
+    that has to survive finish_formations_for(), and a stub would answer the
+    predicate question while saying nothing about the resolution - which is
+    where the merge, the board and the pending-placement list all move."""
+    battle_map = maps.apply_to_config(maps.get("map2"))
+    state = GameState()
+    battle_map.build(state)
+    setup = SetupController(
+        state, obstacles=state.obstacles, all_tokens=state.tokens,
+        board_width_in=config.BOARD_WIDTH_IN, board_height_in=config.BOARD_HEIGHT_IN)
+    tt = TurnTracker(deferred_start=True)
+    ctrl = pregame.PregameController(
+        state, setup, DiceManager(), DecisionManager(), turn_tracker=tt,
+        on_battle_start=lambda p: tt.start_battle(p))
+    plat = platform(ae.D_CANNON_PLATFORM)
+    g1 = tk.build(ae.GUARDIAN_DEFENDERS, "Player 1", name="1 Guardian Defenders 1")
+    g2 = tk.build(ae.GUARDIAN_DEFENDERS, "Player 1", name="1 Guardian Defenders 2")
+    army = [plat, g1, g2] + list(extra)
+    for squad in army:
+        state.tokens.extend(squad.models)
+    ctrl.start({"Player 1": army}, transport_tokens=[
+        m for s in extra for m in s.models if m.profile.transport])
+    return state, ctrl, plat, g1, g2
+
+
+def _targets(ctrl, squad):
+    return [u.name for u in formations.eligible_join_targets(
+        squad, ctrl.army("Player 1"), ctrl.joins_map("Player 1"),
+        ctrl.destinations_map("Player 1"))]
+
+
+def _why(errors):
+    """The first refusal, or "". A PROBE MUST GO RED, NOT CRASH: every one of
+    these reads the reason a join was refused, and in the world a probe builds
+    there is no reason - so [0] takes the suite down with a traceback instead
+    of naming the check that broke. This repo has paid for that lesson well
+    into double figures."""
+    return errors[0] if errors else ""
+
+
+# The pairing, from the printed line, for all three sheets at once - it is the
+# same "SUPPORT: GUARDIAN DEFENDERS" on each, and a per-sheet copy is how three
+# that must agree start disagreeing.
+_state, _ctrl, _plat, _g1, _g2 = _stage()
+_storm = tk.build(ae.STORM_GUARDIANS, "Player 1", name="1 Storm Guardians 1")
+for sheet, _pp, _gg in SHEETS:
+    probe = platform(sheet)
+    checks.eq("%s may join Guardian Defenders" % sheet.name,
+              formations.support_join_errors(probe, _g1), [])
+    # The counter-case, and it is not decoration: without it "may join" would
+    # pass on a predicate that says yes to everything.
+    checks.true("%s may NOT join Storm Guardians" % sheet.name,
+                bool(formations.support_join_errors(probe, _storm)))
+checks.eq("both Guardian units are offered", _targets(_ctrl, _plat),
+          ["1 Guardian Defenders 1", "1 Guardian Defenders 2"])
+# ...and the wording, because this message is the reason a unit is MISSING from
+# that list and it became player-facing the day the offer existed. A SUPPORT
+# unit does not lead anything - its printed text says "join".
+checks.true("a refused pairing says JOIN, not LEAD",
+            "cannot join" in _why(formations.support_join_errors(_plat, _storm)))
+
+# ONLY A SUPPORT UNIT IS ASKED, and the case that makes the role gate load-
+# bearing is a LEADER: can_attach() says a Farseer joining Guardian Defenders
+# is perfectly legal (it is - at list-build time), so without the role test the
+# formations screen would offer this decision to every character in the army.
+_farseer = tk.build(ae.FARSEER, "Player 1", name="1 Farseer 1")
+checks.eq("can_attach() would allow a Farseer, by design",
+          formations.attached_units.can_attach(_farseer, _g1), [])
+checks.true("...but a Farseer is not a Support Artillery unit",
+            not formations.is_support_platform(_farseer))
+checks.eq("...so it is offered no join target", _targets(_ctrl, _farseer), [])
+
+# "A unit cannot have more than one SUPPORT WEAPON model joined to it" - and it
+# is per TARGET, not per army: the second platform keeps the other unit.
+_state, _ctrl, _plat, _g1, _g2 = _stage()
+_plat2 = platform(ae.SHADOW_WEAVER_PLATFORM, n=2)
+_state.tokens.extend(_plat2.models)
+_ctrl._all_units["Player 1"].append(_plat2)
+_ctrl.declare(_plat, pregame.JOIN, join_target=_g1)
+checks.eq("a second platform cannot join the same unit...",
+          _targets(_ctrl, _plat2), ["1 Guardian Defenders 2"])
+checks.true("...and says why",
+            "already has a SUPPORT WEAPON model" in _why(
+                formations.support_join_errors(
+                    _plat2, _g1, _ctrl.joins_map("Player 1").get(id(_g1), ()))))
+
+# THE RESOLUTION, through the real finish_formations_for(). Four things move
+# and all four are the point: the units merge, Starting Strength grows ("that
+# unit's Starting Strength is increased accordingly"), the platform leaves the
+# board as its own squad, and it is not a separate thing to place.
+_state, _ctrl, _plat, _g1, _g2 = _stage()
+_before = _g1.starting_model_count
+_ctrl.declare(_plat, pregame.JOIN, join_target=_g1)
+_ctrl.declare(_g1, pregame.DEPLOY)
+_ctrl.declare(_g2, pregame.DEPLOY)
+_ctrl.finish_formations_for("Player 1")
+checks.true("the join forms one unit", _plat.absorbed_into is _g1)
+checks.eq("...whose Starting Strength grew by the platform",
+          _g1.starting_model_count, _before + 1)
+checks.eq("...and which carries the platform's model",
+          len(_g1.models), _before + 1)
+checks.eq("the platform is no longer a unit of the army",
+          [s.name for s in _ctrl.army("Player 1")],
+          [_g1.name, "1 Guardian Defenders 2"])
+checks.eq("...nor a separate thing to place",
+          sorted(s.name for s in _ctrl._pending["Player 1"]),
+          sorted([_g1.name, "1 Guardian Defenders 2"]))
+checks.eq("...and its models are on the board inside the merged unit",
+          sum(1 for t in _state.tokens if t.squad is _g1), _before + 1)
+
+# A JOINED platform follows its host into Reserves. Measured because the two
+# declarations are independent and the merge happens first: the host's own
+# answer has to survive it.
+_state, _ctrl, _plat, _g1, _g2 = _stage()
+_ctrl.declare(_plat, pregame.JOIN, join_target=_g1)
+_ctrl.declare(_g1, pregame.RESERVES)
+_ctrl.declare(_g2, pregame.DEPLOY)
+_ctrl.finish_formations_for("Player 1")
+checks.true("a platform joined to a reserved unit goes to Reserves with it",
+            _g1 in _state.reserves and _plat not in _state.reserves)
+
+# STANDING ALONE is the other answer, and it is the DEFAULT: "Deploy on the
+# battlefield" needs no join button of its own.
+_state, _ctrl, _plat, _g1, _g2 = _stage()
+_ctrl.declare(_plat, pregame.DEPLOY)
+_ctrl.declare(_g1, pregame.DEPLOY)
+_ctrl.declare(_g2, pregame.DEPLOY)
+_ctrl.finish_formations_for("Player 1")
+checks.eq("declining the join leaves three separate units",
+          len(_ctrl.army("Player 1")), 3)
+checks.eq("...and the Guardians keep their printed Starting Strength",
+          _g1.starting_model_count, 11)
+
+# A declaration that names no target is REFUSED rather than stored - "join,
+# nobody" would leave the unit looking declared with nothing to resolve it.
+_state, _ctrl, _plat, _g1, _g2 = _stage()
+checks.eq("JOIN without a target is refused",
+          _ctrl.declare(_plat, pregame.JOIN), None)
+checks.true("...and the unit stays undeclared",
+            _plat in _ctrl.undeclared_units("Player 1"))
+
+# THE PRINTED TRANSPORT BAN, at 18.01. can_embark() has refused this since the
+# platforms were built; the Declare Battle Formations step did NOT, so the
+# pre-game screen would have loaded a D-cannon into a Wave Serpent and only the
+# mid-battle rule would ever have objected.
+_serpent = tk.build(ae.WAVE_SERPENT, "Player 1", name="1 Wave Serpent 1")
+_state, _ctrl, _plat, _g1, _g2 = _stage(_serpent)
+_hull = _serpent.models[0]
+checks.true("a platform cannot be declared into a TRANSPORT",
+            bool(formations.embark_errors(_plat, _hull)))
+checks.eq("...so no transport is offered to it",
+          formations.eligible_transports(_plat, [_hull], {}), [])
+# The control case, without which the line above passes on a screen that offers
+# nothing to anybody.
+checks.eq("...while plain Guardians are still offered one",
+          [t.squad.name for t in formations.eligible_transports(_g1, [_hull], {})],
+          ["1 Wave Serpent 1"])
+# "AND ANY UNIT IT IS JOINED TO" - the half that only exists in the window
+# between the two declarations, when the two squads have not merged yet.
+_ctrl.declare(_plat, pregame.JOIN, join_target=_g1)
+checks.eq("a unit with a platform joined is no longer offered one",
+          formations.eligible_transports(
+              _g1, [_hull], {}, _ctrl.joins_map("Player 1").get(id(_g1), ())), [])
+# ...and the mirror: a host already going into a transport is not a legal join.
+_state, _ctrl, _plat, _g1, _g2 = _stage(_serpent)
+_ctrl.declare(_g1, pregame.EMBARK, transport_token=_serpent.models[0])
+checks.eq("a unit declared into a TRANSPORT is not offered as a join target",
+          _targets(_ctrl, _plat), ["1 Guardian Defenders 2"])
+
+# THE PANEL, because a predicate nobody draws is the failure this repo has met
+# six times. The REAL formations screen, and its buttons read back.
+pygame.init()
+pygame.display.set_mode((320, 480))
+_state, _ctrl, _plat, _g1, _g2 = _stage()
+_panel = ActionPanel()
+_labels = []
+_real_button = _panel._draw_button
+
+
+def _spy(surface, rect, label, **kw):
+    _labels.append(label)
+    return _real_button(surface, rect, label, **kw)
+
+
+_panel._draw_button = _spy
+_panel._draw_pregame_formations(
+    pygame.Surface((220, 720)), pygame.Rect(0, 0, 220, 720), _ctrl, 200, 10)
+checks.eq("the panel offers a Join button per eligible unit",
+          [l for l in _labels if l.startswith("Join")],
+          ["Join 1 Guardian Defenders 1", "Join 1 Guardian Defenders 2"])
+checks.true("...beside the stand-alone answer",
+            "Deploy on the battlefield" in _labels)
+# The button must WORK, not just be drawn - pressing it is what a source guard
+# cannot see.
+_hit = [cb for (r, cb), label in zip(_panel._buttons, _labels)
+        if label == "Join 1 Guardian Defenders 1"]
+for _press in _hit[:1]:      # same reason as _why(): red, not a traceback
+    _press()
+checks.eq("...and pressing it records the join",
+          _ctrl.declaration_for(_plat), (pregame.JOIN, _g1))
+
+# A unit that is NOT a support platform gets no join buttons at all - without
+# this the section passes on a panel that offers them to everybody.
+del _labels[:]
+_panel._draw_pregame_formations(
+    pygame.Surface((220, 720)), pygame.Rect(0, 0, 220, 720), _ctrl, 200, 10)
+checks.eq("a Guardian unit is offered no join of its own",
+          [l for l in _labels if l.startswith("Join")], [])
+
+# The AI answers by leaving it alone, which is a legal answer and not a stall.
+_ai_src = open("ai/deployment_ai.py", encoding="utf-8").read()
+checks.true("the AI's default for a platform is named, not accidental",
+            "SUPPORT ARTILLERY IS DELIBERATELY LEFT ALONE" in _ai_src)
+
+
 checks.finish()

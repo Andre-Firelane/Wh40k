@@ -405,9 +405,14 @@ def can_attach(leader_squad, bodyguard_squad):
     allowed = leadable_unit_names(leader_squad)
     target_datasheet = _datasheet_name(bodyguard_squad)
     if allowed and target_datasheet is not None and target_datasheet not in allowed:
+        # LEAD or JOIN, by role. A SUPPORT unit does not lead anything - its
+        # printed text says "join" - and this message became player-facing the
+        # day Support Artillery got its Declare Battle Formations offer, where
+        # it is the reason a Guardian unit is not on the list.
+        verb = "join" if attachment_role(leader_squad) == SUPPORT else "lead"
         errors.append(
-            f'"{leader_squad.name}" cannot lead "{bodyguard_squad.name}" - '
-            f'it may only lead: {", ".join(allowed)} (19.01).'
+            f'"{leader_squad.name}" cannot {verb} "{bodyguard_squad.name}" - '
+            f'it may only {verb}: {", ".join(allowed)} (19.01).'
         )
     return errors
 

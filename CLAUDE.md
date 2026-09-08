@@ -4104,8 +4104,8 @@ erwartungsgemäß KEINES — das ist die gemessene Limitation oben, im Log sicht
 
 `game/pregame.py` ist ein SEQUENZER, keine zweite Platzierungs-Engine — jede Platzierung geht durch
 `SetupController.start_setup()` wie Ingress und Disembark auch. Ablauf: Declare Battle Formations
-(Transporter füllen, Reserven deklarieren, 20.01 hart erzwungen) → Roll-off → abwechselnd aufstellen →
-zweiter Roll-off (erster Zug) → SCOUTS. **`TurnTracker` bekam `deferred_start=`/`start_battle()`**
+(Transporter füllen, Reserven deklarieren, Support Artillery, 20.01 hart erzwungen) → Roll-off →
+abwechselnd aufstellen → zweiter Roll-off (erster Zug) → SCOUTS. **`TurnTracker` bekam `deferred_start=`/`start_battle()`**
 statt einer neuen Konstruktionsreihenfolge für ~35 Controller; Battle Round 0 macht Ingress gratis
 tot. Beweisbar API-frei (0 Agent-Calls, per Stub-Zähler im Smoke erzwungen).
 
@@ -4152,6 +4152,53 @@ tot. Beweisbar API-frei (0 Agent-Calls, per Stub-Zähler im Smoke erzwungen).
     inklusive `main.py`s Kette) meldet **3 Aufstellungs-Abschlüsse, 3 Roll-offs, 3 Scouts-Queues, 2-3
     Schlachtstarts** und Primary-Zahlungen in Runde 1. Nichts wird dafür gestellt — das Vorspiel läuft
     zu jedem Schlachtbeginn von selbst, also der seltene PASSIV messbare Fall.
+- **SUPPORT ARTILLERY ist die DRITTE Deklaration des Schritts** (User: "im pre game muss man sich
+  entscheiden ob die Support weapons (d-cannons) an einen Guardian Trupp angeschlossen werden
+  sollen oder allein stehen. ähnlich wie man im pregame Einheiten in Transporter steckt").
+  Gedruckt auf allen drei SUPPORT-WEAPON-Plattformen: *"At the start of the Declare Battle
+  Formations step, this model can join one GUARDIAN DEFENDERS unit from your army (a unit cannot
+  have more than one SUPPORT WEAPON model joined to it)."*
+  - **Die REGEL war fertig, die FRAGE fehlte** — die schon dokumentierte Form, nur eine Ebene
+    höher als sonst: 19.01s SUPPORT-Rolle, `can_attach()` und die Paarungstabelle stehen seit dem
+    Bau der drei Plattformen, und `can_attach(platform, guardians)` gab die ganze Zeit `[]` zurück.
+    Angeboten hat es nichts. Eine `armies/*.json` hätte es über `leaders:` einbacken können — und
+    genau das wäre die falsche Zeit: der gedruckte Text stellt die Frage dem SPIELER, im Vorspiel.
+  - **`pregame.JOIN` ist die dritte Destination**, und ihr Ziel ist ein SQUAD, wo EMBARKs ein
+    Transporter-TOKEN ist. Beide reiten im selben Slot der Deklaration, weil eine Einheit genau
+    ein Ziel hat und die zwei per gedrucktem Text exklusiv sind (eine gejointe Einheit darf nicht
+    einsteigen).
+  - **Aufgelöst wird ZUERST**, vor der Reserven-/Embark-Schleife: der gedruckte Text sagt "at the
+    START of the step", und mechanisch ist die GEMERGTE Einheit das, worauf alles danach wirkt —
+    eine Plattform an einer reservierten Einheit geht mit in die Reserve, und `_pending` darf sie
+    nie als eigenes zu platzierendes Ding führen. Gemessen: Starting Strength 11 → **12**
+    ("increases its Starting Strength accordingly"), die Plattform ist aus `army()` und vom Brett,
+    und die Guardians werden als EIN Ding aufgestellt.
+  - **`game/formations.py` bekommt `support_join_errors()`/`eligible_join_targets()`** — dieselbe
+    "eine Definition von legal, zwei Wähler"-Teilung, die dort schon für Transporter und Reserven
+    gilt. Die PAARUNG delegiert an `can_attach()` statt sie herzuleiten; alles Zusätzliche ist eine
+    Bedingung des Vorspiel-SCHRITTS, von der `can_attach()` nichts wissen soll.
+  - **Das ROLLEN-Tor ist tragend, und die eigene Sonde hat das gezeigt:** ohne es bekäme ein
+    FARSEER einen "Join"-Knopf, denn `can_attach(farseer, guardians)` ist völlig legal (zur
+    Listenbau-Zeit). Erst der Test mit einem Leader lässt die Sonde beißen — vorher meldete sie
+    NO BITE, was ein Befund über den Test war und keine Entwarnung.
+  - **"Deploy on the battlefield" IST die Allein-stehen-Antwort**, es braucht also keinen eigenen
+    Default. Und die KI antwortet weiter mit genau dieser: der Join ist optional und sein Handel
+    geht in beide Richtungen (er kauft der Plattform einen Schirm aus Guardian-Körpern und drückt
+    sie zugleich auf Toughness 3, ihre eigene Support-Weapon-Regel), es gibt per stehender Vorgabe
+    keinen Aeldari-KI-Pfad, und der Default ist eine legale Antwort statt eines Hängers. NAMENTLICH
+    in `ai/deployment_ai.py` festgehalten, damit es nicht wie ein Versehen aussieht.
+- **ZWEITER, ECHTER FEHLER, beim Lesen desselben gedruckten Absatzes gefunden: der Transport-Bann
+  galt bei 18.01 nicht.** *"This model, and any unit it is joined to, cannot embark within a
+  TRANSPORT."* `TransportController.can_embark()` erzwingt das seit dem Bau der Plattformen —
+  `game/formations.py`s `embark_errors()` nicht. Reproduziert: `embark_errors(D-cannon, Wave
+  Serpent)` gab `[]`, und `eligible_transports()` bot den Wave Serpent an; der Vorspiel-Screen
+  hätte die Plattform also eingeladen, und erst die Mitten-im-Spiel-Regel hätte je widersprochen.
+  EIN Satz, ZWEI Leser, nur einer antwortete. Beide Hälften sind jetzt da, inklusive der zweiten
+  ("and any unit it is joined to"), die nur im FENSTER zwischen den zwei Deklarationen existiert —
+  danach trägt die gemergte Einheit das Modell selbst und derselbe Pro-Modell-Test beantwortet sie.
+- **`can_attach()` sagt einem SUPPORT-Trupp jetzt "join", nicht "lead".** Die Meldung wurde an dem
+  Tag spielersichtbar, an dem es das Angebot gab — sie ist der Grund, warum eine Einheit NICHT auf
+  der Liste steht.
 - **INFILTRATORS (24.20) ist kein eigener Schritt**, sondern ein anderes `position_valid`-Prädikat
   während des normalen Aufstellzugs — und wird deshalb ZULETZT sortiert (früh platziert gewinnt es
   nichts). Distanz 8" (User-bestätigt).

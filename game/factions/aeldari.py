@@ -1783,11 +1783,16 @@ _SUPPORT_PLATFORM_SHARED_ABILITIES = [
     'one SUPPORT WEAPON model joined to it); it then counts as part of that unit for '
     'the rest of the battle and increases its Starting Strength. This is the SUPPORT '
     'attachment role (24.34) - the pairing is read off the points list\'s own '
-    'UnitPoints.supports, exactly like a LEADER line.',
+    'UnitPoints.supports, exactly like a LEADER line - and it is OFFERED as its own '
+    'declaration in the Declare Battle Formations step, beside the transport and '
+    'Reserves ones (game/formations.py\'s support_join_errors(), resolved by '
+    'game/pregame.py). "Deploy on the battlefield" is the stand-alone answer.',
     'Support Artillery, second sentence: this model, and any unit it is joined to, '
-    'cannot embark within a TRANSPORT - see game/transport.py\'s can_embark(). Both '
-    'halves fall out of one per-model test, because 19.01 merges the platform into the '
-    'Guardians\' own Squad.models.',
+    'cannot embark within a TRANSPORT - see game/transport.py\'s can_embark() for the '
+    'mid-battle rule and game/formations.py\'s embark_errors() for 18.01. Both '
+    'halves fall out of one per-model test once 19.01 has merged the platform into the '
+    'Guardians\' own Squad.models; BEFORE the join resolves they are still '
+    'two squads, so the declaration step checks the pending join as well.',
     'Support Weapon: each time an attack targets this model\'s unit, if that unit '
     'contains one or more other models, until that attack is resolved this model has '
     'Toughness 3 - folded into game/squad.py\'s attached_unit_toughness(), beside the '

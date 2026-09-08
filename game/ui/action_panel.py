@@ -1167,9 +1167,10 @@ class ActionPanel:
 
         button_y = text_y
 
-        def _declare(destination, transport=None):
+        def _declare(destination, transport=None, join_target=None):
             def run():
-                pregame_controller.declare(squad, destination, transport_token=transport)
+                pregame_controller.declare(squad, destination, transport_token=transport,
+                                           join_target=join_target)
                 if pregame_controller.current_formation_unit(owner) is None:
                     pregame_controller.finish_formations_for(owner)
             return run
@@ -1188,6 +1189,33 @@ class ActionPanel:
             reserve_rect = self._draw_button(surface, reserve_rect, "Strategic Reserves")
             self._buttons.append((reserve_rect, _declare(pregame.RESERVES)))
             button_y += reserve_rect.height + BUTTON_GAP
+
+        # Support Artillery: "at the start of the Declare Battle Formations
+        # step, this model can join one GUARDIAN DEFENDERS unit from your
+        # army". Offered here beside the transport and Reserves declarations
+        # because that is where the printed text puts it - and "Deploy on the
+        # battlefield" above is already the "stand alone" answer, so joining
+        # needs no default of its own.
+        joins = pregame_controller.joins_map(owner)
+        destinations = pregame_controller.destinations_map(owner)
+        join_targets = formations.eligible_join_targets(
+            squad, pregame_controller.army(owner), joins, destinations)
+        if join_targets:
+            button_y = self._draw_text(
+                surface, rect, "Support Artillery", button_y + 4, color=HINT_COLOR, gap=4,
+            )
+            for target in join_targets:
+                # Named by its UNIT and shown with its loadout, for the reason
+                # the transport rows carry: two Guardian Defenders blocks off
+                # one datasheet are otherwise indistinguishable here.
+                button_y = self._draw_unit_row(
+                    surface, rect, target, button_y,
+                    [(f"{len(target.models)} models", HINT_COLOR)], gap=4,
+                )
+                join_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
+                join_rect = self._draw_button(surface, join_rect, f"Join {target.name}")
+                self._buttons.append((join_rect, _declare(pregame.JOIN, join_target=target)))
+                button_y += join_rect.height + BUTTON_GAP
 
         transports = [t for t in pregame_controller.transports_for(owner) if t.squad is not squad]
         if not transports:
@@ -1215,7 +1243,8 @@ class ActionPanel:
                 gap=4,
             )
 
-            problems = formations.embark_errors(squad, transport, assigned)
+            problems = formations.embark_errors(
+                squad, transport, assigned, joins.get(id(squad), ()))
             if problems:
                 # Listed rather than silently dropped: a transport vanishing
                 # from the list reads as "I have fewer transports than I

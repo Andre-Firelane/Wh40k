@@ -1048,6 +1048,15 @@ def plan_battle_formations(pregame_ctrl, owner, enemy_squads=(), hints=None, gam
         reserves = trial
         pregame_ctrl.declare(squad, pregame.RESERVES)
 
+    # SUPPORT ARTILLERY IS DELIBERATELY LEFT ALONE, and this is where that
+    # decision lands: a SUPPORT WEAPON platform falls through to DEPLOY below,
+    # i.e. it stands alone. The printed join is optional and its trade is a
+    # real one in both directions - joining buys the platform a screen of
+    # Guardian bodies but drops it to Toughness 3 (its own Support Weapon
+    # rule), where standing alone keeps T6/W5. There is no Aeldari AI path by
+    # standing instruction, and the default is a legal, defensible answer
+    # rather than a stall - so it is NAMED here instead of being an oversight
+    # somebody has to rediscover.
     for squad in army:
         if id(squad) not in pregame_ctrl._declared:
             pregame_ctrl.declare(squad, pregame.DEPLOY)

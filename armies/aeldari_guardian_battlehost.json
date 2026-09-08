@@ -109,7 +109,7 @@
     {
       "datasheet": "D-cannon Platform",
       "color": [160, 175, 140],
-      "note": "The only Aeldari entry priced by how many copies the army already fields: 110 for the first, 125 for the second. The export prints both numbers, which is what makes the tiering visible at all - and neither platform is attached to a Guardian Defenders block, even though its datasheet supports one."
+      "note": "The only Aeldari entry priced by how many copies the army already fields: 110 for the first, 125 for the second. The export prints both numbers, which is what makes the tiering visible at all - and whether either platform joins a Guardian Defenders block is NOT this file's call - Support Artillery puts that decision in the Declare Battle Formations step, where the pre-game panel offers it."
     },
     {
       "datasheet": "D-cannon Platform",
