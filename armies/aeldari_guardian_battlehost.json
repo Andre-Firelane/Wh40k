@@ -1,13 +1,13 @@
 {
   "format": 1,
-  "key": "aeldari_warhost_guardians",
-  "name": "Aeldari (Warhost, Guardians)",
+  "key": "aeldari_guardian_battlehost",
+  "name": "Aeldari (Guardian Battlehost)",
   "faction_keyword": "AELDARI",
   "army_rule": "Battle Focus",
-  "detachments": ["Warhost"],
-  "force_disposition": "reconnaissance",
+  "detachments": ["Armoured Warhost", "Guardian Battlehost"],
+  "force_disposition": "take_and_hold",
   "sort_order": 12,
-  "note": "User-supplied export '1k sc', 1995 pts. The second Warhost list, and the first roster here that fields the SAME entry more than once - two Guardian Defenders blocks with their own Farseer and Warlock Conclave, two War Walkers units, two D-cannon Platforms. It buys no Enhancement at all, so Warhost's four stay dormant. The export names the Avatar WARLORD; nothing in this engine reads a warlord, so it is recorded here and nowhere else.",
+  "note": "User-supplied export '1k sc', 1995 pts. A DETACHMENT PAIR at exactly the budget - Armoured Warhost 1 DP plus Guardian Battlehost 2 DP - and the two grant DIFFERENT Force Dispositions (Reconnaissance and Take and Hold), so declaring Take and Hold here is a real list-building choice rather than the only answer. It buys no Enhancement at all. The first roster here that fields the SAME entry more than once: two Guardian Defenders blocks with their own Farseer and Warlock Conclave, two War Walkers units, two D-cannon Platforms. The export names the Avatar WARLORD; nothing in this engine reads a warlord, so it is recorded here and nowhere else.",
   "roster": [
     {
       "datasheet": "Dire Avengers",

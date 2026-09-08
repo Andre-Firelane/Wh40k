@@ -232,7 +232,7 @@
   Wraithguard x5 (225,225,195) [Close Combat Weapon, D-scythe] {}
   enhancements: -
 
-### aeldari_warhost_guardians / Player 1
+### aeldari_guardian_battlehost / Player 1
 1 Dire Avengers 1 + Asurmen | deploy | pts=285 | models=11
   components: Dire Avengers/bodyguard, Asurmen/leader
   Dire Avenger Exarch x1 (70,150,220) [Avenger Shuriken Catapult, Avenger Shuriken Catapult, Close Combat Weapon] {}
@@ -293,7 +293,7 @@
   Wraithguard x5 (225,225,195) [Close Combat Weapon, D-scythe] {}
   enhancements: -
 
-### aeldari_warhost_guardians / Player 2
+### aeldari_guardian_battlehost / Player 2
 2 Dire Avengers 1 + Asurmen | deploy | pts=285 | models=11
   components: Dire Avengers/bodyguard, Asurmen/leader
   Dire Avenger Exarch x1 (70,150,220) [Avenger Shuriken Catapult, Avenger Shuriken Catapult, Close Combat Weapon] {}

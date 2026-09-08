@@ -789,9 +789,9 @@ _REACTIVE = ("ForewarnedController", "PsychicShieldController",
 c.eq("...and not one reactive Aeldari controller is on the registry",
      sorted(n for n in _REACTIVE if n in _registered), [])
 
-# THE ROSTER FACT. Five of the eight detachments cannot be fielded by any
-# shipped list, so most of the forty-two controllers are unreachable in a real
-# game. Named as a measured number rather than left to be rediscovered - and it
+# THE ROSTER FACT. Three of the eight detachments cannot be fielded by any
+# shipped list, so a good part of the forty-two controllers is unreachable in a
+# real game. Named as a measured number rather than left to be rediscovered - and it
 # is why every section above sets its own flag.
 #
 # Swept over EVERY shipped Aeldari list, not just the first one. Scoped to a
@@ -805,23 +805,24 @@ from game.factions import aeldari as _ae                             # noqa: E40
 _aeldari_lists = [e for e in army_lists.ARMY_LISTS
                   if e.faction_keyword == "AELDARI"]
 c.eq("three shipped lists field the Aeldari",
-     [e.key for e in _aeldari_lists], ["aeldari", "aeldari_warhost", "aeldari_warhost_guardians"])
+     [e.key for e in _aeldari_lists], ["aeldari", "aeldari_warhost", "aeldari_guardian_battlehost"])
 _declared = {d for e in _aeldari_lists for d in e.detachments}
 _all_dets = set(_ae.AELDARI.detachments)
-# Still three: the second Warhost list declares the same detachment as the
-# first, so a list can be added without widening the reach at all.
-c.eq("between them they declare three of the eight detachments",
-     (len(_declared), len(_all_dets)), (3, 8))
-c.eq("...Seer Council, Path of the Outcast and Warhost", sorted(_declared),
-     ["Path of the Outcast", "Seer Council", "Warhost"])
+c.eq("between them they declare five of the eight detachments",
+     (len(_declared), len(_all_dets)), (5, 8))
+c.eq("...namely these", sorted(_declared),
+     ["Armoured Warhost", "Guardian Battlehost", "Path of the Outcast",
+      "Seer Council", "Warhost"])
 _declared_flags = {_ae.AELDARI.detachments[d].setting for d in _declared}
 _reachable = {s["name"] for s in SPECS if set(s["flags"]) & _declared_flags}
-# Four of the nineteen. Warhost added exactly ONE panel button to the reachable
-# set (three before it was fielded): most of what it prints is reactive, and a
-# reactive stratagem never reaches this registry at all - which is the claim the
-# _REACTIVE sweep above makes.
-c.eq("...so only four of the nineteen panel buttons can appear in a shipped "
-     "game, and the suite switches the rest on itself", len(_reachable), 4)
+# Eight of the nineteen. The reach has moved twice and by very different
+# amounts, which is why it is derived from the declared detachments rather than
+# written down: Warhost added exactly ONE button (most of what it prints is
+# reactive, and a reactive stratagem never reaches this registry at all - the
+# claim the _REACTIVE sweep above makes), while Armoured Warhost plus Guardian
+# Battlehost doubled it.
+c.eq("...so only eight of the nineteen panel buttons can appear in a shipped "
+     "game, and the suite switches the rest on itself", len(_reachable), 8)
 
 
 ActionPanel._draw_button = _real_button

@@ -2631,7 +2631,7 @@ c.eq("...the ONE builder grants in exactly two places (a unit and its leaders)",
      len(_ar_calls), 2)
 _aeldari_lists = [e for e in _al.ARMY_LISTS if e.faction_keyword == "AELDARI"]
 c.eq("three shipped lists field this faction",
-     [e.key for e in _aeldari_lists], ["aeldari", "aeldari_warhost", "aeldari_warhost_guardians"])
+     [e.key for e in _aeldari_lists], ["aeldari", "aeldari_warhost", "aeldari_guardian_battlehost"])
 _bought = sorted({n for e in _aeldari_lists for n in e.enhancement_names()})
 # Asked of the LOADED lists rather than grepped out of a builder's source: army
 # lists are data now, and enhancement_names() reads the same roster the game
@@ -2644,20 +2644,24 @@ c.eq("...leaving 27 of the 28 dormant by roster",
      len(SPECS) - len(_bought), 27)
 
 # THE SECOND HALF OF THE SAME GAP, and the heavier one: the shipped lists
-# declare three of the eight detachments between them, so five of them - and
+# declare five of the eight detachments between them, so three of them - and
 # every Enhancement and Stratagem they carry - cannot be reached in a real game
 # at all.
 _declared = {d for e in _aeldari_lists for d in e.detachments}
-c.eq("the shipped lists declare three of the eight detachments",
-     (len(_declared), len(AELDARI_DETACHMENTS)), (3, 8))
+c.eq("the shipped lists declare five of the eight detachments",
+     (len(_declared), len(AELDARI_DETACHMENTS)), (5, 8))
 c.eq("...namely these", sorted(_declared),
-     ["Path of the Outcast", "Seer Council", "Warhost"])
+     ["Armoured Warhost", "Guardian Battlehost", "Path of the Outcast",
+      "Seer Council", "Warhost"])
 _reachable = sorted(n for n, s in SPECS.items() if s.detachment in _declared)
-c.eq("...so only these ten Enhancements belong to a fielded detachment",
-     len(_reachable), 10)
-c.eq("...and nine of even those ten are never granted",
+c.eq("...so sixteen of the Enhancements belong to a fielded detachment",
+     len(_reachable), 16)
+# BELONGING TO A FIELDED DETACHMENT IS NOT THE SAME AS BEING BOUGHT, and the
+# gap between the two numbers is the whole point: a list can put a detachment
+# on the table and still spend nothing on its Enhancements.
+c.eq("...and fifteen of those sixteen are never granted",
      [n for n in _reachable if n not in _bought], sorted(set(_reachable) - set(_bought)))
-c.eq("...which is nine", len([n for n in _reachable if n not in _bought]), 9)
+c.eq("...which is fifteen", len([n for n in _reachable if n not in _bought]), 15)
 
 
 c.finish()

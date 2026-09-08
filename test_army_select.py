@@ -57,7 +57,7 @@ print("\n=== 1. the list registry ===")
 
 keys = [entry.key for entry in army_lists.ARMY_LISTS]
 c.eq("ten lists on offer", keys,
-     ["aeldari", "aeldari_warhost", "aeldari_warhost_guardians", "orks",
+     ["aeldari", "aeldari_warhost", "aeldari_guardian_battlehost", "orks",
       "necrons", "tau", "tau_montka", "tau_retaliation", "tau_recon",
       "death_guard"])
 # FIVE FACTIONS, TEN LISTS - two of them with a real choice underneath, which
@@ -380,7 +380,7 @@ c.eq("Back from a list step returns to the faction", walk.stage, STAGE_FACTION)
 c.eq("...and forgets that faction", walk.factions_chosen.get("Player 1"), None)
 walk.choose("AELDARI")
 c.eq("...so another faction can be picked", [i.key for i in walk.items],
-     ["aeldari", "aeldari_warhost", "aeldari_warhost_guardians"])
+     ["aeldari", "aeldari_warhost", "aeldari_guardian_battlehost"])
 c.eq("Back at the very first step does nothing", ArmySelectScreen().back(), False)
 
 # Changing faction after a list was already recorded must DROP that list -
@@ -392,7 +392,7 @@ swap.back()                    # back to Player 1's faction step
 swap.choose("AELDARI")
 c.eq("re-picking a faction clears the list under it", swap.choices.get("Player 1"), None)
 c.eq("...and offers the new faction's lists", [i.key for i in swap.items],
-     ["aeldari", "aeldari_warhost", "aeldari_warhost_guardians"])
+     ["aeldari", "aeldari_warhost", "aeldari_guardian_battlehost"])
 
 # A key from the wrong step is refused rather than stored.
 wrong = ArmySelectScreen()

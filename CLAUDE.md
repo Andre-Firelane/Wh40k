@@ -3062,7 +3062,7 @@ dazukommen.
   Primary — das Paar gewährt zwei, die Bitte nannte aber ein Detachment und keine andere Mission.
   Erste Liste hier, bei der die Wahl wirklich zwei verschiedene Antworten hat (das T'au-Paar gewährt
   zweimal dieselbe).
-- **Aeldari (Warhost, Aspects) — `aeldari_warhost`, 10 Listeneinträge, 10 Einheiten, 60 Modelle, 2005 pts**
+- **Aeldari (Warhost) — `aeldari_warhost`, 10 Listeneinträge, 10 Einheiten, 60 Modelle, 2005 pts**
   (User-Export "1k sc", 2000 pts). **Zweite Aeldari-Liste**, also das zweite Volk mit einer echten
   Wahl in Stufe zwei des Auswahl-Screens. **FÜNF** Attached Units: Asurmen in Dire Avengers,
   Farseer (Enhancement **Timeless Strategist**) + Warlock Conclave in Guardian Defenders, Jain Zar
@@ -3086,17 +3086,29 @@ dazukommen.
     will zufällig die eine, die es gibt.
   - **Der Export nennt den Avatar WARLORD**; nichts in dieser Engine liest einen Warlord (belegter
     No-op), also steht das in der `note` der Datei und sonst nirgends.
-- **Aeldari (Warhost, Guardians) — `aeldari_warhost_guardians`, 11 Listeneinträge, 11 Einheiten,
-  70 Modelle, 2025 pts** (User-Export "1k sc", 1995 pts). Zweite Warhost-Liste, dieselben 3 DP und
-  dieselbe Reconnaissance — **also das erste Volk mit DREI Listen**, und das erste Paar hier, das
-  sich nicht am Detachment unterscheiden lässt: deshalb heißen die beiden jetzt "(Warhost,
-  Aspects)" und "(Warhost, Guardians)".
-  - **Der erste Roster überhaupt, der denselben Eintrag MEHRFACH fieldet**: zwei Guardian-Defenders-
-    Blöcke mit je eigenem Farseer und Warlock Conclave, zwei War Walkers, zwei D-cannon Platforms.
-    Auseinandergehalten werden sie allein über die Kopiennummer, die der Builder an den Squad-Namen
-    hängt — und das ist der Identifier, den Planbefehle, Teilroster und Snapshots adressieren. Im
-    echten Spiel belegt: `1 Guardian Defenders 1/2`, `1 Farseer 1/2`, und die drei Conclaves als
-    `1 Warlock Conclave 1/2/3`, über den GANZEN Roster durchgezählt.
+- **Aeldari (Guardian Battlehost) — `aeldari_guardian_battlehost`, 11 Listeneinträge,
+  11 Einheiten, 70 Modelle, 2025 pts** (User-Export "1k sc", 1995 pts).
+  **Armoured Warhost (1 DP) + Guardian Battlehost (2 DP)**, also ein PAAR genau am Budget, und
+  das erste hier, dessen zwei Hälften **verschiedene** Dispositionen gewähren (Reconnaissance
+  gegen Take and Hold): die deklarierte **Take and Hold** ist damit eine echte Listenbau-Wahl und
+  nicht die einzige Antwort. Primary ist **Battlefield Dominance** — die erste Aeldari-Liste, die
+  nicht Secure Asset oder Reconnaissance Sweep spielt.
+  - **Erst als Warhost/Reconnaissance angelegt und vom User korrigiert.** Der Roster war richtig
+    und ist BYTE-IDENTISCH geblieben — der Golden Master bewegt bei der Korrektur genau zwei
+    Zeilen, nämlich die zwei Abschnitts-Überschriften mit dem Key. Das ist der Beleg, dass die
+    Änderung ausschließlich Metadaten war.
+  - **Beide Detachment-Regeln greifen auf diesem Roster wirklich**, gemessen statt angenommen
+    (die Path-of-the-Outcast-Regel dieses Repos): **Skilled Crews** findet die zwei War-Walkers-
+    Einheiten (AELDARI VEHICLE), **Defend at All Costs** deckt **49 Modelle in 8 der 11
+    Einheiten** ab — und schließt dabei korrekt Asurmen, beide Farseer, Eldrad und alle sechs
+    Warlocks aus, weil es PRO KOMPONENTE fragt (ein Farseer, der Guardian Defenders führt, ist
+    kein GUARDIAN).
+  - **Der erste Roster überhaupt, der denselben Eintrag MEHRFACH fieldet**: zwei Guardian-
+    Defenders-Blöcke mit je eigenem Farseer und Warlock Conclave, zwei War Walkers, zwei D-cannon
+    Platforms. Auseinandergehalten werden sie allein über die Kopiennummer, die der Builder an den
+    Squad-Namen hängt — und das ist der Identifier, den Planbefehle, Teilroster und Snapshots
+    adressieren. Im echten Spiel belegt: `1 Guardian Defenders 1/2`, `1 Farseer 1/2`, und die drei
+    Conclaves als `1 Warlock Conclave 1/2/3`, über den GANZEN Roster durchgezählt.
   - **Die zwei D-cannon Platforms sind die einzige Stelle, an der die KOPIEN-Staffelung sichtbar
     wird**: 110 für die erste, 125 für die zweite. Der Export druckt beide Zahlen, und die Engine
     trifft sie ohne Zutun — der einzige Aeldari-Eintrag mit `PointsTier(to_unit=1)`.
@@ -3112,8 +3124,10 @@ dazukommen.
     `Wargear Abilities`-Spalte des Korpus und gewährt der Einheit 5+ Invulnerable. Gemessen:
     `invulnerable_save.effective_invulnerable_save()` liefert für Plattform UND Storm Guardians 5+,
     es fehlt also nichts, obwohl die Waffenliste des Modells nur die Close Combat Weapon zeigt.
-  - **Sie kauft KEIN Enhancement**, also bleiben Warhosts vier weiter dormant und die Zahl "1 von
-    28 gekauft" steht unverändert.
+  - **Sie kauft KEIN Enhancement.** Damit steht "1 von 28 gekauft" unverändert, obwohl die
+    ausgelieferten Listen jetzt **5 von 8** Detachments deklarieren und **16 von 28** Enhancements
+    zu einem gefieldeten Detachment gehören — "gehört zu einem gefieldeten Detachment" und
+    "wird gekauft" sind zwei verschiedene Zahlen, und der Abstand zwischen ihnen ist der Punkt.
 - **Necrons — 15 Listeneinträge, 9 Einheiten, 68 Modelle, 2020 pts**, Awakened Dynasty. Default für
   Player 2 (`config.PLAYER2_ARMY = "necrons"`). **SECHS** Anbindungen: Overlord in die Lychguard,
   Technomancer in die Necron Warriors, je ein Plasmancer in jede der ZWEI Immortals-Einheiten
@@ -4928,7 +4942,7 @@ die Evidenz; zwei Läufe erzeugen 56 byte-identische Dateien.
 |---|---|---|---|
 | Aeldari | Seer Council + Path of the Outcast | Priority Assets | **Secure Asset** |
 | Aeldari (`aeldari_warhost`) | Warhost | Reconnaissance | **Reconnaissance Sweep** |
-| Aeldari (`aeldari_warhost_guardians`) | Warhost | Reconnaissance | **Reconnaissance Sweep** |
+| Aeldari (`aeldari_guardian_battlehost`) | Armoured Warhost + Guardian Battlehost | Take and Hold | **Battlefield Dominance** |
 | Orks | War Horde | Take and Hold | **Battlefield Dominance** |
 | Necrons | Awakened Dynasty | Take and Hold | **Battlefield Dominance** |
 | T'au (`tau`) | Kauyon + Adv. Acquisition Cadre | Reconnaissance | **Reconnaissance Sweep** |
@@ -8442,9 +8456,10 @@ Dreiteilung wie beim T'au-Nachzug (6 Regeln → 25 Stratagems → 19 Enhancement
 und `enhancements=` sind deshalb LEER, mit dem Grund darüber. **Die damals einzige
 Aeldari-Liste fieldete weiter Seer Council** (User-Entscheidung): die sieben waren deklariert
 und einzeln per `selfplay.py` verifiziert, aber nichts am Default-Spiel änderte sich — dieselbe
-Behandlung wie die 27 Datenblätter, die in keiner Demo-Armee stehen. **Seit `aeldari_warhost`
-(2026-09-08) ist WARHOST wirklich gefieldet**, also sind von den sieben noch fünf ungefieldet;
-der Default (`config.PLAYER1_ARMY`) ist unverändert `aeldari`.
+Behandlung wie die 27 Datenblätter, die in keiner Demo-Armee stehen. **Seit den zwei Listen
+vom 2026-09-08 sind VIER der sieben wirklich gefieldet** — Warhost, Armoured Warhost, Guardian
+Battlehost und (schon länger) Path of the Outcast; ungefieldet bleiben Aspect Host, Windrider
+Host und Spirit Conclave. Der Default (`config.PLAYER1_ARMY`) ist unverändert `aeldari`.
 
 | # | Detachment | DP | Regel | Naht |
 |---|---|---|---|---|
@@ -8701,10 +8716,13 @@ dass diese Zeile sich bewegt. Volle Regression **153 Suiten, ~12980 Prüfungen, 
 je Detachment** mit dieser Liste temporär gefieldet.
 
 **Kein KI-Pfad** (User-Vorgabe), für alle 36 als Negativraum geprüft. **Keine Demo-Armee änderte
-sich** — die damals einzige Aeldari-Liste fieldete weiter Seer Council. **Seit `aeldari_warhost`
-(2026-09-08) ist Warhost gefieldet**, seine sechs Stratagems sind also nicht mehr dormant; von den
-neunzehn PANEL-Knöpfen der Fraktion sind damit vier statt drei im echten Spiel erreichbar (der
-Rest von Warhost ist reaktiv und kommt gar nicht auf die Registry).
+sich** — die damals einzige Aeldari-Liste fieldete weiter Seer Council. **Seit den zwei Listen
+vom 2026-09-08 sind Warhost, Armoured Warhost und Guardian Battlehost gefieldet**, ihre
+Stratagems also nicht mehr dormant: von den neunzehn PANEL-Knöpfen der Fraktion sind **acht statt
+drei** im echten Spiel erreichbar. **Die Reichweite ist dabei sehr ungleich gewachsen** — Warhost
+allein brachte EINEN Knopf, weil fast alles daran reaktiv ist und ein reaktives Stratagem gar nicht
+erst auf die Registry kommt; das Paar darunter hat sie verdoppelt. Genau deshalb leitet der Wächter
+die Zahl aus den deklarierten Detachments ab, statt sie hinzuschreiben.
 
 ## Werden die Aeldari-Stratagems überhaupt ANGEBOTEN? (Prüfung, 2026-09-07)
 
@@ -8821,9 +8839,12 @@ schwerere Hälfte: die ausgelieferten Listen deklarieren nur einen Teil der acht
 Detachments, der Rest ihrer Stratagem-Controller ist im echten Spiel
 unerreichbar — Suite und Sonden setzen die Flagge deshalb selbst.
 
-**STAND SEIT `aeldari_warhost` (2026-09-08): 1 von 28 gekauft, 3 von 8
-Detachments deklariert.** Timeless Strategist ist das erste Aeldari-Enhancement,
-das eine ausgelieferte Liste wirklich kauft. **Und beide Zeilen waren auf
+**STAND SEIT DEN ZWEI LISTEN VOM 2026-09-08: 1 von 28 gekauft, 5 von 8
+Detachments deklariert, 16 von 28 gehören zu einem gefieldeten Detachment.**
+Timeless Strategist ist das erste Aeldari-Enhancement, das eine ausgelieferte
+Liste wirklich kauft — und der Abstand zwischen 16 und 1 ist die eigentliche
+Aussage: eine Liste kann ein Detachment auf den Tisch stellen und trotzdem
+nichts für dessen Enhancements ausgeben. **Und beide Zeilen waren auf
 `get("aeldari")` verengt, blieben also GRÜN, während ihre Begründung veraltete**
 — dieselbe Form wie Mont'kas [ASSAULT]-Lücke, deren Rechtfertigung ebenfalls
 unter einer grünen Zusicherung ablief. Beide sweepen jetzt über JEDE
