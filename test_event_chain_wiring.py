@@ -1615,4 +1615,79 @@ for _mod in ("guardian_cost_of_victory", "warhost_webway_tunnel",
             "unit_choice_offer.offer_one_of(" in
             io.open("game/%s.py" % _mod, encoding="utf-8").read())
 
+# ---------------------------------------------------------------------------
+# 19. EVERY RUNTIME [PISTOL] GRANT REACHES THE ENGAGED-SHOOTING GATE
+# ---------------------------------------------------------------------------
+print()
+print("=== 19. every [PISTOL] grant is read by the engaged-shooting gate ===")
+
+# The [PISTOL] twin of section 7, and it exists because that section's warning
+# came true a second time. [PISTOL] is read in TWO places that look nothing
+# like each other:
+#
+#   * ShootingController's adjuster chain - the damage maths, easy to wire and
+#     easy to test, and what every unit test drives;
+#   * is_close_quarters(), reached from available_shooting_types() and
+#     _weapon_eligible_for_type(), which is the ONLY thing that decides whether
+#     an ENGAGED unit may shoot at all (rule 10.06). That permission is the
+#     entire reason [PISTOL] gets granted.
+#
+# The one shipped grant, Blades of Asuryan, was wired to the chain and not the
+# gate. REPORTED: "ich konnte zwar mit asurmen schiessen, aber nicht mit dem
+# rest meines avengers squads. das umwandeln der waffen in pistol hat wohl
+# nicht geklappt." Measured on that scene: the chain granted [PISTOL] to 6 of 6
+# ranged weapons while the gate saw 1 of 6 - Asurmen's Bloody Twins, which is
+# printed [PISTOL], which is why he alone could fire.
+#
+# A behaviour test cannot see a SECOND grant appearing, so this is a source
+# sweep: any module that hands out `.pistol = True` at runtime must be named
+# inside is_close_quarters()'s body.
+_SHOOT_SRC = io.open(os.path.join("game", "shooting.py"), encoding="utf-8").read()
+_ICQ = "def is_close_quarters("
+ck.true("is_close_quarters() was found", _ICQ in _SHOOT_SRC)
+_ICQ_BODY = ""
+for _node in ast.walk(ast.parse(_SHOOT_SRC)):
+    if (isinstance(_node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and _node.name == "is_close_quarters"):
+        _ICQ_BODY = ast.get_source_segment(_SHOOT_SRC, _node) or ""
+ck.true("...and its body was isolated", len(_ICQ_BODY) > 200)
+
+# Documented gaps, named rather than silently subtracted - and a future entry
+# has to carry the MEASUREMENT that says it is dormant, not a recollection of
+# one. Section 7's comment records what a stale justification costs.
+_PISTOL_GRANT_GAPS = set()
+
+_pistol_grantors = sorted(
+    name[:-3]
+    for name in os.listdir("game")
+    if name.endswith(".py") and name[:-3] not in ("weapons", "shooting")
+    and ".pistol = True" in io.open(os.path.join("game", name), encoding="utf-8").read()
+)
+# Liveness: a sweep that stops finding grantors reports an empty difference and
+# looks exactly like a pass.
+ck.true("the sweep found the known grantor (it is not vacuous)",
+        len(_pistol_grantors) >= 1)
+for _mod in _pistol_grantors:
+    if _mod in _PISTOL_GRANT_GAPS:
+        ck.true("%s is the documented gap, and says so in is_close_quarters()" % _mod,
+                _mod in _ICQ_BODY)
+        continue
+    ck.true("%s's [PISTOL] grant is read by the engaged-shooting gate" % _mod,
+            ("%s.adjusted_weapon(" % _mod) in _ICQ_BODY
+            or ("%s.is_active(squad)" % _mod) in _ICQ_BODY
+            or ("%s.applies(squad)" % _mod) in _ICQ_BODY)
+
+# The gate can only ask about a grant if it is TOLD which unit is shooting, so
+# the parameter is mandatory - a default would be the very bug this section is
+# about, silently restored (the reasoning _detectable_models() gives for its
+# own). Checked on the signature rather than on a call site: one forgotten
+# caller is what a mandatory parameter turns into a crash instead of a no-op.
+for _node in ast.walk(ast.parse(_SHOOT_SRC)):
+    if (isinstance(_node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and _node.name in ("is_close_quarters", "_weapon_side")):
+        _args = [a.arg for a in _node.args.args]
+        ck.eq("%s() takes the squad" % _node.name, _args[-1], "squad")
+        ck.eq("...with no default that could hide a missed caller" % (),
+              len(_node.args.defaults), 0)
+
 ck.finish()

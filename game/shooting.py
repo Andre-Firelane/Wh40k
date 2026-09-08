@@ -337,12 +337,44 @@ def _model_can_reach(model, weapon, target_squad, obstacles, visible_models, all
     )
 
 
-def is_close_quarters(weapon):
-    """Rule 24.27 ([PISTOL]): "[PISTOL] and [CLOSE-QUARTERS] are identical
-    for all rules purposes" - a pure alias, checked everywhere
-    [CLOSE-QUARTERS] (10.06/24.07) is checked, instead of duplicating each
-    call site's logic for a second flag."""
-    return weapon.close_quarters or weapon.pistol
+def is_close_quarters(weapon, squad):
+    """Does this weapon have [CLOSE-QUARTERS]/[PISTOL] - printed, or granted?
+
+    Rule 24.27 ([PISTOL]): "[PISTOL] and [CLOSE-QUARTERS] are identical for all
+    rules purposes" - a pure alias, checked everywhere [CLOSE-QUARTERS]
+    (10.06/24.07) is checked, instead of duplicating each call site's logic for
+    a second flag.
+
+    `squad` IS REQUIRED, and that is the whole of the fix here. Like [ASSAULT]
+    (see weapon_has_assault(), which this mirrors), [PISTOL] is read in TWO
+    places that look nothing like each other: the adjuster chain, which is the
+    damage maths and is what every unit test drives, AND the ELIGIBILITY GATE
+    below - available_shooting_types() and _weapon_eligible_for_type(), which
+    decide whether an engaged unit may shoot at all (10.06). That permission is
+    the ONE thing a [PISTOL] grant is bought for, so a grant reaching only the
+    chain looks wired while failing to do it.
+
+    REPORTED, of Blades of Asuryan: "ich konnte zwar mit asurmen schiessen,
+    aber nicht mit dem rest meines avengers squads. das umwandeln der waffen in
+    pistol hat wohl nicht geklappt." Measured on that scene: after buying the
+    Stratagem the chain granted [PISTOL] to 6 of 6 ranged weapons while this
+    gate still saw 1 of 6 - Asurmen's Bloody Twins, which is printed [PISTOL].
+    Word for word the Protocol of the Sudden Storm finding, one detachment
+    over, which is why the parameter is MANDATORY rather than defaulted: a
+    default is exactly the bug it is here to prevent (the same reasoning
+    _detectable_models() gives for its own).
+
+    ONE GRANT TODAY, and any second one belongs in this body -
+    test_event_chain_wiring.py section 19 is the set difference that says so.
+    """
+    if weapon.close_quarters or weapon.pistol:
+        return True
+    # Blades of Asuryan (Guardian Battlehost): "until the end of the phase,
+    # ranged weapons equipped by models in your unit have the [PISTOL]
+    # ability". Its own adjusted_weapon() applies the RANGED gate and the
+    # never-a-downgrade rule, so this asks it rather than re-reading the flag.
+    granted = guardian_blades_of_asuryan.adjusted_weapon(weapon, squad)
+    return bool(granted is not weapon and granted.pistol)
 
 
 def _living_count(squad):
@@ -447,7 +479,7 @@ def _attack_key(model, weapon):
     group. Both read 0/"" for every model without the Enhancement, so no group
     that already existed splits."""
     return (effective_ballistic_skill(model, weapon), weapon.strength, weapon.ap, weapon.damage,
-            is_close_quarters(weapon), weapon.melta,
+            is_close_quarters(weapon, getattr(model, "squad", None)), weapon.melta,
             getattr(model, "psychic_communion_bonus", 0),
             enh_precision_patient_hunter.hit_bonus(model),
             enh_prototype_weapon_system.attack_key(model),
@@ -469,12 +501,19 @@ def _weapon_eligible_for_type(weapon, shooting_type, squad):
         # the unit it leads - see game/coldstar.py.
         return weapon_has_assault(weapon, squad)
     if shooting_type == CLOSE_QUARTERS_SHOOTING:
-        return True if is_monster_or_vehicle_unit(squad) else is_close_quarters(weapon)
+        return True if is_monster_or_vehicle_unit(squad) else is_close_quarters(weapon, squad)
     return True
 
 
-def _weapon_side(weapon):
-    return "close_quarters" if is_close_quarters(weapon) else "other"
+def _weapon_side(weapon, squad):
+    """Which of rule 24.07's two sides this weapon is on.
+
+    Takes the squad for the same reason is_close_quarters() does: a
+    granted [PISTOL] really does put the weapon on the pistol side, and
+    when the grant covers every ranged weapon in the unit the side-lock
+    stops splitting them - which is exactly what "they are all pistols
+    now" means."""
+    return "close_quarters" if is_close_quarters(weapon, squad) else "other"
 
 
 def _side_locked_out(model, weapon, shooting_type, side_lock):
@@ -489,7 +528,7 @@ def _side_locked_out(model, weapon, shooting_type, side_lock):
     if model.profile.monster or model.profile.vehicle:
         return False
     locked = side_lock.get(model)
-    return locked is not None and locked != _weapon_side(weapon)
+    return locked is not None and locked != _weapon_side(weapon, getattr(model, "squad", None))
 
 
 def _attack_groups(squad, shooting_type=None, side_lock=None, one_shot_used=None):
@@ -567,7 +606,11 @@ def available_shooting_types(squad, all_tokens, movement_controller=None):
 
     groups = _attack_groups(squad)  # unfiltered - just checking which weapon keywords exist at all
     has_assault = any(weapon_has_assault(w, squad) for plist in groups.values() for _, w in plist)
-    has_close_quarters = any(is_close_quarters(w) for plist in groups.values() for _, w in plist)
+    # is_close_quarters(w, squad), not w.pistol: Blades of Asuryan grants
+    # [PISTOL] to the whole unit, and THIS is the gate that decides whether
+    # an engaged unit may shoot at all - the one thing the grant is bought
+    # for. See is_close_quarters()'s own docstring for the report.
+    has_close_quarters = any(is_close_quarters(w, squad) for plist in groups.values() for _, w in plist)
     has_indirect_fire = any(w.indirect_fire for plist in groups.values() for _, w in plist)
 
     # Guardian Battlehost's Time to Strike and Windrider Host's Wind of Blades
@@ -1685,7 +1728,7 @@ class ShootingController:
         for model, weapon in pairs:
             if model.profile.monster or model.profile.vehicle:
                 continue
-            self._weapon_side_lock[model] = _weapon_side(weapon)
+            self._weapon_side_lock[model] = _weapon_side(weapon, self.active_squad)
 
     def current_assignment_overcharge_label(self):
         """The alternate firing mode's own display name (e.g. "Cyclic Ion
@@ -2333,7 +2376,7 @@ class ShootingController:
             # a die that says "non-[CLOSE-QUARTERS] weapon" while the weapon
             # plainly IS one sends the next investigation back to the board.
             targets_engaged_unit = self.active_squad.is_engaged_with(target_squad)
-            if not is_close_quarters(weapon):
+            if not is_close_quarters(weapon, self.active_squad):
                 modifiers.append(Modifier(1, "Close-Quarters (non-[CLOSE-QUARTERS] weapon)"))
             elif not targets_engaged_unit:
                 modifiers.append(Modifier(1, "Close-Quarters (target not engaged with this unit)"))

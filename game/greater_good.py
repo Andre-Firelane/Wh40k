@@ -30,7 +30,7 @@ step first. Marking doesn't consume the unit's own shooting activation -
 it can (and normally will) still shoot normally afterward, same as
 Explosives."""
 
-from game import line_of_sight, status_effects
+from game import board_epoch, line_of_sight, status_effects
 from game.shooting import available_shooting_types
 from game.squad import squad_has_forward_observers, squad_has_greater_good, squad_has_markerlight
 from game.turn import PHASE_SHOOTING
@@ -66,6 +66,17 @@ class GreaterGoodController:
 
         self.state = IDLE
         self.acting_squad = None
+
+        # Perf, not rules: can_use()'s last clause is a full line-of-sight
+        # sweep, and the left panel asks it EVERY FRAME while a T'au unit is
+        # selected in its own Shooting phase (game/ui/action_panel.py's
+        # _draw_movement_ui). Measured at 4732 ms per call on a 179-model
+        # map2 board - the game is all but frozen for as long as the unit
+        # stays selected. Same shape and the same reason as
+        # ShootingController.weapon_eligibility()'s cache ("called every frame
+        # to render"); see any_eligible_target() for what the key has to cover.
+        self._any_target_cache_key = None
+        self._any_target_cache_result = False
 
     def reset_shooting_phase(self):
         """A new Shooting phase means a fresh set of Spotted/Observer units -
@@ -143,8 +154,74 @@ class GreaterGoodController:
         skip that check entirely, so a Hidden unit far outside its
         detection range could still be marked as Spotted just because some
         model somewhere had technical LoS to it)."""
+        return list(self._eligible_targets(squad))
+
+    def any_eligible_target(self, squad):
+        """Whether _eligible_targets() would yield ANYTHING - the same question
+        can_use() used to answer by building the whole list.
+
+        A second VIEW on one definition, not a second copy of the rule (same
+        shape as rules_text.army_rule_text()/army_rule_blocks()): both go
+        through the generator, so there is no version that could drift.
+
+        CACHED, because this is the per-frame path. The key has to cover
+        everything _eligible_targets() reads:
+          * the squad asking (a one-slot cache; the panel asks about exactly
+            one unit per frame);
+          * board_epoch.fingerprint(), i.e. every position and every wound
+            total - see that module for why len(all_tokens) is not enough here;
+          * len(spotted_by), since a marked unit is skipped. Within a phase
+            entries are only ever ADDED; reset_shooting_phase() empties it, and
+            that is covered by the round/turn term below;
+          * battle_round and turn_owner, which also carry is_hidden()'s own
+            turn-number term;
+          * len(last_ranged_attack_turn), because shooting ends Hidden (13.09).
+            NAMED BLIND SPOT: updating the VALUE for a squad already in that
+            dict does not move len(). Harmless here - is_hidden() is asked
+            about DEFENDER models, and during your own Shooting phase the only
+            entries being written are the active player's own.
+
+        Deliberately NOT keyed on: shot_squad_ids, observer_squad_ids or
+        self.state. All three are read by can_use()'s cheap gates, which stay
+        live OUTSIDE this memo - so the button still disappears the instant the
+        unit marks or shoots."""
         if squad is None:
-            return []
+            return False
+        key = (
+            squad,
+            board_epoch.fingerprint(self.all_tokens),
+            len(self.spotted_by),
+            getattr(self.turn_tracker, "battle_round", None),
+            getattr(self.turn_tracker, "turn_owner", None),
+            len(self.shooting_controller.last_ranged_attack_turn) if self.shooting_controller is not None else 0,
+        )
+        if key != self._any_target_cache_key:
+            self._any_target_cache_key = key
+            self._any_target_cache_result = next(self._eligible_targets(squad), None) is not None
+        return self._any_target_cache_result
+
+    def _eligible_targets(self, squad):
+        """The ONE definition, as a generator so can_use() can stop at the
+        first hit. Two orderings changed here, both lossless:
+
+        DETECTABILITY FIRST, AND ONCE PER DEFENDER. is_detectable() depends on
+        the defender and the OBSERVING SQUAD, never on which friendly model is
+        looking - so it used to be recomputed for every (friendly, defender)
+        pair, and only when line of sight had already been paid for. Both are
+        side-effect-free, so `A and B` may be reordered freely. Measured:
+        0.0023 ms per model against 4.52 ms for a sight check, i.e. 2000x
+        cheaper, and a unit that is Hidden beyond its detection range now costs
+        its model count instead of models x observers sight checks.
+
+        NEAREST ENEMY UNITS FIRST. For a generator whose first consumer stops
+        at the first hit, order is free to choose, and the nearest units are
+        the ones most likely to be visible. It also makes the order TOTAL: this
+        used to iterate a set, so eligible_targets() returned its list in an
+        order that varied between runs. Nothing depended on it (main.py makes a
+        set of it, ai/agent_driver.py sorts by name, choose_target() only tests
+        membership), which is exactly why it could sit there unnoticed."""
+        if squad is None:
+            return
         enemy_squads = {
             token.squad for token in self.all_tokens
             if token.squad is not None and token.squad.owner != squad.owner
@@ -152,18 +229,41 @@ class GreaterGoodController:
         last_ranged_attack_turn = (
             self.shooting_controller.last_ranged_attack_turn if self.shooting_controller is not None else {}
         )
-        result = []
-        for enemy in enemy_squads:
+        for enemy in sorted(enemy_squads, key=lambda e: self._closeness(squad, e)):
             if self.is_spotted(enemy):
+                continue
+            # NOTE: called WITHOUT prey_marks/unmasking, and that stays that
+            # way - game/detection_range.py's own docstring records this as a
+            # known, deliberately open divergence from shooting.py's
+            # _detectable_models(), which the line below now otherwise
+            # resembles closely enough to invite a "fix". Closing it is a rules
+            # decision, not something to do while making this faster.
+            detectable = [
+                defender for defender in enemy.models
+                if status_effects.is_detectable(
+                    defender, squad, self.terrain_areas, self.turn_tracker, last_ranged_attack_turn)
+            ]
+            if not detectable:
                 continue
             if any(
                 line_of_sight.has_line_of_sight(friendly, defender, self.obstacles, self.all_tokens, self.terrain_areas)
-                and status_effects.is_detectable(defender, squad, self.terrain_areas, self.turn_tracker, last_ranged_attack_turn)
                 for friendly in squad.models
-                for defender in enemy.models
+                for defender in detectable
             ):
-                result.append(enemy)
-        return result
+                yield enemy
+
+    def _closeness(self, squad, enemy):
+        """Sort key: squared distance from the observing squad's centroid to
+        the nearest model of `enemy`, with the NAME as tiebreak so the order is
+        total and the same on every run. Squared, because only the ordering is
+        used; centroid-to-model rather than every pair, because this is a
+        heuristic for the short-circuit and changes no answer."""
+        if not squad.models or not enemy.models:
+            return (float("inf"), enemy.name)
+        cx = sum(m.x_in for m in squad.models) / len(squad.models)
+        cy = sum(m.y_in for m in squad.models) / len(squad.models)
+        nearest = min((m.x_in - cx) ** 2 + (m.y_in - cy) ** 2 for m in enemy.models)
+        return (nearest, enemy.name)
 
     def can_use(self, squad, shooting_controller):
         if squad is None or self.state != IDLE:
@@ -200,7 +300,7 @@ class GreaterGoodController:
             return False
         if not available_shooting_types(squad, self.all_tokens, self.movement_controller):
             return False
-        return bool(self.eligible_targets(squad))
+        return self.any_eligible_target(squad)
 
     def start(self, squad):
         self.acting_squad = squad

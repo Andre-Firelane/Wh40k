@@ -120,10 +120,15 @@ RICHTIG — sie ist gerade zu dieser Phase geworden (`grot_orderly.py`).
 Schadensmathematik, leicht zu testen, und was jeder Unit-Test prüft) UND einem
 EIGNUNGS-Tor, das der Kette nicht ähnlich sieht. Wer nur die Kette verdrahtet,
 bekommt eine grüne Suite und eine Fähigkeit, die genau das nicht tut, wofür sie
-gekauft wird. Vier von fünf [ASSAULT]-Grants standen so da.
-→ **§7** für [ASSAULT]. Für ein NEUES Keyword mit einem Eignungs-Tor gibt es
-noch keinen Wächter — dann von Hand: *wer liest dieses Keyword außer der
-Kette?*
+gekauft wird. Vier von fünf [ASSAULT]-Grants standen so da — und der EINZIGE
+[PISTOL]-Grant ebenso — obwohl die Warnung dafür seit dem Sudden-Storm-Fix
+wörtlich in `weapon_has_assault()`s Docstring steht: sie galt nur nicht fürs
+Nachbar-Keyword, und die zwei Zeilen standen NEBENEINANDER in derselben Funktion.
+→ **§7** für [ASSAULT], **§19** für [PISTOL]. Beide sind dieselbe
+MENGENDIFFERENZ: wer das Keyword zur Laufzeit vergibt, muss im RUMPF des Tors
+genannt sein. Ein DRITTES Keyword mit eigenem Eignungs-Tor kostet einen
+weiteren solchen Abschnitt — die Frage von Hand lautet *wer liest dieses
+Keyword ausser der Kette?*, und die Antwort ist fast nie „niemand".
 
 **Braucht die Bedingung etwas, das der Leser nicht bekommt** (eine Runde, einen
 `turn_tracker`)? Dann ein **SQUAD-FLAG**, einmal pro Phase gestempelt — nicht
@@ -194,7 +199,8 @@ maskiert 15.01 sie.
 Die Wächter decken die vierzehn gefundenen Formen ab. Nicht abgedeckt und
 deshalb weiterhin Kopfarbeit:
 
-- **Ein neues Keyword mit einem eigenen Eignungs-Tor** (§7 kennt nur [ASSAULT]).
+- **Ein neues Keyword mit einem eigenen Eignungs-Tor** (§7 deckt [ASSAULT] ab,
+  §19 [PISTOL] — ein drittes braucht seinen eigenen Abschnitt).
 - **Die zweite Hälfte einer Regel**, die ein anderer Trichter liest — „ein
   KEYWORD-Grant wird regelmäßig an zwei ganz verschiedenen Orten gelesen".
 - **Ob eine Liste die Fähigkeit überhaupt fieldet.** Eine Regel kann
@@ -337,9 +343,13 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
     testen, und das, was jeder Unit-Test prüft) UND an einem EIGNUNGS-Tor, das der Kette gar nicht
     ähnlich sieht. Wer nur die Kette verdrahtet, bekommt eine grüne Suite und eine Fähigkeit, die
     genau das eine nicht tut, wofür sie gekauft wird. Drei von vier [ASSAULT]-Grants standen so da
-    (siehe `## Regelengine — Schießen`). **Ein Verhaltenstest kann den nächsten Fall nicht sehen,
+    (siehe `## Regelengine — Schießen`), **und der einzige [PISTOL]-Grant genauso** — obwohl die
+    Warnung dafür seither wörtlich in `weapon_has_assault()`s Docstring stand; sie galt nur nicht
+    fürs Nachbar-Keyword, und die zwei Zeilen standen NEBENEINANDER in derselben Funktion (siehe
+    `## Blades of Asuryan`). **Ein Verhaltenstest kann den nächsten Fall nicht sehen,
     weil es ihn noch nicht gibt** — dagegen hilft nur eine MENGENDIFFERENZ an der Quelle: wer den
-    Effekt vergibt, muss bei jedem Leser genannt sein (`test_event_chain_wiring.py` Abschnitt 7).
+    Effekt vergibt, muss bei jedem Leser genannt sein (`test_event_chain_wiring.py` Abschnitt 7
+    für [ASSAULT], Abschnitt 19 für [PISTOL]).
     Und eine bekannte, bewusst offene Lücke gehört NAMENTLICH in denselben Wächter, sonst
     verschwindet sie still.
     **Die dritte Ausprägung: EIN Vertrag, ZWEI Lesarten, beide ausgeliefert.** Das Vorspiel-Protokoll
@@ -8192,6 +8202,114 @@ ein verschlucktes `resume` unerreichbar machte.
   `assault`-Aufstellungsrolle: beide Karten PASS. A/B belegt (ohne die Rolle kippt map2 wieder auf
   `safer=False`), also war die Zusicherung nicht zu streng, sondern hat einen echten Mangel
   angezeigt.
+
+## Blades of Asuryan: [PISTOL] erreichte das EIGNUNGS-TOR nicht (2026-09-08)
+
+**Gemeldet:** *"blades of asurian — ich konnte zwar mit asurmen schießen, aber nicht mit dem rest
+meines avengers squads. das umwandeln der waffen in pistol hat wohl nicht geklappt."*
+
+**Fehlerklasse 10 in ihrer teuersten Form, zum ZWEITEN Mal — diesmal für [PISTOL] statt [ASSAULT].**
+Die Warnung dafür stand seit dem Sudden-Storm-Fix wörtlich in `coldstar.weapon_has_assault()`s
+Docstring; sie galt nur nicht für das Nachbar-Keyword.
+
+- **Reproduziert an der Quelle, bevor etwas angefasst wurde** (Asurmen + Dire Avengers in
+  Engagement Range): nach dem Kauf gewährte die **ADJUSTER-KETTE [PISTOL] an 6 von 6**
+  Fernkampfwaffen, während das **EIGNUNGS-TOR weiter 1 von 6** sah — Asurmens Bloody Twins, die
+  gedruckt [PISTOL] ist. Genau deshalb konnte er schießen und sonst niemand.
+- **Die zwei Leser sehen einander nicht ähnlich.** `ShootingController`s Adjuster-Kette ist die
+  Schadensmathematik — leicht zu verdrahten, leicht zu testen, und das, was der bestehende Test
+  fuhr. `is_close_quarters()`, erreicht aus `available_shooting_types()` und
+  `_weapon_eligible_for_type()`, ist das EINZIGE, was entscheidet, ob eine ENGAGIERTE Einheit
+  überhaupt schießen darf (10.06) — und genau dafür kauft man das Stratagem.
+- **Die zwei Zeilen standen NEBENEINANDER in derselben Funktion**, und das ist der ganze Befund:
+
+      has_assault        = any(weapon_has_assault(w, squad) for ...)   # grant-aware
+      has_close_quarters = any(is_close_quarters(w)         for ...)   # printed only
+
+- **Nur EIN [PISTOL]-Grant existiert heute** (gemessen: genau ein Modul schreibt zur Laufzeit
+  `.pistol = True`), der Sweep ist also abgeschlossen und nicht bloß gestoppt.
+
+### Der Fix: `squad` ist PFLICHT, kein Default
+
+`is_close_quarters(weapon, squad)` und `_weapon_side(weapon, squad)` nehmen die Einheit jetzt
+verbindlich — sechs Aufrufstellen, alle in `shooting.py`, alle mit einem Modell oder Squad im
+Scope. **Ein Default wäre exakt der Fehler, den der Parameter verhindern soll** (dieselbe
+Begründung, die `_detectable_models()` für seinen eigenen gibt): eine vergessene Aufrufstelle
+krachte dann nicht, sie läse still nur das gedruckte Flag.
+
+- **`shooting.py` importierte das Grant-Modul längst** (Zeile 61, für die Adjuster-Kette) — das Tor
+  hat es nie gefragt. Es gab also nichts zu verdrahten, nur etwas zu fragen.
+- **24.07s Seitensperre zieht mit**, und das ist eine Regelaussage, keine Kosmetik: eine gewährte
+  [PISTOL] setzt die Waffe wirklich auf die Pistolen-Seite, und wenn der Grant JEDE Fernkampfwaffe
+  der Einheit erfasst, hört die Sperre auf, sie zu spalten — was „sie sind jetzt alle Pistolen"
+  bedeutet. Behauptet im Docstring UND gemessen (`test_close_quarters_shooting.py` §6), weil eine
+  unbelegte Behauptung über eine Regel genau der Weg ist, auf dem das Tor überhaupt aus dem Takt
+  geriet.
+
+### Warum der bestehende Test es nicht sah
+
+**Abschnitt 3e fuhr ausschließlich `gba.adjusted_weapon()`** plus einen Quell-Grep, dass
+`shooting.py` das Modul erwähnt. Beides hält perfekt, während das Tor nie fragt. Neu ist §3e2, das
+**BEIDE Leser GETRENNT** misst — zusammen geprüft würde einer den anderen tragen.
+
+**Und die Typ-Ebene allein hätte es NICHT gefangen**, was die Meldung so unauffällig machte: mit
+Asurmen im Trupp liefert `available_shooting_types()` in BEIDEN Welten `['Close-Quarters']` — seine
+gedruckte Pistole trägt den Typ. Nur die WAFFENZAHL unterscheidet sie (1 gegen 6). Deshalb steht
+daneben der Fall OHNE gedruckte Pistole: dort geht die Einheit von „kann gar nicht schießen" auf
+Close-Quarters, und das ist, was das CP wirklich kauft.
+
+### Der Wächter: `test_event_chain_wiring.py` §19
+
+Der [PISTOL]-Zwilling von §7, faction-blind: **jedes Modul, das zur Laufzeit `.pistol = True`
+vergibt, muss im RUMPF von `is_close_quarters()` genannt sein.** Ein Verhaltenstest kann einen
+ZWEITEN Grant nicht sehen, weil es ihn noch nicht gibt. Dazu prüft er die SIGNATUR (Squad als
+letztes Argument, kein Default) — eine vergessene Aufrufstelle soll krachen statt still zu
+schweigen —, und er trägt eine Liveness-Zeile, weil ein Sweep, der keine Grantoren mehr findet, eine
+leere Differenz meldet und wie ein Bestehen aussieht. **Die Ausnahmeliste ist LEER**, mit §7s
+Kommentar daneben: ein künftiger Eintrag muss die MESSUNG mitbringen, die ihn dormant nennt, nicht
+die Erinnerung an eine.
+
+### Getestet
+
+- `test_aeldari_detachment_stratagems.py` 998 → **1013/1013** (neu §3e2),
+  `test_close_quarters_shooting.py` 33 → **47/47** (neu §6 — diese Suite besitzt 10.06 und 24.07 und
+  hatte bis dahin NUR gedruckte Pistolen gestagt, war für die andere Eingabe des Tors also blind),
+  `test_event_chain_wiring.py` 142 → **150/150**.
+- **Neu `ab_blades_of_asuryan_gate.py`: 8 A/B-Sonden an der QUELLE, alle beißend.** Die erste ist
+  die tragende: sie lässt die Adjuster-Kette unangetastet gewähren und blendet NUR das Tor aus —
+  die ausgelieferte Welt, nicht eine mit abgeschaltetem Stratagem. Die zwei Tor-Hälften kippen
+  einzeln (`available_shooting_types` → gar keine Option; `_weapon_eligible_for_type` → Option,
+  aber keine Waffen).
+- **Zwei Sonden bissen zuerst NICHT, beide Befunde über den TEST** (Fehlerklasse 24), und beide
+  Lücken sind geschlossen statt die Sonde umgehängt: `test_close_quarters_shooting.py` stagte nie
+  einen GEWÄHRTEN Grant, und die 24.07-Seitenzuordnung war überhaupt nicht gemessen.
+- **Ein fremder Pin wurde zu Recht rot** — eine Staging-Zeile, die die neue Pflicht-Signatur
+  brauchte; sie fragt jetzt beide Lesarten (mit Squad und printed-only) und pinnt, dass sie hier
+  übereinstimmen.
+- Volle Regression **194 Suiten, ~17225 Prüfungen, 193 grün / 0 rot / 1 bekannt**,
+  `run_tests.py --smoke` komplett grün (alle neun schweren Skripte).
+
+### Im ECHTEN Spiel belegt
+
+`verify_blades_of_asuryan_gate.py` fährt `selfplay.py`s echte `main()`-Schleife mit
+`aeldari_guardian_battlehost` als PLAYER 1 und misst die LIVE von `main()` gebauten Objekte:
+
+| | gefixt | `--neutralize` |
+|---|---|---|
+| Fernkampfwaffen der Einheit | 12 | 12 |
+| davon gedruckt [PISTOL] | 1 | 1 |
+| **die das Tor feuern lässt** | **12** | **1** |
+| engagiert angebotener Typ | `['Close-Quarters']` | `['Close-Quarters']` |
+
+Die letzte Zeile ist der eigentliche Fund: **der Typ wird in BEIDEN Welten angeboten**, weil
+Asurmens gedruckte Pistole ihn trägt — die Einheit sah also nicht kaputt aus, und nur die
+Waffenzahl verrät es. Genau das hat der Bericht beschrieben.
+
+**GESTELLT werden ZWEI Tatsachen, beide benannt:** der KAUF (ein Panel-Knopf des Menschen, und
+dieser Harness klickt keinen — zuerst gemessen: 2500 Frames, null Käufe; die Sonde treibt deshalb
+den LIVE-Controller über sein echtes `use()`, sodass jede andere Eignungsklausel echt beantwortet
+wird) und die ENGAGEMENT-Lage (als Token-LISTE mit einem synthetischen Nachbarn — auf dem Brett
+bewegt sich nichts). Alles Übrige ist echt.
 
 ## "TARGET: One <X> unit from your army" wurde NICHT gewählt (2026-09-08)
 

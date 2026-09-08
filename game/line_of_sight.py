@@ -91,6 +91,65 @@ def _obscuring_areas_between(terrain_areas, token_a, token_b):
     ]
 
 
+OBSTACLE, MODEL, AREA = "obstacle", "model", "area"
+
+
+def _first_blocker(p1, p2, obstacles, blockers, obscuring_areas, memo=None):
+    """WHAT blocks the p1-p2 sightline, as a (kind, object) pair, or None if
+    nothing does - the three separate any() checks this replaces only ever
+    said whether something did.
+
+    `memo` is the pair this same call returned for the PREVIOUS point pair,
+    and it is tested first. That is a pure reordering: per point pair the
+    answer is an OR over three side-effect-free predicates applied to a fixed
+    candidate set, and an OR does not care about order, so this cannot change
+    any answer - the same argument _relevant_obstacles() makes for the
+    bounding-box prefilter, one layer further in. What it buys is that a wall
+    standing across the sightline is found at position 1 instead of position n
+    for each of the ~576 point pairs it blocks. Measured on the shipped maps
+    (fuzz-compared against the pre-memo version, see test_line_of_sight.py):
+    4.6x/5.0x/7.8x on map1/map2/map3 in the blocked case, 1.67x in the mixed
+    case, never slower - a clear sightline returns on its very first point
+    pair either way, so the extra test costs nothing there. The memo stays in
+    its own list as well, so a miss tests it twice; that is cheaper than an
+    `is` comparison per list element and is what keeps "never slower" true.
+
+    DO NOT CARRY A MEMO ACROSS has_line_of_sight() CALLS. It is the obvious
+    next step - eligible_targets() asks about the same wall a thousand times
+    in a row - and it is wrong for two of the three kinds:
+
+      * _blocking_models() excludes PER PAIR: both tokens' own units, and by
+        house rule the whole observing ARMY. A model memoised from another
+        pair may be one that is not allowed to block for this pair, which
+        would silently delete the "friendly units never block" house rule.
+      * _obscuring_areas_between() excludes areas either token is STANDING
+        in, likewise per pair.
+
+    Only OBSTACLEs are pair-independent (_blocked_by_obstacle reads nothing
+    but the obstacle and the segment), so a cross-call memo would have to be
+    restricted to those."""
+    if memo is not None:
+        kind, candidate = memo
+        if kind == OBSTACLE:
+            if _blocked_by_obstacle(p1, p2, candidate):
+                return memo
+        elif kind == MODEL:
+            if _blocked_by_model(p1, p2, candidate):
+                return memo
+        elif candidate.crosses_segment(p1, p2):
+            return memo
+    for obstacle in obstacles:
+        if _blocked_by_obstacle(p1, p2, obstacle):
+            return (OBSTACLE, obstacle)
+    for model in blockers:
+        if _blocked_by_model(p1, p2, model):
+            return (MODEL, model)
+    for area in obscuring_areas:
+        if area.crosses_segment(p1, p2):
+            return (AREA, area)
+    return None
+
+
 def _owner_of(token):
     """Which player a model belongs to, or None for the duck-typed probe
     stand-ins (ai/observation.py's _ProbePoint, ai/agent_driver.py's
@@ -137,15 +196,12 @@ def has_line_of_sight(token_a, token_b, obstacles, all_tokens=(), terrain_areas=
     blockers = _relevant_models(_blocking_models(token_a, token_b, all_tokens), box)
     obscuring_areas = _obscuring_areas_between(terrain_areas, token_a, token_b)
 
+    memo = None
     for pa in points_a:
         for pb in points_b:
-            if any(_blocked_by_obstacle(pa, pb, obstacle) for obstacle in obstacles):
-                continue
-            if any(_blocked_by_model(pa, pb, model) for model in blockers):
-                continue
-            if any(area.crosses_segment(pa, pb) for area in obscuring_areas):
-                continue
-            return True
+            memo = _first_blocker(pa, pb, obstacles, blockers, obscuring_areas, memo)
+            if memo is None:
+                return True
     return False
 
 
@@ -164,15 +220,23 @@ def _facing_points(observer, target, num_points=SAMPLE_POINTS):
     return points
 
 
-def _point_reachable(point, from_points, obstacles, blockers, obscuring_areas):
+def _point_reachable(point, from_points, obstacles, blockers, obscuring_areas, memo=None):
+    """`memo` is a one-cell list so the last blocker survives ACROSS calls
+    within one model_fully_visible() - unlike has_line_of_sight(), which walks
+    its point pairs in one loop and can keep a plain local. It has to: this is
+    the all() half of Benefit of Cover, whose expensive case is "one wall hides
+    every facing point", and a memo that reset per facing point would be
+    thrown away exactly when it is worth most. Safe for the same reason as in
+    _first_blocker(): the candidate lists are computed once per
+    model_fully_visible() call, so every point pair here shares one pair of
+    tokens - see that docstring for why a memo must NOT cross that boundary."""
     for origin in from_points:
-        if any(_blocked_by_obstacle(origin, point, obstacle) for obstacle in obstacles):
-            continue
-        if any(_blocked_by_model(origin, point, model) for model in blockers):
-            continue
-        if any(area.crosses_segment(origin, point) for area in obscuring_areas):
-            continue
-        return True
+        blocker = _first_blocker(origin, point, obstacles, blockers, obscuring_areas,
+                                 memo[0] if memo else None)
+        if blocker is None:
+            return True
+        if memo is not None:
+            memo[0] = blocker
     return False
 
 
@@ -193,8 +257,9 @@ def model_fully_visible(observer, target, obstacles, all_tokens=(), terrain_area
     obstacles = _relevant_obstacles(obstacles, box)
     blockers = _relevant_models(_blocking_models(observer, target, all_tokens), box)
     obscuring_areas = _obscuring_areas_between(terrain_areas, observer, target)
+    memo = [None]
     return all(
-        _point_reachable(pb, points_a, obstacles, blockers, obscuring_areas)
+        _point_reachable(pb, points_a, obstacles, blockers, obscuring_areas, memo)
         for pb in facing_points
     )
 

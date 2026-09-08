@@ -136,8 +136,14 @@ print("\n2) INFANTRY with a [PISTOL] stays locked on its own melee")
 s = scene(orks.BOYZ)
 sh, near, far = s["shooter"], s["near"], s["far"]
 c.true("stage: the Boyz are not a MONSTER/VEHICLE unit", not is_monster_or_vehicle_unit(sh))
+# is_close_quarters() takes the SQUAD now, because [PISTOL] can be granted as
+# well as printed (Blades of Asuryan) - see its docstring. Passing the real
+# squad is what the production gates do; passing None asks the printed-only
+# question, and both agree here because no Ork unit can hold that grant.
 c.true("stage: they carry a [CLOSE-QUARTERS]/[PISTOL] weapon",
-       shooting.is_close_quarters(weapon_named(sh, "Slugga")[1]))
+       shooting.is_close_quarters(weapon_named(sh, "Slugga")[1], sh))
+c.true("...printed, not granted",
+       shooting.is_close_quarters(weapon_named(sh, "Slugga")[1], None))
 c.eq("engaged, they may only shoot Close-Quarters",
      shooting.available_shooting_types(sh, s["state"].tokens), [shooting.CLOSE_QUARTERS_SHOOTING])
 sc = close_quarters(s)
@@ -215,5 +221,74 @@ sc = s["shooting"]
 sc.active_squad, sc.shooting_type = sh, shooting.NORMAL_SHOOTING
 c.true("a MONSTER may not pick an engaged enemy under NORMAL shooting",
        not sc._is_valid_target_squad(near, s["state"].tokens))
+
+# --------------------------------------------- 6) [PISTOL] can be GRANTED too
+print("\n6) A GRANTED [PISTOL] counts everywhere a printed one does")
+
+# This suite owns 10.06 and 24.07, and until now it only ever staged PRINTED
+# [PISTOL]/[CLOSE-QUARTERS] weapons - so the gate's other input was invisible
+# to it. Blades of Asuryan (Guardian Battlehost) grants [PISTOL] to a whole
+# unit for a phase, and it reached the adjuster chain and not this gate:
+# reported as "ich konnte zwar mit asurmen schiessen, aber nicht mit dem rest
+# meines avengers squads". A change to is_close_quarters() would be run against
+# THIS file, so the grant path belongs here as well as in the Aeldari suite.
+from game import config as _config  # noqa: E402
+from game.factions import aeldari as _ae  # noqa: E402
+
+_D6 = _ae.AELDARI.datasheets
+_saved_gb = getattr(_config, "GUARDIAN_BATTLEHOST_PLAYERS", ())
+_config.GUARDIAN_BATTLEHOST_PLAYERS = ("Player 2",)
+try:
+    s = scene(_D6["Dire Avengers"], near_edge_in=1.5)
+    sh, near = s["shooter"], s["near"]
+    _ranged = [(m, w) for m in sh.models for w in m.weapons
+               if getattr(w, "weapon_type", None) == "ranged"]
+    c.true("stage: the Avengers are engaged", sh.is_engaged(s["state"].tokens))
+    c.true("stage: not a MONSTER/VEHICLE unit", not is_monster_or_vehicle_unit(sh))
+    c.true("stage: no printed [PISTOL] on any of its ranged weapons",
+           not any(shooting.is_close_quarters(w, None) for _m, w in _ranged))
+
+    c.eq("engaged with no [PISTOL] at all, it cannot shoot",
+         shooting.available_shooting_types(sh, s["state"].tokens), [])
+
+    sh.blades_of_asuryan_active = True
+    c.eq("...and a GRANTED [PISTOL] opens Close-Quarters",
+         shooting.available_shooting_types(sh, s["state"].tokens),
+         [shooting.CLOSE_QUARTERS_SHOOTING])
+    c.true("...for every ranged weapon in the unit",
+           all(shooting._weapon_eligible_for_type(
+               w, shooting.CLOSE_QUARTERS_SHOOTING, sh) for _m, w in _ranged))
+    c.true("...and is_close_quarters() says so when asked with the squad",
+           all(shooting.is_close_quarters(w, sh) for _m, w in _ranged))
+    c.true("...while the printed-only question still says no",
+           not any(shooting.is_close_quarters(w, None) for _m, w in _ranged))
+
+    # RULE 24.07's two sides. A granted [PISTOL] really does move the weapon
+    # onto the pistol side - claimed in _weapon_side()'s docstring, measured
+    # here, because a claim about a rule that nothing measures is how the gate
+    # got out of step in the first place.
+    _model, _weapon = _ranged[0]
+    c.eq("24.07: a granted weapon is on the [PISTOL] side",
+         shooting._weapon_side(_weapon, sh), "close_quarters")
+    c.eq("...and on the other side without the grant",
+         shooting._weapon_side(_weapon, None), "other")
+    # ...so a unit whose weapons are ALL granted has one side, and the lock
+    # cannot split it.
+    c.eq("...so the whole unit is on one side, and the lock cannot split it",
+         {shooting._weapon_side(w, sh) for _m, w in _ranged}, {"close_quarters"})
+
+    # The counter-check, without which this section would pass against a gate
+    # that simply said yes to everything.
+    _melee = [w for m in sh.models for w in m.weapons
+              if getattr(w, "weapon_type", None) != "ranged"]
+    c.true("stage: the unit has melee weapons to check", len(_melee) > 0)
+    c.true("a melee weapon gains nothing - the text says 'ranged weapons'",
+           not any(shooting.is_close_quarters(w, sh) for w in _melee))
+
+    sh.blades_of_asuryan_active = False
+    c.eq("and the grant expiring closes the gate again",
+         shooting.available_shooting_types(sh, s["state"].tokens), [])
+finally:
+    _config.GUARDIAN_BATTLEHOST_PLAYERS = _saved_gb
 
 c.finish()

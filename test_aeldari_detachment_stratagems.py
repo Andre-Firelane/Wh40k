@@ -824,6 +824,7 @@ from game import (guardian_blades_of_asuryan as gba,  # noqa: E402
                   guardian_time_to_strike as gts,
                   guardian_vauls_vengeance as gvv,
                   guardian_warding_salvoes as gws)
+from game import shooting  # noqa: E402
 from game.weapons import RANGED  # noqa: E402
 
 GB_ON = dict(GUARDIAN_BATTLEHOST_PLAYERS=(HUMAN,))
@@ -1098,6 +1099,104 @@ c.true("the shooting chain reads it",
        "guardian_blades_of_asuryan.adjusted_weapon(" in _shoot_src3)
 c.true("...and the melee step does not",
        "guardian_blades_of_asuryan" not in io.open("game/fight.py", encoding="utf-8").read())
+
+# --- 3e2. ...and the ELIGIBILITY GATE reads it too ------------------------
+# REPORTED: "ich konnte zwar mit asurmen schiessen, aber nicht mit dem rest
+# meines avengers squads. das umwandeln der waffen in pistol hat wohl nicht
+# geklappt."
+#
+# EVERYTHING ABOVE MEASURES ONE READER. [PISTOL] is read in TWO places that
+# look nothing like each other - the adjuster chain (the damage maths, which
+# is all section 3e drives) and the eligibility gate that decides whether an
+# engaged unit may shoot at all (10.06). The permission is the ONE thing 1 CP
+# buys here, so the section above passed throughout while the Stratagem did
+# nothing. Word for word the Protocol of the Sudden Storm finding, one
+# detachment over. Both readers are therefore measured SEPARATELY below;
+# checking only the pair together would let either one carry the other.
+print("\n3e2. Blades of Asuryan - the eligibility gate")
+
+_BA_HUMAN, _BA_AI = HUMAN, "Player 2"
+
+
+def _engaged_avengers(with_asurmen):
+    """The reported scene: Dire Avengers in Engagement Range of an enemy."""
+    unit = tk.build(D["Dire Avengers"], _BA_HUMAN, name="1 Dire Avengers 1")
+    if with_asurmen:
+        attached_units.attach(
+            tk.build(D["Asurmen"], _BA_HUMAN, name="1 Asurmen 1"), unit)
+    tk.line_up(unit, 20.0, 20.0, spacing=1.2)
+    foe = tk.build(D["Guardian Defenders"], _BA_AI, name="2 Guardian Defenders 1")
+    tk.line_up(foe, 20.0, 21.0, spacing=1.2)
+    return unit, list(unit.models) + list(foe.models)
+
+
+def _ranged_of(squad):
+    return [(m, w) for m in squad.models for w in m.weapons
+            if getattr(w, "weapon_type", None) == RANGED]
+
+
+def _cq_eligible(squad):
+    """How many of the unit's ranged weapons 10.06 will actually let fire."""
+    return sum(1 for _m, w in _ranged_of(squad)
+               if shooting._weapon_eligible_for_type(
+                   w, shooting.CLOSE_QUARTERS_SHOOTING, squad))
+
+
+def _chain_grants(squad):
+    """How many the ADJUSTER CHAIN hands [PISTOL] to - the other reader."""
+    return sum(1 for _m, w in _ranged_of(squad)
+               if gba.adjusted_weapon(w, squad).pistol)
+
+
+with settings_as(**GB_ON):
+    _ba_unit, _ba_tokens = _engaged_avengers(with_asurmen=True)
+    c.true("stage: the unit is engaged", _ba_unit.is_engaged(_ba_tokens))
+    c.eq("stage: six ranged weapons", len(_ranged_of(_ba_unit)), 6)
+    c.eq("stage: exactly one is printed [PISTOL] - Asurmen's",
+         sum(1 for _m, w in _ranged_of(_ba_unit)
+             if shooting.is_close_quarters(w, None)), 1)
+
+    c.eq("before it is bought, only Asurmen can fire", _cq_eligible(_ba_unit), 1)
+    c.eq("...and the chain grants nothing either", _chain_grants(_ba_unit), 1)
+
+    _ba_unit.blades_of_asuryan_active = True
+    # THE REPORT, and the two readers apart. The chain answering 6 while the
+    # gate answered 1 is exactly the shipped bug.
+    c.eq("after it is bought, the WHOLE squad can fire", _cq_eligible(_ba_unit), 6)
+    c.eq("...and the chain agrees", _chain_grants(_ba_unit), 6)
+    c.eq("...and Close-Quarters is still the offered type",
+         shooting.available_shooting_types(_ba_unit, _ba_tokens),
+         [shooting.CLOSE_QUARTERS_SHOOTING])
+
+    # The headline case, without a printed [PISTOL] anywhere to carry it: a
+    # unit that could not shoot AT ALL while engaged now can. With Asurmen in
+    # the squad the type was offered either way, so this is the check that
+    # says what the CP actually buys.
+    _ba_plain, _ba_plain_tokens = _engaged_avengers(with_asurmen=False)
+    c.true("stage: no printed [PISTOL] anywhere in the unit",
+           not any(shooting.is_close_quarters(w, None)
+                   for _m, w in _ranged_of(_ba_plain)))
+    c.eq("engaged without the Stratagem, it cannot shoot at all",
+         shooting.available_shooting_types(_ba_plain, _ba_plain_tokens), [])
+    _ba_plain.blades_of_asuryan_active = True
+    c.eq("...and with it, Close-Quarters opens up",
+         shooting.available_shooting_types(_ba_plain, _ba_plain_tokens),
+         [shooting.CLOSE_QUARTERS_SHOOTING])
+    c.eq("...for every weapon in the unit",
+         _cq_eligible(_ba_plain), len(_ranged_of(_ba_plain)))
+
+    # Three counter-checks. Without them the section would pass against a gate
+    # that simply let everything through.
+    c.true("a melee weapon is still not [PISTOL]",
+           not any(shooting.is_close_quarters(w, _ba_plain)
+                   for m in _ba_plain.models for w in m.weapons
+                   if getattr(w, "weapon_type", None) != RANGED))
+    gba.reset_phase([_ba_plain])
+    c.eq("the grant expires with the phase, and the gate closes again",
+         shooting.available_shooting_types(_ba_plain, _ba_plain_tokens), [])
+    _ba_other, _ba_other_tokens = _engaged_avengers(with_asurmen=False)
+    c.eq("a unit that never bought it is unaffected",
+         shooting.available_shooting_types(_ba_other, _ba_other_tokens), [])
 
 # --- 3f. Cost of Victory -------------------------------------------------
 c.eq("1 CP", gcv.COST_OF_VICTORY_CP, 1)
