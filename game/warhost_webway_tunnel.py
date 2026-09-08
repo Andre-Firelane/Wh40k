@@ -42,7 +42,8 @@ a whole-army judgement this engine cannot make - the same call Cost of Victory
 records.
 """
 
-from game import aeldari_detachments, ai_mode, engagement, martial_grace
+from game import (aeldari_detachments, ai_mode, engagement, martial_grace,
+                  unit_choice_offer)
 from game.stratagems import Stratagem
 from game.strategic_reserves import withdraw_to_reserves
 from game.phase_window import PhaseWindow
@@ -144,28 +145,28 @@ class WebwayTunnelController:
 
         Must be main.py's `mover_before`: turn_tracker.turn_owner has already
         flipped to the next player by the time this runs."""
-        # Armed BEFORE the eligibility loop, because can_use() below asks the
-        # window: the window IS this offer's own "right moment", and the offer
-        # is only ever made at the boundary that owns it. Closed again if
-        # nothing was actually put to the player.
-        for squad in sorted((s for s in squads if s.owner != ending_player),
-                            key=lambda s: (str(s.owner), s.name)):
-            self._window.arm(squad.owner)
-            if not self.can_use(squad):
-                self._window.close()
-                continue
-            if squad.owner in self.auto_players or self.decision_manager is None:
-                self._window.close()
-                return False           # no AI path
-            self.decision_manager.request(
-                squad.owner,
-                "%s (%d CP): pull %s off the battlefield and into Strategic "
-                "Reserves?" % (WEBWAY_TUNNEL_NAME, WEBWAY_TUNNEL_CP, squad.name),
-                [("Use (%d CP)" % WEBWAY_TUNNEL_CP, (lambda s=squad: self.use(s))),
-                 ("Decline", lambda: None)],
-                is_stratagem=True,
-            )
-            return True
+        # ONE prompt listing EVERY eligible unit, each tagged with itself, so
+        # the choice is made by clicking on the board - "TARGET: One ASURYANI
+        # INFANTRY unit from your army" is the player's choice, and this used
+        # to raise a yes/no about whichever unit sorted first. See
+        # game/unit_choice_offer.py.
+        #
+        # The window is armed BEFORE the eligibility test, because can_use()
+        # asks it: the window IS this offer's own "right moment". Closed again
+        # if nothing was actually put to that player.
+        for player in sorted({s.owner for s in squads if s.owner != ending_player},
+                             key=str):
+            self._window.arm(player)
+            candidates = [s for s in sorted(squads, key=lambda s: s.name)
+                          if s.owner == player and self.can_use(s)]
+            if unit_choice_offer.offer_one_of(
+                    self.decision_manager, player, candidates,
+                    "%s (%d CP): pull which unit off the battlefield and into "
+                    "Strategic Reserves?" % (WEBWAY_TUNNEL_NAME, WEBWAY_TUNNEL_CP),
+                    self.use, auto_players=self.auto_players,
+                    is_stratagem=True):
+                return True
+            self._window.close()       # nothing offered - and no AI path
         return False
 
     def use(self, squad):

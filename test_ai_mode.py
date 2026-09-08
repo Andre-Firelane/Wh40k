@@ -163,7 +163,15 @@ for cls_name, rel in sorted(TAKERS.items()):
             continue
         body = ast.get_source_segment(src, node) or ""
         reads = "in self.auto_players" in body or "not in self.auto_players" in body
-        forwards = "auto_players=auto_players" in body
+        # TWO ways to forward rather than read: up to a BASE class in the
+        # constructor, or across to a shared COLLABORATOR that applies the gate
+        # (game/unit_choice_offer.py, which four Stratagem controllers now hand
+        # the choice to). The second is still "the gate is applied", just in one
+        # place instead of four - and it is backed by behaviour, not by this
+        # token: test_unit_choice_offers.py drives each of the four with an AI
+        # owner and asserts no prompt opens and the window closes again.
+        forwards = ("auto_players=auto_players" in body
+                    or "auto_players=self.auto_players" in body)
         if not reads and not forwards and cls_name not in BASE_CLASSES:
             dead.append(f"{cls_name} ({rel})")
 

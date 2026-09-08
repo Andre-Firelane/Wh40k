@@ -307,6 +307,12 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
     Seither **`game/per_unit_offer.py` (32.)** — „biete diese Wahl JEDER berechtigten
     Einheit an, eine nach der anderen“, gelesen von Airborne Agility, Ride the Wind und
     Cloudstrider; siehe `## Zwei Meldungen aus einer Partie`.
+    Seither **`game/unit_choice_offer.py` (33.)** — „der Spieler waehlt EINE der berechtigten
+    Einheiten", also EIN Prompt mit einer GETAGGTEN Option je Kandidat; gelesen von Cost of
+    Victory, Webway Tunnel, Skyborne Sanctuary und Overflight. **Nicht zu verwechseln mit
+    `per_unit_offer` eine Zeile darueber** — das ist „JEDE Einheit bekommt ihr eigenes Angebot",
+    und der FALSCHE Code fuer beide sieht gleich aus (alle vier hatten ihn). Siehe
+    `## "TARGET: One <X> unit from your army" wurde NICHT gewaehlt`.
     Seither **`game/mortal_wound_sessions.py` (32.)** — „wie leert man eine LISTE
     offener Mortal-Wound-Sessions", gelesen von `drakolithe.py` und
     `harvester_of_souls.py`, den einzigen zwei mit dieser Form. Dort ist die
@@ -8186,6 +8192,132 @@ ein verschlucktes `resume` unerreichbar machte.
   `assault`-Aufstellungsrolle: beide Karten PASS. A/B belegt (ohne die Rolle kippt map2 wieder auf
   `safer=False`), also war die Zusicherung nicht zu streng, sondern hat einen echten Mangel
   angezeigt.
+
+## "TARGET: One <X> unit from your army" wurde NICHT gewählt (2026-09-08)
+
+**Gemeldet:** *"cost of victory wird mir pauschal angeboten, aber ich habe 3 guardian squads. ich
+kann nicht wählen welchen squad zurück in reserve schicken will. es muss auf dem feld angeklickt
+werden."*
+
+- **Reproduziert an der Quelle, bevor etwas angefasst wurde:** mit drei berechtigten Guardian
+  Defenders öffnete das Angebot einen Prompt, der EINEN von ihnen nannte — den in Sortierreihenfolge
+  ersten —, mit den Optionen `['Use (1 CP)', 'Decline']`, **keine davon mit einem Squad getaggt**,
+  also gab `unit_pick.pending()` `None` zurück und es konnte nie ein Brett-Klick sein. Der Spieler
+  wurde gebeten, eine Wahl zu bestätigen, die die Engine schon getroffen hatte.
+- **VIER Stratagems hatten diese Form, und alle vier drucken dieselbe TARGET-Zeile:** Cost of
+  Victory (GUARDIANS), Webway Tunnel (ASURYANI INFANTRY), Skyborne Sanctuary (unengaged ASURYANI)
+  und Overflight (ASURYANI MOUNTED). **"One <X> unit from your army" ist eine Wahl des SPIELERS**;
+  jedes der vier lief über die berechtigten Einheiten, bot die erste an und kehrte zurück.
+- **Das FÜNFTE mit derselben gedruckten Zeile war schon richtig gebaut** — Kauyons Wall of Mirrors
+  (`[(s.name, cb, s) for s in candidates]`), und genau das macht die vier als Defekt lesbar statt
+  als Design. Ausgerechnet Cost of Victorys eigener Docstring vergleicht sich mit dessen Nachbarn.
+
+### `game/unit_choice_offer.py` — 33. Extraktion, und NICHT `per_unit_offer`
+
+Die zwei sind leicht zu verwechseln, weil der FALSCHE Code für beide gleich aussieht:
+
+| Modul | Frage | Prompts |
+|---|---|---|
+| `per_unit_offer.offer_each()` | "JEDE berechtigte Einheit bekommt ihr EIGENES Angebot" (eine FÄHIGKEIT: Airborne Agility, Ride the Wind, Cloudstrider) | N, verkettet |
+| `unit_choice_offer.offer_one_of()` | "der Spieler wählt EINE davon" (ein STRATAGEM) | 1, N getaggte Optionen |
+
+**Die vier waren zu keiner der beiden Formen geschrieben:** ein Prompt über eine willkürlich
+gewählte Einheit beantwortet keine der zwei Fragen.
+
+- **EIN Request statt einer Kette**, und das ist keine Abkürzung: `per_unit_offer` verkettet
+  bewusst, weil sich Eignung zwischen Antworten ändern kann und Ride the Wind einen laufenden
+  Zähler druckt. Bei EINER Wahl gilt beides nicht — und jeder Kandidat muss GLEICHZEITIG sichtbar
+  sein, damit ein Brett-Pick überhaupt etwas bedeutet: **die Ringe SIND der Prompt**.
+- **Das FENSTER bleibt beim Aufrufer.** `PhaseWindow` zu armen ist zwei Zeilen, aber WER an einer
+  Phasengrenze reagieren darf, ist die gedruckte WHEN-Zeile ("your opponent's Fight phase" bietet
+  der Gegenseite; "the end of THE Fight phase" gehört niemandem und bietet beiden) — eingefaltet
+  wäre das ein Flag je WHEN-Klausel für eine Frage, die das Modul nicht sehen kann.
+
+### Skyborne Sanctuary ist ZWEISTUFIG, weil seine TARGET-Zeile ZWEI Dinge nennt
+
+"One unengaged ASURYANI unit ... **and** one friendly TRANSPORT it is able to embark within" — es
+fragte nach keinem von beiden: Prompt über die erstsortierte Einheit, Transporter still als
+`transports_for(squad)[0]`. Jetzt Brett-Pick für die Einheit, danach eine gewöhnliche LISTE für den
+Transporter — **und nur, wenn es wirklich mehr als einen gibt** (Fehlerklasse 5). Dass die alte
+Ein-Schritt-Fassung überall dort richtig las, wo genau ein Wave Serpent in Reichweite stand, ist der
+Grund, warum sie überlebt hat. Eine LISTE und kein zweiter Brett-Pick: die Optionen nennen
+TRANSPORTER desselben Spielers, die unter der gerade angeklickten Einheit stehen können.
+
+### Warum keine der vier Suiten es sah
+
+**Jede stagt genau EINE berechtigte Einheit** — und bei einem Kandidaten sind die kaputte und die
+richtige Form nicht unterscheidbar. Deshalb ist die tragende Prüfung der neuen Suite nicht "ein
+Prompt ging auf", sondern **"ein Klick auf den ZWEITEN Kandidaten löst den ZWEITEN auf"**: eine
+bloße Options-ZÄHLUNG besteht auch gegen ein Angebot, das jede Option auf dieselbe Einheit
+verdrahtet (die Late-Binding-Sonde belegt genau das).
+
+### Der Wächter: `test_event_chain_wiring.py` §18
+
+**Ein Angebot, das seinen Request INNERHALB einer Kandidaten-Schleife erhebt, muss mindestens eine
+Option mit einer Einheit TAGGEN.** Eine Einheit im Prompt-TEXT zu nennen und ein nacktes Ja/Nein
+anzubieten ist die gemeldete Form. Faction-blind, per AST, mit Liveness-Zeile.
+
+- **Was er BEWUSST nicht meldet, gemessen statt angenommen:** vier per-Unit-FÄHIGKEITEN erheben
+  ihren Request ebenfalls in so einer Schleife (`auxiliary_cadre`, `elemental_ensnarement`,
+  `hallucinogen_grenades`, `neocapacitor_shields`). Alle vier taggen ihre Optionen mit der
+  FEIND-Einheit, die die Fähigkeit anzielt — dort wird also weiterhin auf dem Brett gewählt, und die
+  Schleife läuft über TRÄGER, was eine andere Frage ist. Ein Wächter, der sie meldet, ist eine
+  Fehlalarm-Maschine, und ein Wächter mit Fehlalarmen wird gelöscht.
+- **Er muss ein LOKALES auflösen**, und das hat seine eigene erste Runde gefunden:
+  `neocapacitor_shields` baut `options = [...]` und übergibt dann den Namen — eine Prüfung, die nur
+  die Argumente des Aufrufs durchsucht, meldete einen sehr wohl anklickbaren Prompt als ungetaggt.
+  Eigene A/B-Sonde dafür.
+
+### Ein fremder Wächter wurde zu Recht rot, und ist gewachsen statt aufgeweicht
+
+`test_ai_mode.py`s "no class takes auto_players and ignores it" meldete alle vier: sie LESEN
+`self.auto_players` nicht mehr, sie reichen es an den geteilten Helfer weiter. Der `forwards`-Term
+kannte nur die Weitergabe an eine BASIS-Klasse. Er kennt jetzt auch die an einen KOLLABORATOR — und
+**die Zusicherung ruht nicht auf dem Token**: alle vier werden in der neuen Suite mit einem
+KI-Besitzer gefahren und müssen nichts anbieten und ihr Fenster wieder schließen.
+
+### Getestet
+
+- Neu `test_unit_choice_offers.py` (**64/64**, sechs Abschnitte — eine Datei für EINEN Defekt über
+  vier Module, dieselbe Begründung wie `test_mortal_wound_drains.py`), plus Wall of Mirrors als
+  gemessene REFERENZ. `test_event_chain_wiring.py` → **142/142** (neuer §18),
+  `test_ai_mode.py` **61/61**.
+- **Neu `ab_unit_choice_offers.py`: 12 A/B-Sonden an der QUELLE, alle beißend** — je Controller die
+  alte Schleife byte-für-byte zurück, dazu drei auf den Helfer selbst (Tag weg → 42/64, nur der
+  erste Kandidat → 48/64, Late Binding → 59/64) und die ganze Vor-Fix-Welt (**32/64**).
+- **Zwei Befunde über den TEST, beide von den Sonden** (Fehlerklasse 24): die Sonden ließen die neue
+  Suite zuerst ABSTÜRZEN statt rot zu werden (`unit_pick.pending()` gibt in der Vor-Fix-Welt `None`,
+  und `.squads` darauf bricht den ganzen Lauf ab) — jetzt über einen `_NoPick`-Platzhalter; und die
+  zwei Sonden gegen `test_aeldari_detachment_stratagems.py` bzw. `test_aeldari_stratagem_ui.py`
+  meldeten **NO BITE**, was WAHR ist: die Suiten stagen eine Einheit und KÖNNEN diesen Defekt nicht
+  sehen. Sie zielen jetzt auf den Quell-Wächter, der die Klasse wirklich abdeckt.
+- Volle Regression **193 Suiten, ~17166 Prüfungen, 192 grün / 0 rot / 1 bekannt**,
+  `run_tests.py --smoke` komplett grün (alle neun schweren Skripte).
+
+### Im ECHTEN Spiel belegt
+
+`verify_cost_of_victory_choice.py` fährt `selfplay.py`s echte `main()`-Schleife mit
+**`aeldari_guardian_battlehost` als PLAYER 1** — der ausgelieferten Liste, die Guardian Battlehost
+fieldet und **genau DREI GUARDIANS-Einheiten** hat, also die gemeldete Armeeform wörtlich, statt
+einer für die Sonde erfundenen Szene. Sie liegt auf der MENSCHEN-Seite, weil eine Frage über dessen
+Prompts sonst die Armee der KI misst (die Lehre der drei Necron-Sonden).
+
+| | gefixt | `--neutralize` |
+|---|---|---|
+| berechtigte Einheiten auf dem Brett | 3 | 3 |
+| vom Prompt genannte Einheiten | **3** | **0** |
+| per Brett-Klick beantwortbar | **ja** | **NEIN** |
+| geringte Einheiten | **3** | 0 |
+| angeklickt wurde NICHT die erste | **2×** | 0 |
+| die angeklickte Einheit zog sich zurück | **2×** | 0 |
+
+`--neutralize` meldet die Meldung wörtlich: `prompt 'Cost of Victory (1 CP): pull 1 Guardian
+Defenders 1 + Farseer + Warloc' -> NOT a board pick; 0 unit(s) named, 3 eligible on the board`.
+
+**GESTELLT wird EINE Tatsache, und der Grund steht im Modulkopf:** dass die Schlacht überhaupt ein
+Fight-Phasen-Ende erreicht. Auf diesem Harness überlebt allein die Schussphase das Framebudget, die
+Grenze ist passiv also unerreichbar (die dokumentierte MockAgent-Grenze) — ein passiver Zähler hätte
+0 gemeldet und wie ein Bestehen ausgesehen. Alles danach ist echt.
 
 ## Zwei Meldungen aus einer Partie (2026-09-08)
 

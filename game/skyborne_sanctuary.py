@@ -10,6 +10,15 @@ line):
           embark within it.
   RESTRICTIONS: none printed.
 
+THE TARGET LINE NAMES TWO THINGS, SO THE OFFER ASKS TWICE. It used to ask
+neither: it raised a prompt about whichever eligible unit sorted FIRST and took
+`transports_for(squad)[0]` for the transport, silently. Step one is now a board
+pick over every eligible unit (game/unit_choice_offer.py, shared with the three
+sibling Stratagems that print the same "One <X> unit from your army"); step two
+is an ordinary list, and only when there is more than one legal transport -
+never offer what cannot be chosen. That the old one-step prompt read correctly
+wherever exactly one Wave Serpent was in range is why it survived.
+
 ONE MODULE, TWO CONTROLLER INSTANCES - the arrangement game/enh_exemplars.py
 already uses for the two Exemplars. Two copies of a Stratagem that is the same
 sentence twice is the drift this repo consolidates at the second consumer, and
@@ -64,7 +73,8 @@ Tunnel before it - see game/phase_window.py.
 THE AI DECLINES (standing Aeldari instruction).
 """
 
-from game import aeldari_detachments, ai_mode, detachment_gate, engagement
+from game import (aeldari_detachments, ai_mode, detachment_gate, engagement,
+                  unit_choice_offer)
 from game.phase_window import PhaseWindow
 from game.stratagems import Stratagem
 
@@ -176,30 +186,60 @@ class SkyborneSanctuaryController:
         There is deliberately no live phase test any more: this runs AFTER
         advance_phase(), so `phase != PHASE_FIGHT` was always true and this
         Stratagem never opened a prompt at all. See game/phase_window.py."""
-        # Armed BEFORE each eligibility test, because can_use() asks the
-        # window: the window IS this offer's own "right moment". Closed again
-        # if nothing was actually put to the player.
-        for squad in sorted(squads, key=lambda s: (str(s.owner), s.name)):
-            self._window.arm(squad.owner)
-            if not self.can_use(squad):
-                self._window.close()
-                continue
-            if squad.owner in self.auto_players or self.decision_manager is None:
-                self._window.close()
-                return False           # no AI path
-            transport = self.transports_for(squad)[0]
-            self.decision_manager.request(
-                squad.owner,
-                "%s (%d CP): embark %s within %s?"
-                % (SKYBORNE_SANCTUARY_NAME, SKYBORNE_SANCTUARY_CP, squad.name,
-                   transport.squad.name),
-                [("Use (%d CP)" % SKYBORNE_SANCTUARY_CP,
-                  (lambda s=squad, t=transport: self.use(s, t))),
-                 ("Decline", lambda: None)],
-                is_stratagem=True,
-            )
-            return True
+        # ONE prompt listing EVERY eligible unit, each tagged with itself, so
+        # the choice is made by clicking on the board. It used to raise a
+        # yes/no about whichever unit sorted first, with the TRANSPORT picked
+        # silently as transports_for(squad)[0]. See game/unit_choice_offer.py.
+        #
+        # TWO STEPS, because the printed TARGET names TWO things: "One
+        # unengaged ASURYANI unit ... AND one friendly TRANSPORT it is able to
+        # embark within". Step one is the board pick; step two is an ordinary
+        # list, and only when there is really a choice - see _choose_transport.
+        #
+        # The window is armed BEFORE the eligibility test, because can_use()
+        # asks it: the window IS this offer's own "right moment". Closed again
+        # if nothing was actually put to that player.
+        for player in sorted({s.owner for s in squads}, key=str):
+            self._window.arm(player)
+            candidates = [s for s in sorted(squads, key=lambda s: s.name)
+                          if s.owner == player and self.can_use(s)]
+            if unit_choice_offer.offer_one_of(
+                    self.decision_manager, player, candidates,
+                    "%s (%d CP): which unit embarks within a TRANSPORT?"
+                    % (SKYBORNE_SANCTUARY_NAME, SKYBORNE_SANCTUARY_CP),
+                    self._choose_transport, auto_players=self.auto_players,
+                    is_stratagem=True):
+                return True
+            self._window.close()       # nothing offered - and no AI path
         return False
+
+    def _choose_transport(self, squad):
+        """Step two: WHICH TRANSPORT, and only when that is a real question.
+
+        A single legal transport is resolved without asking - "never offer what
+        cannot be chosen" - which is also why the old one-step prompt read
+        correctly on the boards where only one Wave Serpent was in range, and
+        silently took transports_for(squad)[0] everywhere else.
+
+        An ordinary LIST, not a second board pick: the options name TRANSPORTS
+        that belong to the same player and may sit under the unit that was just
+        clicked, so rings would be ambiguous about which of the two things on
+        that spot is being chosen."""
+        transports = self.transports_for(squad)
+        if not transports:
+            return False
+        if len(transports) == 1 or self.decision_manager is None:
+            return self.use(squad, transports[0])
+        self.decision_manager.request(
+            squad.owner,
+            "%s: embark %s within which TRANSPORT?"
+            % (SKYBORNE_SANCTUARY_NAME, squad.name),
+            [(token.squad.name, (lambda s=squad, t=token: self.use(s, t)))
+             for token in transports]
+            + [("Decline", lambda: None)],
+            is_stratagem=True,
+        )
+        return True
 
     def use(self, squad, transport_token=None):
         if not self.can_use(squad):

@@ -1506,4 +1506,113 @@ for _ctrl in ("wraith_form_controller", "drakolithe_controller",
     ck.true("...and the phase gate waits on %s" % _ctrl,
             "%s.pending_damage_choice" % _ctrl in _MW_GATE_BODY)
 
+# --------------------------------------------------------------------------
+# 18. An offer that names ONE unit out of several must let the player CHOOSE
+# --------------------------------------------------------------------------
+# REPORTED: "cost of victory wird mir pauschal angeboten, aber ich habe 3
+# guardian squads. ich kann nicht waehlen welchen squad zurueck in reserve
+# schicken will. es muss auf dem feld angeklickt werden."
+#
+# Four Stratagems printing "TARGET: One <X> unit from your army" looped over
+# the eligible units, raised a prompt about whichever sorted FIRST, and
+# returned - so the other candidates were never mentioned and the one that was
+# could only be accepted or declined. A BEHAVIOUR test cannot see the fifth,
+# because it does not exist yet; and the four owning suites could not see these
+# four either, because each stages exactly ONE eligible squad, where the broken
+# and the correct shape are indistinguishable. So the guard is a rule about
+# the SOURCE.
+#
+# THE INVARIANT, and it is narrow on purpose: an offer that raises a request
+# from INSIDE a loop over candidates must TAG at least one option with a unit.
+# Naming a unit in the prompt TEXT and offering a bare yes/no is the shape that
+# was reported - the engine has already chosen, and the player is asked to
+# rubber-stamp it.
+#
+# WHAT THIS DELIBERATELY DOES NOT FLAG, measured rather than assumed: four
+# per-unit ABILITIES raise their request inside such a loop too
+# (auxiliary_cadre, elemental_ensnarement, hallucinogen_grenades,
+# neocapacitor_shields). Every one of them tags its options with the ENEMY unit
+# the ability targets, so the player still chooses on the board; the loop there
+# is over BEARERS, which is a different question (see game/per_unit_offer.py).
+# A guard that flagged them would be a false-alarm machine, and a guard with
+# false alarms gets deleted.
+print("\n18. one-unit-out-of-several offers")
+
+
+def _has_three_tuple(node):
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Tuple) and len(sub.elts) == 3:
+            return True
+    return False
+
+
+def _tags_a_unit(call, func):
+    """Does this request() call pass any THREE-tuple option? That third slot
+    is what game/unit_pick.py reads to make a prompt clickable.
+
+    A bare NAME argument is resolved against the assignments in `func` first.
+    Without that, neocapacitor_shields.py - which builds `options = [...]` and
+    then passes it - reads as untagged, and the guard reports a unit choice
+    that is in fact perfectly clickable. Found by this section's own first run:
+    a guard with false alarms gets deleted, so it has to see what the code
+    actually passes."""
+    args = list(call.args) + [kw.value for kw in call.keywords]
+    for arg in args:
+        if _has_three_tuple(arg):
+            return True
+        if isinstance(arg, ast.Name):
+            for sub in ast.walk(func):
+                targets = []
+                if isinstance(sub, ast.Assign):
+                    targets = sub.targets
+                elif isinstance(sub, (ast.AugAssign, ast.AnnAssign)):
+                    targets = [sub.target]
+                if any(isinstance(t, ast.Name) and t.id == arg.id for t in targets):
+                    if sub.value is not None and _has_three_tuple(sub.value):
+                        return True
+                # options.append((label, cb, squad))
+                if (isinstance(sub, ast.Call)
+                        and isinstance(sub.func, ast.Attribute)
+                        and isinstance(sub.func.value, ast.Name)
+                        and sub.func.value.id == arg.id
+                        and _has_three_tuple(sub)):
+                    return True
+    return False
+
+
+_untagged_offers = []
+_offers_seen = 0
+for _fname in sorted(os.listdir("game")):
+    if not _fname.endswith(".py"):
+        continue
+    _src = io.open(os.path.join("game", _fname), encoding="utf-8").read()
+    try:
+        _tree = ast.parse(_src)
+    except SyntaxError:
+        continue
+    for _node in ast.walk(_tree):
+        if not (isinstance(_node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and _node.name.startswith("offer_at_")):
+            continue
+        for _loop in [n for n in ast.walk(_node) if isinstance(n, ast.For)]:
+            _reqs = [c for c in ast.walk(_loop)
+                     if isinstance(c, ast.Call)
+                     and isinstance(c.func, ast.Attribute)
+                     and c.func.attr == "request"]
+            if not _reqs:
+                continue
+            _offers_seen += 1
+            if not any(_tags_a_unit(c, _node) for c in _reqs):
+                _untagged_offers.append("%s.%s" % (_fname, _node.name))
+
+# Liveness: a sweep that stops finding these offers reports zero and looks like
+# a pass. Four legitimate ones exist today.
+ck.true("the sweep really examined some looping offers", _offers_seen >= 4)
+ck.eq("no looping offer raises an untagged prompt", sorted(set(_untagged_offers)), [])
+for _mod in ("guardian_cost_of_victory", "warhost_webway_tunnel",
+             "skyborne_sanctuary", "windrider_overflight"):
+    ck.true("%s offers every candidate, not just the first" % _mod,
+            "unit_choice_offer.offer_one_of(" in
+            io.open("game/%s.py" % _mod, encoding="utf-8").read())
+
 ck.finish()

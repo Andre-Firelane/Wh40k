@@ -75,7 +75,7 @@ as an absence, since a missing lock and a forgotten one look the same.
 THE AI DECLINES (standing Aeldari instruction).
 """
 
-from game import ai_mode, ride_the_wind
+from game import ai_mode, ride_the_wind, unit_choice_offer
 from game.phase_window import PhaseWindow
 from game.stratagems import Stratagem
 from game.turn import PHASE_FIGHT, PHASE_SHOOTING
@@ -215,24 +215,28 @@ class OverflightController:
             candidates = list(squads)
         else:
             return False
-        for squad in sorted(candidates, key=lambda s: (str(s.owner), s.name)):
-            self._window.arm(squad.owner)
-            if not self.can_use(squad):
-                self._window.close()
-                continue
-            if squad.owner in self.auto_players or self.decision_manager is None:
-                self._window.close()
-                return False           # no AI path
-            self.decision_manager.request(
-                squad.owner,
-                '%s (%d CP): %s destroyed an enemy unit this phase - make a '
-                'Normal move of up to %g"?'
-                % (OVERFLIGHT_NAME, OVERFLIGHT_CP, squad.name, OVERFLIGHT_MOVE_IN),
-                [("Use (%d CP)" % OVERFLIGHT_CP, (lambda s=squad: self.use(s))),
-                 ("Decline", lambda: None)],
-                is_stratagem=True,
-            )
-            return True
+        # ONE prompt listing EVERY eligible unit, each tagged with itself, so
+        # the choice is made by clicking on the board - "TARGET: One ASURYANI
+        # MOUNTED unit from your army" is the player's choice, and this used to
+        # raise a yes/no about whichever unit sorted first. See
+        # game/unit_choice_offer.py.
+        #
+        # The window is armed BEFORE the eligibility test, because can_use()
+        # asks it: the window IS this offer's own "right moment". Closed again
+        # if nothing was actually put to that player.
+        for player in sorted({s.owner for s in candidates}, key=str):
+            self._window.arm(player)
+            eligible = [s for s in sorted(candidates, key=lambda s: s.name)
+                        if s.owner == player and self.can_use(s)]
+            if unit_choice_offer.offer_one_of(
+                    self.decision_manager, player, eligible,
+                    '%s (%d CP): which unit that destroyed an enemy unit this '
+                    'phase makes a Normal move of up to %g"?'
+                    % (OVERFLIGHT_NAME, OVERFLIGHT_CP, OVERFLIGHT_MOVE_IN),
+                    self.use, auto_players=self.auto_players,
+                    is_stratagem=True):
+                return True
+            self._window.close()       # nothing offered - and no AI path
         return False
 
     def use(self, squad):

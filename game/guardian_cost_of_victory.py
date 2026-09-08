@@ -37,6 +37,16 @@ sits on the same destroyed list; the printed text brings back the bodyguards
 only. Read from the component provenance attach() records, the same source
 Yvraine's Word of the Phoenix uses for its own "BODYGUARD models" clause.
 
+"TARGET: ONE GUARDIANS UNIT FROM YOUR ARMY" IS THE PLAYER'S CHOICE, and this
+used to take it away. The offer looped over the eligible units, raised a prompt
+about whichever sorted FIRST, and returned - so the others were never mentioned,
+and the one that was could only be accepted or declined. REPORTED: "ich habe 3
+guardian squads. ich kann nicht waehlen welchen squad zurueck in reserve
+schicken will. es muss auf dem feld angeklickt werden." It now raises ONE prompt
+with a TAGGED option per candidate, which is what makes it answerable by
+clicking the unit; see game/unit_choice_offer.py, which three sibling
+Stratagems with the same printed TARGET line share.
+
 THE TIMING IS THE ONE MOST EASILY READ BACKWARDS: "end of your OPPONENT'S Fight
 phase", so the offer goes to whoever is NOT the turn owner - the same trap
 game/airborne_agility.py and Ride the Wind both write out.
@@ -45,7 +55,8 @@ THE AI DECLINES (standing Aeldari instruction): taking a unit off the board is
 a whole-army judgement this engine cannot make.
 """
 
-from game import aeldari_detachments, ai_mode, defend_at_all_costs, engagement
+from game import (aeldari_detachments, ai_mode, defend_at_all_costs, engagement,
+                  unit_choice_offer)
 from game.stratagems import Stratagem
 from game.strategic_reserves import withdraw_to_reserves
 from game.phase_window import PhaseWindow
@@ -187,29 +198,30 @@ class CostOfVictoryController:
         There is deliberately no live phase test any more: this runs AFTER
         advance_phase(), so `phase != PHASE_FIGHT` was always true and this
         Stratagem never opened a prompt at all. See game/phase_window.py."""
-        # Armed BEFORE the eligibility loop, because can_use() below asks the
-        # window: the window IS this offer's own "right moment", and the offer
-        # is only ever made at the boundary that owns it. Closed again if
-        # nothing was actually put to the player.
-        for squad in sorted((s for s in squads if s.owner != ending_player),
-                            key=lambda s: (str(s.owner), s.name)):
-            self._window.arm(squad.owner)
-            if not self.can_use(squad):
-                self._window.close()
-                continue
-            if squad.owner in self.auto_players or self.decision_manager is None:
-                self._window.close()
-                return False           # no AI path
-            self.decision_manager.request(
-                squad.owner,
-                "%s (%d CP): pull %s into Strategic Reserves and bring back its "
-                "destroyed models?"
-                % (COST_OF_VICTORY_NAME, COST_OF_VICTORY_CP, squad.name),
-                [("Use (%d CP)" % COST_OF_VICTORY_CP, (lambda s=squad: self.use(s))),
-                 ("Decline", lambda: None)],
-                is_stratagem=True,
-            )
-            return True
+        # ONE prompt listing EVERY eligible unit, each tagged with itself, so
+        # the choice is made by clicking on the board. It used to raise a
+        # yes/no about whichever unit sorted first and return - reported: "ich
+        # habe 3 guardian squads. ich kann nicht waehlen welchen squad zurueck
+        # in reserve schicken will. es muss auf dem feld angeklickt werden."
+        # See game/unit_choice_offer.py.
+        #
+        # The window is armed BEFORE the eligibility test, because can_use()
+        # asks it: the window IS this offer's own "right moment". Closed again
+        # if nothing was actually put to that player.
+        for player in sorted({s.owner for s in squads if s.owner != ending_player},
+                             key=str):
+            self._window.arm(player)
+            candidates = [s for s in sorted(squads, key=lambda s: s.name)
+                          if s.owner == player and self.can_use(s)]
+            if unit_choice_offer.offer_one_of(
+                    self.decision_manager, player, candidates,
+                    "%s (%d CP): pull which unit into Strategic Reserves, "
+                    "bringing back its destroyed models?"
+                    % (COST_OF_VICTORY_NAME, COST_OF_VICTORY_CP),
+                    self.use, auto_players=self.auto_players,
+                    is_stratagem=True):
+                return True
+            self._window.close()       # nothing offered - and no AI path
         return False
 
     def use(self, squad):
