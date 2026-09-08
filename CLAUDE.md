@@ -153,6 +153,9 @@ für immer und die Wunden landen nie. → **§17**, das als einziges beim MODUL
 startet statt bei `main.py`, weil §6/§10/§12 einen nie gefragten Controller
 nicht sehen können. **§17b** prüft dazu, dass ihr `log=` ein CALLABLE ist: das
 GameLog-Objekt kracht, sobald eine Wunde auf einem Ein-Modell-Ziel landet.
+**§17d ist der Spiegel** — eine Klasse, die dieses Callable speichert, darf es
+nicht als Objekt behandeln (`self.log.add(...)`). Genau daran ist das Feuern
+der D-cannon abgestürzt; siehe `## Diagnose-Logging` für die zwei Konventionen.
 
 **Ein Zug außerhalb der Bewegungsphase** → der Modus gehört in
 `MovementController.OUT_OF_PHASE_MOVE_MODES`, und ein REAKTIVER zusätzlich in
@@ -289,7 +292,9 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
     `MovementController.can_advance()` (12.), **`combat_focus.py` (13.)**,
     **`game/ui/tile_screen.py` (14.)** — der geteilte Rahmen beider Vorspiel-Screens, siehe
     Kartenauswahl —, **`agent_driver._garrison_fitness()` (15.)** — "wen lassen wir auf diesem
-    Objective stehen", von drei Garnisons-Pässen gelesen —, und für den
+    Objective stehen", seit dem 2026-09-08 von ZWEI Garnisons-Pässen gelesen (der
+    Over-Garrison-Korrektur und ihrem planner-seitigen Bericht ist
+    `_garrison_surplus()` gemeinsam geworden; der dritte ist der Lone-Swap-Pass) —, und für den
     Auswahl-Screen zwei kleine: `sprites.models_portrait_paths()` und
     `loadout.model_loadout_lines()` — beide beantworten dieselbe Frage eine Ebene tiefer, für eine
     MODELLMENGE statt für ein Squad, weil eine Kachel die Komponenten einer Attached Unit einzeln
@@ -319,6 +324,18 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
     `per_unit_offer` eine Zeile darueber** — das ist „JEDE Einheit bekommt ihr eigenes Angebot",
     und der FALSCHE Code fuer beide sieht gleich aus (alle vier hatten ihn). Siehe
     `## "TARGET: One <X> unit from your army" wurde NICHT gewaehlt`.
+    Seither **`geometry.convex_hull()` / `point_inside_hull()` (34.)** — „stehen diese Modelle
+    UM diesen Punkt herum", gelesen vom Objective-Umriss des Renderers und von
+    `_validate_turn_plan()`s Prüfung, ob ein Plan eine Einheit auf ihre eigene Mitte befiehlt.
+    Es liegt in `game/geometry.py`, weil `ai/` den Renderer nicht importieren kann (pygame,
+    Renderpfad); der Renderer RE-EXPORTIERT es unter dem alten privaten Namen `_convex_hull`,
+    also bewegt sich kein Pixel-Test. Siehe
+    `## Der Avatar-Charge und der Home-Objective-Klumpen`.
+    Seither **`agent_driver._garrison_surplus()` (35.)** — „welche der auf einem Objective
+    geparkten Einheiten werden gebraucht, welche sind übrig", gelesen von der
+    Over-Garrison-Korrektur UND ihrem Bericht an den Planner, die dieselben sechs Zeilen doppelt
+    hatten. Sie wären in dem Moment gedriftet, in dem eine der beiden Seiten von Bedrohungen
+    erfahren hätte — was genau die Änderung war, die sie zusammengelegt hat.
     Seither **`game/mortal_wound_sessions.py` (32.)** — „wie leert man eine LISTE
     offener Mortal-Wound-Sessions", gelesen von `drakolithe.py` und
     `harvester_of_souls.py`, den einzigen zwei mit dieser Form. Dort ist die
@@ -496,6 +513,16 @@ Untersuchung musste dann aus rohen Koordinaten rekonstruiert werden. Vorhandene 
 (welche Modelle, wie weit daneben, an jeder Phasengrenze, entprellt), `[threat]`, `[turn plan]`
 (inkl. `@(x,y)`), `[ingress]` (der TATSÄCHLICHE Landeplatz), `[regroup]`, `[pile in]` (vorher ->
 nachher engagierte Modelle), `[deploy]`, `[charge reroll]`, `[disembark]`.
+
+**ZWEI Konventionen, unterschieden allein am FELDNAMEN — und das ist die einzige Trennung, die es
+gibt:** `self.game_log` ist das GameLog-OBJEKT und wird `self.game_log.add(msg)` geschrieben (~90
+Controller); `self.log` ist ein CALLABLE und wird `self.log(msg)` geschrieben (vier Module:
+`damage_resolution`, `dice_notation`, `feel_no_pain`, `hazard`). Wer die eine Schreibweise gegen
+das andere Feld setzt, baut keinen Tippfehler, sondern einen Absturz — und zwar einen, der erst
+feuert, wenn die Zeile das erste Mal wirklich LÄUFT. `test_event_chain_wiring.py` §17b/§17d hält
+beide Richtungen. Einzige Ausnahme:
+`strategic_reserves.withdraw_to_reserves(log=...)`, dessen Parameter `log` wirklich das OBJEKT ist
+(alle neun Aufrufer reichen `log=self.game_log`).
 
 Wurf-Zeilen tragen ihre Schwelle und die Modifikatoren (`needed 4+: base 5+, -1 (Target Uploaded)`)
 sowie die beteiligten Einheiten. **Regel: eine Diagnosezeile, die genau die strittige Zahl auslässt,
@@ -8274,6 +8301,131 @@ Marker-Beacon-/Pinpoint-Verdrahtungspins, die redundante `_pending`-Sonde, die z
 Photon-Grenades-Terme, die sich gegenseitig deckten, und der Combat-Embarkation-Wächter, den
 ein verschlucktes `resume` unerreichbar machte.
 
+## Absturz beim Feuern der D-cannon (2026-09-08)
+
+**Gemeldet:** *"absturz im letzten spiel / feuern der d-cannon"*, mit
+`AttributeError: 'function' object has no attribute 'add'` aus
+`main.py:5458 → shooting_controller.on_dice_acknowledged() → damage_resolution.py:423`.
+
+**ZWEI Fehler auf EINER Waffe.** Der zweite ist beim Reproduzieren des ersten aufgefallen und
+ist der teurere: er hat auf JEDEM D-cannon-Schuss zugeschlagen, nicht nur auf jedem sechsten.
+
+### 1. Zwei Log-Idiome, unterschieden allein am FELDNAMEN
+
+Dieses Repo führt zwei Protokoll-Konventionen, und nichts trennt sie außer dem Namen des Feldes:
+
+| Feld | was es ist | wie es benutzt wird | Träger |
+|---|---|---|---|
+| `self.game_log` | das GameLog-OBJEKT | `self.game_log.add(msg)` | ~90 Controller |
+| `self.log` | ein CALLABLE | `self.log(msg)` | **4** Module |
+
+`damage_resolution.py`s automatischer Damage-Reroll war in der ERSTEN Konvention gegen ein Feld
+der ZWEITEN geschrieben — **die einzige solche Zeile im ganzen Produktivcode** (gemessen:
+`grep` findet genau eine). Sie hat es ausgeliefert, weil die **einzige** Fähigkeit, die diesen
+Zweig überhaupt erreicht, Structural Collapse der D-cannon ist ("re-roll a Damage roll of 1"):
+der Rumpf war nie ein einziges Mal gelaufen.
+
+**Warum die Suite grün blieb** — und das ist die Lehre, nicht der Tippfehler: sie trieb
+`offer.auto_reroll_for(3)` DIREKT und pinnte den Quellstring `"auto_reroll_for(amount)"`. Beides
+hält perfekt an einem Zweig, dessen RUMPF nie ausgeführt wird. Die Datei trug sogar einen
+Abschnitt mit der Überschrift "END TO END through the real ShootingController" — er prüfte, dass
+das Angebot GEBAUT und richtig beschriftet ist, und ließ nie einen Würfel fallen.
+
+### 2. Die zweite Hälfte: ein Reroll, den die Regel nie gewährt
+
+Gedruckt: *"re-roll a Damage roll of 1. **If that attack targets a TITANIC unit**, you can
+re-roll the Damage roll **instead**."* Zwei Klauseln, und die zweite hängt am ZIEL.
+
+Das Angebot wurde mit einem `decision_manager` gebaut, **bedingungslos** — also öffnete jeder
+D-cannon-Wurf, der KEINE 1 war, einen "Structural Collapse: re-roll the Damage roll (6)?"-Prompt.
+Gemessen: gegen ein nicht-TITANIC-Ziel **stand der Prompt, und die Session parkte darauf, sodass
+der Schaden gar nicht landete — 0 statt 6**. `structural_collapse.targets_titanic()`, geschrieben
+für genau diese Klausel, hatte **null Produktiv-Aufrufer** (siebte Instanz der
+"gebaut, aber nie GEFÜTTERT"-Klasse).
+
+- **"INSTEAD" macht die beiden EXKLUSIV**, nicht additiv: gegen TITANIC ERSETZT der freie Reroll
+  den automatischen. Also `automatic_faces=()` **und** `offerable=True` dort, und genau umgekehrt
+  sonst — nicht beides gleichzeitig.
+- **`DamageRerollOffer.offerable` ist neu und trennt zwei Fragen, die vorher eine waren:**
+  `can_offer()` heißt "ist an diesem Würfel noch ein Reroll übrig", `offerable` heißt "darf die
+  FRAGE überhaupt gestellt werden". Default `True`, also sind die vier reinen Angebote (Sunforge,
+  Breath of Vaul, Assured Destruction, Path of the Warrior) per Konstruktion unberührt — eigene
+  A/B-Sonde, die den Default auf `False` dreht und `test_sunforge.py` rot macht.
+- **Nichts Gebautes trägt TITANIC** (die zwei Wraithknights sind bewusst nicht gebaut), der
+  TITANIC-Zweig ist also gemessen inert und wird im Test von HAND gestellt — dieselbe Behandlung,
+  die das Prädikat selbst bekommt.
+
+### Der Wächter: `test_event_chain_wiring.py` §17d
+
+**Der Spiegel von §17b, eine Ebene tiefer.** §17b bewacht den AUFRUFER ("was man einer Session
+als `log=` reicht, muss aufrufbar sein"); §17d bewacht den EMPFÄNGER ("eine Klasse, die ein
+Callable speichert, darf es nicht als Objekt behandeln"). Beide Richtungen sind jetzt zu.
+
+- **Per AST, und das ist keine Stilfrage:** `.log.add(` matcht auch
+  `strategic_reserves.withdraw_to_reserves(log=...)`, dessen Parameter `log` wirklich das OBJEKT
+  ist (alle neun Aufrufer reichen `log=self.game_log`) und das damit korrekt ist. Gepinnt wird der
+  SELF-ATTRIBUT-Vertrag, also wird der geparst.
+- **Selbstpflegend:** die Menge der Klassen wird gefunden (`__init__` nimmt `log` und weist
+  `self.log = log` zu), nicht aufgeschrieben. Ein fünftes Modul erbt den Wächter gratis.
+- **Mit Positiv-Hälfte und Liveness:** jedes gefundene Modul muss `self.log(...)` auch wirklich
+  RUFEN — ein Modul, das `log` speichert und nie benutzt, machte die Prüfung darüber vakuum-grün.
+- Dazu die von §17b auf ALLE vier Klassen verallgemeinerte Aufrufer-Hälfte (gemessen: 20
+  Konstruktionsstellen, 0 falsch).
+
+### Getestet
+
+- `test_support_weapon_platforms.py` 154 → **166/166** (neuer Abschnitt 5b: der Schuss END TO END
+  durch den echten Controller — der Reroll passiert wirklich, ohne Prompt, und die re-gewürfelte 6
+  landet als D6+2 = 8; die Gegenprobe, dass ein Würfel von 4 NICHT neu geworfen wird und seine 6
+  landet; und der TITANIC-Zweig in beide Richtungen). **Ein MEHRWUNDIGES Ziel ist Pflicht** —
+  Überschussschaden läuft nicht über, gegen 1-Wunden-Guardians sind eine re-gewürfelte 8 und eine
+  behaltene 3 nicht unterscheidbar. Und der Schuss läuft durch `_begin_resolution()`, weil
+  `on_dice_acknowledged()` ohne `current_group` früh zurückkehrt — eine Sonde, die das überspringt,
+  misst NICHTS und sieht wie ein Bestehen aus (eigener Fehler, beim Reproduzieren bezahlt).
+- `test_event_chain_wiring.py` 150 → **165/165**.
+- **Neu `ab_dcannon_damage_reroll.py`: 7 A/B-Sonden an der QUELLE, alle beißend** — die
+  `.log.add`-Zeile zurück (Suite UND Wächter), ein Session-Konstruktor, der das GameLog-Objekt
+  reicht, das TITANIC-Tor weg, das `offerable`-Flag gebaut-aber-ungelesen, der Default auf `False`,
+  und die ganze Vor-Fix-Welt.
+- **Eine eigene Sonde ließ die Suite ABSTÜRZEN statt rot zu werden** (achtzehnte Instanz dieser
+  Lehre): §5b fängt den Absturz jetzt und meldet ihn als FEHLGESCHLAGENE Prüfung mit dem
+  Traceback-Text, statt den Lauf abzubrechen — ein abgebrochener Lauf sagt nicht, WELCHE
+  Zusicherung gebrochen ist.
+
+### Im ECHTEN Spiel belegt
+
+`verify_dcannon_damage_reroll.py` fährt `selfplay.py`s echte `main()`-Schleife mit
+**`aeldari_guardian_battlehost` als PLAYER 1** — der EINZIGEN ausgelieferten Liste, die die
+D-cannon Platform überhaupt fieldet (gemessen, nicht angenommen), also der Armee des Users; und
+auf der MENSCHEN-Seite, weil `config` die Necrons als Player 2 ausliefert und eine Frage über die
+Waffe des Menschen sonst die Armee der KI misst.
+
+| | gefixt | `--neutralize` (Vor-Fix) |
+|---|---|---|
+| Würfel 1: Absturz | **keiner** | `AttributeError: 'function' object has no attribute 'add'` |
+| Würfel 1: neu geworfen | **ja**, ohne Prompt | nein |
+| Würfel 1: Schaden gelandet | **8** | **0** |
+| Würfel 4: Prompt erhoben | **nein** | **JA** |
+| Würfel 4: Schaden gelandet | **6** | **0** |
+
+**Drei gestellte Tatsachen, jede mit Grund benannt:** der Schuss selbst (über 260 Frames kommt
+"D-cannon feuert UND ein Save fällt UND der Damage-Würfel zeigt 1" nie zusammen — die
+dokumentierte MockAgent-Grenze; ein passiver Zähler hätte 0 gemeldet und wie ein Bestehen
+ausgesehen), die 24.12-FNP-Etappe (sie ist ein eigener Würfelschritt, und eine Sonde, die davor
+stehenbleibt, meldet 0 Schaden und liest sich wie ein Versagen des Gemessenen), und ein GELEERTER
+Prompt-Puffer vor jeder Messung. Alles danach ist echt.
+
+- **Das Ziel wird als UNMITIGIERT ausgewählt, nicht als das fetteste.** Der C'tan Shard ist das
+  dickste Necron-Ziel und trägt Necrodermis, das aus 8 still eine 7 macht — die Sonde hätte dann
+  jene Fähigkeit gemessen statt dieser. Gefragt werden `molten_form` und `damage_reduction`, die
+  Module, denen die Frage gehört, also schließt eine künftige Minderungsquelle ihren Träger von
+  selbst aus.
+- **Zwei eigene Sondenfehler, beide gemessen:** der Neutralize-Pfad scheiterte STILL, weil
+  `drive()` sein `SystemExit` schluckte (er meldet den Grund jetzt in `RESULTS`); und
+  `decision_manager.is_pending` ist die GANZE Queue, nicht die Frage dieses Schusses — die
+  laufende Partie hat dort regelmäßig einen eigenen Prompt, was eine Messung sprunghaft falsch
+  machte.
+
 ## Bekannte offene Punkte
 
 - Ein von allen Seiten umstelltes Fahrzeug kann steckenbleiben (Ein-Wegpunkt-Heuristik + A*, keine
@@ -8692,6 +8844,139 @@ ganze zeit hatte. lag es an objective secured?"*
     3. **Sie ist die EINZIGE der 18 Karten mit einer Rundenbande** überhaupt, und die ist inert.
     Die FROM-Zeile wird deshalb NICHT vorsorglich unterdrückt: das wäre kosmetisch und löschte
     genau das Signal, an dem der Widerspruch überhaupt aufgefallen ist.
+
+## Der Avatar-Charge und der Home-Objective-Klumpen (2026-09-08)
+
+**Gemeldet:** *"der große necron warrior squad hat den avatar of khaine gecharged. das sollte er
+lieber nicht machen."* und *"die necrons kommen immer nicht so richtig von ihrem home objective
+weg. sowohl necron warriors als auch immortals klumpen auf dem home objective und können sich von
+da aus keine guten schusspositionen erarbeiten."*
+
+**DIE ZWEI SIND DIESELBE GESCHICHTE**, und das ist der Befund, der die Arbeit zusammenhält: der
+Blob war nach dem Charge zwei seiner fünf Runden im Nahkampf des Avatars festgenagelt. Gemessen an
+`logs/game_20260908_204854.log`s eigenen `[move detail]`-Zeilen (Zentroide je Zug): Necron
+Warriors T1 (32,4) → T2 (33,6) → nie wieder, Immortals 1 (29,9) → nie wieder, Immortals 2
+(13,13) → nie wieder. **43 Modelle, zwei Zoll Boden in fünf Runden**, während jede andere Einheit
+der Armee vorrückte.
+
+### Der Charge: die taktische Schicht bekommt GAR KEINE Bewertung
+
+- **Reproduziert an den echten Datenblättern:** der Charge auf den Avatar entfernt **7.5
+  pts/Runde und 0.0 Modelle** (3 % einer Ein-Modell-Einheit), der Gegenschwung des Avatars nimmt
+  **89.1 pts/Runde** — ein 12:1-Verlust. Das Log bestätigt es: **2 von 21 Modellen** kamen in
+  Engagement Range, der Kampf machte **0 Wunden**.
+- **Die Ursache ist eine Beobachtungslücke (Fehlerklasse 1+2), keine Modellschwäche.**
+  `observation.squad_summary()` trägt ÜBERHAUPT KEINE Bewertung — Name, Modelle, Wunden, OC. Die
+  `[threat]`-Zeile mit „by charging: Avatar 10.0 pts/turn (0.0 models, trading down)" geht
+  ausschließlich an den PLANNER. **Das Log ist das A/B:** derselbe Spielstand, dieselbe
+  Modellfamilie — der Planner, der die Zahlen bekommt, hat den Charge dreimal in Folge
+  abgelehnt und wörtlich begründet („Charging the Avatar trades down badly (345 vs 250 pts)");
+  die taktische Schicht, die keine bekommt, hat ihn gemacht.
+- **`_charge_trade_note()` ist die Antwort, und sie steht in der Option — nicht als zweite
+  Sperre.** Genau die Form, die dieselbe Funktion für die ODDS schon hat („it belongs in the
+  option's own text"). Gelesen an zwei Stellen: der Deklaration und der Zielwahl.
+- **EINE ZWEITE SPERRE WURDE GEMESSEN UND VERWORFEN, und das ist die tragende Entscheidung.**
+  Über die zwei KI-Armeen gegen jede ausgelieferte Gegnerliste (**2070 Paarungen**) liegt der
+  gemeldete Fall bei gain/loss 0.08, in den schlechtesten 1.7 % — aber die Population, von der
+  er getrennt werden müsste, ist STETIG: unter den Einheiten, die die bestehende
+  Shooting-Specialist-Sperre nicht ohnehin stoppt, läuft der entfernte Anteil 0.01, 0.02, 0.03
+  (der gemeldete Fall), 0.04, 0.05, 0.06, 0.07, 0.08 **ohne jede Lücke**, und die
+  Chaff-Charges, die eine Geschützlinie binden, liegen im selben Band wie die aussichtslosen.
+  Eine Schwelle dort läge INNERHALB einer Überlappung — genau das, wofür
+  `_shooting_specialist_charge_block()` eine Pro-Ziel-Ratio verworfen hat. Withholding ist die
+  richtige Antwort für eine Option, die NIE genommen werden soll; diese soll manchmal.
+- **Die bestehende Sperre ist unverändert und schweigt zu Recht**: Necron Warriors sind 1.1x,
+  unter der 1.4-Schwelle. Sie war das falsche Werkzeug, nicht ein kaputtes.
+
+### Der Klumpen: eine Bedrohung setzt die LATTE, sie schaltet den Pass nicht ab
+
+- **`_uncontested_objectives()` ist zu `_held_objectives()` geworden** und liefert
+  `(objective, threat_oc)` für JEDES kontrollierte Objective. Vorher nahm ein Gegner irgendwo
+  innerhalb `GARRISON_THREAT_RANGE_IN` das Objective KOMPLETT aus dem Over-Garrison-Pass — im
+  gemeldeten Spiel stand der Avatar ab Runde 2 etwa 12" von P2 Home, also durfte beliebig viel
+  dort parken.
+- **Regel 14.02 sagt selbst, wie groß eine Garnison sein muss:** Kontrolle ist die höhere
+  OC-Summe, die Latte ist also die OC des Gegners und nicht seine Anwesenheit. Am gemeldeten
+  Brett gemessen: **Avatar OC 5, Immortals OC 21, Necron Warriors OC 41** — die Immortals halten
+  es allein, die 41 waren restlos überflüssig.
+- **`_garrison_surplus()` ist die EINE Definition** von „wer wird gebraucht, wer ist übrig",
+  gelesen vom Bericht an den Planner UND von der Korrektur. Die zwei hatten dieselben sechs
+  Zeilen doppelt — die Form, die dieses Repo laufend konsolidiert, und sie wäre in dem Moment
+  gedriftet, in dem eine der beiden Seiten von Bedrohungen erfahren hätte. **Damit fällt
+  `_garrison_fitness` von drei Lesern auf zwei** (siehe die Extraktionsliste in Teil 1).
+- **Der unbedrohte Fall ist per Konstruktion unverändert:** `threat_oc` ist dann 0, die OC des
+  ersten Keepers übertrifft das, also bleibt genau eine Einheit stehen. Das `keepers and`-Gate
+  ist, was das wahr macht statt fast wahr — ohne es hielte eine battle-shocked Einheit (OC 0,
+  Regel 01.07) die Schleife am Laufen und niemand würde befreit.
+
+### Der 0-Zoll-Freeze, und was er WIRKLICH war
+
+- **Gemessen am kompletten gemeldeten Brett (alle 74 Modelle, wo das Log sie lässt):** der Blob,
+  auf `(34,8)` befohlen — 1.97" vom Zentroid und INNERHALB der eigenen Formation —, bewegt sich
+  **0.00"**; derselbe Blob auf demselben Brett auf Punkte außerhalb seiner Formation befohlen
+  bewegt sich **2.50"** und **4.72"**. Nichts war blockiert: die Modelle auf der anderen Seite des
+  Punktes müssten rückwärts in ihre eigenen Kameraden laufen, also kam jede Sprosse von
+  `_advance_toward()`s Leiter mit nichts zurück.
+  - **KORREKTUR einer eigenen Zwischenmessung:** eine frühere Zahl von 7.24" stammte von einem
+    Brett, dem die Canoptek Wraiths fehlten — die stehen direkt nördlich des Blobs und kosten
+    ihn den Weg. Die Zahlen oben sind die vom vollständigen Brett.
+- **Der gemeldete Befehl war aber `hold`, und die Einheit hat ihn korrekt ausgeführt.** Der
+  Widerspruch lag im PLAN (Rolle „hold" neben einem Fließtext, der eine Umpositionierung
+  beschreibt) — dieselbe Falle wie Fehlerklasse 4, nur andersherum: hier wurde das FELD befolgt,
+  und das ist die richtige Hälfte. Befreit wird die Einheit vom Garnisons-Pass, der eine Regel
+  hat, die sagt, dass sie weg muss.
+- **Der Wächter im Validator gilt deshalb NUR einer AKTIVEN Rolle**: ein Punkt in der eigenen
+  Formation ist dort ein No-op, der die echten Optionen verdrängt (eine benannte Position
+  unterdrückt Advance und Move-to-Target). Bei `hold`/`screen`/`stage` heißt derselbe Punkt
+  „bleib stehen", was ein echter Befehl ist — die erste, breitere Fassung nahm prompt dem KEEPER
+  seine eigene Garnisons-Koordinate weg, und `test_over_garrison.py` hat das sofort gemeldet.
+- **`geometry.convex_hull()` / `point_inside_hull()` (34. Extraktion)**, am zweiten Konsumenten:
+  `game/renderer.py` hatte den Hull privat (Objective-Umrisse) und kann von `ai/` nicht
+  importiert werden (pygame, Renderpfad). Der Renderer RE-EXPORTIERT ihn unter dem alten privaten
+  Namen, also ist jeder Pixel-Test der Objective-Umrisse per Konstruktion unverändert.
+
+### Was NICHT angefasst wurde, und warum
+
+Die dritte Ursache des Klumpens ist die dokumentierte Bewegungsgrenze großer Trupps
+(`measure_crowded_movement.py`: 15+ Modelle realisieren ~20 % ihres erreichbaren Zuges) — ein
+echter 16"-Vormarsch des Blobs kommt auf 54 %. Auf User-Entscheidung bewusst ausgelassen; CLAUDE.md
+führt dort vier gemessene und wieder ausgebaute „Verbesserungen".
+
+### Getestet
+
+Neu `test_report_20260908.py` (**48/48**, acht Abschnitte) plus `ab_report_20260908.py`
+(**13 A/B-Sonden, alle beißend, keine stürzt ab**). `test_over_garrison.py` 71 → **77/77**
+(Abschnitt 6 stellt jetzt die NEUE Regel fest und misst die Latte in beide Richtungen — eine
+größere Bedrohung hält eine zweite Einheit dort), `test_home_garrison.py` **86/86**.
+- **Zwei Befunde über den TEST, beide von den Sonden:** der `_garrison_fitness`-Zähler war
+  `src.count(...) - 1` und blieb durch genau diese Änderung grün, weil eine Erwähnung im
+  DOCSTRING den weggefallenen Leser ersetzte (die „ein Wächter matcht seine eigene Erklärung"-
+  Falle, fünfte Instanz) — er zählt jetzt per AST echte AUFRUFE; und drei Sonden ließen ihre
+  Suite mit `KeyError` ABSTÜRZEN statt sie rot zu machen (Nachschlagen mit `[...]` auf ein Dict,
+  das in der Vor-Fix-Welt den Schlüssel nicht hat) — **achtzehnte Instanz** derselben Lehre,
+  jetzt `.get()`.
+- Volle Regression **196 Suiten, ~17339 Prüfungen, 195 grün / 0 rot / 1 bekannt**,
+  `run_tests.py --smoke` komplett grün (alle neun schweren Skripte).
+
+### Im ECHTEN Spiel belegt
+
+`verify_charge_trade_and_garrison.py` fährt `selfplay.py`s echte `main()`-Schleife mit der
+gemeldeten Paarung (Aeldari gegen Necrons):
+
+| | gefixt | `--neutralize` |
+|---|---|---|
+| Charge-Optionen mit dem Handel | **4 von 4** | **0 von 6** |
+| Garnison: Einheiten befreit / behalten | **1 / 1** (threat OC 5) | **0 / 2** |
+
+Die Optionstexte zeigen die Unterscheidung, um die es geht:
+`it would remove about 6.7 of its models (101 pts/turn) ... 11 pts/turn back` gegen
+`about 0.1 of its models (12 pts/turn) ... 78 pts/turn back`. `--neutralize` liefert dafür
+`charge 1 Guardian Defenders 1 ...` und `charge 1 Wraithguard 1` — zwei nackte Namen.
+**GESTELLT wird je eine Tatsache pro Hälfte, beide im Modulkopf benannt:** dass die KI überhaupt
+in ihrer Charge-Phase neben etwas steht, und die Plan-FORM (MockAgents `plan_turn()` gibt jeder
+Einheit „advance" ohne Koordinate, also findet `_planned_garrisons()` nie eine Garnison und der
+Pass kann von selbst nicht feuern). Die Bedrohung wird ebenfalls gestellt — ohne sie ist das
+Objective unbedroht, beide Welten befreien den Überschuss, und die Sonde misst nichts.
 
 ## Später-Liste (bewusst zurückgestellt)
 

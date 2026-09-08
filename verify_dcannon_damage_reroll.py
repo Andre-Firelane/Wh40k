@@ -227,14 +227,24 @@ def inspect_frame(locals_):
             return
         _neutralize_gate(sc)
 
+    def _drain():
+        """is_pending is the whole QUEUE, not this shot's own question.
+
+        The live battle can have a prompt of its own standing at this frame, and
+        one left over from the first shot would swallow the second - so the
+        queue is emptied before each measurement and 'a prompt was raised' then
+        means what it says. Without this the reading was intermittently wrong."""
+        for _ in range(20):
+            if not sc.decision_manager.is_pending:
+                return
+            sc.decision_manager.choose(len(sc.decision_manager.options) - 1)
+
+    _drain()
     one = _fire(sc, shooter, target, 1, 6)
     RESULTS["one"] = one
     if one is not None:
         RESULTS["offer_built"] = getattr(one["offer"], "label", None)
-    # A prompt left standing from the first shot would swallow the second, and
-    # the second shot is the one that measures the unearned offer.
-    while sc.decision_manager.is_pending:
-        sc.decision_manager.choose(len(sc.decision_manager.options) - 1)
+    _drain()
     RESULTS["four"] = _fire(sc, shooter, target, 4)
 
 

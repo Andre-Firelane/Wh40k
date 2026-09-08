@@ -259,7 +259,11 @@ threatened = next(
 c.true("scene check: the enemy really is within 12\" now",
        threatened["enemy_units_within_12in"] != [])
 home = next(o for o in state.objectives if o.name == HOME)
-threat_oc = dict((o.name, t) for o, t in agent_driver._held_objectives(state, "Player 2"))[HOME]
+# .get() with a sentinel, not []: under the pre-fix probe (a threatened
+# objective is left out of _held_objectives() entirely) this key is absent,
+# and a KeyError kills the whole run instead of reddening one line.
+threat_oc = dict((o.name, t) for o, t
+                 in agent_driver._held_objectives(state, "Player 2")).get(HOME, -1)
 c.eq("scene check: one Kroot model is worth 2 OC", threat_oc, 2)
 c.true("the keeper alone already out-controls it",
        sum(effective_oc(m) for m in squads["2 Gretchin 2"].models) > threat_oc)
@@ -277,7 +281,8 @@ state, turn, squads = scene(extra_p1=[
      [(26.0 + 0.9 * i, 18.0) for i in range(10)]),
     ("1 Kroot Carnivores 2", tau_empire.KROOT_CARNIVORES,
      [(26.0 + 0.9 * i, 19.5) for i in range(10)])])
-threat_oc = dict((o.name, t) for o, t in agent_driver._held_objectives(state, "Player 2"))[HOME]
+threat_oc = dict((o.name, t) for o, t
+                 in agent_driver._held_objectives(state, "Player 2")).get(HOME, -1)
 gretchin_oc = sum(effective_oc(m) for m in squads["2 Gretchin 2"].models)
 c.true("scene check: the threat now out-controls the keeper alone",
        threat_oc > gretchin_oc)

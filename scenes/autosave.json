@@ -3,276 +3,101 @@
  "map": "map2",
  "squads": [
   {
-   "name": "1 Dire Avengers 1 + Asurmen",
+   "name": "1 Avatar of Khaine 1",
    "owner": "Player 1",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 34.03042857142857,
-     "y_in": 33.787,
-     "wounds": 2,
-     "model": "Dire Avenger Exarch",
+     "x_in": 50.30357142857142,
+     "y_in": 33.575,
+     "wounds": 14,
+     "model": "Avatar of Khaine",
      "weapons": [
-      "Avenger Shuriken Catapult",
-      "Avenger Shuriken Catapult",
-      "Close Combat Weapon"
-     ]
-    },
-    {
-     "x_in": 34.03042857142857,
-     "y_in": 35.287,
-     "wounds": 1,
-     "model": "Dire Avenger",
-     "weapons": [
-      "Avenger Shuriken Catapult",
-      "Close Combat Weapon"
-     ]
-    },
-    {
-     "x_in": 32.731390465751915,
-     "y_in": 34.537,
-     "wounds": 1,
-     "model": "Dire Avenger",
-     "weapons": [
-      "Avenger Shuriken Catapult",
-      "Close Combat Weapon"
-     ]
-    },
-    {
-     "x_in": 35.32946667710523,
-     "y_in": 34.537,
-     "wounds": 1,
-     "model": "Dire Avenger",
-     "weapons": [
-      "Avenger Shuriken Catapult",
-      "Close Combat Weapon"
-     ]
-    },
-    {
-     "x_in": 32.731390465751915,
-     "y_in": 33.037,
-     "wounds": 1,
-     "model": "Dire Avenger",
-     "weapons": [
-      "Avenger Shuriken Catapult",
-      "Close Combat Weapon"
-     ]
-    },
-    {
-     "x_in": 34.03042857142857,
-     "y_in": 36.787,
-     "wounds": 1,
-     "model": "Dire Avenger",
-     "weapons": [
-      "Avenger Shuriken Catapult",
-      "Close Combat Weapon"
-     ]
-    },
-    {
-     "x_in": 35.53042857142857,
-     "y_in": 36.385076211353315,
-     "wounds": 1,
-     "model": "Dire Avenger",
-     "weapons": [
-      "Avenger Shuriken Catapult",
-      "Close Combat Weapon"
-     ]
-    },
-    {
-     "x_in": 32.53042857142857,
-     "y_in": 36.385076211353315,
-     "wounds": 1,
-     "model": "Dire Avenger",
-     "weapons": [
-      "Avenger Shuriken Catapult",
-      "Close Combat Weapon"
-     ]
-    },
-    {
-     "x_in": 31.432352360075257,
-     "y_in": 35.287,
-     "wounds": 1,
-     "model": "Dire Avenger",
-     "weapons": [
-      "Avenger Shuriken Catapult",
-      "Close Combat Weapon"
-     ]
-    },
-    {
-     "x_in": 36.62850478278189,
-     "y_in": 35.287,
-     "wounds": 1,
-     "model": "Dire Avenger",
-     "weapons": [
-      "Avenger Shuriken Catapult",
-      "Close Combat Weapon"
-     ]
-    },
-    {
-     "x_in": 35.32946667710523,
-     "y_in": 33.037,
-     "wounds": 5,
-     "model": "Asurmen",
-     "weapons": [
-      "Bloody Twins",
-      "Sword of Asur"
+      "The Wailing Doom",
+      "The Wailing Doom - Strike",
+      "The Wailing Doom - Sweep"
      ]
     }
    ]
   },
   {
-   "name": "1 Guardian Defenders 1 + Farseer + Warlock Conclave",
+   "name": "2 Doomsday Ark 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 47.56666666666666,
+     "y_in": 9.9,
+     "wounds": 14,
+     "model": "Doomsday Ark",
+     "weapons": [
+      "Armoured Bulk",
+      "Doomsday Cannon",
+      "Gauss Flayer Array",
+      "Gauss Flayer Array"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "1 Dark Reapers 1",
    "owner": "Player 1",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 50.152142857142856,
-     "y_in": 33.787,
+     "x_in": 34.062714285714286,
+     "y_in": 33.561,
      "wounds": 2,
-     "model": "Heavy Weapon Platform",
-     "weapons": [
-      "Bright Lance",
-      "Close Combat Weapon"
-     ]
-    },
-    {
-     "x_in": 48.8531047514662,
-     "y_in": 33.037,
-     "wounds": 1,
-     "model": "Guardian Defender",
+     "model": "Dark Reaper Exarch",
      "weapons": [
       "Close Combat Weapon",
-      "Shuriken Catapult"
+      "Reaper Launcher - Starshot"
      ]
     },
     {
-     "x_in": 51.451180962819514,
-     "y_in": 33.037,
+     "x_in": 34.062714285714286,
+     "y_in": 35.061,
      "wounds": 1,
-     "model": "Guardian Defender",
+     "model": "Dark Reaper",
      "weapons": [
       "Close Combat Weapon",
-      "Shuriken Catapult"
+      "Reaper Launcher - Starshot"
      ]
     },
     {
-     "x_in": 50.152142857142856,
-     "y_in": 36.787,
+     "x_in": 32.76367618003763,
+     "y_in": 34.311,
      "wounds": 1,
-     "model": "Guardian Defender",
+     "model": "Dark Reaper",
      "weapons": [
       "Close Combat Weapon",
-      "Shuriken Catapult"
+      "Reaper Launcher - Starshot"
      ]
     },
     {
-     "x_in": 51.652142857142856,
-     "y_in": 36.385076211353315,
+     "x_in": 35.361752391390944,
+     "y_in": 34.311,
      "wounds": 1,
-     "model": "Guardian Defender",
+     "model": "Dark Reaper",
      "weapons": [
       "Close Combat Weapon",
-      "Shuriken Catapult"
+      "Reaper Launcher - Starshot"
      ]
     },
     {
-     "x_in": 48.652142857142856,
-     "y_in": 36.385076211353315,
+     "x_in": 34.062714285714286,
+     "y_in": 36.561,
      "wounds": 1,
-     "model": "Guardian Defender",
+     "model": "Dark Reaper",
      "weapons": [
       "Close Combat Weapon",
-      "Shuriken Catapult"
-     ]
-    },
-    {
-     "x_in": 47.55406664578954,
-     "y_in": 35.287,
-     "wounds": 1,
-     "model": "Guardian Defender",
-     "weapons": [
-      "Close Combat Weapon",
-      "Shuriken Catapult"
-     ]
-    },
-    {
-     "x_in": 52.75021906849617,
-     "y_in": 35.287,
-     "wounds": 1,
-     "model": "Guardian Defender",
-     "weapons": [
-      "Close Combat Weapon",
-      "Shuriken Catapult"
-     ]
-    },
-    {
-     "x_in": 47.152142857142856,
-     "y_in": 33.787,
-     "wounds": 1,
-     "model": "Guardian Defender",
-     "weapons": [
-      "Close Combat Weapon",
-      "Shuriken Catapult"
-     ]
-    },
-    {
-     "x_in": 53.152142857142856,
-     "y_in": 33.787,
-     "wounds": 1,
-     "model": "Guardian Defender",
-     "weapons": [
-      "Close Combat Weapon",
-      "Shuriken Catapult"
-     ]
-    },
-    {
-     "x_in": 50.152142857142856,
-     "y_in": 38.287,
-     "wounds": 1,
-     "model": "Guardian Defender",
-     "weapons": [
-      "Close Combat Weapon",
-      "Shuriken Catapult"
-     ]
-    },
-    {
-     "x_in": 50.152142857142856,
-     "y_in": 35.287,
-     "wounds": 4,
-     "model": "Farseer",
-     "weapons": [
-      "Eldritch Storm",
-      "Shuriken Pistol",
-      "Singing Spear",
-      "Singing Spear"
-     ]
-    },
-    {
-     "x_in": 48.8531047514662,
-     "y_in": 34.537,
-     "wounds": 2,
-     "model": "Warlock",
-     "weapons": [
-      "Destructor",
-      "Shuriken Pistol",
-      "Singing Spear",
-      "Singing Spear"
-     ]
-    },
-    {
-     "x_in": 51.451180962819514,
-     "y_in": 34.537,
-     "wounds": 2,
-     "model": "Warlock",
-     "weapons": [
-      "Destructor",
-      "Shuriken Pistol",
-      "Singing Spear",
-      "Singing Spear"
+      "Reaper Launcher - Starshot"
      ]
     }
    ]
@@ -285,8 +110,8 @@
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 30.694291855632184,
-     "y_in": 16.49227664092139,
+     "x_in": 25.99771428571428,
+     "y_in": 10.016,
      "wounds": 4,
      "model": "Canoptek Wraith",
      "weapons": [
@@ -294,8 +119,8 @@
      ]
     },
     {
-     "x_in": 30.694291855632184,
-     "y_in": 14.424276640921391,
+     "x_in": 25.99771428571428,
+     "y_in": 7.948,
      "wounds": 4,
      "model": "Canoptek Wraith",
      "weapons": [
@@ -303,8 +128,8 @@
      ]
     },
     {
-     "x_in": 32.4852323906584,
-     "y_in": 15.45827664092139,
+     "x_in": 27.7886548207405,
+     "y_in": 8.982,
      "wounds": 4,
      "model": "Canoptek Wraith",
      "weapons": [
@@ -312,8 +137,8 @@
      ]
     },
     {
-     "x_in": 28.903351320605964,
-     "y_in": 15.458276640921392,
+     "x_in": 24.20677375068806,
+     "y_in": 8.982000000000001,
      "wounds": 4,
      "model": "Canoptek Wraith",
      "weapons": [
@@ -321,8 +146,8 @@
      ]
     },
     {
-     "x_in": 30.694291855632184,
-     "y_in": 12.35627664092139,
+     "x_in": 25.99771428571428,
+     "y_in": 5.88,
      "wounds": 4,
      "model": "Canoptek Wraith",
      "weapons": [
@@ -330,8 +155,8 @@
      ]
     },
     {
-     "x_in": 32.762291855632185,
-     "y_in": 12.91039557086895,
+     "x_in": 28.06571428571428,
+     "y_in": 6.434118929947561,
      "wounds": 4,
      "model": "Canoptek Wraith",
      "weapons": [
@@ -341,156 +166,65 @@
    ]
   },
   {
-   "name": "1 Guardian Defenders 2 + Farseer + Warlock Conclave",
+   "name": "1 Rangers 1",
    "owner": "Player 1",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 15.8935,
-     "y_in": 33.787,
-     "wounds": 2,
-     "model": "Heavy Weapon Platform",
-     "weapons": [
-      "Bright Lance",
-      "Close Combat Weapon"
-     ]
-    },
-    {
-     "x_in": 14.594461894323342,
-     "y_in": 33.037,
+     "x_in": 48.28221428571428,
+     "y_in": 22.0,
      "wounds": 1,
-     "model": "Guardian Defender",
+     "model": "Ranger",
      "weapons": [
       "Close Combat Weapon",
-      "Shuriken Catapult"
+      "Long Rifle",
+      "Shuriken Pistol"
      ]
     },
     {
-     "x_in": 17.192538105676658,
-     "y_in": 33.037,
+     "x_in": 48.28221428571428,
+     "y_in": 23.5,
      "wounds": 1,
-     "model": "Guardian Defender",
+     "model": "Ranger",
      "weapons": [
       "Close Combat Weapon",
-      "Shuriken Catapult"
+      "Long Rifle",
+      "Shuriken Pistol"
      ]
     },
     {
-     "x_in": 15.8935,
-     "y_in": 36.787,
+     "x_in": 49.58125239139094,
+     "y_in": 22.75,
      "wounds": 1,
-     "model": "Guardian Defender",
+     "model": "Ranger",
      "weapons": [
       "Close Combat Weapon",
-      "Shuriken Catapult"
+      "Long Rifle",
+      "Shuriken Pistol"
      ]
     },
     {
-     "x_in": 17.3935,
-     "y_in": 36.385076211353315,
+     "x_in": 49.58125239139094,
+     "y_in": 21.25,
      "wounds": 1,
-     "model": "Guardian Defender",
+     "model": "Ranger",
      "weapons": [
       "Close Combat Weapon",
-      "Shuriken Catapult"
+      "Long Rifle",
+      "Shuriken Pistol"
      ]
     },
     {
-     "x_in": 14.3935,
-     "y_in": 36.385076211353315,
+     "x_in": 48.28221428571428,
+     "y_in": 25.0,
      "wounds": 1,
-     "model": "Guardian Defender",
+     "model": "Ranger",
      "weapons": [
       "Close Combat Weapon",
-      "Shuriken Catapult"
-     ]
-    },
-    {
-     "x_in": 13.295423788646684,
-     "y_in": 35.287,
-     "wounds": 1,
-     "model": "Guardian Defender",
-     "weapons": [
-      "Close Combat Weapon",
-      "Shuriken Catapult"
-     ]
-    },
-    {
-     "x_in": 18.491576211353316,
-     "y_in": 35.287,
-     "wounds": 1,
-     "model": "Guardian Defender",
-     "weapons": [
-      "Close Combat Weapon",
-      "Shuriken Catapult"
-     ]
-    },
-    {
-     "x_in": 12.8935,
-     "y_in": 33.787,
-     "wounds": 1,
-     "model": "Guardian Defender",
-     "weapons": [
-      "Close Combat Weapon",
-      "Shuriken Catapult"
-     ]
-    },
-    {
-     "x_in": 18.8935,
-     "y_in": 33.787,
-     "wounds": 1,
-     "model": "Guardian Defender",
-     "weapons": [
-      "Close Combat Weapon",
-      "Shuriken Catapult"
-     ]
-    },
-    {
-     "x_in": 15.8935,
-     "y_in": 38.287,
-     "wounds": 1,
-     "model": "Guardian Defender",
-     "weapons": [
-      "Close Combat Weapon",
-      "Shuriken Catapult"
-     ]
-    },
-    {
-     "x_in": 15.8935,
-     "y_in": 35.287,
-     "wounds": 4,
-     "model": "Farseer",
-     "weapons": [
-      "Eldritch Storm",
-      "Shuriken Pistol",
-      "Singing Spear",
-      "Singing Spear"
-     ]
-    },
-    {
-     "x_in": 14.594461894323342,
-     "y_in": 34.537,
-     "wounds": 2,
-     "model": "Warlock",
-     "weapons": [
-      "Destructor",
-      "Shuriken Pistol",
-      "Singing Spear",
-      "Singing Spear"
-     ]
-    },
-    {
-     "x_in": 17.192538105676658,
-     "y_in": 34.537,
-     "wounds": 2,
-     "model": "Warlock",
-     "weapons": [
-      "Destructor",
-      "Shuriken Pistol",
-      "Singing Spear",
-      "Singing Spear"
+      "Long Rifle",
+      "Shuriken Pistol"
      ]
     }
    ]
@@ -503,8 +237,8 @@
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 10.110764665229063,
-     "y_in": 15.456083179227068,
+     "x_in": 9.847857142857144,
+     "y_in": 10.213000000000001,
      "wounds": 2,
      "model": "Lychguard",
      "weapons": [
@@ -512,8 +246,8 @@
      ]
     },
     {
-     "x_in": 10.110764665229063,
-     "y_in": 13.956083179227068,
+     "x_in": 9.847857142857144,
+     "y_in": 8.713000000000001,
      "wounds": 2,
      "model": "Lychguard",
      "weapons": [
@@ -521,8 +255,8 @@
      ]
     },
     {
-     "x_in": 11.40980277090572,
-     "y_in": 14.706083179227068,
+     "x_in": 11.146895248533802,
+     "y_in": 9.463000000000001,
      "wounds": 2,
      "model": "Lychguard",
      "weapons": [
@@ -530,8 +264,8 @@
      ]
     },
     {
-     "x_in": 8.811726559552405,
-     "y_in": 14.70608317922707,
+     "x_in": 8.548819037180486,
+     "y_in": 9.463000000000003,
      "wounds": 2,
      "model": "Lychguard",
      "weapons": [
@@ -539,8 +273,8 @@
      ]
     },
     {
-     "x_in": 8.811726559552405,
-     "y_in": 16.20608317922707,
+     "x_in": 8.548819037180486,
+     "y_in": 10.963000000000001,
      "wounds": 2,
      "model": "Lychguard",
      "weapons": [
@@ -548,8 +282,8 @@
      ]
     },
     {
-     "x_in": 11.40980277090572,
-     "y_in": 16.20608317922707,
+     "x_in": 11.146895248533802,
+     "y_in": 10.963000000000001,
      "wounds": 6,
      "model": "Overlord",
      "weapons": [
@@ -559,154 +293,61 @@
    ]
   },
   {
-   "name": "1 Storm Guardians 1 + Eldrad Ulthran + Warlock Conclave",
+   "name": "1 Striking Scorpions 1",
    "owner": "Player 1",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 9.847857142857144,
-     "y_in": 33.787,
+     "x_in": 52.344928571428575,
+     "y_in": 22.0,
      "wounds": 2,
-     "model": "Serpent's Scale Platform",
+     "model": "Striking Scorpion Exarch",
      "weapons": [
-      "Close Combat Weapon"
-     ]
-    },
-    {
-     "x_in": 11.146895248533802,
-     "y_in": 34.537,
-     "wounds": 1,
-     "model": "Storm Guardian",
-     "weapons": [
-      "Close Combat Weapon",
-      "Flamer"
-     ]
-    },
-    {
-     "x_in": 11.146895248533802,
-     "y_in": 33.037,
-     "wounds": 1,
-     "model": "Storm Guardian",
-     "weapons": [
-      "Close Combat Weapon",
-      "Flamer"
-     ]
-    },
-    {
-     "x_in": 9.847857142857144,
-     "y_in": 36.787,
-     "wounds": 1,
-     "model": "Storm Guardian",
-     "weapons": [
-      "Close Combat Weapon",
-      "Fusion Gun"
-     ]
-    },
-    {
-     "x_in": 11.347857142857146,
-     "y_in": 36.385076211353315,
-     "wounds": 1,
-     "model": "Storm Guardian",
-     "weapons": [
-      "Close Combat Weapon",
-      "Fusion Gun"
-     ]
-    },
-    {
-     "x_in": 8.347857142857144,
-     "y_in": 36.385076211353315,
-     "wounds": 1,
-     "model": "Storm Guardian",
-     "weapons": [
-      "Power Sword",
+      "Scorpion Chainsword",
+      "Scorpion's Claw",
       "Shuriken Pistol"
      ]
     },
     {
-     "x_in": 7.249780931503828,
-     "y_in": 35.287,
+     "x_in": 52.344928571428575,
+     "y_in": 23.5,
      "wounds": 1,
-     "model": "Storm Guardian",
+     "model": "Striking Scorpion",
      "weapons": [
-      "Power Sword",
+      "Scorpion Chainsword",
       "Shuriken Pistol"
      ]
     },
     {
-     "x_in": 6.847857142857144,
-     "y_in": 33.787,
+     "x_in": 51.04589046575192,
+     "y_in": 22.75,
      "wounds": 1,
-     "model": "Storm Guardian",
+     "model": "Striking Scorpion",
      "weapons": [
-      "Close Combat Weapon",
+      "Scorpion Chainsword",
       "Shuriken Pistol"
      ]
     },
     {
-     "x_in": 9.847857142857144,
-     "y_in": 38.287,
+     "x_in": 51.04589046575192,
+     "y_in": 21.25,
      "wounds": 1,
-     "model": "Storm Guardian",
+     "model": "Striking Scorpion",
      "weapons": [
-      "Close Combat Weapon",
+      "Scorpion Chainsword",
       "Shuriken Pistol"
      ]
     },
     {
-     "x_in": 11.386947787822656,
-     "y_in": 38.01561679353659,
+     "x_in": 52.344928571428575,
+     "y_in": 25.0,
      "wounds": 1,
-     "model": "Storm Guardian",
+     "model": "Striking Scorpion",
      "weapons": [
-      "Close Combat Weapon",
+      "Scorpion Chainsword",
       "Shuriken Pistol"
-     ]
-    },
-    {
-     "x_in": 8.308766497891636,
-     "y_in": 38.01561679353659,
-     "wounds": 1,
-     "model": "Storm Guardian",
-     "weapons": [
-      "Close Combat Weapon",
-      "Shuriken Pistol"
-     ]
-    },
-    {
-     "x_in": 8.548819037180486,
-     "y_in": 33.037,
-     "wounds": 5,
-     "model": "Eldrad Ulthran",
-     "weapons": [
-      "Mind War",
-      "Shuriken Pistol",
-      "Staff of Ulthamar and Witchblade"
-     ]
-    },
-    {
-     "x_in": 9.847857142857144,
-     "y_in": 35.287,
-     "wounds": 2,
-     "model": "Warlock",
-     "weapons": [
-      "Destructor",
-      "Shuriken Pistol",
-      "Singing Spear",
-      "Singing Spear"
-     ]
-    },
-    {
-     "x_in": 8.548819037180486,
-     "y_in": 34.537,
-     "wounds": 2,
-     "model": "Warlock",
-     "weapons": [
-      "Destructor",
-      "Shuriken Pistol",
-      "Singing Spear",
-      "Singing Spear"
      ]
     }
    ]
@@ -759,21 +400,60 @@
    ]
   },
   {
-   "name": "1 Avatar of Khaine 1",
+   "name": "1 Wraithguard 1",
    "owner": "Player 1",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 44.2125,
-     "y_in": 33.575,
-     "wounds": 14,
-     "model": "Avatar of Khaine",
+     "x_in": 15.8935,
+     "y_in": 33.787,
+     "wounds": 3,
+     "model": "Wraithguard",
      "weapons": [
-      "The Wailing Doom",
-      "The Wailing Doom - Strike",
-      "The Wailing Doom - Sweep"
+      "Close Combat Weapon",
+      "D-scythe"
+     ]
+    },
+    {
+     "x_in": 15.8935,
+     "y_in": 35.461,
+     "wounds": 3,
+     "model": "Wraithguard",
+     "weapons": [
+      "Close Combat Weapon",
+      "D-scythe"
+     ]
+    },
+    {
+     "x_in": 14.44377347406485,
+     "y_in": 34.624,
+     "wounds": 3,
+     "model": "Wraithguard",
+     "weapons": [
+      "Close Combat Weapon",
+      "D-scythe"
+     ]
+    },
+    {
+     "x_in": 17.34322652593515,
+     "y_in": 34.623999999999995,
+     "wounds": 3,
+     "model": "Wraithguard",
+     "weapons": [
+      "Close Combat Weapon",
+      "D-scythe"
+     ]
+    },
+    {
+     "x_in": 14.443773474064848,
+     "y_in": 32.95,
+     "wounds": 3,
+     "model": "Wraithguard",
+     "weapons": [
+      "Close Combat Weapon",
+      "D-scythe"
      ]
     }
    ]
@@ -998,21 +678,156 @@
    ]
   },
   {
-   "name": "1 D-cannon Platform 1",
+   "name": "1 Guardian Defenders 1 + Farseer + Warlock Conclave",
    "owner": "Player 1",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 26.97796551724138,
-     "y_in": 34.8722,
-     "wounds": 5,
-     "model": "D-cannon Platform",
+     "x_in": 11.86307142857143,
+     "y_in": 33.787,
+     "wounds": 2,
+     "model": "Heavy Weapon Platform",
+     "weapons": [
+      "Bright Lance",
+      "Close Combat Weapon"
+     ]
+    },
+    {
+     "x_in": 11.86307142857143,
+     "y_in": 36.787,
+     "wounds": 1,
+     "model": "Guardian Defender",
      "weapons": [
       "Close Combat Weapon",
-      "D-cannon",
       "Shuriken Catapult"
+     ]
+    },
+    {
+     "x_in": 13.363071428571432,
+     "y_in": 36.385076211353315,
+     "wounds": 1,
+     "model": "Guardian Defender",
+     "weapons": [
+      "Close Combat Weapon",
+      "Shuriken Catapult"
+     ]
+    },
+    {
+     "x_in": 10.36307142857143,
+     "y_in": 36.385076211353315,
+     "wounds": 1,
+     "model": "Guardian Defender",
+     "weapons": [
+      "Close Combat Weapon",
+      "Shuriken Catapult"
+     ]
+    },
+    {
+     "x_in": 9.264995217218114,
+     "y_in": 35.287,
+     "wounds": 1,
+     "model": "Guardian Defender",
+     "weapons": [
+      "Close Combat Weapon",
+      "Shuriken Catapult"
+     ]
+    },
+    {
+     "x_in": 8.86307142857143,
+     "y_in": 33.787,
+     "wounds": 1,
+     "model": "Guardian Defender",
+     "weapons": [
+      "Close Combat Weapon",
+      "Shuriken Catapult"
+     ]
+    },
+    {
+     "x_in": 11.86307142857143,
+     "y_in": 38.287,
+     "wounds": 1,
+     "model": "Guardian Defender",
+     "weapons": [
+      "Close Combat Weapon",
+      "Shuriken Catapult"
+     ]
+    },
+    {
+     "x_in": 13.402162073536942,
+     "y_in": 38.01561679353659,
+     "wounds": 1,
+     "model": "Guardian Defender",
+     "weapons": [
+      "Close Combat Weapon",
+      "Shuriken Catapult"
+     ]
+    },
+    {
+     "x_in": 10.323980783605922,
+     "y_in": 38.01561679353659,
+     "wounds": 1,
+     "model": "Guardian Defender",
+     "weapons": [
+      "Close Combat Weapon",
+      "Shuriken Catapult"
+     ]
+    },
+    {
+     "x_in": 14.75561567216086,
+     "y_in": 37.2341999940354,
+     "wounds": 1,
+     "model": "Guardian Defender",
+     "weapons": [
+      "Close Combat Weapon",
+      "Shuriken Catapult"
+     ]
+    },
+    {
+     "x_in": 8.970527184982004,
+     "y_in": 37.2341999940354,
+     "wounds": 1,
+     "model": "Guardian Defender",
+     "weapons": [
+      "Close Combat Weapon",
+      "Shuriken Catapult"
+     ]
+    },
+    {
+     "x_in": 11.86307142857143,
+     "y_in": 35.287,
+     "wounds": 4,
+     "model": "Farseer",
+     "weapons": [
+      "Eldritch Storm",
+      "Shuriken Pistol",
+      "Singing Spear",
+      "Singing Spear"
+     ]
+    },
+    {
+     "x_in": 10.564033322894772,
+     "y_in": 34.537,
+     "wounds": 2,
+     "model": "Warlock",
+     "weapons": [
+      "Destructor",
+      "Shuriken Pistol",
+      "Singing Spear",
+      "Singing Spear"
+     ]
+    },
+    {
+     "x_in": 10.564033322894772,
+     "y_in": 33.037,
+     "wounds": 2,
+     "model": "Warlock",
+     "weapons": [
+      "Destructor",
+      "Shuriken Pistol",
+      "Singing Spear",
+      "Singing Spear"
      ]
     }
    ]
@@ -1025,8 +840,8 @@
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 30.441598944394386,
-     "y_in": 9.019769403818701,
+     "x_in": 29.999999999999996,
+     "y_in": 6.000000000000001,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1035,8 +850,8 @@
      ]
     },
     {
-     "x_in": 25.60732182233179,
-     "y_in": 8.66729583767571,
+     "x_in": 28.939339828220174,
+     "y_in": 4.939339828220179,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1045,8 +860,8 @@
      ]
     },
     {
-     "x_in": 25.40648810903833,
-     "y_in": 10.153623878168744,
+     "x_in": 29.611771432346217,
+     "y_in": 7.448888739433603,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1055,8 +870,8 @@
      ]
     },
     {
-     "x_in": 27.588353381693455,
-     "y_in": 7.740320223736596,
+     "x_in": 31.06066017177982,
+     "y_in": 7.060660171779823,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1065,8 +880,8 @@
      ]
     },
     {
-     "x_in": 27.174281366377752,
-     "y_in": 6.290917143472328,
+     "x_in": 27.878679656440355,
+     "y_in": 3.878679656440358,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1075,8 +890,8 @@
      ]
     },
     {
-     "x_in": 28.39615191342635,
-     "y_in": 13.294838662281084,
+     "x_in": 30.77645713530756,
+     "y_in": 8.897777478867205,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1085,8 +900,8 @@
      ]
     },
     {
-     "x_in": 29.251883902618733,
-     "y_in": 11.465782101940434,
+     "x_in": 32.12132034355964,
+     "y_in": 8.121320343559644,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1095,8 +910,8 @@
      ]
     },
     {
-     "x_in": 27.129902527752506,
-     "y_in": 8.95002585109703,
+     "x_in": 25.92161495833507,
+     "y_in": 4.0982178221668555,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1105,8 +920,8 @@
      ]
     },
     {
-     "x_in": 32.78879868030075,
-     "y_in": 9.418781488922212,
+     "x_in": 33.18198051533946,
+     "y_in": 9.181980515339465,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1115,8 +930,8 @@
      ]
     },
     {
-     "x_in": 28.85886937268639,
-     "y_in": 6.236489089894271,
+     "x_in": 24.23823788593834,
+     "y_in": 4.3260533637646255,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1125,8 +940,8 @@
      ]
     },
     {
-     "x_in": 26.53871724717817,
-     "y_in": 11.65846500155912,
+     "x_in": 24.14449942836751,
+     "y_in": 7.308859448379255,
      "wounds": 4,
      "model": "Plasmancer",
      "weapons": [
@@ -1137,21 +952,154 @@
    ]
   },
   {
-   "name": "1 D-cannon Platform 2",
+   "name": "1 Storm Guardians 1 + Eldrad Ulthran + Warlock Conclave",
    "owner": "Player 1",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 28.992655172413794,
-     "y_in": 34.8722,
-     "wounds": 5,
-     "model": "D-cannon Platform",
+     "x_in": 46.12171428571428,
+     "y_in": 33.787,
+     "wounds": 2,
+     "model": "Serpent's Scale Platform",
+     "weapons": [
+      "Close Combat Weapon"
+     ]
+    },
+    {
+     "x_in": 47.42075239139094,
+     "y_in": 34.537,
+     "wounds": 1,
+     "model": "Storm Guardian",
      "weapons": [
       "Close Combat Weapon",
-      "D-cannon",
-      "Shuriken Catapult"
+      "Flamer"
+     ]
+    },
+    {
+     "x_in": 47.42075239139094,
+     "y_in": 33.037,
+     "wounds": 1,
+     "model": "Storm Guardian",
+     "weapons": [
+      "Close Combat Weapon",
+      "Flamer"
+     ]
+    },
+    {
+     "x_in": 46.12171428571428,
+     "y_in": 36.787,
+     "wounds": 1,
+     "model": "Storm Guardian",
+     "weapons": [
+      "Close Combat Weapon",
+      "Fusion Gun"
+     ]
+    },
+    {
+     "x_in": 47.62171428571428,
+     "y_in": 36.385076211353315,
+     "wounds": 1,
+     "model": "Storm Guardian",
+     "weapons": [
+      "Close Combat Weapon",
+      "Fusion Gun"
+     ]
+    },
+    {
+     "x_in": 44.62171428571428,
+     "y_in": 36.385076211353315,
+     "wounds": 1,
+     "model": "Storm Guardian",
+     "weapons": [
+      "Power Sword",
+      "Shuriken Pistol"
+     ]
+    },
+    {
+     "x_in": 43.52363807436097,
+     "y_in": 35.287,
+     "wounds": 1,
+     "model": "Storm Guardian",
+     "weapons": [
+      "Power Sword",
+      "Shuriken Pistol"
+     ]
+    },
+    {
+     "x_in": 48.7197904970676,
+     "y_in": 35.287,
+     "wounds": 1,
+     "model": "Storm Guardian",
+     "weapons": [
+      "Close Combat Weapon",
+      "Shuriken Pistol"
+     ]
+    },
+    {
+     "x_in": 43.12171428571428,
+     "y_in": 33.787,
+     "wounds": 1,
+     "model": "Storm Guardian",
+     "weapons": [
+      "Close Combat Weapon",
+      "Shuriken Pistol"
+     ]
+    },
+    {
+     "x_in": 46.12171428571428,
+     "y_in": 38.287,
+     "wounds": 1,
+     "model": "Storm Guardian",
+     "weapons": [
+      "Close Combat Weapon",
+      "Shuriken Pistol"
+     ]
+    },
+    {
+     "x_in": 47.660804930679795,
+     "y_in": 38.01561679353659,
+     "wounds": 1,
+     "model": "Storm Guardian",
+     "weapons": [
+      "Close Combat Weapon",
+      "Shuriken Pistol"
+     ]
+    },
+    {
+     "x_in": 44.822676180037625,
+     "y_in": 33.037,
+     "wounds": 5,
+     "model": "Eldrad Ulthran",
+     "weapons": [
+      "Mind War",
+      "Shuriken Pistol",
+      "Staff of Ulthamar and Witchblade"
+     ]
+    },
+    {
+     "x_in": 46.12171428571428,
+     "y_in": 35.287,
+     "wounds": 2,
+     "model": "Warlock",
+     "weapons": [
+      "Destructor",
+      "Shuriken Pistol",
+      "Singing Spear",
+      "Singing Spear"
+     ]
+    },
+    {
+     "x_in": 44.822676180037625,
+     "y_in": 34.537,
+     "wounds": 2,
+     "model": "Warlock",
+     "weapons": [
+      "Destructor",
+      "Shuriken Pistol",
+      "Singing Spear",
+      "Singing Spear"
      ]
     }
    ]
@@ -1164,8 +1112,8 @@
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 14.69666348606702,
-     "y_in": 15.286845412977048,
+     "x_in": 13.788571428571426,
+     "y_in": 10.370000000000001,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1174,8 +1122,8 @@
      ]
     },
     {
-     "x_in": 14.69666348606702,
-     "y_in": 13.786845412977048,
+     "x_in": 13.788571428571426,
+     "y_in": 8.870000000000001,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1184,8 +1132,8 @@
      ]
     },
     {
-     "x_in": 15.995701591743678,
-     "y_in": 14.536845412977048,
+     "x_in": 15.087609534248084,
+     "y_in": 9.620000000000001,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1194,8 +1142,8 @@
      ]
     },
     {
-     "x_in": 13.397625380390362,
-     "y_in": 14.536845412977048,
+     "x_in": 12.489533322894768,
+     "y_in": 9.620000000000003,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1204,8 +1152,8 @@
      ]
     },
     {
-     "x_in": 15.995701591743678,
-     "y_in": 16.036845412977048,
+     "x_in": 15.087609534248084,
+     "y_in": 11.120000000000001,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1214,8 +1162,8 @@
      ]
     },
     {
-     "x_in": 14.69666348606702,
-     "y_in": 12.286845412977048,
+     "x_in": 13.788571428571426,
+     "y_in": 7.370000000000001,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1224,8 +1172,8 @@
      ]
     },
     {
-     "x_in": 13.196663486067019,
-     "y_in": 12.688769201623732,
+     "x_in": 12.288571428571425,
+     "y_in": 7.771923788646685,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1234,8 +1182,8 @@
      ]
     },
     {
-     "x_in": 16.19666348606702,
-     "y_in": 12.688769201623732,
+     "x_in": 15.288571428571426,
+     "y_in": 7.771923788646685,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1244,8 +1192,8 @@
      ]
     },
     {
-     "x_in": 17.294739697420336,
-     "y_in": 13.786845412977048,
+     "x_in": 16.386647639924742,
+     "y_in": 8.870000000000001,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1254,8 +1202,8 @@
      ]
     },
     {
-     "x_in": 17.69666348606702,
-     "y_in": 15.286845412977048,
+     "x_in": 16.788571428571426,
+     "y_in": 10.370000000000001,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1264,8 +1212,8 @@
      ]
     },
     {
-     "x_in": 14.69666348606702,
-     "y_in": 10.786845412977048,
+     "x_in": 13.788571428571426,
+     "y_in": 5.870000000000001,
      "wounds": 4,
      "model": "Plasmancer",
      "weapons": [
@@ -1276,61 +1224,52 @@
    ]
   },
   {
-   "name": "1 Striking Scorpions 1",
+   "name": "1 Windriders 1 + Warlock Skyrunners",
    "owner": "Player 1",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 48.28221428571428,
-     "y_in": 22.0,
+     "x_in": 52.08957142857143,
+     "y_in": 37.509001,
      "wounds": 2,
-     "model": "Striking Scorpion Exarch",
+     "model": "Windrider",
      "weapons": [
-      "Scorpion Chainsword",
-      "Scorpion's Claw",
-      "Shuriken Pistol"
+      "Close Combat Weapon",
+      "Shuriken Cannon"
      ]
     },
     {
-     "x_in": 48.28221428571428,
-     "y_in": 23.5,
-     "wounds": 1,
-     "model": "Striking Scorpion",
+     "x_in": 50.7333747802196,
+     "y_in": 36.7260005,
+     "wounds": 2,
+     "model": "Windrider",
      "weapons": [
-      "Scorpion Chainsword",
-      "Shuriken Pistol"
+      "Close Combat Weapon",
+      "Shuriken Cannon"
      ]
     },
     {
-     "x_in": 49.58125239139094,
-     "y_in": 22.75,
-     "wounds": 1,
-     "model": "Striking Scorpion",
+     "x_in": 53.445768076923265,
+     "y_in": 36.7260005,
+     "wounds": 2,
+     "model": "Windrider",
      "weapons": [
-      "Scorpion Chainsword",
-      "Shuriken Pistol"
+      "Close Combat Weapon",
+      "Shuriken Cannon"
      ]
     },
     {
-     "x_in": 49.58125239139094,
-     "y_in": 21.25,
-     "wounds": 1,
-     "model": "Striking Scorpion",
+     "x_in": 52.08957142857143,
+     "y_in": 35.943,
+     "wounds": 3,
+     "model": "Warlock Skyrunner",
      "weapons": [
-      "Scorpion Chainsword",
-      "Shuriken Pistol"
-     ]
-    },
-    {
-     "x_in": 48.28221428571428,
-     "y_in": 25.0,
-     "wounds": 1,
-     "model": "Striking Scorpion",
-     "weapons": [
-      "Scorpion Chainsword",
-      "Shuriken Pistol"
+      "Destructor",
+      "Shuriken Pistol",
+      "Twin Shuriken Catapult",
+      "Witchblade"
      ]
     }
    ]
@@ -1415,69 +1354,146 @@
    ]
   },
   {
-   "name": "1 War Walkers 1",
+   "name": "1 Dire Avengers 1 + Asurmen",
    "owner": "Player 1",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 39.272999999999996,
-     "y_in": 34.181,
-     "wounds": 6,
-     "model": "War Walker",
+     "x_in": 40.07607142857143,
+     "y_in": 33.787,
+     "wounds": 2,
+     "model": "Dire Avenger Exarch",
      "weapons": [
-      "Bright Lance",
-      "Bright Lance",
-      "War Walker Feet"
+      "Avenger Shuriken Catapult",
+      "Avenger Shuriken Catapult",
+      "Close Combat Weapon"
      ]
     },
     {
-     "x_in": 39.272999999999996,
-     "y_in": 36.643,
-     "wounds": 6,
-     "model": "War Walker",
+     "x_in": 40.07607142857143,
+     "y_in": 35.287,
+     "wounds": 1,
+     "model": "Dire Avenger",
      "weapons": [
-      "Bright Lance",
-      "Bright Lance",
-      "War Walker Feet"
+      "Avenger Shuriken Catapult",
+      "Close Combat Weapon"
+     ]
+    },
+    {
+     "x_in": 38.77703332289477,
+     "y_in": 34.537,
+     "wounds": 1,
+     "model": "Dire Avenger",
+     "weapons": [
+      "Avenger Shuriken Catapult",
+      "Close Combat Weapon"
+     ]
+    },
+    {
+     "x_in": 41.37510953424809,
+     "y_in": 34.537,
+     "wounds": 1,
+     "model": "Dire Avenger",
+     "weapons": [
+      "Avenger Shuriken Catapult",
+      "Close Combat Weapon"
+     ]
+    },
+    {
+     "x_in": 41.37510953424809,
+     "y_in": 33.037,
+     "wounds": 1,
+     "model": "Dire Avenger",
+     "weapons": [
+      "Avenger Shuriken Catapult",
+      "Close Combat Weapon"
+     ]
+    },
+    {
+     "x_in": 38.77703332289477,
+     "y_in": 33.037,
+     "wounds": 5,
+     "model": "Asurmen",
+     "weapons": [
+      "Bloody Twins",
+      "Sword of Asur"
      ]
     }
    ]
   },
   {
-   "name": "1 War Walkers 2",
+   "name": "1 Howling Banshees 1 + Jain Zar",
    "owner": "Player 1",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 55.75833333333333,
-     "y_in": 34.181,
-     "wounds": 6,
-     "model": "War Walker",
+     "x_in": 54.18257142857143,
+     "y_in": 33.787,
+     "wounds": 2,
+     "model": "Howling Banshee Exarch",
      "weapons": [
-      "Bright Lance",
-      "Bright Lance",
-      "War Walker Feet"
+      "Executioner",
+      "Shuriken Pistol"
      ]
     },
     {
-     "x_in": 55.75833333333333,
-     "y_in": 36.643,
-     "wounds": 6,
-     "model": "War Walker",
+     "x_in": 54.18257142857143,
+     "y_in": 35.287,
+     "wounds": 1,
+     "model": "Howling Banshee",
      "weapons": [
-      "Bright Lance",
-      "Bright Lance",
-      "War Walker Feet"
+      "Banshee Blade",
+      "Shuriken Pistol"
+     ]
+    },
+    {
+     "x_in": 52.88353332289477,
+     "y_in": 34.537,
+     "wounds": 1,
+     "model": "Howling Banshee",
+     "weapons": [
+      "Banshee Blade",
+      "Shuriken Pistol"
+     ]
+    },
+    {
+     "x_in": 55.481609534248086,
+     "y_in": 34.537,
+     "wounds": 1,
+     "model": "Howling Banshee",
+     "weapons": [
+      "Banshee Blade",
+      "Shuriken Pistol"
+     ]
+    },
+    {
+     "x_in": 55.481609534248086,
+     "y_in": 33.037,
+     "wounds": 1,
+     "model": "Howling Banshee",
+     "weapons": [
+      "Banshee Blade",
+      "Shuriken Pistol"
+     ]
+    },
+    {
+     "x_in": 52.88353332289477,
+     "y_in": 33.037,
+     "wounds": 5,
+     "model": "Jain Zar",
+     "weapons": [
+      "Blade of Destruction",
+      "Silent Death"
      ]
     }
    ]
   },
   {
-   "name": "1 Wraithguard 1",
+   "name": "1 Warp Spiders 1 + Lhykhis",
    "owner": "Player 1",
    "placement": "board",
    "embarked_in": null,
@@ -1486,51 +1502,62 @@
     {
      "x_in": 58.213,
      "y_in": 33.787,
-     "wounds": 3,
-     "model": "Wraithguard",
+     "wounds": 2,
+     "model": "Warp Spider Exarch",
      "weapons": [
       "Close Combat Weapon",
-      "D-scythe"
+      "Powerblade Array"
      ]
     },
     {
      "x_in": 58.213,
-     "y_in": 35.461,
-     "wounds": 3,
-     "model": "Wraithguard",
+     "y_in": 35.287,
+     "wounds": 1,
+     "model": "Warp Spider",
      "weapons": [
       "Close Combat Weapon",
-      "D-scythe"
+      "Death Spinner"
+     ]
+    },
+    {
+     "x_in": 56.91396189432334,
+     "y_in": 34.537,
+     "wounds": 1,
+     "model": "Warp Spider",
+     "weapons": [
+      "Close Combat Weapon",
+      "Death Spinner"
      ]
     },
     {
      "x_in": 58.213,
-     "y_in": 37.135,
-     "wounds": 3,
-     "model": "Wraithguard",
+     "y_in": 36.787,
+     "wounds": 1,
+     "model": "Warp Spider",
      "weapons": [
       "Close Combat Weapon",
-      "D-scythe"
+      "Death Spinner"
      ]
     },
     {
-     "x_in": 58.213,
-     "y_in": 38.809,
-     "wounds": 3,
-     "model": "Wraithguard",
+     "x_in": 56.713,
+     "y_in": 36.385076211353315,
+     "wounds": 1,
+     "model": "Warp Spider",
      "weapons": [
       "Close Combat Weapon",
-      "D-scythe"
+      "Death Spinner"
      ]
     },
     {
-     "x_in": 56.495374840218496,
-     "y_in": 38.50613634158683,
-     "wounds": 3,
-     "model": "Wraithguard",
+     "x_in": 56.91396189432334,
+     "y_in": 33.037,
+     "wounds": 5,
+     "model": "Lhykhis",
      "weapons": [
-      "Close Combat Weapon",
-      "D-scythe"
+      "Brood Twain",
+      "Spider's Fangs",
+      "Weaverender"
      ]
     }
    ]
@@ -1558,27 +1585,27 @@
   }
  ],
  "armies": {
-  "Player 1": "aeldari_guardian_battlehost",
+  "Player 1": "aeldari",
   "Player 2": "necrons"
  },
  "turn": {
-  "battle_round": 2,
+  "battle_round": 1,
   "phase": "Command",
   "turn_owner": "Player 1",
   "active_player": "Player 1"
  },
  "command_points": {
-  "Player 1": 4,
+  "Player 1": 1,
   "Player 2": 1
  },
  "missions": {
   "ledger": {
    "primary_points": {
-    "Player 1": 2,
+    "Player 1": 0,
     "Player 2": 0
    },
    "secondary_points": {
-    "Player 1": 3,
+    "Player 1": 0,
     "Player 2": 0
    },
    "unscored_kills": {
@@ -1588,79 +1615,37 @@
   },
   "secondary": {
    "deck": [
-    "overwhelming_force",
-    "no_prisoners",
-    "centre_ground",
-    "bring_it_down",
-    "cleanse",
-    "plunder",
-    "a_tempting_target",
-    "beacon",
+    "behind_enemy_lines",
+    "display_of_might",
     "outflank",
     "a_grievous_blow",
-    "assassination",
-    "defend_stronghold",
-    "engage_on_all_fronts",
-    "behind_enemy_lines",
+    "overwhelming_force",
     "secure_no_mans_land",
+    "a_tempting_target",
+    "centre_ground",
+    "assassination",
+    "bring_it_down",
+    "cleanse",
+    "engage_on_all_fronts",
+    "defend_stronghold",
     "forward_position",
-    "display_of_might"
+    "beacon",
+    "no_prisoners",
+    "plunder"
    ],
    "hand": [],
    "discarded": [],
    "drawn_round": null,
-   "scored_round": 2,
+   "scored_round": 1,
    "scored_vp_this_round": 0,
    "destroyed_characters": [],
    "picks": {}
   },
   "primary": {
-   "points": 2,
+   "points": 0,
    "battle_scored": false,
    "announced": true,
    "trapped": []
-  }
- },
- "activation": {
-  "controllers": {
-   "movement": {
-    "moved_squad_ids": [
-     "2 Canoptek Wraiths 1",
-     "2 Doomsday Ark 1",
-     "2 Immortals 1 + Plasmancer",
-     "2 Immortals 2 + Plasmancer",
-     "2 Lokhust Destroyers 1 + Lokhust Lord",
-     "2 Lychguard 1 + Overlord",
-     "2 Necron Warriors 1 + Technomancer",
-     "2 Skorpekh Destroyers 1 + Skorpekh Lord"
-    ],
-    "stationary_squad_ids": [
-     "2 Lokhust Destroyers 1 + Lokhust Lord",
-     "2 Necron Warriors 1 + Technomancer",
-     "2 Skorpekh Destroyers 1 + Skorpekh Lord"
-    ],
-    "advanced_squad_ids": [
-     "2 Lychguard 1 + Overlord"
-    ],
-    "moved_distance_this_turn": {
-     "2 Doomsday Ark 1": 7.999999999999999,
-     "2 Canoptek Wraiths 1": 8.0,
-     "2 Immortals 1 + Plasmancer": 5.000000000000001,
-     "2 Immortals 2 + Plasmancer": 5.000000000000001,
-     "2 Lychguard 1 + Overlord": 5.249670617249577
-    },
-    "advance_bonus_by_squad": {
-     "2 Lychguard 1 + Overlord": 2
-    }
-   },
-   "shooting": {
-    "shot_squad_ids": [
-     "1 D-cannon Platform 1"
-    ],
-    "last_ranged_attack_turn": {
-     "1 D-cannon Platform 1": 1
-    }
-   }
   }
  }
 }

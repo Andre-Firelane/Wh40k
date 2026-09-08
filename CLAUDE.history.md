@@ -8171,3 +8171,110 @@ Per `git grep` über HEAD geprüft, dass nur diese eine Datei betroffen ist. Die
 `-A`-Regel bleibt — sie ist Absicht und hat in derselben Sitzung auch meine
 laufende Arbeit gesichert —, aber die Lehre steht jetzt bei Fehlerklasse 20:
 ein Sondenlauf und ein Commit dürfen sich nicht überlappen.
+
+---
+
+# Sitzung 2026-09-08 (abends) — der Avatar-Charge und der Home-Objective-Klumpen
+
+Zwei Meldungen aus derselben Partie, und die Untersuchung hat sie als EINE
+Geschichte identifiziert.
+
+## Welches Log
+
+Der User sagte „vorletztes spiel". Die realen Partien im Ordner sind
+`game_20260908_165822`, `_170013` und `_204854`; die gemeldete Charge-Zeile
+steht in **`game_20260908_204854.log:667`**. Beide Meldungen sind dort belegt,
+also wurde daran gearbeitet, ohne die Namensfrage weiter zu verfolgen.
+
+## Reproduktion vor jeder Änderung
+
+**Meldung 1.** An den echten Datenblättern nachgerechnet: 21 Necron Warriors +
+Technomancer gegen den Avatar of Khaine = **7.5 pts/Runde, 0.0 Modelle**
+(3 % einer Ein-Modell-Einheit); Gegenschwung **89.1 pts/Runde, 6.9 Modelle**.
+Zum Vergleich Dire Avengers: 57.0 raus, 13.5 rein. Das Log bestätigt den
+Ausgang: `pile in ... 1 -> 2 of 21 model(s) in Engagement Range`, danach Staff
+of Light und Close Combat Weapon je **0 Wunden**.
+
+Die Ursache stand dann in `ai/observation.py`: `squad_summary()` — die einzige
+Beschreibung, die eine taktische Entscheidung bekommt — trägt Name, Owner,
+Modelle, Wunden, OC. **Keine Bewertung.** Die `[threat]`-Zeile mit „by
+charging: Avatar 10.0 pts/turn (0.0 models, trading down)" gehört
+`build_planning_observation()` und geht nur an den Planner. Im selben Log hat
+der Planner den Charge **dreimal** abgelehnt und begründet; die taktische
+Schicht hat ihn gemacht. Ein A/B über die Information, vom Spiel selbst
+gefahren.
+
+**Meldung 2.** Aus den `[move detail]`-Zeilen die Zentroide je Zug geparst:
+Necron Warriors T1 (32,4) → T2 (33,6) → nie wieder; Immortals 1 (29,9) → nie
+wieder; Immortals 2 (13,13) → nie wieder. 43 Modelle, zwei Zoll in fünf Runden.
+Danach die einzelnen Ursachen getrennt:
+
+* **T3** wurde die Bewegung wegen Kohärenz abgelehnt. Der Blob war beim
+  Eintritt in den Zug aber LEGAL kohärent (per Engine geprüft: 1 Komponente,
+  `_needs_regroup` False) — es war also kein Regroup-Fall.
+* Das Brett aus den Log-Koordinaten nachgebaut (74 Modelle) und den Zug
+  wiederholt: auf `(34,8)` befohlen bewegt sich der Blob **0.00"**, auf Punkte
+  außerhalb seiner Formation **2.50"** und **4.72"**. Der befohlene Punkt lag
+  INNERHALB der eigenen Formation.
+* **T4 und T5** war die Einheit im Nahkampf des Avatars — also Meldung 1.
+* Die Immortals bekamen vier Runden lang `hold` vom Planner; die
+  Over-Garrison-Korrektur schwieg, weil der Avatar durchgehend ~12" entfernt
+  stand und `_uncontested_objectives()` das Objective damit komplett aus dem
+  Pass nahm.
+
+## Ein Irrweg, und wie die Messung ihn beendet hat
+
+Der naheliegende Fix für Meldung 1 war eine zweite Charge-Sperre nach dem
+Vorbild von `_shooting_specialist_charge_block()`. Sie wurde GEBAUT und
+GEMESSEN, bevor sie verworfen wurde: 2070 Paarungen über die zwei KI-Armeen
+gegen jede ausgelieferte Gegnerliste. Der gemeldete Fall liegt bei gain/loss
+0.08 (schlechteste 1.7 %), aber unter den Einheiten, die die bestehende Sperre
+nicht ohnehin stoppt, läuft der entfernte Anteil **0.01, 0.02, 0.03, 0.04,
+0.05, 0.06, 0.07, 0.08 ohne Lücke** — und die Gretchin-Chaff-Charges auf
+Nahkampfmonster liegen mitten drin. Drei Kandidaten-Diskriminatoren wurden
+durchgerechnet (Ziel-Natur, Punkte des Chargers, sein Fernkampf-Output); keiner
+trennte sauber. Also: **informieren statt zurückhalten**, mit der Messung als
+Begründung im Code — dieselbe Form, die dieselbe Funktion für die ODDS bereits
+hat.
+
+## Eine eigene Fehlmessung, korrigiert
+
+Eine Zwischenzahl (7.24" für den Blob auf ein fernes Ziel) stammte von einem
+Brett, auf dem ich nur vier Einheiten platziert hatte — es fehlten die eigenen
+Canoptek Wraiths, die direkt nördlich stehen und den Weg kosten. Auf dem
+vollständigen Brett sind es 2.50". Die Zahl war in zwei Docstrings schon
+zitiert und ist dort korrigiert worden, bevor irgendetwas davon abhing.
+
+## Eine zu breite erste Fassung, vom Test gefangen
+
+Der „Punkt in der eigenen Formation"-Wächter im Validator galt zuerst für JEDE
+Rolle. `test_over_garrison.py` meldete sofort, dass der KEEPER seine eigene
+Garnisons-Koordinate verliert. Beim Nachdenken darüber fiel der eigentliche
+Punkt auf: bei `hold`/`screen`/`stage` heißt „Position, auf der ich stehe"
+schlicht „bleib stehen" — ein echter Befehl. Und der gemeldete Zug WAR ein
+`hold`; die Einheit hat das Feld befolgt, was die richtige Hälfte ist. Der
+Wächter gilt jetzt nur einer aktiven Rolle, und was die Einheit wirklich
+befreit, ist der Garnisons-Pass.
+
+## Zwei Befunde über den TEST
+
+* `test_home_garrison.py`s Pin `src.count("_garrison_fitness(") - 1 == 3` blieb
+  durch diese Änderung grün, obwohl ein Leser wegfiel — weil eine Erwähnung im
+  DOCSTRING an seine Stelle rückte. Fünfte Instanz der „ein Wächter matcht
+  seine eigene Erklärung"-Falle; er zählt jetzt per AST echte Aufrufe.
+* Drei A/B-Sonden ließen ihre Suite mit `KeyError` ABSTÜRZEN statt sie rot zu
+  machen (`dict(...)[HOME]` auf ein Dict, dem die Vor-Fix-Welt den Schlüssel
+  nimmt). Achtzehnte Instanz; jetzt `.get()` mit Sentinel.
+
+## Parallele Sitzung
+
+Während der ganzen Arbeit lief eine zweite Claude-Sitzung im selben Repo
+(uncommittete Änderungen in `main.py`, `game/ui/action_panel.py`,
+`game/damage_resolution.py`, `game/arrokon_protocol.py` und den
+Greater-Good-/Arro'kon-Suiten). Die erste Änderung hier lief noch über ein
+Ganzdatei-Rewrite von `ai/agent_driver.py` und hätte deren gleichzeitige
+Schreibvorgänge überschreiben können; ab dem zweiten Edit wurde auf
+zielgenaue Ersetzungen umgestellt. Die Editor-Warnung „file had been modified
+on disk" trat mehrfach auf und bestätigt, dass die andere Sitzung aktiv war.
+Nichts von deren Arbeit wurde angefasst; die volle Regression lief mit beiden
+Änderungsmengen im Baum und ist grün.
