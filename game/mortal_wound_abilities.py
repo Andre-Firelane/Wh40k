@@ -332,7 +332,11 @@ class LivingLightningController(MortalWoundOfferController):
             return self._use(squad, self._pick(squad, targets))
         options = [(f"Living Lightning: {t.name}", (lambda target=t: self._use(squad, target)), t)
                    for t in targets]
-        options.append(("Decline", None))
+        # NO Decline. The printed rule is "select one enemy unit ... and roll
+        # four D6" - mandatory, with no "you can", and the AI branch above
+        # never declines either. Typhus' Eater Plague further down DOES print
+        # "you can select" and keeps its Decline; that difference is the whole
+        # reason both are spelled out here rather than sharing one offer.
         self.decision_manager.request(
             squad.owner, f"{squad.name}: Living Lightning - strike which unit?", options)
         return True

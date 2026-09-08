@@ -39,6 +39,7 @@ game/mortal_wound_abilities.py takes for the four abilities it holds.
 """
 from game.attached_units import leader_ability
 from game.squad import edge_distance
+from game import mortal_wound_sessions
 
 HARVESTER_LABEL = "Harvester of Souls"
 
@@ -71,6 +72,10 @@ class HarvesterOfSoulsController:
         self.all_tokens = all_tokens if all_tokens is not None else []
         self.mortal_wound_sessions = []
 
+    def _log(self, message, file_only=False):
+        if self.game_log is not None:
+            self.game_log.add(message, file_only=file_only)
+
     def nearby_units(self, target_squad, exclude_owner=None):
         """"every OTHER enemy unit within 3" of the target unit" - the target
         itself is rolled for separately, so it is not in this list."""
@@ -99,10 +104,9 @@ class HarvesterOfSoulsController:
             return []
         targets = list(targeted_squads if targeted_squads is not None else hit_squads)
         if len(targets) != 1:
-            if targets and self.game_log is not None:
-                self.game_log.add(
-                    "[harvester] %s split its fire across %d units - no debris."
-                    % (squad.name, len(targets)), file_only=True)
+            if targets:
+                self._log("[harvester] %s split its fire across %d units - no debris."
+                          % (squad.name, len(targets)), file_only=True)
             return []
         target = targets[0]
         struck = []
@@ -110,13 +114,11 @@ class HarvesterOfSoulsController:
             rolled = self._roll(6)
             if rolled >= DEBRIS_THRESHOLD:
                 struck.append(unit)
-            if self.game_log is not None:
-                self.game_log.add(
-                    "[harvester] %s rolled a %d%s"
-                    % (unit.name, rolled,
-                       " - struck by explosive debris." if rolled >= DEBRIS_THRESHOLD
-                       else " - unscathed."),
-                    file_only=True)
+            self._log("[harvester] %s rolled a %d%s"
+                      % (unit.name, rolled,
+                         " - struck by explosive debris." if rolled >= DEBRIS_THRESHOLD
+                         else " - unscathed."),
+                      file_only=True)
         for unit in struck:
             self._inflict(unit)
         return struck
@@ -124,11 +126,10 @@ class HarvesterOfSoulsController:
     def _inflict(self, unit):
         from game.damage_resolution import MortalWoundAllocationSession
         count = self._roll(DEBRIS_MORTAL_SIDES)
-        if self.game_log is not None:
-            self.game_log.add("%s: %s suffers %d mortal wound(s) from explosive debris."
-                              % (HARVESTER_LABEL, unit.name, count))
+        self._log("%s: %s suffers %d mortal wound(s) from explosive debris."
+                  % (HARVESTER_LABEL, unit.name, count))
         self.mortal_wound_sessions.append(MortalWoundAllocationSession(
-            unit, count, dice_manager=self.dice_manager, log=self.game_log))
+            unit, count, dice_manager=self.dice_manager, log=self._log))
 
     def _roll(self, sides):
         from game.dice import random as dice_random
@@ -136,7 +137,34 @@ class HarvesterOfSoulsController:
 
     @property
     def is_busy(self):
-        return any(not getattr(s, "done", True) for s in self.mortal_wound_sessions)
+        return mortal_wound_sessions.any_open(self.mortal_wound_sessions)
 
     def reset_phase(self):
-        self.mortal_wound_sessions = []
+        # Only finished sessions should ever be here by now: main.py's phase
+        # gate waits on is_busy(), so an unresolved allocation holds the phase
+        # open. Pruned rather than cleared, so a future caller that reaches
+        # this with one still open keeps it instead of dropping the wounds.
+        mortal_wound_sessions.prune(self.mortal_wound_sessions)
+
+    # ------------------------------------------------- rule 06.02 allocation
+    # This ability can open SEVERAL sessions in one go, so the three members
+    # main.py asks about delegate to game/mortal_wound_sessions.py rather than
+    # being written twice - see that module for why insertion order is part of
+    # the answer. Without them the wounds were rolled, logged and never
+    # applied against any multi-model target.
+
+    @property
+    def pending_damage_choice(self):
+        return mortal_wound_sessions.pending_choice(self.mortal_wound_sessions)
+
+    def choose_damage_model(self, model):
+        if mortal_wound_sessions.choose(self.mortal_wound_sessions, model):
+            mortal_wound_sessions.prune(self.mortal_wound_sessions)
+
+    def on_dice_acknowledged(self):
+        """Only the Feel No Pain leg: this ability rolls its own dice inline,
+        so there is no pending dice context to resume."""
+        if not mortal_wound_sessions.acknowledge_fnp(self.mortal_wound_sessions):
+            return False
+        mortal_wound_sessions.prune(self.mortal_wound_sessions)
+        return True

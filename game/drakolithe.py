@@ -36,6 +36,7 @@ an enemy moves many times a turn. Reported in the log instead.
 """
 from game.squad import ENGAGEMENT_RANGE_IN, edge_distance
 from game import ai_mode
+from game import mortal_wound_sessions
 
 DRAKOLITHE_LABEL = "Drakolithe"
 
@@ -70,6 +71,10 @@ class DrakolitheController:
         self.all_tokens = all_tokens if all_tokens is not None else []
         self.auto_players = ai_mode.players(auto_players)
         self.mortal_wound_sessions = []
+
+    def _log(self, message, file_only=False):
+        if self.game_log is not None:
+            self.game_log.add(message, file_only=file_only)
 
     def _is_engaged(self, squad):
         mine = _living(squad)
@@ -136,17 +141,15 @@ class DrakolitheController:
             return False
         bearer.drakolithe_tokens = tokens_on(bearer) - 1
         rolled = self._roll_one()
-        if self.game_log is not None:
-            self.game_log.add(
-                "%s: %s spends a token against %s - rolled %d (%d left)."
-                % (DRAKOLITHE_LABEL, bearer.name, mover.name, rolled,
-                   tokens_on(bearer)))
+        self._log("%s: %s spends a token against %s - rolled %d (%d left)."
+                  % (DRAKOLITHE_LABEL, bearer.name, mover.name, rolled,
+                     tokens_on(bearer)))
         if rolled < DRAKOLITHE_THRESHOLD:
             return False
         from game.damage_resolution import MortalWoundAllocationSession
         self.mortal_wound_sessions.append(MortalWoundAllocationSession(
             mover, DRAKOLITHE_MORTAL_WOUNDS, dice_manager=self.dice_manager,
-            log=self.game_log))
+            log=self._log))
         return True
 
     def _roll_one(self):
@@ -155,4 +158,27 @@ class DrakolitheController:
 
     @property
     def is_busy(self):
-        return any(not getattr(s, "done", True) for s in self.mortal_wound_sessions)
+        return mortal_wound_sessions.any_open(self.mortal_wound_sessions)
+
+    # ------------------------------------------------- rule 06.02 allocation
+    # This ability can open SEVERAL sessions in one go, so the three members
+    # main.py asks about delegate to game/mortal_wound_sessions.py rather than
+    # being written twice - see that module for why insertion order is part of
+    # the answer. Without them the wounds were rolled, logged and never
+    # applied against any multi-model target.
+
+    @property
+    def pending_damage_choice(self):
+        return mortal_wound_sessions.pending_choice(self.mortal_wound_sessions)
+
+    def choose_damage_model(self, model):
+        if mortal_wound_sessions.choose(self.mortal_wound_sessions, model):
+            mortal_wound_sessions.prune(self.mortal_wound_sessions)
+
+    def on_dice_acknowledged(self):
+        """Only the Feel No Pain leg: this ability rolls its own dice inline,
+        so there is no pending dice context to resume."""
+        if not mortal_wound_sessions.acknowledge_fnp(self.mortal_wound_sessions):
+            return False
+        mortal_wound_sessions.prune(self.mortal_wound_sessions)
+        return True

@@ -59,7 +59,7 @@ the clause silently inert, which reads like a broken rule instead of a typo in
 a setting.
 """
 
-from game import aeldari_detachments, ai_mode, config
+from game import aeldari_detachments, ai_mode, config, per_unit_offer
 from game.strategic_reserves import withdraw_to_reserves
 
 RIDE_THE_WIND_LABEL = "Ride the Wind"
@@ -176,28 +176,37 @@ class RideTheWindController:
         """`ending_player` is whose turn just ENDED, so the offer goes to
         everyone else - the same argument name and the same trap Airborne
         Agility records, because "at the end of your OPPONENT'S turn" is the
-        timing most easily read backwards."""
+        timing most easily read backwards.
+
+        EVERY eligible unit is asked, one prompt at a time (game/per_unit_offer.py).
+        This clause is the one that needs the chain most: it is CAPPED by battle
+        size, and its own prompt prints how much of that cap is left - a number
+        that only ever moves because an earlier answer moved it. Asked one at a
+        time, the count is right and can_use() stops offering once the cap is
+        spent; built all at once, every prompt would read the same stale number
+        and the ones past the cap would do nothing when accepted.
+
+        The counter is reset HERE and not inside the chain: the chain re-enters
+        offer_each(), never this method, so a mid-chain answer cannot hand the
+        player back a fresh allowance.
+
+        No AI path (standing Aeldari instruction). An `auto_players` owner is
+        filtered out of the candidates rather than ending the sweep; staying
+        put is the honest default, because pulling a unit off the board is a
+        whole-army judgement this engine cannot make - the same call Airborne
+        Agility already documents."""
         self._withdrawn_this_turn = 0
-        for squad in sorted((s for s in squads if s.owner != ending_player),
-                            key=lambda s: (str(s.owner), s.name)):
-            if not self.can_use(squad):
-                continue
-            if squad.owner in self.auto_players or self.decision_manager is None:
-                # No AI path (standing Aeldari instruction), and staying put is
-                # the honest default: pulling a unit off the board is a whole-
-                # army judgement this engine cannot make, and the same call
-                # Airborne Agility already documents.
-                return False
-            self.decision_manager.request(
-                squad.owner,
-                "%s: %s - pull it back into Strategic Reserves? (%d of %d left "
-                "this turn)" % (RIDE_THE_WIND_LABEL, squad.name,
-                                self.remaining(), self.limit()),
-                [("Go into Strategic Reserves", lambda s=squad: self.use(s)),
-                 ("Stay on the battlefield", lambda: None)],
-            )
-            return True
-        return False
+        candidates = sorted(
+            (s for s in squads
+             if s.owner != ending_player and s.owner not in self.auto_players),
+            key=lambda s: (str(s.owner), s.name))
+        return per_unit_offer.offer_each(
+            self.decision_manager, candidates, self.can_use,
+            lambda s: ("%s: %s - pull it back into Strategic Reserves? (%d of %d left "
+                       "this turn)" % (RIDE_THE_WIND_LABEL, s.name,
+                                       self.remaining(), self.limit())),
+            lambda s: [("Go into Strategic Reserves", lambda t=s: self.use(t)),
+                       ("Stay on the battlefield", lambda: None)])
 
     def use(self, squad):
         if not self.can_use(squad):

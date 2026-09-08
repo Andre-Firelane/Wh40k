@@ -1044,6 +1044,45 @@ with settings_as(WINDRIDER_HOST_PLAYERS=("Player 1",)):
     _ctrl7.offer_at_end_of_turn({_b, _cc}, ending_player="Player 2")
     c.eq("a new turn's window resets the cap", _ctrl7.remaining(), 1)
 
+    # EVERY eligible unit gets its own prompt, one at a time - the same defect
+    # the Vespid report found in Airborne Agility, and this clause is where it
+    # hurt most: the prompt PRINTS the remaining cap, a number that can only
+    # move because an earlier answer moved it. Asked once, it could never read
+    # anything but the full allowance. Every check above drives use() directly
+    # or passes no DecisionManager, which is why none of them could see it.
+    _gs8 = tk.GameState()
+    _many = [sq("Windriders"), sq("Shining Spears"), sq("Warlock Skyrunners")]
+    for _i, _u in enumerate(_many):
+        tk.line_up(_u, 10.0 + _i, 8.0 + _i * 8.0, spacing=1.4)
+        _gs8.tokens.extend(_u.models)
+    _gs8.reserves = []
+    _dec8 = tk.DecisionManager()
+    _ctrl8 = rtw.RideTheWindController(game_state=_gs8, all_tokens=_gs8.tokens,
+                                       decision_manager=_dec8, auto_players=(),
+                                       battle_size="strike_force")
+    _ctrl8.offer_at_end_of_turn(set(_many), ending_player="Player 2")
+    _prompts8 = []
+    while _dec8.is_pending and len(_prompts8) < 6:
+        _prompts8.append(_dec8.prompt)
+        _labels8 = [o["label"] for o in _dec8.options]
+        _dec8.choose(_labels8.index("Go into Strategic Reserves"))
+    c.eq("Strike Force's two withdrawals are offered as TWO prompts",
+         len(_prompts8), 2)
+    c.eq("...and both actually happened", len(_gs8.reserves), 2)
+    # Padded rather than indexed: with the pre-fix one-prompt loop this list
+    # holds a single entry, and a check that INDEXES into it crashes the suite
+    # instead of turning it red - the lesson this repo has now paid for many
+    # times over. A probe has to report, not die.
+    _p8 = _prompts8 + ["", ""]
+    c.true("...the first reading the full allowance", "(2 of 2 left" in _p8[0])
+    c.true("...and the second the spent one", "(1 of 2 left" in _p8[1])
+    # The chain walks them in the same (owner, name) order the sweep sorts by,
+    # so it is the LAST of the three that is never reached - named from the
+    # order rather than from the build order, which is not the same thing.
+    _last8 = sorted(_many, key=lambda u: (str(u.owner), u.name))[-1]
+    c.true("...with the last unit in that order never offered, the cap being spent",
+           not any(_last8.name in _p for _p in _prompts8))
+
 # TWO MEASURED NO-OPS, written out rather than dropped.
 _bl = [n for n, ds in D.items() if "BATTLELINE" in (ds.keywords or ())]
 c.true("BATTLELINE is printed on some Aeldari datasheets", len(_bl) > 0)

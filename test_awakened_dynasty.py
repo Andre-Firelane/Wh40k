@@ -531,4 +531,106 @@ FEEDS = [
 for needle, label in FEEDS:
     c.true(label, needle in _main)
 
+# --- 11. Vengeful Stars: the AI and the human see the SAME candidates --------
+print("--- 11. Vengeful Stars offers every avenger ---")
+
+# maybe_offer() drained self._candidates into a local, then the AI branch
+# walked EVERY (avenger, killer) pair while the human branch request()ed a bare
+# yes/no on the FIRST valid one and returned. The rest were already popped and
+# were silently discarded, and the options carried no squad tag either.
+#
+# Measured before the fix, with two eligible avengers:
+#     HUMAN prompt options: ['Use Protocol of the Vengeful Stars', 'Decline']
+#     candidates left in queue: []
+#     option carries a squad tag: [False, False]
+#
+# game/resurrection_orb.py had already been fixed for exactly this, and its
+# comment quotes the user report the class came from.
+
+from game import config as _vs_config                                # noqa: E402
+from game import unit_pick as _vs_pick                               # noqa: E402
+
+_vs_prev = _vs_config.AWAKENED_DYNASTY_PLAYERS
+_vs_config.AWAKENED_DYNASTY_PLAYERS = (AI,)
+try:
+    _a1 = warriors(name="2 Necron Warriors A")
+    _a2 = build(nec.IMMORTALS, AI, name="2 Immortals A", composition_index=0)
+    _killer = build(orks.BOYZ, "Player 1", name="1 Boyz A")
+    for _i, _m in enumerate(_a1.models):
+        _m.x_in, _m.y_in = 10.0 + _i * 1.2, 20.0
+    for _i, _m in enumerate(_a2.models):
+        _m.x_in, _m.y_in = 14.0 + _i * 1.2, 22.0
+    for _i, _m in enumerate(_killer.models):
+        _m.x_in, _m.y_in = 20.0 + _i * 1.2, 20.0
+
+    _dec = DecisionManager()
+    _vs = protocol_vengeful_stars.VengefulStarsController(
+        strat_controller(), decision_manager=_dec, game_log=tk.Log(), auto_players=())
+    _vs._candidates = [(_a1, _killer), (_a2, _killer)]
+    c.true("the offer is made", _vs.maybe_offer())
+
+    _labels = [o["label"] for o in _dec.options]
+    c.eq("BOTH avengers are offered, not just the first", len(_labels), 3)
+    c.true("...the first names its own unit", _a1.name in _labels[0])
+    c.true("...the second names the other", _a2.name in _labels[1])
+    c.true("...and each names the unit it would shoot back at",
+           all(_killer.name in lab for lab in _labels[:2]))
+    c.eq("...with a Decline last", _labels[-1], "Decline")
+
+    # A LABEL THAT NAMES ONLY THE STRATAGEM is indistinguishable when there are
+    # two of them - which a single-pair prompt never had to solve.
+    c.eq("no two options read the same", len(set(_labels)), len(_labels))
+
+    # TAGGED, so the choice is made by clicking the unit on the board.
+    _tokens = [m for s in (_a1, _a2, _killer) for m in s.models]
+    _pick = _vs_pick.pending(_dec, _tokens)
+    c.true("it is a BOARD pick, not a list", _pick is not None)
+    c.eq("...over both avengers",
+         sorted(s.name for s in (_pick.squads if _pick else ())),
+         sorted([_a1.name, _a2.name]))
+
+    # The printed NAME stays in the prompt: game/prompt_rule.py reads it back
+    # out of the prompt text to fill the left column while the pick is open.
+    c.true("the prompt still names the Stratagem",
+           protocol_vengeful_stars.VENGEFUL_STARS_NAME in _dec.prompt)
+
+    # And the second option really fires the SECOND avenger. Measured through
+    # the LOG line _grant() writes, because that is where both units are named
+    # together - the controller keeps only the killer as state, so an attribute
+    # check would be a tautology (the first version of this check was one).
+    _vs_log = tk.Log()
+    _vs.game_log = _vs_log
+    _vs.shooting_controller = None          # the grant's effect is not the point here
+    _dec.choose(1)
+    c.true("choosing the second option fires the SECOND avenger",
+           _vs_log.has("%s shoots back at %s" % (_a2.name, _killer.name)))
+    c.eq("...and not the first", _vs_log.has(_a1.name), False)
+
+    # THE AI IS UNCHANGED: it still walks past a pair its own measure rejects.
+    _b1 = warriors(name="2 Necron Warriors B")
+    _b2 = build(nec.IMMORTALS, AI, name="2 Immortals B", composition_index=0)
+    for _i, _m in enumerate(_b1.models):
+        _m.x_in, _m.y_in = 10.0 + _i * 1.2, 30.0
+    for _i, _m in enumerate(_b2.models):
+        _m.x_in, _m.y_in = 14.0 + _i * 1.2, 32.0
+    _dec2 = DecisionManager()
+    _vs2 = protocol_vengeful_stars.VengefulStarsController(
+        strat_controller(), decision_manager=_dec2, game_log=tk.Log(),
+        auto_players=(AI,),
+        worth_using=lambda a, k: a.name.startswith("2 Immortals"))
+    _vs2._candidates = [(_b1, _killer), (_b2, _killer)]
+    c.true("the AI still skips a pair its measure rejects and fires the next",
+           _vs2.maybe_offer())
+    c.eq("...and asks nobody", _dec2.is_pending, False)
+
+    # Nothing valid: no prompt, and the queue is not left holding anything.
+    _dec3 = DecisionManager()
+    _vs3 = protocol_vengeful_stars.VengefulStarsController(
+        strat_controller(cp=0), decision_manager=_dec3, game_log=tk.Log(), auto_players=())
+    _vs3._candidates = [(warriors(name="2 Necron Warriors C"), _killer)]
+    c.eq("no CP, no offer", _vs3.maybe_offer(), False)
+    c.eq("...and no prompt", _dec3.is_pending, False)
+finally:
+    _vs_config.AWAKENED_DYNASTY_PLAYERS = _vs_prev
+
 c.finish()

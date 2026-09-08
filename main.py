@@ -3174,8 +3174,29 @@ def main(map_key=None):
 
     def _check_battle_end():
         """Rule 07.01: raise the result once the last round has been played.
-        Idempotent - BattleEndOverlay.show() only ever fires once."""
-        if turn_tracker.battle_over:
+        Idempotent - BattleEndOverlay.show() only ever fires once.
+
+        HELD BACK WHILE A DECISION IS STILL OPEN, and that is not politeness.
+        The battle ends at a TURN END, and a turn end is also when the Tactical
+        Secondary deck offers its achieved cards - as a PROMPT, because nothing
+        in that deck is credited automatically. Three of its cards
+        (Defend Stronghold, Beacon, Burden of Trust) score at exactly one
+        instant, "the end of your opponent's turn in the final battle round",
+        which IS the last turn end whenever the card player takes the first
+        turn of the round. Raising the result in the same advance_turn_phase()
+        that opened the prompt cost that card twice over: show() FREEZES the
+        score it displays, so the VP were missing from it; and _front_notice()
+        puts this overlay ahead of the decision box, so the prompt behind it
+        could never be answered either. Measured: the card complete for 5 VP,
+        the prompt open, and a frozen final score of 0.
+
+        So the result waits for the answer and is raised by the per-frame call
+        near the bottom of the loop, the frame after the last question lands.
+        decision_manager rather than the deck's own flag because it is one
+        condition instead of two that could disagree - and anything else still
+        open at that instant (Starflare's offer sits on the same seam) has the
+        same claim to be answered before the battle is called."""
+        if turn_tracker.battle_over and not decision_manager.is_pending:
             # The Primary's "FINAL SCORING" box (Unstoppable Force's central
             # objectives) pays here, BEFORE the overlay reads the ledger -
             # scoring after it would show a final score missing its last 5 VP.
@@ -4294,6 +4315,12 @@ def main(map_key=None):
                 # test_event_chain_wiring.py's section 12.
                 ishas_fury_controller, grenade_pack_controller,
                 grav_inhibitor_controller, flickerjump_controller,
+                # Four abilities that OPEN a rule 06.02 allocation and could
+                # not answer it - the wounds were rolled, logged and never
+                # applied against a multi-model target. See
+                # test_event_chain_wiring.py section 17.
+                wraith_form_controller, drakolithe_controller,
+                harvester_of_souls_controller, monofilament_snare_controller,
             )
         )
 
@@ -4456,6 +4483,14 @@ def main(map_key=None):
             # unit). Neither may be rolled over by a phase change.
             or internal_grenade_racks_controller.is_busy
             or internal_grenade_racks_controller.pending_damage_choice is not None
+            or wraith_form_controller.is_busy
+            or wraith_form_controller.pending_damage_choice is not None
+            or drakolithe_controller.is_busy
+            or drakolithe_controller.pending_damage_choice is not None
+            or harvester_of_souls_controller.is_busy
+            or harvester_of_souls_controller.pending_damage_choice is not None
+            or monofilament_snare_controller.is_busy
+            or monofilament_snare_controller.pending_damage_choice is not None
             or puretide_neurochip_controller.is_busy
         )
 
@@ -5469,6 +5504,11 @@ def main(map_key=None):
                         kroot_linebreakers_controller.resolve_pending_battle_shock()
                         wraith_form_controller.on_dice_acknowledged()
                         internal_grenade_racks_controller.on_dice_acknowledged()
+                        # The three list-holding abilities answer only the
+                        # Feel No Pain leg - they roll their own dice inline.
+                        drakolithe_controller.on_dice_acknowledged()
+                        harvester_of_souls_controller.on_dice_acknowledged()
+                        monofilament_snare_controller.on_dice_acknowledged()
                         puretide_neurochip_controller.on_dice_acknowledged()
                         deadly_vectors_controller.on_dice_acknowledged()
                         lethal_ichor_controller.on_dice_acknowledged()
@@ -5508,6 +5548,38 @@ def main(map_key=None):
                     clicked = input_manager.token_at_event(state.tokens, board, event.pos)
                     if clicked is not None and clicked in internal_grenade_racks_controller.pending_damage_choice:
                         internal_grenade_racks_controller.choose_damage_model(clicked)
+            elif wraith_form_controller.pending_damage_choice is not None:
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in wraith_form_controller.pending_damage_choice:
+                        wraith_form_controller.choose_damage_model(clicked)
+            elif drakolithe_controller.pending_damage_choice is not None:
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in drakolithe_controller.pending_damage_choice:
+                        drakolithe_controller.choose_damage_model(clicked)
+            elif harvester_of_souls_controller.pending_damage_choice is not None:
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in harvester_of_souls_controller.pending_damage_choice:
+                        harvester_of_souls_controller.choose_damage_model(clicked)
+            elif monofilament_snare_controller.pending_damage_choice is not None:
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in monofilament_snare_controller.pending_damage_choice:
+                        monofilament_snare_controller.choose_damage_model(clicked)
             elif crushing_impact_controller.state == crushing_impact.CHOOSING_ENEMY:
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     if left_panel_rect.collidepoint(event.pos):
@@ -6174,6 +6246,20 @@ def main(map_key=None):
                 or (turn_tracker.phase != PHASE_MOVEMENT
                     and picked_reserve_squad is not rapid_ingress_controller.pending_squad)):
             picked_reserve_squad = None
+
+        # Rule 07.01 again, once per frame. The battle becomes over inside
+        # advance_turn_phase(), but the last turn end is also when the deck's
+        # final-round cards open their scoring prompt, so _check_battle_end()
+        # holds the result back while any decision is still open (see its own
+        # docstring). This is where it is raised once that answer lands - the
+        # frame after, not another turn later.
+        #
+        # POLLED and outside the event loop, for the reason CLAUDE.md's error
+        # class 15 records five times over: the chain is a long if/elif over
+        # controller state, and a result that only appeared when no branch
+        # happened to claim the frame would appear late or not at all.
+        # Idempotent, exactly like the call in advance_turn_phase().
+        _check_battle_end()
 
         # `turn_tracker.started` gates the whole block: during the pre-game
         # sequence (rule 03.01) nobody has a turn yet, and without this the
@@ -6908,6 +6994,10 @@ def main(map_key=None):
         renderer.draw_damage_choice_highlight(board_surface, board, spore_laced_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, sickening_impact_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, internal_grenade_racks_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, wraith_form_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, drakolithe_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, harvester_of_souls_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, monofilament_snare_controller.pending_damage_choice)
         renderer.draw_assigning_model_highlight(board_surface, board, fight_assigning_model)
         renderer.draw_assigning_model_highlight(board_surface, board, shoot_assigning_model)
         renderer.draw_status_labels(board_surface, board, status_by_token)

@@ -29,7 +29,7 @@ honest if a later caller separates them.
 """
 
 from game.squad import ENGAGEMENT_RANGE_IN, edge_distance
-from game import ai_mode, engagement
+from game import ai_mode, engagement, per_unit_offer
 from game.strategic_reserves import withdraw_to_reserves
 
 
@@ -73,22 +73,29 @@ class AirborneAgilityController:
     def offer_at_end_of_turn(self, squads, ending_player):
         """`ending_player` is whose turn just ended - so the offer goes to
         everyone ELSE, which is what "your opponent's turn" means from the
-        Vespid owner's side."""
-        for squad in sorted((s for s in squads if s.owner != ending_player),
-                            key=lambda s: (str(s.owner), s.name)):
-            if not self.can_use(squad):
-                continue
-            if squad.owner in self.auto_players or self.decision_manager is None:
-                return False  # see the module docstring: the AI stays put
-            self.decision_manager.request(
-                squad.owner,
-                f"{squad.name}: Airborne Agility - leave the battlefield and go into "
-                f"Strategic Reserves?",
-                [("Go into Strategic Reserves", lambda s=squad: self.use(s)),
-                 ("Stay on the battlefield", lambda: None)],
-            )
-            return True
-        return False
+        Vespid owner's side.
+
+        EVERY eligible unit is asked, one prompt at a time: the rule is written
+        per unit ("if THIS UNIT is not within Engagement Range"), so an army
+        with two Vespid units gets two choices at the same instant. This used
+        to stop after the first - reported as "ich habe 2 vespiden, aber die
+        rueckkehr in reserve wurde mir immer nur von einem der beiden squads
+        angeboten" - and the chain that fixes it is game/per_unit_offer.py.
+
+        An `auto_players` owner is filtered out of the candidates rather than
+        ending the sweep, so an AI unit standing earlier in the order cannot
+        swallow a human one's offer. What the AI does is unchanged: it stays
+        put, for the reason the module docstring gives."""
+        candidates = sorted(
+            (s for s in squads
+             if s.owner != ending_player and s.owner not in self.auto_players),
+            key=lambda s: (str(s.owner), s.name))
+        return per_unit_offer.offer_each(
+            self.decision_manager, candidates, self.can_use,
+            lambda s: (f"{s.name}: Airborne Agility - leave the battlefield and go "
+                       f"into Strategic Reserves?"),
+            lambda s: [("Go into Strategic Reserves", lambda t=s: self.use(t)),
+                       ("Stay on the battlefield", lambda: None)])
 
     def use(self, squad):
         """Take the unit off the board and put it into Strategic Reserves."""

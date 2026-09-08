@@ -136,25 +136,50 @@ class VengefulStarsController:
         """Called once the attacking unit has resolved its attacks. Returns
         True if anything was used or prompted."""
         candidates, self._candidates = self._candidates, []
-        for avenger, killer in candidates:
-            if not self.can_use(avenger, killer):
-                continue
-            if avenger.owner in self.auto_players:
+        # ONE list, walked by both branches. It used to be filtered inside the
+        # loop, so the AI walked every pair while the human got a bare yes/no
+        # on the FIRST one and the rest - already popped off self._candidates -
+        # were silently discarded. Measured with two eligible avengers: the
+        # human was never offered the second, and declining lost both. Same
+        # shape, and the same fix, as game/resurrection_orb.py's.
+        valid = [(a, k) for a, k in candidates if self.can_use(a, k)]
+        if not valid:
+            return False
+
+        # Every avenger here is a unit of the player whose unit just died, so
+        # one owner answers for the whole list.
+        owner = valid[0][0].owner
+        if owner in self.auto_players:
+            for avenger, killer in valid:
                 if self.worth_using is not None and not self.worth_using(avenger, killer):
                     continue
                 return self._use(avenger, killer)
-            if self.decision_manager is None:
-                continue
-            self.decision_manager.request(
-                avenger.owner,
-                f"{avenger.name} watched a unit die - use {VENGEFUL_STARS_NAME}? "
-                f"({VENGEFUL_STARS_CP_COST} CP, shoot {killer.name} back)",
-                [(f"Use {VENGEFUL_STARS_NAME}",
-                  (lambda a=avenger, k=killer: self._use(a, k))), ("Decline", None)],
-                is_stratagem=True,
-            )
-            return True
-        return False
+            return False
+        if self.decision_manager is None:
+            return False
+
+        # EVERY valid pair, one option each, tagged with the AVENGER so the
+        # choice is made by clicking that unit on the board (game/unit_pick.py).
+        # The label names BOTH units: two options reading "Use Protocol of the
+        # Vengeful Stars" are indistinguishable, which is what a single-pair
+        # prompt never had to solve.
+        options = [
+            (f"{a.name} shoots back at {k.name} ({VENGEFUL_STARS_CP_COST} CP)",
+             (lambda a=a, k=k: self._use(a, k)), a)
+            for a, k in valid
+        ]
+        options.append(("Decline", None))
+        # The Stratagem's printed NAME stays in the prompt, not only in the
+        # labels: game/prompt_rule.py reads the rule name back out of the
+        # prompt to fill the left column while the pick is open.
+        self.decision_manager.request(
+            owner,
+            f"A unit died - use {VENGEFUL_STARS_NAME}? "
+            f"({VENGEFUL_STARS_CP_COST} CP, shoot the attacker back)",
+            options,
+            is_stratagem=True,
+        )
+        return True
 
     def _use(self, avenger, killer):
         self._grant_target = killer

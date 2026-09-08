@@ -325,6 +325,51 @@ ck.true("the OPPONENT's turn ending does", _aa2.offer_at_end_of_turn([_v2], "Pla
 ck.true("...as a real choice, with a decline",
         any("Stay on the battlefield" in o for o in tk.options_of(_dec)))
 
+# EVERY eligible unit is offered, not just the first. Reported: "ich habe 2
+# vespiden, aber die rueckkehr in reserve wurde mir immer nur von einem der
+# beiden squads angeboten" - the old loop raised one prompt and returned, and
+# THIS SUITE could not see it, because every check above passes a single squad.
+# So the check is the COUNT over a two-unit army, drained through the real
+# DecisionManager queue (game/per_unit_offer.py chains them).
+_pair_state = GameState()
+_pair = [unit(VESPID_STINGWINGS, ci=0) for _ in range(2)]
+for _i, _u in enumerate(_pair):
+    _u.name = f"1 Vespid Stingwings {_i + 1}"
+    tk.line_up(_u, x=15.0, y=15.0 + _i * 17.0)
+    for _m in _u.models:
+        _pair_state.add_token(_m)
+_pair_foe = unit(KROOT_CARNIVORES, owner="Player 2")
+tk.line_up(_pair_foe, x=45.0, y=20.0)
+for _m in _pair_foe.models:
+    _pair_state.add_token(_m)
+_pair_dec = DecisionManager()
+_pair_aa = AirborneAgilityController(decision_manager=_pair_dec, game_state=_pair_state,
+                                     auto_players=())
+ck.eq("both Vespid units are eligible",
+      len(_pair_aa.eligible_squads(_pair, "Player 1")), 2)
+_pair_aa.offer_at_end_of_turn(set(_pair) | {_pair_foe}, "Player 2")
+_asked = []
+while _pair_dec.is_pending and len(_asked) < 5:
+    _asked.append(_pair_dec.prompt)
+    _labels = [o["label"] for o in _pair_dec.options]
+    _pair_dec.choose(_labels.index("Stay on the battlefield"))
+ck.eq("...and BOTH are asked at one turn end", len(_asked), 2)
+ck.true("...each prompt naming its own unit",
+        all(any(u.name in p for p in _asked) for u in _pair))
+# Declining left both on the board - otherwise "two prompts" could pass on a
+# chain that withdrew a unit and then asked about the leftovers.
+ck.eq("declining both leaves the board alone", len(_pair_state.reserves), 0)
+
+# The AI is filtered OUT of the candidates rather than ending the sweep, so an
+# AI unit earlier in the order cannot swallow a human one's offer. What the AI
+# does is unchanged: it stays put.
+_ai_dec = DecisionManager()
+_ai_aa = AirborneAgilityController(decision_manager=_ai_dec, game_state=_pair_state,
+                                   auto_players=("Player 1",))
+ck.true("an auto_players owner is never prompted",
+        not _ai_aa.offer_at_end_of_turn(set(_pair) | {_pair_foe}, "Player 2"))
+ck.true("...and nothing is queued for it", not _ai_dec.is_pending)
+
 # The Oversight Drone.
 _drone_unit = unit(VESPID_STINGWINGS, ci=1,
                    gear={"Vespid Strain Leader": ["Oversight Drone"]})

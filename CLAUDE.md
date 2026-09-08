@@ -297,6 +297,9 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
     delegiert seine eigene Methode, seine Pixel-Tests sind also per Konstruktion unverändert.
     **Die Kachel-RECT ist die des Aufrufers, nicht eine Größe** — die 58 px des Panels sind für
     eine 200-px-Spalte bemessen, ein Banner in der Bildschirmmitte hat diese Schranke nicht.
+    Seither **`game/per_unit_offer.py` (32.)** — „biete diese Wahl JEDER berechtigten
+    Einheit an, eine nach der anderen“, gelesen von Airborne Agility, Ride the Wind und
+    Cloudstrider; siehe `## Zwei Meldungen aus einer Partie`.
     Seither **`weapons.anti_entries()` (31.)** — „wie liest man `WeaponProfile.anti`", gelesen von
     `shooting._wound_crit_threshold()` und von `weapons.printed_keywords()`; es liegt jetzt bei
     dem Feld, das es liest, und `shooting.py` re-exportiert es unter dem alten privaten Namen,
@@ -6060,9 +6063,11 @@ Spiellänge definieren.
     das die Zone nur BERÜHRT, kostet schon die 5 VP und lässt 3 übrig. Das ist die umgekehrte
     Strenge zu Behind Enemy Lines' "wholly within", darum sind es zwei verschiedene Tests; im Test
     mit einer Base gemessen, die genau auf der Zonenkante steht.
-  - **"2ND ROUND ONWARD"** ist als `min_battle_round` modelliert und in `scores_at()` geprüft. Bei
-    dieser Karte kann es nie greifen (sie punktet ohnehin nur in Runde 5), es ist trotzdem
-    ausgeschrieben statt weggelassen.
+  - **"2ND ROUND ONWARD"** ist als `min_battle_round` modelliert und in `scores_at()` geprüft.
+    **Unter dem heutigen Zeitpunkt kann es nie greifen** (die Karte wertet ohnehin nur in Runde 5),
+    und genau das ist inzwischen ein OFFENER PUNKT statt einer Kuriosität: eine gedruckte Karte
+    trägt keine Bande, die nie gilt. Der Wortlaut ist beim User erfragt — siehe
+    `## Zwei Meldungen aus einer Partie`.
   - Das eigene Home-Objective wird geometrisch gefunden (`own_home_objective()`), und der Test
     prüft die Gegenrichtung mit: für Player 2 ist es das ANDERE.
 - **Display of Might ist die erste Karte, deren WERT vom ZEITPUNKT abhängt statt vom Erfüllungsgrad**
@@ -8031,6 +8036,112 @@ ein verschlucktes `resume` unerreichbar machte.
   `assault`-Aufstellungsrolle: beide Karten PASS. A/B belegt (ohne die Rolle kippt map2 wieder auf
   `safer=False`), also war die Zusicherung nicht zu streng, sondern hat einen echten Mangel
   angezeigt.
+
+## Zwei Meldungen aus einer Partie (2026-09-08)
+
+Beide reproduziert, bevor etwas angefasst wurde; beide haben eine Ursache, die MEHR als die
+gemeldete Fähigkeit betrifft.
+
+### "nur einer der beiden Vespid-Squads wurde gefragt" — drei Controller, ein Defekt
+
+**Gemeldet:** *"ich habe 2 vespiden, aber die rückkehr in reserve wurde mir immer nur von einem der
+beiden squads angeboten."*
+
+- **Reproduziert an der Quelle:** zwei berechtigte Vespid-Einheiten, `offer_at_end_of_turn()` →
+  **ein** Prompt. Der Rumpf war eine Schleife, die beim ERSTEN berechtigten Trupp `request()` rief
+  und `return True` machte; `main.py` ruft die Methode genau einmal je Zugende, also gab es kein
+  zweites Angebot.
+- **Dieselbe Schleife steht dreimal da** — Airborne Agility (Vespid), Ride the Winds
+  Rückzugs-Klausel (Windrider Host) und Cloudstrider (Aeldari) —, und alle drei tragen einen
+  KOMMENTAR, der das Gegenteil verspricht: `main.py` schreibt neben den Aufruf "unlike Airborne
+  Agility, which is per unit", und Cloudstrider schreibt die Ausrede aus ("one at a time; the next
+  end of turn offers again"). **Das nächste Zugende ist ein ANDERER Moment derselben Fähigkeit,
+  kein zweiter Versuch für diesen** — dieselbe Klasse wie `resolve_scouts()`' nie gebauter
+  Menschenpfad: ein Kommentar, der ein Verhalten zusagt, das kein Code einlöst.
+- **`game/per_unit_offer.py` ist die 32. Extraktion**, am zweiten UND dritten Konsumenten:
+  `offer_each()` bietet EINEM Trupp an und hängt die Fortsetzung an BEIDE Optionen, also auch an
+  die Absage.
+  - **Warum verkettet und nicht alles auf einmal.** `DecisionManager` ist selbst eine Queue, ein
+    `request()` je Einheit wäre also kürzer — und für Ride the Wind falsch: dessen Rückzug ist
+    nach Schlachtgröße GEDECKELT und sein Prompt DRUCKT den Reststand. Vorab gebaut läsen alle
+    dieselbe veraltete Zahl, und die Angebote jenseits des Deckels täten beim Annehmen nichts
+    (Fehlerklasse 5). Verkettet wird die Eignung vor JEDEM Prompt neu gefragt, also stimmt der
+    Zähler und der Deckel hält. **Gemessen:** vorher 1 Prompt und `remaining()` konnte sich nie
+    bewegen; jetzt "2 of 2 left" → "1 of 2 left", dritte Einheit gar nicht mehr gefragt.
+  - Der Reset des Zählers bleibt in `offer_at_end_of_turn()`, weil die Kette in `offer_each()`
+    zurückkehrt und nie in die Methode — sonst schenkte eine Antwort mitten in der Kette eine
+    frische Erlaubnis.
+  - **Ein `auto_players`-Owner wird jetzt aus den KANDIDATEN gefiltert statt den Sweep zu beenden.**
+    Die alte Form gab beim ersten KI-Trupp `return False`, ein menschlicher weiter hinten in der
+    Sortierung bekam also gar kein Angebot. Was die KI TUT, ist unverändert: sie bleibt stehen.
+- **Warum keine der drei Suiten es sah:** jede stellte GENAU EINE berechtigte Einheit. Die
+  Prüfung ist deshalb jetzt die ZAHL über eine Zwei-Einheiten-Armee, durch die echte
+  DecisionManager-Queue gedrainiert.
+- **Getestet:** `test_tau_kroot_and_vespid.py` 140 → **146/146**, `test_aeldari_detachment_rules.py`
+  380 → **385/385** (der Deckel-Fall mit drei Einheiten), `test_baharroth.py` 66 → **70/70**.
+  Neu `ab_per_unit_offer.py` (**9 A/B-Sonden, alle beißend**) — je Controller die alte Schleife
+  zurück, plus die Kette selbst ohne Fortsetzung gegen alle drei Suiten.
+  **Ein Befund über den TEST:** zwei Sonden ließen `test_aeldari_detachment_rules.py` ABSTÜRZEN
+  statt rot zu werden (Indizieren in eine Prompt-Liste, die in der Vor-Fix-Welt einen Eintrag
+  hat) — die Prüfung polstert jetzt.
+- **Im ECHTEN Spiel belegt** (`verify_airborne_agility_offers.py`, `runpy` auf `selfplay.py`s echte
+  `main()`-Schleife, mit `tau_recon` — der einzigen ausgelieferten Liste mit ZWEI
+  Vespid-Einheiten, also der gemeldeten Armeeform): der LIVE von `main()` gebaute Controller meldet
+  **2 berechtigte Einheiten und 2 Prompts**; `--neutralize` (die alte Schleife) meldet
+  **2 berechtigte und 1 Prompt** — die Meldung wörtlich.
+  **Drei gestellte Tatsachen, jede mit Grund benannt:** die Position (die Ecke wird aus dem
+  Standort des Gegners ABGELEITET — eine feste setzte sie beim ersten Lauf in Player 2s eigene
+  Aufstellungskante), das Zugende, und ein FRISCHER `DecisionManager` für die Messung, weil die
+  Kette eine ANTWORT braucht und die laufende Partie fast immer einen eigenen Prompt vorne in der
+  Queue hat (gemessen: hier auch) — den auf Spielerkosten zu beantworten hätte die gemessene
+  Partie verändert. Nur der Briefkasten ist getauscht.
+
+### Defend Stronghold: die Endrunden-Karten konnten nie ausgezahlt werden
+
+**Gemeldet:** *"defend stronghold wurde mir nicht zugerechnet, obwohl ich meine homeobjective die
+ganze zeit hatte. lag es an objective secured?"*
+
+- **An "Secured" (14.03) lag es NICHT** — `_defend_stronghold()` liest `Objective.controlled_by`,
+  also 14.02s gewöhnliche Kontrolle; `secured_by` kann sie nur HALTEN, nie verhindern, und wird
+  ohnehin allein von Marker Beacon gesetzt.
+- **Der gefundene Fehler ist eine REIHENFOLGE in `main.py`.** Drei der siebzehn Karten werten an
+  genau einem Moment — "am Ende des gegnerischen Zuges in der letzten Schlachtrunde" (Beacon,
+  Burden of Trust, Defend Stronghold). Nimmt der Kartenspieler den ERSTEN Zug der Runde, IST das
+  das letzte Zugende der Schlacht, und `advance_turn_phase()` rief `_check_battle_end()` in
+  DEMSELBEN Durchlauf, in dem `begin_end_of_turn()` den Wertungs-PROMPT geöffnet hatte. Das
+  kostete die Karte doppelt: `BattleEndOverlay.show()` FRIERT die angezeigten Zahlen ein (die VP
+  fehlten also), und `_front_notice()` stellt dieses Overlay vor die Entscheidungsbox, die
+  `main.py` nur zeichnet, solange `_front_notice()` None ist — der Prompt dahinter war damit auch
+  nicht mehr beantwortbar.
+- **Reproduziert:** Karte vollständig für 5 VP, Prompt offen, eingefrorener Endstand **0**.
+- **Der Fix ist ein Tor plus ein Wiedervorlage-Punkt** (Fehlerklasse 14): `_check_battle_end()`
+  hält an, solange `decision_manager.is_pending`, und wird zusätzlich EINMAL PRO FRAME gerufen,
+  außerhalb der Event-Kette (Fehlerklasse 15) — also erscheint das Ergebnis den Frame nach der
+  Antwort. `decision_manager` statt des Deck-eigenen Flags, weil das EINE Bedingung ist statt
+  zweier, die sich widersprechen können; und alles andere, was an dieser Naht noch offen steht
+  (Starflare sitzt dort), hat denselben Anspruch, vor dem Schlussstand beantwortet zu werden.
+- **Die Gegenrichtung ist mitgeprüft**, sonst tauscht der Fix ein stilles Versagen gegen ein
+  anderes: eine Schlacht ohne offene Frage endet unverändert im selben Aufruf.
+- **Getestet:** neu `test_final_round_scoring.py` (**22/22**, vier Abschnitte) — **zu diesem
+  Zusammenspiel gab es GAR KEINEN Test**: `test_secondary_missions.py` besitzt die KARTEN und
+  fasst `main.py`s Reihenfolge nie an, und kein Smoke erreicht Runde 5. Die Kartenmenge ist eine
+  MENGENDIFFERENZ über die Karten-OBJEKTE, nicht über `ALL_CARDS` — Burden of Trust ist gebaut und
+  bewusst nicht im Stapel, eine Prüfung am Deck hätte also zwei von drei abgedeckt.
+  **BENANNTE GRENZE:** Abschnitt 2 fährt `main.py`s Tor in der FORM nach, nicht dessen eigene
+  Closure (`_check_battle_end()` lebt in `main()`, das keine Suite fährt) — die Verdrahtung hält
+  Abschnitt 4 per AST fest, weil der Name auch in seiner eigenen `def`-Zeile und in einem Kommentar
+  steht und ein Zähler auf ERWÄHNUNGEN genau die Schwäche ist, an der dieses Repo schon zweimal
+  hing. **Keine Laufzeit-Sonde:** das letzte Zugende liegt fünf Runden tief, und ein
+  MockAgent-Lauf schafft gemessen ~7 Phasenwechsel je 3000 Frames gegen die ~50 einer Schlacht.
+- **OFFEN und beim User erfragt: die RUNDENBANDE der Karte.** Sie trägt neben dem
+  Endrunden-Zeitpunkt ein `min_battle_round=2`, das unter diesem Zeitpunkt **niemals greifen
+  kann** — CLAUDE.md hielt das schon als Kuriosum fest. Beacon und Burden of Trust, die denselben
+  Zeitpunkt tragen, haben KEINE Bande; Beacons Badge wurde seinerzeit ausdrücklich beim User
+  erfragt. Eine gedruckte Karte trägt keine Bande, die nie gilt — es ist also entweder die Bande
+  zu viel oder der Zeitpunkt falsch, und im zweiten Fall wertet die Karte am Ende JEDES
+  gegnerischen Zuges ab Runde 2, was genau die Beobachtung des Users erklärt (Home Objective die
+  ganze Zeit gehalten, in den Runden 2-4 nichts bekommen). Nicht geraten, sondern der WORTLAUT
+  erfragt (Fehlerklasse 13).
 
 ## Später-Liste (bewusst zurückgestellt)
 

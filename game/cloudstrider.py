@@ -38,7 +38,7 @@ a turn, and main.py's once-per-frame remove_dead_models() has not necessarily
 run yet, so a unit surrounded only by corpses would otherwise look engaged.
 """
 
-from game import attached_units
+from game import attached_units, per_unit_offer
 from game.ingress import SHORTENED_BLADE_MIN_ENEMY_DISTANCE_IN
 from game.strategic_reserves import withdraw_to_reserves
 
@@ -97,16 +97,22 @@ class CloudstriderController:
     # -- half one: back into Strategic Reserves ---------------------------
     def offer_at_end_of_turn(self, opponent):
         """`opponent` is the player whose turn is ending - so the units that
-        may react are the OTHER player's."""
+        may react are the OTHER player's.
+
+        EVERY eligible unit is asked, one prompt at a time
+        (game/per_unit_offer.py). This used to raise one prompt and return,
+        with "one at a time; the next end of turn offers again" written beside
+        it - but the next end of turn is a DIFFERENT instant of this ability,
+        not a second bite at this one, so a second Cloudstrider unit was simply
+        never offered. Same defect, same fix, as Airborne Agility's."""
         if self.game_state is None or self.decision_manager is None:
-            return
-        for squad in self._candidates(opponent):
-            self.decision_manager.request(
-                squad.owner,
-                f"{squad.name}: {CLOUDSTRIDER_LABEL} - withdraw into Strategic Reserves?",
-                [("Withdraw", lambda s=squad: self.withdraw(s)), ("Stay", lambda: None)],
-            )
-            return   # one at a time; the next end of turn offers again
+            return False
+        return per_unit_offer.offer_each(
+            self.decision_manager, self._candidates(opponent),
+            lambda s: can_withdraw(s, self.game_state),
+            lambda s: f"{s.name}: {CLOUDSTRIDER_LABEL} - withdraw into Strategic Reserves?",
+            lambda s: [("Withdraw", lambda t=s: self.withdraw(t)),
+                       ("Stay", lambda: None)])
 
     def _candidates(self, opponent):
         squads, seen = [], set()

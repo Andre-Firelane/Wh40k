@@ -1294,4 +1294,216 @@ ck.true("the guard is live - it checked %d registered Enhancements"
 ck.eq("every Enhancement's UnitProfile field is read by some rule",
       sorted(_UNREAD), [])
 
+# --------------------------------------------------------------------------
+# 17. every module that OPENS a mortal-wound session can DRAIN it
+# --------------------------------------------------------------------------
+print("=== 17. every module that opens a mortal-wound session can drain it ===")
+
+# THE INVERSION OF SECTION 6, one layer further out.
+#
+# Section 6 starts from main.py's side: "every controller main.py ASKS about
+# pending_damage_choice must also be clickable and drawn". Sections 10, 11 and
+# 12 start there too. All four are therefore blind to a controller main.py
+# never asks about at all - and that is exactly what shipped:
+#
+#   game/wraith_form.py built a MortalWoundAllocationSession and had no
+#   pending_damage_choice, no choose_damage_model and no FNP drain. Measured
+#   before the fix: three sixes rolled, the log said "3 mortal wound(s)", and
+#   ZERO landed on a ten-model target - the session parked on pending_choice
+#   with ten candidates and nothing in the repo could ever answer it. Against
+#   a ONE-model target it resolved fine, which is why it survived.
+#
+# The same sweep found three more (drakolithe, harvester_of_souls,
+# monofilament_snare), so this is a class and not an incident - and a
+# behaviour test cannot see the twenty-second module, because it does not
+# exist yet. Hence a SET DIFFERENCE at the source.
+#
+# BY AST, NOT BY SUBSTRING, and this one is not a style preference: a
+# substring sweep for the class name hits ~30 modules in game/, of which nine
+# only MENTION it in a docstring - and game/mortal_wound_abilities.py names it
+# inside a comment that explains this very bug. A guard that matches its own
+# explanation is Fehlerklasse 24, paid four times in this repo already.
+
+_MW_CLASS = "MortalWoundAllocationSession"
+_MW_DRAINS = ("pending_damage_choice", "choose_damage_model")
+
+# damage_resolution.py DEFINES the class and drains its own session
+# synchronously in the same function - it is not a controller and has no
+# player to ask. Every other name here would be an excuse, so the exemption
+# carries three liveness assertions below and cannot rot into one.
+_MW_DRAIN_GAPS = {"damage_resolution.py"}
+
+_mw_trees = {}
+for _name, _text in _GAMESRC.items():
+    try:
+        _mw_trees[_name] = ast.parse(_text)
+    except SyntaxError:                     # pragma: no cover - would fail loudly below
+        pass
+
+
+def _mw_calls(tree):
+    """Every construction of the session in this module, as Call nodes.
+
+    Accepts the attribute form too (damage_resolution.MortalWoundAllocationSession),
+    so moving a call behind the module name does not silently leave the sweep.
+    """
+    out = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if ((isinstance(func, ast.Name) and func.id == _MW_CLASS)
+                or (isinstance(func, ast.Attribute) and func.attr == _MW_CLASS)):
+            out.append(node)
+    return out
+
+
+def _mw_defines(tree, wanted):
+    """True if the module defines `wanted` as a method of some class.
+
+    A module-level function of the same name would not be reachable as
+    `controller.pending_damage_choice`, and a docstring naming it is not a
+    definition at all - which is the whole reason this is an AST walk.
+    """
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        for sub in node.body:
+            if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef)) and sub.name == wanted:
+                return True
+            # @property wraps the FunctionDef, so the decorator is irrelevant;
+            # what matters is that the name is bound on the class.
+    return False
+
+
+_mw_creators = {n for n, t in _mw_trees.items() if _mw_calls(t)}
+_mw_drainers = {n for n in _mw_creators
+                if all(_mw_defines(_mw_trees[n], w) for w in _MW_DRAINS)}
+
+# LIVENESS. A broken extractor returns the empty set, the difference below
+# collapses to nothing and the guard would pass by inspecting nothing - the
+# same failure direction section 12 documents. These three make that loud.
+ck.true("the guard is live - it read the whole of game/ (%d modules)" % len(_mw_trees),
+        len(_mw_trees) > 200)
+ck.true("...and found %d modules opening a mortal-wound session" % len(_mw_creators),
+        len(_mw_creators) >= 18)
+ck.true("...including the four this guard was written for",
+        {"wraith_form.py", "drakolithe.py", "harvester_of_souls.py",
+         "monofilament_snare.py"} <= _mw_creators)
+
+ck.eq("every module that opens a mortal-wound session can drain it",
+      sorted(_mw_creators - _mw_drainers - _MW_DRAIN_GAPS), [])
+
+# The exemption, checked three ways so a stale excuse falls through rather
+# than standing green forever - the lesson of the Mont'ka gap, whose prose
+# justification went stale while its assertion stayed green.
+for _gap in sorted(_MW_DRAIN_GAPS):
+    _tree = _mw_trees.get(_gap)
+    ck.true("%s is still exempt for a reason: it still opens one" % _gap,
+            _tree is not None and bool(_mw_calls(_tree)))
+    ck.true("...it is the module that DEFINES the class",
+            any(isinstance(n, ast.ClassDef) and n.name == _MW_CLASS
+                for n in ast.walk(_tree)) if _tree is not None else False)
+    # ...and the behavioural half of the excuse: it answers its own session
+    # synchronously, so there is no player left waiting on it.
+    _sync = False
+    for _fn in ast.walk(_tree) if _tree is not None else []:
+        if not isinstance(_fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if not _mw_calls(_fn):
+            continue
+        for _sub in ast.walk(_fn):
+            # `while not session.done:` - matched on the ATTRIBUTE node, not on
+            # a dump substring: ast.dump() renders it as attr='done', so the
+            # obvious ".done" needle never fires (found by this guard's own
+            # first run).
+            if isinstance(_sub, ast.While) and any(
+                    isinstance(_n, ast.Attribute) and _n.attr == "done"
+                    for _n in ast.walk(_sub.test)):
+                _sync = True
+    ck.true("...and drains it synchronously in the same function", _sync)
+
+# --------------------------------------------------------------------------
+# 17b. the log= a session is handed must be CALLABLE
+# --------------------------------------------------------------------------
+print("=== 17b. a session's log= is a callable, not the GameLog object ===")
+
+# MortalWoundAllocationSession calls `self.log(message)` (damage_resolution.py's
+# _finish_apply and its Devastating Wounds twin). GameLog has no __call__, and
+# neither does testkit.Log - so a site that hands over the OBJECT crashes with
+# TypeError the moment a wound actually lands.
+#
+# It only lands against a ONE-model target: with two or more eligible models
+# the session parks on pending_choice BEFORE the first log call. So this is the
+# mirror image of section 17 - multi-model targets leak, single-model targets
+# crash - and the same three modules had both.
+#
+# Measured before the fix: 18 of 21 sites passed a callable, exactly three
+# passed `self.game_log`.
+
+# The premise, asserted rather than assumed: neither the real GameLog nor the
+# test double answers a call, so handing either one over is a crash and not a
+# style question.
+_gamelog = _il.import_module("game.game_log").GameLog
+ck.true("the premise holds - GameLog defines no __call__",
+        "__call__" not in vars(_gamelog))
+ck.true("...and neither does the test double",
+        "__call__" not in vars(_il.import_module("testkit").Log))
+
+
+def _mw_log_arg_ok(call):
+    """Is this construction's log= something the session can CALL?
+
+    Written as a REFUSAL of the one shape that is wrong, not as a whitelist of
+    the shapes that are right: the four accepted spellings today are a lambda,
+    a conditional lambda, a bound `_log`/`log` method and a passthrough
+    parameter, and a whitelist would reject the fifth honest one a future
+    module invents. What can be named exactly is the mistake - handing over the
+    GameLog itself.
+    """
+    for kw in call.keywords:
+        if kw.arg != "log":
+            continue
+        value = kw.value
+        if isinstance(value, ast.Attribute) and value.attr == "game_log":
+            return False
+        if isinstance(value, ast.Name) and value.id == "game_log":
+            return False
+    return True
+
+
+_mw_bad_log = sorted(n for n in _mw_creators
+                     if not all(_mw_log_arg_ok(c) for c in _mw_calls(_mw_trees[n])))
+ck.true("the guard is live - it checked %d construction sites"
+        % sum(len(_mw_calls(_mw_trees[n])) for n in _mw_creators),
+        sum(len(_mw_calls(_mw_trees[n])) for n in _mw_creators) >= 18)
+ck.eq("no session is handed the GameLog object as its log", _mw_bad_log, [])
+# Named individually, so a partial regression reads as a name and not as a
+# list diff.
+for _mod in ("drakolithe.py", "harvester_of_souls.py", "monofilament_snare.py"):
+    ck.true("%s hands its session a callable log" % _mod, _mod not in _mw_bad_log)
+
+# --------------------------------------------------------------------------
+# 17c. ...and main.py knows about all four
+# --------------------------------------------------------------------------
+# Section 17 proves the module CAN answer. These prove main.py ASKS - which
+# then drags sections 6, 10, 11 and 12 in behind them for free.
+# The phase gate is read as its OWN function body, not as "the name appears in
+# main.py": the click branch mentions pending_damage_choice too, so a whole-file
+# search stays green with the gate term deleted. Found by this section's own
+# A/B probe, which reported NO BITE until the body was isolated.
+_MW_GATE_BODY = ""
+for _node in ast.walk(ast.parse(SRC)):
+    if (isinstance(_node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and _node.name == "_has_unresolved_declaration"):
+        _MW_GATE_BODY = ast.get_source_segment(SRC, _node) or ""
+ck.true("the phase gate body was found", len(_MW_GATE_BODY) > 200)
+
+for _ctrl in ("wraith_form_controller", "drakolithe_controller",
+              "harvester_of_souls_controller", "monofilament_snare_controller"):
+    ck.true("%s is asked about its damage choice" % _ctrl,
+            "%s.pending_damage_choice" % _ctrl in SRC)
+    ck.true("...and the phase gate waits on %s" % _ctrl,
+            "%s.pending_damage_choice" % _ctrl in _MW_GATE_BODY)
+
 ck.finish()

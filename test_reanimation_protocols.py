@@ -314,4 +314,107 @@ c.eq("clear_of_engagement refuses a spot inside Engagement Range",
 c.eq("...and allows one well clear",
      model_return.clear_of_engagement(dead, 60.0, 60.0, [foe]), True)
 
+# --------------------------------------------------------------------------
+# the queue does not roll ahead of an open placement
+# --------------------------------------------------------------------------
+print("=== the queue waits for the human ===")
+
+# _apply_and_advance() used to call _apply() - which OPENS the human's
+# placement - and then _roll_next() in the same call stack, putting the next
+# unit's die on the table over an open placement. Acknowledging that die ran
+# _apply() for unit two while unit one was still PLACING, so can_start_setup()
+# said no and unit two's models were seated by the engine.
+#
+# Measured before the fix, two damaged human units with the D3 scripted to 3:
+#     placements opened for: ['1 Unit0 1', '1 Unit0 1']
+# i.e. the first unit twice and the second never.
+
+import game.dice as _qdice                                           # noqa: E402
+from game.decision import DecisionManager as _QDM                    # noqa: E402
+from game.dice import DiceManager as _QDice                          # noqa: E402
+from game.return_placement import ReturnPlacementController as _QPlacer  # noqa: E402
+from game.setup import SetupController as _QSetup                    # noqa: E402
+
+
+def _queue_scene(owner, auto=()):
+    """Two damaged units of the same owner, both eligible in one Command
+    phase - the shape the report came from."""
+    st = GameState()
+    squads = []
+    for i, (sheet, x) in enumerate(((nec.NECRON_WARRIORS, 20.0), (nec.IMMORTALS, 40.0))):
+        sq = tk.build(sheet, owner, name="%s Queue%d 1" % (owner[-1], i))
+        tk.line_up(sq, x=x, y=20.0)
+        st.tokens.extend(sq.models)
+        for m in sq.models[:2]:
+            m.current_wounds = 0
+        squads.append(sq)
+    st.remove_dead_models()
+    setup = _QSetup(st, all_tokens=st.tokens, board_width_in=60.0, board_height_in=44.0)
+    placer = _QPlacer(setup_controller=setup, game_state=st, auto_players=auto)
+    dice, dec = _QDice(), _QDM()
+    ctrl = rp.ReanimationProtocolsController(
+        dice_manager=dice, decision_manager=dec, game_log=tk.Log(),
+        game_state=st, auto_players=auto)
+    ctrl.placer = placer
+    return st, squads, setup, placer, dice, dec, ctrl
+
+
+def _drive(setup, placer, dice, dec, ctrl, limit=16):
+    """Play the human: acknowledge dice, answer prompts, confirm placements.
+
+    Returns (units the placement opened for, dice that appeared while a
+    placement was already open).
+    """
+    opened, over_open = [], 0
+    for _ in range(limit):
+        if dice.pending_values is not None:
+            if setup.state == "placing":
+                over_open += 1
+            dice.acknowledge()
+            ctrl.on_dice_acknowledged()
+        elif dec.is_pending:
+            dec.choose(0)
+        elif setup.state == "placing":
+            name = setup.setting_up_squad.name
+            if name not in opened:
+                opened.append(name)
+            placer.confirm()
+        else:
+            break
+    return opened, over_open
+
+
+_real_randint = _qdice.random.randint
+_qdice.random.randint = lambda a, b: 3          # every D3 reanimates 3
+
+try:
+    _st, _squads, _setup, _placer, _dice, _dec, _ctrl = _queue_scene("Player 1")
+    _before = [len(s.models) for s in _squads]
+    _ctrl.begin_command_phase(_squads, "Player 1")
+    _opened, _over = _drive(_setup, _placer, _dice, _dec, _ctrl)
+
+    c.eq("each unit got its OWN placement", _opened, [s.name for s in _squads])
+    c.eq("no dice were rolled over an open placement", _over, 0)
+    c.true("...and both units really reanimated",
+           all(len(s.models) > b for s, b in zip(_squads, _before)))
+
+    # THE AI PATH: still one call stack, still nothing opened. The latch is
+    # what makes that true - place() calls on_done SYNCHRONOUSLY there, so
+    # without it the queue would advance twice per unit.
+    _st2, _sq2, _setup2, _pl2, _dice2, _dec2, _ctrl2 = _queue_scene("Player 2", auto=("Player 2",))
+    _before2 = [len(s.models) for s in _sq2]
+    _ctrl2.begin_command_phase(_sq2, "Player 2")
+    for _ in range(16):
+        if _dice2.pending_values is None:
+            break
+        _dice2.acknowledge()
+        _ctrl2.on_dice_acknowledged()
+    c.eq("the AI opens no placement at all", _setup2.state, "idle")
+    c.true("...and both of its units reanimated",
+           all(len(s.models) > b for s, b in zip(_sq2, _before2)))
+    c.eq("...and the queue really emptied", _ctrl2._queue, [])
+    c.eq("...with the re-entrancy latch back down", _ctrl2._applying, False)
+finally:
+    _qdice.random.randint = _real_randint
+
 c.finish()

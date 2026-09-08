@@ -113,9 +113,15 @@ class TechnomancerController:
         targets = self.eligible_targets(squad)
         if squad.owner in self.auto_players or self.decision_manager is None:
             return self._use(squad, self._pick(targets))
+        # Tagged with the target's SQUAD, so the repair is answered by
+        # clicking the unit on the board like every other Necron prompt. Two
+        # models of the SAME squad name it twice, and unit_pick.pending()
+        # refuses a duplicate by design - the prompt then falls back to the
+        # list, which is the honest answer when the choice is between two
+        # models rather than between two units.
         options = [
             (f"Repair {t.profile.name} ({t.current_wounds}/{t.profile.wounds} wounds)",
-             (lambda target=t: self._use(squad, target)))
+             (lambda target=t: self._use(squad, target)), getattr(t, "squad", None))
             for t in targets
         ]
         options.append(("Decline", None))

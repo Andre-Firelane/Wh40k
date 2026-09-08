@@ -507,5 +507,82 @@ ma2.offer_at_shooting_phase({dragon_sq}, "Player 2")
 ma2.dice_manager.acknowledge(); ma2.on_dice_acknowledged()
 c.eq("A/B: a failed 2+ gate drains nothing and heals nothing",
      dragon_sq.models[0].current_wounds, 10)
+import pathlib as _ph_pathlib                                       # noqa: E402
+from game import unit_pick as _vs_unit_pick                         # noqa: E402
+
+# --------------------------------------------------------------------------
+# prompt hygiene: the human is asked what the printed rule actually asks
+# --------------------------------------------------------------------------
+print("--- prompt hygiene ---")
+
+# (a) LIVING LIGHTNING HAD A DECLINE ITS RULE DOES NOT PRINT.
+#
+# "select one enemy unit within 18" of and visible to this model ... and roll
+# four D6" - mandatory, no "you can". The AI branch never declined either, so
+# the two sides were not playing the same rule. Typhus' Eater Plague in the
+# same module DOES print "you can select", keeps its Decline, and is the
+# counter-proof that this is a transcription difference and not a policy.
+
+_ph_state = GameState()
+_ph_plasmancer = build(nec.PLASMANCER, name="2 Plasmancer 90")
+_ph_foe = build(nec.IMMORTALS, owner="Player 1", name="1 Immortals 90")
+tk.line_up(_ph_plasmancer, x=20.0, y=20.0)
+tk.line_up(_ph_foe, x=26.0, y=20.0)
+_ph_state.tokens = list(_ph_plasmancer.models) + list(_ph_foe.models)
+
+_ph_dec = DecisionManager()
+_ph_ll = mw.LivingLightningController(dice_manager=DiceManager(), game_state=_ph_state,
+                                      decision_manager=_ph_dec, auto_players=())
+c.eq("Living Lightning offers the human its targets",
+     _ph_ll.offer_at_shooting_phase({_ph_plasmancer}, "Player 2"), True)
+_ph_labels = [o["label"] for o in _ph_dec.options]
+c.true("...at least one", len(_ph_labels) >= 1)
+c.eq("...and NO Decline, because the printed rule says 'select'",
+     [lab for lab in _ph_labels if lab == "Decline"], [])
+c.true("...while every option is a target", all("Living Lightning:" in lab
+                                                for lab in _ph_labels))
+
+# The counter-proof: Eater Plague prints "you can select" and keeps its out.
+c.true("Eater Plague's offer still has a Decline",
+       'options.append(("Decline", None))'
+       in _ph_pathlib.Path("game/mortal_wound_abilities.py").read_text(encoding="utf-8"))
+
+# (b) THE TECHNOMANCER'S OPTIONS WERE NOT BOARD-CLICKABLE.
+#
+# Living Lightning, Crimson Harvest, Wraith Form and the Resurrection Orb all
+# tag their options with a squad; the Technomancer alone did not, so its repair
+# had to be chosen from a list while every other Necron prompt was answered on
+# the board.
+
+_tm_state = GameState()
+_tm_techno = build(nec.TECHNOMANCER, name="2 Technomancer 90")
+_tm_hurt = build(nec.LYCHGUARD, name="2 Lychguard 90")
+tk.line_up(_tm_techno, x=20.0, y=30.0)
+tk.line_up(_tm_hurt, x=21.0, y=30.0)
+_tm_state.tokens = list(_tm_techno.models) + list(_tm_hurt.models)
+_tm_hurt.models[0].current_wounds = 1
+
+_tm_dec = DecisionManager()
+_tm = tm.TechnomancerController(dice_manager=DiceManager(), game_state=_tm_state,
+                                decision_manager=_tm_dec, auto_players=())
+c.eq("the Technomancer asks the human", _tm.offer(_tm_techno), True)
+c.true("...and every repair option carries its unit",
+       all(o.get("squad") is _tm_hurt for o in _tm_dec.options
+           if o["label"].startswith("Repair")))
+c.true("...so it is a board pick",
+       _vs_unit_pick.pending(_tm_dec, _tm_state.tokens) is not None)
+
+# TWO models of the SAME unit name it twice, and unit_pick refuses a duplicate
+# by design - the prompt then falls back to the list, which is the honest
+# answer when the choice is between two MODELS rather than two units.
+_tm_hurt.models[1].current_wounds = 1
+_tm2_dec = DecisionManager()
+_tm2 = tm.TechnomancerController(dice_manager=DiceManager(), game_state=_tm_state,
+                                 decision_manager=_tm2_dec, auto_players=())
+_tm2.offer(_tm_techno)
+_repairs = [o for o in _tm2_dec.options if o["label"].startswith("Repair")]
+c.true("two damaged models of one unit are two options", len(_repairs) >= 2)
+c.eq("...and the board pick declines to guess between them",
+     _vs_unit_pick.pending(_tm2_dec, _tm_state.tokens), None)
 
 c.finish()

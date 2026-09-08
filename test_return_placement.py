@@ -962,4 +962,129 @@ c.true("the name plate says how many are being placed",
 c.true("the highlight is its own method, not inlined into the identity draw",
        "def draw_returning_models(" in RENDER_SRC11)
 
+# --------------------------------------------------------------------------
+# 12. a second placement QUEUES; it is not seated by the engine
+# --------------------------------------------------------------------------
+print("=== 12. two placements in one frame ===")
+
+# User: "Einheiten wurde automatisch platziert ... obwohl ich necrons spiele."
+#
+# place()'s fork used to read:
+#
+#     if (owner in auto_players or setup_controller is None
+#             or not setup_controller.can_start_setup(squad)):
+#         ...engine seats them, same frame...
+#
+# and can_start_setup() is "state == IDLE", so the third disjunct meant
+# SOMEBODY IS ALREADY PLACING. Folded in with the AI's answer it became a
+# silent human -> engine fallback. Measured with two damaged human Necron units
+# reanimating in one Command phase: the placement opened for the FIRST unit
+# twice and the second unit's models were seated with no prompt and no
+# distinguishing log line.
+
+state_q, squad_a, setup_q, placer_q = scene(HUMAN)
+# A SHORT unit: ten Warriors in a line plus two coming back exceed 09.02's 9"
+# spread, and confirm_setup() would then refuse the second placement for a
+# reason that has nothing to do with the queue.
+squad_b = tk.build(NECRON_WARRIORS, HUMAN, name="1 Necron Warriors 2")
+squad_b.models[:] = squad_b.models[:4]
+tk.line_up(squad_b, x=40.0, y=20.0)
+state_q.tokens.extend(squad_b.models)
+for _m in squad_b.models[:2]:
+    _m.current_wounds = 0
+state_q.remove_dead_models()
+
+opened = []
+placer_q.setup_controller = setup_q
+
+
+def _note_open():
+    if setup_q.setting_up_squad is not None:
+        opened.append(setup_q.setting_up_squad.name)
+
+
+rp.reanimate(squad_a, 2, all_tokens=state_q.tokens, game_state=state_q, placer=placer_q)
+_note_open()
+c.eq("the first unit's placement opens", setup_q.setting_up_squad is squad_a, True)
+
+# ...and now the second arrives while the first is still open.
+before_b = len(squad_b.models)
+rp.reanimate(squad_b, 2, all_tokens=state_q.tokens, game_state=state_q, placer=placer_q)
+c.eq("the second does NOT steal the open placement",
+     setup_q.setting_up_squad is squad_a, True)
+c.true("...it is queued instead", placer_q.is_busy)
+c.eq("...and its models are on the board, waiting to be positioned",
+     len(squad_b.models) > before_b, True)
+
+# THE INVARIANT that makes main.py's existing gate enough: a queued placement
+# always has an OPEN one in front of it, and an open one is
+# setup_controller.state == PLACING, which the phase gate already waits on.
+# Written down because the first version of this fix added a second gate term
+# and an `or bool(self._waiting)` for a state that cannot occur - both dead,
+# both found by their own A/B probes reporting NO BITE.
+c.true("a queued placement always has an open one in front of it",
+       not placer_q._waiting or placer_q._pending is not None)
+c.true("...so is_busy is true while either is outstanding", placer_q.is_busy)
+c.true("...and the phase gate already waits on an open placement",
+       "setup_controller.state == setup.PLACING" in MAIN_SRC)
+
+placer_q.confirm()
+_note_open()
+c.eq("confirming the first opens the SECOND", setup_q.setting_up_squad is squad_b, True)
+c.eq("each unit got its own placement, once", opened, [squad_a.name, squad_b.name])
+placer_q.confirm()
+c.eq("...and the queue is empty afterwards", placer_q.is_busy, False)
+
+# CANCEL owes the queue exactly what confirm does - a placement abandoned is
+# still a placement finished, and the unit behind it is still waiting.
+state_c, squad_c, setup_c, placer_c = scene(HUMAN)
+squad_d = tk.build(NECRON_WARRIORS, HUMAN, name="1 Necron Warriors 4")
+squad_d.models[:] = squad_d.models[:4]
+tk.line_up(squad_d, x=40.0, y=20.0)
+state_c.tokens.extend(squad_d.models)
+for _m in squad_d.models[:2]:
+    _m.current_wounds = 0
+state_c.remove_dead_models()
+rp.reanimate(squad_c, 2, all_tokens=state_c.tokens, game_state=state_c, placer=placer_c)
+rp.reanimate(squad_d, 2, all_tokens=state_c.tokens, game_state=state_c, placer=placer_c)
+placer_c.cancel()
+c.eq("cancelling the first also opens the second",
+     setup_c.setting_up_squad is squad_d, True)
+
+# THE AI IS UNCHANGED - the module's own docstring makes that a standing
+# promise, and it is the half a queue could most easily break.
+state_ai, squad_ai, setup_ai, placer_ai = scene(AI)
+squad_ai2 = tk.build(NECRON_WARRIORS, AI, name="2 Necron Warriors 2")
+squad_ai2.models[:] = squad_ai2.models[:4]
+tk.line_up(squad_ai2, x=40.0, y=20.0)
+state_ai.tokens.extend(squad_ai2.models)
+for _m in squad_ai2.models[:2]:
+    _m.current_wounds = 0
+state_ai.remove_dead_models()
+rp.reanimate(squad_ai, 2, all_tokens=state_ai.tokens, game_state=state_ai, placer=placer_ai)
+rp.reanimate(squad_ai2, 2, all_tokens=state_ai.tokens, game_state=state_ai, placer=placer_ai)
+c.eq("two AI units in one frame open nothing", setup_ai.state, setup_mod.IDLE)
+c.eq("...and queue nothing", placer_ai.is_busy, False)
+c.true("...and both got their models back",
+       len(squad_ai.models) > 8 and len(squad_ai2.models) > 2)
+
+# A FOREIGN placement (an arrival, a disembark) is a different branch and must
+# NOT be queued - nothing here owns the resume for a placement it did not open,
+# so queuing it would be a deadlock. The engine still answers; what changed is
+# that it SAYS SO, which was the missing half of the report.
+state_f, squad_f, setup_f, placer_f = scene(HUMAN)
+other = tk.build(NECRON_WARRIORS, HUMAN, name="1 Necron Warriors 9")
+tk.line_up(other, x=52.0, y=20.0)
+state_f.tokens.extend(other.models)
+setup_f.start_setup(other, other.models[0].x_in, other.models[0].y_in,
+                    on_cancel=lambda _squad: None)
+c.eq("something else is placing", setup_f.state, setup_mod.PLACING)
+log_f = tk.Log()
+placer_f.game_log = log_f
+rp.reanimate(squad_f, 2, all_tokens=state_f.tokens, game_state=state_f, placer=placer_f)
+c.eq("a foreign placement is not stolen", setup_f.setting_up_squad is other, True)
+c.eq("...and nothing is queued behind it", placer_f.is_busy, False)
+c.true("...but the log SAYS the engine placed them",
+       log_f.has("placed by the engine"))
+
 c.finish()

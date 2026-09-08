@@ -7917,3 +7917,149 @@ Woertlich uebernommen, nichts gekuerzt.
   - **Die Basisgrößen-Notiz hat ihre PRÄMISSE verloren und ist deshalb neu geschrieben, nicht stillschweigend eingelöst.** Als die drei Jetbike-Einheiten auf 45 mm gebracht wurden, hielt die Notiz ausdrücklich fest, die Windriders blieben auf ihren gedruckten 32 mm, weil sie "in keiner Demo-Armee" stünden — der Skyrunner passte damit erstmals nicht zu dem Jetbike, dem er sich anschließt, aber nur theoretisch. Jetzt sitzt eine 45-mm-Base wirklich in einem Trupp aus 32-mm-Basen, also genau die Form, die die Skorpekh-Lord-Notiz "die Stelle, an der der Unterschied auffiele" nennt. Das ist eine GAMEPLAY-Zahl (`edge_distance()` liest den Radius, also ziehen Engagement Range, Überlappung, Kohärenz und Formations-Packen mit), deshalb wird sie BENANNT statt aufgeräumt: gemessen funktioniert es (alle 4 Modelle werden aufgestellt, Kohärenz hält über einen ganzen Selbstspiellauf). Der Pin in `test_warlock_skyrunners.py` trägt die neue Lage jetzt im Klartext.
   - **map3 ist unberührt** — sein Aeldari-Teilroster nennt weder Shroud Runners noch Windriders (Guardian Defenders + Farseer + Conclave, Dark Reapers, Falcon, Wraithguard), geprüft statt angenommen, weil `BattleMap.fields()` EXAKT matcht und ein veralteter Name still nichts fieldet.
   - **Getestet:** `test_player1_army.py` **89/89** (neu geschrieben, siehe oben), `test_army_select.py` **236/236**, `test_home_garrison.py` **79/79**, `test_take_to_the_skies_policy.py` **33/33**, `test_warlock_skyrunners.py` **55/55**. Volle Regression **123 Suiten, ~8058 Prüfungen, 122 grün / 0 rot / 1 bekannt**, dazu alle fünf Smokes (`smoke_pregame.py` auf map1 UND map2, `smoke_setup_screens.py` inkl. `--neutralize`, `smoke_log_input.py`, `smoke_measure_tool.py`, `smoke_end_turn_warning.py`) und `selfplay.py map2` 2000 Frames. Die Smokes hier keine Formalie: eine Anbindung fasst Aufstellung, Kohärenz und Zielwahl an. **Im echten Spiel belegt:** `[deploy] 1 Windriders 1 + Warlock Skyrunners (shooter) deployed at (9.9,35.9)`, `ist eine Attached Unit (19.01)`, und der Trupp taucht in der Bedrohungsrechnung der KI als Schussbedrohung auf (2.8-4.2/Zug), die Kanonen leisten also wirklich Arbeit.
+
+## Sitzung 2026-09-08: zwei Meldungen, zwei Ursachen, die weiter reichen als die Meldung
+
+Zwei Berichte aus einer Partie (`logs/game_20260907_224519.log`, T'au gegen Necrons, Player 2
+eröffnet jede Runde):
+
+1. *"defend stronghold wurde mir nicht zugerechnet, obwohl ich meine homeobjective die ganze zeit
+   hatte. lag es an objective secured?"*
+2. *"ich habe 2 vespiden, aber die rückkehr in reserve wurde mir immer nur von einem der beiden
+   squads angeboten."*
+
+### Die Reihenfolge der Arbeit, und warum sie so lief
+
+Beide zuerst REPRODUZIERT, an der Quelle, vor jeder Änderung — die stehende Regel dieses Repos, und
+sie hat sich hier zweimal ausgezahlt.
+
+**Meldung 2 war in fünf Minuten gefunden und ist größer als sie aussieht.**
+`AirborneAgilityController.offer_at_end_of_turn()` iteriert sortiert über die Trupps, ruft beim
+ERSTEN berechtigten `decision_manager.request()` und macht `return True`. `main.py` ruft die
+Methode genau einmal je Zugende. Zwei Vespid-Einheiten, ein Prompt — im Reproduktionsskript sofort
+bestätigt (`eligible: [1 Vespid Stingwings 1, 1 Vespid Stingwings 2]`, `prompts raised: 1`).
+
+Das Interessante war nicht der Fund, sondern die zwei ZWILLINGE, die beim Weiterlesen auffielen:
+`ride_the_wind.py` und `cloudstrider.py` tragen dieselbe Schleife. Und alle drei tragen einen
+Kommentar, der das Gegenteil behauptet — `main.py` schreibt neben den Aufruf wörtlich "unlike
+Airborne Agility, which is per unit", Cloudstrider schreibt "one at a time; the next end of turn
+offers again". Das nächste Zugende ist ein ANDERER Moment derselben Fähigkeit; die Ausrede löst
+nichts ein. Dieselbe Klasse wie `resolve_scouts()`' nie gebauter Menschenpfad.
+
+**Ride the Wind ist der Fall, der die FORM des Fixes entschieden hat.** Sein Rückzug ist nach
+Schlachtgröße gedeckelt, und sein Prompt DRUCKT den Reststand ("2 of 2 left this turn") — eine
+Zahl, die sich nur bewegen kann, wenn eine frühere Antwort sie bewegt hat. Bei einem einzigen
+Prompt pro Zugende war `remaining()` also dekorativ und `_withdrawn_this_turn` toter Zustand. Der
+naheliegende Fix (einfach für jede Einheit `request()` rufen; `DecisionManager` ist ja eine Queue)
+wäre kürzer und hier falsch: alle Prompts trUgen dieselbe veraltete Zahl, und die jenseits des
+Deckels täten beim Annehmen nichts. Also VERKETTET: `game/per_unit_offer.py`, eine Fortsetzung an
+BEIDEN Optionen (auch der Absage), Eignung und Prompttext vor jedem Schritt neu gefragt. Gemessen
+danach: "2 of 2 left" → "1 of 2 left", dritte Einheit gar nicht mehr gefragt, Deckel hält.
+
+**Sicher, weil `DecisionManager.choose()` seinen Eintrag POPPT, bevor es den Callback ruft** — die
+neue `request()` hängt sich also hinten an statt in die Queue zu rekursieren. Nachgesehen, nicht
+angenommen.
+
+**Nebenbei korrigiert:** die alte Form gab beim ersten `auto_players`-Trupp `return False`, ein
+menschlicher weiter hinten in der Sortierung bekam also gar kein Angebot. Jetzt aus den Kandidaten
+gefiltert; was die KI TUT, ist unverändert.
+
+### Meldung 1: die Frage des Users war die falsche Spur, und die richtige lag daneben
+
+"Lag es an objective secured?" — nein: `_defend_stronghold()` liest `controlled_by` (14.02), und
+`secured_by` (14.03) kann Kontrolle nur HALTEN, nie verhindern; gesetzt wird es ohnehin allein von
+Marker Beacon.
+
+**Der Log sagt, was wirklich passiert ist, und er sagt es nur halb.** Defend Stronghold wurde in
+Runde 2 gezogen (Zeile 683), nie gewertet, nie abgeworfen, und der Lauf endet mitten in Runde 5.
+Die Karte wertet in dieser Engine an GENAU EINEM Moment (Ende des gegnerischen Zuges, Runde 5) —
+also hätte der User in den Runden 2 bis 4 zu Recht nichts bekommen. Das erklärt die Beobachtung
+vollständig, ohne dass ein Fehler nötig wäre.
+
+**Beim Nachprüfen, OB dieser eine Moment überhaupt funktioniert, kam der echte Fehler heraus.**
+`advance_turn_phase()` ruft `secondary_mission_controller.begin_end_of_turn()` (Zeile 3684) und
+mehrere hundert Zeilen später, im SELBEN Durchlauf, `_check_battle_end()` (Zeile 3892). Die Karte
+öffnet einen PROMPT (nichts in diesem Deck wird automatisch gutgeschrieben), und
+`BattleEndOverlay.show()` FRIERT die angezeigten Zahlen ein und stellt sich per `_front_notice()`
+vor die Entscheidungsbox, die `main.py` nur zeichnet, solange `_front_notice()` None ist.
+Reproduziert: Karte vollständig für 5 VP, Prompt offen, eingefrorener Endstand **0**.
+
+**Es beisst nur bei einer bestimmten Zugreihenfolge, und im Log des Users gerade NICHT.** Er zieht
+als Zweiter, das Ende von Player 2s Runde-5-Zug ist also nicht das letzte Zugende. Nimmt der
+Kartenspieler den ersten Zug, ist es das — dann ist der Fehler scharf, und er trifft alle DREI
+Karten mit diesem Zeitpunkt (Beacon, Burden of Trust, Defend Stronghold). Also ein echter,
+latenter Fund, der die gemeldete Beobachtung NICHT erklärt. Beides gefixt und beides getrennt
+benannt, statt eins als das andere auszugeben.
+
+**Der Fix ist ein Tor plus ein Wiedervorlage-Punkt.** Ein Tor allein wäre ein Deadlock des
+Ergebnisses: `_check_battle_end()` wird nur aus `advance_turn_phase()` gerufen, und nach dem
+Battle-Over kommt kein Phasenwechsel mehr. Also zusätzlich ein Aufruf pro Frame, außerhalb der
+Event-Kette. Gegated auf `decision_manager.is_pending` statt auf das Deck-eigene `_asking`: EINE
+Bedingung statt zweier, die driften können — und alles andere, was an dieser Naht offen steht
+(Starflare sitzt dort), hat denselben Anspruch, vor dem Schlussstand beantwortet zu werden.
+Die Gegenrichtung ist mitgeprüft, sonst tauscht der Fix ein stilles Versagen gegen ein anderes.
+
+**Was OFFEN geblieben ist, und warum ich nicht geraten habe.** Defend Stronghold trägt neben dem
+Endrunden-Zeitpunkt ein `min_battle_round=2`, das unter diesem Zeitpunkt nie greifen kann —
+CLAUDE.md hielt das seit dem Bau als Kuriosum fest. Die zwei anderen Karten mit demselben Zeitpunkt
+haben KEINE Bande, und Beacons Badge wurde seinerzeit ausdrücklich beim User erfragt. Eine
+gedruckte Karte trägt keine Bande, die nie gilt: entweder ist die Bande zu viel oder der Zeitpunkt
+falsch. Im zweiten Fall wertet die Karte am Ende JEDES gegnerischen Zuges ab Runde 2 — und DAS
+wäre die vollständige Erklärung der Meldung. Nach der stehenden Regel (Fehlerklasse 13: bei
+user-gelieferten Regeln den WORTLAUT holen, nicht zwei Lesarten zur Auswahl stellen) ist das
+erfragt statt entschieden.
+
+### Was die Tests konnten und was nicht
+
+**Alle drei Vespid-/Ride-the-Wind-/Cloudstrider-Suiten waren grün und blind**, aus demselben Grund:
+jede stellt GENAU EINE berechtigte Einheit. Eine Prüfung, die einen Trupp übergibt, kann "nur der
+erste wird gefragt" strukturell nicht sehen. Die neuen Zeilen zählen deshalb PROMPTS über eine
+Zwei-Einheiten-Armee, durch die echte Queue gedrainiert, mit der Gegenprobe, dass zweimal Absagen
+das Brett unberührt lässt (sonst bestünde "zwei Prompts" auch auf einer Kette, die eine Einheit
+abzieht und dann über die Übriggebliebenen fragt).
+
+**Zum Battle-End-Zusammenspiel gab es GAR KEINEN Test**, und das ist strukturell: `test_secondary_
+missions.py` besitzt die KARTEN und fasst `main.py`s Reihenfolge nie an, die Smokes erreichen Runde
+5 nicht. Neu `test_final_round_scoring.py`, das beide Hälften an einem Ort hat und den ECHTEN
+`BattleEndOverlay` fährt — der eingefrorene Schnappschuss ist die Hälfte des Defekts, ein Stub
+hätte ihn wegdefiniert.
+
+**Zwei Befunde über den TEST, beide von den eigenen Sonden:**
+- Zwei A/B-Sonden ließen `test_aeldari_detachment_rules.py` ABSTÜRZEN statt rot zu werden — die
+  neue Prüfung indizierte in eine Prompt-Liste, die in der Vor-Fix-Welt einen Eintrag hat. Zum
+  wiederholten Mal dieselbe Lehre; die Zeile polstert jetzt.
+- Die Kartenmenge in `test_final_round_scoring.py` war zuerst über `ALL_CARDS` gebildet und
+  meldete zwei statt drei: **Burden of Trust ist gebaut und bewusst NICHT im Stapel**. Sie läuft
+  jetzt über die Karten-OBJEKTE des Moduls, also über alles, was diesen Zeitpunkt trägt.
+- Und ein Zähler `main_src.count("_check_battle_end()")` meldete 4 statt 2 — die eigene
+  `def`-Zeile und ein Kommentar zählten mit. Jetzt per AST, also die AUFRUFE.
+
+### Laufzeit-Belege, und eine benannte Lücke
+
+`verify_airborne_agility_offers.py` fährt `selfplay.py`s echte `main()`-Schleife mit `tau_recon` —
+der einzigen ausgelieferten Liste mit ZWEI Vespid-Einheiten, also genau der gemeldeten Armeeform —
+und fragt den LIVE von `main()` gebauten Controller: **2 berechtigt, 2 Prompts**; `--neutralize`
+**2 berechtigt, 1 Prompt**.
+
+Zwei eigene Sondenfehler unterwegs, beide gemessen statt geraten:
+- Die erste Fassung setzte die Vespids in eine feste Ecke — auf map2 gehört die LOW-Y-Kante
+  Player 2, die Einheiten landeten also in der gegnerischen Linie und kamen beide zu Recht als
+  "engaged" zurück. Die Ecke wird jetzt aus dem tatsächlichen Standort des Gegners abgeleitet.
+- Die zweite wollte auf einem Frame messen, auf dem nichts anderes ansteht — gemessen: die
+  laufende Partie hat fast immer einen eigenen Prompt vorne in der Queue, die Sonde feuerte nie.
+  Jetzt ein FRISCHER `DecisionManager` nur für die Messung, damit das Beantworten der eigenen
+  Prompts keinen fremden mitbeantwortet. Nur der Briefkasten ist getauscht; Controller, Eignung
+  und Kette sind echt.
+
+**Für das Battle-End gibt es bewusst KEINE Laufzeit-Sonde, und der Grund ist gemessen:** das letzte
+Zugende liegt fünf Runden tief, ein MockAgent-Lauf schafft ~7 Phasenwechsel je 3000 Frames gegen
+die ~50 einer Schlacht. Die Verdrahtung hält dafür ein AST-Wachter auf beide Aufrufstellen, und
+die Grenze steht im Modulkopf der Suite, statt sie zu verschweigen.
+
+### Zahlen
+
+`test_tau_kroot_and_vespid.py` 140 → **146**, `test_aeldari_detachment_rules.py` 380 → **385**,
+`test_baharroth.py` 66 → **70**, neu `test_final_round_scoring.py` **22**. Neu
+`ab_per_unit_offer.py` (**9 A/B-Sonden, alle beißend**) und `verify_airborne_agility_offers.py`.
+Volle Regression **191 Suiten, ~16931 Prüfungen, 190 grün / 0 rot / 1 bekannt**, `run_tests.py
+--smoke` komplett grün (alle neun schweren Skripte).

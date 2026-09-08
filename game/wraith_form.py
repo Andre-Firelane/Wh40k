@@ -174,6 +174,16 @@ class WraithFormController:
         return True
 
     def on_dice_acknowledged(self):
+        # The Feel No Pain roll inside the allocation is acknowledged here too,
+        # and this branch must come FIRST: _pending is the DICE context and is
+        # already None by the time the session exists, so the early return
+        # below would swallow every FNP acknowledgement. Same shape, and the
+        # same reason, as EnhInternalGrenadeRacksController's.
+        if (self._pending is None and self.mortal_wound_session is not None
+                and self.mortal_wound_session.pending_fnp is not None):
+            self.mortal_wound_session.on_fnp_acknowledged()
+            self._check_allocation_done()
+            return True
         if self._pending is None:
             return False
         ctx, self._pending = self._pending, None
@@ -190,3 +200,28 @@ class WraithFormController:
             target, wounds, dice_manager=self.dice_manager,
             log=(lambda m: self._log(m)) if self.game_log is not None else None)
         return True
+
+    @property
+    def pending_damage_choice(self):
+        """Rule 06.02: the DEFENDER allocates.
+
+        This was missing, and the session it belongs to was built anyway.
+        Measured before the fix: three sixes rolled, the log said "3 mortal
+        wound(s)", and ZERO landed on a ten-model target - the session parked
+        on pending_choice with ten candidates and nothing could answer it.
+        Against a one-model target it resolved, which is why it survived.
+        """
+        if self.mortal_wound_session is None:
+            return None
+        return self.mortal_wound_session.pending_choice
+
+    def choose_damage_model(self, model):
+        if self.mortal_wound_session is None:
+            return
+        self.mortal_wound_session.choose_model(model)
+        self._check_allocation_done()
+
+    def _check_allocation_done(self):
+        if self.mortal_wound_session is None or not self.mortal_wound_session.done:
+            return
+        self.mortal_wound_session = None

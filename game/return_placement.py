@@ -56,9 +56,23 @@ class ReturnPlacementController:
         self.game_log = game_log
         self.auto_players = ai_mode.players(auto_players)
         self._pending = None      # (squad, [models], on_done) while a human places
+        # Placements that arrived while one of OURS was still open. A
+        # human whose second unit reanimates in the same Command phase
+        # used to have its models seated by the engine, silently: see
+        # place()'s third branch.
+        self._waiting = []        # [(squad, [models], on_done)]
 
     @property
     def is_busy(self):
+        """INVARIANT: a queued placement always has an open one in front of it.
+
+        place() only appends to _waiting while _pending is set, and
+        _start_next() either opens the next one (setting _pending again) or
+        empties the list - so `_waiting` can never be non-empty on its own.
+        An `or bool(self._waiting)` here would be a branch no input reaches,
+        which is how a dead term ends up being believed load-bearing; its own
+        A/B probe reported NO BITE and that is how this was found.
+        """
         return self._pending is not None
 
     @property
@@ -98,25 +112,60 @@ class ReturnPlacementController:
                                       game_state=self.game_state)
             returned.append(model)
 
-        if (squad.owner in self.auto_players or self.setup_controller is None
-                or not self.setup_controller.can_start_setup(squad)):
+        if squad.owner in self.auto_players or self.setup_controller is None:
             # The AI's answer, and the answer whenever there is no placement
             # flow to open - byte for byte what every one of these abilities
-            # did before, in the same frame.
+            # did before, in the same frame. THE AI PATH DOES NOT MOVE: this
+            # disjunct stays first and untouched, which is the promise this
+            # module's docstring makes.
             if on_done is not None:
                 on_done(returned)
             return returned
 
-        self._pending = (squad, list(returned), on_done)
+        if not self.setup_controller.can_start_setup(squad):
+            # can_start_setup() is "state == IDLE", so this branch means
+            # SOMEBODY is already placing. It used to be folded into the line
+            # above, which made it a silent human -> engine fallback: measured
+            # with two damaged human Necron units reanimating in one Command
+            # phase, the placement opened for the FIRST one twice and the
+            # second unit's models were seated by the engine with no prompt and
+            # no distinguishing log line.
+            if self._pending is not None:
+                # Ours. Queue it - confirm()/_on_cancel() start the next.
+                self._waiting.append((squad, list(returned),
+                                      [spot for _m, spot in pairs], validator, on_done))
+                self._log("%s: %d returning model(s) queued behind %s's placement."
+                          % (squad.name, len(returned), self._pending[0].name),
+                          file_only=True)
+                return returned
+            # Somebody ELSE is placing (an arrival, a disembark). Queuing here
+            # would be a deadlock: nothing in this controller owns the resume
+            # for a placement it did not open. So the engine still answers -
+            # but it SAYS SO, which is the half that was missing.
+            self._log("%s: %d returning model(s) placed by the engine - another "
+                      "placement was already open." % (squad.name, len(returned)))
+            if on_done is not None:
+                on_done(returned)
+            return returned
+
+        self._open(squad, list(returned), [spot for _m, spot in pairs],
+                   validator, on_done)
+        return returned
+
+    def _open(self, squad, models, positions, validator, on_done):
+        """Hand ONE placement to the human. The single door, so a queued
+        placement re-enters by exactly the same arguments the first one used
+        rather than through a second copy of them."""
+        self._pending = (squad, list(models), on_done)
         self.setup_controller.start_setup(
-            squad, returned[0].x_in, returned[0].y_in,
+            squad, models[0].x_in, models[0].y_in,
             on_cancel=self._on_cancel,
             # Only the returning models move; the survivors are standing
             # somewhere legal already and this must not pick them up.
-            models=list(returned),
+            models=list(models),
             # ...starting from the engine's own spots, so the human adjusts an
             # answer rather than dragging a pile apart.
-            positions=[spot for _m, spot in pairs],
+            positions=list(positions),
             # Rule 01.02.03 lets a returning model be set up engaged when its
             # unit already is. `validator` is the ability's own per-position
             # predicate, which enforces the narrower half of that clause; the
@@ -129,7 +178,23 @@ class ReturnPlacementController:
         )
         self._log("%s: place the returning model(s), then Confirm." % squad.name,
                   file_only=True)
-        return returned
+
+    def _start_next(self):
+        """Open the next queued placement, if any. Called from BOTH exits -
+        a cancelled placement owes the queue exactly what a confirmed one
+        does."""
+        while self._waiting:
+            squad, models, positions, validator, on_done = self._waiting.pop(0)
+            living = [m for m in models if m in squad.models]
+            if not living:
+                # Nothing left to place (the models went back down, or the unit
+                # was wiped in between). Its on_done is still owed an answer.
+                if on_done is not None:
+                    on_done([])
+                continue
+            self._open(squad, living, positions[:len(living)], validator, on_done)
+            return True
+        return False
 
     # ------------------------------------------------------- resolving it
 
@@ -145,6 +210,7 @@ class ReturnPlacementController:
         self._pending = None
         if on_done is not None:
             on_done(models)
+        self._start_next()
         return True
 
     def cancel(self):
@@ -177,3 +243,4 @@ class ReturnPlacementController:
                   % squad.name)
         if on_done is not None:
             on_done([])
+        self._start_next()

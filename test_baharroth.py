@@ -167,6 +167,30 @@ own = withdraw_scene(led=True)
 own["ctrl"].offer_at_end_of_turn("Player 1")
 checks.eq("nothing is offered at the end of its OWN turn", own["decision"].is_pending, False)
 
+# EVERY eligible unit is asked, one prompt at a time. This used to raise one
+# and return, with "one at a time; the next end of turn offers again" written
+# beside it - but the next end of turn is a DIFFERENT instant of the ability,
+# so a second led unit was simply never offered. Same defect the Vespid report
+# found in Airborne Agility; the chain is game/per_unit_offer.py. Every check
+# above stages exactly one eligible unit, which is why none of them saw it.
+pair = withdraw_scene(led=True)
+second = au.attach(baharroth(), hawks())
+second.name = "1 Swooping Hawks 2"
+tk.line_up(second, y=45.0)      # clear of the enemy row withdraw_scene puts at y=30
+for m in second.models:
+    pair["state"].add_token(m)
+checks.true("the second led unit is eligible too",
+            cloudstrider.can_withdraw(second, pair["state"]))
+pair["ctrl"].offer_at_end_of_turn("Player 2")
+asked = []
+while pair["decision"].is_pending and len(asked) < 5:
+    asked.append(pair["decision"].prompt)
+    tk.pick_option(pair["decision"], "Stay")
+checks.eq("BOTH led units are asked at one turn end", len(asked), 2)
+checks.true("...each prompt naming its own unit",
+            all(any(u.name in a for a in asked) for u in (pair["squad"], second)))
+checks.eq("...and declining both left the board alone", len(pair["state"].reserves), 0)
+
 
 # --- 4. Cloudstrider, half two: the 6" arrival ------------------------------
 print("--- 4. Cloudstrider: the arrival ---")

@@ -174,7 +174,7 @@ def placement_validator(squad, all_tokens=(), position_valid=None):
 
 
 def reanimate(squad, wounds, all_tokens=(), position_valid=None, game_state=None,
-              placer=None):
+              placer=None, on_placed=None):
     """Spend `wounds` reanimated wounds on `squad`, per 02.02.04 + 01.02.03.
 
     Returns (wounds_spent, revived_models). `wounds_spent` can be less than
@@ -233,6 +233,11 @@ def reanimate(squad, wounds, all_tokens=(), position_valid=None, game_state=None
             spots,
             wounds=[give for _model, give in plan],
             validator=valid,
+            # Fires when the placement is CONFIRMED (or cancelled, with an
+            # empty list) - which for a human is frames later. The army rule
+            # uses it to hold its queue; every other caller passes None and
+            # is unaffected.
+            on_done=on_placed,
         )
         spent += sum(give for (model, give) in plan if model in revived)
         return spent, revived
@@ -301,6 +306,10 @@ class ReanimationProtocolsController:
         self._queue = []            # squads still owed a roll this Command phase
         self._current = None        # the squad whose die is on the table
         self._reroll_offered = False
+        # True only while reanimate() is running, so the placer's
+        # synchronous on_done (the AI path) cannot advance the queue
+        # from inside _apply(). See _resume_queue().
+        self._applying = False
 
     # ---------------------------------------------------------------- state
 
@@ -418,18 +427,47 @@ class ReanimationProtocolsController:
         return True
 
     def _apply_and_advance(self, squad, rolled):
+        """Apply, then move on - but NOT while the human is still placing.
+
+        Before this guard, _apply() opened the placement and _roll_next() put
+        the NEXT unit's dice on the table in the same call stack. Acknowledging
+        that die ran _apply() for unit two while unit one was still PLACING, so
+        can_start_setup() said no and unit two's models were seated by the
+        engine. Measured: two damaged human units, both reanimated, the
+        placement opened for the FIRST one twice.
+        """
         self._apply(squad, rolled)
+        if self.placer is not None and self.placer.is_busy:
+            return          # _resume_queue() picks it up when the human is done
+        self._roll_next()
+
+    def _resume_queue(self, _models=None):
+        """The placer's on_done. Rolls the next unit once the board is free.
+
+        RE-ENTRANCY: on the AI / no-flow path place() calls on_done
+        SYNCHRONOUSLY from inside _apply(), so without the latch the queue
+        would advance twice - once here and once from _apply_and_advance()'s
+        tail. Fehlerklasse 9b, and it is why the latch is explicit rather than
+        inferred from placer.is_busy.
+        """
+        if self._applying:
+            return
         self._roll_next()
 
     def _apply(self, squad, rolled):
         self._current = None
-        spent, revived = reanimate(
-            squad, rolled,
-            all_tokens=self._tokens(),
-            position_valid=self.position_valid,
-            game_state=self.game_state,
-            placer=self.placer,
-        )
+        self._applying = True
+        try:
+            spent, revived = reanimate(
+                squad, rolled,
+                all_tokens=self._tokens(),
+                position_valid=self.position_valid,
+                game_state=self.game_state,
+                placer=self.placer,
+                on_placed=self._resume_queue,
+            )
+        finally:
+            self._applying = False
         if not spent:
             self._log(f"[reanimation] {squad.name}: rolled a {rolled}, nothing to recover.",
                       file_only=True)

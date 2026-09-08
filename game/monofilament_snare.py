@@ -180,9 +180,45 @@ class MonofilamentSnareController:
         self._log("%s: %s suffers %d mortal wound(s) for moving while snared."
                   % (MONOFILAMENT_SNARE_LABEL, squad.name, count))
         self.mortal_wound_session = MortalWoundAllocationSession(
-            squad, count, dice_manager=self.dice_manager, log=self.game_log)
+            squad, count, dice_manager=self.dice_manager, log=self._log)
 
     @property
     def is_busy(self):
         session = self.mortal_wound_session
         return session is not None and not getattr(session, "done", True)
+
+    # ------------------------------------------------- rule 06.02 allocation
+    # The session above parks on pending_choice whenever the target has more
+    # than one eligible model, and nothing here could answer it - so against
+    # any multi-model unit the mortal wounds were rolled, logged and never
+    # applied. Same three members as EnhInternalGrenadeRacksController's, so
+    # main.py's damage-choice lists hold this controller without a special
+    # case.
+
+    @property
+    def pending_damage_choice(self):
+        if self.mortal_wound_session is None:
+            return None
+        return self.mortal_wound_session.pending_choice
+
+    def choose_damage_model(self, model):
+        if self.mortal_wound_session is None:
+            return
+        self.mortal_wound_session.choose_model(model)
+        self._check_allocation_done()
+
+    def on_dice_acknowledged(self):
+        """Only the Feel No Pain leg: this ability rolls its own dice inline
+        (_roll_one), so there is no pending dice context to resume - unlike the
+        controllers this drain was copied from."""
+        session = self.mortal_wound_session
+        if session is None or session.pending_fnp is None:
+            return False
+        session.on_fnp_acknowledged()
+        self._check_allocation_done()
+        return True
+
+    def _check_allocation_done(self):
+        if self.mortal_wound_session is None or not self.mortal_wound_session.done:
+            return
+        self.mortal_wound_session = None
