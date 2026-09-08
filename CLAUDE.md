@@ -141,6 +141,13 @@ Flag gehört in `activation_state.SQUAD_FLAGS_EXCLUDED`, ein bezahlter Grant in
 Klick-Zweig, ein `draw_damage_choice_highlight()` und einen Eintrag in der
 KI-Pause `_any_pending_damage_choice()`.
 → **§6** (klickbar + gezeichnet), **§12** (KI-Pause).
+**Und wer eine `MortalWoundAllocationSession` ÖFFNET, muss sie LEEREN können**
+(`pending_damage_choice` + `choose_damage_model` + die FNP-Etappe VOR dem
+`_pending is None`-Early-return) — sonst parkt sie gegen jedes Mehr-Modell-Ziel
+für immer und die Wunden landen nie. → **§17**, das als einziges beim MODUL
+startet statt bei `main.py`, weil §6/§10/§12 einen nie gefragten Controller
+nicht sehen können. **§17b** prüft dazu, dass ihr `log=` ein CALLABLE ist: das
+GameLog-Objekt kracht, sobald eine Wunde auf einem Ein-Modell-Ziel landet.
 
 **Ein Zug außerhalb der Bewegungsphase** → der Modus gehört in
 `MovementController.OUT_OF_PHASE_MOVE_MODES`, und ein REAKTIVER zusätzlich in
@@ -300,6 +307,19 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
     Seither **`game/per_unit_offer.py` (32.)** — „biete diese Wahl JEDER berechtigten
     Einheit an, eine nach der anderen“, gelesen von Airborne Agility, Ride the Wind und
     Cloudstrider; siehe `## Zwei Meldungen aus einer Partie`.
+    Seither **`game/mortal_wound_sessions.py` (32.)** — „wie leert man eine LISTE
+    offener Mortal-Wound-Sessions", gelesen von `drakolithe.py` und
+    `harvester_of_souls.py`, den einzigen zwei mit dieser Form. Dort ist die
+    REIHENFOLGE Teil der Antwort: die erste geparkte Session in
+    Einfüge-Reihenfolge wird angeboten UND beantwortet, sonst teilen zwei
+    Replays einer Schlacht dieselben Wunden verschieden zu.
+    **Die VIERTE Ausprägung von Fehlerklasse 10, und sie ist die teuerste
+    Variante von „eine Stelle antwortet gar nicht":** ein Wächter, der bei
+    `main.py` STARTET, kann einen Controller nicht sehen, den `main.py` gar
+    nichts fragt. §6/§10/§11/§12 tun genau das, und alle vier waren blind für
+    vier Module, die eine Zuteilung ÖFFNETEN und nie leeren konnten. Der
+    Gegenwächter muss beim MODUL starten (§17) — dieselbe Umkehrung wie
+    §6-gegen-§10, eine Schicht weiter außen.
     Seither **`weapons.anti_entries()` (31.)** — „wie liest man `WeaponProfile.anti`", gelesen von
     `shooting._wound_crit_threshold()` und von `weapons.printed_keywords()`; es liegt jetzt bei
     dem Feld, das es liest, und `shooting.py` re-exportiert es unter dem alten privaten Namen,
@@ -392,6 +412,14 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
     Edits erst WIEDERHOLEN, dann suchen. Mehrfach als Scheinfehler bestätigt.
 20. **Parallele Claude-Sitzungen auf demselben Repo** kommen vor: vor der Ursachensuche prüfen
     (mtime, A/B), ob ein Fehlschlag überhaupt der eigenen Änderung gehört.
+    **NEUE, schlimmere Form: ein `git add -A` der einen Sitzung kann den
+    TRANSIENTEN Zustand eines A/B-Sondenlaufs der anderen einfangen.** So ist
+    `if False: return False` an die Stelle des gedruckten TARGET-Ledgers von
+    Hungry Void in Commit `412dc4a` geraten — eine Sonde hatte die Datei für
+    zwei Sekunden neutralisiert. Die `-A`-Regel bleibt (sie ist Absicht), aber:
+    **ein Sondenlauf und ein Commit dürfen sich nicht überlappen**, und nach
+    einem Commit, der neben einem Sondenlauf lag, ist `git grep "if False:"`
+    über HEAD die billige Gegenprobe.
 21. **Bash-Heredocs zerlegen Prompt-/Codetexte** (Apostrophe, `\n`, `\"`) — mehrfach passiert.
     Solche Texte über Write/Edit schreiben.
 22. **Positionelle Aufrufe**: `action_panel.draw()` und `game_status_panel.draw()` werden positionell
@@ -538,6 +566,13 @@ schickt die nächste Untersuchung zurück aufs Brett.**
   `main()` überlebt hat, ob der Ausfall mit lesbarem Grund gelatcht wurde, ob die Meldung
   GENAU EINMAL kam — und wie viele Frames danach noch liefen, weil "stürzt nicht ab" und
   "spielt weiter" zwei verschiedene Behauptungen sind (919 gegen 0).
+  **`verify_necron_stratagem_buttons.py` / `verify_necron_wraith_form.py`** —
+  dieselbe Sorte für die Necrons, und beide fielden sie als **PLAYER 1**:
+  `config` liefert `PLAYER2_ARMY = "necrons"` aus, eine Frage über die Knöpfe
+  des MENSCHEN misst sonst die Armee der KI und meldet eine wahrheitsgetreu
+  aussehende Null. Die zweite postet einen ECHTEN Klick in `main()`s Pump auf
+  ein Modell, das das Spiel selbst für wählbar erklärt (3 Wunden gelandet gegen
+  `--neutralize`s 1815 Frames blockierend und NIE aufgelöst).
   **`verify_stratagem_tooltip.py [map] [--neutralize]`** — der Stratagem-Tooltip durch dieselbe
   echte Schleife. Sie muss DREI Tatsachen liefern, die dieser Harness nicht selbst herstellt (eine
   gewählte Einheit, ein diese Phase nutzbares Stratagem, und ein Dwell ohne offenen Prompt — die
@@ -9172,6 +9207,263 @@ wertlos wie eine, die gar nicht beißt; ein String-Literal isoliert sie.
 alle beißend.** Volle Regression **189 Suiten, ~16771 Prüfungen, 188 grün /
 0 rot / 1 bekannt**, `run_tests.py --smoke` komplett grün (alle neun schweren
 Skripte).
+
+## Werden die Necron-Stratagems überhaupt ANGEBOTEN? (Prüfung, 2026-09-08)
+
+**Auftrag:** dieselbe Prüfung wie für die Aeldari und die T'au, für die Necrons —
+*„werden sie dem Spieler zum korrekten Zeitpunkt angeboten, und wirken sie dann
+auch wirklich?"*, ausdrücklich **inklusive Enhancements**.
+
+**Fünf echte Fehler**, und die zwei schwersten sind KEINE Angebots-Fehler,
+sondern Wirkungs-Fehler: eine Regel, die ihre Wunden nie zuteilt, und eine, die
+dem Menschen die Platzierung wegnimmt. Alle fünf standen an der Quelle fest,
+BEVOR eine Zeile Test existierte.
+
+### Der Zuschnitt war anders, und das ist der Inhalt
+
+Die zwei vorherigen Audits fanden dieselbe Lücke (kein Test hat je das ECHTE
+Panel gezeichnet). Hier gilt sie auch — aber sie ist nicht mehr die Hauptfläche:
+
+- **Die drei Panel-Knöpfe sind die am schlechtesten bewachten des Spiels.**
+  Hungry Void / Sudden Storm / Conquering Tyrant gehen NICHT über
+  `proactive_stratagems`: keiner definiert `panel_label()`, sie kommen als
+  eigene Keyword-Argumente durch `draw() → _draw_dispatch() →
+  _draw_movement_ui()`. **§14 deckt also keinen von ihnen.** Der einzige Beleg
+  war `test_awakened_dynasty.py:527`, ein blanker Teilstring
+  `"hungry_void_controller=hungry_void_controller" in main_src` — er hält unter
+  `if False:`, hält, wenn das Panel nichts zeichnet, und hält in der falschen
+  Phase. **Gemessen sind sie trotzdem RICHTIG**; nur bewiesen war nichts.
+- **Die KI-WEICHE ist hier die eigentliche Fläche, und sie existierte bei den
+  anderen zwei gar nicht.** Necrons sind die Default-Armee der KI, jede
+  Fähigkeit hat zwei Wege (`auto_players` / Prompt), und genau dort wurde in
+  diesem Repo schon einmal ein Fehler AUSGELIEFERT. Drei der fünf Funde liegen
+  hier.
+- **Und die Funde sind NICHT dormant.** `armies/necrons.json` fieldet Awakened
+  Dynasty, alle sechs Protokolle sind im echten Spiel live — anders als die
+  30 von 42 Aeldari-Controllern, die kein Roster erreicht.
+
+**Die Wächter waren grün und WAREN NICHT die Lücke** (113 Prüfungen, 0 rot).
+Alle fünf Funde liegen in ihren blinden Winkeln, und der Grund ist strukturell:
+§6/§10/§11/§12 starten alle bei „wen FRAGT `main.py`" — ein Controller, den
+`main.py` gar nichts fragt, ist ihnen unsichtbar.
+
+### Die fünf Fehler
+
+| # | Fehler | Wirkung |
+|---|---|---|
+| 1 | **VIER** Controller öffnen eine `MortalWoundAllocationSession` und **keiner** kann sie leeren | gegen jedes Mehr-Modell-Ziel landen **null** Wunden — das Log meldet sie trotzdem |
+| 2 | Dieselben drei Aeldari-Module übergeben das GameLog-**Objekt** statt eines Callables | `TypeError: 'GameLog' object is not callable`, sobald eine Wunde auf einem Ein-Modell-Ziel landet |
+| 3 | Die **zweite** reanimierende Einheit wird dem Menschen weggeplatziert | Platzierung öffnet zweimal für die ERSTE; keine unterscheidende Logzeile |
+| 4 | Vengeful Stars: die KI läuft alle Paare, der Mensch bekommt ein nacktes Ja/Nein auf Kandidat[0] | restliche Kandidaten still verworfen, keine Brett-Tags |
+| 5 | Prompt-Hygiene: ein Decline, den die Regel nicht druckt; Optionen ohne Brett-Tag | Living Lightning, Technomancer |
+
+**F1 — die vier, und sie sind ZWEI Fraktionen.** 21 Module in `game/` bauen
+eine Session, **16** leeren sie, `damage_resolution.py` ist die
+Definitionsstelle — bleiben `wraith_form.py` (Necron), `drakolithe.py`,
+`harvester_of_souls.py`, `monofilament_snare.py` (Aeldari). Es gibt **keinen**
+geteilten Sweep. Reproduziert, Canoptek Wraiths über zehn Boyz: `remaining=3,
+inflicted=0, pending_choice=10 Kandidaten`, Log sagt „3 mortal wound(s)", **0
+gelandet**. Gegen ein EIN-Modell-Ziel löste es auf — deshalb hat es überlebt.
+`wraith_form.is_busy` liest den WÜRFEL (`_pending`), der eine Zeile VOR dem
+Session-Bau genullt wird, ist also die ganze Lebensdauer der Session False.
+Das direkte Geschwister, 8 Zeilen später am SELBEN Haken gebaut, hat alle drei
+Methoden (`enh_internal_grenade_racks.py:186-227`).
+
+**F2 ist der Spiegel von F1 und war ohne die Necron-Arbeit unsichtbar.**
+Die Session ruft `self.log(msg)` als CALLABLE; 18 von 21 Bauplätzen übergeben
+eins, genau drei das Objekt. **Mehr-Modell-Ziel parkt für immer, Ein-Modell-Ziel
+kracht** — die zwei Ausfallarten haben einander verdeckt. `monofilament_snare`
+hatte den richtigen Helfer schon und benutzte ihn nicht.
+
+**F3 — der stille Mensch→Auto-Rückfall.** `return_placement.py`s dritter
+Disjunkt `not can_start_setup(squad)` heißt „SOMEBODY is already placing" und
+war mit „this is the AI" zusammengefaltet. `reanimation_protocols._apply_and_advance`
+rollte den nächsten Würfel im selben Call-Stack über die offene Platzierung.
+Reproduziert (zwei beschädigte menschliche Einheiten, D3 auf 3):
+`placement opened for: ['1 Unit0 1', '1 Unit0 1']`.
+
+**F4** ist wörtlich die Form, die `resurrection_orb.py:148-171` bereits behoben
+hat — dessen Kommentar zitiert den User-Bericht, aus dem die Klasse stammt.
+
+### Die Fixes
+
+- **F2 zuerst** (3 Zeilen), weil kein Verhaltenstest für die drei eine Wunde
+  landen lassen kann, solange sie kracht.
+- **F1: die zwei SINGULÄREN Halter** kopieren das Geschwister (es gibt bereits
+  16 solche Kopien; ein Mixin für zwei von 21 wäre eine dritte Schreibweise —
+  Fehlerklasse 10s dritte Form). **Die zwei LISTEN-Halter** sind der ZWEITE
+  Konsument einer Form ohne jede Kopie → neu **`game/mortal_wound_sessions.py`**
+  (32. Extraktion). Dort ist die REIHENFOLGE Teil der Antwort: `pending_choice()`
+  liefert die erste geparkte Session in Einfüge-Reihenfolge und `choose()`
+  routet in dieselbe, sonst teilen zwei Replays einer Schlacht dieselben Wunden
+  verschieden zu.
+  Dazu je fünf `main.py`-Kanten (AI-Pause, Phasen-Tor mit BEIDEN Termen,
+  Klick-Zweig, Highlight, Würfel-Ack). Die FNP-Etappe muss VOR `if self._pending
+  is None: return False` stehen — sechsmal im Aeldari-Audit bezahlt.
+- **F3: der Rückfall wird an der Engstelle GETEILT.** Die EIGENE offene
+  Platzierung → Warteliste, von `confirm()` UND `_on_cancel()` abgearbeitet.
+  Eine FREMDE (Ingress, Disembark) → Engine antwortet weiter, **aber sie sagt
+  es** — sie zu queuen wäre ein Deadlock, weil niemand hier das Resume einer
+  fremden Platzierung besitzt. Der `auto_players`-Disjunkt bleibt ERSTER und
+  unangetastet (die stehende „THE AI IS UNCHANGED"-Zusage). Dazu hält
+  `_apply_and_advance()` die Warteschlange, mit einem `_applying`-LATCH gegen
+  die Re-Entrancy: auf dem KI-Pfad ruft `place()` sein `on_done` SYNCHRON,
+  ohne den Latch rückt die Queue zweimal vor (Fehlerklasse 9b).
+- **F4** nach dem Muster des Orbs: EINE Liste, von beiden Zweigen gelesen; eine
+  getaggte Option je gültigem Paar; das Label nennt BEIDE Einheiten (zwei
+  Optionen „Use Protocol of the Vengeful Stars" sind ununterscheidbar); der
+  Regelname bleibt im PROMPT, weil `prompt_rule.py` ihn dort zurückliest.
+- **F5**: Living Lightnings Decline gestrichen (gedruckt „select one enemy
+  unit", mandatorisch — Typhus' Eater Plague daneben druckt „you can select"
+  und BEHÄLT seinen, das ist die Gegenprobe); Technomancer-Optionen bekommen
+  den dritten Tupel-Slot.
+
+### ZWEI eigene tote Zweige, von den eigenen Sonden gefunden
+
+Der erste Anlauf gab `is_busy` ein `or bool(self._waiting)` und `main.py` einen
+zweiten Tor-Term. **Beide Sonden meldeten NO BITE**, und Nachmessen zeigte
+warum: `place()` queut nur, solange `_pending` gesetzt ist, eine gequeute
+Platzierung hat also IMMER eine offene vor sich — und eine offene ist
+`setup_controller.state == PLACING`, worauf das Tor längst wartet. Beides
+entfernt statt mit einer Sonde versehen, die nicht fallen kann; die Invariante
+ist in `test_return_placement.py` §12 gepinnt.
+
+### Der neue Wächter: `test_event_chain_wiring.py` §17/§17b
+
+**Die Umkehrung von §6, eine Schicht weiter außen.** §6/§10/§11/§12 starten bei
+`main.py`; §17 startet beim MODUL: jedes, das eine Session ÖFFNET, muss sie
+leeren können. Per AST, und das ist keine Stilfrage — ein Teilstring-Sweep
+trifft ~30 Module, davon neun nur in Kommentaren, und
+`mortal_wound_abilities.py:244-262` nennt die Klasse in einem Kommentar, der
+**genau diesen Fehler erklärt** (Fehlerklasse 24 in Reinform).
+Ausnahmeliste: **ein** Eintrag (`damage_resolution.py`) mit DREI
+Lebendigkeitszeilen — es baut noch eine, es definiert die Klasse, und es leert
+sie synchron per `while not …done`. **§17b**: das `log=`-Argument darf nicht das
+GameLog-Objekt sein, als REFUSAL der einen falschen Form geschrieben statt als
+Whitelist der richtigen. **113 → 136.**
+
+### Die neue Suite: `test_necron_stratagem_ui.py` (100 Prüfungen)
+
+Die fehlende Hälfte, Vorlage `test_tau_stratagem_ui.py`. Vier Dinge, die eine
+kopierte Suite still nichts hätte messen lassen:
+
+- **Hungry Voids fehlende Owner-Klausel ist AM PANEL messbar**, und das kann
+  keine der zwei anderen Fraktionen: sein WHEN ist „Fight phase." ohne „Your",
+  und `MovementController.can_select()` gibt im Fight bedingungslos True zurück
+  (12.02/12.04) — die T'au mussten deshalb auf `can_use()` ausweichen. §2b
+  rendert es im Fight des GEGNERS und verlangt den Knopf DORT.
+- **§0 Liveness misst den DISPATCH-ZWEIG, nicht die Knopfzahl.** Gemessen: in
+  Command, Charge und Fight zeichnet das Panel ohne Charge-/Fight-Controller
+  gar keine Knöpfe, „labels > 0" wäre also schlicht falsch. Was jede
+  Abwesenheitsprüfung wirklich braucht, ist, dass der Render
+  `_draw_movement_ui()` erreicht hat.
+- **Die Ledger-Klausel als NEGATIV** (Einheit als `fought`/`shot` markieren,
+  rendern, Knopf muss WEG sein) — das ist die gedruckte TARGET-Zeile, und
+  nichts sonst misst sie am Panel.
+- **AST-Pins statt Index-Pin**, weil die drei per Keyword kommen: alle DREI
+  Signaturen, beide Weiterreich-Hops per Keyword mit passendem Namen, das
+  positionelle Präfix von `main.py`s Aufruf (ab Index 2 — die ersten zwei
+  Locals heißen `screen`/`left_panel_rect`, wo die Parameter `surface`/`rect`
+  heißen), **und die User-Entscheidung selbst**: keiner der drei steht auf der
+  Registry, keiner definiert `panel_label()`. Eine spätere Migration macht
+  diese Zeile absichtlich rot.
+
+**Gemessener Nebenbefund:** das Panel lässt **„Protocol of the"** fallen — eine
+größere Kürzung als Arro'kons führendes „The". `rules_text.stratagem_named()`
+löst das über den Eindeutig-Suffix-Rückfall auf; beide Hälften sind gepinnt.
+
+### Die Enhancements: ALLE VIER sind Daten, und das ist eine ROSTER-Tatsache
+
+`enhancements.ENHANCEMENTS` hält **47** Specs über 14 T'au- und
+Aeldari-Detachments und **null** Necron-Einträge. **User-Entscheidung: als
+benannte Lücke pinnen, nicht verdrahten** — kein Roster kauft eins
+(`armies/necrons.json`), sie wären also dormant by construction wie die 28
+Aeldari und 7 T'au; erfundener Listeninhalt ist die Bewegung, die dieses Repo
+nicht macht. Von BEIDEN Seiten gepinnt, damit die Lücke weder still schließt
+noch still wächst.
+
+**Und der Kommentar, der sie begründete, war VERALTET** — dieselbe Klasse wie
+die Mont'ka-Rechtfertigung: `game/factions/necrons.py` behauptete
+„Enhancements are not a system in this engine", was in dem Moment falsch wurde,
+in dem `game/enhancements.py` entstand. Ersetzt durch den gemessenen Grund.
+
+### Benannte Grenzen, gepinnt statt gefixt
+
+- **`protocol_eternal_revenant` bleibt in `NOT_ROUTED`** — aber seine
+  Begründung ist geschärft: „keine Überlebenden zum Kohärenz-Halten" ist ein
+  Argument über KOHÄRENZ, nicht darüber, wer den Platz wählt, und eine
+  Ein-Modell-Einheit hat gar keine Kohärenz-Schranke. Der ehrliche Grund ist,
+  dass `enh_phoenix_gem` und `word_of_the_phoenix` dieselbe Form teilen: die
+  drei bewegen sich zusammen oder gar nicht.
+- **`MortalWoundAllocationSession.resume()` hat null Aufrufer**
+  (`damage_resolution.py:658-664` / `main.py:2049`) — Aeldari, nicht
+  reproduziert, dieselbe Klasse wie F1.
+- **`resurrection_orb._use()` verbrennt den Orb bei abgebrochener Platzierung.**
+- **`fought_squad_ids`/`shot_squad_ids` halten Squads, keine Ids** — lügender
+  Name mit zwei Trägern, ~12 Module, außerhalb dieses Umfangs.
+- **`plasmacyte` ist für beide Seiten unerreichbar** (steht schon oben).
+
+### Getestet
+
+Neu `test_necron_stratagem_ui.py` (**100**), `test_mortal_wound_drains.py`
+(**49**, eine Datei für vier Abilities über zwei Fraktionen — es ist EIN Defekt
+und EIN Fix, und eine Fraktions-Suite hätte immer nur ihre eigene Hälfte sehen
+können; dieselbe Begründung wie `test_return_placement.py`).
+`test_event_chain_wiring.py` 113 → **136**, `test_awakened_dynasty.py` 95 →
+**111**, `test_return_placement.py` → **158**, `test_reanimation_protocols.py`
+53 → **60**, `test_necron_abilities.py` 101 → **111**,
+`test_necron_datasheets.py` 155 → **164**.
+
+**36 A/B-Sonden über drei Dateien, ALLE beißend** — `ab_necron_mortal_wounds.py`
+(16), `ab_necron_offer_windows.py` (10), `ab_necron_stratagem_ui.py` (10).
+Volle Regression **192 Suiten, ~17055 Prüfungen, 191 grün / 0 rot / 1 bekannt**,
+`run_tests.py --smoke` komplett grün.
+
+**Fünf Befunde über den TEST, alle von den Sonden** (Fehlerklasse 24): der
+Sonden-Treiber verglich GRÜNE statt ROTE Prüfungen und ließ damit eine Sonde
+durchrutschen, die die Prüfzahl ÄNDERT (jetzt zählt er Rot); §17c suchte
+`pending_damage_choice` in ganz `main.py`, wo der Klick-Zweig es ohnehin nennt
+(jetzt der AST-Rumpf des Phasen-Tors); zwei Log-Sonden bissen nicht, weil die
+Suite die Session SELBST baute statt die echten Bauplätze zu fahren; und eine
+Sonde ließ die Suite mit einem SyntaxError sterben, weil der Anker nur drei von
+fünf Kommentarzeilen traf.
+
+### Im ECHTEN Spiel belegt
+
+Alle drei Sonden fielden die **Necrons als PLAYER 1** — `config` liefert
+`PLAYER2_ARMY = "necrons"` aus, und eine Frage über die Knöpfe des MENSCHEN
+misst sonst die Armee der KI und meldet eine wahrheitsgetreu aussehende Null.
+
+| Sonde | gefixt | `--neutralize` |
+|---|---|---|
+| `verify_necron_stratagem_buttons.py` | **DRAWN 3/3**, off-WHEN 0, und Hungry Void wirklich im Fight des GEGNERS | **0/3** |
+| `verify_necron_wraith_form.py` | Brett zeigt die Wahl (2 Frames), **2 echte Klicks**, 3 Frames blockierend, aufgelöst bei Frame 703, **3 Wunden gelandet** | **0 gezeichnet, 0 Klicks, 1815 Frames blockierend, NIE aufgelöst, 0 Wunden** |
+| `verify_return_placement.py` (erweitert auf ZWEI Einheiten) | beide bekommen ihre eigene Platzierung, **keine engine-gesetzt** | **`seated by the ENGINE for a human: 1 Immortals 1 + Plasmancer`**, nur eine geöffnet |
+
+Die Wraith-Form-Sonde postet einen ECHTEN `MOUSEBUTTONDOWN` in `main()`s
+eigenen Pump, an der Bildschirmposition eines Modells, das das Spiel selbst für
+wählbar erklärt — hat die Kette keinen Zweig dafür, passiert nichts.
+**Was gestellt wird, ist einzeln benannt:** die Necrons als Player 1, das
+Detachment (per WRAPPER, weil `apply_to_config()` jede Einstellung neu
+schreibt), die Bewegung bzw. der Confirm (selfplay beantwortet außerhalb des
+Vorspiels keinen Mensch-Prompt), und Einheit plus Phase mit **teilerfremden
+Perioden** — ein geteilter Modulus koppelt Einheit *i* für immer an Phase *i*%5.
+
+**Zwei Zahlen sind bewusst schwach und stehen so da:** „0 Phasenwechsel danach"
+ist ehrlich (ein Necron-Selbstspiel erreicht in einem vertretbaren Budget kaum
+welche), deshalb ruht der Kein-Deadlock-Beleg auf „hörte auf zu blockieren und
+die Schleife lief weiter", nicht auf einer Phasenzählung.
+
+### Nebenbefund: die Parallelsitzung hat Sonden-Rückstand committet
+
+Commit `412dc4a` enthält `game/protocol_hungry_void.py` mit
+`if False: return False` an der Stelle des gedruckten TARGET-Ledgers — mein
+A/B-Lauf hatte die Datei transient neutralisiert, und der `git add -A` der
+parallelen Sitzung hat genau diesen Moment eingefangen. **Fehlerklasse 20 in
+einer neuen Form:** die `-A`-Regel ist Absicht und bleibt, aber ein
+Sondenlauf und ein Commit dürfen sich nicht überlappen. Nur diese eine Datei
+ist betroffen (per `git grep` über HEAD geprüft); der Arbeitsstand hatte die
+korrekte Fassung und stellt sie mit diesem Commit wieder her.
 
 ## WRAITH CONSTRUCTs hatten Battle Focus, das sie nicht drucken
 

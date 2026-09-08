@@ -8063,3 +8063,111 @@ die Grenze steht im Modulkopf der Suite, statt sie zu verschweigen.
 `ab_per_unit_offer.py` (**9 A/B-Sonden, alle beißend**) und `verify_airborne_agility_offers.py`.
 Volle Regression **191 Suiten, ~16931 Prüfungen, 190 grün / 0 rot / 1 bekannt**, `run_tests.py
 --smoke` komplett grün (alle neun schweren Skripte).
+
+
+---
+
+# Necron-Audit: werden sie angeboten, und wirken sie? (2026-09-08)
+
+**Auftrag:** dritte Auflage der Angebots-Prüfung nach Aeldari und T'au, mit dem
+ausdrücklichen Hinweis, dass der Zuschnitt hier anders ist: die KI-Weiche ist
+die Fläche, die es bei den anderen zwei gar nicht gab, die drei Panel-Knöpfe
+gehen über den Bespoke-Pfad statt über die Registry, und die vier Enhancements
+sind reine Daten. Drei Weichen wurden vorab gestellt: fixen statt nur belegen,
+Enhancements als benannte Lücke pinnen, Bespoke-Pfad prüfen statt migrieren.
+
+## Der Ablauf
+
+**Die Wächter zuerst, wie verlangt.** `test_event_chain_wiring.py` lief mit
+113 Prüfungen, 0 rot. Das war die richtige Reihenfolge und hat die Suche
+sofort verengt: §6/§10/§11/§12/§13/§15/§16 decken die Necrons ab und melden
+nichts, also liegt alles, was es gibt, in ihren blinden Winkeln.
+
+**Zwei Explore-Agenten parallel** (Panel-Pfad, KI-Weiche), währenddessen selbst
+die Enhancement-Seite und die Datenblatt-Inventur. Zwei Tatsachen standen
+damit fest, bevor irgendein Agent zurück war: null Necron-Controller definieren
+`panel_label()` (also deckt §14 keinen der drei), und `armies/necrons.json`
+fieldet Awakened Dynasty (also sind alle sechs Protokolle live, anders als die
+30 von 42 unerreichbaren Aeldari-Controllern).
+
+**Der Plan-Agent fand einen FÜNFTEN Fehler**, den beide Explore-Agenten und ich
+übersehen hatten: drei Module übergeben der Session das GameLog-OBJEKT, wo sie
+`self.log(msg)` ruft. Selbst nachgemessen: `TypeError: 'Log' object is not
+callable`, und `GameLog` hat auch keins. Das ist der Spiegel des Haupt-Funds —
+Mehr-Modell-Ziel parkt für immer, Ein-Modell-Ziel kracht — und die zwei
+Ausfallarten haben einander verdeckt.
+
+**Jeder der fünf Funde wurde REPRODUZIERT, bevor eine Zeile geschrieben war.**
+Der schwerste als drei Sechser in zehn Boyz: `remaining=3, inflicted=0,
+pending_choice=10`, Log meldet drei Wunden, null landen.
+
+## Was dabei schiefging und was es gelehrt hat
+
+**Der Wächter wurde gegen den UNGEFIXTEN Baum geschrieben**, und das war
+richtig: er meldete beim ersten Lauf alle vier Module namentlich. Eine seiner
+eigenen Lebendigkeitszeilen war trotzdem falsch — `ast.dump()` rendert
+`session.done` als `attr='done'`, das naheliegende `".done" in dump` feuerte
+also nie. Vom ersten Lauf gefunden.
+
+**Vier A/B-Sonden bissen zuerst nicht, und alle vier waren echte Befunde:**
+- Der Sonden-TREIBER verglich grüne Prüfungen. Eine Sonde, die die Prüfzahl
+  ÄNDERT (eine zusätzliche Ausnahmeliste lässt eine Schleife öfter laufen),
+  rutscht damit durch. Jetzt zählt er ROT.
+- §17c suchte `pending_damage_choice` in ganz `main.py` — der Klick-Zweig nennt
+  es ohnehin, das Tor-Term-Löschen blieb also grün. Jetzt der AST-Rumpf des
+  Phasen-Tors.
+- Zwei Log-Sonden bissen nicht, weil meine Suite die Session SELBST baute
+  statt die echten Bauplätze zu fahren. Sie fährt jetzt `drakolithe.use()`
+  und `harvester._inflict()`.
+- Und eine Sonde ließ die Suite mit einem SyntaxError sterben, weil ihr Anker
+  nur drei von fünf Kommentarzeilen traf.
+
+**Zwei eigene tote Zweige, ebenfalls von den Sonden.** Der erste Anlauf am
+Platzierungs-Fix gab `is_busy` ein `or bool(self._waiting)` und `main.py` einen
+zweiten Tor-Term; beide Sonden meldeten NO BITE. Nachmessen: `place()` queut
+nur, solange `_pending` gesetzt ist, eine gequeute Platzierung hat also immer
+eine offene vor sich — und die ist `setup.state == PLACING`, worauf das Tor
+längst wartet. Beides entfernt statt mit einer Sonde versehen, die nicht fallen
+kann, und die Invariante gepinnt.
+
+**Und ich bin in die dokumentierte Heredoc-Falle gelaufen**, obwohl sie im
+Auftrag stand: `\\n` in einem `<<'PY'`-Heredoc kollabierte zu einem echten
+Zeilenumbruch und zerlegte zwei `print`-Anweisungen. Mit `chr(92)` repariert.
+
+## Die Suiten-Entscheidung, die eine Erklärung braucht
+
+`test_mortal_wound_drains.py` ist EINE Datei für VIER Abilities über ZWEI
+Fraktionen — gegen die sonstige Ein-Ability-eine-Suite-Konvention. Der Grund:
+es ist EIN Defekt und EIN Fix, und eine fraktionsgeschnittene Suite hätte immer
+nur ihre eigene Hälfte sehen können. Genau das ist vier Jahre lang passiert.
+Präzedenz ist `test_return_placement.py`, das eine Frage über acht Abilities
+besitzt.
+
+## Die Zahlen
+
+Neu `test_necron_stratagem_ui.py` (**100**) und `test_mortal_wound_drains.py`
+(**49**); `test_event_chain_wiring.py` 113 → **136**, `test_awakened_dynasty.py`
+95 → **111**, `test_return_placement.py` → **158**,
+`test_reanimation_protocols.py` 53 → **60**, `test_necron_abilities.py` 101 →
+**111**, `test_necron_datasheets.py` 155 → **164**. **36 A/B-Sonden über drei
+Dateien, alle beißend.** Drei Laufzeit-Sonden, jede mit `--neutralize`, das die
+gemeldete Welt reproduziert. Volle Regression **192 Suiten, ~17055 Prüfungen,
+191 grün / 0 rot / 1 bekannt**, `run_tests.py --smoke` komplett grün.
+
+**Die dokumentierte `test_ere_we_go.py`-Flake ist wieder aufgetreten** (1 von 3
+vollen Läufen, einzeln nie) und ist erneut als vorbestehend bestätigt statt
+untersucht — genau das, wofür der Eintrag da ist.
+
+## Nebenbefund: die Parallelsitzung hat Sonden-Rückstand committet
+
+Mitten in der Arbeit fiel auf, dass `git diff` für `game/protocol_hungry_void.py`
+einen Unterschied zeigte, den ich nie gemacht hatte — und zwar in der Richtung
+„HEAD ist kaputt, mein Arbeitsstand ist richtig". Commit `412dc4a` der
+parallelen Sitzung hatte `if False: return False` an der Stelle des gedruckten
+TARGET-Ledgers eingefangen: mein A/B-Lauf hatte die Datei für zwei Sekunden
+neutralisiert, und deren `git add -A` lag genau in diesem Fenster.
+
+Per `git grep` über HEAD geprüft, dass nur diese eine Datei betroffen ist. Die
+`-A`-Regel bleibt — sie ist Absicht und hat in derselben Sitzung auch meine
+laufende Arbeit gesichert —, aber die Lehre steht jetzt bei Fehlerklasse 20:
+ein Sondenlauf und ein Commit dürfen sich nicht überlappen.
