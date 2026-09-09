@@ -3221,7 +3221,7 @@ def _translate_squad_for_charge(movement_controller, squad, target_squad, max_di
 
 
 def _charge_along_route(movement_controller, squad, target_squad, max_distance,
-                        clearance=CHARGE_TARGET_CLEARANCE_IN):
+                        clearance=CHARGE_TARGET_CLEARANCE_IN, slots=None):
     """Phase 1 of a charge, driven by a real path instead of a straight leg.
 
     CHARGE_APPROACH_PLAN's sweep is two straight legs (sidestep, then turn in),
@@ -3285,12 +3285,12 @@ def _charge_along_route(movement_controller, squad, target_squad, max_distance,
     # this function already put it.
     _charge_per_model(movement_controller, squad, target_squad, max_distance,
                       clearance=clearance, approach_angle_deg=0.0, detour_fraction=0.0,
-                      skip_approach=True)
+                      skip_approach=True, slots=slots)
 
 
 def _charge_per_model(movement_controller, squad, target_squad, max_distance, clearance=CHARGE_TARGET_CLEARANCE_IN,
                       must_close_to_1in=True,
-                      approach_angle_deg=0.0, detour_fraction=0.5, skip_approach=False):
+                      approach_angle_deg=0.0, detour_fraction=0.5, skip_approach=False, slots=None):
     """Fallback for when the whole-squad rigid charge translation
     (_translate_squad_for_charge()) can't find a legal move - moves each
     model individually toward WHICHEVER target_squad model is closest TO
@@ -3484,7 +3484,7 @@ def _charge_per_model(movement_controller, squad, target_squad, max_distance, cl
 
     # --- Phase 2: SPREAD around the target, don't just close on the nearest ---
     _spread_into_engagement(movement_controller, squad, target_squad, clearance,
-                            must_close_to_1in, baseline_errors, close_in_pairs)
+                            must_close_to_1in, baseline_errors, close_in_pairs, slots=slots)
 
 
 def _position_snapshot(movement_controller, squad):
@@ -3595,7 +3595,7 @@ def _place_shared_offset(movement_controller, squad, ox, oy, step, max_distance,
 
 
 def _spread_into_engagement(movement_controller, squad, target_squad, clearance,
-                            must_close_to_1in, baseline_errors, close_in_pairs):
+                            must_close_to_1in, baseline_errors, close_in_pairs, slots=None):
     """Phase 2: SPREAD around the target, don't just close on the nearest.
 
     Every model used to head for its own nearest enemy model, which meant the
@@ -3618,7 +3618,14 @@ def _spread_into_engagement(movement_controller, squad, target_squad, clearance,
     `baseline_errors` comes from the caller and is the squad's coherency
     BEFORE phase 1 - see _run_phase_one() for why measuring it here instead
     was a real bug."""
-    slots = _engagement_slots(target_squad, max_model_radius(squad), clearance)
+    if slots is None:
+        # Built here for a caller that has no ring yet (pile-in, consolidate,
+        # a test driving this directly); the charge ladder builds it ONCE per
+        # target and hands it down through _charge_per_model().
+        slots = _engagement_slots(
+            target_squad, max_model_radius(squad), clearance,
+            legal=_engagement_slot_filter(squad, movement_controller,
+                                          _keep_out_for_open_move(squad, movement_controller)))
     claimed = []
     for _pass in range(2):
         for model, nearest_enemy in close_in_pairs():
@@ -3737,15 +3744,95 @@ def _engagement_step(movement_controller, squad, model, goal, desired, budget,
     return good, landed, remaining
 
 
-def _engagement_slots(target_squad, own_radius, clearance):
+# How the engagement ring is sampled: the arc between neighbouring slots on
+# a ring, and the depth between concentric rings. Both are fixed lengths, not
+# multiples of the base - the ring used to be sampled every 2r+0.1", which for
+# a 1.57"-base C'tan meant SIX slots on a ring 19" round (and one ring, since
+# the ring depth used the same number). The reported charges were possible
+# BETWEEN those slots: brute-forced on the log's own boards, case A (Lychguard
+# vs Krootox, 12" roll) had 87 legal engaged end spots and case B (C'tan vs
+# Dire Avengers, 6" roll) had 5, and the ladder found none of them from
+# thirteen approaches. A model does not need a slot exactly one base apart
+# from the next; it needs SOME legal spot within reach, and _ranked_free_
+# slots() spaces the ones it hands out.
+_ENGAGEMENT_ARC_STEP_IN = 0.45
+_ENGAGEMENT_RING_STEP_IN = 0.5
+# Where a CHARGE's ring starts: at base contact, not at CHARGE_TARGET_
+# CLEARANCE_IN (which stays what phase 1 stops short by). Rule 11.04 asks a
+# model that can end within 1" to do so, and a slot at 0.1" is the surest way
+# to be there after clamping. Measured on measure_charge_scenes.py (100 hard
+# scenes / 100 easy): the ring from 1.0" got 273 / 334 models engaged on the
+# completed charges, the ring from 0.1" 325 / 433, at the same completion.
+_CHARGE_RING_INNER_EDGE_IN = PILE_IN_CLEARANCE_IN
+
+
+def _charge_keep_out(squad, target_squad, all_tokens):
+    """The enemy units a CHARGE may not end within Engagement Range of - every
+    one but its target (rule 11.04 AFTER MOVING). Spelled out here because the
+    ladder's caller asks it after the move has been cancelled, when
+    disallowed_enemy_squads_for_move() no longer knows the targets."""
+    return {t.squad for t in all_tokens
+            if t.squad is not None and t.squad.owner != squad.owner
+            and t.squad is not target_squad}
+
+
+def _keep_out_for_open_move(squad, movement_controller):
+    """The same question for whatever move is OPEN right now - a charge keeps
+    its targets, a pile-in and a consolidate have no forbidden unit at all
+    (Squad.disallowed_enemy_squads_for_move)."""
+    return squad.disallowed_enemy_squads_for_move(
+        movement_controller.all_tokens, movement_controller.move_mode,
+        movement_controller.charge_targets, movement_controller.surge_target)
+
+
+def _engagement_slot_filter(squad, movement_controller, keep_out_squads):
+    """legal(x, y) for an engagement slot of this squad's widest base: on the
+    board, off Dense terrain (13.05), not overlapping any token that is not
+    one of this squad's own models (those are the ones about to move), and
+    not within Engagement Range of a unit in `keep_out_squads`.
+
+    Everything try_commit_segment() and check_charge_engagement() will reject
+    later, asked BEFORE a slot is handed out - the ring used to offer slots on
+    walls, on other units and inside a third unit's Engagement Range, and
+    every one of those cost one of _ENGAGEMENT_SLOT_TRIES for nothing. Squad-
+    mates are left to _ranked_free_slots(), which reads them live."""
+    r = max_model_radius(squad)
+    probe = max(squad.models, key=lambda m: m.radius_in) if squad.models else None
+    tokens = movement_controller.all_tokens
+    blockers = [t for t in tokens
+                if t.squad is not None and t.squad is not squad and not t.is_dead()]
+    keep_out = [t for t in blockers if t.squad in keep_out_squads]
+    dense = [o for o in movement_controller.obstacles if o.category == DENSE]
+
+    def legal(x, y):
+        if probe is None or not formation_layout.on_board(x, y, r):
+            return False
+        if model_terrain_violation(probe, dense, x, y):
+            return False
+        for t in blockers:
+            if math.hypot(x - t.x_in, y - t.y_in) < r + t.radius_in + _LANDING_OVERLAP_MARGIN_IN:
+                return False
+        for t in keep_out:
+            if math.hypot(x - t.x_in, y - t.y_in) - r - t.radius_in <= ENGAGEMENT_RANGE_IN + _LANDING_OVERLAP_MARGIN_IN:
+                return False
+        return True
+
+    return legal
+
+
+def _engagement_slots(target_squad, own_radius, clearance, *,
+                      arc_step_in=_ENGAGEMENT_ARC_STEP_IN, legal=None):
     """Standing room all the way AROUND the target unit, at just inside
     Engagement Range - so a charging squad can wrap it instead of piling onto
     the one face nearest to where the charge started.
 
     Slots that would land inside the enemy formation (too close to some other
-    model of it) are dropped, so what comes back is the reachable perimeter."""
+    model of it) are dropped, so what comes back is the reachable perimeter;
+    with `legal` (see _engagement_slot_filter()) so is every slot the move
+    could not end on anyway. Sampled every `arc_step_in` along each ring and
+    every _ENGAGEMENT_RING_STEP_IN in depth - see the two constants for why
+    the old one-base pitch missed the reported charges."""
     slots = []
-    spacing = max(0.5, 2 * own_radius + 0.1)
     for enemy in target_squad.models:
         inner = clearance + own_radius + enemy.radius_in
         # CONCENTRIC rings, not one. A single ring at the tightest distance
@@ -3757,23 +3844,26 @@ def _engagement_slots(target_squad, own_radius, clearance):
         # the next one out, exactly how the models end up on a real table.
         ring = inner
         while ring <= ENGAGEMENT_RANGE_IN + own_radius + enemy.radius_in + 1e-9:
-            steps = max(6, int((2 * math.pi * ring) / spacing))
+            steps = max(8, int(round((2 * math.pi * ring) / arc_step_in)))
             for k in range(steps):
                 angle = 2 * math.pi * k / steps
                 x = enemy.x_in + ring * math.cos(angle)
                 y = enemy.y_in + ring * math.sin(angle)
-                if all(((x - e.x_in) ** 2 + (y - e.y_in) ** 2) ** 0.5 >= inner - 0.05
-                       for e in target_squad.models):
-                    # Third element: this slot's own EDGE distance to the nearest
-                    # target model. _ranked_free_slots() ranks on it so a model
-                    # that can reach 1" is not allowed to settle at 2" (rule
-                    # 11.04 WHILE MOVING is a "can -> must", not a preference).
-                    edge = min(
-                        ((x - e.x_in) ** 2 + (y - e.y_in) ** 2) ** 0.5 - own_radius - e.radius_in
-                        for e in target_squad.models
-                    )
-                    slots.append((x, y, max(0.0, edge)))
-            ring += spacing
+                if not all(((x - e.x_in) ** 2 + (y - e.y_in) ** 2) ** 0.5 >= inner - 0.05
+                           for e in target_squad.models):
+                    continue
+                if legal is not None and not legal(x, y):
+                    continue
+                # Third element: this slot's own EDGE distance to the nearest
+                # target model. _ranked_free_slots() ranks on it so a model
+                # that can reach 1" is not allowed to settle at 2" (rule
+                # 11.04 WHILE MOVING is a "can -> must", not a preference).
+                edge = min(
+                    ((x - e.x_in) ** 2 + (y - e.y_in) ** 2) ** 0.5 - own_radius - e.radius_in
+                    for e in target_squad.models
+                )
+                slots.append((x, y, max(0.0, edge)))
+            ring += _ENGAGEMENT_RING_STEP_IN
     # Tightest first, so the models processed earliest (closest to the enemy)
     # claim the inner ring and leave the outer ones for the rear ranks.
     slots.sort(key=lambda p: min((p[0] - e.x_in) ** 2 + (p[1] - e.y_in) ** 2
@@ -3834,7 +3924,20 @@ def _ranked_free_slots(model, slots, claimed, budget, must_close_to_1in=True,
                else (0.0, gap))
         ranked.append((key, slot))
     ranked.sort(key=lambda pair: pair[0])
-    return [slot for _key, slot in ranked[:limit]]
+    # One slot per base-width of arc. The ring is sampled far more densely
+    # than a base is wide (_ENGAGEMENT_ARC_STEP_IN), so without this the
+    # `limit` tries all landed on one 2"-stretch of the same arc and failed
+    # for the same reason six times. A slot within one base of a better one
+    # already kept is the same answer with a different rounding.
+    min_gap = 2 * model.radius_in + 0.05
+    kept = []
+    for _key, slot in ranked:
+        if any((slot[0] - k[0]) ** 2 + (slot[1] - k[1]) ** 2 < min_gap * min_gap for k in kept):
+            continue
+        kept.append(slot)
+        if len(kept) >= limit:
+            break
+    return kept
 
 
 # The landing search (_free_landing_near): rings of this pitch out to this
@@ -9602,6 +9705,253 @@ def _charge_trade_note(squad, target):
     )
 
 
+# How the slot-first charge (_charge_slot_first) treats its followers: how
+# many ranked slots the LEAD tries, and how close behind a placed squadmate a
+# model that reaches no slot of its own is walked (edge to edge - inside
+# _LANDING_COHERENCY_IN so the landing search and this agree on "beside").
+_SLOT_FIRST_LEAD_TRIES = 12
+_CHARGE_TRAIL_EDGE_IN = 1.5
+
+
+def _charge_slot_first(movement_controller, squad, target_squad, max_distance, slots):
+    """The charge as a player makes it: pick the spot, walk the lead model
+    there along a real path, bring the rest up behind it. Tried BEFORE the
+    rigid-shove sweep, and for every unit - not only those Dense terrain
+    stops (see _run_charge_attempts()).
+
+    WHY. The thirteen swept approaches all begin the same way: the whole
+    formation is shoved rigidly toward the nearest own/enemy pair, and only
+    what is left of the roll is then spent finding a slot. When the nearest
+    pair's line runs into a wall the unit may not END on (13.05), or into a
+    third unit's Engagement Range, every approach loses most of the roll
+    before phase 2 starts. Both reported charges were like that, and both were
+    physically possible: brute-forced on the log's own boards, the Lychguard
+    (case A, 12" roll) had legal engaged end spots for two of six models
+    ~11" away round the flank, the C'tan (case B, 6" roll) five spots on the
+    far side of its own Warriors - and all thirteen approaches failed. The
+    Movement phase has had A* for exactly this for a long time; the charge's
+    only routed approach (_charge_along_route) is gated on _blocked_by_walls(),
+    which is False for every AI unit since walls became free to cross, so it
+    never ran. This approach is not gated: it routes around whatever the
+    ENGINE will not let the unit end in.
+
+    HOW. `slots` is the legal engagement ring (built once by the ladder).
+    Leads are tried in order - the unit's melee characters first (rule 12.05,
+    game/front_rank.py), then the rest nearest to the target first - until
+    one lands, at most _SLOT_FIRST_LEAD_TRIES routes in all. For each of a
+    lead's ranked reachable slots, tightest first: a straight leg if the line
+    is clear, else find_route() with every enemy BASE as a hard blocker
+    (bases stop transit, 03.01) and nothing else - padding the non-targets by
+    Engagement Range, the obvious way to keep the route out of ground the
+    charge may not END on (11.04), was measured and rejected: on case B it
+    finds no path at all (the only way round the Warriors skims the
+    Avengers' range), on case A it lengthens the best path from 12.26" to
+    14.05". What a leg may not END on is the engine's question, asked per
+    waypoint: a waypoint try_commit_segment() refuses (a squadmate's base, a
+    third unit's Engagement Range, Dense terrain) is re-landed within reach
+    by the landing search (_free_landing_near, caller "charge-route"), and
+    only if that fails too does the slot fall. The first slot the lead really
+    ends engaged on is kept. Then the followers, nearest to the lead's
+    landing first: each walks the SAME routed step to a slot of its own
+    within its budget, else to a spot _CHARGE_TRAIL_EDGE_IN behind the
+    nearest squadmate already placed (eight bearings round it, nearest to
+    the follower first); a follower's step is kept only when it lands
+    legally AND within rule 09.02's 2" of the placed set, so the unit grows
+    outward from the lead as one connected group. Measured before this was
+    routed (measure_charge_scenes.py --hard --diagnose): of 14 charges that
+    a legal path could complete, the lead landed in 8 and the followers -
+    walking straight with the +-45 degree dodge - lost 7 of those 8.
+
+    Once the unit stands connected and engaged, phase 2 of the ordinary
+    charge (_spread_into_engagement) runs over it with whatever budget the
+    followers have left, so a model that only trailed a squadmate still
+    closes onto a slot if it can - measured without that pass, the approach
+    completed more charges than the sweep and put FEWER models into the fight
+    (100 hard scenes: 97 completed / 273 engaged against 92 / 314).
+
+    Returns True if the unit ends in one connected group with at least one
+    model engaged with the target - the caller confirms it like any approach;
+    otherwise puts everything back exactly as it found it and returns False,
+    and the sweep runs as before. Every step is validated by the engine; this
+    only chooses where to aim."""
+    if not slots or not squad.models or not target_squad.models:
+        return False
+    if movement_controller.move_mode != "charge":
+        return False
+    snapshot = _position_snapshot(movement_controller, squad)
+
+    def undo(model):
+        x, y, waypoint, remaining = snapshot[model.id]
+        model.x_in, model.y_in = x, y
+        movement_controller.last_waypoint[model.id] = waypoint if waypoint is not None else (x, y)
+        if remaining is not None:
+            movement_controller.remaining_range[model.id] = remaining
+
+    def engaged(model):
+        return any(edge_distance(model, e) <= ENGAGEMENT_RANGE_IN for e in target_squad.models)
+
+    by_gap = sorted(squad.models, key=lambda m: min(edge_distance(m, e) for e in target_squad.models))
+    fighters = front_rank.front_rank_models(squad)
+    leads = list(fighters) + [m for m in by_gap if m not in fighters]
+    board_w, board_h = movement_controller.board_width_in, movement_controller.board_height_in
+
+    def walk(model, waypoints):
+        """Every leg through the engine; a leg the engine refuses to END is
+        re-landed nearby - transit is not the question, the end point is."""
+        for wx, wy in waypoints:
+            before = (model.x_in, model.y_in)
+            model.x_in, model.y_in = movement_controller.clamp_move(model, wx, wy)
+            ok, _errors = movement_controller.try_commit_segment(model)
+            if ok:
+                continue
+            model.x_in, model.y_in = before
+            spot = _free_landing_near(model, (wx, wy), squad, movement_controller, [],
+                                      caller="charge-route")
+            if spot is None:
+                return False
+            model.x_in, model.y_in = movement_controller.clamp_move(model, spot[0], spot[1])
+            ok, _errors = movement_controller.try_commit_segment(model)
+            if not ok:
+                model.x_in, model.y_in = before
+                return False
+        return True
+
+    lead = None
+    tries = 0
+    for candidate_lead in leads:
+        if tries >= _SLOT_FIRST_LEAD_TRIES:
+            break
+        hard_obstacles = pathfinding.blocking_obstacles_for(candidate_lead, movement_controller.obstacles)
+        hard_models = pathfinding.enemy_models_for(candidate_lead, movement_controller.all_tokens)
+        start = (candidate_lead.x_in, candidate_lead.y_in)
+        for slot in _ranked_free_slots(candidate_lead, slots, [], max_distance, must_close_to_1in=True,
+                                       squad=squad, limit=_SLOT_FIRST_LEAD_TRIES):
+            if tries >= _SLOT_FIRST_LEAD_TRIES:
+                break
+            tries += 1
+            goal = (slot[0], slot[1])
+            if pathfinding._direct_line_clear(start, goal, hard_obstacles, hard_models, candidate_lead.radius_in):
+                route = [goal]
+            else:
+                route = pathfinding.find_route(start, goal, candidate_lead.radius_in, max_distance,
+                                               hard_obstacles, hard_models, board_w, board_h)
+                if not route or math.dist(route[-1], goal) > 0.35:
+                    continue
+            if walk(candidate_lead, route) and engaged(candidate_lead):
+                lead = candidate_lead
+                break
+            undo(candidate_lead)
+        if lead is not None:
+            break
+    if lead is None:
+        return False
+
+    placed = [lead]
+    claimed = [(lead.x_in, lead.y_in)]
+
+    def touches_placed(model):
+        return any(edge_distance(model, p) <= _LANDING_COHERENCY_IN for p in placed)
+
+    def routed_step(model, goal, budget):
+        """One follower's walk to `goal` by a legal path within `budget`,
+        kept only if it lands touching the placed set; else undone."""
+        hard_obstacles = pathfinding.blocking_obstacles_for(model, movement_controller.obstacles)
+        hard_models = pathfinding.enemy_models_for(model, movement_controller.all_tokens)
+        start = (model.x_in, model.y_in)
+        if math.dist(start, goal) > budget + 1e-9:
+            return False
+        if pathfinding._direct_line_clear(start, goal, hard_obstacles, hard_models, model.radius_in):
+            route = [goal]
+        else:
+            route = pathfinding.find_route(start, goal, model.radius_in, budget,
+                                           hard_obstacles, hard_models, board_w, board_h)
+            if not route or math.dist(route[-1], goal) > 0.35:
+                return False
+        if walk(model, route) and touches_placed(model):
+            return True
+        undo(model)
+        return False
+
+    def trail_points(model, anchor):
+        """Eight spots _CHARGE_TRAIL_EDGE_IN behind `anchor`, the one nearest
+        this follower first."""
+        reach = _CHARGE_TRAIL_EDGE_IN + model.radius_in + anchor.radius_in
+        points = [(anchor.x_in + reach * math.cos(a), anchor.y_in + reach * math.sin(a))
+                  for a in (k * math.pi / 4 for k in range(8))]
+        return sorted(points, key=lambda p: math.dist(p, (model.x_in, model.y_in)))
+
+    followers = sorted((m for m in squad.models if m is not lead),
+                       key=lambda m: edge_distance(m, lead))
+    for model in followers:
+        if touches_placed(model):
+            placed.append(model)
+            continue
+        budget = movement_controller.remaining_range.get(model.id, 0.0)
+        done = False
+        if budget > 0.05:
+            for candidate in _ranked_free_slots(model, slots, claimed, budget, must_close_to_1in=True,
+                                                squad=squad):
+                if routed_step(model, (candidate[0], candidate[1]), budget):
+                    claimed.append((model.x_in, model.y_in))
+                    done = True
+                    break
+            if not done:
+                anchors = sorted(placed, key=lambda p: edge_distance(model, p))[:2]
+                for anchor in anchors:
+                    for point in trail_points(model, anchor):
+                        if routed_step(model, point, budget):
+                            done = True
+                            break
+                    if done:
+                        break
+        if not done:
+            _restore_positions(movement_controller, squad, snapshot)
+            return False
+        placed.append(model)
+
+    if squad.check_coherency() or not any(engaged(m) for m in squad.models):
+        _restore_positions(movement_controller, squad, snapshot)
+        return False
+    # Connected and engaged: now as many into the fight as the leftover
+    # budgets allow, every step keeping the unit connected (baseline 0).
+    fighters = {id(m) for m in front_rank.front_rank_models(squad)}
+
+    def close_in_pairs():
+        return sorted(
+            ((m, min(target_squad.models, key=lambda e: edge_distance(m, e))) for m in squad.models),
+            key=lambda pair: (id(pair[0]) not in fighters, edge_distance(pair[0], pair[1])),
+        )
+
+    _spread_into_engagement(movement_controller, squad, target_squad, CHARGE_TARGET_CLEARANCE_IN,
+                            True, 0, close_in_pairs, slots=slots)
+    return True
+
+
+def _charge_nearest_legal_slot(candidate, enemy, movement_controller):
+    """How far the nearest model of `candidate` would have to MOVE to stand on
+    a legal engagement slot round `enemy` - None when the ring has no legal
+    slot at all. The same ring the charge ladder will build (dense, filtered
+    for 13.05, other bases and every other unit's Engagement Range), asked
+    BEFORE the roll.
+
+    Rule 11.02 makes a target eligible at 12" in a straight line, and that
+    stays untouched - a player may declare a charge that cannot be completed.
+    The AI's own OFFER is a different matter: a charge onto a unit with no
+    legal standing room round it (parked inside Dense terrain, walled in by
+    other bases, or with every spot inside a third unit's Engagement Range)
+    is a charge that fails from every approach and burns the unit's charge
+    for the phase (11.03). Reported twice (measure_reported_moves.py A/B);
+    case A's ring had 27 legal slots of 196, the nearest 11.17" off against a
+    straight-line gap of 9.3" - the roll the odds quoted was two pips too
+    low."""
+    keep_out = _charge_keep_out(candidate, enemy, movement_controller.all_tokens)
+    slots = _engagement_slots(
+        enemy, max_model_radius(candidate), _CHARGE_RING_INNER_EDGE_IN,
+        legal=_engagement_slot_filter(candidate, movement_controller, keep_out))
+    return min((math.dist((m.x_in, m.y_in), (s[0], s[1]))
+                for m in candidate.models for s in slots), default=None)
+
+
 def _run_charge_attempts(movement_controller, squad, target, max_distance, reopen, confirm):
     """THE charge-move ladder: every approach the AI tries for a declared
     charge, in order, until one confirms. Returns (True, []) on success,
@@ -9656,8 +10006,16 @@ def _run_charge_attempts(movement_controller, squad, target, max_distance, reope
     last_errors = []
     approaches = list(CHARGE_APPROACH_PLAN)
     routed_first = _blocked_by_walls(squad)
+    # The engagement ring, ONCE for the whole ladder: which slots are legal
+    # depends on the board and on the target, not on the approach - and the
+    # thirteen approaches used to rebuild and re-filter it every time.
+    slots = _engagement_slots(
+        target, max_model_radius(squad), _CHARGE_RING_INNER_EDGE_IN,
+        legal=_engagement_slot_filter(
+            squad, movement_controller,
+            _charge_keep_out(squad, target, movement_controller.all_tokens)))
     first = True
-    for attempt in (["route"] if routed_first else []) + approaches:
+    for attempt in ["slot-first"] + (["route"] if routed_first else []) + approaches:
         if not first:  # a retry: re-open the move cancelled by the last round
             reopen()
             if movement_controller.move_mode != "charge":
@@ -9665,12 +10023,14 @@ def _run_charge_attempts(movement_controller, squad, target, max_distance, reope
                 # into. Hand the continuation back instead of placing blind.
                 return None, last_errors
         first = False
-        if attempt == "route":
-            _charge_along_route(movement_controller, squad, target, max_distance)
+        if attempt == "slot-first":
+            _charge_slot_first(movement_controller, squad, target, max_distance, slots)
+        elif attempt == "route":
+            _charge_along_route(movement_controller, squad, target, max_distance, slots=slots)
         else:
             angle, detour = attempt
             _charge_per_model(movement_controller, squad, target, max_distance,
-                              approach_angle_deg=angle, detour_fraction=detour)
+                              approach_angle_deg=angle, detour_fraction=detour, slots=slots)
         confirm()
         if not movement_controller.errors:
             return True, []
@@ -9679,19 +10039,30 @@ def _run_charge_attempts(movement_controller, squad, target, max_distance, reope
     return False, last_errors
 
 
-def _log_charge_geometry(game_log, squad, target, max_distance):
+def _log_charge_geometry(game_log, squad, target, max_distance, movement_controller=None):
     """Why a charge failed, in the terms the placement works in: how many
-    engagement slots the ring offered, how many any model could reach inside
-    the roll, and the nearest one. Written when a charge is declined from every
-    approach, so the next report can be read instead of reverse-engineered."""
+    engagement slots the ring offered, how many of them are LEGAL (off walls,
+    off other bases, clear of every unit but the target), how many of those
+    any model could reach inside the roll, and the nearest one. Written when a
+    charge is declined from every approach, so the next report can be read
+    instead of reverse-engineered."""
     if game_log is None or not squad.models or not target.models:
         return
-    slots = _engagement_slots(target, max_model_radius(squad), CHARGE_TARGET_CLEARANCE_IN)
+    ring = _engagement_slots(target, max_model_radius(squad), _CHARGE_RING_INNER_EDGE_IN)
+    legal_note = ""
+    slots = ring
+    if movement_controller is not None:
+        slots = _engagement_slots(
+            target, max_model_radius(squad), _CHARGE_RING_INNER_EDGE_IN,
+            legal=_engagement_slot_filter(
+                squad, movement_controller,
+                _charge_keep_out(squad, target, movement_controller.all_tokens)))
+        legal_note = f" ({len(slots)} legal)"
     reach = [min(math.dist((s[0], s[1]), (m.x_in, m.y_in)) for m in squad.models) for s in slots]
     within = sum(1 for r in reach if r <= max_distance)
     nearest = min(reach) if reach else float("inf")
     game_log.add(
-        f"  [charge geometry] {squad.name} -> {target.name}: {len(slots)} engagement slots, "
+        f"  [charge geometry] {squad.name} -> {target.name}: {len(ring)} engagement slots{legal_note}, "
         f"{within} within the {max_distance}\" roll, nearest {nearest:.2f}\" away; "
         f"straight-line gap {squad.min_distance_to(target):.2f}\"",
         file_only=True,
@@ -9829,7 +10200,8 @@ def _handle_charge(agent, memory, player, all_tokens, charge_controller, movemen
                 f"approach direction ({charge_controller.max_distance}\" roll) - "
                 + "; ".join(last_errors),
                 category=game_log_module.FAILED_ORDER)
-            _log_charge_geometry(game_log, squad, target, charge_controller.max_distance)
+            _log_charge_geometry(game_log, squad, target, charge_controller.max_distance,
+                                 movement_controller=movement_controller)
         # A failed charge leaves this unit standing in the open where the plan
         # assumed it would be locked in combat - one of the two events worth
         # re-planning the rest of the turn for (see _maybe_replan_after_events()).
@@ -9890,7 +10262,32 @@ def _handle_charge(agent, memory, player, all_tokens, charge_controller, movemen
             charge_controller._enemy_squads_within(candidate, CHARGE_RANGE_IN),
             key=lambda s: candidate.min_distance_to(s),
         )
-        nearest_enemy = reachable[0] if reachable else None
+        # Is there anywhere legal to STAND? A target with no legal engagement
+        # slot within 12" of any model is a charge that fails from every
+        # approach - see _charge_nearest_legal_slot(). Not offered at all
+        # (error class 5: the engine must not offer what it does not want
+        # chosen), and recorded in declined_charge like the shooting block
+        # above so the log says so once per phase.
+        standing = {enemy: _charge_nearest_legal_slot(candidate, enemy, movement_controller)
+                    for enemy in reachable}
+        feasible = [enemy for enemy in reachable
+                    if standing[enemy] is not None and standing[enemy] <= CHARGE_RANGE_IN]
+        if reachable and not feasible:
+            memory.declined_charge.add(candidate.name)
+            if game_log is not None:
+                game_log.add(
+                    f"  [charge] {candidate.name}: not offered - no legal standing room within "
+                    f"{CHARGE_RANGE_IN:.0f}\" round any of the {len(reachable)} enemy unit(s) in range "
+                    f"(every engagement spot is on Dense terrain, on a base, or inside another "
+                    f"unit's Engagement Range)", file_only=True)
+            continue
+        # The odds are quoted for the enemy that is nearest BY THE MOVE the
+        # charge really needs: the longer of the routed gap and the walk to
+        # the nearest legal slot.
+        nearest_enemy = min(
+            feasible,
+            key=lambda s: max(_charge_gap(candidate, s, movement_controller), standing[s]),
+        ) if feasible else None
         odds_note = ""
         if nearest_enemy is not None:
             straight = candidate.min_distance_to(nearest_enemy)
@@ -9899,13 +10296,23 @@ def _handle_charge(agent, memory, player, all_tokens, charge_controller, movemen
             # _charge_gap(). Reporting the straight line told the Deff Dread a
             # 7.2" charge was an 8+ when the wall in the way made it impossible.
             gap = _charge_gap(candidate, nearest_enemy, movement_controller)
-            needed = math.ceil(gap)
+            walk = standing[nearest_enemy]
+            needed = math.ceil(max(gap, walk))
             detour = ""
             if gap - straight >= CHARGE_DETOUR_REPORT_IN:
                 detour = (
                     f" (only {straight:.1f}\" in a straight line, but this unit cannot cross the "
                     f"terrain in between and has to go around it)"
                 )
+            elif walk - gap >= CHARGE_DETOUR_REPORT_IN:
+                # The near side is taken - a base, a wall, a third unit's
+                # Engagement Range - and the nearest legal spot is round the
+                # flank. Quoted, because the roll has to reach THAT.
+                detour = (
+                    f" (only {gap:.1f}\" to the unit, but the nearest legal spot to stand is "
+                    f"{walk:.1f}\" away - the near side is blocked)"
+                )
+                gap = walk
             if needed > CHARGE_RANGE_IN:
                 odds_note = (
                     f" - nearest target is {nearest_enemy.name}, {gap:.1f}\" away by the route this "

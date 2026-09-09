@@ -318,8 +318,15 @@ def run_charge():
 boss_fights, count, swings, coherency = run_charge()
 was_fighting, was_count, was_swings, _ = without_front_rank(run_charge)
 
-c.true("the mob really cannot get all of itself into Engagement Range "
-       f"({count} of 11 models)", count < 11)
+# Measured 9 of 11 when this was written, on a ring sampled one base apart;
+# 11 of 11 since the engagement ring is sampled densely (2026-09-09,
+# ai/agent_driver._ENGAGEMENT_ARC_STEP_IN) - the perimeter of five bases has
+# room for the whole mob. The scene still discriminates: the A/B right below
+# shows the Warboss reaches the fight BECAUSE of the priority, not because
+# there was room to spare, and the damage comparison is what the section is
+# about. Pinned so a change to the ring's density shows up here by name.
+c.eq(f"the whole mob reaches Engagement Range on the dense ring ({count} of 11 models)",
+     count, 11)
 c.eq("A/B: without the priority the rear-rank Warboss does not reach the fight",
      was_fighting, False)
 c.eq("the melee character gets into Engagement Range (rule 12.05)", boss_fights, True)

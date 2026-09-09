@@ -504,6 +504,21 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
       KI wartete, und das Brett zeigte nicht, welche Modelle wählbar sind. Ein auflösbarer, aber
       unsichtbarer Prompt ist derselbe Hänger mit besserem Ausgang.
 
+26. **Ein RETRY, der eine Reaktionskette erneut durchläuft.** `_run_charge_attempts()` ruft
+    `begin_charge_move()` für jeden der dreizehn Anläufe einer Charge, und das läuft die
+    Deklarations-Reaktionskette (Grav-Inhibitor Field, Photon Grenades, Combat Embarkation) jedes
+    Mal neu. Zwei Folgen, beide reproduziert (2026-09-09): ein Reaktor OHNE `_offered_key`-Memo
+    fragte den Menschen bei JEDEM Retry erneut; und öffnete eine Reaktion beim Retry einen Prompt,
+    blieb der Zug GESCHLOSSEN — `clamp_move()` gibt dann den Wunsch zurück, `try_commit_segment()`
+    akzeptiert — und die Leiter versetzte alle fünf Modelle UNVALIDIERT, lehnte die Charge ab und
+    ließ den Prompt stehen. Drei Nähte halten das jetzt: jeder Reaktor merkt sich die Deklaration,
+    die er gefragt hat (`_declaration_key`; `test_charge_retry_reactions.py` §6 prüft das als
+    MENGENDIFFERENZ über alle in `main.py` registrierten Reaktoren); die Leiter prüft nach JEDEM
+    `reopen()`, ob ein Zug offen ist, und gibt sonst `None` zurück ("komm wieder", nicht "gescheitert");
+    und der Resume-Zweig von `_handle_charge()` öffnet den Zug nur, wenn er nicht schon offen ist —
+    `begin_charge_move()` über einem offenen Zug ist dieselbe Kette ein weiteres Mal, und dort
+    konnte der Wächter einen zweiten Prompt nicht sehen.
+
 ## Diagnose-Logging
 
 Wiederholt war der eigentliche Defekt nicht der Fehler, sondern dass er im Log unsichtbar war — die
@@ -512,7 +527,11 @@ Untersuchung musste dann aus rohen Koordinaten rekonstruiert werden. Vorhandene 
 (Ziel, Wurf, erreichte Kantendistanz, Engagement — auch bei Ablehnung mit den Odds), `[coherency]`
 (welche Modelle, wie weit daneben, an jeder Phasengrenze, entprellt), `[threat]`, `[turn plan]`
 (inkl. `@(x,y)`), `[ingress]` (der TATSÄCHLICHE Landeplatz), `[regroup]`, `[pile in]` (vorher ->
-nachher engagierte Modelle), `[deploy]`, `[charge reroll]`, `[disembark]`.
+nachher engagierte Modelle), `[deploy]`, `[charge reroll]`, `[disembark]`, und seit 2026-09-09
+`[move sweep]` (je Bewegung: Kandidaten, Gewinner mit erreicht/beabsichtigt, Fallbacks, Friendly-
+Clamp clear/relanded/truncated, Split-Pässe) und `[charge geometry]` (bei einer von jedem Anlauf
+abgelehnten Charge: Ring-Slots, davon LEGAL, im Wurf, nächster; dazu `[charge] ... not offered`,
+wenn um keinen Feind in 12" ein legaler Standplatz liegt).
 
 **ZWEI Konventionen, unterschieden allein am FELDNAMEN — und das ist die einzige Trennung, die es
 gibt:** `self.game_log` ist das GameLog-OBJEKT und wird `self.game_log.add(msg)` geschrieben (~90
@@ -580,7 +599,15 @@ schickt die nächste Untersuchung zurück aufs Brett.**
   `measure_fly_penalty.py` (kostet oder bringt 21.03 einer gemischten Einheit Boden — baut das
   Brett aus den Koordinaten EINES Logs nach, statt eine Einheit isoliert hinzustellen),
   `measure_home_garrison.py` (wer hält das Home Objective — beide Phasen der Entscheidung,
-  Aufstellung und Turn-Plan, letzterer gegen das Brett des gemeldeten Logs; `--neutralize`).
+  Aufstellung und Turn-Plan, letzterer gegen das Brett des gemeldeten Logs; `--neutralize`),
+  **`measure_reported_moves.py`** (die gemeldeten Bewegungs- und Charge-Fälle aus ECHTEN Logs,
+  MIT Terrain nachgebaut — Fälle A/B Charges, C der 21-Modell-Blob, S1/S2 die gemeldeten Splits;
+  läuft durch dieselbe `_run_charge_attempts()`-Leiter wie die KI; `--neutralize=<helper>`),
+  **`measure_charge_scenes.py [--hard] [--diagnose]`** (Charge-Vollendung und engagierte Modelle über
+  100 synthetische, per Brute-Force mögliche Szenen auf echtem map2-Gelände; A/B per
+  `--neutralize=_charge_slot_first|old_ring` und `--ring-edge=`; `--diagnose` nennt die DECKE — wie
+  viele Fehlschläge per legalem PFAD überhaupt erreichbar wären), und
+  `measure_crowded_movement.py --army=necrons` als zweite Bewegungs-Baseline neben den Orks.
 - **`verify_damage_estimate_move.py`** (Verhaltensneutralität der Schadensschätzung belegen) und
   **`verify_mark_wiring.py`** (Laufzeit-Sonde: kommt ein Controller wirklich in `main.py` an? Hat eine
   tote Verdrahtung gefunden, die keine Suite sehen kann).
@@ -4529,6 +4556,39 @@ Confirm-Button an den zuständigen Controller routet.
   Richtungen (Boyz+Warboss+Painboy +6 auf map1, Gretchin 2 −10 auf map2), Mediane 64→65 / 62→59 /
   29→28. Betroffen sind ausschließlich Einheiten mit gemischten Basen; die großen Einzelausschläge
   bei homogenen Einheiten (Tankbustas −20) sind belegte KOPPLUNG, sie bekommen nie einen Ring.
+- **Landeplatz-Suche statt Abschneiden an der Linie (2026-09-09).** Regel 03.01 lässt eine Base
+  DURCH befreundete Modelle ziehen und verbietet nur das ENDEN darauf; `_clamp_target_against_
+  friendly_models()` schnitt einen Zug trotzdem an der ERSTEN befreundeten Base auf der Linie ab.
+  Gemessen am gemeldeten 21-Modell-Blob (`measure_reported_moves.py` C, Brett aus dem Log MIT
+  Terrain): **535 von 821** Zielpunkten in EINEM Zug abgeschnitten, 810" Zielstrecke verworfen, und
+  in **445 der 535** Fälle lag ein freier Landeplatz in 2" um den Punkt. Die Abgeschnittenen standen,
+  die Läufer liefen, die Einheit riss, `confirm_move()` verwarf alles — das ist der Mechanismus
+  hinter "die Modelle stehen sich gegenseitig im Weg". `_free_landing_near()` sucht jetzt den
+  nächsten LEGALEN Endpunkt (Ringe alle 0.25" bis 2" bzw. eine Basisbreite; on board, 13.05,
+  Tokens, `disallowed_enemy_squads_for_move`, Budget, `clamp_move`-Transit), bevorzugt einen Platz
+  in Kohärenz (1.9") mit schon platzierten Squadmates und bestraft seitliches Rutschen
+  (`_LANDING_LATERAL_WEIGHT`), damit ein Modell eher kurz stehen bleibt als an der Blockade entlang
+  zu gleiten. **Zwei Caller sind GEMESSEN ausgeschlossen** (`_LANDING_SEARCH_EXCLUDED`): der
+  Route-Walker (der Blob fiel im dritten Zug von 52 % auf 14 %, 18 Modelle neben einer Wand neu
+  gelandet für 0.89") und der Engagement-Schritt (die Suche kennt keine Engagement Range und landete
+  ein Pile-In-Modell NEBEN seinem Slot, außer Reichweite — die gemeldete Warbikers-Pile-In fiel
+  unter ihr gemessenes Optimum 2/3). Der Squadmate-Radius-Regler `_LANDING_SQUADMATE_RADIUS_IN`
+  trägt seine Messtabelle im Kommentar. **Ergebnis:** Fall C 2.71" → 3.72" (54 → 74 %), Fall B
+  (C'tan-Charge) vollendet, Orks crowded 217.7" → 232.9" (Median 65 → 74 %), Necrons crowded
+  117.9" → 119.9"; Preis: Necrons ISOLIERT 74 → 68 % Median (eine Zeile: der Blob allein im
+  zweiten Zug, 92 → 43 %, weil das Re-Landing die Form weitet und der Packed-Kandidat seine Slots
+  nicht mehr erreicht). `[move sweep]` im Log zählt clear/relanded/truncated je Zug.
+- **Zwei Bewegungs-"Verbesserungen" derselben Sitzung sind GEMESSEN und wieder AUSGEBAUT**, damit
+  sie nicht erneut gebaut werden: das Budget des LANGSAMSTEN Modells statt des schnellsten in den
+  drei Pässen (Fall C 54 → 37 %; der Zielpunkt eines gemischten Trupps darf dem langsamen Modell
+  vorauslaufen, der Pass kürzt es ohnehin), und die **"Leine"** (`_repair_split_by_leash`: Streuer
+  eines gesplitteten Passes aus dem Pre-Pass-Snapshot mit vollem Budget zur Hauptkomponente
+  zurückführen, vor der Schrumpf-Leiter). Die Leine änderte auf zwölf gemischten Welten je Armee im
+  Mittel NICHTS (Orks −1.7", Necrons ±0.0"), bewegte keine Fixture, und im ECHTEN Pfad
+  (Regroup an) blieb das Stress-Set von `test_coherency_recovery.py` bei 1/90 eingefroren mit UND
+  ohne — sie rettete nur mit ABGESCHALTETEM Regroup (22 → 6), war also ein zweiter Mechanismus für
+  einen Fall, den `_regroup_move()` trägt. Der eine übrige Fall ist ein 8"-Split mit einer
+  Dense-Wand dazwischen, physisch. Beide Messungen stehen mit Zahlen in `CLAUDE.history.md`.
 - **`_creep_toward()`** als letztes Netz: größte noch legale starre Translation per Bisektion. Sie
   bewertet die GEMESSENE Strecke, nicht die angefragte, und verwirft einen Versuch, der nicht wirklich
   starr blieb (Step-over und Friendly-Clamp können einzelne Modelle abweichend weit bewegen).
@@ -4589,6 +4649,54 @@ Confirm-Button an den zuständigen Controller routet.
   (Charge 5 → 9 Modelle im Nahkampf), 11.04s 1"-Pflicht wird über die Ringtiefe erzwungen (Pile-In
   bekommt sie per 12.03 ausdrücklich NICHT), Baseline-Fehler werden vor Phase 1 gemessen (eine schon
   gebrochene Einheit muss den geerbten Zustand nicht reparieren).
+- **Charge seit dem Bewegungs-Review 2026-09-09** (User: "Charges klappen oft nicht, weil die AI
+  schlecht Lücken findet"), alles gemessen mit `measure_charge_scenes.py` (100 harte / 100 leichte
+  Szenen, jede per Brute-Force möglich) und den zwei Log-Fällen aus `measure_reported_moves.py`:
+  - **Der Engagement-Ring ist DICHT und LEGAL.** `_engagement_slots()` sampelte den Ring alle
+    `2r+0.1"` in Bogen UND Tiefe — ein 1.57"-C'tan bekam SECHS Slots auf einem 19"-Ring und einen
+    Ring —, und kein Slot wusste, ob er auf einer Wand, auf einer fremden Base oder in der
+    Engagement Range einer DRITTEN Einheit lag; jeder solche kostete einen der sechs
+    `_ENGAGEMENT_SLOT_TRIES` für nichts. Jetzt Bogenabstand 0.45" und Ringtiefe 0.5"
+    (`_ENGAGEMENT_ARC_STEP_IN`/`_ENGAGEMENT_RING_STEP_IN`), `legal(x, y)` aus
+    `_engagement_slot_filter()` (on board, 13.05, fremde Tokens, Keep-out-Engagement:
+    `_charge_keep_out()` = alle Feinde außer dem Ziel; Pile-In/Consolidate leer per
+    `disallowed_enemy_squads_for_move`), EINMAL je Ziel in `_run_charge_attempts()` gebaut und per
+    `slots=` durchgereicht, Winkel-Dedupe in `_ranked_free_slots()` (kein Slot innerhalb 2r eines
+    schon gereihten). **Der Charge-Ring beginnt bei BASISKONTAKT** (`_CHARGE_RING_INNER_EDGE_IN =
+    PILE_IN_CLEARANCE_IN`), nicht bei `CHARGE_TARGET_CLEARANCE_IN` (das bleibt Phase 1s Stopp):
+    gemessen 273 → 325 engagierte Modelle über die harten Szenen bei gleicher Vollendung.
+  - **Slot-zuerst-Anlauf (`_charge_slot_first`) als ERSTE Sprosse, nicht auf Wände gegated.** Alle
+    dreizehn Sweep-Anläufe beginnen mit dem starren Schub des ganzen Blocks zum nächsten Paar; endet
+    die Linie auf einer Wand oder in der Engagement Range eines Dritten, ist der Wurf verbraucht,
+    bevor Phase 2 beginnt. Der neue Anlauf ist die Charge, wie ein Spieler sie macht: Leitmodell
+    (Nahkampf-Charakter, sonst das nächste) per DIREKTER Linie oder `find_route()` zum besten
+    legalen Slot — mit Feind-BASEN als Transit-Blocker, NICHT mit aufgeblasenen Nicht-Zielen
+    (gemessen: aufgeblasen findet Fall B gar keinen Pfad und Fall A einen 14.05"-Pfad statt 12.26");
+    Wegpunkte, die die Engine nicht als ENDE akzeptiert, werden per `_free_landing_near()` (Caller
+    `charge-route`) neu gelandet; die Follower gehen dieselben gerouteten Schritte zu eigenen Slots
+    oder zu acht Punkten 1.5" hinter einem schon platzierten Squadmate und werden nur behalten, wenn
+    sie den Anschluss (09.02) halten; danach läuft die gewöhnliche Spread-Phase über die Reste.
+    **Warum geroutete Follower:** `--diagnose` zeigte 14 Fehlschläge, die per legalem Pfad
+    erreichbar waren — das Leitmodell landete in 8, und die Follower (geradeaus mit ±45°-Ausweichen)
+    verloren 7 davon.
+  - **Machbarkeit VOR der Deklaration** (`_charge_nearest_legal_slot`): gibt es um KEINEN Feind in
+    12" einen legalen Slot in 12" Luftlinie irgendeines Modells, wird die Charge NICHT angeboten
+    (Fehlerklasse 5; `declined_charge` + `[charge] ... not offered`-Zeile); sonst wird der nötige
+    Wurf aus dem LÄNGEREN von geroutetem Abstand und Weg zum nächsten legalen Slot gemeldet ("the
+    near side is blocked"). 11.02s Eligibility und `observation.charge_now` bleiben Luftlinie —
+    eigene Entscheidung, eigener Pin.
+  - **Gemessen, gegen die Leiter vor der Sitzung** (alter Ring bei 1.0", kein Slot-zuerst):
+    harte Welt **89 → 96 vollendet, 259 → 365 engagierte Modelle**; leichte Welt **96 → 100,
+    349 → 447**. `--diagnose` danach: 3 Fehlschläge, 2 davon per Pfad erreichbar.
+  - **Fall A (Lychguard + Overlord vs Krootox, 12", game_20260907_224519:966) ist per PFAD nicht
+    erreichbar:** die Brute-Force zählte 87 legale engagierte Endpunkte in LUFTLINIE, der kürzeste
+    legale Pfad zu irgendeinem legalen Slot ist 12.05–12.26" (Feindbasen blockieren den Transit,
+    03.01). Die Ablehnung der KI war richtig; die Luftlinien-Zahl ist eine Untergrenze. Fall B
+    (C'tan vs Dire Avengers, 6") wird seit der Landeplatz-Suche vollendet (Pfad 5.70").
+  - Neu: `test_charge_slots.py`, `test_charge_slot_first.py`, `test_charge_feasibility.py`,
+    `test_charge_retry_reactions.py` (Fehlerklasse 26); Sonden `ab_charge_slots.py`,
+    `ab_charge_approach.py`, `ab_charge_retry.py`. `test_front_rank.py` §5 pinnt jetzt 11/11 im
+    Engagement Range auf dem dichten Ring (vorher "< 11" als Szenen-Prämisse).
 - **Disembark**: KLUMPEN statt Ring (Kandidaten nach Abstand zu einem Abwurfpunkt am ÄUSSEREN Rand
   der Zone, greedy kohärent gefüllt) — die Ringform erzeugte Ketten mit Single-Point-of-Failure.
   Gemessen 0 Bridge-Kanten und ≥95% Drift-Überleben gegen vorher 5 bzw. 73%. Acht Facings,
@@ -7839,8 +7947,20 @@ Die wichtigste Einsicht dieses Repos zur KI-Bewegung, weil sie erklärt, warum F
   und einen halben Zug gewinnen); die vermeintliche Schussfeld-Lücke war fast vollständig ein
   Messfehler (jedem Modell wurde die beste Waffe der EINHEIT zugerechnet). Was die Messung
   STATTDESSEN fand — Einheiten scheitern an ihrer eigenen FORM — ist als `_place_packed()` umgesetzt.
-- **Aktueller Stand (map2, Gedränge):** ~64% erreichter Fortschritt, ~206" Gesamtboden, 0 Rückwärts,
-  0 gebrochene Kohärenz. Ausgangslage der Messreihe war 54% / 185".
+- **Aktueller Stand (map2, Gedränge, seit dem Review 2026-09-09):** Orks **74 % Median / 232.9"
+  Gesamtboden**, 0 Stalls (vor der Landeplatz-Suche 65 % / 217.7"); **Necrons 60 % / 119.9"**
+  (`--army=necrons`, neue zweite Baseline; vorher 60 % / 117.9"); Necrons isoliert 68 % / 139.4".
+  Ausgangslage der ganzen Messreihe war 54 % / 185". **Der Median hier ist `statistics.median`;
+  der Harness selbst druckt den oberen Median** (bei 42 Zeilen 76 % statt 74 % — dieselbe Welt).
+- **EINE Welt ist chaotisch, und das ist gemessen:** eine Änderung, die den ERSTEN Zug der
+  Deffkoptas um 0.8" verschiebt, verändert jeden späteren Zug (−12" in derselben Welt bei +0.7"
+  lokaler Wirkung). Wer eine kleine Änderung beurteilt, misst sie PAARWEISE (jeder Zug zweimal vom
+  selben Brett) oder über MEHRERE Welten (Reihenfolge der Einheiten gemischt, Feindband variiert;
+  die Layout-Bänder 0.28–0.34 ergeben dasselbe Brett) — so wurde die Leine als Null erkannt.
+- **Charges haben seit derselben Sitzung ihren eigenen Harness** (`measure_charge_scenes.py`):
+  harte Welt 96 von 100 möglichen Charges vollendet / 365 engagierte Modelle (vorher 89 / 259),
+  leichte Welt 100 / 447 (vorher 96 / 349). Die Decke: von den 4 Fehlschlägen sind 2 per legalem
+  Pfad erreichbar.
 - **Verbleibende Grenze ist teils physisch**: ein 3.5"-Schlitz nimmt keine drei 0.98"-Basen kohärent
   auf, und der Umweg ist länger als eine Zugbewegung. Das richtig zu lösen bräuchte
   formationsbewusste Pfadsuche plus Mehrzug-Planung — die naive Version davon ist gemessen und
@@ -8620,6 +8740,17 @@ Prompt-Puffer vor jeder Messung. Alles danach ist echt.
 
 - Ein von allen Seiten umstelltes Fahrzeug kann steckenbleiben (Ein-Wegpunkt-Heuristik + A*, keine
   formationsbewusste Pfadsuche).
+- **Der gemeldete Lychguard-Charge (Fall A) bleibt zu Recht unvollendet** — kürzester legaler
+  PFAD 12.05–12.26" bei 12" Wurf; die Machbarkeits-Prüfung vor der Deklaration rechnet Luftlinie
+  zum nächsten legalen Slot (11.17") und würde ihn weiter anbieten. Eine pfadbewusste Prüfung
+  (A* je Kandidat vor der Deklaration) ist die nächste Stufe, wenn solche Fälle im Log häufig
+  werden; `[charge geometry]` nennt seit dem Review die LEGALEN Slots.
+- `measure_fly_penalty.py` baut KEIN Terrain (`GameState()` ohne `battle_map.build`) — sein
+  +0.93"-Befund stammt von einem terrainfreien Brett; `measure_reported_moves.py` ist die Vorlage,
+  die das richtig macht.
+- `observation.charge_now` (die Odds im Prompt) rechnet weiter Luftlinie; die Deklarationsschleife
+  der taktischen Schicht nicht mehr. Eine eigene Entscheidung mit eigenem Pin
+  (`test_staging_and_charge.py`).
 - Keine explizite Right-of-Way-Koordination zwischen Einheiten im selben Zug (nur implizit über
   `priority` und die Korridor-/Ausladezonen-Stufen).
 - `GreaterGoodController.choose_target()` kann bei einer (nie auftretenden) ungültigen Zielwahl in

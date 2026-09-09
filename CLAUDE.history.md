@@ -8397,3 +8397,147 @@ schreibt `game/squad.py` und `game/terrain.py` beim Neutralisieren neu und
 normalisiert dabei CRLF auf LF. Inhaltlich identisch (`git diff --stat` leer),
 aber `git status` zeigt die Dateien danach als verändert — nach einem
 Sondenlauf gehört das zurückgesetzt, bevor committet wird.
+
+# Sitzung 2026-09-09 — KI-Bewegung, ganzheitlich: Duplikat, Landeplatz, Charge
+
+**Auftrag:** *"AI Movement Optimierung ... vor allem wenn sich große Squads mit
+20+ Modellen bewegen wollen. Die Modelle stehen sich noch oft gegenseitig im
+Weg. Ähnlich ist es mit großen Fahrzeugen ... Charges klappen oft nicht, weil
+die AI schlecht Lücken findet. Das Hauptproblem ist die Einhaltung von
+Kohärenz."* — als ganzheitlicher Blick, mit Blick in die History.
+
+Plan mit acht Schritten und Messgate je Schritt; vier davon sind ausgeliefert,
+zwei gemessen und wieder ausgebaut, einer als Nebenbefund um einen echten Fehler
+gewachsen. Kill-Kriterium: `measure_crowded_movement.py map2` darf weder im
+Median noch im Gesamtboden fallen (beide Zahlen, beide Armeen), und die aus
+Logs nachgebauten Fälle müssen sich messbar verbessern.
+
+## Befund vor der ersten Änderung
+
+1. **Ein totes Duplikat von ~1500 Zeilen in `ai/agent_driver.py`** (1119–2623):
+   39 doppelt definierte Namen, 38 byte-identisch, die erste Kopie von
+   `_advance_toward_per_model` eine ÄLTERE Generation. Python bindet die zweite;
+   die erste war tot — und `test_rotated_terrain.py` hatte "exists TWICE" als
+   Tatsache GEPINNT. Gelöscht; `test_agent_driver_shape.py` verbietet doppelte
+   Modulnamen (mit beißender Selbstsonde).
+2. **Der dominante Mechanismus ist die Friendly-Clamp**, nicht die
+   Kohärenzprüfung: am 21-Modell-Blob (game_20260908_204854:326, Brett MIT
+   Terrain nachgebaut) 535 von 821 Zielpunkten abgeschnitten, in 445 davon ein
+   freier Platz in 2". Fortschritt 2.71" von 5.00".
+3. **Beide gemeldeten Charges sahen physisch möglich aus** (Brute-Force in
+   Luftlinie: A 87 legale engagierte Endpunkte, B 5) und scheiterten aus 13
+   Anläufen; `_engagement_slots()` sampelte den Ring alle `2r+0.1"` und filterte
+   nichts; die A*-Route der Charge lief für die KI NIE (`_blocked_by_walls()` ist
+   seit der Wand-Freigabe immer False).
+4. **F1 (vom Plan-Review gefunden):** der Charge-Retry läuft die
+   Reaktionskette erneut, zwei Kauyon-Reaktoren ohne Memo.
+
+## Schritt 0/1 — Fixtures, Diagnose, Duplikat
+
+`measure_reported_moves.py` (A/B/C/S1/S2 aus Log-Koordinaten, mit Terrain,
+stale Fremd-Tokens am Ursprung entfernt, `--neutralize=`), `[move sweep]` und
+`[charge geometry]` im Log, `measure_crowded_movement.py --army=necrons`
+(Ausgabe für Orks byte-identisch). Necron-Baseline: 60 % / 117.9".
+
+## Schritt 2 — Budget des langsamsten Modells: gemessen, verworfen
+
+`min(remaining_range)` statt `max` in den drei Pässen: Fall C **2.71" → 1.84"**
+(54 → 37 %). Zurückgebaut mit Kommentar am schnellsten Budget.
+
+## Schritt 3 — Landeplatz-Suche (`_free_landing_near`)
+
+Erste Fassung: Ork-Median 65 → 74, aber Battlewagon 54 → 30 %, Warbikers
+66 → 39 %, Necron-Blob T3 52 → 18 % (der Route-Kandidat gewann auf
+Verschiebung nach seitlichem Re-Landing). Zwei Korrekturen, beide gemessen:
+Lateral-Strafe (Battlewagon 86 %) und der Route-Walker ausgeschlossen (der
+Blob zurück auf 52 %). Squadmate-Radius-Regler: voller Radius 353" über beide
+Gedränge-Welten gegen 339" bei 0.0.
+
+| | vorher | Schritt 3 |
+|---|---|---|
+| Orks crowded | 65 % / 217.7" | **74 % / 232.9"**, 0 Stalls |
+| Necrons crowded | 60 % / 117.9" | 60 % / 119.9" |
+| Necrons isoliert | 74 % / 140.7" | 68 % / 139.4" (eine Zeile: Blob allein T2 92 → 43 %) |
+| Fall C | 2.71" | **3.72"** |
+| Fall B | FAILED | **completed** |
+| S1 / S2 | — | 96 % / 82 % |
+
+`test_landing_search.py` (31), `ab_movement_landing.py` (10 Sonden, alle
+beißend). Befunde über den TEST: Test 7 war vakuum (kohärenter Platz war auch
+der nächste), 8c erwartete exakt auf der Linie (31-Punkte-Ring hat keinen
+180°-Punkt), Test 5s Wand lag HINTER dem Ziel und `Obstacle` nimmt die MITTE.
+
+## Schritt 4 — die Leine: gemessen, verworfen
+
+Streuer eines gesplitteten Passes mit vollem Budget aus dem Snapshot zur
+Hauptkomponente zurückführen. Einzelwelt: Orks 232.9" → 220.9" — aber
+PAARWEISE (jeder Zug zweimal vom selben Brett) ändert die Leine nur 3 von 84
+Zügen (+0.77", −0.08", +0.68") und feuert in 8 weiteren wirkungslos; der
+Verlust war Chaos eines um 0.8" anderen ERSTEN Zuges. Zwölf Welten je Armee
+(Reihenfolge gemischt × Feindband): Orks Mittel −1.7", Necrons ±0.0",
+Fixtures unverändert. Stress-Set `test_coherency_recovery.py`: 1/90 eingefroren
+mit UND ohne (nur mit abgeschaltetem Regroup 22 → 6). Der übrige Fall: 8"-Split
+mit Dense-Wand, physisch. Zurückgebaut (exakte Inverse); die Suite, deren Sonde
+die Leine gerettet hatte, ist wieder 32/32. **Lehre: eine Welt ist chaotisch;
+kleine Änderungen paarweise oder über mehrere Welten messen.**
+
+## Schritt 5a — F1 reproduziert und behoben
+
+Repro: Photon Grenades fragt bei drei Retries dreimal; im KI-Pfad (jeder Anlauf
+scheitert an 13.05) zweiter Prompt, **5 Segmente ohne offenen Zug committet,
+5/5 Modelle versetzt**, Charge `idle` bei stehendem Prompt. Und ein DRITTER
+Fall aus dem eigenen Test: der Resume-Kopf rief `begin_charge_move()` über einem
+OFFENEN Zug (ein memo-loser Stub prompte erneut, der Wächter sah es nicht).
+Drei Nähte (Fehlerklasse 26 in CLAUDE.md). `test_charge_retry_reactions.py`
+(47), `ab_charge_retry.py` (6 Sonden).
+
+**Nebenbefund:** `test_melee_engagement.py` §3 (Warbikers-Pile-In, Optimum 2/3)
+wurde durch die Landeplatz-Suche im Caller `engagement-step` rot — die Suche
+kennt keine Engagement Range. Per-Caller-A/B: nur dieser Caller. Ausgeschlossen;
+Fixtures A/B unverändert.
+
+## Schritt 5b/6/7 — Charge: dichter legaler Ring, Slot-zuerst, Machbarkeit
+
+`measure_charge_scenes.py`: 100 harte / 100 leichte Szenen, jede per Brute-Force
+möglich, durch die echte Leiter. **Fall A stellte sich als per PFAD unerreichbar
+heraus** (12.05–12.26" bei 12"; die Brute-Force zählte Luftlinie) — die
+Ablehnung der KI war richtig. Deshalb der Harness.
+
+| harte Welt (100 möglich) | vollendet | engagiert |
+|---|---|---|
+| Leiter vor der Sitzung (Ring bei 1.0", kein Slot-zuerst) | 89 | 259 |
+| dichter legaler Ring, kein Slot-zuerst | 92 | 339 |
+| + Slot-zuerst (geroutet, ohne Spread) | 97 | 273 |
+| + Spread-Phase danach, Ring ab 1.0" | 97 | 340 |
+| **+ Ring ab Basiskontakt (ausgeliefert)** | **96** | **365** |
+| leichte Welt: vorher → ausgeliefert | 96 → 100 | 349 → 447 |
+
+Der Weg dorthin, alles gemessen: `--diagnose` zeigte 14 per Pfad erreichbare
+Fehlschläge; das Leitmodell landete in 8, die Follower (geradeaus, ±45°)
+verloren 7 → geroutete Follower mit Anschluss-Pflicht. Routing mit
+aufgeblasenen Nicht-Zielen (der naheliegende Weg, Keep-out zu meiden) fand für
+B keinen Pfad und für A 14.05" → Basen-only, Wegpunkte per Landeplatz-Suche.
+Slot-zuerst ohne Spread vollendete mehr und stellte WENIGER Modelle in den Kampf
+→ Spread danach. Ein Szenen-Artefakt des Harness (Charger startete in
+Engagement Range eines Nebenstehenden) fiel als "Charge vollendet, Confirm
+lehnt ab" auf und ist generatorseitig ausgeschlossen (11.01).
+
+Schritt 7: kein legaler Slot in 12" um irgendeinen Feind → nicht angeboten;
+sonst der Wurf zum nächsten legalen Slot ("the near side is blocked").
+`observation.charge_now` bleibt Luftlinie.
+
+Tests: `test_charge_slots.py` (35), `test_charge_slot_first.py` (39),
+`test_charge_feasibility.py` (24); Sonden `ab_charge_slots.py` (8),
+`ab_charge_approach.py` (8), alle beißend. Befunde über den TEST: zwei
+Sonden-Anker doppelt (die Filter-Schleifen stehen wörtlich auch in
+`_free_landing_near`), eine Follower-Sonde ohne diskriminierende Szene (jetzt
+zwei Zielmodelle 8" auseinander, der Follower steht näher am falschen), drei
+Pins waren Messungen der Vor-Welt (`test_front_rank.py` §5 "< 11" → 11/11;
+`test_report_20260908.py` 0.00" → 1.14"; `test_rotated_terrain.py`
+"exists twice"), und mein eigener Landeplatz-Vorfilter las die Bounding Box
+statt des Stücks (`test_rotated_terrain.py` hat ihn gemeldet).
+
+## Regression
+
+Zwischenstand `8584f09` (Steps 0–3, 5a) nach 200 Suiten / 199 grün / 1 bekannt
+und Selfplay map2. Abschluss: siehe Commit.
