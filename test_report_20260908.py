@@ -399,8 +399,14 @@ def ground_gained(target):
 
 
 inside_moved, _inside_progress, _b = ground_gained((34.0, 8.0))
-c.eq("the order it was actually given moves it nothing at all",
-     round(inside_moved, 2), 0.0)
+# Measured 0.00" when this was written; 1.14" since the landing-spot search
+# of 2026-09-09 (ai/agent_driver._free_landing_near): the models that used to
+# be truncated to zero against a squadmate now step around each other, so an
+# order onto the unit's own middle buys a shuffle inside its own footprint
+# instead of nothing. Either way it is not a move worth an order - the
+# comparisons below are the point, and section 7 is what drops such an order.
+c.true(f"the order it was actually given moves it next to nothing (got {inside_moved:.2f}\")",
+       inside_moved < 1.5)
 
 # A COMPARISON, not an absolute bar. How much ground a target outside the
 # formation buys depends on what else is in the way - on this board the blob's

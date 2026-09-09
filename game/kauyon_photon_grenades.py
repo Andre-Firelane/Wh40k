@@ -71,6 +71,15 @@ class PhotonGrenadesController:
         self._charging_squad = None
         self._resume = None
         self._awaiting_shock = False
+        # Which declaration has already been asked about. ChargeController.
+        # begin_charge_move() runs the reaction chain AGAIN for every retry of
+        # a failed approach (ai/agent_driver.py's _run_charge_attempts climbs
+        # up to 13 of them), and a DECLINED offer leaves rule 15.01's ledger
+        # untouched - so without this memo the same declaration re-prompted on
+        # every retry (measured: two prompts for one declaration, and the
+        # retry then placed models with no move open). The same memo
+        # game/grav_inhibitor_field.py keeps at the same seam.
+        self._offered_key = None
 
     def reset_phase(self, squads=()):
         """"until the end of the phase"."""
@@ -118,12 +127,16 @@ class PhotonGrenadesController:
         "I opened something and own the continuation now"."""
         if self.turn_tracker is not None and self.turn_tracker.phase != PHASE_CHARGE:
             return False
+        key = self._declaration_key(charging_squad, targets)
+        if key == self._offered_key:
+            return False  # this same declaration has already been asked about
         candidates = self.eligible_defenders(charging_squad, targets)
         if not candidates:
             return False
         reactor = candidates[0].owner
         if reactor in self.auto_players or self.decision_manager is None:
             return False
+        self._offered_key = key
         self._charging_squad = charging_squad
         self._resume = on_resolved
         self.decision_manager.request(
@@ -136,6 +149,10 @@ class PhotonGrenadesController:
             + [("Decline", self._decline)],
         )
         return True
+
+    def _declaration_key(self, charging_squad, targets):
+        battle_round = getattr(self.turn_tracker, "battle_round", None)
+        return (battle_round, id(charging_squad), tuple(sorted(id(t) for t in targets or ())))
 
     def _accept(self, defender):
         used = self.stratagem_controller.use(defender.owner, self._stratagem, [defender])

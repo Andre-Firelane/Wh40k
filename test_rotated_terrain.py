@@ -328,9 +328,15 @@ for path, needle, why in (
     c.true(f"{why}", needle in src)
 
 ai_src = io.open("ai/agent_driver.py", encoding="utf-8").read()
-c.eq("the AI's corner routing, which exists TWICE, goes through one definition",
-     ai_src.count("candidates.extend(o.route_waypoints(mx, my, clearance))"), 2)
-c.eq("...and so does its reachability test", ai_src.count("o.blocks_segment((mx, my), point)"), 2)
+# ONE occurrence each. This line used to want TWO, and that pinned a defect as a
+# fact: ai/agent_driver.py carried a byte-for-byte dead copy of its whole
+# per-model movement core (the second definition won, the first was never
+# called) until 2026-09-09 - see test_agent_driver_shape.py, which now forbids
+# a module-level name being defined twice. The point of THIS check is
+# unchanged: the corner routing asks the obstacle, not its bounding box.
+c.eq("the AI's corner routing goes through the obstacle's own definition",
+     ai_src.count("candidates.extend(o.route_waypoints(mx, my, clearance))"), 1)
+c.eq("...and so does its reachability test", ai_src.count("o.blocks_segment((mx, my), point)"), 1)
 
 for path in ("game/line_of_sight.py", "game/geometry.py", "game/pathfinding.py",
              "ai/agent_driver.py", "game/renderer.py"):

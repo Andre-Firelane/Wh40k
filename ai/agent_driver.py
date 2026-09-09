@@ -1542,6 +1542,7 @@ def _place_per_model_move(movement_controller, squad, aim_point, fraction, start
     centroid_after, budget = _place_per_model_pass(
         movement_controller, squad, aim_point, fraction, start)
     if len(squad.check_coherency()) > baseline_errors:
+        _sweep_stats["split_passes"] = _sweep_stats.get("split_passes", 0) + 1
         _repair_coherency_by_shrinking(
             movement_controller, squad, origin, start, baseline_errors)
         centroid_after = _centroid(squad)
@@ -1652,7 +1653,7 @@ def _close_up_to_placed(movement_controller, squad, model, placed):
     target_x = anchor.x_in + dx * scale
     target_y = anchor.y_in + dy * scale
     target_x, target_y = _clamp_target_against_friendly_models(
-        model, target_x, target_y, squad, movement_controller, placed)
+        model, target_x, target_y, squad, movement_controller, placed, caller="close-up")
     new_x, new_y = movement_controller.clamp_move(model, target_x, target_y)
 
     # Judged before it is committed, and dropped unless it is an improvement on
@@ -1976,6 +1977,16 @@ def _place_per_model_pass(movement_controller, squad, aim_point, fraction, start
     # live position, so recomputing this mid-pass would measure a formation
     # that is already half-tightened and shrink it twice over.
     tighten = _tightening_factor(squad)
+    # The FASTEST model's budget, and that is measured rather than an
+    # oversight. Taking the slowest model's instead (a Technomancer M6 among
+    # Necron Warriors M5 - the obvious fix for a mixed 19.01 unit whose fast
+    # leader outruns the rank and file) was tried on 2026-09-09 and cost the
+    # reported 21-model blob 2.71" -> 1.84" of progress: with a tightening
+    # factor below 1 the slots converge on the aim point, and an aim point set
+    # exactly one slow move away leaves the FRONT models stopping on slots
+    # inside their own range while only the rear spends its full move. The
+    # overshoot from the fastest model's budget is what keeps every model
+    # walking its whole distance. See measure_reported_moves.py case C.
     budget = max((movement_controller.remaining_range.get(m.id, 0.0) for m in squad.models), default=0.0)
     # Slots are built around what the squad can REACH this turn, not around a
     # target several turns away - otherwise the tightening never actually
@@ -1996,7 +2007,9 @@ def _place_per_model_pass(movement_controller, squad, aim_point, fraction, start
             move = min(dist, max_distance)
             scale = move / dist
             target_x, target_y = model.x_in + dx * scale, model.y_in + dy * scale
-            target_x, target_y = _clamp_target_against_friendly_models(model, target_x, target_y, squad, movement_controller, placed)
+            target_x, target_y = _clamp_target_against_friendly_models(
+                model, target_x, target_y, squad, movement_controller, placed,
+                max_travel=max_distance, caller="pass")
             _advance_model_toward(movement_controller, model, target_x, target_y)
         # Aiming somewhere reachable is not arriving there: clamp_move() may
         # have stopped this model short against a wall or a base. Check where
@@ -2145,7 +2158,8 @@ def _place_per_model_route(movement_controller, squad, waypoints, start):
                 # pulling each step toward the models already parked at the far
                 # end would bend the route out of shape.
                 target_x, target_y = _anchored_slot(model, (target_x, target_y), placed)
-            target_x, target_y = _clamp_target_against_friendly_models(model, target_x, target_y, squad, movement_controller, placed)
+            target_x, target_y = _clamp_target_against_friendly_models(
+                model, target_x, target_y, squad, movement_controller, placed, caller="route")
             _advance_model_toward(movement_controller, model, target_x, target_y)
         if placed and not _in_coherency_with_any(model, placed):
             _close_up_to_placed(movement_controller, squad, model, placed)
@@ -2256,7 +2270,54 @@ def _place_rigid_route(movement_controller, squad, waypoints, start):
     return _centroid(squad), budget
 
 
+# One line per per-model sweep, so a movement report can be read from the
+# log instead of re-run from raw coordinates: which candidate won and how much
+# of the intended distance it delivered, how many candidates were tried and
+# filed as fallbacks, how often the friendly clamp cut a model's target short
+# (see _clamp_target_against_friendly_models) and how many passes ended split.
+# Measured on the reported 21-model blob (measure_reported_moves.py case C):
+# 42 candidates, 535 truncations against 286 clear landings, 4 split passes -
+# none of which the old log could show. Module-level because the sweep is one
+# synchronous call and the counters are written from three functions that
+# share no argument.
+_sweep_stats = {}
+
+
+def _reset_sweep_stats():
+    _sweep_stats.clear()
+    _sweep_stats.update(candidates=0, fallbacks=0, truncated=0, clear=0, relanded=0,
+                        split_passes=0, winner=None, achieved=0.0, intended=0.0)
+
+
+def _log_move_sweep(movement_controller, squad, moved):
+    log = getattr(movement_controller, "game_log", None)
+    if log is None or not _sweep_stats:
+        return
+    s = _sweep_stats
+    won = (f"won={s['winner']} ({s['achieved']:.2f}\" of {s['intended']:.2f}\")"
+           if moved and s["winner"] else "won=NONE")
+    log.add(
+        f"  [move sweep] {squad.name}: {s['candidates']} candidates, {won}, "
+        f"fallbacks {s['fallbacks']}, friendly clamp: clear {s['clear']}, "
+        f"relanded {s.get('relanded', 0)}, truncated {s['truncated']}, "
+        f"split passes {s['split_passes']}",
+        file_only=True,
+    )
+
+
 def _advance_toward_per_model(movement_controller, squad, target_point, start_move_fn=None, confirm_fn=None, cancel_fn=None, flying=False):
+    """The per-model sweep (see _advance_toward_per_model_impl) plus its
+    [move sweep] log line - split so the line is written on EVERY exit of a
+    function that returns from a dozen places."""
+    _reset_sweep_stats()
+    moved = _advance_toward_per_model_impl(
+        movement_controller, squad, target_point, start_move_fn=start_move_fn,
+        confirm_fn=confirm_fn, cancel_fn=cancel_fn, flying=flying)
+    _log_move_sweep(movement_controller, squad, moved)
+    return moved
+
+
+def _advance_toward_per_model_impl(movement_controller, squad, target_point, start_move_fn=None, confirm_fn=None, cancel_fn=None, flying=False):
     """Fallback for when NO whole-squad rigid translation
     (_advance_toward_bulk()) can find a legal way to move together - moves
     each model INDIVIDUALLY toward target_point, exactly like a human
@@ -2441,7 +2502,7 @@ def _advance_toward_per_model(movement_controller, squad, target_point, start_mo
 
     distance_to_target = ((target_point[0] - cx) ** 2 + (target_point[1] - cy) ** 2) ** 0.5
 
-    def consider(plan, route_length=None):
+    def consider(plan, route_length=None, label=""):
         """Run one candidate placement; confirm it if it's good enough,
         otherwise cancel and file it as a fallback. Returns True only if the
         squad has actually been left moved and confirmed.
@@ -2468,6 +2529,7 @@ def _advance_toward_per_model(movement_controller, squad, target_point, start_mo
         Warbikers, Deff Dread, Trukks), which is exactly the user's
         "fahrzeuge/mounted und waende sind immernoch ein riesen problem"."""
         after, budget = plan()
+        _sweep_stats["candidates"] = _sweep_stats.get("candidates", 0) + 1
         progress, displacement = _squad_progress(origin_centroid, after, target_point)
         if displacement < MIN_ROUTE_PROGRESS_IN:
             cancel()  # nothing really happened - not even worth keeping
@@ -2511,13 +2573,15 @@ def _advance_toward_per_model(movement_controller, squad, target_point, start_mo
         if achieved >= _GOOD_PROGRESS_FRACTION * intended:
             confirm()
             if not movement_controller.errors:
+                _sweep_stats.update(winner=label, achieved=achieved, intended=intended)
                 return True
             cancel()
             return False
         cancel()
         # Filed under `achieved` so a routed candidate is ranked by the road
         # distance it covered, on the same scale the fallback round re-checks.
-        fallbacks.append((achieved, displacement, plan, route_length))
+        fallbacks.append((achieved, displacement, plan, route_length, label))
+        _sweep_stats["fallbacks"] = _sweep_stats.get("fallbacks", 0) + 1
         return False
 
     if not flying:
@@ -2568,1520 +2632,16 @@ def _advance_toward_per_model(movement_controller, squad, target_point, start_mo
                 # dead straight, so a boxed-in squad had no candidate that
                 # could get around a wall without risking its formation.
                 if consider(lambda: _place_per_model_route(movement_controller, squad, route, start),
-                            route_length=road):
+                            route_length=road, label="route"):
                     return True
                 if consider(lambda: _place_rigid_route(movement_controller, squad, route, start),
-                            route_length=road):
+                            route_length=road, label="rigid-route"):
                     return True
 
         for waypoint in _route_around_waypoints(representative, target_point[0], target_point[1], movement_controller.obstacles, movement_controller, squad):
             for fraction in ADVANCE_DISTANCE_FRACTIONS:
-                if consider(lambda w=waypoint, f=fraction: _place_per_model_move(movement_controller, squad, w, f, start)):
-                    return True
-
-    for fraction in ADVANCE_DISTANCE_FRACTIONS:
-        for angle in ADVANCE_ANGLE_JITTER_DEG:
-            start()
-            max_distance = movement_controller.remaining_range.get(squad.models[0].id, 0.0) * fraction
-            rotated_target = _rotate_point_around(cx, cy, target_point[0], target_point[1], angle)
-            _translate_squad_toward(movement_controller, squad, rotated_target, max_distance)
-            # "confirm_move() raised no error" is NOT the same as "the squad
-            # moved". If every model got clamped back to where it started -
-            # boxed in by terrain and friendly models, the common case in a
-            # crowded midfield - the squad is simply standing where it began,
-            # which was already legal, so confirm() has nothing to object to
-            # and reports success at zero movement. Measured on a crowded
-            # 254-scenario stress run: EVERY squad that ended up standing
-            # still got there through this branch, and the creep fallback
-            # below it was never reached once. Same false-success shape the
-            # per-model placement paths were already fixed for.
-            #
-            # BOTH bars, not just distance covered. The angle sweep reaches all
-            # the way to 180 degrees, so a candidate can carry the squad
-            # sideways or straight backwards and still clear a displacement
-            # bar - and because bulk then reports success, no further angle is
-            # tried and _creep_toward() (which is strictly toward the target)
-            # is never reached. That is a full turn spent driving away from the
-            # objective. Reproduced in a blind alley open only to the rear: the
-            # squad committed a move with -0.80" of goal progress. The
-            # per-model stage got this same guard when the user reported
-            # "manchmal bewegt sich der Devilfisch statt nach vorne einfach
-            # sinnlos nach rechts"; the bulk stage never did, which is what
-            # ended up moving the Warbikers backwards ("die bikes tun sich
-            # extrem schwer durch das enge gelände vorzurücken und sind
-            # eigentlich immer rechts stuck").
-            progress, displacement = _squad_progress((cx, cy), _centroid(squad), target_point)
-            if displacement < MIN_ROUTE_PROGRESS_IN or progress < MIN_GOAL_PROGRESS_IN:
-                cancel()
-                continue
-            confirm()
-            if not movement_controller.errors:
-                return True
-            cancel()
-    return False
-
-
-# Corner-routing fallback (see _route_around_waypoints()) - how far outside
-# a blocking obstacle's own corner to aim, and how many of the nearest
-# blocking obstacles get their corners tried at all (kept small: each one
-# adds ADVANCE_DISTANCE_FRACTIONS more attempts, and this is only a bounded
-# "aim past the corner" heuristic, not real pathfinding).
-CORNER_ROUTE_CLEARANCE_IN = 0.3
-CORNER_ROUTE_MAX_OBSTACLES = 3
-# A waypoint barely different from where the model already stands isn't a
-# real routing option - it's indistinguishable from "stay put" and would
-# just get "successfully" re-picked forever (see _route_around_waypoints()'s
-# own docstring for the real stall this caused before this filter existed).
-MIN_ROUTE_PROGRESS_IN = 1.0
-# A committed move has to actually close the gap to where it was going, not
-# merely cover ground - see _advance_toward_per_model()'s consider().
-MIN_GOAL_PROGRESS_IN = 0.5
-# How many rings out from an Ingress drop point to look for model slots (see
-# _ingress_pack_positions()). Enough room for a large squad plus blocked
-# slots; beyond this the unit is no longer arriving where it was scored.
-_INGRESS_PACK_RINGS = 4
-# How far the WHOLE formation has to be able to advance along a route leg
-# before a rigid routed move bothers taking it (see _place_rigid_route()):
-# below this the squad is wedged and the remaining legs cannot help.
-MIN_RIGID_LEG_IN = 0.25
-
-
-def _route_around_waypoints(model, target_x, target_y, obstacles, movement_controller, squad):
-    """User report ("die KI bewegt sich immer noch nicht wirklich nach
-    vorne... den Devilfish hat sie gar nicht bewegt") plus the user's own
-    correct diagnosis: a VEHICLE (no INFANTRY/BEASTS/SWARM/MOBILE keyword)
-    cannot pass through Dense terrain at all (rule 13.05/13.06 -
-    clamp_move()'s obstacle_fraction already enforces this correctly, cross
-    referenced and confirmed directly: a straight line through a wall gets
-    truncated right at its face, it does NOT let the model through). The
-    actual gap is that _advance_toward_per_model()'s retry sweep only ever
-    rotates the AIM around the far target_point - once a model ends up
-    pressed flush against a wall, every one of those rotated aims still
-    points back into the same wall for a wall of any real size, so it
-    stalls there for every future call, never finding its way around.
-    Confirmed directly: a test vehicle blocked by a 16"-tall wall advanced
-    normally for one turn, then made ZERO further progress for the next two
-    (position changing only in the 12th decimal place) - matching the
-    user's real Devilfish, deployed a few inches from actual Dense ruin
-    walls, ending up parked at the exact same coordinate turn after turn.
-
-    Returns candidate waypoints for `model` to head toward instead, given
-    whatever is actually blocking its straight path to (target_x,
-    target_y) - sorted closest-to-the-original-target first. A simple,
-    bounded "go around it" heuristic (not real pathfinding) - consistent
-    with this file's existing style for movement heuristics (see e.g.
-    _best_staging_point()'s own "bounded sampled search, not a true
-    solver" precedent). Only the closest CORNER_ROUTE_MAX_OBSTACLES
-    blockers of EACH kind (terrain, friendly models) are considered, to
-    keep the number of extra attempts bounded.
-
-    Real bug found while building this: the first version only offered the
-    obstacle's 4 corners, each pushed diagonally outward - reproduced
-    directly that this does NOT fix the stall at all, because reaching a
-    "far side" corner from where the model is actually standing (typically
-    flush against the NEAR face) requires a diagonal line that itself still
-    crosses the obstacle's rectangle (e.g. blocked at (12.49, 1.5) by a wall
-    spanning x=14-16 - a diagonal aim at the wall's far-side corner (17.8,
-    9.8) crosses x=14-16 at a y still well within the wall's own y-range,
-    so clamp_move() truncates it right back at the near face again, same as
-    every angle-jitter attempt already did). Fixed by ALSO offering "slide
-    along my current axis, then clear the obstacle's extent on the OTHER
-    axis" waypoints - (my own x, just past the obstacle's y-range) and
-    (my own y, just past the obstacle's x-range) - which stay on one
-    constant coordinate the whole way, so the straight line to them can
-    only ever run parallel to (never through) the obstacle's rectangle.
-    Every candidate (corners included) is then filtered to keep only the
-    ones ACTUALLY reachable in a straight line without crossing this or any
-    OTHER blocking terrain/model - so a corner that happens to already be
-    reachable directly is still offered too, just never a diagonal one that
-    only looks reachable.
-
-    Second real bug found while building this, only visible after the fix
-    above: sorting purely by distance-to-the-original-target still picked
-    the "(near-face x, my own y)" waypoint every time, since it's naturally
-    the closest one to a target on the far side - but once the model is
-    ALREADY sitting flush against that near face, that waypoint is barely
-    different from where it already is, so it "succeeds" with next to no
-    actual movement and the model stalls right back at the same spot next
-    call. Fixed with MIN_ROUTE_PROGRESS_IN: a waypoint within 1" of the
-    model's CURRENT position isn't a real routing option and is dropped
-    before sorting - reproduced and confirmed this is what finally lets the
-    "slide past the obstacle's extent" waypoints (the ones that actually
-    matter) win out once the model is genuinely stuck.
-
-    Third real, separate cause found via a fully faithful reproduction
-    against the actual demo scene/army: even with the terrain-corner fix
-    above, the real Devilfish (base radius 2.1", far larger than the
-    ~0.6-1.0" infantry around it) still stalled - not on terrain this time,
-    but on its OWN nearby army. _clamp_target_against_friendly_models()
-    (rule 03.01: a model's base may pass through friendly models but never
-    end atop one) already correctly blocks a straight line that would end
-    on/through another Player 2 model - with several squads converging on
-    similar objectives ahead of the Devilfish in the same movement-phase
-    processing order (see _movement_priority_key()), and its own large
-    radius inflating every other model's effective blocking radius, most
-    directions ended up blocked by a FRIENDLY model, not a wall - the wall-
-    only fix above had nothing to route around in that case. Fixed by also
-    generating "step to one side of this specific blocking model" waypoints
-    (perpendicular to the mover-to-target line, offset by both models'
-    combined radius plus clearance) for each friendly model actually
-    blocking the direct path (via the same segment_circle_entry_fraction()
-    check MovementController.clamp_move()'s own enemy-model blocking
-    already uses) - the same "go around the thing that's actually in the
-    way" idea as the terrain corners, just for a circle instead of a
-    rectangle. Every candidate is reachability-filtered against BOTH
-    terrain AND every friendly blocker (not just the one that produced it),
-    exactly like the terrain-only candidates already were."""
-    mx, my = model.x_in, model.y_in
-    blocking_obstacles = [
-        o for o in obstacles
-        if o.blocks_movement_for(model)
-        and o.blocks_segment((mx, my), (target_x, target_y))
-    ]
-    # Same "friendly blockers" definition _clamp_target_against_friendly_
-    # models() itself uses - every other Player-owned model currently on
-    # the board (this pre-move-loop call always has an empty `placed`, so
-    # every squadmate counts too, same as that function's own base case).
-    friendly_tokens = [
-        t for t in movement_controller.all_tokens
-        if t is not model and t.squad is not None and t.squad.owner == squad.owner
-    ]
-    blocking_models = [
-        t for t in friendly_tokens
-        if geometry.segment_circle_entry_fraction(
-            (mx, my), (target_x, target_y), (t.x_in, t.y_in), t.radius_in + model.radius_in,
-        ) < 1.0
-    ]
-    if not blocking_obstacles and not blocking_models:
-        return []
-    blocking_obstacles.sort(key=lambda o: (o.x_in - mx) ** 2 + (o.y_in - my) ** 2)
-    blocking_obstacles = blocking_obstacles[:CORNER_ROUTE_MAX_OBSTACLES]
-    blocking_models.sort(key=lambda t: (t.x_in - mx) ** 2 + (t.y_in - my) ** 2)
-    blocking_models = blocking_models[:CORNER_ROUTE_MAX_OBSTACLES]
-
-    clearance = model.radius_in + CORNER_ROUTE_CLEARANCE_IN
-    candidates = []
-    for o in blocking_obstacles:
-        # "Slide past it" waypoints parallel to the obstacle's own edges, plus
-        # its corners pushed outward - genuinely useful when the model isn't
-        # pressed flush against this particular obstacle (e.g. a second,
-        # different obstacle is what's actually blocking it right now).
-        # Asked of the obstacle so a ROTATED piece offers the ways past its
-        # real edges, and so this file's two copies of the routing cannot be
-        # taught different geometry.
-        candidates.extend(o.route_waypoints(mx, my, clearance))
-
-    dx, dy = target_x - mx, target_y - my
-    dist_to_target = (dx * dx + dy * dy) ** 0.5
-    if dist_to_target > 1e-9:
-        # Unit vector perpendicular to the mover-to-target line - "step to
-        # one side" of each blocking model, not "back toward where I came
-        # from" or "further past the target".
-        px, py = -dy / dist_to_target, dx / dist_to_target
-        for t in blocking_models:
-            side_radius = t.radius_in + model.radius_in + CORNER_ROUTE_CLEARANCE_IN
-            candidates.append((t.x_in + px * side_radius, t.y_in + py * side_radius))
-            candidates.append((t.x_in - px * side_radius, t.y_in - py * side_radius))
-
-    def reachable(point):
-        if any(
-            o.blocks_movement_for(model)
-            and o.blocks_segment((mx, my), point)
-            for o in obstacles
-        ):
-            return False
-        if any(
-            geometry.segment_circle_entry_fraction((mx, my), point, (t.x_in, t.y_in), t.radius_in + model.radius_in) < 1.0
-            for t in friendly_tokens
-        ):
-            return False
-        return True
-
-    waypoints = [
-        p for p in candidates
-        if reachable(p) and (p[0] - mx) ** 2 + (p[1] - my) ** 2 >= MIN_ROUTE_PROGRESS_IN ** 2
-    ]
-    waypoints.sort(key=lambda p: (p[0] - target_x) ** 2 + (p[1] - target_y) ** 2)
-    return waypoints
-
-
-# Real, severe bug found via user report ("die moves wirken oft blockiert, zu
-# kurz... ab zug 2 bewegt sich die ki kaum noch") and reproduced on a
-# COMPLETELY EMPTY board - no terrain, no enemy anywhere near, nothing in the
-# way at all: every model of a squad used to head for the SAME shared aim
-# point, so the squad's own models converged on one spot and blocked each
-# other. _clamp_target_against_friendly_models() then truncated each model at
-# the first squadmate standing in its path, and try_commit_segment() rejected
-# outright any model that would still have landed on one (reverting it to
-# 0.00"). The resulting sheared formation failed confirm_move()'s coherency
-# check, so the angle/fraction ladder retried at ever shorter distances until
-# some degenerate stub of a move finally passed. Measured: a 10-model squad
-# with M=7" averaged 1.65" of actual movement, with several models at exactly
-# 0.00" - matching the real game logs, where 1-5 of 10 models per squad moved
-# in a typical turn (Kroot Carnivores 2, round 3->4: exactly ONE model of ten).
-#
-# The fix is to stop aiming every model at one point: each model gets its own
-# destination slot instead - the aim point plus that model's CURRENT offset
-# from the squad centroid, i.e. the formation the squad already has, carried
-# forward. Every model then travels on a parallel course rather than a
-# converging one, so squadmates stop blocking each other by construction,
-# while each model still routes/clamps/validates individually exactly as
-# before (a model stopped by terrain simply falls behind, which the coherency
-# retry ladder below still catches). Same scenario, same code path, after the
-# fix: 10/10 models move the full 7.00" and coherency holds.
-def _formation_slot(model, aim_point, centroid, tighten=1.0):
-    """This model's own destination for an attempt: `aim_point` with the
-    model's offset from the squad centroid carried over, so the squad advances
-    in the shape it already has instead of collapsing onto a single point (see
-    the module comment above for the bug this fixes) - scaled by `tighten`, so
-    an over-stretched squad closes up as it goes.
-
-    Scaling every offset about the centroid by one shared factor is a
-    similarity transform: relative bearings are untouched (nobody swaps sides
-    or crosses a squadmate), every pairwise distance shrinks by exactly that
-    factor, and each model still gets its own distinct slot, which is the whole
-    point of this function. See _tightening_factor() for how the factor is
-    picked."""
-    return (aim_point[0] + (model.x_in - centroid[0]) * tighten,
-            aim_point[1] + (model.y_in - centroid[1]) * tighten)
-
-
-# How much of rule 09.02's 9" spread limit a squad is aimed at when it has to
-# close up, and the most it may tighten in any single move. The margin matters:
-# a formation sitting AT the limit has no room left for the per-model clamping
-# that terrain forces on it, so the next obstacle it meets splits it.
-_FORMATION_COMFORT_FRACTION = 0.7
-_MIN_FORMATION_TIGHTEN = 0.6
-def _capped_aim(centroid, aim_point, budget):
-    """`aim_point` pulled back to what the squad can actually cover this turn.
-
-    Without this the tightening in _formation_slot() only ever arrives when the
-    squad ARRIVES. Measured on the stretched Meganobz of
-    test_formation_coherency.py: _tightening_factor() asked for 0.85 on every
-    one of four moves - a target spread of 6.30" against 9.00" - and delivered
-    7.45" -> 7.41" -> 7.38" -> 7.36", i.e. 0.4% of the 15% it asked for.
-
-    The reason is geometric rather than a bug in the shrink. Each model is sent
-    toward `far target + its own tightened offset` and capped at its own
-    movement. When the target is several turns away, every one of those aims
-    points in almost the same direction and every model travels the same
-    distance along it - which is a rigid translation, and a rigid translation
-    cannot change spread at all. The offsets only converge over the last few
-    inches, so the formation closes up exactly once, on arrival.
-
-    Aiming at the point the squad can really reach this turn puts the slots
-    inside everyone's reach instead: a leading model has a short trip and stops
-    on its slot rather than running on, a trailing one spends its whole move
-    catching up, and the formation tightens every turn instead of never. The
-    centroid still travels the full budget toward the goal, so this costs no
-    ground - see measure_movement_fixes.py."""
-    dx, dy = aim_point[0] - centroid[0], aim_point[1] - centroid[1]
-    dist = (dx * dx + dy * dy) ** 0.5
-    if budget <= 0 or dist <= budget or dist < 1e-9:
-        return aim_point
-    scale = budget / dist
-    return (centroid[0] + dx * scale, centroid[1] + dy * scale)
-
-
-def _truncate_route(origin, waypoints, budget):
-    """`waypoints` cut short at `budget` of travel - the route-walking
-    equivalent of _capped_aim(), and needed for the same reason: the formation
-    offsets are added to the LAST waypoint, so a route longer than one turn
-    puts the tightened shape somewhere the squad will not stand this turn.
-
-    The cut point is interpolated rather than rounded to the nearest waypoint,
-    so the anchor is exactly as far along the road as the squad can go. No
-    ground is lost - a model could not have travelled past it anyway."""
-    if budget <= 0 or not waypoints:
-        return waypoints
-    total = 0.0
-    previous = origin
-    for index, waypoint in enumerate(waypoints):
-        leg = ((waypoint[0] - previous[0]) ** 2 + (waypoint[1] - previous[1]) ** 2) ** 0.5
-        if total + leg >= budget:
-            if leg < 1e-9:
-                return list(waypoints[:index + 1])
-            scale = (budget - total) / leg
-            cut = (previous[0] + (waypoint[0] - previous[0]) * scale,
-                   previous[1] + (waypoint[1] - previous[1]) * scale)
-            return list(waypoints[:index]) + [cut]
-        total += leg
-        previous = waypoint
-    return list(waypoints)
-
-
-def _tightening_factor(squad):
-    """How much to shrink a squad's formation while it moves, as a factor on
-    each model's offset from the centroid. 1.0 means "keep the current shape".
-
-    Reported by the user, and confirmed by measurement: "die truppen, die aus
-    transportern aussteigen sind sehr weit auseinandergezogen durch die
-    ringform. bei anschliessenden bewegungen ruecken sie sich aber nicht weiter
-    zusammen. das laesst natuerlich viel raum für kohaerenz fehler." Exactly
-    right, and it was structural rather than incidental - _formation_slot()
-    carried each model's offset over unchanged, so a unit that disembarked into
-    a wide ring kept that ring for the rest of the game and every later move
-    re-aimed at the same stretched shape. Measured on the Meganobz from
-    logs/game_20260808_213013.log: 7.83" edge spread against a 9.0" limit, i.e.
-    almost no slack, and any model the terrain clamps then splits the unit.
-
-    Only ever shrinks, never expands: spreading a compact squad out has no
-    benefit here and would be a new way to break coherency. Bounded below by
-    _MIN_FORMATION_TIGHTEN so one move cannot ask for a formation tighter than
-    the bases physically fit into - a badly stretched unit closes up over a
-    couple of turns instead, which is also what a player does by hand."""
-    if len(squad.models) < 2:
-        return 1.0
-    spread = max(
-        edge_distance(a, b)
-        for i, a in enumerate(squad.models)
-        for b in squad.models[i + 1:]
-    )
-    # TRIED AND REVERTED, measured rather than argued: deriving this target
-    # from the unit's OWN size instead of from a fraction of rule 09.02's limit
-    # (n bases at the smallest legal pitch, hex-packed, as the edge span of a
-    # circle of the same area - which does predict the packer well, 5.44" for
-    # the 20-strong mob against pack_positions()' own 5.44"). The motivation was
-    # real: config.SPREAD_LIMIT_PLAYERS lifts the 9" limit for the AI, so a
-    # target expressed as a fraction of it is a fraction of a number that no
-    # longer binds this player. But measured on measure_crowded_movement.py it
-    # cost 185.2" of ground gained against 169.7", i.e. -8%, and bought nothing
-    # back: median spread 6.02" -> 6.45" and the widest unit 12.78" -> 12.51".
-    # Sweeping the strictness confirmed it rather than tuning it away - "no
-    # tightening at all" scored as well as every setting tried. Compaction has
-    # to come from the placement (the packers already build tight blocks), not
-    # from spending movement on it every turn.
-    comfortable = MAX_SPREAD_IN * _FORMATION_COMFORT_FRACTION
-    if spread <= comfortable or spread <= 1e-9:
-        return 1.0
-    return max(_MIN_FORMATION_TIGHTEN, comfortable / spread)
-
-
-def _squad_progress(before_centroid, after_centroid, goal_point):
-    """How much an attempt actually achieved, as (progress, displacement):
-    `progress` is how much closer to goal_point the squad's centroid got
-    (negative if it ended up further away - a sideways detour scores near
-    zero), `displacement` is how far the centroid moved at all. Both are
-    squad-wide on purpose: the old per-model "did ANY single model cover 1
-    inch" gate accepted an attempt where one model of ten shuffled forward
-    and the other nine stood still, then stopped the sweep there (see
-    _advance_toward_per_model()'s own candidate-scoring for how this is used
-    now)."""
-    def dist(a, b):
-        return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
-    return (
-        dist(before_centroid, goal_point) - dist(after_centroid, goal_point),
-        dist(before_centroid, after_centroid),
-    )
-
-
-def _place_per_model_move(movement_controller, squad, aim_point, fraction, start):
-    """One placement attempt shared by _advance_toward_per_model()'s
-    angle-jitter sweep and its corner-routing fallback: start a fresh move,
-    then send every model of squad toward its OWN formation slot around
-    aim_point (see _formation_slot()) - each capped by its own
-    remaining_range * fraction, routed around whatever's actually in ITS OWN
-    path, and kept off squadmates already placed this same attempt,
-    closest-to-aim_point model processed first.
-
-    Places the models but deliberately does NOT confirm: the caller scores
-    the result first (see _squad_progress()) and only then decides whether to
-    confirm this attempt or cancel it and keep looking. confirm_move() has
-    irreversible side effects on success (moved_squad_ids, the Advance/Fall
-    Back flags, cleared move state), so "confirm and undo if it turns out to
-    be a poor move" is not an option - the score has to be known first.
-
-    Real, severe, PRE-EXISTING bug found via user report ("ghostkeel/
-    devilfish bewegen sich immer noch kaum", still reproducing after
-    _place_per_model_route()'s own false-success fix above - this
-    function has the exact same flaw and predates today's session
-    entirely): try_commit_segment() can reject a model's ONLY candidate
-    segment this attempt (e.g. flying straight at a far-off target lands
-    exactly inside a Dense terrain wall - rule 21.03's Take to the Skies
-    bypasses terrain/models IN TRANSIT, but never the final-position check,
-    see model_terrain_violation()'s own docstring) - rejection reverts the
-    model to `origin`, i.e. its position from BEFORE this attempt. Since
-    nothing else moved either, confirm() then runs its fresh checks against
-    a squad that is, in total, back exactly where it started - finds
-    nothing wrong with THAT (of course - it's unchanged and was already
-    legal), and reports success at zero net movement. The very first
-    angle/fraction combination tried (straight line, full distance) is
-    exactly the one most likely to clip a piece of terrain near a distant
-    target, so this could silently "succeed" on attempt #1 every time,
-    never even reaching the angles that might have gone somewhere.
-    Reproduced directly against the real demo scene: Ghostkeel's first,
-    straight-at-target attempt "succeeded" while moving exactly 0.00\".
-    That false success is now caught by the caller's own scoring instead
-    (an attempt whose centroid never moved scores zero displacement and is
-    discarded), which also subsumes what the old per-model "did ANY model
-    cover 1 inch" gate was doing here - and catches the far more common
-    case that gate missed entirely: nine of ten models standing still while
-    one shuffles forward.
-
-    Real, severe bug, reported three ways at once ("ki hat pile in mit meganobz
-    nicht genutzt", "kopter sind nicht nach vorne geflogen", "bikes fahren sich
-    oft in mauer-buchten fest") and visible straight away in
-    logs/game_20260808_213013.log, which carries 77 coherency rejections in a
-    single game: a per-model placement splits the formation, confirm_move()
-    throws the WHOLE attempt away, and the squad ends up standing still. The
-    Meganobz lost their entire Movement phase that way - nine consecutive
-    rejections, then "remained stationary" - and then had to charge from where
-    they never wanted to be.
-
-    The caller's existing fraction ladder does not fix this, and measuring why
-    is what made the repair below the right shape: `fraction` scales each
-    model's BUDGET, not its displacement, and `move = min(dist, max_distance)`
-    means a model already close to its slot travels the full distance at every
-    rung. Shrinking the budget therefore holds the near models still while
-    cutting the far ones - it can widen the very gap it is meant to close.
-
-    _repair_coherency_by_shrinking() scales what every model ACTUALLY achieved
-    instead, by one shared factor, which is the interpolation between the
-    formation as it stands (coherent, by definition - it is a legal board
-    state) and the one this attempt produced. Coherency is continuous in the
-    positions, so some factor near zero always holds, and shrinking gives back
-    a formation with the same flow-around-the-obstacle shape, just less of
-    it - which beats handing back nothing at all."""
-    origin = [(m.x_in, m.y_in) for m in squad.models]
-    baseline_errors = len(squad.check_coherency())
-    centroid_after, budget = _place_per_model_pass(
-        movement_controller, squad, aim_point, fraction, start)
-    if len(squad.check_coherency()) > baseline_errors:
-        _repair_coherency_by_shrinking(
-            movement_controller, squad, origin, start, baseline_errors)
-        centroid_after = _centroid(squad)
-    return centroid_after, budget
-
-
-# How much of rule 03.03's 2" an anchored slot actually aims for. Short of the
-# limit on purpose: a slot placed exactly AT 2" has no margin left for the
-# clamping that terrain, squadmates and the model's own remaining range then do
-# to it, so it would arrive just outside as often as just inside.
-_COHERENCY_AIM_FRACTION = 0.75
-
-
-def _coherency_reach(a, b):
-    """The centre-to-centre distance at which `a` and `b` are exactly at rule
-    03.03's 2" - coherency is measured edge to edge (see edge_distance), so two
-    big bases may stand much further apart in centre terms than two small
-    ones."""
-    return COHERENCY_RANGE_IN + a.radius_in + b.radius_in
-
-
-def _nearest_placed(x, y, placed):
-    return min(placed, key=lambda p: (p.x_in - x) ** 2 + (p.y_in - y) ** 2, default=None)
-
-
-def _anchored_slot(model, slot, placed):
-    """Left as the identity on purpose. See _close_up_to_placed() for what
-    actually enforces rule 03.03 here, and read this before adding a
-    planning-time version back.
-
-    The obvious move is to pull each model's INTENDED slot in until it is
-    within 2" of a squadmate already placed this pass - the same greedy
-    construction _disembark_pack_positions() and _ingress_pack_positions() use,
-    which is what makes those two coherent by construction rather than by
-    hope. It was built that way first, and measured, and it is wrong here.
-
-    Why it is wrong: unlike a disembark ring, the intended slots are ALREADY
-    coherent. _formation_slot() is a similarity transform of the formation the
-    squad is standing in - which is a legal board state, so coherent - scaled
-    by _tightening_factor() with a factor of at most 1. Every pairwise distance
-    therefore shrinks or stays put, and connectivity cannot break. There is
-    nothing at the planning stage to repair, and pulling individual slots
-    toward whichever squadmate happens to be nearest only breaks the uniform
-    shrink apart: models are processed nearest-the-aim-point first, so the
-    laggards get dragged toward the leaders and the formation strings out into
-    a comet instead of closing up. Measured on the strung-out 10-Boyz case in
-    test_formation_coherency.py, spread over four moves:
-
-        neither half   7.36 -> 7.31 -> 7.31 -> 7.04 -> 6.17
-        this, alone    7.36 -> 8.47 -> 8.47 -> 6.66 -> 6.23
-
-    i.e. it made the squad wider, which is the 9" half of the same rule, and
-    broke the regression that exists to keep a stretched squad closing up.
-
-    What actually breaks connectivity is ARRIVAL, not aim: terrain, squadmates
-    and remaining range stop individual models short of slots that were fine.
-    That is checkable only after the fact, which is where the repair belongs."""
-    return slot
-
-
-def _in_coherency_with_any(model, placed):
-    return any(edge_distance(model, other) <= COHERENCY_RANGE_IN for other in placed)
-
-
-def _close_up_to_placed(movement_controller, squad, model, placed):
-    """Spend some of `model`'s leftover move tucking it back in beside the
-    squad, after it arrived out of rule 03.03's 2" of every squadmate already
-    placed this pass.
-
-    This is the constructive half of the 2" rule, and where measurement put it:
-    of 1708 coherency rejections across every log in the repo, the connectivity
-    half is the sole reason for 46% and involved in 99% once the single
-    9"-spread outlier unit is set aside. The cause was structural - the whole
-    placement was aimed, and only then asked at confirm_move() whether it still
-    hung together, so one model clamped short by a wall threw away the entire
-    attempt. That is the reported "sixteen consecutive coherency rejections,
-    then remained stationary".
-
-    Aimed at the far side of the anchor, TOWARD the rest of the placed models,
-    rather than straight back along the line the model came in on. Both restore
-    connectivity; only this one also closes the formation up, because it puts
-    the straggler on the group's side of its neighbour instead of leaving it
-    hanging off the outside edge. The two halves of rule 03.03 pull in opposite
-    directions otherwise - satisfying the 2" by chaining models one after
-    another is exactly how a squad blows the 9" - and this is what keeps them
-    pointing the same way.
-
-    Goes through _clamp_target_against_friendly_models()/clamp_move()/
-    try_commit_segment() like every other step in this file, so it can never
-    put a model somewhere the move itself could not, and simply achieves
-    nothing if the model is boxed in - which is no worse than the rejection it
-    is trying to avoid."""
-    anchor = _nearest_placed(model.x_in, model.y_in, placed)
-    if anchor is None:
-        return
-    towards_x = sum(p.x_in for p in placed) / len(placed)
-    towards_y = sum(p.y_in for p in placed) / len(placed)
-    dx, dy = towards_x - anchor.x_in, towards_y - anchor.y_in
-    if (dx * dx + dy * dy) ** 0.5 < 1e-6:
-        # The anchor IS the group (a single placed model): there is no "inward"
-        # direction to prefer, so come straight in along the way we came.
-        dx, dy = model.x_in - anchor.x_in, model.y_in - anchor.y_in
-    dist = (dx * dx + dy * dy) ** 0.5
-    if dist < 1e-9:
-        return
-    allowed = _coherency_reach(model, anchor) * _COHERENCY_AIM_FRACTION
-    scale = allowed / dist
-    target_x = anchor.x_in + dx * scale
-    target_y = anchor.y_in + dy * scale
-    target_x, target_y = _clamp_target_against_friendly_models(
-        model, target_x, target_y, squad, movement_controller, placed)
-    new_x, new_y = movement_controller.clamp_move(model, target_x, target_y)
-
-    # Judged before it is committed, and dropped unless it is an improvement on
-    # BOTH halves of rule 03.03 at once. clamp_move() only returns coordinates,
-    # it does not move anything, so the candidate can be tried on the model and
-    # put back at no cost - the same place-check-roll-back shape the rest of
-    # this file uses, and the reason it is needed here specifically is that the
-    # two halves of the rule pull against each other: a tuck that restores the
-    # 2" by dragging a straggler across the formation can widen the 9". That is
-    # not hypothetical - without this guard it cost the stretched Meganobz case
-    # in test_formation_coherency.py 0.05" of closing over four moves, which
-    # was enough to stop the squad tightening at all.
-    before_spread = _squad_spread(squad)
-    before_errors = len(squad.check_coherency())
-    origin = (model.x_in, model.y_in)
-    model.x_in, model.y_in = new_x, new_y
-    if (len(squad.check_coherency()) > before_errors
-            or _squad_spread(squad) > before_spread + 1e-6):
-        model.x_in, model.y_in = origin
-        return
-    movement_controller.try_commit_segment(model)
-
-
-# Halvings used to find how far a blocked model can actually get. Six brings
-# the answer within ~1.5% of the true limit, and a refused attempt is free -
-# try_commit_segment() only charges the budget when it ACCEPTS a placement - so
-# the only price is a handful of legality checks.
-_BACKOFF_STEPS = 6
-
-# Sideways dodges tried BEFORE giving up any distance, smallest first: the same
-# move length, swung around the model's own position. This is what a player
-# does when a squadmate is standing on the spot - put the model down beside it,
-# just as far forward - and it is what keeps a Normal move worth its full
-# inches. The user's point, and it is the reason this stage exists at all:
-# "die maximale bewegungsreichweite auszureizen in bestimmten situationen ist
-# essentiell... da darf kein zoll liegengelassen werden" - whether move+charge
-# reaches (11.04), how many models end up in line of sight, and how many stand
-# on an objective all turn on the last inch.
-#
-# Measured across three scenarios (map2 with a far and a near goal, map3):
-# dodging beats not dodging on ground gained and on charge probability in every
-# one of them - on map2's far goal, mean charge chance 61.5% -> 70.2% and the
-# share of models moving under half an inch 9.4% -> 3.9%.
-#
-# WHERE THE LIMIT COMES FROM. The sweep does not separate 32 from 45 cleanly
-# (32 wins one scenario, 45 the other two), so it is set by argument rather
-# than by the winner of a noisy run: a dodge of angle t keeps cos(t) of its
-# forward progress, so 45 degrees still banks 71% of the step while 60 is down
-# to half. Smallest first, so a wide swing is only ever used when nothing
-# narrower fits.
-_DODGE_ANGLES_DEG = (10.0, -10.0, 20.0, -20.0, 32.0, -32.0, 45.0, -45.0)
-
-# How many times _stage_toward() walks the whole squad toward its slots. Each
-# pass frees the ground the previous one vacated; it stops early as soon as a
-# pass changes nothing, so this is a ceiling and not a cost.
-_PACK_WALK_PASSES = 4
-# Close enough to a slot to stop asking for it - a base width's tenth, well
-# inside the 0.05" overlap margin _first_legal_slot() leaves between models.
-_PACK_ARRIVED_IN = 0.05
-
-
-def _advance_model_toward(movement_controller, model, target_x, target_y, _tries_left=4):
-    """Move one model as far toward (target_x, target_y) as the rules allow,
-    and return whether it ended up anywhere new.
-
-    The reason this is not simply clamp_move() + try_commit_segment(), which is
-    what every placement in this file used to do: those two do not compose into
-    "as far as legal". clamp_move() stops a model at terrain, at the board edge
-    and at ENEMY models - but NOT at friendly ones, because rule 03.01 lets a
-    base move through them and only forbids ENDING on one. So the position it
-    hands back can be sitting on a squadmate, try_commit_segment() rejects the
-    whole segment, and the model goes back to where it started having moved
-    nothing at all.
-
-    Reported by the user for the 20-strong Boyz mob - "warum bleiben einzelne
-    modelle hinten stehen, waehrend andere nach vorne laufen. als mensch wuerde
-    ich doch modell fuer modell bewegen und versuchen jedes einzelne modell so
-    weit wie moeglich nach vorne zu verschieben" - and measured on exactly that
-    unit: of 136 segment commits in one move, 35 were rejected, every one of
-    them for "cannot end their move on top of" another model. Those models had
-    aimed 4.38" on average and got 0.00", which is why four of twenty-two stood
-    still while the rest covered their full 6".
-
-    Sliding the model up until it touches is what a player does by hand, and it
-    is free to look for. The user's proposal here was to give the AI a licence
-    the human does not have - "fuer sie zaehlt nur, ob das ergebnis legal ist,
-    aber nicht wie sie dahingekommen ist... ohne restkontingent abzuziehen" -
-    and the conclusion is right while the mechanism turned out not to be the
-    problem: a REFUSED attempt already costs nothing, because
-    try_commit_segment() deducts from the budget only when it ACCEPTS. What the
-    old code lost was not budget but the attempt itself - it asked once and gave
-    up. So no licence is needed, only persistence. (A rebasing primitive that
-    measured the budget from the model's starting point instead of summing the
-    segments was built and removed: with a multi-waypoint route it would have
-    replaced the walk around an obstacle with a straight line into it, and it
-    bought nothing the ladder below does not.)
-
-    The rules still decide every placement: each rung goes through the same
-    clamp_move()/try_commit_segment() pair, so a model can never end further
-    than its Movement characteristic, on top of another model, off the board,
-    or anywhere its move type forbids."""
-    origin = (model.x_in, model.y_in)
-    reach_x, reach_y = movement_controller.clamp_move(model, target_x, target_y)
-    model.x_in, model.y_in = reach_x, reach_y
-    ok, _errors = movement_controller.try_commit_segment(model)
-    if ok:
-        return math.dist(origin, (model.x_in, model.y_in)) > 1e-9
-
-    # Refused, and try_commit_segment() has already put the model back on
-    # `origin`. Before giving up any distance at all, try to go just as far in
-    # a slightly different direction: the thing in the way is almost always a
-    # single squadmate's base, and stepping around it costs nothing while
-    # stopping short costs inches that matter (User: "die maximale
-    # bewegungsreichweite auszureizen in bestimmten situationen ist
-    # essentiell... da darf kein zoll liegengelassen werden").
-    span = math.dist(origin, (reach_x, reach_y))
-    if span > 1e-6:
-        heading = math.atan2(reach_y - origin[1], reach_x - origin[0])
-        for degrees in _DODGE_ANGLES_DEG:
-            angle = heading + math.radians(degrees)
-            aim_x = origin[0] + math.cos(angle) * span
-            aim_y = origin[1] + math.sin(angle) * span
-            dodge_x, dodge_y = movement_controller.clamp_move(model, aim_x, aim_y)
-            # Only worth trying if the swing actually keeps the distance - a
-            # dodge that clamps to half the length is just a short step with
-            # extra steps, and the ladder below does that better.
-            if math.dist(origin, (dodge_x, dodge_y)) < span - 0.05:
-                continue
-            model.x_in, model.y_in = dodge_x, dodge_y
-            ok, _errors = movement_controller.try_commit_segment(model)
-            if ok:
-                return True
-            model.x_in, model.y_in = origin
-
-    # Nowhere at full distance. Now ask for less, halving each time.
-    share = 0.5
-    for _step in range(_BACKOFF_STEPS):
-        aim_x = origin[0] + (reach_x - origin[0]) * share
-        aim_y = origin[1] + (reach_y - origin[1]) * share
-        step_x, step_y = movement_controller.clamp_move(model, aim_x, aim_y)
-        if math.dist(origin, (step_x, step_y)) > 1e-6:
-            model.x_in, model.y_in = step_x, step_y
-            ok, _errors = movement_controller.try_commit_segment(model)
-            if ok:
-                # Bounded: each round leaves the model further along with less
-                # budget, so this terminates on its own - the cap is a backstop
-                # against a pathological sequence of one-inch gains.
-                if _tries_left > 0:
-                    _advance_model_toward(movement_controller, model, target_x, target_y,
-                                          _tries_left - 1)
-                return True
-        share *= 0.5
-    return False
-
-
-def _point_toward(squad, target_point, distance_in):
-    """`distance_in` along the straight line from the squad's centroid toward
-    `target_point`, or None if it is already there."""
-    cx, cy = _centroid(squad)
-    gap = math.dist((cx, cy), target_point)
-    if gap < 1e-6 or distance_in <= 0:
-        return None
-    step = min(distance_in, gap)
-    return (cx + (target_point[0] - cx) / gap * step,
-            cy + (target_point[1] - cy) / gap * step)
-
-
-def _place_packed(movement_controller, squad, spot, facing_point, start):
-    """Squeeze `squad` into a tight block centred on `spot`, models walked into
-    it. Leaves the move OPEN - the caller confirms or rolls back.
-
-    This is the "deformable mass" placement (user: "squads sind nicht als
-    starre objekte zu betrachten sondern als formbare masse, die sich hinter
-    eine deckung quetschen kann oder durch einen engen korridor schlaengeln
-    kann"), and it is the one thing the ordinary sweep cannot express, because
-    every candidate that sweep produces keeps the shape the squad is standing
-    in. Measured on the real crowded board, at every fraction of the move:
-
-        Stormboyz 12" forward   rigid translation BLOCKED   packed block fits
-        Deffkoptas 12" forward  rigid translation BLOCKED   packed block fits
-        Boyz mob   6" forward   rigid translation BLOCKED   packed block fits
-        Meganobz   5" forward   rigid translation BLOCKED   packed block fits
-
-    What stops those units is their own 5-7" footprint, not the ground: packed
-    they are 3-5" across and fit everywhere they were being refused.
-
-    Returns False without touching the squad if this ground cannot hold a
-    packed formation. `facing_point` is what the block grows AWAY from - the
-    enemy, so its near edge sits on `spot` rather than beyond it - or None."""
-    if len(squad.models) < 2:
-        return False
-    others = [t for t in movement_controller.all_tokens if t.squad is not squad]
-
-    def slot_ok(model, x_in, y_in):
-        if not formation_layout.on_board(x_in, y_in, model.radius_in):
-            return False
-        if model_terrain_violation(model, movement_controller.obstacles, x_in, y_in):
-            return False
-        return not any(
-            math.dist((x_in, y_in), (o.x_in, o.y_in)) < model.radius_in + o.radius_in
-            for o in others
-        )
-
-    if facing_point is not None:
-        base_angle = math.atan2(spot[1] - facing_point[1], spot[0] - facing_point[0])
-    else:
-        base_angle = -math.pi / 2
-    smallest = min(m.radius_in for m in squad.models)
-    slots = formation_layout.pack_positions(
-        squad, spot[0], spot[1], base_angle=base_angle,
-        position_valid=slot_ok, gap_in=2 * smallest + 0.05,
-    )
-    if len(set(slots)) != len(slots):
-        return False  # the packer had to stack models: this ground does not fit
-
-    # Which model walks to which slot is a decision in its own right, and it
-    # used to be made by accident: slots come back in squad order, but the
-    # packer fills them widest-first outwards from the drop point, so slot i
-    # belongs to nobody in particular. Measured on the real board, pairing by
-    # index asks roughly twice the walk that matching by distance does - see
-    # formation_layout.match_models_to_slots(), which also explains why the
-    # front-rank characters are held in place rather than matched away.
-    fixed = {i for i, model in enumerate(squad.models)
-             if model in front_rank.front_rank_models(squad)}
-    targets = formation_layout.match_models_to_slots(squad.models, slots, fixed=fixed)
-
-    start()
-    # Several passes, not one. A model's target is checked against everything
-    # that is NOT a squadmate, so it can be legal and still be occupied right
-    # now by a squadmate who has not moved yet - try_commit_segment() refuses
-    # that, _advance_model_toward() then dodges or backs off, and the model
-    # ends short and overlapping. Measured on the Meganobz, one pass left three
-    # of seven models 1.7"-2.4" short and the whole move was rejected with
-    # "Models cannot end their move on top of another model".
-    #
-    # Repeating lets a model walk into the space a squadmate has just vacated,
-    # which is the "squeeze through" a player does by hand. Rule 03.01 already
-    # allows moving THROUGH a friendly model, so nothing here is being bent -
-    # only the order in which the spaces come free. Stops as soon as a pass
-    # changes nothing, so an unobstructed squeeze still costs one pass.
-    remaining = sorted(range(len(squad.models)),
-                       key=lambda i: math.dist((squad.models[i].x_in, squad.models[i].y_in),
-                                               targets[i]))
-    for _pass in range(_PACK_WALK_PASSES):
-        moved_any = False
-        still = []
-        for index in remaining:
-            model = squad.models[index]
-            before = (model.x_in, model.y_in)
-            _advance_model_toward(movement_controller, model, *targets[index])
-            if math.dist((model.x_in, model.y_in), targets[index]) <= _PACK_ARRIVED_IN:
-                moved_any = True
-                continue
-            if math.dist((model.x_in, model.y_in), before) > 1e-6:
-                moved_any = True
-            still.append(index)
-        remaining = still
-        if not remaining or not moved_any:
-            break
-    return True
-
-
-def _stage_toward(movement_controller, squad, spot, enemy_squads, start, confirm, cancel):
-    """Move to `spot` and PACK the unit there, as tightly as the rules allow.
-
-    Staging is the one move where compressing is the whole point. A piece of
-    cover big enough to hide a squeezed unit is usually not big enough to hide a
-    sprawled one, and the observation now judges cover against the squeezed
-    footprint (formation_layout.packed_radius) - so unless the move actually
-    delivers that footprint, the spot it picked is a promise rather than a
-    measurement. Measured before this existed, with units walking to their own
-    staging spots in their current shape: Beast Snagga arrived with 10 of 11
-    models in enemy line of sight, Gretchin with 7 of 11, and only the
-    single-model Deff Dread got what it was told - because a one-model unit IS
-    the point that was tested.
-
-    NOT used for ordinary advances, and that restraint is measured too: packing
-    costs movement, and applying it to every move took the 20-strong mob from
-    42% of its achievable progress to 7% (see _needs_regroup()). Here the
-    compression IS the objective, so paying for it is the right trade.
-
-    Falls back to False if the ground cannot hold a packed formation, leaving
-    the squad untouched for the caller's ordinary path."""
-    if len(squad.models) < 2:
-        return False
-    origin = [(m.x_in, m.y_in) for m in squad.models]
-    facing = _squad_centroid_of_nearest(squad, enemy_squads)
-    if not _place_packed(movement_controller, squad, spot, facing, start):
-        return False
-
-    # confirm_move() reports through movement_controller.errors, not through a
-    # return value - it returns None on success AND on failure. Testing what it
-    # returned, which this did, made _stage_toward() unable to succeed at all:
-    # every packed staging move ever attempted was thrown away and silently
-    # fell back to the ordinary one. Same success test the other callers use
-    # (errors is emptied on success and filled on failure).
-    confirm()
-    if not movement_controller.errors:
-        return True
-    cancel()
-    for model, (x_in, y_in) in zip(squad.models, origin):
-        model.x_in, model.y_in = x_in, y_in
-    return False
-
-
-def _squad_spread(squad):
-    """The 9" half of rule 03.03: the widest edge-to-edge gap in the unit."""
-    if len(squad.models) < 2:
-        return 0.0
-    return max(edge_distance(a, b)
-               for i, a in enumerate(squad.models)
-               for b in squad.models[i + 1:])
-
-
-def _place_per_model_pass(movement_controller, squad, aim_point, fraction, start):
-    """One raw placement pass - every model toward its own formation slot. See
-    _place_per_model_move(), which wraps this with the coherency repair."""
-    start()
-    centroid = _centroid(squad)
-    # Read once, before anything moves: _formation_slot() reads each model's
-    # live position, so recomputing this mid-pass would measure a formation
-    # that is already half-tightened and shrink it twice over.
-    tighten = _tightening_factor(squad)
-    budget = max((movement_controller.remaining_range.get(m.id, 0.0) for m in squad.models), default=0.0)
-    # Slots are built around what the squad can REACH this turn, not around a
-    # target several turns away - otherwise the tightening never actually
-    # happens. See _capped_aim().
-    aim_point = _capped_aim(centroid, aim_point, budget)
-    placed = []
-    for model in sorted(squad.models, key=lambda m: (m.x_in - aim_point[0]) ** 2 + (m.y_in - aim_point[1]) ** 2):
-        max_distance = movement_controller.remaining_range.get(model.id, 0.0) * fraction
-        slot = _formation_slot(model, aim_point, centroid, tighten)
-        # Rule 03.03, built in rather than checked afterwards - see
-        # _anchored_slot(). The first model of the pass has nothing to anchor
-        # to and simply takes its slot; every later one is aimed somewhere it
-        # still hangs together with the squad it is joining.
-        slot = _anchored_slot(model, slot, placed)
-        dx, dy = slot[0] - model.x_in, slot[1] - model.y_in
-        dist = (dx * dx + dy * dy) ** 0.5
-        if dist > 1e-9 and max_distance > 0:
-            move = min(dist, max_distance)
-            scale = move / dist
-            target_x, target_y = model.x_in + dx * scale, model.y_in + dy * scale
-            target_x, target_y = _clamp_target_against_friendly_models(model, target_x, target_y, squad, movement_controller, placed)
-            _advance_model_toward(movement_controller, model, target_x, target_y)
-        # Aiming somewhere reachable is not arriving there: clamp_move() may
-        # have stopped this model short against a wall or a base. Check where
-        # it actually landed and spend leftover range closing the gap.
-        if placed and not _in_coherency_with_any(model, placed):
-            _close_up_to_placed(movement_controller, squad, model, placed)
-        placed.append(model)
-    return _centroid(squad), budget
-
-
-def _repair_coherency_by_shrinking(movement_controller, squad, origin, start, baseline_errors):
-    """Give back a shorter version of a per-model placement that broke
-    coherency, instead of letting the caller throw the whole attempt away.
-
-    Every model is put at `origin + factor * (where it got to)` for a shared,
-    shrinking factor - so the formation keeps the shape this attempt found
-    (models that flowed around an obstacle still flowed around it) and only
-    the amount changes. `origin` is a legal, coherent board state, and
-    coherency is continuous in the positions, so a small enough factor always
-    works; the ladder stops at the first one that is no worse than
-    `baseline_errors` (rule 09.02 - a squad that entered the phase already
-    broken is not asked to repair itself, see _run_phase_one()).
-
-    Each shrunken destination still goes through clamp_move() and
-    try_commit_segment(), so a trial can never place a model somewhere the
-    real move could not, and a model whose interpolated spot is itself
-    illegal (an intermediate position can overlap a squadmate even when both
-    endpoints are clear) simply stays at its origin.
-
-    Leaves the squad at the best rung it found, or back at `origin` if none
-    held - which is what the caller would have ended up with anyway."""
-    reached = [(m.x_in, m.y_in) for m in squad.models]
-
-    def restore_origin():
-        for model, (x, y) in zip(squad.models, origin):
-            model.x_in, model.y_in = x, y
-
-    for factor in _COHERENCY_SHRINK_FRACTIONS:
-        restore_origin()
-        start()  # fresh remaining_range: this is the whole move again, not a step
-        for model, (ox, oy), (rx, ry) in zip(squad.models, origin, reached):
-            target_x = ox + (rx - ox) * factor
-            target_y = oy + (ry - oy) * factor
-            new_x, new_y = movement_controller.clamp_move(model, target_x, target_y)
-            model.x_in, model.y_in = new_x, new_y
-            ok, _errors = movement_controller.try_commit_segment(model)
-            if not ok:
-                model.x_in, model.y_in = ox, oy
-        if len(squad.check_coherency()) <= baseline_errors:
-            return True
-    restore_origin()
-    start()
-    return False
-
-
-class _EngagementPaddedModel:
-    """Lightweight duck-typed stand-in (only x_in/y_in/radius_in - all
-    game/pathfinding.py ever reads) with its radius padded by
-    ENGAGEMENT_RANGE_IN - see the pathfinding call site's own comment for
-    why this exists instead of just inflating the mover's radius."""
-    __slots__ = ("x_in", "y_in", "radius_in")
-
-    def __init__(self, x_in, y_in, radius_in):
-        self.x_in = x_in
-        self.y_in = y_in
-        self.radius_in = radius_in
-
-
-def _engagement_padded_models(models, extra_radius):
-    return [_EngagementPaddedModel(m.x_in, m.y_in, m.radius_in + extra_radius) for m in models]
-
-
-def _place_per_model_route(movement_controller, squad, waypoints, start):
-    """Like _place_per_model_move(), but every model walks a SEQUENCE of
-    waypoints (game/pathfinding.py's find_route() - a real grid/A* search,
-    see its own module docstring) instead of jumping straight at one aim
-    point - each model following the route offset by its own formation slot
-    (see _formation_slot()), so the squad walks the route in the shape it
-    already has rather than every model filing through the exact same
-    points. Each waypoint is capped by whatever remaining_range is left
-    after the previous one - the same clamp_move()/try_commit_segment()
-    per-segment machinery a human's own multi-point drag already uses, so
-    find_route()'s output is only ever a SUGGESTION: this still re-validates
-    every single step exactly as strictly as before, never trusts the route
-    blindly. No fraction ladder here (unlike _place_per_model_move) - the
-    route already respects the movement budget and is already obstacle/
-    model-clear by construction, so shortening it further has no obvious
-    benefit; a genuine coherency failure just falls through to the caller's
-    existing corner-routing/angle-sweep fallback instead.
-
-    Real, severe bug found while reproducing the user's real-scene report
-    ("ghostkeel/devilfish hat sich nur ~1\" bewegt"): find_route()'s
-    enemy-model avoidance only keeps the route from crossing an enemy
-    model's BASE circle - it has no notion of the ADDITIONAL Engagement
-    Range (2") a Normal/Advance move must also stay clear of (rule 03.04/
-    09.05/09.06, see Squad.disallowed_enemy_squads_for_move()). A route that
-    hugs close enough to an enemy-heavy area can end EVERY one of its
-    waypoints within that 2" buffer, without ever crossing a base - each
-    waypoint's try_commit_segment() then correctly rejects it and reverts
-    the model back to `origin` (rule-correct on its own), but since NOTHING
-    ever successfully committed, every model ends this whole attempt
-    exactly where it started - which is, trivially, still a fully legal
-    (just zero-distance) position. The old code below then called confirm()
-    on that unchanged position, found no errors (of course - nothing
-    moved), and reported SUCCESS - silently masking a real routing failure
-    as a satisfied move and (crucially) short-circuiting past the caller's
-    own corner-routing/angle-sweep fallback, which might have found a
-    genuinely different, unblocked direction. Reproduced directly against
-    the real demo scene's terrain/army: a VEHICLE squad's pathfinding
-    attempt "succeeded" while moving exactly 0.00". That false success is
-    now caught by the caller's own scoring instead (see
-    _squad_progress()/_advance_toward_per_model()), which also subsumes the
-    old per-model "did ANY model cover 1 inch" gate that used to guard it
-    here.
-
-    Places the models but deliberately does NOT confirm - see
-    _place_per_model_move()'s docstring for why the score has to be known
-    before confirm_move() is ever called. Returns the squad's centroid
-    afterwards."""
-    start()
-    centroid = _centroid(squad)
-    tighten = _tightening_factor(squad)  # see _place_per_model_pass()
-    budget = max((movement_controller.remaining_range.get(m.id, 0.0) for m in squad.models), default=0.0)
-    # Same reason as _place_per_model_pass()'s _capped_aim(): the formation
-    # offsets are added to the LAST waypoint, so a road longer than one turn
-    # puts the tightened shape where the squad will not be standing. Cutting
-    # the road at what it can walk costs nothing - it could not have gone past
-    # that point anyway - and makes the shrink land this turn.
-    waypoints = _truncate_route(centroid, waypoints, budget)
-    placed = []
-    final_aim = waypoints[-1]
-    for model in sorted(squad.models, key=lambda m: (m.x_in - final_aim[0]) ** 2 + (m.y_in - final_aim[1]) ** 2):
-        # Snapshot this model's formation offset ONCE, before it starts
-        # walking - _formation_slot() reads the model's live position, so
-        # re-deriving it at every waypoint would compound the offset further
-        # with each step instead of holding the formation.
-        offset_x = (model.x_in - centroid[0]) * tighten
-        offset_y = (model.y_in - centroid[1]) * tighten
-        for index, waypoint in enumerate(waypoints):
-            target_x, target_y = waypoint[0] + offset_x, waypoint[1] + offset_y
-            if index == len(waypoints) - 1:
-                # Rule 03.03 only judges where the move ENDS, so only the last
-                # waypoint is anchored - see _anchored_slot(). Anchoring the
-                # intermediate ones would be wrong as well as pointless: a
-                # squad walking a detour is strung out along it by design, and
-                # pulling each step toward the models already parked at the far
-                # end would bend the route out of shape.
-                target_x, target_y = _anchored_slot(model, (target_x, target_y), placed)
-            target_x, target_y = _clamp_target_against_friendly_models(model, target_x, target_y, squad, movement_controller, placed)
-            _advance_model_toward(movement_controller, model, target_x, target_y)
-        if placed and not _in_coherency_with_any(model, placed):
-            _close_up_to_placed(movement_controller, squad, model, placed)
-        placed.append(model)
-    return _centroid(squad), budget
-
-
-def _route_length(origin, waypoints):
-    """Total travel along a find_route() waypoint list, starting from origin.
-
-    This is the "how far is it really" figure for a unit that cannot cross
-    Dense terrain (rule 13.06) - it is what the straight-line distance is NOT,
-    and confusing the two is what stalled the reported squads. Measured on the
-    real demo terrain: a Warbiker squad 9.0" from its destination in a straight
-    line had a 17.1" road to it, because the ruin wall between them has to be
-    driven around."""
-    total = 0.0
-    previous = origin
-    for waypoint in waypoints:
-        total += ((waypoint[0] - previous[0]) ** 2 + (waypoint[1] - previous[1]) ** 2) ** 0.5
-        previous = waypoint
-    return total
-
-
-def _route_leads_somewhere(origin, waypoints, target_point):
-    """Does this route actually end up closer to target_point than it started?
-
-    find_route() does not only return real routes: when the destination itself
-    is blocked it retargets to the nearest unblocked cell, and when the mover
-    barely fits anywhere it can hand back a single short hop that leads AWAY.
-    A routed candidate is exempted from the straight-line progress bar (see
-    consider()) precisely because a genuine detour's first leg points sideways
-    - that exemption must not extend to a route that is not a detour at all,
-    or the AI trades "walks into a wall" for "walks backwards", which is the
-    older bug this file already fixed twice."""
-    if not waypoints:
-        return False
-
-    def to_target(point):
-        return ((point[0] - target_point[0]) ** 2 + (point[1] - target_point[1]) ** 2) ** 0.5
-
-    return to_target(waypoints[-1]) < to_target(origin) - MIN_GOAL_PROGRESS_IN
-
-
-def _place_rigid_route(movement_controller, squad, waypoints, start):
-    """The pathfinder's route walked by the whole squad as ONE rigid block:
-    every model is offered the same shared offset at every waypoint, so the
-    formation is carried along the detour unchanged.
-
-    Why this exists alongside _place_per_model_route(), which walks the same
-    waypoints: that one moves each model independently, and independent
-    clamping is exactly how a formation comes apart. A wall that stops half
-    the squad and lets the other half through leaves the squad in two pieces,
-    confirm_move() rejects the whole attempt on coherency (rule 09.02), and
-    nothing was actually gained. That is the failure the user reported for the
-    Warbikers, and the log is unambiguous about it: sixteen consecutive
-    candidate rejections in one turn, every one of them a coherency split, and
-    the squad finished the turn 0.09" from where it started.
-
-    A rigid translation cannot fail that way. Every model moves by the same
-    offset, so the pairwise distances inside the squad do not change at all -
-    coherency and the 9" spread are invariant, at every waypoint and every
-    distance (the same argument _creep_toward() rests on, which is spelled out
-    in full there). What it trades away is flow: a single model wedged against
-    something caps the shared offset for everyone. So this is offered as a
-    SECOND candidate rather than a replacement - per-model goes first and wins
-    whenever it holds together, and this catches the case where it doesn't.
-
-    Placement only, no confirm - see _place_per_model_move()'s docstring for
-    why the caller has to score before confirming. Returns the squad's centroid
-    afterwards, same contract as the other placement plans."""
-    start()
-    budget = max((movement_controller.remaining_range.get(m.id, 0.0) for m in squad.models), default=0.0)
-    for waypoint in waypoints:
-        # The offset is measured from the LEAD model, since the route was
-        # planned for it, and every model then moves by that SAME vector.
-        lead = squad.models[0]
-        ox, oy = waypoint[0] - lead.x_in, waypoint[1] - lead.y_in
-        leg = (ox * ox + oy * oy) ** 0.5
-        if leg < 1e-9:
-            continue
-
-        # "Everyone moves by the same offset" has to be enforced on the RESULT,
-        # not just requested. clamp_move() cuts each model's step to whatever
-        # ITS own lane allows, so simply asking all of them to take the offset
-        # leaves the blocked ones behind and the free ones ahead - which is
-        # per-model movement wearing a rigid coat, and it breaks formation
-        # exactly like the real thing (measured while building this: the first
-        # version of this function tore the Warbikers into two groups on its
-        # first leg). So: ask each model where it COULD get to, take the
-        # distance the most constrained one managed, and move everybody
-        # exactly that far. That distance is on every model's own already-
-        # validated path, so no one is asked to do anything its own clamp
-        # rejected, and the shared offset makes coherency invariant.
-        shared = leg
-        for model in squad.models:
-            reached = movement_controller.clamp_move(model, model.x_in + ox, model.y_in + oy)
-            shared = min(shared, ((reached[0] - model.x_in) ** 2 + (reached[1] - model.y_in) ** 2) ** 0.5)
-        if shared < MIN_RIGID_LEG_IN:
-            break  # the formation as a whole cannot get through here
-
-        scale = shared / leg
-        for model in squad.models:
-            new_x, new_y = movement_controller.clamp_move(
-                model, model.x_in + ox * scale, model.y_in + oy * scale)
-            model.x_in, model.y_in = new_x, new_y
-            movement_controller.try_commit_segment(model)
-    return _centroid(squad), budget
-
-
-def _advance_toward_per_model(movement_controller, squad, target_point, start_move_fn=None, confirm_fn=None, cancel_fn=None, flying=False):
-    """Fallback for when NO whole-squad rigid translation
-    (_advance_toward_bulk()) can find a legal way to move together - moves
-    each model INDIVIDUALLY toward target_point, exactly like a human
-    dragging one model at a time (clamp_move()/try_commit_segment(), each
-    capped by its own remaining range and independently routed around
-    whatever's actually in ITS OWN path). Unlike the bulk version's single
-    shared offset - where every model is clamped against the SAME
-    requested vector, so one model wedged against an obstacle drags the
-    whole rigid attempt down with it even though its squadmates have room
-    to spare - a model with a clear lane can travel its own full distance
-    while a boxed-in one simply falls behind, letting the squad flow
-    around a single obstacle instead of being blocked by it as one block.
-
-    Real user report: "sie muss natürlich auch in der Lage sein, Modelle
-    individuell zu platzieren, damit die Bewegung passt" - the widened
-    angle/distance sweep in _advance_toward_bulk() still shares ONE
-    direction across the whole squad per attempt; a genuinely awkward
-    formation (e.g. squeezed between two obstacles on either side) can
-    have no single shared direction that works for every model at once,
-    even though moving each one along its own best path clearly would.
-
-    Coherency (rule 09.02) is only checked at the very end via
-    confirm_move(), so this can still legally fail if the models end up
-    too spread out - retried at progressively shorter target distances
-    (same ADVANCE_DISTANCE_FRACTIONS ladder as the bulk version) to keep
-    formation tighter when the full-distance attempt doesn't hold
-    together. Same start_move()-per-attempt requirement as the bulk
-    version, for the same reason (cancel_move() wipes remaining_range).
-
-    Real, severe bug found via user report ("sie bewegt ihre Fahrzeuge ab
-    Zug 2 nicht mehr", after bulk had already been disabled for VEHICLE
-    squads per a separate user directive): every model here used to head
-    STRAIGHT toward target_point with no directional variety at all (only
-    ADVANCE_DISTANCE_FRACTIONS varied the DISTANCE, never the direction) -
-    unlike _advance_toward_bulk(), which already sweeps
-    ADVANCE_ANGLE_JITTER_DEG. As long as bulk was still tried as a fallback,
-    its own angle sweep quietly covered for this gap; the moment a
-    VEHICLE-only squad (no bulk fallback at all, see _advance_toward()) hit
-    so much as a single Dense wall sitting right along the one straight
-    line toward the enemy, there was no alternate direction left to try at
-    all - reproduced directly against the real demo scene's Crisis
-    Starscythe Battlesuits: stuck reporting "cannot end their move on top
-    of Dense terrain" on every one of 3 fraction attempts, round after
-    round, because all 3 pointed the exact same direction. Now sweeps the
-    same ADVANCE_ANGLE_JITTER_DEG angles (rotated around the squad's own
-    centroid, same helper _advance_toward_bulk() uses) as an outer loop
-    around the existing fraction ladder.
-
-    `start_move_fn`/`confirm_fn`/`cancel_fn` default to movement_controller's
-    own start_move/confirm_move/cancel_move (a Normal Move) - see
-    _advance_toward_bulk()'s docstring for why this is parametrized (Fall
-    Back reuses this same retry ladder).
-
-    Returns True (squad moved, formation possibly no longer rigid) if any
-    angle/fraction attempt held together; False if every one couldn't
-    produce a legal formation.
-
-    Real, severe bug found via user report ("kann es sein, dass es dieses
-    Überlappungsproblem auch beim normalen Move gibt?" - following the same
-    bug just fixed for charges): every model here moves toward the exact
-    SAME shared target_point, completely independently - an even more
-    direct case than a charge's "each model's own nearest enemy", since
-    with a generous enough remaining_range, EVERY model can reach that
-    identical point exactly, landing squarely on top of every other one.
-    Reproduced directly: 5 models advancing toward a distant point failed
-    12 STRAIGHT angle-jitter attempts (every one of them, at the full-
-    distance fraction) with "Models cannot end their move on top of
-    another model" before happening to succeed only once the distance
-    fraction dropped low enough to accidentally undershoot the point. For
-    a VEHICLE-only squad (no bulk fallback at all, per the existing
-    directive - see _advance_toward()), a slightly less fortunate geometry
-    would exhaust the entire 36-combination sweep and simply never move.
-    Fixed the same way as _charge_per_model(): each model's naive
-    destination is clamped short of colliding with its OWN squadmates
-    already placed this same attempt (see _clamp_target_against_friendly_
-    models()'s own docstring), models processed closest-to-target first so
-    the ones that can actually reach it claim their spot before any that
-    have to stack in behind.
-
-    Real, severe bug found via user report ("die KI bewegt sich immer noch
-    nicht wirklich nach vorne... den Devilfish hat sie gar nicht bewegt...
-    ich glaube sie kommt mit der Bewegung von großen Fahrzeugen nicht
-    klar") plus the user's own correct diagnosis: the angle sweep below
-    only ever rotates the aim around the FAR target_point - once a model
-    ends up pressed flush against a wall it can't pass through (VEHICLE/
-    MONSTER, no INFANTRY/BEASTS/SWARM/MOBILE keyword - clamp_move()'s own
-    obstacle-crossing prevention already correctly stops it there, verified
-    directly), every one of those rotated aims still points back into the
-    same wall for a wall of any real size - but usually still finds SOME
-    angle with a tiny sliver of legal room to slide along the wall's face,
-    which the existing "accept the first success" logic happily takes as
-    "done", so the model stalls flush against the wall for every future
-    call, making only microscopic (technically legal, functionally
-    negligible) progress forever - confirmed directly (a test vehicle
-    blocked by a 16"-tall wall advanced normally for one turn, then made
-    ZERO further progress for the next two, matching the real Devilfish -
-    deployed a few inches from actual Dense ruin walls - ending up parked
-    at the exact same coordinate turn after turn). _route_around_waypoints()
-    (a bounded "aim at the blocking obstacle's corner" heuristic, not real
-    pathfinding) is tried FIRST, ahead of the angle sweep, exactly to avoid
-    exhausting into one of those negligible "successes" before ever trying
-    a destination actually likely to go somewhere - see its own call site's
-    comment for why this is tried first rather than as a last resort. A
-    model with a genuinely clear direct lane (the common case) never gets
-    any corner-routing candidates in the first place."""
-    start = start_move_fn if start_move_fn is not None else movement_controller.start_move
-    confirm = confirm_fn if confirm_fn is not None else movement_controller.confirm_move
-    cancel = cancel_fn if cancel_fn is not None else movement_controller.cancel_move
-    cx, cy = _centroid(squad)
-
-    # Corner-routing (see _route_around_waypoints()) is tried FIRST, ahead of
-    # the blind angle-jitter sweep below, whenever something's actually
-    # blocking the direct path - deliberately NOT the other way around (a
-    # "try the normal sweep, only fall back to corner-routing if it fails
-    # outright" design was tried and rejected: a model pressed flush against
-    # a wall usually still finds SOME rotated angle with a sliver of legal
-    # room to slide along the wall's face, so the sweep "succeeds" with a
-    # technically-legal but functionally-negligible move long before ever
-    # exhausting into a real fallback - confirmed directly, this is exactly
-    # what was still happening with corner-routing only as a last resort).
-    # Trying corner-routing first sidesteps that without needing to revert
-    # an already-"successful" confirm_move() and re-search - which would
-    # risk corrupting move types whose confirm() has its own side effects on
-    # success (e.g. FallBackController.confirm() kicking off a Desperate
-    # Escape Hazard Roll) - a model with a genuinely clear direct lane
-    # (the overwhelmingly common case - nothing blocking it at all) never
-    # even computes a candidate here (_route_around_waypoints() returns an
-    # empty list whenever nothing blocks target_point), so this is a no-op
-    # for it.
-    representative = squad.models[0]
-
-    # Real pathfinding (game/pathfinding.py's find_route() - grid + A*, see
-    # its own module docstring) tried FIRST, ahead of even the corner-
-    # routing heuristic below: corner-routing only ever escapes the closest
-    # CORNER_ROUTE_MAX_OBSTACLES blockers of each kind one at a time and
-    # cannot compose around several simultaneous obstacles/models at once -
-    # exactly the documented "surrounded by a dozen friendly models plus
-    # terrain at once" ceiling (see _movement_priority_key()'s own docstring
-    # for the real Devilfish case this was found on). find_route() is a real
-    # graph search, so it composes around any number of simultaneous
-    # blockers - but it still only ever PROPOSES a waypoint list;
-    # _place_per_model_route() re-validates every single step exactly as
-    # strictly via clamp_move()/try_commit_segment(), never trusts the route
-    # blindly, same as every other candidate in this file. Uses
-    # profile.movement_in as the movement-budget estimate
-    # (movement_controller.remaining_range isn't populated until start() is
-    # called - the same pre-start estimate _handle_movement()'s own Staging
-    # option already relies on); an Advance bonus not yet rolled/applied at
-    # this point just means the computed route may undershoot what's
-    # actually achievable this turn, not that it's wrong.
-    # Real, separate bug found while wiring this in: neither this pathfinding
-    # attempt NOR the corner-routing fallback below know anything about
-    # Take to the Skies (rule 21.03) - `flying` (True whenever
-    # _handle_movement() is about to call take_to_the_skies() for this
-    # squad, e.g. any BATTLESUIT/Devilfish-class unit with the FLY keyword)
-    # is only applied INSIDE start(), which hasn't run yet when this
-    # pre-start routing decision is made. Both would still see the
-    # (irrelevant, since flight bypasses it) nearby terrain/models as
-    # "blocking" and hand back a needlessly short detour waypoint - which
-    # then "succeeds" immediately once start() actually does make the model
-    # unobstructed, stranding it at that near detour point instead of
-    # continuing on toward the real target_point. User report ("ghostkeel
-    # hat sich aber nur 1\" bewegt", despite the turn plan saying "advance")
-    # matches this exactly: Ghostkeel always flies (FLY keyword), so this
-    # was very likely never a real obstacle-avoidance failure at all. Fix:
-    # skip straight to the plain angle/fraction sweep below when flying -
-    # its very first attempt (angle 0, full fraction, i.e. a straight line
-    # at target_point) now succeeds immediately, since nothing but final-
-    # position overlap (still enforced regardless of flying, see
-    # model_terrain_violation()'s own docstring) can stop it.
-
-    # Candidate plans are SCORED rather than "first one that doesn't error
-    # wins" (see _squad_progress() and _GOOD_PROGRESS_FRACTION): an attempt
-    # that clears the good-enough bar is confirmed straight away (the common
-    # case - on open ground the very first plan now carries the whole squad
-    # its full distance), while a legal-but-feeble one is cancelled and kept
-    # only as a fallback, so the sweep gets a fair chance to find something
-    # better instead of settling for the first stub of a move that happened
-    # to pass validation.
-    origin_centroid = (cx, cy)
-    fallbacks = []  # [(achieved, displacement, plan, route_length)] - best re-run at the end
-
-    distance_to_target = ((target_point[0] - cx) ** 2 + (target_point[1] - cy) ** 2) ** 0.5
-
-    def consider(plan, route_length=None):
-        """Run one candidate placement; confirm it if it's good enough,
-        otherwise cancel and file it as a fallback. Returns True only if the
-        squad has actually been left moved and confirmed.
-
-        `route_length` marks the candidate as one the PATHFINDER produced,
-        and is how long the road it proposed is. It changes which yardstick
-        the two bars below use - see the comments there.
-
-        Real, severe bug found by reproducing the user's report ("die bikes
-        sind immer rechts stuck und ruecken niemals weiter vor. sie kommen
-        einfach nicht an der wand vorbei"): straight-line progress is the
-        WRONG measure for a unit that has to go around something. Measured
-        against the real demo terrain, with the Warbikers standing inside the
-        NE ruin's L-walls exactly where the log had them, 13 of 35 tested
-        destinations produced literally 0.00" of movement - every one of them
-        a destination on the far side of a wall. The trace is unambiguous: for
-        a goal 9.0" away with a 17.1"-long legal road to it, find_route()'s
-        candidate carried the squad 6.66" along that road and was DISCARDED
-        for scoring 0.03" of straight-line progress, a hair under the 0.5"
-        bar. Every remaining candidate is a straight line into the wall, so
-        the squad stood still. A detour's first leg is close to perpendicular
-        to the goal by definition, so this rejected precisely the units that
-        need routing - the ones that cannot cross Dense terrain (rule 13.06:
-        Warbikers, Deff Dread, Trukks), which is exactly the user's
-        "fahrzeuge/mounted und waende sind immernoch ein riesen problem"."""
-        after, budget = plan()
-        progress, displacement = _squad_progress(origin_centroid, after, target_point)
-        if displacement < MIN_ROUTE_PROGRESS_IN:
-            cancel()  # nothing really happened - not even worth keeping
-            return False
-        if route_length is None and progress < MIN_GOAL_PROGRESS_IN:
-            # Covered ground but got no closer: the angle sweep reaches all
-            # the way to 180 degrees, so a candidate can shuffle a squad
-            # sideways (or backwards) and still clear the displacement bar.
-            # Filing it lets a purely lateral move win the fallback round and
-            # be committed, which is what the user sees as "manchmal bewegt
-            # sich der Devilfisch statt nach vorne einfach sinnlos nach
-            # rechts, wenn vorne nicht passt". Discard it instead, so a
-            # shorter move that actually goes the right way - ultimately
-            # _creep_toward(), which is strictly toward the target - gets the
-            # chance rather than being pre-empted by a longer useless one.
-            #
-            # Skipped entirely for a routed candidate: this bar exists to
-            # catch a move with no sense of direction, and a route from
-            # find_route() has the opposite problem - it is the SHORTEST legal
-            # path to the goal, so it never wanders, it just cannot always
-            # start out pointing at the goal. Distance covered along it is
-            # then the honest measure of progress, and that is what the
-            # displacement bar above already checks.
-            cancel()
-            return False
-        # "Good enough" is measured against what this move could realistically
-        # have achieved - whichever is smaller, the squad's whole movement
-        # budget or the distance to the target itself. Without that second
-        # term, a squad standing 2" from an objective it can fully reach could
-        # never clear a bar set at half its 7" budget.
-        #
-        # For a routed candidate both halves switch to road terms: how far it
-        # travelled, against how much of the road was realistically walkable
-        # this turn. Comparing a detour's straight-line progress to a
-        # straight-line target distance is the same category error as above,
-        # one step further on - it would keep the route out of the "confirm it
-        # now" branch and leave it to win a fallback round it might not.
-        achieved = displacement if route_length is not None else progress
-        reachable_this_turn = route_length if route_length is not None else distance_to_target
-        intended = min(reachable_this_turn, budget) if budget > 0 else reachable_this_turn
-        if achieved >= _GOOD_PROGRESS_FRACTION * intended:
-            confirm()
-            if not movement_controller.errors:
-                return True
-            cancel()
-            return False
-        cancel()
-        # Filed under `achieved` so a routed candidate is ranked by the road
-        # distance it covered, on the same scale the fallback round re-checks.
-        fallbacks.append((achieved, displacement, plan, route_length))
-        return False
-
-    if not flying:
-        estimated_budget = coldstar.effective_movement_in(representative)  # see game/coldstar.py
-        if estimated_budget > 0:
-            hard_obstacles = pathfinding.blocking_obstacles_for(representative, movement_controller.obstacles)
-            # Real, related bug found while fixing the false-success one
-            # above: find_route()'s own hard_models avoidance only keeps
-            # clear of an enemy's literal BASE circle, not the ADDITIONAL
-            # Engagement Range (2") a Normal/Advance/Fall Back move must
-            # also end clear of - a route that hugs an enemy-heavy area
-            # closely enough can satisfy "never crosses a base" while still
-            # ending every waypoint within that 2" buffer, wasting the whole
-            # attempt on a route try_commit_segment() was always going to
-            # reject (now correctly caught as a failure by
-            # _place_per_model_route() above, instead of masked as a
-            # zero-distance "success" - but still worth avoiding computing
-            # in the first place). Padding each enemy model's radius by
-            # ENGAGEMENT_RANGE_IN for pathfinding purposes only (NOT the
-            # mover's own radius, which also inflates Dense-terrain
-            # clearance and has nothing to do with engagement) steers the
-            # search around that buffer from the start, same as a human
-            # planning a route would account for it.
-            hard_models = _engagement_padded_models(
-                pathfinding.enemy_models_for(representative, movement_controller.all_tokens), ENGAGEMENT_RANGE_IN,
-            )
-            route = pathfinding.find_route(
-                (representative.x_in, representative.y_in), target_point, representative.radius_in, estimated_budget,
-                hard_obstacles, hard_models, movement_controller.board_width_in, movement_controller.board_height_in,
-            )
-            origin = (representative.x_in, representative.y_in)
-            if route and _route_leads_somewhere(origin, route, target_point):
-                road = _route_length(origin, route)
-                # Per-model first (models flow around what is in each one's own
-                # lane), then the SAME route walked as one rigid block. The
-                # rigid version exists because per-model routing is the one
-                # thing that can pull a formation apart: each model is clamped
-                # separately, so a wall that stops half the squad and not the
-                # other half breaks coherency (rule 09.02) and the whole
-                # attempt is thrown out. That is not a hypothetical - it is
-                # what the reported game did, sixteen times in a row for the
-                # Warbikers, every single rejection a coherency one. A rigid
-                # translation cannot do that: it moves every model by the same
-                # offset, so the pairwise distances inside the squad never
-                # change (the invariant _creep_toward() is built on). Until
-                # now nothing was both routed AND rigid - _place_per_model_
-                # route() is routed but per-model, _creep_toward() is rigid but
-                # dead straight, so a boxed-in squad had no candidate that
-                # could get around a wall without risking its formation.
-                if consider(lambda: _place_per_model_route(movement_controller, squad, route, start),
-                            route_length=road):
-                    return True
-                if consider(lambda: _place_rigid_route(movement_controller, squad, route, start),
-                            route_length=road):
-                    return True
-
-        for waypoint in _route_around_waypoints(representative, target_point[0], target_point[1], movement_controller.obstacles, movement_controller, squad):
-            for fraction in ADVANCE_DISTANCE_FRACTIONS:
-                if consider(lambda w=waypoint, f=fraction: _place_per_model_move(movement_controller, squad, w, f, start)):
+                if consider(lambda w=waypoint, f=fraction: _place_per_model_move(movement_controller, squad, w, f, start),
+                            label=f"corner@{fraction}"):
                     return True
 
     # LAST: the squad as a DEFORMABLE MASS. Every candidate above keeps the
@@ -4133,13 +2693,14 @@ def _advance_toward_per_model(movement_controller, squad, target_point, start_mo
 
     for fraction in ADVANCE_DISTANCE_FRACTIONS:
         spot = _point_toward(squad, target_point, packing_reach * fraction)
-        if spot is not None and consider(lambda p=spot: packed_plan(p)):
+        if spot is not None and consider(lambda p=spot: packed_plan(p), label=f"packed@{fraction}"):
             return True
 
     for fraction in ADVANCE_DISTANCE_FRACTIONS:
         for angle in ADVANCE_ANGLE_JITTER_DEG:
             rotated_target = _rotate_point_around(cx, cy, target_point[0], target_point[1], angle)
-            if consider(lambda t=rotated_target, f=fraction: _place_per_model_move(movement_controller, squad, t, f, start)):
+            if consider(lambda t=rotated_target, f=fraction: _place_per_model_move(movement_controller, squad, t, f, start),
+                        label=f"sweep{angle:+.0f}@{fraction}"):
                 return True
 
     # Nothing cleared the good-enough bar. Rather than give up and remain
@@ -4153,7 +2714,7 @@ def _advance_toward_per_model(movement_controller, squad, target_point, start_mo
     # until it's actually confirmed.
 
     fallbacks.sort(key=lambda entry: (entry[0], entry[1]), reverse=True)
-    for _achieved, _displacement, plan, route_length in fallbacks[:_MAX_FALLBACK_RETRIES]:
+    for _achieved, _displacement, plan, route_length, label in fallbacks[:_MAX_FALLBACK_RETRIES]:
         after, _budget = plan()
         # Re-score the RE-RUN, don't trust the score the sweep recorded. A
         # replayed plan does not always reproduce its original placement, and
@@ -4180,6 +2741,10 @@ def _advance_toward_per_model(movement_controller, squad, target_point, start_mo
             continue
         confirm()
         if not movement_controller.errors:
+            _sweep_stats.update(winner=f"fallback:{label}",
+                                achieved=replay_displacement if route_length is not None else replay_progress,
+                                intended=min(route_length if route_length is not None else distance_to_target,
+                                             _budget) if _budget > 0 else distance_to_target)
             return True
         cancel()
     return False
@@ -4458,7 +3023,7 @@ def _regroup_move(movement_controller, squad, target_point, start, confirm, canc
             model = squad.models[index]
             tx, ty = targets[index]
             tx, ty = _clamp_target_against_friendly_models(
-                model, tx, ty, squad, movement_controller, placed)
+                model, tx, ty, squad, movement_controller, placed, caller="regroup")
             new_x, new_y = movement_controller.clamp_move(model, tx, ty)
             model.x_in, model.y_in = new_x, new_y
             movement_controller.try_commit_segment(model)  # reverts this model alone if illegal
@@ -5019,7 +3584,8 @@ def _place_shared_offset(movement_controller, squad, ox, oy, step, max_distance,
             scale = (step + extra) / step if step > 1e-9 else 1.0
             target_x, target_y = _clamp_target_against_friendly_models(
                 model, start_pos[0] + ox * scale, start_pos[1] + oy * scale,
-                squad, movement_controller, placed)
+                squad, movement_controller, placed,
+                max_travel=step + extra, caller="shared-offset")
             model.x_in, model.y_in = movement_controller.clamp_move(model, target_x, target_y)
             ok, _errors = movement_controller.try_commit_segment(model)
             if ok:
@@ -5155,7 +3721,7 @@ def _engagement_step(movement_controller, squad, model, goal, desired, budget,
     others = [m for m in squad.models if m is not model]
     target_x, target_y = _clamp_target_against_friendly_models(
         model, start[0] + dx / dist * travel, start[1] + dy / dist * travel,
-        squad, movement_controller, others)
+        squad, movement_controller, others, max_travel=travel, caller="engagement-step")
     model.x_in, model.y_in = movement_controller.clamp_move(model, target_x, target_y)
     ok, _errors = movement_controller.try_commit_segment(model)
     good = ok and len(squad.check_coherency()) <= baseline_errors
@@ -5271,7 +3837,220 @@ def _ranked_free_slots(model, slots, claimed, budget, must_close_to_1in=True,
     return [slot for _key, slot in ranked[:limit]]
 
 
-def _clamp_target_against_friendly_models(model, target_x, target_y, squad, movement_controller, placed):
+# The landing search (_free_landing_near): rings of this pitch out to this
+# radius around the point a model was aimed at, and the margins it keeps over
+# the rule numbers.
+_LANDING_RING_STEP_IN = 0.25
+_LANDING_MAX_RADIUS_IN = 2.0
+# Squad.check_model_overlap() rejects at `centre distance < r1 + r2`, so a spot
+# put exactly on that boundary survives by floating-point luck - the same
+# 1.9599" against 1.96" the truncating clamp had to back off for.
+_LANDING_OVERLAP_MARGIN_IN = 0.02
+# Rule 09.02's 2.0", with room for float noise: a real rejection in
+# logs/game_20260908_204854.log read `closest gap 2.00" (needs <= 2.0")`.
+_LANDING_COHERENCY_IN = 1.9
+# How much a sideways offset from the intended point costs on top of its
+# distance. At 1.0 a spot one inch SHORT of the point (still on the model's
+# line) costs 1.0 and a spot one inch BESIDE it costs 2.0 - so stopping short
+# beats sliding sideways at equal distance. Measured without it, on
+# measure_crowded_movement.py --army=necrons: the 21-model blob's third move
+# had eighteen models re-landed along a wall, 3.63" of displacement for 0.89"
+# of progress, and that candidate WON the sweep (a routed candidate is judged
+# on distance covered) - 18% of achievable against 52% with the old clamp.
+_LANDING_LATERAL_WEIGHT = 1.0
+# Caller tags whose search is switched off - for A/B probes only, so the six
+# call sites can be measured one at a time (see the `caller` argument).
+LANDING_SEARCH_OFF_FOR = frozenset()
+# Call sites that do NOT get the search, by measurement. The route walker
+# (_place_per_model_route, caller "route") lands every model at every
+# waypoint of an A* road, and a routed candidate is judged by the sweep on
+# DISTANCE COVERED along that road, not on progress toward the goal - so a
+# search that finds every model somewhere legal beside the road makes a poor
+# routed candidate clear the bar and win before the rigid route or the angle
+# sweep get their turn. Per-caller A/B on measure_crowded_movement.py, both
+# armies, with the lateral penalty in place:
+#
+#                     Orks median / total / stalls    Necrons median / total
+#   search everywhere      70% / 223.7" / 1               57% / 116.6"
+#   search except "route"  74% / 232.9" / 0               60% / 119.9"
+#   no search (old clamp)  64% / 217.7" / 0               60% / 117.9"
+#
+# and the 21-model Necron blob's third move went 52% -> 14% of achievable
+# with the route search on (eighteen models re-landed beside a wall for
+# 0.89" of progress) and back to 52% without it. The other four call sites
+# keep the search; the engagement step is the second exclusion, below.
+# "engagement-step" is excluded for a different reason than "route": the
+# search's cost knows distance and lateral offset, not Engagement Range, so it
+# re-landed a piling-in model on a legal spot BESIDE its engagement slot and
+# out of range. Measured on the reported Warbikers pile-in
+# (test_melee_engagement.py section 3, a real board state): 2 of 3 engaged
+# is the brute-forced optimum, and with the search on that path it fell
+# below it; the two reported charge fixtures (measure_reported_moves.py A/B)
+# read the same with and without. The engagement step keeps the old cut.
+_LANDING_SEARCH_EXCLUDED = frozenset({"route", "engagement-step"})
+# How far a model may re-land when the ONLY thing on its intended point is a
+# squadmate placed earlier in the same pass (another unit's model on it gets
+# the full radius). None = the full radius, 0.0 = the old truncation.
+#
+# Measured on 2026-09-09 (fixture C = the reported 21-model blob in
+# measure_reported_moves.py; the worlds are measure_crowded_movement.py's):
+#
+#   radius     C     Orks crowded      Necrons crowded   Necrons isolated
+#   None      74%    74% / 232.9"      60% / 119.9"      68% / 139.4"
+#   1.0"      71%    67% / 228.7"      60% / 119.5"      68% / 138.1"
+#   0.5"      71%    65% / 220.7"      60% / 118.9"      72% / 140.5"
+#   0.0"      70%    63% / 217.4"      65% / 121.6"      74% / 140.7"
+#   (old)     54%    65% / 217.7"      60% / 117.9"      74% / 140.7"
+#
+# Almost the whole Ork gain is squadmate re-landing: a mob whose slots are
+# taken by its own front rank flows around them instead of stopping behind
+# them. The price is one row: the Necron blob ALONE on the board makes 43%
+# instead of 92% of its second move, because re-landing beside squadmates
+# widens the shape (Ork widest spread 7.78" -> 10.35") and the packed
+# candidate that wins that move no longer reaches its slots. Full radius
+# shipped - 353" of ground over both crowded worlds against 339" at 0.0 -
+# and the number above is the one to change if that trade is ever reversed.
+_LANDING_SQUADMATE_RADIUS_IN = None
+
+
+def _free_landing_near(model, target_xy, squad, movement_controller, placed, *,
+                       max_travel=None, heading=None, max_radius=None, caller=""):
+    """The nearest LEGAL end point around `target_xy`, or None.
+
+    Rule 03.01 lets a base move THROUGH friendly models and only forbids
+    ENDING on one. _clamp_target_against_friendly_models() honoured the first
+    half (a clear landing is returned untouched) but answered an occupied
+    landing by truncating the move at the FIRST friendly base along the line -
+    which is neither what the rule says nor what a player does. Measured on
+    the reported 21-model blob (measure_reported_moves.py case C): the clamp
+    truncated 535 of 821 model targets in ONE move, throwing away 810" of
+    aimed distance, and in 445 of those 535 cases a free landing spot lay
+    within 2" of the intended point (154 within a quarter inch). The models
+    that got cut short then stood while their squadmates ran on, the unit
+    split, and confirm_move() threw the whole candidate away - which is the
+    mechanism behind "die modelle stehen sich gegenseitig im weg".
+
+    Legal means everything try_commit_segment() will check, asked HERE: on the
+    board, not on Dense terrain (13.05), not overlapping any token (friendly
+    blockers as the clamp defines them - other units plus squadmates already
+    placed this pass - AND enemies), not within Engagement Range of an enemy
+    unit this move may not touch (Squad.disallowed_enemy_squads_for_move, so
+    a charge keeps its targets and a pile-in has no such list), within
+    `max_travel` (default: the model's remaining range) of where the model
+    stands, and reachable by clamp_move() without being shortened - the
+    engine's own transit rule, so an enemy base or a wall in the way is not
+    argued with here.
+
+    Preference: a spot within _LANDING_COHERENCY_IN of a squadmate already
+    placed comes first (the constructive half of rule 09.02, which is what
+    the per-model pass is trying to keep); among those, the lowest COST, which
+    is the distance from the intended point plus _LANDING_LATERAL_WEIGHT times
+    the sideways part of that offset (measured across `heading`, the direction
+    the model was going) - so a model whose spot is taken stops a little
+    short rather than sliding along whatever blocked it. Deterministic: the
+    sweep's fallback round replays candidates and relies on a replay landing
+    where the first run did.
+
+    Bounded: the rings hold ~225 points at the default radius, the blockers
+    and obstacles are cut down ONCE to those that can touch that disc, and
+    the search stops as soon as the next ring's radius already exceeds the
+    best cost found (a spot on a ring of radius R costs at least R) - the
+    common case ends on the first or second ring.
+
+    `max_radius` defaults to the larger of 2" and one base diameter: a
+    Battlewagon boxed in by its own infantry needs to look further than a
+    Boy does. NOT a substitute for planning where a unit goes - the aim is
+    the caller's; this only decides where the model comes to rest when the
+    exact point is taken."""
+    if caller in LANDING_SEARCH_OFF_FOR or caller in _LANDING_SEARCH_EXCLUDED:
+        return None
+    tx, ty = target_xy
+    r = model.radius_in
+    budget = movement_controller.remaining_range.get(model.id, 0.0)
+    if max_travel is not None:
+        budget = min(budget, max_travel)
+    if budget <= 1e-9:
+        return None
+    if max_radius is None:
+        max_radius = max(_LANDING_MAX_RADIUS_IN, 2.0 * r)
+    mx, my = model.x_in, model.y_in
+    if heading is None:
+        heading = math.atan2(ty - my, tx - mx) if (tx - mx) ** 2 + (ty - my) ** 2 > 1e-12 else 0.0
+
+    tokens = movement_controller.all_tokens
+    widest = max((t.radius_in for t in tokens), default=0.0)
+    reach = max_radius + r + widest + ENGAGEMENT_RANGE_IN + _LANDING_OVERLAP_MARGIN_IN
+    blockers = [
+        t for t in tokens
+        if t is not model and t.squad is not None
+        and (t.squad is not squad or t in placed)
+        and abs(t.x_in - tx) <= reach and abs(t.y_in - ty) <= reach
+    ]
+    disallowed = squad.disallowed_enemy_squads_for_move(
+        tokens, movement_controller.move_mode, movement_controller.charge_targets,
+        movement_controller.surge_target)
+    keep_out = [t for t in blockers if t.squad in disallowed]
+    # Asked of the piece itself, not its bounding box - a rotated footprint's
+    # box is not its shape (game/terrain.py), and test_rotated_terrain.py
+    # holds this file to that.
+    obstacles = [
+        o for o in movement_controller.obstacles
+        if o.category == DENSE and o.distance_to_point(tx, ty) <= reach
+    ]
+    anchors = [p for p in placed if not p.is_dead()]
+
+    def coherent(x, y):
+        if not anchors:
+            return True
+        return any(math.hypot(x - p.x_in, y - p.y_in) - r - p.radius_in <= _LANDING_COHERENCY_IN
+                   for p in anchors)
+
+    def legal(x, y):
+        if math.hypot(x - mx, y - my) > budget + 1e-9:
+            return False
+        if not formation_layout.on_board(x, y, r):
+            return False
+        if model_terrain_violation(model, obstacles, x, y):
+            return False
+        for t in blockers:
+            if math.hypot(x - t.x_in, y - t.y_in) < r + t.radius_in + _LANDING_OVERLAP_MARGIN_IN:
+                return False
+        for t in keep_out:
+            if math.hypot(x - t.x_in, y - t.y_in) - r - t.radius_in <= ENGAGEMENT_RANGE_IN + _LANDING_OVERLAP_MARGIN_IN:
+                return False
+        # Last, because it is the expensive one: the engine's own transit
+        # rule must deliver the model to this exact point.
+        cx, cy = movement_controller.clamp_move(model, x, y)
+        return math.hypot(cx - x, cy - y) <= 1e-6
+
+    ux, uy = math.cos(heading), math.sin(heading)
+
+    def cost(x, y):
+        dx, dy = x - tx, y - ty
+        lateral = abs(-dx * uy + dy * ux)
+        return math.hypot(dx, dy) + _LANDING_LATERAL_WEIGHT * lateral
+
+    rings = max(1, int(math.ceil(max_radius / _LANDING_RING_STEP_IN - 1e-9)))
+    best = None       # (cost, x, y) among spots coherent with the placed squadmates
+    fallback = None   # (cost, x, y) among the rest
+    for x, y in formation_layout.ring_candidates(tx, ty, _LANDING_RING_STEP_IN, heading, rings=rings):
+        ring = math.hypot(x - tx, y - ty)
+        if best is not None and best[0] <= ring + 1e-9:
+            break  # nothing further out can cost less than this ring's radius
+        if not legal(x, y):
+            continue
+        c = cost(x, y)
+        if coherent(x, y):
+            if best is None or c < best[0]:
+                best = (c, x, y)
+        elif fallback is None or c < fallback[0]:
+            fallback = (c, x, y)
+    chosen = best if best is not None else fallback
+    return None if chosen is None else (chosen[1], chosen[2])
+
+
+def _clamp_target_against_friendly_models(model, target_x, target_y, squad, movement_controller, placed,
+                                          max_travel=None, caller=""):
     """Shared by _charge_per_model() and _advance_toward_per_model(): rule
     03.01 lets a model's base move THROUGH friendly models, but never end
     move on top of one - movement_controller.clamp_move() only ever
@@ -5295,6 +4074,14 @@ def _clamp_target_against_friendly_models(model, target_x, target_y, squad, move
     processed this call are deliberately excluded from `placed` (they're
     still sitting at their OLD position, about to change - checking against
     that would be pointless).
+
+    SINCE 2026-09-09 an occupied landing is first answered by
+    _free_landing_near(): the nearest legal spot around the intended point,
+    inside `max_travel` (the caller's per-model cap - the sweep's fraction
+    rungs must stay short rungs) and preferring one that keeps rule 09.02's
+    2" to a squadmate already placed. Only when that finds nothing does the
+    truncation below run, unchanged. `caller` names the call site so the A/B
+    probes can switch the search off per site (LANDING_SEARCH_OFF_FOR).
 
     Real, severe, PRE-EXISTING bug found via user report ("ghostkeel/
     devilfish bewegen sich kaum", still reproducing after both false-
@@ -5331,7 +4118,21 @@ def _clamp_target_against_friendly_models(model, target_x, target_y, squad, move
         for t in friendly_blockers
     )
     if landing_clear:
+        _sweep_stats["clear"] = _sweep_stats.get("clear", 0) + 1
         return target_x, target_y
+    spot = None
+    only_squadmates = not any(
+        t.squad is not squad
+        and ((target_x - t.x_in) ** 2 + (target_y - t.y_in) ** 2) ** 0.5 < t.radius_in + model.radius_in
+        for t in friendly_blockers)
+    radius = _LANDING_SQUADMATE_RADIUS_IN if only_squadmates else None
+    if radius is None or radius > 0.0:
+        spot = _free_landing_near(model, (target_x, target_y), squad, movement_controller, placed,
+                                  max_travel=max_travel, caller=caller, max_radius=radius)
+    if spot is not None:
+        _sweep_stats["relanded"] = _sweep_stats.get("relanded", 0) + 1
+        return spot
+    _sweep_stats["truncated"] = _sweep_stats.get("truncated", 0) + 1
     fraction = geometry.max_unblocked_fraction_models(
         (model.x_in, model.y_in), (target_x, target_y), friendly_blockers, inflate_radius=model.radius_in,
     )
@@ -10801,6 +9602,102 @@ def _charge_trade_note(squad, target):
     )
 
 
+def _run_charge_attempts(movement_controller, squad, target, max_distance, reopen, confirm):
+    """THE charge-move ladder: every approach the AI tries for a declared
+    charge, in order, until one confirms. Returns (True, []) on success,
+    (False, last_errors) once every approach has been rolled back, or
+    (None, last_errors) when a retry's `reopen` did NOT open a move - see
+    below; the caller then returns and comes back, exactly as it does when
+    the FIRST begin_charge_move() is reacted to.
+
+    WHY A RETRY CAN COME BACK WITHOUT A MOVE. `reopen` is
+    ChargeController.begin_charge_move(), and that runs the declaration
+    reaction chain (rule "just after an enemy unit has declared a charge":
+    Grav-Inhibitor Field, Photon Grenades, Combat Embarkation) EVERY time it
+    is called - once per retry, so up to thirteen times for one declaration.
+    A reactor that opens a prompt owns the continuation and the move stays
+    closed. Measured before this guard existed (Photon Grenades, a human
+    defender, a charge that fails on 13.05 from every approach): the human
+    was asked TWICE about one declaration, the ladder then placed all five
+    models with no move open - clamp_move() hands back the wish and
+    try_commit_segment() accepts when nothing is open (game/movement.py) -
+    and declined the charge with the second prompt still standing, so the
+    answer resumed a charge that was already over. The reactors keep a memo
+    of the declaration they have asked about (their `_offered_key`), which is
+    what stops the re-prompt; this guard is what stops the placement, for
+    any reactor that has no memo, and for the one legitimate case: Combat
+    Embarkation re-opening target selection on a retry, which leaves the
+    charge with no targets and nothing to open a move for.
+
+    ONE definition, on purpose. _handle_charge() drives it in the game and
+    measure_reported_moves.py drives it against a board rebuilt from a game
+    log - a harness that copied the loop measured a ladder that could drift
+    from the one the AI actually climbs.
+
+    `reopen` re-opens the charge move before every attempt but the first
+    (the caller has already opened it for that one; a rolled-back attempt
+    leaves the move cancelled). `confirm` is the caller's confirm - the
+    ChargeController's, which books the charge, or the bare
+    MovementController's in a harness. Success and failure are read from
+    movement_controller.errors either way, the same test every mover uses.
+
+    A ROUTED approach is tried first for any unit that cannot cross Dense
+    terrain (13.06), ahead of the blind angle sweep. The sweep is two straight
+    legs - sidestep, then turn in - which handles one obstacle edge and
+    nothing more involved; a walker that has to go through a doorway or round
+    the end of a wall needs an actual path. Reported case, reproduced from the
+    log's own coordinates: the Deff Dread rolled 9" against a 7.2"
+    straight-line gap and the best of all 13 sweep approaches left it 5.01"
+    short, while A* finds an 8.4" way round - inside the roll. INFANTRY skip
+    it entirely: they walk through the wall, so the direct line already is
+    the route. (And so does every AI unit while the wall-crossing house rule
+    makes Dense terrain passable for its owner - _blocked_by_walls() asks the
+    same seam clamp_move() does.)"""
+    last_errors = []
+    approaches = list(CHARGE_APPROACH_PLAN)
+    routed_first = _blocked_by_walls(squad)
+    first = True
+    for attempt in (["route"] if routed_first else []) + approaches:
+        if not first:  # a retry: re-open the move cancelled by the last round
+            reopen()
+            if movement_controller.move_mode != "charge":
+                # Reacted to, or nothing left to declare: no move to place
+                # into. Hand the continuation back instead of placing blind.
+                return None, last_errors
+        first = False
+        if attempt == "route":
+            _charge_along_route(movement_controller, squad, target, max_distance)
+        else:
+            angle, detour = attempt
+            _charge_per_model(movement_controller, squad, target, max_distance,
+                              approach_angle_deg=angle, detour_fraction=detour)
+        confirm()
+        if not movement_controller.errors:
+            return True, []
+        last_errors = list(movement_controller.errors)
+        movement_controller.cancel_move()
+    return False, last_errors
+
+
+def _log_charge_geometry(game_log, squad, target, max_distance):
+    """Why a charge failed, in the terms the placement works in: how many
+    engagement slots the ring offered, how many any model could reach inside
+    the roll, and the nearest one. Written when a charge is declined from every
+    approach, so the next report can be read instead of reverse-engineered."""
+    if game_log is None or not squad.models or not target.models:
+        return
+    slots = _engagement_slots(target, max_model_radius(squad), CHARGE_TARGET_CLEARANCE_IN)
+    reach = [min(math.dist((s[0], s[1]), (m.x_in, m.y_in)) for m in squad.models) for s in slots]
+    within = sum(1 for r in reach if r <= max_distance)
+    nearest = min(reach) if reach else float("inf")
+    game_log.add(
+        f"  [charge geometry] {squad.name} -> {target.name}: {len(slots)} engagement slots, "
+        f"{within} within the {max_distance}\" roll, nearest {nearest:.2f}\" away; "
+        f"straight-line gap {squad.min_distance_to(target):.2f}\"",
+        file_only=True,
+    )
+
+
 def _handle_charge(agent, memory, player, all_tokens, charge_controller, movement_controller, on_thinking, crushing_impact_controller=None, plan=None, game_log=None):
     # Resume a charge this player already declared, now that its roll has
     # been acknowledged (by a human click, in a PREVIOUS frame) and
@@ -10865,7 +9762,16 @@ def _handle_charge(agent, memory, player, all_tokens, charge_controller, movemen
 
         if not declared:
             charge_controller.toggle_charge_target(target)
-        charge_controller.begin_charge_move()
+        if movement_controller.move_mode != "charge":
+            # Open the move - unless a reaction's resume already did (the
+            # re-entry case just below). begin_charge_move() runs the
+            # declaration reaction chain every time it is called, and calling
+            # it over an OPEN move asked the chain a second time about the
+            # same standing declaration: measured with a reactor that keeps
+            # no memo, the second prompt opened while the move stayed open,
+            # so the guard below could not see it, and the ladder then
+            # declined the charge with that prompt still standing.
+            charge_controller.begin_charge_move()
         if movement_controller.move_mode != "charge":
             # Something reacted to the declaration and owns resuming it - a
             # defender's stratagem offered at rule "just after an enemy unit
@@ -10896,39 +9802,22 @@ def _handle_charge(agent, memory, player, all_tokens, charge_controller, movemen
         # got one. Each failed attempt is fully rolled back by cancel_move()
         # (positions restored to move_start), so a later angle starts from
         # the same board state as the first.
-        last_errors = []
-        # A ROUTED approach is tried first for any unit that cannot cross Dense
-        # terrain (13.06), ahead of the blind angle sweep. The sweep is two
-        # straight legs - sidestep, then turn in - which handles one obstacle
-        # edge and nothing more involved; a walker that has to go through a
-        # doorway or round the end of a wall needs an actual path. Reported
-        # case, reproduced from the log's own coordinates: the Deff Dread rolled
-        # 9" against a 7.2" straight-line gap and the best of all 13 sweep
-        # approaches left it 5.01" short, while A* finds an 8.4" way round -
-        # inside the roll. This is the same find_route() the Movement phase has
-        # used for a long time; the charge never got it.
-        # INFANTRY skip it entirely: they walk through the wall, so the direct
-        # line already is the route, and their behaviour is unchanged.
-        approaches = list(CHARGE_APPROACH_PLAN)
-        routed_first = _blocked_by_walls(squad)
-        first = True
-        for attempt in (["route"] if routed_first else []) + approaches:
-            if not first:  # a retry: re-open the move cancelled by the last round
-                charge_controller.begin_charge_move()
-            first = False
-            if attempt == "route":
-                _charge_along_route(movement_controller, squad, target, charge_controller.max_distance)
-            else:
-                angle, detour = attempt
-                _charge_per_model(movement_controller, squad, target, charge_controller.max_distance,
-                                  approach_angle_deg=angle, detour_fraction=detour)
-            charge_controller.confirm_charge_move()
-            if not movement_controller.errors:
-                # Success is logged by ChargeController.confirm_charge_move() itself,
-                # so it covers reactive charges (Heroic Intervention) too.
-                return True
-            last_errors = list(movement_controller.errors)
-            movement_controller.cancel_move()
+        # The ladder itself lives in _run_charge_attempts() - the one
+        # definition measure_reported_moves.py climbs too. Success is logged by
+        # ChargeController.confirm_charge_move() itself, so it covers reactive
+        # charges (Heroic Intervention) as well.
+        completed, last_errors = _run_charge_attempts(
+            movement_controller, squad, target, charge_controller.max_distance,
+            reopen=charge_controller.begin_charge_move,
+            confirm=charge_controller.confirm_charge_move)
+        if completed:
+            return True
+        if completed is None:
+            # A retry's begin_charge_move() was reacted to (see the ladder's
+            # docstring): the declaration still stands and someone else owns
+            # resuming it. Same answer as the first-attempt guard above -
+            # return, and the resume branch re-enters here next call.
+            return True
 
         # Genuinely impossible from any direction - decline, but say WHY.
         # Without this the log only ever showed "illegal move - <squad>
@@ -10940,6 +9829,7 @@ def _handle_charge(agent, memory, player, all_tokens, charge_controller, movemen
                 f"approach direction ({charge_controller.max_distance}\" roll) - "
                 + "; ".join(last_errors),
                 category=game_log_module.FAILED_ORDER)
+            _log_charge_geometry(game_log, squad, target, charge_controller.max_distance)
         # A failed charge leaves this unit standing in the open where the plan
         # assumed it would be locked in combat - one of the two events worth
         # re-planning the rest of the turn for (see _maybe_replan_after_events()).

@@ -69,6 +69,14 @@ class CombatEmbarkationController:
         self._pending = None      # (squad, transport_token)
         self._resume = None
         self._charging = None     # whose declaration this window belongs to
+        # Which declaration has already been asked about - see
+        # game/kauyon_photon_grenades.py and game/grav_inhibitor_field.py for
+        # the same memo at the same seam: begin_charge_move() re-runs the
+        # reaction chain on every retry of a failed approach. A RE-OPENED
+        # declaration (this stratagem's own effect) names different targets,
+        # so it is a new key and is asked about again, as the printed effect
+        # says it should be.
+        self._offered_key = None
 
     def _log(self, message):
         if self.game_log is not None:
@@ -112,12 +120,16 @@ class CombatEmbarkationController:
         """ChargeController's declaration-reaction protocol."""
         if self.turn_tracker is not None and self.turn_tracker.phase != PHASE_CHARGE:
             return False
+        key = self._declaration_key(charging_squad, targets)
+        if key == self._offered_key:
+            return False  # this same declaration has already been asked about
         candidates = self.eligible_defenders(charging_squad, targets)
         if not candidates:
             return False
         reactor = candidates[0].owner
         if reactor in self.auto_players or self.decision_manager is None:
             return False
+        self._offered_key = key
         self._resume = on_resolved
         self._charging = charging_squad
         options = []
@@ -142,6 +154,10 @@ class CombatEmbarkationController:
             options + [("Decline", self._decline)],
         )
         return True
+
+    def _declaration_key(self, charging_squad, targets):
+        battle_round = getattr(self.turn_tracker, "battle_round", None)
+        return (battle_round, id(charging_squad), tuple(sorted(id(t) for t in targets or ())))
 
     def _accept(self, squad, transport_token):
         self._pending = (squad, transport_token)

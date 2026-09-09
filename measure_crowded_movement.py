@@ -80,7 +80,14 @@ Also reported, because the AI is meant to keep its units packed (small
 footprints hide better and leave room for the neighbours): final spread per
 unit, and how many units end fully out of the enemy's line of sight.
 
-Run:  python measure_crowded_movement.py [map_key] [--turns=N]
+Run:  python measure_crowded_movement.py [map_key] [--turns=N] [--army=orks|necrons]
+
+`--army=necrons` is the SECOND baseline the header above asks for: the same
+fixture, goals and terrain, with armies/necrons.json on the table (the
+21-model Warriors + Technomancer blob, two Immortals units, Lychguard, C'tan)
+- the army every 2026-09 movement report was about. It prints beside the Ork
+numbers and never replaces them; the default run is byte-identical to before
+the flag existed.
 """
 
 import math
@@ -105,6 +112,7 @@ from game.factions.tau_empire import (
     GHOSTKEEL_BATTLESUIT, KROOT_CARNIVORES, PATHFINDER_TEAM, RIPTIDE_BATTLESUIT,
     STRIKE_TEAM,
 )
+from game import army_lists
 from game.game_state import GameState
 from game.movement import MovementController, take_to_the_skies_pays
 from game.squad import edge_distance, min_model_movement
@@ -171,6 +179,22 @@ def movers(state):
         FLASH_GITZ, owner="Player 2", composition_index=1, name="Flash Gitz"))
     add("Tankbustas", build_squad(TANKBUSTAS, owner="Player 2", name="Tankbustas"))
     return out
+
+
+def necron_movers(state):
+    """Player 2's NECRON list (armies/necrons.json), built the way main() builds
+    it - the 21-model Necron Warriors + Technomancer blob, the two Immortals
+    units, the Lychguard and the C'tan the 2026-09 reports are about.
+
+    A SECOND baseline beside the Ork one, never a replacement (see the module
+    docstring): `--army=necrons` prints its own numbers, and the default run is
+    byte-identical to what it was before the flag existed."""
+    squads = []
+    army_lists.get("necrons").build("Player 2", squads.append, state=state)
+    return [(sq.name, sq) for sq in squads if sq.models]
+
+
+MOVERS = {"orks": movers, "necrons": necron_movers}
 
 
 def defenders():
@@ -408,15 +432,21 @@ def main():
     flags = [a for a in sys.argv[1:] if a.startswith("--")]
     map_key = args[0] if args else "map2"
     turns = DEFAULT_TURNS
+    army = "orks"
     for flag in flags:
         if flag.startswith("--turns="):
             turns = int(flag.split("=", 1)[1])
+        elif flag.startswith("--army="):
+            army = flag.split("=", 1)[1]
+    if army not in MOVERS:
+        sys.exit(f"unknown --army={army!r}; one of {sorted(MOVERS)}")
+    movers_fn = MOVERS[army]
 
     battle_map = maps.apply_to_config(maps.get(map_key))
     state = GameState()
     battle_map.build(state)
     settled = []
-    placed = lay_out(state, movers(state), (4.0, config.BOARD_HEIGHT_IN * 0.30), settled)
+    placed = lay_out(state, movers_fn(state), (4.0, config.BOARD_HEIGHT_IN * 0.30), settled)
     enemy = [(sq.name, sq) for sq in defenders()]
     enemy_placed = lay_out(state, enemy,
                            (config.BOARD_HEIGHT_IN * 0.62, config.BOARD_HEIGHT_IN * 0.88),
@@ -430,9 +460,13 @@ def main():
     # small board the roster does not fit, and a quietly shorter run reads as
     # "this map is fine" when it is really "this map was measured with half the
     # traffic".
-    offered = len(movers(GameState())) + len(defenders())
+    offered = len(movers_fn(GameState())) + len(defenders())
     print(f"=== {map_key}: {len(placed)} moving units, {len(enemy_placed)} static enemy "
           f"units, {len(state.tokens)} tokens, {turns} turns ===")
+    if army != "orks":
+        # Only the non-default army announces itself: the Ork line above is the
+        # one every recorded baseline number was printed under, and it stays.
+        print(f"    army: {army} (a second baseline beside the Ork one - see the header)")
     if len(placed) + len(enemy_placed) < offered:
         print(f"    NOTE: {offered - len(placed) - len(enemy_placed)} of {offered} units found "
               f"no legal room on this board and were left out")
