@@ -68,15 +68,15 @@ def _pulse(t):
     return 0.5 + 0.5 * math.sin(t * 4.0)
 
 
-AI_TOGGLE_WIDTH = 92      # wider than the MENU button above it: measured, "AI"
-                          # needs more than the 17px a 74px-wide toggle leaves
-                          # once the 32px track and its gaps are taken out.
+AI_TOGGLE_WIDTH = 92      # measured: "AI" needs more than the 17px a 74px-wide
+                          # toggle leaves once the 32px track and its gaps are
+                          # taken out. (74 was the MENU button's width, which
+                          # used to share this corner.)
 AI_TOGGLE_LABEL = "AI"
 
 
 def ai_mode_toggle_rect(board_rect, font, avoid_rects=()):
-    """Where the AI-mode switch sits: the board's top-right corner, under the
-    MENU button, right edges aligned.
+    """Where the AI-mode switch sits: the board's top-right corner.
 
     User: "auesserdem waere ein toggle in der oberflaeche gut fuer den KI
     Modus. vielleicht dort, wo jetzt der rote punkt ist." So it takes the dot's
@@ -84,9 +84,15 @@ def ai_mode_toggle_rect(board_rect, font, avoid_rects=()):
     that is only drawn while the mode is ON is a thing you can never click to
     turn it back on.
 
-    Same avoid_rects dance the dot did, and for the same measured reason: the
-    dice panel is top-anchored and centred inside this very board rect, so the
-    only free direction here is DOWN."""
+    It has that corner to ITSELF now: the MENU button used to sit here and the
+    switch stepped down out of its way, and the button has moved into the right
+    panel's header row - "dann liegt nur noch der AI Schalter ueber der Map".
+    So no caller passes avoid_rects any more and the switch stops moving, which
+    is worth more than a tight margin for a control this often clicked.
+
+    avoid_rects stays for the next thing that shares this corner, and the only
+    free direction is still DOWN, for the same measured reason: the dice panel
+    is top-anchored and centred inside this very board rect."""
     height = button_style.toggle_height(AI_TOGGLE_WIDTH, AI_TOGGLE_LABEL, font)
     rect = pygame.Rect(board_rect.right - MARGIN - AI_TOGGLE_WIDTH,
                        board_rect.y + MARGIN, AI_TOGGLE_WIDTH, height)

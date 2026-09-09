@@ -1294,13 +1294,43 @@ eine zweite zu beginnen.
     gar nicht ab.
   - `_open_game_menu()` beendet zuerst den Line-Drag: der wird GEPOLLT und ist vom `continue`
     ebenfalls nicht gedeckt, ein gehaltener Rechtsklick zöge sonst unter dem Scrim weiter Modelle.
-- **Der Knopf sitzt in der Brett-Ecke oben rechts** (74×26 bei MARGIN 12, dieselbe Ecke wie der
-  AUTO-PLAY-Punkt). **Gemessen gegen das Würfelpanel**: 334 px frei bei 1920, **14 px bei 1280** —
-  dem schmalsten Fenster, für das dieses Projekt gebaut ist. Als Rechnung im Test gepinnt.
-  - **Der AUTO-PLAY-Punkt weicht nach UNTEN aus**, nicht nach links, und das korrigiert die
-    ursprüngliche Wahl aus gemessenem Grund: nach links liefe er in genau dieses Würfelpanel.
-    `draw_auto_play_dot(avoid_rects=)` ist dasselbe Wort, das `AiBusyBadge` für dieselbe Idee schon
-    benutzt; ohne Argument bewegt sich nichts, weshalb `test_ai_busy_badge.py` unverändert grün ist.
+- **Der Knopf sitzt seit 2026-09-09 IN DER KOPFZEILE DES RECHTEN PANELS, neben "Game Status"**
+  (User: "außerdem hätte ich den 'Menu' Knopf gerne oben rechts in der rechten spalte neben der
+  Game Status überschrift"). Vorher die Brett-Ecke oben rechts, wo er sich die Ecke mit dem
+  AI-Schalter teilte.
+  - **Die Geometrie liegt in `button_style.py`, nicht in einem der zwei Module, die sie brauchen**
+    (`HEADER_BUTTON_WIDTH/HEIGHT/GAP`, `header_button_reserve()`, `header_button_rect(rect)`):
+    Leiste und Knopf teilen sich EINE Zeile, die Leiste wird um exakt den Platz gekürzt, den der
+    Knopf nimmt (`draw_panel_header(reserve_right=)`) — und zwei Module, die je die halbe
+    Arithmetik machen, sind der Weg, auf dem eine Überschrift unter einem Knopf landet. Beide
+    importieren `button_style` ohnehin, es kostet also in keine Richtung eine neue Abhängigkeit,
+    und keines von beiden kann die Frage allein beantworten.
+  - **Die Leiste wird GEKÜRZT, nicht überzeichnet.** Ein Knopf über einer vollbreiten Leiste sieht
+    genau so lange richtig aus, wie der Titel zufällig kurz genug ist — und das ändert sich still.
+    `reserve_right` ist opt-in mit Default 0, jede andere Kopfzeile des Spiels zeichnet also
+    dieselben Pixel wie vorher (im Test als Extent-Vergleich gepinnt, nicht als Pixelzahl: die
+    Glyphen des Titels liegen auf derselben Scanline und sind nicht die Leistenfarbe).
+  - **Gemessen bei 220 px Panelbreite:** Leiste 212 → **132 px**, Knopf 74×26 mit 6 px Abstand,
+    Textraum 112 px gegen 94 px für "Game Status" — 18 px Luft. Der Knopf ist in der 34-px-Leiste
+    ZENTRIERT (4 px Versatz), weil eine geteilte Zeile auch ihre Mitte teilt.
+  - **Er bleibt HELL, während der AI-Busy-Dim den Rest des Panels abdunkelt** (`ai_busy_dim_rects`
+    deckt beide Spalten), weil er als Letztes im Frame gezeichnet wird. Gewollt statt geduldet: ein
+    hängender Prompt ist genau der Zustand, aus dem man das Menü am dringendsten erreichen will.
+    Als REIHENFOLGE gepinnt.
+- **Damit liegt nur noch der AI-SCHALTER über der Map** (User: "Dann liegt nur noch der AI Schalter
+  über der Map"), und er bekommt **keine `avoid_rects` mehr** — er hat die Ecke für sich und hört
+  auf, sich zu bewegen. Ein Steuer, das stillsteht, ist mehr wert als eine knappe Marge.
+  - **Gemessen über 1280/1366/1600/1920 × 1/10/40/60/100 Würfel: NULL Würfel liegen je unter dem
+    Schalter.** Die erste Würfelreihe beginnt bei y=83, der Schalter endet bei y=66 — 17 px Luft,
+    unabhängig davon, wie breit das Panel für eine große Salve wird. Die BACKDROP-Polsterung
+    erreicht die Ecke bei 1280/1366 sehr wohl (bis −159 px Überlappung bei 100 Würfeln); das ist
+    dieselbe Lage, in der der MENU-Knopf dort vorher stand, und es ist Polsterung, kein Würfel.
+    Der Schalter wird NACH dem Würfelpanel gezeichnet, liegt also oben.
+  - **Der `avoid_rects`-Mechanismus bleibt und wird an einem SYNTHETISCHEN Blocker geübt**
+    (`test_game_menu.py`, `test_ai_busy_badge.py`) — der `WALL_CROSSING_COST_IN = 0.0`-Präzedenzfall:
+    was inert ausgeliefert wird und von keinem Test gefahren wird, ist beim nächsten Träger kaputt.
+    In `main.py` ist das Fehlen als NEGATIV gepinnt, weil die Regression hier "jemand trägt wieder
+    einen Blocker ein" ist und nicht "jemand entfernt einen".
 
 ### Größere Schrift und ein Hintergrundbild (2026-09-07)
 
@@ -1433,9 +1463,12 @@ CLAUDE.md führte „`scene_io` sichert keine VP" als offenen Punkt. Er ist zu.
   eine Datei darunter liegt. `summary()` gibt `None` für Unlesbares und IST das Eignungs-Tor
   (Fehlerklasse 5) — angeboten wird nur, was auch geladen werden kann.
 
-**Getestet:** neu `test_game_menu.py` (**139/139**, sechs Abschnitte) und `smoke_game_menu.py`
+**Getestet:** neu `test_game_menu.py` (**139/139**, sechs Abschnitte; seit dem Umzug des Knopfes
+in die Panel-Kopfzeile **207/207** — Abschnitt 5 misst die geteilte Zeile auf PIXELN durch das
+ECHTE `GameStatusPanel` und fegt die Würfel) und `smoke_game_menu.py`
 (**17/17**, 13 Frames, in `run_tests.py --smoke`; `--neutralize` fällt auf **3/17**, 14 Prüfungen
-kippen). `test_scene_io.py` 40 → **74/74** (Abschnitt 8 die Auslöschung in beiden Pfaden plus dem
+kippen — es klickt den Knopf jetzt an seiner neuen Stelle, also ist der Laufzeit-Beleg für den
+Umzug ein ECHTER Klick durch `main()`s eigene Kette und braucht keine eigene Sonde). `test_scene_io.py` 40 → **74/74** (Abschnitt 8 die Auslöschung in beiden Pfaden plus dem
 Ventil, Abschnitt 9 der Missions-Rundlauf). Volle Regression **168 Suiten, ~14932 Prüfungen, 167
 grün / 0 rot / 1 bekannt**, alle acht Smokes.
 **Im ECHTEN Spiel belegt:** der Autosave schreibt in einem `selfplay.py`-Lauf wirklich (Runde 1,
@@ -2549,6 +2582,32 @@ Opportunity Seized) öffnen dort einen Prompt, der bis hierher das schlichte Gol
   **Ein eigener Testfehler:** die Textfarbe wurde auf EINER Scanzeile gesucht, und ein
   antialiasiertes Label hat dort nicht zwingend einen Glyphenkern — jetzt über die ganze
   Knopffläche.
+
+### ...und die GEWÖHNLICHE Option ist BLAU, nicht grau (2026-09-09)
+
+**Gemeldet:** *"und bei normalen overlays habe ich jetzt meiste einen grauen knopf und einen roten
+decline knopf. ändere die grauen knöpfe in blau."* — die zweite Hälfte desselben Farbcodes, eine
+Meldung später.
+
+- **Es war die einzige Stelle im HUD ohne Farbcode.** `button_style.py` schreibt aus, was Blau
+  heißt ("ein Druck kostet nichts"), und `ActionPanel` hält sich seit Langem daran; `DecisionOverlay`
+  malte die gewöhnliche Option in einem eigenen flachen Grau — also war ausgerechnet die Box, über
+  die ~90 Bruchstellen dieses Spiels laufen, die eine, die nichts sagte. Der rote Decline-Knopf
+  daneben war eine Meldung vorher aus genau diesem Grund gefixt worden.
+- **Die drei Werte kommen aus `button_style` (`BG_NORMAL`/`BORDER_NORMAL`/`TEXT_NORMAL`), nicht ein
+  zweites Mal hingeschrieben** — dieselbe Begründung wie bei den Decline-Farben darüber: Box und
+  Panel dürfen nicht mit zwei Blautönen für eine Sache enden. Die FORM bleibt das flache Rechteck
+  des Overlays; gefragt war die Farbe.
+- **Getestet:** `test_decline_buttons.py` 54 → **67/67** (neuer Abschnitt 2b, auf PIXELN: Füllung,
+  Rahmen und Textfarbe einzeln gegen die Palette, dazu die Frage GRAU getrennt gestellt —
+  `len(set(farbe)) > 1` —, weil ein Overlay, das `button_style` liest und eine graue Palette
+  bekäme, die erste Prüfung erfüllt und die gemeldete nicht; die drei ALTEN Literale als
+  verschwunden gepinnt; und der Vergleich gegen das, was `ActionPanel` wirklich ZEICHNET, nicht
+  gegen die Konstante, die beide lesen).
+- **Die tragende A/B-Sonde ist die, die keine Pixel bewegt:** dieselben drei Werte von HAND
+  hingeschrieben statt aus `button_style` gelesen. Jeder Pixel ist identisch, sie beißt also nur,
+  wenn der Quell-Wächter tragend ist — und eine Kopie ist genau der Weg, auf dem die zwei Blautöne
+  entstünden. (`ab_menu_button_and_blue.py`, 66/67 statt 67/67.)
 
 ## Das Würfelpanel: nichts fliegt mehr heraus, und Crit-Labels sind Plaketten
 
@@ -8581,7 +8640,8 @@ verstehe nicht warum man das trennen sollte."*
   sind unberührt.
 - **Der rote Punkt ist ein TOGGLE geworden** (User: "außerdem wäre ein toggle in der oberfläche gut
   für den KI Modus. vielleicht dort, wo jetzt der rote punkt ist"), gezeichnet in BEIDEN Zuständen,
-  unter dem MENU-Knopf in der Brett-Ecke. Ein Punkt, den es nur im EIN-Zustand gab, war das
+  in der Brett-Ecke oben rechts (anfangs unter dem MENU-Knopf, seit dessen Umzug in die Kopfzeile
+  des rechten Panels allein dort — siehe `## Game Menu`). Ein Punkt, den es nur im EIN-Zustand gab, war das
   eigentliche Problem: es gab nichts anzuklicken, um den Modus wieder einzuschalten, und nichts auf
   dem Schirm sagte, dass es ihn gibt. `button_style.draw_toggle()`, also dieselbe Bildsprache wie
   die Schalter im linken Panel samt ihrer drei redundanten Zustands-Signale (Knopfseite, Track-,
@@ -8597,7 +8657,8 @@ verstehe nicht warum man das trennen sollte."*
   Graustufen-Probe); `test_game_menu.py` **139/139** nachgezogen.
   Neu **`ab_ai_mode_switch.py`: 8 A/B-Sonden an der QUELLE, alle beißend.**
 - **Im ECHTEN Spiel belegt** (`verify_ai_mode_switch.py`, `runpy` auf `selfplay.py`s echte
-  `main()`-Schleife): der Schalter wird bei `Rect(700, 50, 92, 26)` gezeichnet, ein Klick auf genau
+  `main()`-Schleife): der Schalter wird bei `Rect(700, 40, 92, 26)` gezeichnet — seit dem Umzug des
+  MENU-Knopfes weicht er nicht mehr aus, vorher waren es `Rect(700, 50, ...)` —, ein Klick auf genau
   diese Koordinaten kippt den Modus `True -> False`, und der LIVE von `main()` gebaute Controller
   antwortet für **`2 Canoptek Wraiths 1`** — die Einheit aus dem Bericht — mit `mode ON: cp 5->4,
   kein Prompt` gegen `mode OFF: prompt, cp 5->5`. **`--neutralize` reproduziert den Bericht

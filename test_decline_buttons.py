@@ -34,7 +34,7 @@ import pygame  # noqa: E402
 pygame.init()
 pygame.display.set_mode((400, 300))
 
-from game import decline_option  # noqa: E402
+from game import config, decline_option  # noqa: E402
 from game.decision import DecisionManager  # noqa: E402
 from game.ui import button_style, decision_overlay as dov  # noqa: E402
 from game.ui.decision_overlay import DecisionOverlay  # noqa: E402
@@ -139,6 +139,60 @@ c.true("a genuine two-way choice gets no red",
        all(fill == dov.BUTTON_BG_COLOR for fill in neither))
 
 
+# --- 2b. ...and the ordinary option is BLUE, not grey -----------------------
+
+print("\n2b) the ordinary option is blue")
+
+# User: "bei normalen overlays habe ich jetzt meiste einen grauen knopf und
+# einen roten decline knopf. aendere die grauen knoepfe in blau." The red half
+# of that pair was fixed one report earlier; the other half stayed a flat grey
+# of its own, which said nothing - and this box is where ~90 of the game's
+# decisions actually FALL, so it was the one place with no colour code at all.
+#
+# Measured on PIXELS against the palette, and against GREYNESS separately: an
+# overlay that reads button_style but was handed a grey palette would satisfy
+# the first claim and not the second, and it is the second that was reported.
+blue_fill, = _fills(["Use (1 CP)"])
+c.eq("the ordinary option is drawn in the HUD's no-cost blue",
+     blue_fill, button_style.BG_NORMAL)
+c.true("...which is blue-dominant", blue_fill[2] > blue_fill[0] and blue_fill[2] > blue_fill[1])
+c.true("...and is not a grey", len(set(blue_fill)) > 1)
+
+surface, rects = _draw(["Use (1 CP)"])
+border = surface.get_at((rects[0].centerx, rects[0].y))[:3]
+inside = set(surface.get_at((x, y))[:3]
+             for x in range(rects[0].x + 3, rects[0].right - 3)
+             for y in range(rects[0].y + 3, rects[0].bottom - 3))
+c.eq("its border is the HUD's no-cost border", border, button_style.BORDER_NORMAL)
+c.true("...blue-dominant too", border[2] > border[0] and border[2] > border[1])
+c.true("...and not a grey", len(set(border)) > 1)
+c.true("its label is drawn in the HUD's no-cost text colour",
+       button_style.TEXT_NORMAL in inside)
+c.true("...and that is not a grey either",
+       len(set(button_style.TEXT_NORMAL)) > 1)
+
+# The three OLD values, pinned as gone. Without this the section above passes
+# on any palette that happens not to be grey, and what was reported was these
+# exact three flat greys.
+for name, was in (("fill", (45, 45, 45)), ("border", (120, 120, 120)),
+                  ("text", (255, 255, 255))):
+    c.true("the old flat-grey %s is gone" % name,
+           was not in (dov.BUTTON_BG_COLOR, dov.BUTTON_BORDER_COLOR, dov.BUTTON_TEXT_COLOR))
+
+# ONE blue, so the modal box and the left panel cannot end up with two of them
+# meaning one thing - the same reason the decline colours are shared. Pinned
+# against what ActionPanel really DRAWS for a no-cost button, not against the
+# constant both of them read.
+_panel_probe = pygame.Surface((200, 40))
+_panel_probe.fill((0, 0, 0))
+_probe_rect = pygame.Rect(10, 5, 180, 30)
+button_style.draw_button(_panel_probe, _probe_rect, "Move",
+                         pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE, bold=True))
+_panel_fill = _panel_probe.get_at((_probe_rect.centerx, _probe_rect.centery + 8))[:3]
+c.eq("the panel's no-cost button is the same blue", _panel_fill, blue_fill)
+
+
+
 # --- 3. the vocabulary, against the QUELLE ---------------------------------
 
 print("\n3) every literal option label in game/ is classified")
@@ -194,6 +248,12 @@ c.true("...and takes its red from button_style, not a second one of its own",
        "button_style.BG_NORMAL_DANGER" in OVERLAY_SRC
        and "button_style.BORDER_NORMAL_DANGER" in OVERLAY_SRC
        and "button_style.TEXT_NORMAL_DANGER" in OVERLAY_SRC)
+# The whole ASSIGNMENT, not just the name: "BG_NORMAL" is a prefix of
+# "BG_NORMAL_DANGER", so a substring test alone is satisfied by the red.
+c.true("...and its BLUE from the same place, for the same reason",
+       "BUTTON_BG_COLOR = button_style.BG_NORMAL" in OVERLAY_SRC
+       and "BUTTON_BORDER_COLOR = button_style.BORDER_NORMAL" in OVERLAY_SRC
+       and "BUTTON_TEXT_COLOR = button_style.TEXT_NORMAL" in OVERLAY_SRC)
 c.true("the panel's board-pick screen already draws its skip options red",
        'accent="danger"' in open(os.path.join(GAME_DIR, "ui", "action_panel.py"),
                                  encoding="utf-8").read())

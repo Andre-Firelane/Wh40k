@@ -35,8 +35,10 @@ lined up along the top, and the strip ate map instead of occupying space.
 
 Owning a full-width row fixes both at once and is SIMPLER: the board rect now
 starts below the bar by construction, so there is no second rect to derive, no
-four consumers to re-point, and no way for the MENU button to be drawn from one
-rect and clicked against another. The height comes half out of the reserves
+four consumers to re-point, and no way for a control up there to be drawn from
+one rect and clicked against another. (Three consumers today - the MENU button
+has since moved into the right panel's header row, so the AI switch has the
+board's corner to itself.) The height comes half out of the reserves
 panel (the user's own suggestion, "du kannst zb die reserves sektion unten
 etwas kleiner machen") and half out of the board column - see
 config.RESERVES_PANEL_HEIGHT, which had exactly 14 px of slack over its own

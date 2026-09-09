@@ -16,7 +16,7 @@ one thing the others never touch - and walks the whole shape of the feature:
      runs outside the event loop and so is not covered by the menu's own
      `continue`.
   4. Resume closes it and the battle carries on.
-  5. The MENU button in the board's corner opens it too - the pre-chain claim,
+  5. The MENU button beside the Game Status heading opens it too - the pre-chain claim,
      driven by RECT rather than by literal coordinates.
   6. Start New Game from inside a battle really restarts: main() returns,
      run() comes back round, the map screen is asked AGAIN, and the second
@@ -185,7 +185,12 @@ def fake_events():
         if opened == ["esc"] and "resume" in state["steps"] and len(state["boards"]) == 1:
             opened.append("button")
             state["steps"].append("button")
-            return _click(menu.button_rect(battle["board_rect_screen"]).center)
+            # The RIGHT PANEL's rect, because that is where the button lives
+            # now - beside the "Game Status" heading. Clicking the board's old
+            # corner would land on the AI switch instead, which is the whole
+            # point of the move ("dann liegt nur noch der AI Schalter ueber
+            # der Map").
+            return _click(menu.button_rect(battle["right_panel_rect"]).center)
         return []
 
     # --- the startup menu --------------------------------------------------
@@ -286,9 +291,9 @@ check("the AI was paused on every frame the menu was open",
       str(state["ai_paused_while_open"][:8]))
 check("Resume closed it and the battle carried on", "resume" in state["steps"])
 
-# 5. the board button opens it too
-check("the MENU button in the board's corner opened it", "button" in state["opened_by"],
-      str(state["opened_by"]))
+# 5. the panel-header button opens it too
+check("the MENU button beside the Game Status heading opened it",
+      "button" in state["opened_by"], str(state["opened_by"]))
 
 # 6. the restart - the part that cannot be faked
 check("Start New Game was pressed inside a battle", "menu-new-game" in state["steps"])

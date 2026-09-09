@@ -5071,31 +5071,37 @@ def main(map_key=None):
                 game_menu.handle_event(event, screen.get_rect())
                 continue
 
-            # The MENU button in the board's top-right corner, its own
-            # pre-chain `if` for exactly the reason above: roughly forty of the
-            # chain's branches gate on CONTROLLER STATE with no event.type
-            # term, so this press would be matched and dropped by the first
-            # pending one - and a stuck prompt is precisely the state a player
-            # most wants to reach the menu from. Below the reader's block, so
-            # that while the reader is open the click dismisses the reader
-            # instead; that falls out of the order rather than needing a test.
+            # The MENU button, now beside the "Game Status" heading in the
+            # right panel, its own pre-chain `if` for exactly the reason above:
+            # roughly forty of the chain's branches gate on CONTROLLER STATE
+            # with no event.type term, so this press would be matched and
+            # dropped by the first pending one - and a stuck prompt is
+            # precisely the state a player most wants to reach the menu from.
+            # Below the reader's block, so that while the reader is open the
+            # click dismisses the reader instead; that falls out of the order
+            # rather than needing a test.
+            #
+            # It reads right_panel_rect, the same rectangle the panel is drawn
+            # from, so the button is hit-tested exactly where it was DRAWN.
             if (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
                     and not army_rules_overlay.is_pending
-                    and game_menu.button_rect(board_rect_screen).collidepoint(event.pos)):
+                    and game_menu.button_rect(right_panel_rect).collidepoint(event.pos)):
                 _open_game_menu()
                 continue
 
-            # The AI switch, directly under the MENU button and for the same
-            # pre-chain reason: it sits ON the board, so without its own `if`
-            # up here the press would either be eaten by one of the ~40
-            # state-gated branches or fall through to the board and start a
-            # camera pan. `continue`, so the click that flips the mode cannot
-            # also do something to the board underneath it.
+            # The AI switch, which since the MENU button moved into the right
+            # panel is the ONLY thing left over the map (user: "dann liegt nur
+            # noch der AI Schalter ueber der Map"). Its own pre-chain `if` for
+            # the same reason: it sits ON the board, so without it up here the
+            # press would either be eaten by one of the ~40 state-gated
+            # branches or fall through to the board and start a camera pan.
+            # `continue`, so the click that flips the mode cannot also do
+            # something to the board underneath it.
             #
             # Hit-tested against the rect the last frame DREW (ai_toggle_rect),
-            # not a freshly computed one: the switch steps down out of the MENU
-            # button's way, and a second computation of that geometry is how a
-            # control ends up clickable somewhere it is not drawn.
+            # not a freshly computed one: draw_ai_mode_toggle() can still step
+            # down past a blocker, and a second computation of that geometry is
+            # how a control ends up clickable somewhere it is not drawn.
             if (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
                     and not army_rules_overlay.is_pending
                     and ai_toggle_rect is not None
@@ -7348,14 +7354,22 @@ def main(map_key=None):
         #
         # Deliberately NOT inside the `if ai_memory.is_planning` chain above:
         # those are transient "the AI is busy" badges, this is a persistent
-        # mode. The MENU button owns the same corner, so the switch steps clear
-        # of it - avoid_rects, the same word AiBusyBadge already uses.
+        # mode.
+        #
+        # NO avoid_rects any more: the MENU button used to own this corner and
+        # the switch stepped down out of its way, and the button has moved into
+        # the right panel's header row. So the switch takes the corner itself
+        # and stops moving - measured clear of the dice panel and of every die
+        # in it at 1280/1366/1600/1920 (test_game_menu.py pins the arithmetic),
+        # and a control that stands still is worth more than a tight margin.
+        # draw_ai_mode_toggle() keeps its avoid_rects parameter for the next
+        # thing that shares this corner; the tests exercise it at a blocker of
+        # their own, so it cannot rot while it ships inert.
         #
         # Drawn here, over the board and after the panels, so the rect handed
         # back is exactly what the event loop hit-tests.
         ai_toggle_rect = draw_ai_mode_toggle(
             screen, board_rect_screen, ai_mode.enabled(), ai_toggle_font,
-            avoid_rects=(game_menu.button_rect(board_rect_screen),),
         )
 
         # LAST, over everything including the notices: it is the one overlay the
@@ -7366,12 +7380,17 @@ def main(map_key=None):
 
         # The MENU button, and then the menu itself - the very last two things
         # in the frame. The button is hidden while either overlay is up: it
-        # would be drawn on top of the scrim that is covering the board it
+        # would be drawn on top of the scrim that is covering the panel it
         # belongs to, and its click is not offered there either (see the
         # pre-chain block), so drawing it would promise a control that does
         # nothing.
+        #
+        # Drawn LAST also means it stays bright while the AI-busy dim covers
+        # the rest of the right panel (ai_busy_dim_rects), and that is wanted
+        # rather than tolerated: a stuck prompt is precisely the state a player
+        # most wants to reach the menu from.
         if not game_menu.is_pending and not army_rules_overlay.is_pending:
-            game_menu.draw_button(screen, board_rect_screen, pygame.mouse.get_pos())
+            game_menu.draw_button(screen, right_panel_rect, pygame.mouse.get_pos())
         # LAST of all, over every notice and both readers: it is the way out of
         # the game, so nothing may cover it.
         if game_menu.is_pending:

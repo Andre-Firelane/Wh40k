@@ -259,7 +259,14 @@ class GameStatusPanel:
         surface.fill(config.PANEL_BG_COLOR, rect)
         pygame.draw.rect(surface, config.PANEL_BORDER_COLOR, rect, width=2)
 
-        button_style.draw_panel_header(surface, rect, "Game Status", self.header_font)
+        # The MENU button shares this header row, at its right end (user:
+        # "ausserdem haette ich den 'Menu' Knopf gerne oben rechts in der
+        # rechten spalte neben der Game Status ueberschrift"). The bar is
+        # SHORTENED by exactly the room that button takes, and both halves of
+        # that arithmetic live in button_style - this panel only says that the
+        # room is reserved, it does not work out how much.
+        button_style.draw_panel_header(surface, rect, "Game Status", self.header_font,
+                                       reserve_right=button_style.header_button_reserve())
 
         content_x = rect.x + 10
         content_width = rect.width - 20

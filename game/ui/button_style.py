@@ -34,6 +34,22 @@ HEADER_BG_COLOR = (16, 38, 58)
 #: against a width it is not drawn at.
 HEADER_TEXT_MARGIN = 10
 
+#: A small button SHARING a panel header's row, at its right end - today the
+#: MENU button beside the Game Status panel's title (user: "ausserdem haette
+#: ich den 'Menu' Knopf gerne oben rechts in der rechten spalte neben der Game
+#: Status ueberschrift").
+#:
+#: The geometry lives HERE, with HEADER_MARGIN and HEADER_BAR_HEIGHT, because
+#: the bar and the button divide ONE row between them: the bar is shortened by
+#: exactly the room the button takes (draw_panel_header's `reserve_right`), and
+#: two modules each doing half of that arithmetic is how a title ends up drawn
+#: underneath a button. game/ui/game_menu.py and game/ui/game_status_panel.py
+#: both already import this module, so this costs no new dependency in either
+#: direction - and neither of them can answer the question alone.
+HEADER_BUTTON_WIDTH = 74
+HEADER_BUTTON_HEIGHT = 26
+HEADER_BUTTON_GAP = 6
+
 SUBHEADER_HEIGHT = 22
 
 BOX_BG_COLOR = (10, 18, 28)
@@ -364,7 +380,31 @@ def draw_header_bar(surface, rect, text, font, text_color=None, bg_color=None,
         surface.blit(title_surf, title_surf.get_rect(midleft=(rect.x + text_margin, rect.centery)))
 
 
-def draw_panel_header(surface, rect, text, font, text_color=None, bg_color=None, wrap=False):
+def header_button_reserve():
+    """How much of a panel header's row a header button takes, gap included.
+
+    ONE answer, so the caller that SHORTENS the bar and the caller that PLACES
+    the button cannot disagree about where the row is divided."""
+    return HEADER_BUTTON_WIDTH + HEADER_BUTTON_GAP
+
+
+def header_button_rect(rect):
+    """Where a header button sits: the right end of `rect`'s header row,
+    centred in the bar's own height.
+
+    `rect` is the PANEL, the same rectangle draw_panel_header() is given - so
+    a caller has one thing to hand around and cannot pass a rect the header
+    was not drawn from. Centred rather than top-aligned because the bar is 34px
+    and the button 26: sharing a row means sharing its middle."""
+    return pygame.Rect(
+        rect.right - HEADER_MARGIN - HEADER_BUTTON_WIDTH,
+        rect.y + HEADER_MARGIN + (HEADER_BAR_HEIGHT - HEADER_BUTTON_HEIGHT) // 2,
+        HEADER_BUTTON_WIDTH, HEADER_BUTTON_HEIGHT,
+    )
+
+
+def draw_panel_header(surface, rect, text, font, text_color=None, bg_color=None, wrap=False,
+                      reserve_right=0):
     """A panel's main title: a full-width background bar right under the
     panel's own top border (reference image: "Actions" sits inside its own
     bar), not just bare text. Fixed height (not measured off the rendered
@@ -384,8 +424,16 @@ def draw_panel_header(surface, rect, text, font, text_color=None, bg_color=None,
     of title room), so for that caller a single line is not an option.
 
     A one-line title takes the unchanged path, so every other screen in the
-    game draws the same pixels it drew before."""
-    width = rect.width - 2 * HEADER_MARGIN
+    game draws the same pixels it drew before.
+
+    `reserve_right` shortens the bar by that many pixels so something else can
+    share its row - header_button_reserve() for a header button. It is opt-in
+    and defaults to 0, so a header that reserves nothing is byte-identical to
+    what it drew before; and the bar is SHORTENED rather than the button simply
+    drawn on top of it, because a button laid over a full-width bar only looks
+    right while the title happens to be short enough - which is a thing that
+    changes silently."""
+    width = rect.width - 2 * HEADER_MARGIN - reserve_right
     lines = wrap_text(font, text, width - 2 * HEADER_TEXT_MARGIN) if wrap else []
     if len(lines) <= 1:
         bar_rect = pygame.Rect(rect.x + HEADER_MARGIN, rect.y + HEADER_MARGIN, width, HEADER_BAR_HEIGHT)

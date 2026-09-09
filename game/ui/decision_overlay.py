@@ -9,9 +9,21 @@ BOX_BG_COLOR = (25, 25, 25)
 BOX_BORDER_COLOR = (255, 215, 0)
 PROMPT_COLOR = (255, 255, 255)
 PLAYER_COLOR = (255, 215, 0)
-BUTTON_BG_COLOR = (45, 45, 45)
-BUTTON_BORDER_COLOR = (120, 120, 120)
-BUTTON_TEXT_COLOR = (255, 255, 255)
+# The ordinary option, in the same BLUE every other button in this HUD wears
+# when a press costs nothing (user: "bei normalen overlays habe ich jetzt
+# meiste einen grauen knopf und einen roten decline knopf. aendere die grauen
+# knoepfe in blau"). It was a flat grey of its own, which said nothing: this
+# box carries ~90 of the game's break points, so the one place a decision
+# actually FALLS was the only place with no colour code at all - the red half
+# of that pair was fixed for the same reason one report earlier.
+#
+# Taken from button_style, not written again here, for exactly the reason the
+# decline colours below are: the modal box and ActionPanel must not end up
+# with two different blues meaning one thing. Same flat rectangle as before -
+# only the palette moves, since the shape was not what was asked about.
+BUTTON_BG_COLOR = button_style.BG_NORMAL
+BUTTON_BORDER_COLOR = button_style.BORDER_NORMAL
+BUTTON_TEXT_COLOR = button_style.TEXT_NORMAL
 # The "no" option, in the same red the left panel has always used for Cancel
 # and Decline (user: "Decline Buttons auch in den overlays rot einfaerben").
 # Taken from button_style rather than written again here, so the modal box and

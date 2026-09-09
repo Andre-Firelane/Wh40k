@@ -110,24 +110,6 @@
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 25.99771428571428,
-     "y_in": 10.016,
-     "wounds": 4,
-     "model": "Canoptek Wraith",
-     "weapons": [
-      "Vicious Claws"
-     ]
-    },
-    {
-     "x_in": 25.99771428571428,
-     "y_in": 7.948,
-     "wounds": 4,
-     "model": "Canoptek Wraith",
-     "weapons": [
-      "Vicious Claws"
-     ]
-    },
-    {
      "x_in": 27.7886548207405,
      "y_in": 8.982,
      "wounds": 4,
@@ -237,53 +219,53 @@
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 9.847857142857144,
+     "x_in": 25.193114293263864,
+     "y_in": 7.315222521132797,
+     "wounds": 2,
+     "model": "Lychguard",
+     "weapons": [
+      "Hyperphase Sword"
+     ]
+    },
+    {
+     "x_in": 26.1580359830402,
+     "y_in": 4.215960637805612,
+     "wounds": 2,
+     "model": "Lychguard",
+     "weapons": [
+      "Hyperphase Sword"
+     ]
+    },
+    {
+     "x_in": 29.023819923073656,
+     "y_in": 5.04854783797634,
+     "wounds": 2,
+     "model": "Lychguard",
+     "weapons": [
+      "Hyperphase Sword"
+     ]
+    },
+    {
+     "x_in": 30.21221211569071,
+     "y_in": 5.970359312880715,
+     "wounds": 2,
+     "model": "Lychguard",
+     "weapons": [
+      "Hyperphase Sword"
+     ]
+    },
+    {
+     "x_in": 30.04795647023635,
+     "y_in": 8.311217822166853,
+     "wounds": 2,
+     "model": "Lychguard",
+     "weapons": [
+      "Hyperphase Sword"
+     ]
+    },
+    {
+     "x_in": 25.969571428571427,
      "y_in": 10.213000000000001,
-     "wounds": 2,
-     "model": "Lychguard",
-     "weapons": [
-      "Hyperphase Sword"
-     ]
-    },
-    {
-     "x_in": 9.847857142857144,
-     "y_in": 8.713000000000001,
-     "wounds": 2,
-     "model": "Lychguard",
-     "weapons": [
-      "Hyperphase Sword"
-     ]
-    },
-    {
-     "x_in": 11.146895248533802,
-     "y_in": 9.463000000000001,
-     "wounds": 2,
-     "model": "Lychguard",
-     "weapons": [
-      "Hyperphase Sword"
-     ]
-    },
-    {
-     "x_in": 8.548819037180486,
-     "y_in": 9.463000000000003,
-     "wounds": 2,
-     "model": "Lychguard",
-     "weapons": [
-      "Hyperphase Sword"
-     ]
-    },
-    {
-     "x_in": 8.548819037180486,
-     "y_in": 10.963000000000001,
-     "wounds": 2,
-     "model": "Lychguard",
-     "weapons": [
-      "Hyperphase Sword"
-     ]
-    },
-    {
-     "x_in": 11.146895248533802,
-     "y_in": 10.963000000000001,
      "wounds": 6,
      "model": "Overlord",
      "weapons": [
@@ -360,7 +342,7 @@
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 44.008,
+     "x_in": 9.988571428571428,
      "y_in": 7.948,
      "wounds": 3,
      "model": "Skorpekh Destroyer",
@@ -369,7 +351,16 @@
      ]
     },
     {
-     "x_in": 42.21705946497378,
+     "x_in": 11.779511963597647,
+     "y_in": 8.982,
+     "wounds": 3,
+     "model": "Skorpekh Destroyer",
+     "weapons": [
+      "Skorpekh Hyperphase Weapons"
+     ]
+    },
+    {
+     "x_in": 8.197630893545208,
      "y_in": 8.982000000000001,
      "wounds": 3,
      "model": "Skorpekh Destroyer",
@@ -378,16 +369,7 @@
      ]
     },
     {
-     "x_in": 44.008,
-     "y_in": 5.88,
-     "wounds": 3,
-     "model": "Skorpekh Destroyer",
-     "weapons": [
-      "Skorpekh Hyperphase Weapons"
-     ]
-    },
-    {
-     "x_in": 44.008,
+     "x_in": 9.988571428571428,
      "y_in": 10.016,
      "wounds": 7,
      "model": "Skorpekh Lord",
@@ -840,8 +822,8 @@
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 29.999999999999996,
-     "y_in": 6.000000000000001,
+     "x_in": 27.973571428571425,
+     "y_in": 3.8150000000000004,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -850,8 +832,8 @@
      ]
     },
     {
-     "x_in": 28.939339828220174,
-     "y_in": 4.939339828220179,
+     "x_in": 27.973571428571425,
+     "y_in": 2.3150000000000004,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -860,8 +842,8 @@
      ]
     },
     {
-     "x_in": 29.611771432346217,
-     "y_in": 7.448888739433603,
+     "x_in": 29.272609534248083,
+     "y_in": 3.0650000000000004,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -870,8 +852,8 @@
      ]
     },
     {
-     "x_in": 31.06066017177982,
-     "y_in": 7.060660171779823,
+     "x_in": 26.674533322894767,
+     "y_in": 3.0650000000000013,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -880,8 +862,8 @@
      ]
     },
     {
-     "x_in": 27.878679656440355,
-     "y_in": 3.878679656440358,
+     "x_in": 27.973571428571425,
+     "y_in": 0.8150000000000004,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -890,8 +872,8 @@
      ]
     },
     {
-     "x_in": 30.77645713530756,
-     "y_in": 8.897777478867205,
+     "x_in": 26.473571428571425,
+     "y_in": 1.2169237886466848,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -900,8 +882,8 @@
      ]
     },
     {
-     "x_in": 32.12132034355964,
-     "y_in": 8.121320343559644,
+     "x_in": 25.37549521721811,
+     "y_in": 2.315000000000002,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -910,8 +892,8 @@
      ]
     },
     {
-     "x_in": 25.92161495833507,
-     "y_in": 4.0982178221668555,
+     "x_in": 24.07645711154145,
+     "y_in": 1.565,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -920,8 +902,8 @@
      ]
     },
     {
-     "x_in": 33.18198051533946,
-     "y_in": 9.181980515339465,
+     "x_in": 23.541936540016486,
+     "y_in": 3.033583200498815,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -930,8 +912,8 @@
      ]
     },
     {
-     "x_in": 24.23823788593834,
-     "y_in": 4.3260533637646255,
+     "x_in": 23.54193654001649,
+     "y_in": 4.596416799501187,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -940,8 +922,8 @@
      ]
     },
     {
-     "x_in": 24.14449942836751,
-     "y_in": 7.308859448379255,
+     "x_in": 24.07645711154145,
+     "y_in": 6.065000000000001,
      "wounds": 4,
      "model": "Plasmancer",
      "weapons": [
@@ -1142,8 +1124,8 @@
      ]
     },
     {
-     "x_in": 12.489533322894768,
-     "y_in": 9.620000000000003,
+     "x_in": 15.087609534248084,
+     "y_in": 11.120000000000001,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1152,7 +1134,7 @@
      ]
     },
     {
-     "x_in": 15.087609534248084,
+     "x_in": 12.489533322894768,
      "y_in": 11.120000000000001,
      "wounds": 1,
      "model": "Immortal",
@@ -1164,16 +1146,6 @@
     {
      "x_in": 13.788571428571426,
      "y_in": 7.370000000000001,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Tesla Carbine"
-     ]
-    },
-    {
-     "x_in": 12.288571428571425,
-     "y_in": 7.771923788646685,
      "wounds": 1,
      "model": "Immortal",
      "weapons": [
@@ -1214,6 +1186,16 @@
     {
      "x_in": 13.788571428571426,
      "y_in": 5.870000000000001,
+     "wounds": 1,
+     "model": "Immortal",
+     "weapons": [
+      "Close Combat Weapon",
+      "Tesla Carbine"
+     ]
+    },
+    {
+     "x_in": 12.249480783605915,
+     "y_in": 6.141383206463414,
      "wounds": 4,
      "model": "Plasmancer",
      "weapons": [
@@ -1282,8 +1264,8 @@
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 48.010285714285715,
-     "y_in": 6.0,
+     "x_in": 44.008,
+     "y_in": 8.008,
      "wounds": 3,
      "model": "Lokhust Destroyer",
      "weapons": [
@@ -1292,8 +1274,8 @@
      ]
     },
     {
-     "x_in": 48.010285714285715,
-     "y_in": 3.932,
+     "x_in": 44.008,
+     "y_in": 5.9399999999999995,
      "wounds": 3,
      "model": "Lokhust Destroyer",
      "weapons": [
@@ -1302,8 +1284,8 @@
      ]
     },
     {
-     "x_in": 49.80122624931193,
-     "y_in": 4.966,
+     "x_in": 45.79894053502622,
+     "y_in": 6.973999999999999,
      "wounds": 3,
      "model": "Lokhust Destroyer",
      "weapons": [
@@ -1312,8 +1294,8 @@
      ]
     },
     {
-     "x_in": 46.21934517925949,
-     "y_in": 4.966000000000001,
+     "x_in": 42.21705946497378,
+     "y_in": 6.974,
      "wounds": 3,
      "model": "Lokhust Destroyer",
      "weapons": [
@@ -1322,8 +1304,8 @@
      ]
     },
     {
-     "x_in": 49.80122624931193,
-     "y_in": 7.034,
+     "x_in": 42.21705946497379,
+     "y_in": 9.042,
      "wounds": 3,
      "model": "Lokhust Destroyer",
      "weapons": [
@@ -1332,8 +1314,8 @@
      ]
     },
     {
-     "x_in": 48.010285714285715,
-     "y_in": 1.8639999999999999,
+     "x_in": 44.008,
+     "y_in": 3.871999999999999,
      "wounds": 3,
      "model": "Lokhust Destroyer",
      "weapons": [
@@ -1342,8 +1324,8 @@
      ]
     },
     {
-     "x_in": 46.2193451792595,
-     "y_in": 7.034000000000001,
+     "x_in": 44.008,
+     "y_in": 10.075999999999999,
      "wounds": 6,
      "model": "Lokhust Lord",
      "weapons": [
@@ -1591,12 +1573,12 @@
  "turn": {
   "battle_round": 1,
   "phase": "Command",
-  "turn_owner": "Player 1",
-  "active_player": "Player 1"
+  "turn_owner": "Player 2",
+  "active_player": "Player 2"
  },
  "command_points": {
   "Player 1": 1,
-  "Player 2": 1
+  "Player 2": 6
  },
  "missions": {
   "ledger": {
@@ -1615,23 +1597,23 @@
   },
   "secondary": {
    "deck": [
-    "no_prisoners",
-    "defend_stronghold",
-    "beacon",
-    "assassination",
-    "outflank",
-    "bring_it_down",
-    "forward_position",
-    "centre_ground",
-    "plunder",
-    "a_grievous_blow",
-    "secure_no_mans_land",
     "behind_enemy_lines",
     "engage_on_all_fronts",
-    "a_tempting_target",
-    "cleanse",
+    "outflank",
+    "a_grievous_blow",
+    "defend_stronghold",
+    "beacon",
+    "no_prisoners",
+    "centre_ground",
+    "assassination",
+    "forward_position",
+    "secure_no_mans_land",
+    "display_of_might",
     "overwhelming_force",
-    "display_of_might"
+    "cleanse",
+    "a_tempting_target",
+    "plunder",
+    "bring_it_down"
    ],
    "hand": [],
    "discarded": [],

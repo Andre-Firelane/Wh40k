@@ -352,9 +352,11 @@ c.eq("its label is one line at this width",
      len(button_style.wrap_text(toggle_font, AI_TOGGLE_LABEL.upper(),
                                 AI_TOGGLE_WIDTH)), 1)
 
-# The rect the caller hit-tests is the rect that was drawn - the switch steps
-# down out of the MENU button's way, so a second computation of that geometry
-# is how a control ends up clickable somewhere it is not drawn.
+# The rect the caller hit-tests is the rect that was drawn - the switch can
+# still step down out of a blocker's way, so a second computation of that
+# geometry is how a control ends up clickable somewhere it is not drawn. No
+# caller passes a blocker today (the MENU button used to be one and has moved
+# into the right panel), so this is where the mechanism stays exercised.
 blocker = pygame.Rect(BOARD.right - 90, BOARD.y + 8, 80, 30)
 stepped = draw_ai_mode_toggle(fresh_surface(), BOARD, True, toggle_font,
                               mouse_pos=(-99, -99), avoid_rects=(blocker,))

@@ -307,8 +307,10 @@ c.true("the reserves row moves down with them, so the rows still tile",
 
 # And the consequence worth pinning: with the bar owning a row there is no
 # second "board minus the bar" rect to keep in step, so nothing may reintroduce
-# one - that was the version that could draw the MENU button in one place and
-# click it in another.
+# one - that was the version that could draw a corner control in one place and
+# click it in another. (It was the MENU button at the time; that has since
+# moved into the right panel's header row, and the AI switch is what is up
+# there now.)
 c.true("no separate chrome rect exists any more", "board_chrome_rect" not in main_src)
 c.true("...and chrome_rect() is gone from the module too",
        not hasattr(rp, "chrome_rect"))

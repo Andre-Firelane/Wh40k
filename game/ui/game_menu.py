@@ -96,12 +96,12 @@ BACKGROUND_VEIL_COLOR = (0, 0, 0, 150)
 PANEL_BORDER_COLOR = (200, 165, 70)
 HEADING_COLOR = (255, 215, 0)
 
-# The board-corner opener. MARGIN matches game/ui/ai_busy_badge.py's, because
-# these two controls share that corner and a second margin constant would be
-# two answers to "how far in do things sit up there".
-BUTTON_MARGIN = 12
-BUTTON_WIDTH = 74
-BUTTON_HEIGHT = 26
+# The opener no longer has geometry of its own: it shares the Game Status
+# panel's header row, and where that row divides is button_style's answer
+# (HEADER_BUTTON_WIDTH and friends), read by the panel that SHORTENS the bar
+# and by this class that PLACES the button. BUTTON_MARGIN/WIDTH/HEIGHT are
+# gone rather than re-pointed - three constants nobody reads are how a second,
+# disagreeing set of numbers gets started.
 
 
 def _entry_label(action, in_game):
@@ -366,20 +366,25 @@ class GameMenu:
         return self.action or QUIT
 
     # -- the little opener on the board -------------------------------------
-    def button_rect(self, board_rect):
-        """The MENU button, in the board's top-right corner - "links oben neben
-        dem rechten panel". Fixed rather than dodging anything: a button that
-        moves is worse than a tight margin, and this one in particular has to
-        be in the same place every time.
+    def button_rect(self, panel_rect):
+        """The MENU button, at the right end of the Game Status panel's header
+        row - user: "ausserdem haette ich den 'Menu' Knopf gerne oben rechts in
+        der rechten spalte neben der Game Status ueberschrift".
 
-        Measured clear of the dice panel at both ends of the window sizes this
-        game is run at - see test_game_menu.py, which pins the arithmetic."""
-        return pygame.Rect(board_rect.right - BUTTON_MARGIN - BUTTON_WIDTH,
-                           board_rect.y + BUTTON_MARGIN,
-                           BUTTON_WIDTH, BUTTON_HEIGHT)
+        `panel_rect` is the RIGHT PANEL, the same rectangle GameStatusPanel is
+        drawn from - so the caller has one thing to hand around and cannot pass
+        a rect the header was not drawn from. It came out of the board's corner
+        because that corner was crowded: the AI switch has it now, and the
+        user's own summing-up of the move was "dann liegt nur noch der AI
+        Schalter ueber der Map".
 
-    def draw_button(self, surface, board_rect, mouse_pos=None):
-        rect = self.button_rect(board_rect)
+        Still fixed rather than dodging anything - a button that moves is worse
+        than a tight margin - and now it cannot collide with the dice panel at
+        any window size, because it is not over the board at all."""
+        return button_style.header_button_rect(panel_rect)
+
+    def draw_button(self, surface, panel_rect, mouse_pos=None):
+        rect = self.button_rect(panel_rect)
         mouse = mouse_pos if mouse_pos is not None else pygame.mouse.get_pos()
         button_style.draw_button(surface, rect, "Menu", self.fonts["small"],
                                  hovered=rect.collidepoint(mouse))
