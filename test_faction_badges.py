@@ -351,13 +351,19 @@ long_form_button = panel.button_rect.copy()
 short = pygame.Surface((W, H))
 panel.draw(short, RECT, tracker, cp, mission, player_factions=BOTH)
 short_form_button = panel.button_rect.copy()
-# The saving is real but no longer huge: the badge group also carries the
-# "see army rules" link now (ARMY_RULES_LINK_HEIGHT), which the long form has
-# no room for and does not draw. Asserted against the two constants that make
-# up the difference rather than a bare margin, so a future row added to either
-# form moves this line instead of silently eating the headroom.
+# The saving is real but small, and it got smaller: the badge group also
+# carries the "see army rules" link (ARMY_RULES_LINK_HEIGHT = 18), which the
+# long form does not draw - and the round number left this panel entirely for
+# the progress bar at the top of the board, which took a full SUBHEADER_HEIGHT
+# row off the LONG form, the very thing this compares against. Measured after
+# that change: long 284, badges 274. So the margin is stated as the claim
+# itself (the badge form is shorter, even while paying for a row the long form
+# has not got) rather than against a constant it no longer clears - the old
+# form was calibrated to a layout that has one row fewer now.
 checks.true("the columns replace the two labelled groups, not add to them",
-            short_form_button.top < long_form_button.top - gsp.ARMY_RULES_LINK_HEIGHT)
+            short_form_button.top < long_form_button.top)
+checks.true("...and it is shorter DESPITE also drawing the army-rules link",
+            short_form_button.top + gsp.ARMY_RULES_LINK_HEIGHT > long_form_button.top)
 checks.true("...and the links are what the badge form spends its saving on",
             len(panel.army_rules_rects) == 2)
 

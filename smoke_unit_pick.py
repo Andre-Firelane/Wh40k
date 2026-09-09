@@ -364,7 +364,7 @@ _real_rule = ActionPanel._draw_decision_rule
 
 def _spy_rule(self, surface, rect, y, decision_rule):
     if state["staged"] is not None and decision_rule:
-        state["rule_drawn"] = decision_rule[0]
+        state["rule_drawn"] = decision_rule.name
     return _real_rule(self, surface, rect, y, decision_rule)
 
 

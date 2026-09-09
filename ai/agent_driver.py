@@ -6927,75 +6927,127 @@ def _execute_fall_back(fall_back_controller, movement_controller, squad, all_tok
                      category=game_log_module.FAILED_ORDER)
 
 
-# How far short of an ordered spot the clamp may land before the order counts
-# as a different order and goes back to the planner (see
-# _unreachable_position_problems(), and _validate_turn_plan() for the clamp).
+# How far beyond a unit's reach a spot the collision pass SHIFTED an order to
+# may lie before the order is dropped instead of shifted (see
+# _separate_colliding_positions()). Anything up to this far is left to
+# _validate_turn_plan()'s reach clamp, which shortens the line and keeps the
+# heading; further than this the shifted point is no longer the same piece of
+# ground and the unit is better off picking its own.
 #
 # Judgement, calibrated on the logs rather than discovered in them: over every
 # log in the repo the shortfall (ordered distance minus the unit's reach) runs
-# 0"-18" with a median of exactly 3.0", so this silences a little under half of
-# them. Absolute inches rather than a ratio because the thing at stake is
-# geometric - whether the clamped point is still the same piece of ground,
-# behind the same wall, inside the same objective - and that does not scale with
-# how fast the unit happens to be.
+# 0"-18" with a median of exactly 3.0". Absolute inches rather than a ratio
+# because the thing at stake is geometric - whether the point is still the same
+# piece of ground, behind the same wall, inside the same objective - and that
+# does not scale with how fast the unit happens to be.
 #
-# The reason for having it at all is measured, from logs/game_20260815_203850.log:
-# a re-plan is not free and not neutral. The WAAAGH turn's FIRST plan was the
-# push the user expected - Warbikers ordered to (30,35) deep in the enemy half,
-# three squads ordered out of their transports - and it came back with 18
-# problems, five of them reach overshoots of which three were 1"-2" (Battlewagon
-# 12" against a 10" move, Meganobz 6" against 5", and earlier Flash Gitz 7"
-# against 6"). The revision, which is the plan that actually ran, pulled the
-# whole army back into its own deployment zone and turned all four disembark
-# orders into "stay_embarked". Paying an extra planner call to turn a 2"
-# overshoot into that is the worst of both.
+# THIS USED TO ALSO DECIDE WHICH REACH OVERSHOOTS WENT BACK TO THE PLANNER on
+# the retry channel (_problems_for_the_planner()): up to 3" the clamp absorbed
+# them, beyond that the order was sent back. Measured twice, in opposite
+# directions, and both measurements point the same way. From
+# logs/game_20260815_203850.log: the WAAAGH turn's first plan came back with 18
+# problems, five of them reach overshoots of 1"-2", and the REVISION pulled the
+# whole army back into its own deployment zone and turned four disembark orders
+# into "stay_embarked" - a re-plan is not free and not neutral. From
+# logs/game_20260909_210843.log: Canoptek Wraiths (10" move) ordered to (25,20),
+# 17" away, were sent back; the revision ordered them to (44,7), reachable, and
+# 2" FURTHER from the Central Objective the order's own reason named - the unit
+# walked backwards, exactly as instructed. Sending an overshoot back hands the
+# planner the same open question it already answered badly; the clamp, plus the
+# observation now OFFERING the first leg toward every distant goal (see
+# ai/observation.py's first_leg_toward()), answers it deterministically. So no
+# overshoot goes back any more, whatever its size - see _problems_for_the_planner().
 _CLAMP_TOLERANCE_IN = 3.0
 
 
-def _unreachable_position_problems(plan, player, state):
-    """Which planned positions this army cannot actually reach this turn.
+def _problems_for_the_planner(plan, player, state):
+    """The orders in this plan that only the PLANNER can fix - the ones that
+    go back to it once on the retry channel (see _run_turn_plan()).
 
-    Kept separate from _validate_turn_plan()'s clamp because the two answer
-    different questions. The clamp asks "what do we do with a bad order"; this
-    asks "is the order bad", which is what lets the planner be told about it
-    and fix it ITSELF (user: "sollte fix nicht aber sein, dass der planner gar
-    nicht erst die zu weit entfernte koordinate vorschlagen kann? der planner
-    ist hier der wissende").
+    Kept separate from _validate_turn_plan()'s corrections because the two
+    answer different questions. The validator asks "what do we do with a bad
+    order"; this asks "is the order bad in a way a deterministic rewrite would
+    make WORSE", which is what lets the planner be told about it and fix it
+    ITSELF (user: "sollte fix nicht aber sein, dass der planner gar nicht
+    erst die zu weit entfernte koordinate vorschlagen kann? der planner ist
+    hier der wissende").
 
-    That distinction matters because clamping is lossy. A coordinate is chosen
-    for a property - behind that wall, on that objective, out of that unit's
-    charge range - and the point 12" along the same line inherits none of it.
-    Shortening the line therefore turns a considered destination into an
-    unconsidered one, which is exactly the "stood in the open" symptom the
-    coordinate was supposed to prevent. Only the planner knows what the spot
-    was for, so only the planner can pick another one that still serves it.
+    What qualifies: an order whose fix needs a judgement this code cannot
+    make. A LONE OPERATIVE target that cannot be shot from the ordered spot
+    (which of the two - the spot or the target - was the point?), a garrison
+    too large for its objective (which unit is freed, and what should it do
+    instead?), a lone unit parked on an objective nobody threatens.
 
-    That argument is only worth its price when the clamped point really IS
-    somewhere else, which is what _CLAMP_TOLERANCE_IN decides - see there."""
+    What NO LONGER qualifies: a position beyond the unit's reach. It did,
+    beyond a 3" tolerance, on the argument that clamping is lossy - a
+    coordinate is chosen for a property and the point along the line inherits
+    none of it. That argument is right and the retry was still the wrong
+    answer, measured on logs/game_20260909_210843.log: the planner was asked
+    to replace an order 17" away with something reachable and came back with
+    a reachable point 2" further from its own goal. Handing the SAME open
+    request back to the same reasoner reproduces the same mistake; what fixes
+    it is offering the point (ai/observation.py's first_leg_toward(), now
+    attached to every distant goal in the observation) and, for an order that
+    still ignores it, clamping and the backwards-order guard in
+    _validate_turn_plan(). Both deterministic, no second planner call."""
     problems = []
     squads_by_name = {s.name: s for s in _all_squads(state.tokens)}
     for squad in list(state.embarked_squads):
         squads_by_name.setdefault(squad.name, squad)
-    for name, entry in plan.get("unit_plans", {}).items():
-        spot = entry.get("position")
-        if spot is None:
-            continue
-        squad = squads_by_name.get(name)
-        if squad is None or not squad.models:
-            continue
-        # Same embarked-aware measurement the clamp uses - otherwise this check
-        # and the clamp disagree, and a passenger gets "corrected" by one while
-        # the other saw nothing wrong (see _reach_to_point()).
-        gap, reach = _reach_to_point(squad, spot, allow_advance=True)
-        if gap - reach > _CLAMP_TOLERANCE_IN:
-            problems.append(
-                f"{name}: ordered to ({spot[0]:.0f},{spot[1]:.0f}), which is {gap:.0f}\" from where "
-                f"it stands, but it only reaches {reach:.0f}\" even Advancing - it cannot get there this turn"
-            )
     problems.extend(_unshootable_from_position_problems(plan, squads_by_name, state))
     problems.extend(_over_garrison_problems(plan, squads_by_name, state, player))
     problems.extend(_lone_garrison_problems(plan, squads_by_name, state, player))
     return problems
+
+
+# A position has to be at least this much further from the order's own goal
+# than the unit already stands before it counts as a step backwards. Absolute
+# inches: a lateral step to a covered spot can sit a few tenths further from
+# the goal and is a real order; two inches further is not "beside", it is
+# "away".
+_BACKWARD_ORDER_TOLERANCE_IN = 1.0
+
+
+def _order_goal_point(entry, squad, state):
+    """(point, name) of the thing this order says the unit is heading for, or
+    (None, None) when it names nothing this code can locate.
+
+    Read from the `target` field first - an objective's centre, or the
+    centroid of an ENEMY unit. A friendly unit as target says nothing about
+    direction (a unit is not walking "toward" its own transport in the sense
+    that matters here) and is ignored. Then, because the reported order had an
+    EMPTY target field and put its goal in prose ("Push toward Central
+    Objective; move to a reachable point (44,7)"), the reason text is scanned
+    for objective and enemy-unit names and the earliest mention wins. The
+    reason is the field the tactical layer reads whole, so a goal stated there
+    is a goal the order really has."""
+    def locate(name):
+        for objective in state.objectives:
+            if objective.name == name:
+                return _objective_centre(objective), objective.name
+        other = _squad_by_name(name, state.tokens)
+        if other is not None and other.owner != squad.owner and other.models:
+            return _centroid(other), other.name
+        return None, None
+
+    target = entry.get("target")
+    if target:
+        point, found = locate(target)
+        if point is not None:
+            return point, found
+    reason = (entry.get("reason") or "").lower()
+    if not reason:
+        return None, None
+    candidates = [o.name for o in state.objectives]
+    candidates += [s.name for s in _all_squads(state.tokens) if s.owner != squad.owner and s.models]
+    best = None
+    for name in candidates:
+        at = reason.find(name.lower())
+        if at >= 0 and (best is None or at < best[0]):
+            best = (at, name)
+    if best is None:
+        return None, None
+    return locate(best[1])
 
 
 def _planned_garrisons(plan, squads_by_name, state, player):
@@ -7195,10 +7247,10 @@ def _garrison_fitness(squad, objective, state):
 
 def _objective_centre(objective):
     """The point ai/observation.py reports to the planner as an objective's
-    position - its terrain area's bounding-box centre. Read from the same place
-    so a rewritten order names a spot the planner would recognise."""
-    min_x, min_y, max_x, max_y = objective.terrain_area.bounding_box
-    return ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
+    position. Read from THERE rather than re-derived, so a rewritten order
+    names a spot the planner would recognise - the two used to be separate
+    copies of the same bounding-box arithmetic."""
+    return observation.objective_centre(objective)
 
 
 def _can_hold_objectives(squad):
@@ -7836,10 +7888,30 @@ def _validate_turn_plan(plan, player, state, turn_tracker, game_log=None):
                 # by the distance between its stale coordinates and its
                 # transport, which put the clamped point somewhere neither the
                 # planner nor the check had ever evaluated.
+                #
+                # For a unit on the board the shortened point is THE FIRST LEG
+                # toward the ordered spot, from ai/observation.py - the same
+                # helper that offers the planner a first leg toward every
+                # distant goal, so "clamped" and "offered" are one point (and
+                # it is nudged off walls and the board edge the same way). A
+                # passenger keeps the plain projection: its leg starts at its
+                # transport, which first_leg_toward() does not model.
                 cx, cy = _reach_origin(squad)
                 dx, dy = spot[0] - cx, spot[1] - cy
                 span = (dx * dx + dy * dy) ** 0.5
-                if span > 1e-9:
+                leg = None
+                if getattr(squad, "embarked_in", None) is None:
+                    leg = observation.first_leg_toward(squad, spot, reach, state.obstacles)
+                if leg is not None:
+                    entry["position"] = (leg["x"], leg["y"])
+                    clamped_names.add(name)
+                    corrections.append(
+                        f"{name}: ordered to ({spot[0]:.0f},{spot[1]:.0f}), {gap:.0f}\" away but "
+                        f"moves {reach:.0f}\" - clamped to "
+                        f"({entry['position'][0]:.0f},{entry['position'][1]:.0f}), "
+                        f"as far along that line as it can actually reach this turn"
+                    )
+                elif span > 1e-9:
                     scale = reach / span
                     entry["position"] = (cx + dx * scale, cy + dy * scale)
                     clamped_names.add(name)
@@ -7849,6 +7921,70 @@ def _validate_turn_plan(plan, player, state, turn_tracker, game_log=None):
                         f"({entry['position'][0]:.0f},{entry['position'][1]:.0f}), "
                         f"as far along that line as it can actually reach this turn"
                     )
+
+        # THE THIRD ORDER SHAPE, and the one the retry channel used to CREATE:
+        # a reachable position that walks AWAY from the order's own goal.
+        # Measured on logs/game_20260909_210843.log: Canoptek Wraiths at (34,4)
+        # with a 10" move, goal "Push toward Central Objective" at (30,22).
+        # The first order, (25,20), was 17" away and went back to the planner
+        # (that channel is gone now - see _problems_for_the_planner()); the
+        # revision ordered (44,7), which is reachable and 20.5" from the
+        # objective where the unit stood 18.4" from it. The unit moved
+        # backwards, exactly as ordered, and the reason text still said
+        # "push toward". Nothing in the validator compared the order with its
+        # own goal.
+        #
+        # Only for an ACTIVE role, only while the goal is beyond a plain move
+        # (a unit already within reach of its goal that repositions a little
+        # further from it is fine-tuning - out of a charge arc, into a firing
+        # line - and this pass has no business overruling that), and only by
+        # a margin (_BACKWARD_ORDER_TOLERANCE_IN). The replacement is the
+        # first leg toward the goal from ai/observation.py - the SAME point
+        # the observation offered the planner for that goal, so the order the
+        # unit gets is one the planner could have written itself. Advance
+        # band preserved: an order that needed an Advance keeps its Advance.
+        # A passenger is skipped - its leg would start at its transport, and
+        # first_leg_toward() measures from the models.
+        spot = entry.get("position")
+        if spot is not None and squad.models and id(squad) not in reserve_ids \
+                and getattr(squad, "embarked_in", None) is None \
+                and entry.get("role") not in ("hold", "screen", "stage"):
+            goal, goal_name = _order_goal_point(entry, squad, state)
+            if goal is not None:
+                origin = _reach_origin(squad)
+                plain = min_model_movement(squad)
+                stands = math.dist(origin, goal)
+                ordered = math.dist(spot, goal)
+                if stands > plain and ordered > stands + _BACKWARD_ORDER_TOLERANCE_IN:
+                    advancing = math.dist(origin, spot) > plain
+                    reach = observation.advance_reach_in(squad) if advancing else plain
+                    leg = observation.first_leg_toward(squad, goal, reach, state.obstacles)
+                    if leg is None:
+                        entry["position"] = None
+                        entry["reason"] = (
+                            f"{entry.get('reason') or ''} (The ordered position at "
+                            f"({spot[0]:.0f},{spot[1]:.0f}) was further from {goal_name} than "
+                            f"this unit already stood, and no legal point lies on the line toward "
+                            f"it, so the coordinate was dropped - move toward {goal_name}.)").strip()
+                        corrections.append(
+                            f"{name}: ordered to ({spot[0]:.0f},{spot[1]:.0f}), {ordered:.0f}\" from "
+                            f"{goal_name} while it stands {stands:.0f}\" from it - a step backwards, "
+                            f"and no legal point lies on the line toward it -> position dropped"
+                        )
+                    else:
+                        entry["position"] = (leg["x"], leg["y"])
+                        clamped_names.add(name)
+                        entry["reason"] = (
+                            f"{entry.get('reason') or ''} (The ordered position at "
+                            f"({spot[0]:.0f},{spot[1]:.0f}) was further from {goal_name} than "
+                            f"this unit already stood, so it was replaced by the first leg toward "
+                            f"{goal_name} at ({leg['x']:.0f},{leg['y']:.0f}).)").strip()
+                        corrections.append(
+                            f"{name}: ordered to ({spot[0]:.0f},{spot[1]:.0f}), {ordered:.0f}\" from "
+                            f"{goal_name} while it stands {stands:.0f}\" from it - a step backwards, "
+                            f"replaced by the first leg toward it, ({leg['x']:.0f},{leg['y']:.0f})"
+                            + (", Advancing" if advancing else "")
+                        )
 
         # Rule 24.24 (LONE OPERATIVE): naming a target this squad could not
         # get within shooting range of all turn is an order that can never be
@@ -8145,7 +8281,7 @@ def _maybe_generate_turn_plan(agent, memory, player, state, turn_tracker, game_l
             # Reads squad positions only, and only while the AI is standing
             # still waiting for its own plan - nothing moves during the call.
             kwargs={
-                "recheck": lambda p: _unreachable_position_problems(p, player, state),
+                "recheck": lambda p: _problems_for_the_planner(p, player, state),
                 "coverage": lambda p: _planned_squad_coverage(p, player, state),
             },
             daemon=True,
@@ -8187,8 +8323,8 @@ def _maybe_generate_turn_plan(agent, memory, player, state, turn_tracker, game_l
             else "kept its original orders"
         )
         game_log.add(
-            f"{player}: turn plan had {len(result['problems'])} unreachable position(s), "
-            f"sent back to the planner - it {outcome}.", file_only=True,
+            f"{player}: turn plan had {len(result['problems'])} order(s) only the planner can fix, "
+            f"sent back to it - it {outcome}.", file_only=True,
         )
         for problem in result["problems"]:
             game_log.add(f"  [plan problem] {problem}", file_only=True)

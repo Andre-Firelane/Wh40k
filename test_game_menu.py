@@ -395,8 +395,18 @@ c.true("...and before the frame is shown",
        _index("game_menu.draw(screen") < main_src.rindex("pygame.display.flip()"))
 c.true("the button is not drawn under an overlay",
        "if not game_menu.is_pending and not army_rules_overlay.is_pending:" in main_src)
-c.true("the AUTO-PLAY dot is told to avoid the button",
+c.true("the AI switch is told to avoid the button",
        "avoid_rects=(game_menu.button_rect(board_rect_screen),)" in main_src)
+# ONE rect for the button, drawn from and clicked against. Worth pinning as the
+# same EXPRESSION rather than each half against a literal: the round progress
+# bar briefly shipped as chrome over the board, with the button handed a
+# shortened rect to step into, and that arrangement is one edit away from
+# leaving it DRAWN in one place and CLICKABLE in another. The bar owns a
+# full-width row now, so the board rect already excludes it and there is only
+# one rect again - this line is what would notice a second one coming back.
+c.true("the button is drawn from and hit-tested against the same rect",
+       "game_menu.draw_button(screen, board_rect_screen, pygame.mouse.get_pos())" in main_src
+       and "game_menu.button_rect(board_rect_screen).collidepoint(event.pos)" in main_src)
 c.true("the hover card is suppressed behind the menu",
        re.search(r"if game_menu\.is_pending:\s*\n(\s*#[^\n]*\n)*\s*_datacard_token = None",
                  main_src) is not None)

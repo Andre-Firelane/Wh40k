@@ -274,7 +274,7 @@ class ClaudeAgent(Agent):
     def plan_turn(self, observation, problems=()):
         """Produce this turn's plan. `problems` re-issues the request after the
         engine found orders it cannot carry out (see ai/agent_driver.py's
-        _unreachable_position_problems()): the planner is the side that knows
+        _problems_for_the_planner()): the planner is the side that knows
         WHY a spot was chosen, so a bad coordinate goes back to it rather than
         being guessed at downstream."""
         # Streamed, with an explicit timeout, for two independent reasons.

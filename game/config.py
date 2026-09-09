@@ -499,4 +499,14 @@ PLAYER_BANNER_HEIGHT = 30
 # bar + Player 1/Player 2 tab buttons above the cards, see
 # game/ui/reserves_panel.py - needs a bit more vertical room than the old
 # plain title-and-cards layout to avoid squeezing the card text again).
-RESERVES_PANEL_HEIGHT = 136
+#
+# Then lowered from 136 by 10, to help pay for the round progress bar's row at
+# the top of the window - the user's own suggestion for where the space should
+# come from ("du kannst zb die reserves sektion unten etwas kleiner machen").
+# It is 10 and not the bar's full height because there was only 14 px of slack
+# to take: the panel's own content needs HEADER_MARGIN + HEADER_BAR_HEIGHT + 8
+# + a card (CARD_PORTRAIT_PX + 2 * CARD_TEXT_PADDING) + HEADER_MARGIN = 122,
+# measured, so this keeps 4 px in hand and the board column pays the rest.
+# test_round_progress_bar.py asserts that headroom rather than the number, so
+# a bigger card here goes red instead of quietly clipping.
+RESERVES_PANEL_HEIGHT = 126

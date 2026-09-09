@@ -129,8 +129,63 @@ def _mentioned(prompt, name):
     return False
 
 
+class PromptRule:
+    """The printed rule a prompt is about: its name, its typeset body, and -
+    when that rule is a STRATAGEM - what it costs.
+
+    A RECORD AND NOT A TUPLE, and that is the FooterButtons lesson rather than
+    taste: the old (name, blocks) pair was read positionally at four sites
+    (`decision_rule[0]` in the panel and in smoke_unit_pick.py, unpacked in
+    main.py and in _draw_decision_rule). Two more facts appended to it would
+    have been two more positions for someone to slice past. Named fields, no
+    __getitem__, so neither can come back.
+
+    THE COST AND THE COLOUR ARRIVE TOGETHER, and that is why both are read off
+    the ONE lookup rather than one of them off DecisionManager.is_stratagem.
+    The cost only exists in the corpus, and the corpus only has one where a
+    STRATAGEM resolved - so sourcing the two separately buys a state this
+    request has no answer for: a violet heading with no cost in it. The user
+    asked for both about "die Faehigkeit in der linken Spalte", i.e. about the
+    rule that resolved, and this record IS that rule.
+
+    A DECISION FLAGGED is_stratagem WHOSE PROMPT NAMES NO STRATAGEM therefore
+    gets the ordinary heading here while DecisionOverlay would colour it. The
+    two are never on screen together - a board pick deliberately draws no
+    overlay - and the honest reading of "the ability in the left column" is
+    what is written in that column."""
+
+    __slots__ = ("name", "blocks", "is_stratagem", "cost")
+
+    def __init__(self, name, blocks, is_stratagem=False, cost=None):
+        self.name = name
+        self.blocks = list(blocks or ())
+        self.is_stratagem = is_stratagem
+        self.cost = cost
+
+    @property
+    def heading(self):
+        """What the panel puts in its title bar: the name, plus the CP cost
+        where the rule is a Stratagem that prints one.
+
+        User: "die CP kosten muessen auch teil der Ueberschrift sein."
+        Formatted by rules_text.rule_heading(), the same function
+        RuleStratagem.heading uses, so the corpus and this cannot print one
+        Stratagem's heading two ways."""
+        return rules_text.rule_heading(self.name, self.cost) if self.name else None
+
+    def __repr__(self):
+        return ("PromptRule(%r, %d blocks, is_stratagem=%r, cost=%r)"
+                % (self.name, len(self.blocks), self.is_stratagem, self.cost))
+
+
+#: The answer for "no printed rule behind this prompt" - shared, because it is
+#: returned from four early exits and carries nothing to tell apart. Callers
+#: gate on `.blocks`, exactly as they gated on the old empty list.
+NO_RULE = PromptRule(None, ())
+
+
 def for_prompt(prompt, squads, faction_keyword=None, detachments=()):
-    """(name, blocks) for the rule this prompt is about, or (None, []).
+    """The PromptRule this prompt is about - NO_RULE when nothing resolved.
 
     `blocks` are game/ui/rules_body.py Blocks - the same typesetting the army
     rules reader and the stratagem tooltip use, so the three cannot drift into
@@ -147,7 +202,7 @@ def for_prompt(prompt, squads, faction_keyword=None, detachments=()):
     key includes the datasheets because those decide the candidate list;
     they are module-level singletons, so their ids are stable for the run."""
     if not prompt:
-        return None, []
+        return NO_RULE
     from game.ui import rules_body      # UI import kept local - game/ does not depend on game/ui/
 
     key = (prompt, faction_keyword,
@@ -171,11 +226,16 @@ def _look_up(prompt, squads, faction_keyword, detachments, rules_body):
         if kind == "ability":
             lines = rules_text.ability_blocks(source, name)
             if lines:
-                return name, rules_body.blocks_for(lines)
+                return PromptRule(name, rules_body.blocks_for(lines))
         else:
             stratagem = rules_text.stratagem_named(faction_keyword, detachments, name)
             if stratagem is not None:
-                blocks = [rules_body.Block("stratagem", stratagem.heading)]
-                blocks.extend(rules_body.blocks_for(stratagem.lines))
-                return name, blocks
-    return None, []
+                # The heading is NOT repeated as a block any more: the panel's
+                # own title bar now carries it, cost included, and the two sat
+                # about forty pixels apart saying the identical string. It was
+                # a block because the box used to be the only place this rule
+                # was named at all.
+                return PromptRule(stratagem.name,
+                                  rules_body.blocks_for(stratagem.lines),
+                                  is_stratagem=True, cost=stratagem.cost)
+    return NO_RULE

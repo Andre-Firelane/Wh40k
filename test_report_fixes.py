@@ -183,7 +183,7 @@ for i, t in enumerate(boyz.models):
 st.tokens.extend(dread.models + boyz.models)
 clash = {"unit_plans": {"2 Deff Dread 1": {"role": "advance", "position": (30.0, 22.0), "priority": 1},
                         "2 Boyz 1": {"role": "advance", "position": (31.0, 21.0), "priority": 2}}}
-probs = agent_driver._unreachable_position_problems(clash, "Player 2", st)
+probs = agent_driver._problems_for_the_planner(clash, "Player 2", st)
 print("     ", probs)
 ok("the 1.4\" collision no longer costs a re-plan",
    not any("cannot both stand there" in p for p in probs))

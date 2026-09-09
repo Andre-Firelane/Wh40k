@@ -36,6 +36,23 @@ def _radio_rows():
 RULE_BOX_PADDING = 8
 RULE_SCROLLBAR_WIDTH = 5
 RULE_SCROLL_STEP = 24     # pixels per wheel notch
+# A board pick whose rule is a STRATAGEM says so in its own title bar. User:
+# "wenn es sich bei der faehigkeit in der linken spalte um ein stratagem
+# handelt, muss schon in der ueberschrift durch violette farbe zu erkennen
+# sein, dass es sich um ein stratagem handelt und die CP kosten muessen auch
+# teil der ueberschrift sein."
+#
+# TAKEN FROM button_style's "stratagem" palette rather than mixed here, the
+# same way DecisionOverlay takes its violet heading: violet means "this spends
+# CP" everywhere in this HUD, and a second, slightly different violet would
+# read as a different kind of thing.
+#
+# BOTH the fill and the text, where the overlay swaps text and border: this bar
+# has no border, so those are its two levers. And the colour is not asked to
+# carry the fact alone - the CP cost is printed in the heading beside it, which
+# is the half that survives a greyscale screenshot.
+STRATAGEM_HEADER_TEXT_COLOR = button_style.TEXT_NORMAL_STRATAGEM
+STRATAGEM_HEADER_BG_COLOR = button_style.BG_NORMAL_STRATAGEM
 HINT_COLOR = (135, 155, 170)  # dimmer than PANEL_TEXT_COLOR - explains a UI convention, isn't game state
 ERROR_COLOR = (220, 70, 70)
 ERROR_BOX_BG_COLOR = (40, 20, 20)
@@ -910,14 +927,30 @@ class ActionPanel:
         The SUBJECT stays with the title rather than moving down into the
         explanation, because where a rule has one it IS the question ("which
         objective are we talking about"), not a detail of it - the reading
-        game/mission_unit_pick.py's Burden of Trust was built around."""
-        name = decision_rule[0] if decision_rule else None
+        game/mission_unit_pick.py's Burden of Trust was built around.
+
+        AND WHERE THAT RULE IS A STRATAGEM THE TITLE SAYS SO TWICE OVER -
+        violet, and its CP cost printed in the heading itself. User: "wenn es
+        sich bei der faehigkeit in der linken spalte um ein stratagem handelt,
+        muss schon in der ueberschrift durch violette farbe zu erkennen sein,
+        dass es sich um ein stratagem handelt und die die CP kosten muessen
+        auch teil der ueberschrift sein." Both come off the one resolved rule,
+        so they cannot arrive apart."""
+        heading = decision_rule.heading if decision_rule else None
+        # VIOLET AND THE CP COST WHERE THE RULE IS A STRATAGEM - the heading is
+        # the one line a player reads before deciding, so what the click costs
+        # belongs in it. Both facts come off the ONE resolved rule
+        # (game/prompt_rule.py's PromptRule), so a violet bar without a cost in
+        # it is not a state this can reach.
+        accent = decision_rule is not None and decision_rule.is_stratagem
         # Upper case: the two other headings on this screen ("WHY YOU ARE
         # CHOOSING", and the generic title this replaces) are shouted, and a
         # mixed-case name in the same gold bar reads as a different kind of
         # thing. The name itself is still the corpus's, verbatim.
         text_y = button_style.draw_panel_header(
-            surface, rect, (name or "CHOOSE A UNIT").upper(), self.header_font, wrap=True,
+            surface, rect, (heading or "CHOOSE A UNIT").upper(), self.header_font, wrap=True,
+            text_color=STRATAGEM_HEADER_TEXT_COLOR if accent else None,
+            bg_color=STRATAGEM_HEADER_BG_COLOR if accent else None,
         )
         if pick.subject:
             text_y = self._draw_text(
@@ -973,7 +1006,7 @@ class ActionPanel:
         if not decision_rule:
             self._rule_key = None
             return
-        name, blocks = decision_rule
+        name, blocks = decision_rule.name, decision_rule.blocks
         if not blocks:
             self._rule_key = None
             return

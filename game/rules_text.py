@@ -340,6 +340,21 @@ _STRATAGEM_HEADING = re.compile(r"^###\s+(?P<name>.+?)(?:\s*[-–]\s*(?P<cost>\d
                                 re.IGNORECASE)
 
 
+def rule_heading(name, cost):
+    """A printed rule's heading: its name, plus its CP cost where it has one.
+
+    ONE formatter with two readers - RuleStratagem below, and
+    game/prompt_rule.py's PromptRule, which carries the same two facts out to
+    the board-pick panel so the heading in the left column can say what the
+    click costs. Written out at both ends they would drift on the separator,
+    and the two would then be visibly different strings for one Stratagem.
+
+    An ability has no cost, so this is its name unchanged - which is why the
+    name says "rule" and not "stratagem": the caller with the cost is the
+    Stratagem, the shape is every printed rule's."""
+    return f"{name} - {cost}" if cost else name
+
+
 class RuleStratagem:
     """One printed Stratagem of a detachment: its name, its CP cost, and its
     body as classified RuleLines.
@@ -359,7 +374,7 @@ class RuleStratagem:
 
     @property
     def heading(self):
-        return f"{self.name} - {self.cost}" if self.cost else self.name
+        return rule_heading(self.name, self.cost)
 
     def __repr__(self):
         return f"RuleStratagem({self.name!r}, {self.cost!r}, {len(self.lines)} lines)"

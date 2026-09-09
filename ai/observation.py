@@ -12,7 +12,7 @@ from game.coldstar import effective_movement_in
 from game.ere_we_go import roll_bonus as charge_roll_bonus
 from game.hazard import MORTAL_WOUNDS_ON_FAIL, MORTAL_WOUNDS_ON_FAIL_MONSTER_VEHICLE
 from game.squad import (attached_unit_toughness, edge_distance, is_monster_or_vehicle_unit,
-                        max_model_radius, min_model_movement)
+                        max_model_radius, min_model_movement, model_terrain_violation)
 from game.transport import TACTICAL_DISEMBARK_DISTANCE_IN
 from game.waaagh import squad_waaagh_active
 from game.weapons import MELEE, RANGED
@@ -1074,13 +1074,23 @@ def objective_summary(objective, tokens):
     total there - everything Claude needs to judge whether an objective is
     free for the taking, worth contesting, or already lost, without having
     to re-derive any of it from squad positions itself."""
-    min_x, min_y, max_x, max_y = objective.terrain_area.bounding_box
+    cx, cy = objective_centre(objective)
     return {
         "name": objective.name,
-        "position": {"x": round((min_x + max_x) / 2, 1), "y": round((min_y + max_y) / 2, 1)},
+        "position": {"x": round(cx, 1), "y": round(cy, 1)},
         "controlled_by": objective.controlled_by,
         "oc_present": objective.level_of_control(tokens),
     }
+
+
+def objective_centre(objective):
+    """The one point this observation calls an objective's position - its
+    terrain area's bounding-box centre. The planner is told this point, the
+    first leg toward an objective is aimed at it, and ai/agent_driver.py's
+    order rewrites name it; all three read it here so an order the validator
+    writes is a spot the planner would recognise."""
+    min_x, min_y, max_x, max_y = objective.terrain_area.bounding_box
+    return ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
 
 
 def build_observation(all_squads, turn_tracker, available_actions, player, objectives=None, plan_context=None):
@@ -1478,12 +1488,41 @@ def add_planning_distances(summary, squad, enemy_squads, objectives, obstacles=(
             )
             if spots:
                 summary["staging_positions_you_can_reach"] = spots
+    # A goal further off than one turn gets its FIRST LEG attached: the point
+    # on the straight line toward it that this unit reaches this turn, plain
+    # and Advancing. The planner then selects a waypoint instead of deriving
+    # one - see first_leg_toward() for the measured reason. Only where the
+    # goal's centre is beyond a plain move; inside it, the goal IS the point.
+    # Skipped for a passenger, like the staging spots: its models are not
+    # where they appear to be, and its question is whether to get out at all.
+    plain_reach = summary["move_inches_per_turn"] + reach_bonus_in
+    advance_reach = advance_reach_in(squad) + reach_bonus_in if squad.models else plain_reach
+
+    def with_first_leg(entry, goal_xy):
+        if embarked or not squad.models:
+            return entry
+        cx = sum(m.x_in for m in squad.models) / len(squad.models)
+        cy = sum(m.y_in for m in squad.models) / len(squad.models)
+        if math.hypot(goal_xy[0] - cx, goal_xy[1] - cy) <= plain_reach:
+            return entry
+        leg = first_leg_toward(squad, goal_xy, plain_reach, obstacles)
+        if leg is None:
+            return entry
+        advancing = first_leg_toward(squad, goal_xy, advance_reach, obstacles)
+        if advancing is not None:
+            leg["if_you_advance"] = advancing
+        entry["first_leg_this_turn"] = leg
+        return entry
+
     if enemy_squads:
         summary["distance_to_enemy_units"] = {
-            e.name: _reach_summary(
-                _passenger_gap(from_point, reach_bonus_in, lambda p, s=e: _point_distance_to_squad(p, s))
-                if embarked else _squad_distance(squad, e),
-                summary["move_inches_per_turn"],
+            e.name: with_first_leg(
+                _reach_summary(
+                    _passenger_gap(from_point, reach_bonus_in, lambda p, s=e: _point_distance_to_squad(p, s))
+                    if embarked else _squad_distance(squad, e),
+                    summary["move_inches_per_turn"],
+                ),
+                (sum(m.x_in for m in e.models) / len(e.models), sum(m.y_in for m in e.models) / len(e.models)),
             )
             for e in enemy_squads if e.models
         }
@@ -1497,11 +1536,14 @@ def add_planning_distances(summary, squad, enemy_squads, objectives, obstacles=(
         # arithmetic to do here rather than hope for - same reasoning as the
         # raw distances themselves, one step further.
         summary["distance_to_objectives"] = {
-            o.name: _reach_summary(
-                _passenger_gap(from_point, reach_bonus_in,
-                               lambda p, ob=o: ob.terrain_area.distance_to_point(p[0], p[1]))
-                if embarked else _objective_distance(squad, o),
-                summary["move_inches_per_turn"],
+            o.name: with_first_leg(
+                _reach_summary(
+                    _passenger_gap(from_point, reach_bonus_in,
+                                   lambda p, ob=o: ob.terrain_area.distance_to_point(p[0], p[1]))
+                    if embarked else _objective_distance(squad, o),
+                    summary["move_inches_per_turn"],
+                ),
+                objective_centre(o),
             )
             for o in objectives
         }
@@ -1538,6 +1580,84 @@ def _reach_summary(distance_in, move_in):
     """How far away something is, in inches AND in this unit's own turns."""
     turns = 1 if move_in <= 0 else max(1, math.ceil(distance_in / move_in))
     return {"inches": round(distance_in, 1), "turns_to_reach": turns}
+
+
+# The first leg is placed a little INSIDE the reach it is computed for, so that
+# rounding it to a tenth of an inch for the observation can never push it back
+# out - a point exactly on the radius would be clamped by _validate_turn_plan()
+# every turn, and every such clamp is a correction line for an order that was
+# right.
+FIRST_LEG_MARGIN_IN = 0.2
+# When the point on the line ends on a Dense piece (rule 13.05) or off the
+# board, the line is first SWUNG a little to either side at full length, then
+# walked back in these steps, up to this far. Sideways first because the
+# measured case is a line running parallel to a thin wall: the Wraiths' line
+# toward the Central Objective on map4 brushes a ruin's L-wall (x 31.4-32.0,
+# y 10.4-12.9) for four inches of its length, and walking back alone shortened
+# a 10" leg to 5.9" where a one-inch sidestep keeps all of it. Back, never
+# forward: forward is beyond the reach the leg was computed for. The swing is
+# capped at 30 degrees, where the leg still makes 87% of the straight-line
+# progress and is still "toward" the goal in any sense the planner means.
+_FIRST_LEG_NUDGE_STEP_IN = 0.5
+_FIRST_LEG_NUDGE_MAX_IN = 6.0
+_FIRST_LEG_SWING_DEGREES = (0.0, 6.0, -6.0, 12.0, -12.0, 18.0, -18.0, 24.0, -24.0, 30.0, -30.0)
+
+
+def first_leg_toward(squad, goal_xy, reach_in, obstacles=()):
+    """The furthest point on the straight line from this unit toward goal_xy
+    that the unit reaches with `reach_in` of movement - the first leg of a
+    journey that is longer than one turn - or None when no legal point lies
+    on that line within reach.
+
+    Why the observation hands this out rather than a rule (Fehlerklasse 2/3):
+    the planner was TOLD that a position has to lie inside reachable_this_turn
+    and to "name a reachable point on the way instead" when the goal is
+    further off, and it did the arithmetic badly. Measured in
+    logs/game_20260909_210843.log: Canoptek Wraiths at (34,4), 10" of move,
+    were ordered to (25,20) - 17" away - then, when that order came back as
+    unreachable, re-planned to (44,7), which IS reachable and is 2" FURTHER
+    from the Central Objective their own reason named. A point the planner
+    has to derive is a point it derives wrong; a point it SELECTS carries its
+    property with it. This is that point, computed once, the same way for the
+    observation (which offers it) and for _validate_turn_plan() (which
+    substitutes it for an order that walked the wrong way) - one definition,
+    two readers.
+
+    Measured from the squad's centroid, because that is what the movement
+    code steers at, and probed for rule 13.05 and the board edge with the
+    unit's widest base: a leg that ends ON a wall is a point the planner was
+    told never to name. The formation around the centroid can still touch
+    terrain - the mover stops short of that, as it does for any order - so
+    this is "not an obviously illegal point", not "a point the whole unit
+    can stand on".
+
+    Returns the point even when the goal is within reach (then it is the goal
+    itself, a margin short) - the CALLER decides whether a leg is worth
+    reporting; only "no legal point" or "nothing to move with" is None."""
+    if not squad.models or reach_in <= 0:
+        return None
+    cx = sum(m.x_in for m in squad.models) / len(squad.models)
+    cy = sum(m.y_in for m in squad.models) / len(squad.models)
+    dx, dy = goal_xy[0] - cx, goal_xy[1] - cy
+    span = math.hypot(dx, dy)
+    if span <= 1e-9:
+        return None
+    heading = math.atan2(dy, dx)
+    probe = max(squad.models, key=lambda m: m.radius_in)
+    full = min(reach_in, span) - FIRST_LEG_MARGIN_IN
+    back = 0.0
+    while back <= _FIRST_LEG_NUDGE_MAX_IN:
+        along = full - back
+        if along <= 0:
+            return None
+        for swing in _FIRST_LEG_SWING_DEGREES:
+            angle = heading + math.radians(swing)
+            x, y = cx + math.cos(angle) * along, cy + math.sin(angle) * along
+            if formation_layout.on_board(x, y, probe.radius_in) \
+                    and not model_terrain_violation(probe, obstacles, x, y):
+                return {"x": round(x, 1), "y": round(y, 1)}
+        back += _FIRST_LEG_NUDGE_STEP_IN
+    return None
 
 
 def terrain_summary(terrain_areas):

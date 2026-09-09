@@ -19,6 +19,7 @@ from game import maps, config
 from game.game_state import GameState
 from game.factions import build_squad
 from game.factions.orks import BOYZ, GRETCHIN, TANKBUSTAS, TRUKK, WARBIKERS
+from game.factions.tau_empire import GHOSTKEEL_BATTLESUIT
 from game.turn import TurnTracker
 from game.game_log import GameLog
 from ai import agent_driver
@@ -55,6 +56,11 @@ def build_army(state):
             model.x_in, model.y_in = x + (i % 3) * 1.4, y + (i // 3) * 1.4
         state.tokens.extend(squad.models)
         built.append(squad)
+    # One enemy with LONE OPERATIVE (rule 24.24), so the retry channel has a
+    # problem class to carry - see below.
+    ghostkeel = build_squad(GHOSTKEEL_BATTLESUIT, "Player 1", name="1 Ghostkeel Battlesuit 1")
+    ghostkeel.models[0].x_in, ghostkeel.models[0].y_in = 30.0, 40.0
+    state.tokens.extend(ghostkeel.models)
     return built
 
 
@@ -63,13 +69,19 @@ print("\n1) a revision that deletes the orders is refused (the reported cause)")
 state = GameState(); m.build(state)
 army = build_army(state)
 
-# The reported first plan: real orders for every squad, one unreachable spot.
+# The reported first plan: real orders for every squad, one impossible order.
+# In the report that order was an UNREACHABLE spot. Since 2026-09-09 a reach
+# overshoot no longer goes back to the planner (it is clamped along its own
+# line - see test_plan_first_leg.py), so the impossible order here is the
+# class that still does: a LONE OPERATIVE target the unit is sent somewhere
+# it cannot shoot it from. The acceptance criterion under test is the same.
 good_plan = {
     "turn_intent": "hold and advance",
     "unit_plans": {
         "2 Boyz 1": entry(reason="screen the objective", position=(26.0, 12.0)),
         "2 Gretchin 1": entry(reason="hold home", position=(21.0, 14.0)),
-        "2 Tankbustas 1": entry(reason="rokkits on the ghostkeel", position=(10.0, 33.0)),
+        "2 Tankbustas 1": entry(reason="rokkits on the ghostkeel", target="1 Ghostkeel Battlesuit 1",
+                                position=(10.0, 15.0)),
         "2 Trukk 1": entry(reason="carry boyz up", position=(34.0, 12.0)),
         "2 Warbikers 1": entry(reason="threaten the kroot", position=(35.0, 12.0)),
     },
@@ -80,7 +92,7 @@ stub_plan = {"turn_intent": "hold and advance",
              "unit_plans": {"placeholder": entry(position=(0.0, 0.0))},
              "malformed": False}
 
-recheck = lambda p: agent_driver._unreachable_position_problems(p, "Player 2", state)
+recheck = lambda p: agent_driver._problems_for_the_planner(p, "Player 2", state)
 coverage = lambda p: agent_driver._planned_squad_coverage(p, "Player 2", state)
 
 ok("the good plan covers all 5 squads", coverage(good_plan) == 5)

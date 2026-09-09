@@ -12,8 +12,12 @@ own deployment zone and turned every disembark order into "stay_embarked".
 
 So both families are now handled where they are cheap:
 
-  * a reach overshoot the clamp can absorb (_CLAMP_TOLERANCE_IN) never reaches
-    the planner at all - it is clamped, as it always was as a fallback;
+  * a reach overshoot never reaches the planner at all - it is clamped along
+    its own line (since 2026-09-09 for ANY size of overshoot, not only the
+    ones a 3" tolerance absorbed: sending the big ones back handed the planner
+    the same open question it had answered badly, and the measured revision
+    was a reachable order 2" further from its own goal - see
+    test_plan_first_leg.py);
   * a collision is separated deterministically in plan-priority order
     (_separate_colliding_positions()) instead of being reported.
 
@@ -95,7 +99,7 @@ def plan_of(orders):
 
 
 def problems_for(state, plan, player="Player 2"):
-    return agent_driver._unreachable_position_problems(plan, player, state)
+    return agent_driver._problems_for_the_planner(plan, player, state)
 
 
 def by_name(squads):
@@ -158,17 +162,29 @@ c.eq("a 2\" overshoot is not sent back to the planner", problems_for(state, MARG
 gap_far, reach_far = agent_driver._reach_to_point(squads["2 Warbikers 1"], (30.0, 35.0),
                                                   allow_advance=True)
 c.true("the reported Warbikers order overshoots by far more", gap_far - reach_far > 10)
-far_problems = problems_for(state, FAR)
-c.eq("a 15\" overshoot still goes back to the planner", len(far_problems), 1)
-c.true("...and names the unit", "Warbikers 1" in far_problems[0])
+# Since 2026-09-09 NO overshoot goes back, whatever its size: the channel handed
+# the planner the same open request it had already answered badly (measured
+# on logs/game_20260909_210843.log - the revision to a 17" order was a
+# REACHABLE order 2" further from its own goal). The clamp answers it instead,
+# deterministically, and test_plan_first_leg.py owns that case; the pin here is
+# that the channel is silent on reach.
+c.eq("a 15\" overshoot does not go back to the planner either", problems_for(state, FAR), [])
+far_clamped = agent_driver._validate_turn_plan(
+    plan_of({"2 Warbikers 1": ("advance", (30.0, 35.0), 1)}), "Player 2", state, turn, game_log=Log())
+far_spot = far_clamped["unit_plans"]["2 Warbikers 1"]["position"]
+far_gap, far_reach = agent_driver._reach_to_point(squads["2 Warbikers 1"], far_spot, allow_advance=True)
+c.true("...it is clamped into reach instead", far_gap <= far_reach + 1e-6)
+c.true("...toward where the plan pointed",
+       ((far_spot[0] - 30.0) ** 2 + (far_spot[1] - 35.0) ** 2) ** 0.5 < gap_far - 8)
 
-# A/B: with the tolerance removed, the marginal order is reported again - so the
-# silence above is the tolerance and not the scene.
+# A/B: the reach class is GONE from the channel, not hidden behind the
+# tolerance - with the tolerance at zero and reach on the flat Move (the whole
+# pre-fix world of this file), still nothing about reach is reported.
 saved = agent_driver._CLAMP_TOLERANCE_IN
 agent_driver._CLAMP_TOLERANCE_IN = 0.0
 with plain_move_reach():
-    c.eq("A/B: without the tolerance the same 2\" overshoot IS reported",
-         len(problems_for(state, MARGINAL)), 1)
+    c.eq("A/B: the tolerance is no longer what keeps the 2\" overshoot quiet",
+         problems_for(state, MARGINAL) + problems_for(state, FAR), [])
 agent_driver._CLAMP_TOLERANCE_IN = saved
 
 # The clamp still runs on it, so the order is still made legal - it is just made
@@ -312,16 +328,19 @@ REPORTED = plan_of({
     "2 Gretchin 2": ("advance", (30.0, 15.0), 8),
 })
 survivors = problems_for(state, REPORTED)
-c.eq("only the two genuinely-out-of-reach orders go back to the planner",
-     len(survivors), 2)
-c.true("...and they are the two long-range Warbiker orders",
-       all("Warbikers" in p for p in survivors))
+c.eq("NONE of the reported orders goes back to the planner any more "
+     "(until 2026-09-09: the two long-range Warbiker orders did)", survivors, [])
 
-# A/B, naming what disappeared rather than counting: the same orders, judged the
-# pre-fix way, also fault the Battlewagon (2" over) and the Kill Rig/Trukk pair.
-agent_driver._CLAMP_TOLERANCE_IN = 0.0
+# A/B, naming what disappeared rather than counting: the same orders, judged
+# the pre-fix way - any overshoot over the flat Move, plus overlapping pairs -
+# fault the Battlewagon (2" over), both Warbiker orders and the Kill Rig/Trukk
+# pair. RE-DERIVED here, because the channel no longer carries the reach rule
+# at all; there is nothing left in it to switch back on.
 with plain_move_reach():
-    pre_fix_reach = problems_for(state, REPORTED)
+    pre_fix_reach = [
+        n for n, e in REPORTED["unit_plans"].items()
+        if (lambda g, r: g > r)(*agent_driver._reach_to_point(squads[n], e["position"], allow_advance=True))
+    ]
 ordered = [(n, e["position"], agent_driver.max_model_radius(squads[n]))
            for n, e in REPORTED["unit_plans"].items()]
 pre_fix_collisions = [
@@ -330,13 +349,14 @@ pre_fix_collisions = [
     for nb, sb, rb in ordered[i + 1:]
     if ((sa[0] - sb[0]) ** 2 + (sa[1] - sb[1]) ** 2) ** 0.5 < ra + rb + agent_driver._ORDER_COLLISION_MARGIN_IN
 ]
-agent_driver._CLAMP_TOLERANCE_IN = saved
 c.true("A/B: pre-fix, the 2\" Battlewagon overshoot was also reported",
-       any("Battlewagon" in p for p in pre_fix_reach))
+       "2 Battlewagon 1" in pre_fix_reach)
+c.true("A/B: pre-fix, both Warbiker orders were reported",
+       all(f"2 Warbikers {i}" in pre_fix_reach for i in (1, 2)))
 c.eq("A/B: pre-fix, the two overlapping pairs were reported as well",
      len(pre_fix_collisions), 2)
-c.eq(f"A/B: same orders, 5 problems before and 2 now",
-     (len(pre_fix_reach) + len(pre_fix_collisions), len(survivors)), (5, 2))
+c.eq(f"A/B: same orders, 5 problems before and 0 now",
+     (len(pre_fix_reach) + len(pre_fix_collisions), len(survivors)), (5, 0))
 
 # And the whole plan still comes out legal, with every unit keeping an order.
 log = Log()

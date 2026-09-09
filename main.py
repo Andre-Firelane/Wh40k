@@ -302,6 +302,7 @@ from game.ui import game_menu as game_menu_module
 from game.ui.game_menu import GameMenu
 from game import ai_mode
 from game.ui.ai_busy_badge import AiBusyBadge, ai_mode_toggle_rect, draw_ai_mode_toggle
+from game.ui import round_progress_bar
 from game.ui.decision_overlay import DecisionOverlay
 from game.ui.stratagem_notice_overlay import StratagemNoticeOverlay
 from game.ui.waaagh_notice_overlay import WaaaghNoticeOverlay
@@ -600,11 +601,20 @@ def main(map_key=None):
     # cannot be derived from the units - see game/detachments.py.
     detachments.apply_to_config(armies)
 
-    top_row_height = window_height - config.RESERVES_PANEL_HEIGHT
+    # The round progress bar owns a full-width row at the very top, and the
+    # three columns start underneath it (user: "fuer die Anzeige der aktuellen
+    # runde haette ich gerne anstatt der Zahl einen schoenen Fortschrittsbalken
+    # am oberen Bildschirmrand"). A ROW rather than chrome drawn over the
+    # board, which was the first attempt and drew two reports: "der balken
+    # ueberdeckt die map" and "die map schliesst jetzt nicht mehr links und
+    # rechts mit den 2 seiten panels ab" - overlaying the board moved the map's
+    # top edge below the panels' and cost map instead of taking space.
+    top_bar_height = round_progress_bar.BAR_HEIGHT
+    top_row_height = window_height - config.RESERVES_PANEL_HEIGHT - top_bar_height
     available_width = window_width - config.LEFT_PANEL_WIDTH - config.RIGHT_PANEL_WIDTH
-    board_rect_screen = pygame.Rect(config.LEFT_PANEL_WIDTH, 0, available_width, top_row_height)
-    left_panel_rect = pygame.Rect(0, 0, config.LEFT_PANEL_WIDTH, top_row_height)
-    right_panel_rect = pygame.Rect(window_width - config.RIGHT_PANEL_WIDTH, 0, config.RIGHT_PANEL_WIDTH, top_row_height)
+    board_rect_screen = pygame.Rect(config.LEFT_PANEL_WIDTH, top_bar_height, available_width, top_row_height)
+    left_panel_rect = pygame.Rect(0, top_bar_height, config.LEFT_PANEL_WIDTH, top_row_height)
+    right_panel_rect = pygame.Rect(window_width - config.RIGHT_PANEL_WIDTH, top_bar_height, config.RIGHT_PANEL_WIDTH, top_row_height)
 
     # Später-Liste (Kamera-Scrolling/Viewport): board_surface used to be a
     # direct subsurface of `screen` (drawing onto it WAS drawing onto the
@@ -629,7 +639,7 @@ def main(map_key=None):
     board = Board(config.BOARD_WIDTH_IN, config.BOARD_HEIGHT_IN, render_ppi)
     board_surface = pygame.Surface((board.width_px, board.height_px))
     camera = Camera(board_rect_screen.width, board_rect_screen.height, board.width_px, board.height_px)
-    reserves_panel_rect = pygame.Rect(0, top_row_height, window_width, config.RESERVES_PANEL_HEIGHT)
+    reserves_panel_rect = pygame.Rect(0, top_bar_height + top_row_height, window_width, config.RESERVES_PANEL_HEIGHT)
     log_rect = pygame.Rect(
         right_panel_rect.x,
         right_panel_rect.bottom - config.LOG_HEIGHT,
@@ -6960,11 +6970,11 @@ def main(map_key=None):
             if _rule_entry is not None:
                 _rule_squads = [s for s in state.all_squads() if s.owner == _rule_owner]
                 _rule_squads.extend(frame_unit_pick.squads)
-                _name, _blocks = prompt_rule.for_prompt(
+                _rule = prompt_rule.for_prompt(
                     frame_unit_pick.prompt, _rule_squads,
                     _rule_entry.faction_keyword, _rule_entry.detachments)
-                if _blocks:
-                    frame_decision_rule = (_name, _blocks)
+                if _rule.blocks:
+                    frame_decision_rule = _rule
         renderer.draw_shoot_targets(
             board_surface, board, unit_pick.target_models(frame_unit_pick, state.tokens))
         renderer.draw_assigning_model_highlight(board_surface, board, explosives_controller.acting_model)
@@ -7188,6 +7198,18 @@ def main(map_key=None):
         )
         if picked_reserve_squad is not None:
             renderer.draw_reserve_drag_ghost(screen, picked_reserve_squad, pygame.mouse.get_pos())
+        # The battle's progress in its own full-width row at the top of the
+        # window - the round number that used to be a line in the Game Status
+        # panel. See game/ui/round_progress_bar.py for what it shows, and for
+        # why it owns a row instead of being drawn over the board.
+        round_progress_bar.draw(screen, window_width, turn_tracker,
+                                current_player_factions())
+        # DIRECTLY AFTER the bar, and that order is the decision: PlayerBanner
+        # claims this same strip (full window width) whenever it has a blocking
+        # warning to show - "Regaining Coherency", a mandatory Battle-Shock
+        # roll - and draws nothing at all otherwise. Those two stop the game
+        # until they are answered, so for the moment they are up they outrank a
+        # progress readout and are allowed to cover it.
         player_banner.draw(
             screen, coherency_enforcer, battle_shock_controller=battle_shock_controller,
             turn_tracker=turn_tracker, all_tokens=state.tokens,

@@ -8541,3 +8541,225 @@ statt des Stücks (`test_rotated_terrain.py` hat ihn gemeldet).
 
 Zwischenstand `8584f09` (Steps 0–3, 5a) nach 200 Suiten / 199 grün / 1 bekannt
 und Selfplay map2. Abschluss: siehe Commit.
+
+# Sitzung 2026-09-09 (2) — der Rundenbalken am oberen Brettrand
+
+**Auftrag:** *"für die Anzeige der aktuellen runde hätte ich gerne anstatt der
+Zahl einen schönen Fortschrittsbalken am oberen Bildschirmrand. die Phasen
+können dort getrennt sein, müssen aber nicht beschriftet sein. aber der Zug
+soll beschriftet sein. und das Volk Logo/Farbe muss drin sein. Frage, wenn
+etwas unklar ist."*
+
+## Erst messen, wo überhaupt Platz ist — dann fragen
+
+Der obere Rand ist nicht frei, und das war die einzige Tatsache, die die Frage
+überhaupt beantwortbar machte: über dem Brett sitzen links das KI-Badge, mittig
+das Würfelpanel, rechts der MENU-Knopf mit dem KI-Schalter darunter. Dazu ein
+Fund, der die Arbeit deutlich verkürzt hat: **`PlayerBanner` IST der Streifen,
+der früher genau Runde/Phase/Zug zeigte** — alles davon ist längst ins rechte
+Panel gewandert, das Modul zeichnet heute nur noch blockierende Warnungen, und
+`config.PLAYER_BANNER_HEIGHT = 30` reserviert die Höhe seit damals.
+
+Drei Dinge entschieden die Arbeit materiell, also wurden drei Fragen gestellt
+(mit ASCII-Vorschauen, weil es um ein Bild geht):
+
+1. **Breite** — ganze Fensterbreite (Panels rücken runter) oder nur über dem
+   Brett (die vier Steuer rücken runter)? → **nur über dem Brett**.
+2. **Wofür der Fortschritt steht** — die ganze Schlacht (10 Zug-Segmente à
+   5 Phasen) oder nur der aktuelle Zug? → **die ganze Schlacht**.
+3. **Volk** — beide Spieler (Segmente in ihrer Farbe) oder nur der Zugbesitzer?
+   → **beide, plus das Logo dessen, der dran ist**.
+
+## Was die Umsetzung wirklich gekostet hat
+
+Nicht das Zeichnen — das ist ein Modul. Teuer ist der Platz: vier Steuer, die
+sich ihre Ecke selbst aus dem Brett-Rect nehmen, und eines davon (der
+MENU-Knopf) wird an ZWEI Stellen gerechnet, einmal zum Zeichnen und einmal zum
+Treffen. `chrome_rect()` ist deshalb EINE Ableitung mit vier Lesern, und die
+Suite pinnt für den Knopf, dass beide Seiten denselben Ausdruck benutzen und
+der rohe `board_rect_screen` bei keiner mehr vorkommt.
+
+**`DicePanel` war die eine Naht, die sich nicht durch einen anderen Rect bewegen
+ließ:** es rechnete `top_y = PLAYER_BANNER_HEIGHT + DICE_TOP_MARGIN` absolut
+und las `bounds_rect` nur für x und Breite. Beim Nachziehen fiel auf, dass
+dieselbe Zahl dort ZWEIMAL stand (einmal fürs Höhenbudget, einmal fürs Layout)
+— jetzt einmal, mit `PLAYER_BANNER_HEIGHT` als Untergrenze statt als Anker.
+
+## Vier Befunde über den TEST, alle von den eigenen Sonden
+
+1. **Die Suite maß den ganzen Streifen statt der Spur** und meldete
+   29 gefüllte Pixel für eine Schlacht, die nicht begonnen hatte — Badge und
+   Titel liegen auf derselben Scanline. Das Modul zeichnet jetzt auf, was es
+   wirklich gelegt hat (`last_track_rect`, `last_badge_rect`), statt dass der
+   Test es ein zweites Mal herleitet.
+2. **"Das Badge hat sich geändert" per Pixelzahl ist blind:** die Aeldari- und
+   die Necron-Kunst inken in einer 29-px-Kachel gleich viele Pixel. Verglichen
+   wird jetzt der INHALT.
+3. **Eine Sonde ließ die Suite ABSTÜRZEN statt rot zu werden** (`min()` auf
+   einer leeren Sequenz, weil die Ein-Farb-Sonde eine Spielerfarbe komplett
+   verschwinden lässt) — **neunzehnte Instanz** dieser Lehre.
+4. **Die Laufzeit-Sonde las den Bildschirm NACH `runpy`** und meldete 0 Pixel
+   jeder Farbe: `main()` ist dann weg und seine Display-Surface nicht mehr
+   lesbar. Gemessen wird jetzt im Frame, eine Scanline statt der ganzen Spur.
+
+## Ein fremder Pin, der zu Recht rot wurde — und ehrlich nachgezogen
+
+`test_faction_badges.py` maß "die kompakten Spalten ERSETZEN die zwei langen
+Gruppen" als `badge_form < lang_form − ARMY_RULES_LINK_HEIGHT`. Das Entfernen
+der Rundenzahl hat die LANG-Form um eine `SUBHEADER_HEIGHT`-Zeile verkürzt —
+also genau die Seite, gegen die verglichen wird. Der Abstand fiel von ~28 auf
+10 px (274 gegen 284). Die BEHAUPTUNG gilt unverändert; kalibriert war sie auf
+ein Layout mit einer Zeile mehr. Der Pin sagt jetzt, was wirklich gilt, plus
+die schärfere Hälfte: die Badge-Form ist kürzer, OBWOHL sie eine Zeile zeichnet,
+die die Lang-Form gar nicht hat.
+
+## Die Laufzeit-Sonde beweist etwas, das ein Screenshot nicht kann
+
+`verify_round_progress_bar.py` meldet gefixt wie neutralisiert **dieselben**
+2499 gezeichneten Frames, dasselbe Badge in jedem Frame und dieselben
+90924 Player-1-Pixel auf der Spur. Der einzige Unterschied: der MENU-Knopf
+liegt neutralisiert **5039-mal** unter dem Balken und gefixt **null-mal**. Genau
+deshalb misst die Sonde Rects und nicht das Bild — der Balken sieht in der
+kaputten Welt genauso gut aus.
+
+## Die erste Fassung war falsch, und das Feedback sagt genau warum
+
+Der Balken lag zuerst als Chrome ÜBER dem Brett: Brett-Rect unangetastet, und
+die vier Steuer am oberen Brettrand (KI-Badge, Würfelpanel, MENU-Knopf,
+KI-Schalter) bekamen einen verkürzten `chrome_rect()` zum Ausweichen. 76 grüne
+Prüfungen, acht beißende Sonden, eine Laufzeit-Sonde mit 2499 gezeichneten
+Frames — und trotzdem falsch, auf eine Art, die keiner davon sehen konnte:
+
+> "der balken überdeckt die map. das muss nicht sein. du kannst zb die reserves
+> sektion unten etwas kleiner machen. außerdem schließt die map jetzt nicht
+> mehr links und rechts mit den 2 seiten panels ab. warum? bitte wieder so wie
+> vorher abschließen lassen."
+
+**Die zweite Hälfte war zuerst nicht nachvollziehbar**, und der erste Versuch,
+sie zu widerlegen, war das Nützlichste: eine Messung der waagerechten Ausdehnung
+mit und ohne Balken lieferte IDENTISCHE Werte — links und rechts hatte sich
+nichts bewegt. Erst der Vollbild-Screenshot zeigte es: die Karte begann 34 px
+tiefer als die Panels, die drei Spalten fluchteten oben also nicht mehr. "Links
+und rechts abschließen" meint die Ecken, nicht die Flanken.
+
+**Beide Beschwerden lösen sich mit derselben Änderung**, und die ist zugleich
+die einfachere: der Balken bekommt eine ZEILE über die volle Fensterbreite, und
+Brett wie Panels beginnen darunter. Damit ist `chrome_rect()` ersatzlos weg —
+kein zweiter Rect, keine vier umzuhängenden Konsumenten, und die ganze
+Fehlerklasse "aus dem einen Rect gezeichnet, gegen das andere geklickt" ist
+strukturell nicht mehr erreichbar. **Es ist die Option, die beim Fragen
+abgelehnt worden war** ("nur über dem Brett"); das Feedback beschreibt genau
+das Problem, das sie vermieden hätte.
+
+**Der Platz ist gemessen, nicht geschätzt:** `RESERVES_PANEL_HEIGHT` stand auf
+136 und ihr Inhalt braucht 122 — also 14 px Luft, nicht die 34 des Balkens. Sie
+gibt 10 ab, der Balken schrumpft auf 28, die Brettspalte trägt 18. Gepinnt wird
+die LUFT gegen den echten Bedarf der Karten, nicht die Zahl.
+
+**Und die Laufzeit-Sonde musste umgebaut werden, um die neue Behauptung
+überhaupt prüfen zu können:** sie zählte vorher, ob der MENU-Knopf unter dem
+Balken liegt. Jetzt greift sie sich die drei Spalten-Rects von den Widgets ab,
+denen `main()` sie reicht (Würfelpanel → Brett, Action-Panel → links,
+Game-Status-Panel → rechts), und prüft, dass alle drei dieselbe Oberkante mit
+der Unterkante des Balkens teilen. `--neutralize` stellt die gemeldete Welt in
+zwei Zügen her und meldet 1998 überdeckte Frames und 1998 aus der Flucht — bei
+identisch schön gezeichnetem Balken.
+
+## Vier eigene Werkzeugfehler in dieser Runde
+
+1. **Ein Bash-Heredoc hat das Modul beim ersten Schreiben zerlegt**
+   (Fehlerklasse 21, wörtlich in CLAUDE.md). Die Datei wurde gar nicht erst
+   angelegt; seither über Write.
+2. **Ein Sondenskript mit mehreren `assert`-geschützten Ersetzungen schreibt
+   erst am ENDE** — der Abbruch an der letzten Ersetzung hat alle vorherigen
+   still verworfen, und der nächste Lauf meldete einen `NameError` für etwas,
+   das ich für erledigt hielt. Seither eine Schreiboperation pro Ersetzung.
+3. **`PANEL_NEW`/`PANEL_OLD` waren in der Sondendatei doppelt vergeben** — die
+   zweite Definition überschrieb die erste, die zugehörige Sonde hätte die
+   falsche Welt hergestellt. Vom Lesen der Datei gefunden, nicht vom Lauf.
+4. **Die Laufzeit-Sonde las den Bildschirm nach `runpy`** und meldete 0 Pixel
+   jeder Farbe: `main()` ist dann weg und seine Display-Surface nicht mehr
+   lesbar.
+
+## Parallele Sitzung
+
+Dieselbe zweite Sitzung wie in der Wand-Arbeit lief weiter im Baum (vierte
+Karte "Sundered", ein Refactor in `ai/agent_driver.py`). `main.py` meldete
+während der Arbeit "file had been modified on disk", es wurde deshalb
+durchgehend mit zielgenauen Ersetzungen statt Ganzdatei-Rewrites gearbeitet.
+Die zwei roten Suiten der vorigen Regression (`test_map_select.py`,
+`test_menu_presentation.py`) sind von deren Seite behoben; die volle Regression
+lief mit beiden Änderungsmengen im Baum und ist grün.
+
+# Sitzung 2026-09-09 (3) — die Wraiths, die rückwärts liefen
+
+**Gemeldet:** *"schau mal bitte ins letzte game. die wraiths hatten die anweisung nach vorne
+zu stagen, haben sich dann aber rückwärts bewegt. warum?"* — und nach der Diagnose die
+eigentliche Frage: *"warum der planner die einheit überhaupt zu weit schickt. meiner meinung
+nach sollte er nur erreichbare positionen planen und dann eben staging positions mitgeben
+nicht gleich das endgültige ziel, dass zu weit weg ist."*
+
+## Die Diagnose, am Log
+
+`logs/game_20260909_210843.log`, map4 "Sundered". Canoptek Wraiths bei (34,4), Bewegung 10".
+Der erste Plan befahl (25,20) — 17" weit, 5.4" vom Central Objective — mit der Begründung
+"Push toward Central Objective". Der Validator meldete das als unerreichbar (mehr als die
+3"-Toleranz) und schickte den Plan an den Planner zurück. Die Revision befahl (44,7): erreichbar
+(10.4", also im Advance-Band), und **20.5" vom Central Objective, wo die Einheit 18.4" davon
+stand**. Das `target`-Feld war leer, der Reason-Text sagte weiter "Push toward Central
+Objective; move to a reachable point (44,7)". Die Bewegung selbst war korrekt: die Einheit lief
+genau dorthin. Nichts im Validator verglich einen Befehl mit seinem eigenen Ziel.
+
+**Die Ursache ist Fehlerklasse 2/3 in Reinform:** der Prompt SAGTE, ein ferner Punkt sei durch
+einen erreichbaren Punkt "auf dem Weg" zu ersetzen — aber den Punkt musste der Planner selbst
+herleiten, und der Retry reichte ihm exakt dieselbe offene Aufgabe zurück, an der er gerade
+gescheitert war. Beim zweiten Mal war die Antwort sogar schlechter.
+
+## Was gebaut wurde (vom User mit "ja" freigegeben)
+
+1. **`observation.first_leg_toward(squad, goal, reach, obstacles)`** — die eine Definition des
+   ersten Schenkels: vom Zentroid auf der Linie zum Ziel, 0.2" innerhalb der Reichweite (damit
+   das Runden auf Zehntel den Punkt nie hinausschiebt), und nudged, bis er weder auf einer Wand
+   (13.05) noch außerhalb des Bretts liegt. **Die Reihenfolge des Nudge ist gemessen:** die
+   Linie der Wraiths zum Central Objective streift vier Zoll lang die dünne L-Wand einer Ruine
+   (x 31.4–32.0, y 10.4–12.9). Zurückwalken allein verkürzte den 10"-Schenkel auf 5.9"; ein
+   Schwenk von wenigen Grad bei voller Länge hält 9.8". Deshalb erst Schwenk (±6° … ±30°),
+   dann Zurückwalken.
+2. **Die Beobachtung** hängt `first_leg_this_turn` (plain, mit `if_you_advance`) an jeden
+   Objective- und Feindeintrag, dessen Mitte außer einer Bewegung liegt. Passagiere ausgenommen,
+   wie die Staging-Punkte. `objective_centre()` ist dabei aus dem Driver in die Beobachtung
+   gewandert — zwei Kopien derselben Bounding-Box-Arithmetik waren es vorher.
+3. **Der Prompt** sagt jetzt: fernes Ziel als TARGET, sein Schenkel als POSITION — und was mit
+   einem Befehl passiert, der das ignoriert.
+4. **Der Validator**: jeder Reichweiten-Überschuss wird auf denselben Helfer geklemmt (der
+   Clamp-Punkt IST der angebotene Schenkel), und ein RÜCKWÄRTSBEFEHL — aktive Rolle, Ziel außer
+   Reichweite, Position mehr als 1" weiter vom Ziel als der Standort — wird durch den Schenkel
+   zum Ziel ersetzt, im Advance-Band, wenn der Befehl eines brauchte, mit umgeschriebenem
+   `reason`. Das Ziel kommt aus dem `target`-Feld oder, wie im Log, aus dem Reason-Text
+   (frühester Objective- oder Feindname).
+5. **Der Retry-Kanal** heißt jetzt `_problems_for_the_planner()` und trägt nur noch, was ein
+   Urteil braucht (LONE OPERATIVE vom Standort unbeschießbar, Über-/Ein-Garnison). Kein
+   Reichweiten-Überschuss geht mehr zurück, in keiner Größe. `_CLAMP_TOLERANCE_IN` bleibt für
+   die Kollisions-Verschiebung und trägt die Geschichte im Kommentar.
+
+Auf der gemeldeten Szene: (25,20) → geklemmt auf (28,16), Planner EINMAL gefragt statt zweimal;
+(44,7) → ersetzt durch (30,17), 5" statt 21" vom Objective, im Log als "a step backwards ...
+Advancing".
+
+## Bewusst nicht angefasst
+
+Eine Einheit, deren Ziel schon in Reichweite liegt, darf sich davon weg feinjustieren; passive
+Rollen behalten ihre Koordinate; Passagiere bekommen keinen Schenkel (ihr Ausgangspunkt ist der
+Transporter, den der Helfer nicht modelliert).
+
+## Getestet
+
+Neu `test_plan_first_leg.py` (**79/79**, fünf Abschnitte: die Felder auf der Log-Szene, der
+Helfer klauselweise an synthetischen Wänden, der Clamp ohne Retry mit einem zählenden Planner,
+der Rückwärtsbefehl in allen Lesarten, Quell-Wächter). Neu `ab_plan_first_leg.py` (**11
+Sonden**). **Zwei Sonden ließen die Suite zuerst ABSTÜRZEN statt rot zu werden** — `KeyError`
+beim direkten Indizieren auf das Feld, das in der Vor-Fix-Welt fehlt; die Suite liest es jetzt
+per `.get()`. Zwei fremde Suiten pinnten den alten Retry und sind ehrlich umgeschrieben:
+`test_plan_churn.py` (die Vor-Fix-Zahl 5 wird im Test nachgerechnet, weil der Kanal die Regel
+nicht mehr hat: 5 Probleme vorher, 0 jetzt) und `test_empty_turn_plan.py` (bekommt ein
+LONE-OPERATIVE-Problem als Kanal-Last, weil seine Reichweiten-Probleme weg sind).

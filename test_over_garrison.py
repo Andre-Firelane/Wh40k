@@ -120,7 +120,7 @@ def reported_plan():
 
 
 def problems_for(state, turn, plan, player="Player 2"):
-    return agent_driver._unreachable_position_problems(plan, player, state)
+    return agent_driver._problems_for_the_planner(plan, player, state)
 
 
 def validate(state, turn, plan, player="Player 2"):

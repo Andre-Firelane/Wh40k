@@ -423,8 +423,19 @@ class DicePanel:
         # What is left for dice after the chrome above and below them. Measured
         # against the board area, which is the bound the panel already promises
         # never to leave.
-        height_budget = (bounds_rect.bottom - config.PLAYER_BANNER_HEIGHT
-                         - DICE_TOP_MARGIN - 2 * BACKDROP_PADDING - CHROME_HEIGHT_BUDGET)
+        # ONE definition of where this panel starts, read by the height budget
+        # here and by the layout below - they were two expressions saying the
+        # same thing, and the moment they disagree the panel lays out for one
+        # height and is measured against another.
+        #
+        # bounds_rect.y is now a real input rather than always 0: the round
+        # progress bar owns the board's top strip and the caller hands over a
+        # board rect that starts below it. PLAYER_BANNER_HEIGHT stays as a
+        # FLOOR, because PlayerBanner draws its blocking warnings across the
+        # full window width and this panel promised never to sit under them.
+        top_y = max(bounds_rect.y, config.PLAYER_BANNER_HEIGHT) + DICE_TOP_MARGIN
+        height_budget = (bounds_rect.bottom - top_y
+                         - 2 * BACKDROP_PADDING - CHROME_HEIGHT_BUDGET)
         panel_width = _panel_width(bounds_rect, len(values), row_gap, row_height,
                                    height_budget)
         panel_left = bounds_rect.x + (bounds_rect.width - panel_width) // 2
@@ -451,7 +462,6 @@ class DicePanel:
             failures = []
 
         text_max_width = panel_width - 2 * CONTENT_PADDING
-        top_y = config.PLAYER_BANNER_HEIGHT + DICE_TOP_MARGIN
         y = top_y
 
         # The actual content (text/dice) is only drawn once the backdrop's

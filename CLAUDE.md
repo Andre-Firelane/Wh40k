@@ -241,7 +241,11 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
    `reachable_this_turn` als Kreis statt "vergleiche mit deiner Bewegung".
 3. **Eine vom Modell ERFUNDENE Zahl ist unbewertet.** Ein ausgewählter Gegner trägt seine Bewertung
    mit, eine selbst geschriebene Koordinate nicht. Solche Felder brauchen einen prüfbaren Rahmen
-   (`reachable_this_turn`), einen Rückweg an den Planner UND einen deterministischen Backstop.
+   (`reachable_this_turn`), einen deterministischen Backstop — **und den PUNKT zum Auswählen.**
+   Der Rückweg an den Planner war für zu weite Koordinaten der falsche dritte Baustein (siehe 27):
+   seit 2026-09-09 trägt jeder Objective- und Feindeintrag außerhalb einer Bewegung
+   `first_leg_this_turn` (den Punkt auf der Linie dorthin, plain und Advance), damit der Planner
+   einen Wegpunkt WÄHLT statt ihn herzuleiten.
 4. **Eine Regel, die nur im Prompt steht, bleibt optional.** Durchsetzung gehört in
    `_validate_turn_plan()` — dieselbe Quelle, die die Regel ohnehin erzwingt. Der Prompt sorgt dafür,
    dass von vornherein bessere Pläne entstehen; er macht einen Plan nicht legal.
@@ -518,6 +522,19 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
     und der Resume-Zweig von `_handle_charge()` öffnet den Zug nur, wenn er nicht schon offen ist —
     `begin_charge_move()` über einem offenen Zug ist dieselbe Kette ein weiteres Mal, und dort
     konnte der Wächter einen zweiten Prompt nicht sehen.
+27. **Ein Retry, der dieselbe OFFENE Frage zurückreicht, bekommt dieselbe Antwort.** Der
+    Retry-Kanal an den Planner schickte eine zu weite Koordinate mit „unerreichbar, nur 14" auch
+    mit Advance" zurück — also mit genau der Aufgabe, an der der Planner gerade gescheitert war:
+    einen erreichbaren Punkt herzuleiten. Gemessen (`logs/game_20260909_210843.log`): die Wraiths
+    bei (34,4) sollten nach (25,20), 17" weit; die Revision befahl (44,7), erreichbar und **2"
+    WEITER** vom Central Objective weg, das die Begründung selbst nannte. Die Einheit lief
+    rückwärts, wie befohlen. Ein Rückweg lohnt nur für Probleme, deren Lösung ein URTEIL braucht,
+    das dieser Code nicht fällen kann (`_problems_for_the_planner()`: LONE OPERATIVE vom
+    bestellten Standort unbeschießbar, Über-/Ein-Einheiten-Garnison). Wo die Lösung ein PUNKT
+    ist, wird er ANGEBOTEN (`first_leg_this_turn`) und deterministisch eingesetzt
+    (`_validate_turn_plan()`: Clamp auf den ersten Schenkel, Ersatz eines Rückwärtsbefehls durch
+    den ersten Schenkel zum eigenen Ziel). Vor jedem neuen „schick es dem Planner zurück" fragen:
+    kann er die Frage mit dem, was er hat, überhaupt anders beantworten als beim ersten Mal?
 
 ## Diagnose-Logging
 
@@ -2084,6 +2101,119 @@ hatten wir mal überarbeitet ua. mit logos der fraktionen").
   **Harness-Falle dabei:** `import selfplay` führt NICHTS aus (`if __name__ == "__main__"`), der
   Spion meldete erst ein wahrheitsgetreu aussehendes 0 für eine Partie, die nie stattfand — `runpy`
   mit `run_name="__main__"`.
+
+## Der Rundenbalken am oberen Brettrand (game/ui/round_progress_bar.py)
+
+**Die Rundenzahl im rechten Panel ist durch einen Fortschrittsbalken ersetzt**
+(User: "für die Anzeige der aktuellen runde hätte ich gerne anstatt der Zahl
+einen schönen Fortschrittsbalken am oberen Bildschirmrand. die Phasen können
+dort getrennt sein, müssen aber nicht beschriftet sein. aber der Zug soll
+beschriftet sein. und das Volk Logo/Farbe muss drin sein").
+
+- **"VOLL" ist die GANZE SCHLACHT** (User-Entscheidung): `BATTLE_ROUNDS` Runden
+  × 2 Züge = 10 Zug-Segmente, jedes in seine 5 Phasen unterteilt — 50 Zellen.
+  Die Alternative (nur die fünf Phasen DIESES Zuges, Runde als Zahl daneben)
+  wurde vorgelegt und abgelehnt: sie sagt nichts darüber, wie weit die Partie
+  ist, und genau dafür gibt es einen Fortschrittsbalken.
+- **Jedes Zug-Segment trägt die Farbe SEINES Besitzers** (`TOKEN_TEAM_COLORS`,
+  also dieselben konstanten Brett-Farben — Player 1 grün, Player 2 rot), und
+  links steht das Logo dessen, der GERADE dran ist. Damit sagt der Balken
+  zugleich, wem welcher vergangene Zug gehörte. Auch das war die Wahl gegen die
+  ruhigere Variante (alles in der Farbe des Zugbesitzers).
+- **Der Zug ist beschriftet, die Phase nicht** — genau wie bestellt. Jedes
+  Segment trägt `<Runde>.<Spielerziffer>` ("3.2" ist Player 2s Zug in Runde 3),
+  und der laufende Zug steht zusätzlich ausgeschrieben neben dem Badge
+  ("ROUND 3 - PLAYER 2"). Vor dem Schlachtbeginn: "DEPLOYMENT".
+- **Er hat eine EIGENE ZEILE über die volle Fensterbreite, und Brett wie beide
+  Panels beginnen darunter.** Das ist die ZWEITE Antwort auf diese Frage, und
+  die erste gehört hierher, weil ihr Fehler nicht offensichtlich ist: der
+  Balken war zuerst Chrome ÜBER dem Brett (Brett-Rect unangetastet, die vier
+  Steuer am oberen Brettrand bekamen einen verkürzten Rect zum Ausweichen).
+  Er war grün getestet und sah auf einem Streifen-Screenshot richtig aus.
+  **Gemeldet: "der balken überdeckt die map. das muss nicht sein"** und **"die
+  map schließt jetzt nicht mehr links und rechts mit den 2 seiten panels ab"**
+  — die Oberkante der Karte lag 34 px unter der der Panels, die drei Spalten
+  fluchteten oben also nicht mehr, und der Streifen fraß Karte statt Platz zu
+  belegen.
+- **Die eigene Zeile behebt beides und ist EINFACHER.** Das Brett-Rect beginnt
+  jetzt per Konstruktion unter dem Balken, also gibt es keinen zweiten Rect
+  abzuleiten, keine vier Konsumenten umzuhängen — und keine Möglichkeit, dass
+  der MENU-Knopf aus dem einen Rect GEZEICHNET und gegen ein anderes GEKLICKT
+  wird. `chrome_rect()` ist ersatzlos entfallen; `test_round_progress_bar.py`
+  pinnt, dass kein `board_chrome_rect` zurückkommt.
+- **Die Höhe kommt zur Hälfte aus der Reserves-Sektion** (User-Vorschlag: "du
+  kannst zb die reserves sektion unten etwas kleiner machen") **und zur Hälfte
+  aus der Brettspalte.** Gemessen, warum nicht ganz von unten:
+  `RESERVES_PANEL_HEIGHT` war 136 und ihr eigener Inhalt braucht
+  `HEADER_MARGIN + HEADER_BAR_HEIGHT + 8 + (CARD_PORTRAIT_PX + 2 ×
+  CARD_TEXT_PADDING) + HEADER_MARGIN = 122` — also **14 px Luft**. Sie gibt 10
+  ab (→ 126, 4 px Rest), der Balken ist dafür auf **28** statt 34 geschrumpft,
+  und die Brettspalte trägt die übrigen 18. **Gepinnt wird die LUFT, nicht die
+  Zahl**: eine größere Karte dort wird rot, statt still abgeschnitten zu
+  werden.
+- **`DicePanel` musste dafür seine absolute Verankerung aufgeben.** Es rechnete
+  `top_y = PLAYER_BANNER_HEIGHT + DICE_TOP_MARGIN` und las `bounds_rect` nur
+  für x/Breite — ein verkürzter Rect hätte es also nicht bewegt. Jetzt
+  `max(bounds_rect.y, PLAYER_BANNER_HEIGHT)`, EINMAL berechnet und von der
+  Höhenrechnung UND vom Layout gelesen (es waren zwei Ausdrücke für dieselbe
+  Zahl). `PLAYER_BANNER_HEIGHT` bleibt als UNTERGRENZE, weil `PlayerBanner`
+  seine blockierenden Warnungen über die volle Fensterbreite zieht.
+- **`PlayerBanner` darf den Balken überdecken**, und die Zeichenreihenfolge sagt
+  das: es beansprucht denselben Streifen, aber nur für "Regaining Coherency"
+  und einen fälligen Battle-Shock-Wurf — zwei Dinge, die das Spiel anhalten,
+  bis sie beantwortet sind, und die für diesen Moment mehr wert sind als eine
+  Fortschrittsanzeige. Sonst zeichnet es gar nichts.
+- **Aus dem Panel ist die Rundenzahl ERSATZLOS verschwunden**, samt ihrer
+  Kopfleiste: die stand zwischen den zwei Badge-Kacheln, und ohne Text wäre sie
+  ein leerer Rahmen gewesen. Die Phasenzeile darunter bleibt. **Folge, gemessen:**
+  die Lang-Form (ohne Badges) wird dadurch um eine `SUBHEADER_HEIGHT`-Zeile
+  kürzer — und das ist genau die Form, gegen die `test_faction_badges.py` seine
+  "die Spalten ERSETZEN die zwei langen Gruppen"-Zeile vergleicht. Der Pin ist
+  nachgezogen und sagt jetzt, was wirklich gilt (274 gegen 284 px), statt gegen
+  eine Konstante zu messen, die er nicht mehr erreicht.
+- **`last_track_rect` / `last_badge_rect` zeichnen auf, was WIRKLICH gelegt
+  wurde** (Idiom von `DicePanel.last_backdrop_rect`). Die Spur ist alles, was
+  nach Badge und Titel übrig bleibt — wer sie ein zweites Mal herleitet, misst
+  einen anderen Rect als den gezeichneten. **Genau daran ist die erste Fassung
+  der Suite gescheitert:** sie scannte Badge und Titel mit und meldete
+  29 gefüllte Pixel für eine Schlacht, die noch nicht begonnen hatte.
+- **Getestet:** neu `test_round_progress_bar.py` (**76/76**, acht Abschnitte —
+  Geometrie an vier Breiten, die Kachelung ohne Drift, der Zustand→Füllung an
+  PIXELN, die Farbe PRO Zug, das Badge nach INHALT statt nach Pixelzahl, und
+  die Verdrahtung) plus `ab_round_progress_bar.py` (**8 A/B-Sonden, alle
+  beißend**). **Zwei Befunde über den TEST**, beide von den Sonden: die
+  Pixelzahl eines Badges unterscheidet die Aeldari- und die Necron-Kunst NICHT
+  (beide inken gleich viele Pixel in einer 29-px-Kachel — verglichen wird jetzt
+  der Inhalt), und eine Sonde ließ die Suite mit `min()` auf einer leeren
+  Sequenz ABSTÜRZEN statt rot zu werden (**neunzehnte Instanz**). Volle
+  Regression **205 Suiten, ~17900 Prüfungen, alle grün bis auf den einen
+  bekannten Fehlschlag**.
+- **Im ECHTEN Spiel belegt** (`verify_round_progress_bar.py`, `runpy` auf
+  `selfplay.py`s echte `main()`-Schleife, nichts gestellt — der Balken wird in
+  jedem Frame gezeichnet, also der seltene passiv messbare Fall):
+
+  | | gefixt | `--neutralize` |
+  |---|---|---|
+  | Frames mit Balken / mit Badge | 1999 / 1999 | 1999 / 1999 |
+  | **Balken überdeckt das Brett** | **0** | **1998** |
+  | Balken frei vom Brett | **1998** | 0 |
+  | **Spalten teilen die Unterkante des Balkens** | **1998** | **0** |
+  | Spalten aus der Flucht | **0** | **1998** |
+
+  `--neutralize` stellt die gemeldete Welt in zwei Zügen her (`BAR_HEIGHT = 0`,
+  damit `main()` die Spalten wieder oben ansetzt, plus ein `bar_rect`, das sich
+  in Brettbreite über das Brett legt). **Die ersten beiden Zeilen sind in
+  beiden Welten gleich, und das ist die Aussage:** der Balken zeichnet
+  neutralisiert genauso schön, nur liegt er auf der Karte und die Spalten
+  fluchten nicht. **Ein Screenshot des Streifens kann diesen Fehler nicht
+  zeigen** — deshalb misst die Sonde RECTS, die sie sich von den Widgets
+  abgreift, denen `main()` sie reicht (Würfelpanel → Brett, Action-Panel →
+  links, Game-Status-Panel → rechts).
+  **Eigener Sondenfehler dabei:** die erste Fassung scannte den Bildschirm
+  NACH `runpy` und meldete 0 Pixel jeder Farbe — `main()` ist dann weg und
+  seine Display-Surface nicht mehr lesbar. Gemessen wird jetzt IM Frame, eine
+  Scanline statt der ganzen Spur (14k `get_at()` je Frame wären eine eigene
+  Messverfälschung).
 
 ## Die Toggle-Leiste unten links (game/ui/button_style.py, game/whole_unit_drag.py)
 
@@ -7702,8 +7832,10 @@ KI-Pfad.**
 - **Zwei Schichten.** Der taktische Layer bekommt seine Optionen von der ENGINE — eine regelwidrige
   Aktion taucht gar nicht erst auf. Der Planner schreibt Freitext und kann jede Regel verletzen;
   deshalb existiert `_validate_turn_plan()` als deterministischer Backstop (Reserverunde 20.03,
-  Disembark-Zeitpunkt, LONE OPERATIVE, verschwundene Ziele, unerreichbare Positionen mit
-  3"-Toleranz, Über- und Ein-Einheiten-Garnison, kollidierende Positionen, unbeschießbare
+  Disembark-Zeitpunkt, LONE OPERATIVE, verschwundene Ziele, unerreichbare Positionen — geklemmt auf
+  den ersten Schenkel derselben Linie, seit 2026-09-09 in JEDER Größe —, Rückwärtsbefehle — eine
+  Position, die weiter vom eigenen Ziel liegt als der Standort, wird durch den ersten Schenkel zum
+  Ziel ersetzt —, Über- und Ein-Einheiten-Garnison, kollidierende Positionen, unbeschießbare
   Zielorte). Jede künftige Planungs-Regelverletzung gehört DORTHIN, nicht in den Prompt.
 - **Der Garnisons-Tausch sortiert nach ROLLE, dann erst nach Punkten**
   (`_cheaper_garrison_candidates()`, Schlüssel `(is_assault_unit, cost, gap)`). Billigstes-zuerst
@@ -7784,11 +7916,38 @@ KI-Pfad.**
   - **Getestet:** neu `test_home_garrison.py` (**79/79**) plus drei A/B-Sonden, jede kippt genau
     ihre eigenen Prüfungen; `test_over_garrison.py` von 61 auf **71/71** (Abschnitte 9 und 10
     ehrlich umgeschrieben, siehe unten); `test_report_20260824.py` **65/65**.
-- **Ein Retry-Kanal zurück an den Planner** für Probleme, die nur er beheben kann (eine Koordinate
-  wird für eine EIGENSCHAFT gewählt; ein Punkt daneben erbt keine davon). Läuft im
+- **Ein Retry-Kanal zurück an den Planner** (`_problems_for_the_planner()`) für Probleme, deren
+  Lösung ein Urteil braucht, das der Code nicht fällen kann: ein LONE-OPERATIVE-Ziel, das vom
+  bestellten Standort nicht beschießbar ist (war der Standort oder das Ziel der Punkt?), eine zu
+  große Garnison (welche Einheit wird frei, und wofür?), eine allein geparkte. Läuft im
   Hintergrund-Thread, genau EINMAL, und wird nur übernommen, wenn er messbar weniger Probleme hat
   UND mindestens so viele echte Squads abdeckt — sonst ist "alle Befehle löschen" die billigste Art,
   perfekt zu punkten (genau so ist einmal ein ganzer Zug ohne Plan gelaufen).
+  **Zu weite Positionen gehen NICHT mehr zurück** (bis 2026-09-09: ab 3" Überschuss). Das Argument
+  dafür war richtig — eine Koordinate wird für eine EIGENSCHAFT gewählt, der Punkt auf der
+  Linie erbt keine — und der Retry trotzdem die falsche Antwort, siehe Fehlerklasse 27.
+- **Der Planner schickt Einheiten nicht mehr zu weit — und nicht mehr rückwärts** (User: „warum
+  der planner die einheit überhaupt zu weit schickt. meiner meinung nach sollte er nur erreichbare
+  positionen planen und dann eben staging positions mitgeben nicht gleich das endgültige ziel").
+  Drei Stücke, ein Punkt: `observation.first_leg_toward(squad, goal, reach, obstacles)` ist die
+  EINE Definition des ersten Schenkels (Zentroid → Ziel, eine Marge innerhalb der Reichweite,
+  erst seitlich bis 30° geschwenkt, dann zurückgewalkt, bis der Punkt weder auf einer Wand noch
+  außerhalb des Bretts liegt — der Schwenk zuerst, weil die gemessene Linie der Wraiths auf map4
+  vier Zoll lang eine dünne L-Wand STREIFT und Zurückwalken allein 10" auf 5.9" verkürzt hätte).
+  Die Beobachtung hängt ihn als `first_leg_this_turn` (+`if_you_advance`) an jeden Objective- und
+  Feindeintrag, dessen Mitte außer einer Bewegung liegt (Passagiere ausgenommen, wie beim
+  Staging); der Prompt sagt, dass ein fernes Ziel als TARGET und sein Schenkel als POSITION zu
+  nennen ist; und der Validator klemmt jeden Überschuss auf denselben Helfer und ersetzt einen
+  RÜCKWÄRTSBEFEHL (aktive Rolle, Ziel außer Reichweite, Position mehr als 1" weiter vom Ziel als
+  der Standort; Ziel aus dem `target`-Feld oder — wie im Log — aus dem Reason-Text) durch den
+  Schenkel zum Ziel, im Advance-Band, wenn der Befehl eines brauchte, mit umgeschriebenem
+  `reason` (Fehlerklasse 4). Auf der gemeldeten Szene: (25,20) → geklemmt auf (28,16) ohne
+  zweiten Planner-Call; (44,7) → ersetzt durch (30,17), 5" statt 21" vom Objective.
+  **Bewusst NICHT angefasst:** eine Einheit, deren Ziel schon in Reichweite liegt, darf sich davon
+  weg feinjustieren (aus einem Charge-Bogen, in eine Schusslinie); passive Rollen behalten ihre
+  Koordinate. Getestet: `test_plan_first_leg.py` (**79**), `ab_plan_first_leg.py` (11 Sonden);
+  `test_plan_churn.py` und `test_empty_turn_plan.py` pinnten den alten Retry und sind ehrlich
+  umgeschrieben (letzterer trägt jetzt ein LONE-OPERATIVE-Problem als Kanal-Last).
 - **Ereignisgesteuerte Neuplanung** (gegnerische Einheit stirbt, Charge scheitert), gedeckelt auf 2
   pro Zug, plus Revalidierung an jeder Phasengrenze (reine Arithmetik, kein API-Call). Der alte Plan
   bleibt in Kraft, während der neue entsteht — der Zug friert nie ein.
@@ -7814,8 +7973,9 @@ KI-Pfad.**
 - **Beobachtung** liefert u.a.: Waffen beider Seiten, `defensive_profile`, `threat_assessment`
   (Bedrohung + Handel, getrennt nach `best_to_shoot`/`best_to_charge`), `charge_threats` (Wurf +
   Odds, auch für einen geplanten ZIELORT), `staging_positions` (nur was nach der GEGNERbewegung noch
-  hält und Boden GEWINNT), `reachable_this_turn` (mit `if_you_advance`), `if_you_disembark` /
-  `if_you_stay_aboard`, Terrain, Hidden-Status, `waaagh`, `charge_now` inkl.
+  hält und Boden GEWINNT), `reachable_this_turn` (mit `if_you_advance`), `first_leg_this_turn`
+  an jedem Objective- und Feindeintrag außer Reichweite (der Wegpunkt zum Auswählen),
+  `if_you_disembark` / `if_you_stay_aboard`, Terrain, Hidden-Status, `waaagh`, `charge_now` inkl.
   `chance_if_you_advance_first` (exakte gemeinsame Verteilung über beide Würfe, nicht "Mittelwert
   dann Charge").
 - **Deterministische Entscheidungen ohne API-Call** (jeweils weil es ein VOLLSTÄNDIGES Verfahren ohne

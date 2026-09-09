@@ -63,8 +63,8 @@ PROBES = [
      "    for candidate in (name,):"),
     # The whole feature off: nothing is ever resolved.
     ("nothing is ever resolved (the pre-fix world)", PROMPT_RULE,
-     "    if not prompt:\n        return None, []\n",
-     "    if True:\n        return None, []\n"),
+     "    if not prompt:\n        return NO_RULE\n",
+     "    if True:\n        return NO_RULE\n"),
     # Resolved, but the panel never draws it.
     ("the panel never draws the rule", PANEL,
      "        if not decision_rule:" + NL + "            self._rule_key = None",
@@ -102,15 +102,15 @@ PROBES = [
     # User: "Erst als grosse ueberschrift der name der Ability. Dann der Knopf.
     # Unter dem Knopf dann die Erklaerung."
     ("the generic title instead of the ability's own name", PANEL,
-     "        name = decision_rule[0] if decision_rule else None",
-     "        name = None"),
+     "        heading = decision_rule.heading if decision_rule else None",
+     "        heading = None"),
     ("the title not shouted like the two headings next to it", PANEL,
-     '            surface, rect, (name or "CHOOSE A UNIT").upper(), self.header_font, wrap=True,',
-     '            surface, rect, name or "CHOOSE A UNIT", self.header_font, wrap=True,'),
+     '            surface, rect, (heading or "CHOOSE A UNIT").upper(), self.header_font, wrap=True,',
+     '            surface, rect, heading or "CHOOSE A UNIT", self.header_font, wrap=True,'),
     # Nine of the corpus's 147 printed ability titles are wider than this bar.
     ("a long printed name running off the panel instead of wrapping", PANEL,
-     '            surface, rect, (name or "CHOOSE A UNIT").upper(), self.header_font, wrap=True,',
-     '            surface, rect, (name or "CHOOSE A UNIT").upper(), self.header_font,'),
+     '            surface, rect, (heading or "CHOOSE A UNIT").upper(), self.header_font, wrap=True,',
+     '            surface, rect, (heading or "CHOOSE A UNIT").upper(), self.header_font,'),
     # ...and the same clause from the other side: draw_panel_header keeping its
     # fixed one-line height, so wrap=True buys nothing.
     ("the header bar unable to grow a second line", os.path.join("game", "ui", "button_style.py"),
@@ -160,6 +160,55 @@ PROBES = [
     ("the rule box always as tall as the column", PANEL,
      "        box.height = min(box.height, total + 2 * RULE_BOX_PADDING)",
      "        pass"),
+
+    # --- violet, and the CP cost in the heading ----------------------------
+    # User: "wenn es sich bei der faehigkeit in der linken spalte um ein
+    # stratagem handelt, muss schon in der ueberschrift durch violette farbe zu
+    # erkennen sein, dass es sich um ein stratagem handelt und die die CP
+    # kosten muessen auch teil der ueberschrift sein."
+    #
+    # THE PRE-FIX WORLD is these two lines: the lookup had the kind and the
+    # cost in hand and threw both away, so neither could ever reach the bar.
+    ("the Stratagem's cost thrown away by the lookup", PROMPT_RULE,
+     "                                  is_stratagem=True, cost=stratagem.cost)",
+     "                                  is_stratagem=True)"),
+    ("the Stratagem never flagged as one", PROMPT_RULE,
+     "                                  is_stratagem=True, cost=stratagem.cost)",
+     "                                  cost=stratagem.cost)"),
+    # Carried out but dropped at the draw site: the name alone in the title.
+    ("the heading dropping the cost at the draw site", PANEL,
+     "        heading = decision_rule.heading if decision_rule else None",
+     "        heading = decision_rule.name if decision_rule else None"),
+    ("the bar never told which accent to use", PANEL,
+     "        accent = decision_rule is not None and decision_rule.is_stratagem",
+     "        accent = False"),
+    # HALF a fix, each way round. This bar has no border, so the fill and the
+    # letters are its only two levers and one of them alone is one signal.
+    ("only the letters violet, the bar still navy", PANEL,
+     "            bg_color=STRATAGEM_HEADER_BG_COLOR if accent else None,",
+     "            bg_color=None,"),
+    ("only the bar violet, the letters still gold", PANEL,
+     "            text_color=STRATAGEM_HEADER_TEXT_COLOR if accent else None,",
+     "            text_color=None,"),
+    # A SECOND violet mixed here instead of the one every Stratagem button
+    # already uses - the drift reading the palette exists to stop.
+    ("a violet of its own rather than button_style's", PANEL,
+     "STRATAGEM_HEADER_BG_COLOR = button_style.BG_NORMAL_STRATAGEM",
+     "STRATAGEM_HEADER_BG_COLOR = (40, 14, 56)"),
+    # Two readers of ONE heading, formatted apart.
+    ("PromptRule formatting the heading itself", PROMPT_RULE,
+     "        return rules_text.rule_heading(self.name, self.cost) if self.name else None",
+     '        return ("%s (%s)" % (self.name, self.cost) if self.cost'
+     " else self.name) if self.name else None"),
+    # ...and the box still repeating the heading the bar now carries.
+    ("the heading repeated as the box's first line", PROMPT_RULE,
+     """                return PromptRule(stratagem.name,
+                                  rules_body.blocks_for(stratagem.lines),
+                                  is_stratagem=True, cost=stratagem.cost)""",
+     """                _b = [rules_body.Block("stratagem", stratagem.heading)]
+                _b.extend(rules_body.blocks_for(stratagem.lines))
+                return PromptRule(stratagem.name, _b,
+                                  is_stratagem=True, cost=stratagem.cost)"""),
 ]
 
 base, total, txt = run()

@@ -134,7 +134,7 @@ class GameStatusPanel:
         return ARMY_RULES_LINK_SHORT_TEXT
 
     def _status_lines(self, turn_tracker, badges):
-        """The plain text rows under the Round counter.
+        """The plain text rows at the bottom of the first group.
 
         The "Active Player" row is dropped when badges are being drawn: the
         highlighted frame around one of them says exactly the same thing,
@@ -299,17 +299,11 @@ class GameStatusPanel:
         group_top = y
         badge_positions = []
         label_positions = []
-        round_bar_rect = None
 
         if badges is not None:
             tile_y = y
             left_tile = pygame.Rect(content_x, tile_y, LOGO_BOX, LOGO_BOX)
             right_tile = pygame.Rect(content_x + content_width - LOGO_BOX, tile_y, LOGO_BOX, LOGO_BOX)
-            bar_x = left_tile.right + LOGO_GAP
-            round_bar_rect = pygame.Rect(
-                bar_x, tile_y + (LOGO_BOX - button_style.SUBHEADER_HEIGHT) // 2,
-                (right_tile.left - LOGO_GAP) - bar_x, button_style.SUBHEADER_HEIGHT,
-            )
             y = tile_y + LOGO_BOX + 4
 
             labels = self._badge_labels(badges, content_width)
@@ -348,12 +342,10 @@ class GameStatusPanel:
                                                2 * ARMY_RULES_LINK_PAD)))
             y += ARMY_RULES_LINK_HEIGHT
         else:
-            # No badge art for both players: fall back to the plain bar plus
-            # an "Active Player" line, which is what this group was before.
+            # No badge art for both players: fall back to the plain
+            # "Active Player" line, which is what this group was before.
             # No link either - without a faction there is nothing to look up.
             self._army_rules_rects = []
-            round_bar_rect = pygame.Rect(content_x, y, content_width, button_style.SUBHEADER_HEIGHT)
-            y = round_bar_rect.bottom + 6
 
         line_positions = []
         for line in self._status_lines(turn_tracker, badges):
@@ -365,16 +357,15 @@ class GameStatusPanel:
             rect.width - 12, (y - group_top) + BOX_INNER_PADDING,
         )
         button_style.draw_box(surface, group1_box)
-        round_label = f"ROUND {turn_tracker.battle_round}"
-        if badges is not None:
-            # The bar is only as wide as the gap between the two badges, so a
-            # long round number falls back to the short form rather than
-            # spilling over the tiles.
-            if self.label_font.size(round_label)[0] > round_bar_rect.width - 6:
-                round_label = f"RND {turn_tracker.battle_round}"
-            button_style.draw_header_bar(surface, round_bar_rect, round_label, self.label_font, center=True)
-        else:
-            button_style.draw_header_bar(surface, round_bar_rect, round_label, self.label_font, text_margin=8)
+        # THE ROUND NUMBER IS NOT DRAWN HERE ANY MORE. User: "fuer die Anzeige
+        # der aktuellen runde haette ich gerne anstatt der Zahl einen schoenen
+        # Fortschrittsbalken am oberen Bildschirmrand" - see
+        # game/ui/round_progress_bar.py, which says the round, whose turn it is
+        # and how far the battle has got, all at once. What stood here was a
+        # header bar reading "ROUND 3", squeezed into the gap between the two
+        # badge tiles; with its text gone it would have been an empty frame,
+        # so the bar went with the number rather than being left to say
+        # nothing. The phase row below is untouched.
         for tile, path, active, keyword in badge_positions:
             self._draw_badge(surface, tile, path, active, keyword)
         for text_surf, pos in label_positions:

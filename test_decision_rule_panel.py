@@ -57,12 +57,21 @@ def look_up(key, prompt, squads=None):
                                   entry.faction_keyword, entry.detachments)
 
 
+def rule(name, blocks, **kwargs):
+    """A PromptRule built by hand - a record and not a (name, blocks) tuple
+    since the heading has to carry a Stratagem's CP cost too, and appending
+    fields to a positionally-read tuple is the FooterButtons trap."""
+    return prompt_rule.PromptRule(name, blocks, **kwargs)
+
+
 # ------------------------------------------------------------------ 1) lookup
 print("\n1) The two reported prompts resolve to their printed rule")
-name, blocks = look_up("necrons", LIVING_LIGHTNING)
+_ll = look_up("necrons", LIVING_LIGHTNING)
+name, blocks = _ll.name, _ll.blocks
 c.eq("NECRON IMMORTALS: the leader's ability is found", name, "Living Lightning")
 c.true("...and it has printed text", bool(blocks))
-name_dg, blocks_dg = look_up(DG_LIST, BARRAGE)
+_dg = look_up(DG_LIST, BARRAGE)
+name_dg, blocks_dg = _dg.name, _dg.blocks
 c.eq("DEATH GUARD: the Defiler's ability is found", name_dg, "Barrage of Filth")
 c.true("...and it has printed text", bool(blocks_dg))
 
@@ -87,8 +96,8 @@ c.true("the rule really says what the prompt is asking about",
        any("select one enemy unit" in b.text.lower() for b in blocks))
 
 print("\n1b) It gives nothing rather than guessing")
-c.eq("a prompt naming no printed rule", look_up("necrons", "pick a unit, any unit")[0], None)
-c.eq("an empty prompt", look_up("necrons", "")[0], None)
+c.eq("a prompt naming no printed rule", look_up("necrons", "pick a unit, any unit").name, None)
+c.eq("an empty prompt", look_up("necrons", "").name, None)
 # Word boundaries: without them a rule called "Guide" would answer for
 # "Guided", and the panel would explain the wrong rule with full confidence.
 c.true("a name inside a longer word does not match",
@@ -102,11 +111,11 @@ print("\n1d) A printed name with a bracketed tag still resolves")
 # exactly the shape this feature exists for.
 GUIDE = "1 Guardian Defenders 1 + Farseer: Guide - select one enemy unit."
 c.eq("the Farseer's Guide resolves from a prompt without the tag",
-     look_up("aeldari", GUIDE)[0], "Guide (Psychic)")
+     look_up("aeldari", GUIDE).name, "Guide (Psychic)")
 FALLOUT = ("1 Plague Marines 1 + Malignant Plaguecaster: "
            "Pestilent Fallout - enfeeble which unit?")
 c.eq("DEATH GUARD: Pestilent Fallout too",
-     look_up(DG_LIST, FALLOUT)[0], "Pestilent Fallout (Psychic)")
+     look_up(DG_LIST, FALLOUT).name, "Pestilent Fallout (Psychic)")
 c.eq("stripping the tag is what does it", prompt_rule._bare("Guide (Psychic)"), "Guide")
 c.eq("...and a name without one is left alone", prompt_rule._bare("Living Lightning"), None)
 c.true("the bare alias is still whole-word matched",
@@ -116,9 +125,9 @@ print("\n1c) Only rules that are ON THE TABLE are candidates")
 # The same prompt, asked against the WRONG army's units, must not resolve -
 # otherwise the panel could explain a rule nobody is fielding.
 c.eq("Living Lightning is not found among Death Guard units",
-     look_up(DG_LIST, LIVING_LIGHTNING, army(DG_LIST)[1])[0], None)
+     look_up(DG_LIST, LIVING_LIGHTNING, army(DG_LIST)[1]).name, None)
 c.eq("Barrage of Filth is not found among Necron units",
-     look_up("necrons", BARRAGE, army("necrons")[1])[0], None)
+     look_up("necrons", BARRAGE, army("necrons")[1]).name, None)
 
 print("\n2) ability_blocks() is the structured sibling of abilities_for()")
 c.eq("an unknown ability name", rules_text.ability_blocks(leader, "No Such Rule"), [])
@@ -193,9 +202,9 @@ def ink_below(surface, rect, y):
 
 print()
 print("3) The left panel draws it, under the pick screen, and only when there is one")
-blocks = look_up("necrons", LIVING_LIGHTNING)[1]
+blocks = look_up("necrons", LIVING_LIGHTNING).blocks
 plain_panel, plain, rect = render(None)
-with_rule_panel, with_rule, _ = render(("Living Lightning", blocks))
+with_rule_panel, with_rule, _ = render(rule("Living Lightning", blocks))
 
 # MEASURED, not guessed: where the pick screen itself stops depends on how
 # many units are eligible and how many ways out the rule offers.
@@ -246,7 +255,7 @@ c.true("the box ends inside the panel",
 print()
 print("3b) It fits the smallest window this project targets")
 for size in ((1920, 1080), (1600, 900), (1280, 720)):
-    panel, surface, prect = render(("Living Lightning", blocks), size=size)
+    panel, surface, prect = render(rule("Living Lightning", blocks), size=size)
     label = f"{size[0]}x{size[1]}"
     c.true(f"{label}: the rule is drawn", panel._rule_bottom is not None)
     c.true(f"{label}: and stays inside the panel", (panel._rule_bottom or 0) <= prect.bottom)
@@ -257,7 +266,7 @@ print("3c) A long rule SCROLLS - this column has no room to clip one away")
 # carrying the prompt, the unit list and the way out, so the rule has to stay
 # readable rather than merely fit.
 long_blocks = blocks * 12
-tall_panel, tall, tall_rect = render(("Living Lightning", long_blocks), size=(1280, 720))
+tall_panel, tall, tall_rect = render(rule("Living Lightning", long_blocks), size=(1280, 720))
 c.true("a long rule reports something to scroll", tall_panel._rule_scroll_max > 0)
 c.eq("...and starts at the top", tall_panel._rule_scroll, 0)
 # A probe that stops the box being drawn leaves this None, and reaching into it
@@ -277,7 +286,7 @@ c.eq("scrolling stops at the end", tall_panel._rule_scroll, tall_panel._rule_scr
 for _ in range(400):
     tall_panel.handle_rule_scroll(_view.center, 1)
 c.eq("...and at the top", tall_panel._rule_scroll, 0)
-short_panel, _s, _r = render(("Living Lightning", blocks), size=(1920, 1080))
+short_panel, _s, _r = render(rule("Living Lightning", blocks), size=(1920, 1080))
 c.eq("a rule that fits has nothing to scroll", short_panel._rule_scroll_max, 0)
 c.true("...so it does not claim the wheel either",
        short_panel._rule_view is None
@@ -288,7 +297,7 @@ c.true("...so it does not claim the wheel either",
 tall_panel.handle_rule_scroll(_view.center, -1)
 # ALSO long, so a smaller scroll_max cannot zero the offset by itself -
 # without that this check passes whether or not the reset exists.
-tall_panel._draw_decision_rule(tall, tall_rect, 240, ("Some Other Rule", long_blocks))
+tall_panel._draw_decision_rule(tall, tall_rect, 240, rule("Some Other Rule", long_blocks))
 c.eq("switching rules resets the scroll", tall_panel._rule_scroll, 0)
 
 
@@ -308,7 +317,7 @@ def _spy_header(surface, hrect, text, font, **kwargs):
 
 button_style.draw_panel_header = _spy_header
 try:
-    named_panel, named, named_rect = render(("Living Lightning", blocks))
+    named_panel, named, named_rect = render(rule("Living Lightning", blocks))
     _named_titles, _titles[:] = list(_titles), []
     render(None)
     _plain_titles = list(_titles)
@@ -331,7 +340,7 @@ c.true("the longest printed name really does not fit on one line",
            ActionPanel().header_font, LONG_NAME.upper(),
            config.LEFT_PANEL_WIDTH - 2 * button_style.HEADER_MARGIN
            - 2 * button_style.HEADER_TEXT_MARGIN)) > 1)
-_long_panel, _long, _long_rect = render((LONG_NAME, blocks))
+_long_panel, _long, _long_rect = render(rule(LONG_NAME, blocks))
 
 
 def first_button(panel):
@@ -370,7 +379,7 @@ c.true("the printed rule is the last thing on the screen",
 _no_exit = unit_pick_mod.UnitPick("Living Lightning - strike which unit?", None,
                                   [_pick_squad], {id(_pick_squad): 0}, [],
                                   lambda _i: None)
-_mand_panel, _mand, _mand_rect = render_pick(_no_exit, ("Living Lightning", blocks))
+_mand_panel, _mand, _mand_rect = render_pick(_no_exit, rule("Living Lightning", blocks))
 c.eq("a mandatory choice draws no button", _mand_panel._buttons, [])
 c.true("...and its explanation still sits under the heading",
        bool(ink_below(_mand, _mand_rect, _title_bottom + 2)))
@@ -381,18 +390,193 @@ print("3e) The rule box is as tall as the rule, not as tall as the column")
 # It used to run to the bottom edge unconditionally, so a one-paragraph rule
 # sat under a mostly empty framed box - and an empty box reads as art that
 # failed to load, the same reason nothing at all is drawn when there is no rule.
-_one_panel, _one, _one_rect = render(("Living Lightning", blocks))
-_two_panel, _two, _ = render(("Living Lightning", blocks * 2))
+_one_panel, _one, _one_rect = render(rule("Living Lightning", blocks))
+_two_panel, _two, _ = render(rule("Living Lightning", blocks * 2))
 c.true("the box tracks the rule's own height",
        0 < (_one_panel._rule_bottom or 0) < (_two_panel._rule_bottom or 0))
 c.true("...and a rule that fits stops short of the column's bottom",
        (_two_panel._rule_bottom or 0) < _one_rect.bottom)
-_big_panel, _big, _big_rect = render(("Living Lightning", blocks * 12))
+_big_panel, _big, _big_rect = render(rule("Living Lightning", blocks * 12))
 c.true("one that does not fit still uses all the room there is",
        _big_panel._rule_scroll_max > 0
        and (_big_panel._rule_bottom or 0) > (_two_panel._rule_bottom or 0))
 c.true("...and stays inside the panel", (_big_panel._rule_bottom or 0) <= _big_rect.bottom)
 
+
+print()
+print("3f) A STRATAGEM says so in the heading - violet, and its CP cost in it")
+# User: "wenn es sich bei der faehigkeit in der linken spalte um ein stratagem
+# handelt, muss schon in der ueberschrift durch violette farbe zu erkennen
+# sein, dass es sich um ein stratagem handelt und die die CP kosten muessen
+# auch teil der ueberschrift sein."
+#
+# FOUND, not named: a suite that hardcodes "aeldari_guardian_battlehost" breaks
+# as a crash when that list is retired. This sweeps the shipped lists for the
+# first one that actually fields a Stratagem with a printed cost, so the case
+# survives any roster change that still leaves one on the table.
+_strat_key = _strat = None
+for _key in sorted(army_lists.BY_KEY):
+    _entry = army_lists.get(_key)
+    for _det in _entry.detachments or ():
+        for _s in rules_text.detachment_stratagems(
+                _entry.faction_keyword, getattr(_det, "name", _det)):
+            if _s.cost:
+                _strat_key, _strat = _key, _s
+                break
+        if _strat is not None:
+            break
+    if _strat is not None:
+        break
+c.true("a shipped list fields a Stratagem with a printed cost", _strat is not None)
+
+# The lookup half, against that list's REAL units and detachments: the prompt
+# names the Stratagem, exactly as the four board-pick Stratagems write it
+# ("Cost of Victory (1 CP): pull which unit into Strategic Reserves?").
+_sname = _strat.name if _strat is not None else "NO SUCH STRATAGEM"
+_strat_rule = look_up(_strat_key or "aeldari",
+                      "%s: pull which unit off the board?" % _sname)
+c.eq("the Stratagem resolves from its own prompt", _strat_rule.name, _sname)
+c.true("...and is flagged as a Stratagem, not an ability", _strat_rule.is_stratagem)
+c.eq("...carrying the printed CP cost", _strat_rule.cost,
+     _strat.cost if _strat is not None else None)
+# Pinned against the CORPUS RECORD's own heading rather than a literal: the
+# two are the same rule, and rules_text.rule_heading() is the one formatter
+# they share. Written out at both ends they would drift on the separator, and
+# one Stratagem would then have two visibly different headings on one screen.
+c.eq("the heading is the name PLUS the cost", _strat_rule.heading,
+     _strat.heading if _strat is not None else None)
+c.true("...built by the shared formatter",
+       _strat_rule.heading == rules_text.rule_heading(
+           _sname, _strat.cost if _strat is not None else None))
+c.true("...so the cost is really in it",
+       bool(_strat.cost) and _strat.cost in (_strat_rule.heading or ""))
+# An ability has neither, so it cannot colour a heading by accident.
+_ability_rule = look_up("necrons", LIVING_LIGHTNING)
+c.true("an ability is not flagged as a Stratagem", not _ability_rule.is_stratagem)
+c.eq("...and has no cost", _ability_rule.cost, None)
+
+# The heading that actually reaches the bar, via the same spy 3d uses. The
+# pick record and the rule are INDEPENDENT inputs to the panel - main.py
+# resolves one from the other's prompt - so the ordinary pick is reused here
+# and only the rule changes, which is what isolates the heading.
+_titles[:] = []
+button_style.draw_panel_header = _spy_header
+try:
+    _sp_panel, _sp, _sp_rect = render(_strat_rule)
+    _sp_titles, _titles[:] = list(_titles), []
+    _ab_panel, _ab, _ab_rect = render(_ability_rule)
+    _ab_titles = list(_titles)
+finally:
+    button_style.draw_panel_header = _real_header
+    _titles[:] = []
+c.eq("the drawn title is the Stratagem's heading, cost included",
+     _sp_titles[:1], [((_strat_rule.heading or "").upper(), True)])
+c.true("...and the cost survives the shouting",
+       bool(_sp_titles) and (_strat.cost or "").upper() in _sp_titles[0][0])
+
+
+def title_colours(surface, prect):
+    """Every colour in the title band, with a count - measured off the drawn
+    pixels rather than off the constants that produced them."""
+    band = pygame.Rect(prect.x, prect.y, prect.width,
+                       button_style.HEADER_MARGIN + button_style.HEADER_BAR_HEIGHT)
+    out = {}
+    for yy in range(band.top, band.bottom):
+        for xx in range(band.left, band.right):
+            key = surface.get_at((xx, yy))[:3]
+            out[key] = out.get(key, 0) + 1
+    return out
+
+
+_sp_colours = title_colours(_sp, _sp_rect)
+_ab_colours = title_colours(_ab, _ab_rect)
+c.true("the Stratagem's bar is filled violet",
+       _sp_colours.get(tuple(action_panel.STRATAGEM_HEADER_BG_COLOR), 0) > 500)
+c.true("...and its letters are violet too",
+       _sp_colours.get(tuple(action_panel.STRATAGEM_HEADER_TEXT_COLOR), 0) > 50)
+# THE COUNTER-CHECK, without which this section would pass just as well on a
+# panel that painted every heading violet.
+c.eq("nothing of the ordinary heading is left on it",
+     (_sp_colours.get(tuple(button_style.HEADER_BG_COLOR), 0)
+      + _sp_colours.get(tuple(config.PANEL_HEADER_COLOR), 0)), 0)
+c.true("an ability's heading keeps the panel's own gold",
+       _ab_colours.get(tuple(config.PANEL_HEADER_COLOR), 0) > 50
+       and _ab_colours.get(tuple(button_style.HEADER_BG_COLOR), 0) > 500)
+c.eq("...with no violet on it at all",
+     (_ab_colours.get(tuple(action_panel.STRATAGEM_HEADER_BG_COLOR), 0)
+      + _ab_colours.get(tuple(action_panel.STRATAGEM_HEADER_TEXT_COLOR), 0)), 0)
+
+# ONE violet in this HUD: the panel bar and every Stratagem button read the
+# same palette, so they cannot drift into two shades meaning one thing.
+c.eq("the bar's violet IS button_style's stratagem palette",
+     (action_panel.STRATAGEM_HEADER_TEXT_COLOR, action_panel.STRATAGEM_HEADER_BG_COLOR),
+     (button_style.TEXT_NORMAL_STRATAGEM, button_style.BG_NORMAL_STRATAGEM))
+c.true("...and it is a different colour from the ordinary heading",
+       action_panel.STRATAGEM_HEADER_BG_COLOR != button_style.HEADER_BG_COLOR
+       and action_panel.STRATAGEM_HEADER_TEXT_COLOR != config.PANEL_HEADER_COLOR)
+# Readable on its own fill - the bar is not asked to be violet at the price of
+# the words on it.
+c.true("the violet letters stand off the violet fill",
+       sum(abs(a - b) for a, b in zip(action_panel.STRATAGEM_HEADER_TEXT_COLOR,
+                                      action_panel.STRATAGEM_HEADER_BG_COLOR)) > 300)
+
+# THE COLOUR IS NOT ASKED TO CARRY IT ALONE. The cost is TEXT, so it survives a
+# greyscale screenshot and a colour-blind reader - and a Stratagem that printed
+# no cost would still be violet, which is why is_stratagem is its own flag
+# rather than "cost is not None". MEASURED: all 67 Stratagem headings the
+# shipped lists field DO print one, so that branch is a net rather than a live
+# case, and it is therefore driven from a constructed rule rather than left to
+# look like something the corpus produces.
+_costless = [_s2 for _k2 in sorted(army_lists.BY_KEY)
+             for _d2 in (army_lists.get(_k2).detachments or ())
+             for _s2 in rules_text.detachment_stratagems(
+                 army_lists.get(_k2).faction_keyword, getattr(_d2, "name", _d2))
+             if not _s2.cost]
+c.eq("every fielded Stratagem prints a cost, so the net is a net", _costless, [])
+_free_panel, _free, _free_rect = render(rule("FREE PLOY", blocks, is_stratagem=True))
+_free_colours = title_colours(_free, _free_rect)
+c.true("a costless Stratagem is violet all the same",
+       _free_colours.get(tuple(action_panel.STRATAGEM_HEADER_BG_COLOR), 0) > 500)
+
+# THE COST MAKES THE HEADING LONGER, and this bar only grows because 3d's
+# wrap=True was put on it. MEASURED over every Stratagem the shipped lists
+# field: 36 of the 67 headings need more than one line at this column's width,
+# so a fixed one-line bar would run more than half of them off the panel. The
+# WIDEST of them still has to leave the way out and the rule box on screen at
+# the smallest window this project targets.
+_widest = max(
+    (_s3 for _k3 in sorted(army_lists.BY_KEY)
+     for _d3 in (army_lists.get(_k3).detachments or ())
+     for _s3 in rules_text.detachment_stratagems(
+         army_lists.get(_k3).faction_keyword, getattr(_d3, "name", _d3))),
+    key=lambda _s3: ActionPanel().header_font.size(_s3.heading.upper())[0], default=None)
+c.true("the widest fielded Stratagem heading really needs more than one line",
+       _widest is not None and len(button_style.wrap_text(
+           ActionPanel().header_font, _widest.heading.upper(),
+           config.LEFT_PANEL_WIDTH - 2 * button_style.HEADER_MARGIN
+           - 2 * button_style.HEADER_TEXT_MARGIN)) > 1)
+_wide_panel, _wide, _wide_rect = render(
+    rule(_widest.name if _widest is not None else "X", blocks,
+         is_stratagem=True, cost=_widest.cost if _widest is not None else None),
+    size=(1280, 720))
+c.true("...and it still leaves the way out on screen",
+       first_button(_wide_panel) is not None
+       and _wide_rect.contains(first_button(_wide_panel)))
+c.true("...and the rule box with it",
+       0 < (_wide_panel._rule_bottom or 0) <= _wide_rect.bottom)
+c.true("no ink escapes the column while it wraps",
+       all(_wide.get_at((_wide_rect.right + 2, y))[:3] == (0, 0, 0)
+           for y in range(_wide_rect.y + 2, _wide_rect.y + 140, 2)))
+
+# The box below no longer repeats the heading: it carried the Stratagem's name
+# because it used to be the only place the rule was named at all.
+c.true("the rule's own body still has text", bool(_strat_rule.blocks))
+c.eq("the heading is not repeated as the box's first line",
+     [b.text for b in _strat_rule.blocks if b.text == _strat_rule.heading], [])
+c.eq("...and no leftover 'stratagem' block either",
+     [b.kind for b in _strat_rule.blocks if b.kind == "stratagem"], [])
+c.true("the printed body is still verbatim - the subtitle survived",
+       any(b.kind == "subtitle" for b in _strat_rule.blocks))
 
 # ---------------------------------------------------------------- 4) wiring
 print()
