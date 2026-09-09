@@ -894,19 +894,43 @@ class ActionPanel:
         a button here, because the modal overlay that used to carry them is
         deliberately not drawn while the board owns the answer. A rule that
         offers no way out gets no button - that is a mandatory choice, and
-        inventing an escape would change the rule."""
-        text_y = self._draw_text(
-            surface, rect, "CHOOSE A UNIT", rect.y + 10,
-            color=config.PANEL_HEADER_COLOR, font=self.header_font, gap=6,
+        inventing an escape would change the rule.
+
+        THE ORDER IS NAME, BUTTON, EXPLANATION - user, on being asked to pick a
+        unit for Doom or Guide: "dann soll links bitte eine bessere
+        einheitlichere Struktur sein. Erst als grosse ueberschrift der name der
+        Ability. Dann der Knopf. Unter dem Knopf dann die Erklaerung."
+
+        The title is therefore the PRINTED rule name where one resolved
+        (game/prompt_rule.py reads it back out of the prompt), and the generic
+        "CHOOSE A UNIT" only where it did not - which is not a fallback for
+        rare cases: a good third of the board picks in this game are core rules
+        with no corpus entry at all, and there is no name to show for those.
+
+        The SUBJECT stays with the title rather than moving down into the
+        explanation, because where a rule has one it IS the question ("which
+        objective are we talking about"), not a detail of it - the reading
+        game/mission_unit_pick.py's Burden of Trust was built around."""
+        name = decision_rule[0] if decision_rule else None
+        # Upper case: the two other headings on this screen ("WHY YOU ARE
+        # CHOOSING", and the generic title this replaces) are shouted, and a
+        # mixed-case name in the same gold bar reads as a different kind of
+        # thing. The name itself is still the corpus's, verbatim.
+        text_y = button_style.draw_panel_header(
+            surface, rect, (name or "CHOOSE A UNIT").upper(), self.header_font, wrap=True,
         )
-        # The subject, in the header font: where a rule has one it IS the
-        # question ("which objective are we talking about"), not a detail of it.
         if pick.subject:
             text_y = self._draw_text(
                 surface, rect, pick.subject, text_y,
-                color=config.PANEL_HEADER_COLOR, font=self.header_font, gap=6,
+                color=config.PANEL_HEADER_COLOR, font=self.header_font, gap=8,
             )
-        text_y = self._draw_text(surface, rect, pick.prompt, text_y, gap=6)
+        for label, index in pick.skip_options:
+            r = pygame.Rect(rect.x + BUTTON_MARGIN, text_y,
+                            rect.width - 2 * BUTTON_MARGIN, BUTTON_HEIGHT)
+            r = self._draw_button(surface, r, label, accent="danger")
+            self._buttons.append((r, lambda i=index: pick.choose(i)))
+            text_y = r.bottom + BUTTON_GAP
+        text_y = self._draw_text(surface, rect, pick.prompt, text_y + 2, gap=6)
         if pick.squads:
             text_y = self._draw_text(surface, rect, "Eligible units:", text_y, gap=2)
             for squad in pick.squads:
@@ -917,12 +941,6 @@ class ActionPanel:
             surface, rect, "Click one of them on the battlefield.", text_y,
             color=HINT_COLOR, gap=10,
         )
-        for label, index in pick.skip_options:
-            r = pygame.Rect(rect.x + BUTTON_MARGIN, text_y,
-                            rect.width - 2 * BUTTON_MARGIN, BUTTON_HEIGHT)
-            r = self._draw_button(surface, r, label, accent="danger")
-            self._buttons.append((r, lambda i=index: pick.choose(i)))
-            text_y = r.bottom + BUTTON_GAP
         self._draw_decision_rule(surface, rect, text_y + 4, decision_rule)
 
     def _draw_decision_rule(self, surface, rect, y, decision_rule):
@@ -982,6 +1000,14 @@ class ActionPanel:
         text_width = box.width - 2 * RULE_BOX_PADDING - RULE_SCROLLBAR_WIDTH - 4
 
         entries, total = self._rules_body.layout(blocks, text_width)
+        # AS TALL AS THE RULE NEEDS, up to what is left of the column. It used
+        # to run to the bottom edge unconditionally, which drew a mostly empty
+        # framed box under a short rule - and an empty box reads as something
+        # that failed to load, which is the same reason nothing at all is drawn
+        # when there is no rule. Safe to decide here because the box's WIDTH is
+        # already settled, so the wrap - and therefore `total` - does not
+        # depend on the height being chosen from it.
+        box.height = min(box.height, total + 2 * RULE_BOX_PADDING)
         view_height = box.height - 2 * RULE_BOX_PADDING
         self._rule_scroll_max = max(0, total - view_height)
         self._rule_scroll = max(0, min(self._rule_scroll, self._rule_scroll_max))

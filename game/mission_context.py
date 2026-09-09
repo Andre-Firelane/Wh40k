@@ -112,7 +112,14 @@ def _zone_centre(zone):
     """A representative point inside the zone. Sampled from the shape rather
     than averaged over rectangle centres, so it is still inside for a diagonal
     or holed zone - a rectangle-centre average is only meaningful while the
-    zone IS rectangles."""
+    zone IS rectangles.
+
+    NO PRODUCTION CALLER since in_own_territory() went from comparing zone
+    CENTRES to comparing the zones themselves (see its docstring for why). It
+    stays, and stays re-exported by game/secondary_missions.py, because
+    test_deployment_shapes.py rebuilds both superseded rules from it: the
+    pre-shape axis pick and the centre bisector that replaced it. A pre-fix
+    world you cannot rebuild is a fix you cannot measure."""
     return zone.centroid(board_box=_board_box())
 
 

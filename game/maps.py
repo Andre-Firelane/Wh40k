@@ -877,7 +877,241 @@ MAP3 = BattleMap(
     # nothing about this one wants that.
 )
 
-MAPS = {m.key: m for m in (MAP1, MAP2, MAP3)}
+# ---------------------------------------------------------------------------
+# MAP 4 - "Sundered", 60"x44" landscape with DIAGONAL deployment zones.
+#
+# Built from Sprites/map4.png, supplied by the user (2400x1760 px = exactly
+# 40 px per inch, the same scale map 3's source uses), by map 3's recipe:
+# measure rather than eyeball, one clean rectangle per footprint, and only the
+# better-conditioned half transcribed because the layout is 180-degree
+# point-symmetric like every other board here.
+#
+# WHAT MAKES IT DIFFERENT FROM MAP 3
+# ----------------------------------
+# Map 3's zones are corner quadrants with a circle bitten out of them. These
+# are TRIANGLES cut off by a DIAGONAL (User: "schraege deployment zones"), and
+# the two diagonals are PARALLEL - so the ground between them is a band of
+# constant width running corner to corner, not a wedge that pinches shut at
+# one end. The user asked for the territory line to be that band's centre
+# line: "die territory grenze ist eine parallele zu den deplyment zones in der
+# mitte zwischen ihnen." See game/mission_context.py's in_own_territory() for
+# how that is delivered - it is a change to the RULE, not a number stored
+# here, because a rule that only this map's file knows is a rule the next map
+# has to rediscover.
+#
+# THE TWO EDGES, AND WHY THE CONSTRUCTION BEATS THE ANNOTATION
+# ------------------------------------------------------------
+# Measured off the tinted pixels: the two drawn edges are parallel to within
+# 0.0008 degrees, and the pink one passes through (0.094, 0) and (30.039, 44)
+# - a board CORNER and the MIDPOINT of the opposite long edge, to within 0.09"
+# and 0.04". Every other piece on this board mirrors to within 0.03-0.13", so
+# the art is drawn to that construction and the sub-tenth-inch drift is the
+# drawing, not the design. The zones are therefore the exact construction:
+# (0,0)-(30,44) for Player 1, and its 180-degree mirror (30,0)-(60,44) for
+# Player 2.
+#
+# THE "24.25"" LABEL IN THE ART IS NOT A MEASUREMENT, and that was checked
+# rather than assumed. The construction leaves 44*30/sqrt(30^2+44^2) = 24.787"
+# of open ground between the two edges, 0.54" more than the label says. The
+# white ruler that label sits on is only 15.05" long end to end, and its two
+# endpoints stand 5.06" and 4.52" from the two dashed lines - it spans
+# NEITHER, so it cannot be the distance between them. Map 3's precedent (the
+# annotation is the round number, the measurement differs by the dashed line's
+# own width) does NOT transfer here: a line width would make the gap LARGER,
+# not smaller. The construction wins and the 0.54" is named here rather than
+# fudged into the coordinates.
+#
+# PLAYER 2 KEEPS THE LOW-Y CORNER, as on all three other maps, so nothing else
+# in the scene has to know which map is running. The source image tints that
+# corner blue and this engine draws Player 1 blue - that is a palette, not a
+# layout.
+# ---------------------------------------------------------------------------
+
+MAP4_WIDTH_IN = 60.0
+MAP4_HEIGHT_IN = 44.0
+# Where each zone edge crosses y=0 and y=HEIGHT. Both edges share the same
+# run, which is what makes them parallel; Player 2's is the 180-degree mirror
+# of Player 1's, which is what makes the band symmetric.
+MAP4_P1_EDGE = (0.0, 30.0)      # (0,0) -> (30,44)
+MAP4_P2_EDGE = (30.0, 60.0)     # (30,0) -> (60,44)
+
+
+def _map4_mirror(x_in, y_in):
+    """The same piece 180 degrees around the board centre - the symmetry the
+    measured layout actually has (every pair matches to 0.03-0.13")."""
+    return MAP4_WIDTH_IN - x_in, MAP4_HEIGHT_IN - y_in
+
+
+def _map4_zone(edge, inside_x, inside_y):
+    """One diagonal corner triangle, as a shape.
+
+    `edge` is (x at y=0, x at y=HEIGHT) for the slanted side;
+    `inside_x`/`inside_y` name a point on the owner's side of it, so the
+    keeping side is traceable back to the measurement rather than to a normal
+    vector's sign (see shapes.HalfPlane.through()'s own note).
+
+    The four board edges are included as half-planes so the shape is BOUNDED.
+    HalfPlane.bounding_box() returns None for a SLANTED edge - correct, since
+    no axis-aligned box expresses it - so without the four square ones this
+    Intersection reports no box at all, and every caller that SAMPLES the zone
+    (the renderer's marching-squares outline, the deployment AI's candidate
+    grid and exposure probe, the map picker's depth/no-man's-land readout)
+    falls back to the whole board. That is the same reason _map3_zone() carries
+    them, and it was found there by a smoke run rather than by a suite."""
+    x0, x1 = edge
+    return shapes.Intersection([
+        shapes.HalfPlane.through(x0, 0.0, x1, MAP4_HEIGHT_IN, inside_x, inside_y),
+        shapes.HalfPlane(1.0, 0.0, 0.0),
+        shapes.HalfPlane(-1.0, 0.0, -MAP4_WIDTH_IN),
+        shapes.HalfPlane(0.0, 1.0, 0.0),
+        shapes.HalfPlane(0.0, -1.0, -MAP4_HEIGHT_IN),
+    ])
+
+
+def _map4_terrain(state, battle_map):
+    cx, cy = battle_map.center
+
+    def barricade(x_in, y_in, width_in, height_in, angle_deg=0.0):
+        """A piece with barricade markings and no rubble on it: a LIGHT
+        footprint only, nothing that blocks sight or movement. Same reading
+        map 2 and map 3 use for their own gold-braced pieces and green
+        containers."""
+        return [Obstacle(x_in=x_in, y_in=y_in, width_in=width_in, height_in=height_in,
+                         category=LIGHT, angle_deg=angle_deg)]
+
+    def rubble_ruin(x_in, y_in, width_in, height_in, angle_deg=0.0,
+                    h_wall_fraction=None, v_wall_fraction=None):
+        """A piece whose art carries green rubble/structure: built as a ruin
+        with our own L-wall layout (two partial doorless walls facing the board
+        centre), the same rule the three older maps follow. The walls turn with
+        the footprint - see game/terrain.py's l_walls()."""
+        return ruin_l(x_in=x_in, y_in=y_in, width_in=width_in, height_in=height_in,
+                      facing_x=cx, facing_y=cy, angle_deg=angle_deg,
+                      h_wall_fraction=h_wall_fraction, v_wall_fraction=v_wall_fraction)
+
+    def both(build, x_in, y_in, *args, **kwargs):
+        """The measured piece AND its mirror. Returns the two terrain areas so
+        a caller can hang an objective on either."""
+        mx, my = _map4_mirror(x_in, y_in)
+        return (state.add_terrain_area(build(x_in, y_in, *args, **kwargs)),
+                state.add_terrain_area(build(mx, my, *args, **kwargs)))
+
+    # -- the two rotated ruins in the band, each carrying an objective -------
+    # Measured (46.80, 33.29), 11.01 x 6.78 at 55.0 degrees.
+    #
+    # THE ANGLE SIGN IS MEASURED, not assumed: building this footprint as a
+    # real Obstacle at +55.0 covers 92.1% of the drawn pixels, at -55.0 only
+    # 62.0%. So the engine's angle_deg IS the image-space angle, with no flip.
+    #
+    # Both sit clear of both zones - the tightest corner stands 1.41" outside
+    # Player 2's edge - which is what makes them No Man's Land objectives.
+    se_ruin, nw_ruin = both(rubble_ruin, 46.80, 33.29, 11.01, 6.78, angle_deg=55.0)
+    state.add_objective(se_ruin, name="Objective Southeast")
+    state.add_objective(nw_ruin, name="Objective Northwest")
+
+    # -- the two home ruins, one wholly inside each deployment zone ----------
+    # Measured (9.84, 35.39), 11.03 x 6.83, square to the board.
+    p1_home, p2_home = both(rubble_ruin, 9.84, 35.39, 11.03, 6.83)
+    state.add_objective(p1_home, name="P1 Home Objective")
+    state.add_objective(p2_home, name="P2 Home Objective")
+
+    # -- the central ruin: ONE piece, standing on the board centre -----------
+    # Measured (30.00, 22.00), 11.05 x 9.62, square to the board. It is its own
+    # 180-degree mirror, so it is built ONCE rather than through both().
+    #
+    # IT KEEPS ruin()'s ALL-FOUR-SIDES-WITH-A-DOOR LAYOUT, unlike every other
+    # ruin on this map, for exactly the reason map 1's and map 2's central
+    # pieces do: no single side of it faces "the enemy", so l_walls()' "the two
+    # sides nearest the board centre" has no meaning here - the piece IS the
+    # board centre, and l_walls() would fall back to an arbitrary corner.
+    #
+    # And only two of the four corner "L"s are built, following map 2: the
+    # surviving pair is diagonally opposite so the WALLS stay 180-degree
+    # symmetric like the footprint they stand on. Which two is a measurement
+    # rather than a preference here - "sw" is the low-x/high-y corner, the one
+    # facing Player 1's triangle, and "ne" is the high-x/low-y corner facing
+    # Player 2's. Each player meets a wall coming at it.
+    centre_ruin = state.add_terrain_area(
+        ruin(x_in=30.00, y_in=22.00, width_in=11.05, height_in=9.62,
+             corners=("sw", "ne")))
+    state.add_objective(centre_ruin, name="Central Objective")
+
+    # -- the rubble slab and the braced bar beside it ------------------------
+    # The art draws these two TOUCHING, and the percentile fit is what opened
+    # the seam: it trims a slice off BOTH pieces of a touching pair, so a join
+    # drawn closed came out as a slot. WHICH pairs touch is MEASURED, not
+    # assumed - the two pairs closed on this board are drawn 0.150" apart (the
+    # width of the separator line the art draws between them) while the nearest
+    # pair that does NOT touch stands 1.30" apart and is left open. Without
+    # that control the assurance would also hold on a board that shoved
+    # everything into one lump.
+    #
+    # ONLY BARRICADES MOVE, and nothing is ever resized: no objective-carrying
+    # piece shifts, so all five objectives stand where they were measured.
+    #
+    # NAMED DIFFERENCE FROM MAP 3: none of this map's seams was a shootable
+    # slot. Map 3 had one pair of RUINS whose facing walls stood 0.15" apart,
+    # which a line of sight threaded; here every seam involves a barricade, and
+    # a barricade is LIGHT and has never blocked sight. Closing these is
+    # visual, and that is said out loud rather than left to look like the same
+    # fix.
+    both(rubble_ruin, 30.96, 33.01, 5.92, 3.77)
+    # 35.14 measured; 0.18" west, putting its west edge exactly on the slab's
+    # east edge (30.96 + 5.92/2 = 33.92 = 34.96 - 2.08/2).
+    both(barricade, 34.96, 36.92, 2.08, 5.65)
+
+    # -- the diagonal stack on the flank ------------------------------------
+    # A brown slab and a green container, drawn end to end along one 55-degree
+    # axis. The mask read them as ONE component, so where the seam falls was
+    # measured from the WIDTH PROFILE along that axis rather than guessed: a
+    # clean step from ~1.9" to 3.64" at u=7.50" is the join, and refitting both
+    # halves at the shared 55.0-degree axis gives these two rectangles.
+    #
+    # (An erosion-depth sweep separated them too, but it puts the seam wherever
+    # the erosion happens to break through, which is an artefact of the sweep
+    # and not a measurement of the art.)
+    both(barricade, 13.97, 24.51, 5.97, 3.82, angle_deg=55.0)
+    # (10.93, 18.43) measured; slid 0.384" along the shared 55-degree axis
+    # toward the slab, which is exactly the slack the percentile fit trimmed
+    # (centre-to-centre 6.724" along that axis against 6.710/2 + 5.970/2 =
+    # 6.340" of half-lengths). The two overlap 1.94" across the axis, so this
+    # is a real shared edge and not a corner touch.
+    both(barricade, 11.15, 18.75, 6.71, 2.05, angle_deg=55.0)
+    # The long diagonal barricade behind the home ruin, at its own angle.
+    both(barricade, 21.50, 34.92, 9.49, 2.82, angle_deg=63.0)
+
+    # THE EAST CONTAINER IS THE WEST ONE MIRRORED, and that is a decision:
+    # fitted independently the two came out 0.93" different in length and 4
+    # degrees apart in angle, which is not drift. Rendering both flanks side by
+    # side with one turned 180 degrees showed why - a thin black dimension
+    # guide line crosses the east container's tip, and the colour mask excludes
+    # it, so that fit was measuring a severed piece. The complete one is
+    # measured and mirrored, like every other pair here.
+
+
+MAP4 = BattleMap(
+    key="map4",
+    name="Sundered (60\"x44\", diagonal deployment)",
+    width_in=MAP4_WIDTH_IN,
+    height_in=MAP4_HEIGHT_IN,
+    # Two PARALLEL diagonals - see _map4_zone(). The first map whose zone edges
+    # are slanted, and therefore the first whose territory line is neither
+    # horizontal nor vertical.
+    zones=[
+        ("Player 2", _map4_zone(MAP4_P2_EDGE, MAP4_WIDTH_IN, 0.0)),   # high x, low y
+        ("Player 1", _map4_zone(MAP4_P1_EDGE, 0.0, MAP4_HEIGHT_IN)),  # low x, high y
+    ],
+    terrain=_map4_terrain,
+    # No hand-placed positions: like map 3, this board is only ever played
+    # through rule 03.01's pre-game sequence, which deploys both armies itself.
+    # --no-deployment refuses to run without them, by the guard in main().
+    player1=Player1Deployment(squads=[], devilfish=(0.0, 0.0)),
+    player2=Player2Deployment(gretchin=[], stormboyz=[], warbikers=[],
+                              boyz1=[], trukks=[], deff_dread=[]),
+    # A full-size board fields the full army, like the three before it.
+)
+
+MAPS = {m.key: m for m in (MAP1, MAP2, MAP3, MAP4)}
 DEFAULT_MAP_KEY = MAP1.key
 
 

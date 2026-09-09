@@ -1,4 +1,5 @@
-"""The printed rule behind a board pick, shown in the right-hand column.
+"""The printed rule behind a board pick, shown in the LEFT column - under
+the ability's own name and the way out, where the question already is.
 
 User: "immer wenn ich aufgefordert werde durch eine Fähigkeit etwas auf dem
 Spielfeld auszuwählen. zb. bei necron immortals oder deathguard, schreibe die
@@ -34,7 +35,7 @@ import testkit as tk
 DG_LIST = tk.list_key("DEATH GUARD")
 from game import army_lists, config, maps, prompt_rule, rules_text
 from game.turn import TurnTracker
-from game.ui import rules_body
+from game.ui import button_style, rules_body
 from game.ui.game_status_panel import GameStatusPanel
 
 maps.apply_to_config(maps.get("map2"))
@@ -136,6 +137,7 @@ c.true("...and the same words", bool(card) and card[0].body.split(".")[0] in fla
 # "'why you are choosing' soll in die linke spalte, nicht rechts". A board pick
 # takes the whole left panel over (_draw_unit_pick_ui), so this renders that
 # screen for real rather than a bare panel.
+from game.ui import action_panel  # noqa: E402
 from game.ui.action_panel import ActionPanel  # noqa: E402
 from game import unit_pick as unit_pick_mod  # noqa: E402
 from game.decision import DecisionManager  # noqa: E402
@@ -152,7 +154,9 @@ class _Tok:
 _pick_squad = next(s for s in army("necrons")[1] if s.name.startswith("1 Immortals 1"))
 
 
-def render(decision_rule, size=(1600, 900)):
+def render_pick(pick, decision_rule, size=(1600, 900)):
+    """The pick screen for a GIVEN record - so a section can hand it one the
+    ordinary path does not produce (a rule that offers no way out)."""
     width, height = size
     surface = pygame.Surface((width, height))
     surface.fill((0, 0, 0))
@@ -162,6 +166,13 @@ def render(decision_rule, size=(1600, 900)):
     # panel. Filling it here is what makes "is anything drawn below y" mean
     # anything at all.
     surface.fill(config.PANEL_BG_COLOR, rect)
+    panel = ActionPanel()
+    panel._buttons = []
+    panel._draw_unit_pick_ui(surface, rect, pick, decision_rule=decision_rule)
+    return panel, surface, rect
+
+
+def render(decision_rule, size=(1600, 900)):
     dm = DecisionManager()
     dm.request("Player 1", "Living Lightning - strike which unit?",
                [(_pick_squad.name, (lambda: None), _pick_squad),
@@ -169,10 +180,7 @@ def render(decision_rule, size=(1600, 900)):
     # A token's .squad is the SQUAD, not the model - unit_pick reads it to
     # answer "is this unit on the board".
     pick = unit_pick_mod.pending(dm, [_Tok(_pick_squad) for _ in _pick_squad.models])
-    panel = ActionPanel()
-    panel._buttons = []
-    panel._draw_unit_pick_ui(surface, rect, pick, decision_rule=decision_rule)
-    return panel, surface, rect
+    return render_pick(pick, decision_rule, size=size)
 
 
 def ink_below(surface, rect, y):
@@ -198,10 +206,32 @@ c.true("without a rule, nothing is drawn below the pick screen",
 c.true("with one, something is", bool(ink_below(with_rule, rect, _below)))
 c.eq("the rule box is recorded", bool(with_rule_panel._rule_bottom), True)
 
-# NOTHING ABOVE IT MOVED: the eligible-unit list and the way out are what the
-# player is reading and reaching for when the prompt opens.
-band = pygame.Rect(rect.x, rect.y, rect.width, 200)
-c.true("the pick screen above it is pixel-identical",
+# NOTHING UNDER THE TITLE MOVED: the eligible-unit list and the way out are
+# what the player is reading and reaching for when the prompt opens.
+#
+# The TITLE itself is now the rule's own name (see 3d), so it is EXPECTED to
+# differ between the two renders - and that is checked first, because "the rest
+# is identical" would otherwise pass just as well on a screen that never
+# mentions the rule at all.
+TITLE_BOTTOM = rect.y + button_style.HEADER_MARGIN + button_style.HEADER_BAR_HEIGHT
+c.true("the title itself says which rule this is",
+       any(plain.get_at((x, y)) != with_rule.get_at((x, y))
+           for y in range(rect.y + button_style.HEADER_MARGIN + 2, TITLE_BOTTOM, 2)
+           for x in range(rect.x + 6, rect.right - 6, 2)))
+# DERIVED, not a round number: the band runs from under the title to just
+# above where the rule box's own header begins, so it covers the whole of the
+# pick screen proper however tall this particular prompt happens to be.
+#
+# Everything here degrades to RED rather than raising: a probe that stops the
+# box being drawn at all leaves _rule_view None, and an AttributeError mid-suite
+# hides WHICH assurance it broke - a lesson this repo has recorded a dozen times.
+_VIEW_TOP = getattr(with_rule_panel._rule_view, "top", None)
+c.true("the rule box reports where it starts", _VIEW_TOP is not None)
+RULE_TOP = ((_VIEW_TOP if _VIEW_TOP is not None else rect.bottom)
+            - action_panel.RULE_BOX_PADDING - button_style.SUBHEADER_HEIGHT)
+band = pygame.Rect(rect.x, TITLE_BOTTOM + 2, rect.width, RULE_TOP - TITLE_BOTTOM - 2)
+c.true("the band really covers the pick screen", band.height > 100)
+c.true("everything under the title is pixel-identical",
        all(plain.get_at((x, y)) == with_rule.get_at((x, y))
            for y in range(band.top + 1, band.bottom, 2)
            for x in range(band.left + 2, band.right - 2, 3)))
@@ -230,9 +260,12 @@ long_blocks = blocks * 12
 tall_panel, tall, tall_rect = render(("Living Lightning", long_blocks), size=(1280, 720))
 c.true("a long rule reports something to scroll", tall_panel._rule_scroll_max > 0)
 c.eq("...and starts at the top", tall_panel._rule_scroll, 0)
-_view = tall_panel._rule_view
+# A probe that stops the box being drawn leaves this None, and reaching into it
+# would abort the run instead of naming the assurance that broke - so the whole
+# section falls back to a rect that claims nothing.
+_view = tall_panel._rule_view or pygame.Rect(-99, -99, 1, 1)
 c.true("the scrollable view is inside the panel",
-       _view is not None and tall_rect.contains(_view))
+       tall_panel._rule_view is not None and tall_rect.contains(_view))
 c.true("a wheel notch over the box scrolls it",
        tall_panel.handle_rule_scroll(_view.center, -1) and tall_panel._rule_scroll > 0)
 c.true("...and the wheel elsewhere is NOT claimed - the board still zooms",
@@ -257,6 +290,108 @@ tall_panel.handle_rule_scroll(_view.center, -1)
 # without that this check passes whether or not the reset exists.
 tall_panel._draw_decision_rule(tall, tall_rect, 240, ("Some Other Rule", long_blocks))
 c.eq("switching rules resets the scroll", tall_panel._rule_scroll, 0)
+
+
+print()
+print("3d) The ability's NAME is the heading, then the button, then the words")
+# User, having been asked to pick a unit for Doom or Guide: "dann soll links
+# bitte eine bessere einheitlichere Struktur sein. Erst als grosse ueberschrift
+# der name der Ability. Dann der Knopf. Unter dem Knopf dann die Erklaerung."
+_titles = []
+_real_header = button_style.draw_panel_header
+
+
+def _spy_header(surface, hrect, text, font, **kwargs):
+    _titles.append((text, kwargs.get("wrap")))
+    return _real_header(surface, hrect, text, font, **kwargs)
+
+
+button_style.draw_panel_header = _spy_header
+try:
+    named_panel, named, named_rect = render(("Living Lightning", blocks))
+    _named_titles, _titles[:] = list(_titles), []
+    render(None)
+    _plain_titles = list(_titles)
+finally:
+    button_style.draw_panel_header = _real_header
+    _titles[:] = []
+
+c.eq("the ability's own name is the heading", _named_titles[:1],
+     [("LIVING LIGHTNING", True)])
+# NOT a rare fallback: a good third of this game's board picks are core rules
+# with no corpus entry at all, and there is no name to show for those.
+c.eq("...and the generic title only where no rule resolved", _plain_titles[:1],
+     [("CHOOSE A UNIT", True)])
+# WRAPPED, because the title is a PRINTED name and nine of the corpus's 147
+# ability titles are wider than this column's header bar - the widest,
+# "Infused with the Blessings of Nurgle", by 76px.
+LONG_NAME = "Infused with the Blessings of Nurgle"
+c.true("the longest printed name really does not fit on one line",
+       len(button_style.wrap_text(
+           ActionPanel().header_font, LONG_NAME.upper(),
+           config.LEFT_PANEL_WIDTH - 2 * button_style.HEADER_MARGIN
+           - 2 * button_style.HEADER_TEXT_MARGIN)) > 1)
+_long_panel, _long, _long_rect = render((LONG_NAME, blocks))
+
+
+def first_button(panel):
+    """The way out's rect, or None - so a probe that removes it turns this
+    section RED instead of aborting the run on an IndexError."""
+    return panel._buttons[0][0] if panel._buttons else None
+
+
+c.true("...so the bar grows a line rather than running off the panel",
+       first_button(_long_panel) is not None and first_button(named_panel) is not None
+       and first_button(_long_panel).top > first_button(named_panel).top)
+c.true("and no ink escapes the column while it does",
+       all(_long.get_at((_long_rect.right + 2, y))[:3] == (0, 0, 0)
+           for y in range(_long_rect.y + 2, _long_rect.y + 120, 2)))
+
+# THE ORDER, measured off the drawn pixels rather than off the source. In the
+# layout this replaces, the button was the LAST thing on the screen - under the
+# prompt, the eligible list and the hint - so counting ink on either side of it
+# is exactly what tells the two arrangements apart.
+_button_rect = first_button(named_panel)
+_title_bottom = named_rect.y + button_style.HEADER_MARGIN + button_style.HEADER_BAR_HEIGHT
+c.true("the way out is a button on this screen", _button_rect is not None)
+c.true("the button is drawn under the heading",
+       _button_rect is not None and _button_rect.top >= _title_bottom)
+c.eq("...with nothing in between",
+     [row for row in ink_below(named, named_rect, _title_bottom + 2)
+      if _button_rect is not None and row < _button_rect.top - 1], [])
+c.true("...and the explanation under the button",
+       _button_rect is not None
+       and bool(ink_below(named, named_rect, _button_rect.bottom + 4)))
+c.true("the printed rule is the last thing on the screen",
+       _button_rect is not None and (named_panel._rule_bottom or 0) > _button_rect.bottom)
+
+# A rule that offers no way out gets no button - inventing an escape would
+# change the rule - and the screen still reads heading, then explanation.
+_no_exit = unit_pick_mod.UnitPick("Living Lightning - strike which unit?", None,
+                                  [_pick_squad], {id(_pick_squad): 0}, [],
+                                  lambda _i: None)
+_mand_panel, _mand, _mand_rect = render_pick(_no_exit, ("Living Lightning", blocks))
+c.eq("a mandatory choice draws no button", _mand_panel._buttons, [])
+c.true("...and its explanation still sits under the heading",
+       bool(ink_below(_mand, _mand_rect, _title_bottom + 2)))
+
+
+print()
+print("3e) The rule box is as tall as the rule, not as tall as the column")
+# It used to run to the bottom edge unconditionally, so a one-paragraph rule
+# sat under a mostly empty framed box - and an empty box reads as art that
+# failed to load, the same reason nothing at all is drawn when there is no rule.
+_one_panel, _one, _one_rect = render(("Living Lightning", blocks))
+_two_panel, _two, _ = render(("Living Lightning", blocks * 2))
+c.true("the box tracks the rule's own height",
+       0 < (_one_panel._rule_bottom or 0) < (_two_panel._rule_bottom or 0))
+c.true("...and a rule that fits stops short of the column's bottom",
+       (_two_panel._rule_bottom or 0) < _one_rect.bottom)
+_big_panel, _big, _big_rect = render(("Living Lightning", blocks * 12))
+c.true("one that does not fit still uses all the room there is",
+       _big_panel._rule_scroll_max > 0
+       and (_big_panel._rule_bottom or 0) > (_two_panel._rule_bottom or 0))
+c.true("...and stays inside the panel", (_big_panel._rule_bottom or 0) <= _big_rect.bottom)
 
 
 # ---------------------------------------------------------------- 4) wiring

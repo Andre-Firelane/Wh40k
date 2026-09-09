@@ -28,6 +28,11 @@ CHAMFER_SIZE = 10
 HEADER_MARGIN = 4
 HEADER_BAR_HEIGHT = 34
 HEADER_BG_COLOR = (16, 38, 58)
+#: The inset of a header bar's title from its own left edge. Named because
+#: draw_panel_header(wrap=True) has to subtract it to know how wide the title
+#: may run - two hardcoded 10s would be one edit away from a title that wraps
+#: against a width it is not drawn at.
+HEADER_TEXT_MARGIN = 10
 
 SUBHEADER_HEIGHT = 22
 
@@ -338,7 +343,8 @@ def draw_toggle(surface, rect, label, on, font, hovered=False, pressed=False):
     return toggle_rect
 
 
-def draw_header_bar(surface, rect, text, font, text_color=None, bg_color=None, text_margin=10, center=False):
+def draw_header_bar(surface, rect, text, font, text_color=None, bg_color=None,
+                    text_margin=HEADER_TEXT_MARGIN, center=False):
     """One flat, rectangular background bar with its title text sitting on
     top (left-aligned unless `center`, vertically centered) - the shared building block
     behind both draw_panel_header() (a panel's main title) and any inline
@@ -358,7 +364,7 @@ def draw_header_bar(surface, rect, text, font, text_color=None, bg_color=None, t
         surface.blit(title_surf, title_surf.get_rect(midleft=(rect.x + text_margin, rect.centery)))
 
 
-def draw_panel_header(surface, rect, text, font, text_color=None, bg_color=None):
+def draw_panel_header(surface, rect, text, font, text_color=None, bg_color=None, wrap=False):
     """A panel's main title: a full-width background bar right under the
     panel's own top border (reference image: "Actions" sits inside its own
     bar), not just bare text. Fixed height (not measured off the rendered
@@ -366,9 +372,40 @@ def draw_panel_header(surface, rect, text, font, text_color=None, bg_color=None)
     starts at a hardcoded rect.y+N" layout everywhere without having to
     re-tune every one of those N's - the bar always ends well above the
     smallest of them (rect.y+40). Returns the y position just below it,
-    for callers that stack content off the return value instead."""
-    bar_rect = pygame.Rect(rect.x + HEADER_MARGIN, rect.y + HEADER_MARGIN, rect.width - 2 * HEADER_MARGIN, HEADER_BAR_HEIGHT)
-    draw_header_bar(surface, bar_rect, text, font, text_color=text_color, bg_color=bg_color)
+    for callers that stack content off the return value instead.
+
+    `wrap` grows the bar DOWNWARDS instead of letting a long title run off
+    the panel, and is off by default precisely because of the paragraph
+    above: only a caller that stacks off the return value can afford a bar
+    whose height depends on its text. The one that does is the board-pick
+    screen, whose title is a PRINTED rule name - measured across the five
+    factions, 9 of 147 printed ability titles are wider than this bar
+    (widest: "Infused with the Blessings of Nurgle" at 268px against 192px
+    of title room), so for that caller a single line is not an option.
+
+    A one-line title takes the unchanged path, so every other screen in the
+    game draws the same pixels it drew before."""
+    width = rect.width - 2 * HEADER_MARGIN
+    lines = wrap_text(font, text, width - 2 * HEADER_TEXT_MARGIN) if wrap else []
+    if len(lines) <= 1:
+        bar_rect = pygame.Rect(rect.x + HEADER_MARGIN, rect.y + HEADER_MARGIN, width, HEADER_BAR_HEIGHT)
+        draw_header_bar(surface, bar_rect, lines[0] if lines else text, font,
+                        text_color=text_color, bg_color=bg_color)
+        return bar_rect.bottom + 8
+
+    # The single-line bar's own vertical padding, kept rather than recomputed,
+    # so a two-line title sits in the same amount of air as a one-line one.
+    padding = max(0, (HEADER_BAR_HEIGHT - font.get_height()) // 2)
+    line_height = font.get_height() + 2
+    bar_rect = pygame.Rect(rect.x + HEADER_MARGIN, rect.y + HEADER_MARGIN, width,
+                           2 * padding + len(lines) * line_height - 2)
+    pygame.draw.rect(surface, bg_color if bg_color is not None else HEADER_BG_COLOR, bar_rect)
+    y = bar_rect.y + padding
+    for line in lines:
+        line_surf = font.render(line, True,
+                                text_color if text_color is not None else config.PANEL_HEADER_COLOR)
+        surface.blit(line_surf, (bar_rect.x + HEADER_TEXT_MARGIN, y))
+        y += line_height
     return bar_rect.bottom + 8
 
 

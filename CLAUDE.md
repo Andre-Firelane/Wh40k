@@ -2559,6 +2559,45 @@ rechte Spalte, sonst weiß ich gar nicht was ich da auswähle."*
   keinen Prompt-Text ("Choose which model takes the wound") und damit keinen Namen zum
   Zurücklesen — dafür bräuchte es eine Controller→Regelname-Tabelle. Bewusst nicht mitgebaut.
 
+#### NAME, KNOPF, ERKLÄRUNG — die Reihenfolge der linken Spalte (2026-09-09)
+
+**Gemeldet:** *"wenn ich durch eine ability aufgefordert werde, etwas zu wählen, zb Doom oder
+Guide … Erst als große überschrift der name der Ability. Dann der Knopf. Unter dem Knopf dann die
+Erklärung."* Vorher: generische Überschrift "CHOOSE A UNIT", darunter Prompt, Kandidatenliste und
+Hinweis, und ganz UNTEN der Ausweg-Knopf.
+
+- **Die Überschrift ist der GEDRUCKTE Regelname**, und der lag schon vor: `prompt_rule.for_prompt()`
+  liest ihn aus dem Prompt zurück (siehe darüber), `main.py` reicht ihn seit dem 2026-09-06 als
+  `decision_rule` an genau dieses Panel. Es kostet also keine neue Quelle — nur die Frage, wer den
+  Namen zeigen darf. `"CHOOSE A UNIT"` bleibt für die **Kernregeln ohne Korpus-Eintrag**
+  (Reroll-Angebote, [PRECISION], Missionen) — kein Rand-Fall, sondern gut ein Drittel der Picks.
+- **VERSALIEN und ein HEADER-BAR**, nicht bloß Fettschrift: die zwei anderen Überschriften dieses
+  Screens ("WHY YOU ARE CHOOSING", die generische) sind geschrien, und ein gemischt gesetzter Name
+  im selben goldenen Balken liest sich als etwas anderes. Der NAME selbst bleibt der des Korpus,
+  Klammer-Tag inklusive ("DOOM (PSYCHIC)").
+- **`button_style.draw_panel_header(wrap=True)` ist neu und opt-in**, weil die feste Balkenhöhe eine
+  Entscheidung ist (vierzig Screens legen sich per `rect.y + N` darunter aus) — nur ein Aufrufer,
+  der vom RÜCKGABEWERT stapelt, darf sie wachsen lassen. **Gemessen:** 9 von 147 gedruckten
+  Ability-Titeln sind breiter als der 192-px-Titelraum, der breiteste ("Infused with the Blessings
+  of Nurgle") um 76 px — eine Zeile ist für diesen Aufrufer also keine Option. Der Ein-Zeilen-Pfad
+  ist unverändert, jeder andere Screen zeichnet dieselben Pixel wie vorher.
+- **Der SUBJECT bleibt beim Titel** statt in die Erklärung zu rutschen: wo eine Regel eins hat, IST
+  es die Frage ("um welches Objective geht es"), und genau darauf ist Burden of Trust gebaut.
+- **Der Regelkasten ist jetzt so hoch wie die Regel**, nicht wie die Spalte. Er lief bedingungslos
+  bis zur Unterkante, also stand unter einer Ein-Absatz-Regel ein überwiegend leerer Rahmen — was
+  sich als nicht geladene Kunst liest, derselbe Grund, aus dem ohne Regel gar nichts gezeichnet
+  wird. Sicher an dieser Stelle, weil die BREITE schon feststeht: der Umbruch (und damit `total`)
+  hängt nicht an der Höhe, die daraus gewählt wird.
+- **Getestet:** `test_decision_rule_panel.py` 53 → **72/72** (3d die Reihenfolge an PIXELN — der
+  Knopf unter dem Titel, NICHTS dazwischen, die Erklärung darunter; ein Spion auf
+  `draw_panel_header` belegt, dass wirklich der Regelname ankommt; 3e der Kasten gegen zwei
+  verschieden lange Regeln), `ab_decision_rule_panel.py` 11 → **16 A/B-Sonden, alle beißend**.
+  **Ein fremder Pin wurde zu Recht rot** ("die Zeile über dem Kasten ist pixelidentisch") — der
+  TITEL darf sich jetzt unterscheiden; er prüft das erst getrennt und vergleicht dann von der
+  Titel-Unterkante bis zur Oberkante des Kastens, also ABGELEITET statt gegen eine runde 200.
+  **Zwei bestehende Sonden STÜRZTEN ab statt rot zu werden** (`_rule_view` ist in ihrer Welt None
+  — neunzehnte Instanz dieser Lehre) und degradieren jetzt: 52/72 bzw. 59/72 mit benannten Zeilen.
+
 ## Total-War-Linien-Formation (rechte Maustaste)
 
 **Einheit auswählen, rechte Maustaste halten und ziehen — der Trupp formiert sich entlang der

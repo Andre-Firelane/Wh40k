@@ -97,6 +97,69 @@ PROBES = [
     ("the wrong player's rules searched", MAIN,
      "            _rule_owner = decision_manager.player",
      "            _rule_owner = turn_tracker.turn_owner"),
+
+    # --- name, then button, then explanation --------------------------------
+    # User: "Erst als grosse ueberschrift der name der Ability. Dann der Knopf.
+    # Unter dem Knopf dann die Erklaerung."
+    ("the generic title instead of the ability's own name", PANEL,
+     "        name = decision_rule[0] if decision_rule else None",
+     "        name = None"),
+    ("the title not shouted like the two headings next to it", PANEL,
+     '            surface, rect, (name or "CHOOSE A UNIT").upper(), self.header_font, wrap=True,',
+     '            surface, rect, name or "CHOOSE A UNIT", self.header_font, wrap=True,'),
+    # Nine of the corpus's 147 printed ability titles are wider than this bar.
+    ("a long printed name running off the panel instead of wrapping", PANEL,
+     '            surface, rect, (name or "CHOOSE A UNIT").upper(), self.header_font, wrap=True,',
+     '            surface, rect, (name or "CHOOSE A UNIT").upper(), self.header_font,'),
+    # ...and the same clause from the other side: draw_panel_header keeping its
+    # fixed one-line height, so wrap=True buys nothing.
+    ("the header bar unable to grow a second line", os.path.join("game", "ui", "button_style.py"),
+     "    lines = wrap_text(font, text, width - 2 * HEADER_TEXT_MARGIN) if wrap else []",
+     "    lines = []"),
+    # THE OLD ORDER: the way out drawn last, under the prompt, the eligible
+    # list and the hint - i.e. everything the fix moved below it.
+    ("the way out back at the bottom (the old order)", PANEL,
+     """        for label, index in pick.skip_options:
+            r = pygame.Rect(rect.x + BUTTON_MARGIN, text_y,
+                            rect.width - 2 * BUTTON_MARGIN, BUTTON_HEIGHT)
+            r = self._draw_button(surface, r, label, accent="danger")
+            self._buttons.append((r, lambda i=index: pick.choose(i)))
+            text_y = r.bottom + BUTTON_GAP
+        text_y = self._draw_text(surface, rect, pick.prompt, text_y + 2, gap=6)
+        if pick.squads:
+            text_y = self._draw_text(surface, rect, "Eligible units:", text_y, gap=2)
+            for squad in pick.squads:
+                text_y = self._draw_text(surface, rect, f"- {squad.name}", text_y, gap=2)
+        else:
+            text_y = self._draw_text(surface, rect, "No unit is eligible.", text_y, gap=2)
+        text_y = self._draw_text(
+            surface, rect, "Click one of them on the battlefield.", text_y,
+            color=HINT_COLOR, gap=10,
+        )
+""",
+     """        text_y = self._draw_text(surface, rect, pick.prompt, text_y + 2, gap=6)
+        if pick.squads:
+            text_y = self._draw_text(surface, rect, "Eligible units:", text_y, gap=2)
+            for squad in pick.squads:
+                text_y = self._draw_text(surface, rect, f"- {squad.name}", text_y, gap=2)
+        else:
+            text_y = self._draw_text(surface, rect, "No unit is eligible.", text_y, gap=2)
+        text_y = self._draw_text(
+            surface, rect, "Click one of them on the battlefield.", text_y,
+            color=HINT_COLOR, gap=10,
+        )
+        for label, index in pick.skip_options:
+            r = pygame.Rect(rect.x + BUTTON_MARGIN, text_y,
+                            rect.width - 2 * BUTTON_MARGIN, BUTTON_HEIGHT)
+            r = self._draw_button(surface, r, label, accent="danger")
+            self._buttons.append((r, lambda i=index: pick.choose(i)))
+            text_y = r.bottom + BUTTON_GAP
+"""),
+    # A one-paragraph rule under a box that runs to the bottom edge - a mostly
+    # empty frame, which reads as art that failed to load.
+    ("the rule box always as tall as the column", PANEL,
+     "        box.height = min(box.height, total + 2 * RULE_BOX_PADDING)",
+     "        pass"),
 ]
 
 base, total, txt = run()
