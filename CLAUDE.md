@@ -1580,6 +1580,64 @@ das mitbesitzen wollte, wäre nur eine abstrakte Methode pro Unterschied gewesen
 plus ein kleiner `Paged`-Mixin, und jeder Screen behält seine eigene Klasse. Ein Quell-Wächter
 verlangt von BEIDEN, dass sie wirklich hindurchgehen.
 
+### Eine Kachel ist so hoch wie ihr INHALT, nicht wie das Band (2026-09-09)
+
+**Gemeldet:** *"Die map kacheln sind sehr hoch. unten der text ist sehr gequetscht und fällt
+teilweise raus. mach die kacheln etwas kleiner. dann hat der NEXT button auch etwas mehr platz."*
+
+**ZWEI Fehler in einer Meldung**, beide vor jeder Änderung an der Quelle reproduziert — und
+**196 grüne Prüfungen sahen keinen von beiden**, weil zu diesem Layout nie jemand die HÖHE gemessen
+hat (`test_map_select.py` prüfte "jede Kachel liegt im Fenster" und "jede Vorschau liegt in ihrer
+Kachel", also genau die zwei Aussagen, die auch für eine zu hohe Kachel gelten).
+
+1. **`_text_height()` reservierte EINE Namenszeile.** Drei der vier ausgelieferten Karten tragen
+   ihr Layout im Namen (`Take Cover (44"x60", portrait)`) und brechen in einer Kachel auf ZWEI
+   Zeilen um. Gemessen bei 1920×1080: die letzte Zeile endet bei y=1013, die Kachel bei 1010, der
+   Fußzeilen-Streifen beginnt bei 1016 — der Text stand also **3 px unter seiner eigenen Kachel
+   und im Fußzeilenband**. Das ist das gemeldete "fällt teilweise raus", und der Bodenrand
+   (`TILE_PAD`) war restlos aufgebraucht.
+2. **Die Vorschau-Box nahm "was übrig bleibt".** Damit füllte jede Kachel das ganze Band, egal was
+   die Bretter brauchen: Box 414×796, während das HÖCHSTE Brett (map1, 44"×60") davon nur 565
+   füllt und die drei Querformat-Bretter nur 303 — **231 px jeder Kachel und 493 px der meisten
+   waren leere Platte**. Das ist "die kacheln sind sehr hoch".
+
+- **Der Fix ist eine MESSUNG, keine Konstante:** `_preview_box_height()` fragt die Karten dieses
+  Screens nach dem höchsten Seitenverhältnis (`map_preview.surface_for()` letterboxt mit
+  `min(box_w/w, box_h/h)`, jeder Pixel darüber ist auf JEDER Kachel tot). Eine neue Karte mit
+  höherer Form hebt den Deckel von selbst. Über `items` statt über die SEITE, aus `fit_page()`s
+  Grund: eine zwischen Seiten wechselnde Boxhöhe skalierte die Bilder unter dem Cursor um.
+- **Die geteilte EINE Box bleibt** — sie ist eine dokumentierte Entscheidung ("so lines up a
+  portrait board with a landscape one, und die Form des Bretts ist selbst Teil der Aussage").
+  Gedeckelt wird auf das MINIMUM, das sie einlöst; die Letterbox-Balken der Querformat-Bretter
+  bleiben also und sind Absicht.
+- **`name_lines` wird an derselben `wrap_text()`-Stelle gemessen, die das Zeichnen benutzt** —
+  eine Reservierung, die aus einer zweiten Quelle kommt, ist genau die Drift, aus der der Fehler
+  entstand.
+- **Zentriert im Band über `ts.grid_block()`**, dem VIERTEN Konsumenten: die zurückgewonnene Höhe
+  je zur Hälfte über und unter die Reihe, und die untere Hälfte IST der Platz, den die Fußzeile
+  brauchte. Nicht oben angenagelt — das Argument steht schon im Docstring des Helfers ("eine Reihe
+  an der Decke mit einem Loch darunter").
+- **Gemessen, 1920×1080:** Kachel **906 → 700 px**, Text **+3 px Überstand → 22 px Luft** in der
+  Kachel, Abstand zur Fußzeile **−3 → 131 px**. **Bei 1600×900 und darunter bewegt sich die HÖHE
+  nicht** — dort passt ein Hochformat-Brett ohnehin nicht in seine Breite, der Restplatz bindet
+  weiter; nur die Reservierung wird richtig (der Zwei-Zeilen-Name von map3 lag dort ebenfalls 3 px
+  daneben).
+- **Getestet:** `test_map_select.py` 166 → **196/196** (neuer Abschnitt 3b) plus neu
+  `ab_map_tile_height.py` (**7 A/B-Sonden, alle beißend**; die ganze Vor-Fix-Welt kippt 15 von
+  196). Der Abschnitt misst den Textboden so, wie `_draw_tile()` ihn läuft, statt gegen die
+  Reservierung zu prüfen, die ihn erzeugt hat — und trägt eine LIVENESS-Zeile ("mindestens ein
+  Name bricht wirklich um"), weil jede Textprüfung auf einer Seite mit lauter Ein-Zeilen-Namen
+  vakuum-grün besteht. Dazu zwei GEGENGEWICHTE, ohne die der Deckel auch bei einer auf nichts
+  geschrumpften Box bestünde (das höchste Brett muss die Box füllen, und das Bild muss die Kachel
+  weiter dominieren).
+  - **Eine Sonde war ein Befund über den TEST** (Fehlerklasse 24) und musste die DATEI wechseln:
+    die Vakuitäts-Sonde kürzte zuerst den Namen im ZEICHNEN — die Suite ruft `wrap_text()` aber
+    selbst, auf dem echten Namen, maß also weiter zwei Zeilen und meldete NO BITE. Sie schreibt
+    jetzt `game/maps.py`, weshalb der Sonden-Treiber die Zieldatei pro Sonde führt.
+- **Im ECHTEN Spiel belegt:** `smoke_setup_screens.py` **17/17** — der Screen wird weiter durch
+  `main()`s echte Schleife geklickt (Biom, Kachel, Confirm), und `main()` spielt auf der geklickten
+  Karte.
+
 ### Auswählen und BESTÄTIGEN — zwei Takte statt einem
 
 **Ein Klick wählt AUS, erst der Knopf unten entscheidet** (User: "momentan geschieht die auswahl

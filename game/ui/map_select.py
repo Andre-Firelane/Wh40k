@@ -21,14 +21,21 @@ than by reading three words. Purely cosmetic - see game/biomes.py; the map
 buttons decide the game, these decide what it is painted in.
 
 They sit INSIDE the header bar rather than in a strip of their own so the
-tiles keep their full height - the previews size their box from whatever is
-left over, and a row above them would shrink every board picture on the
-screen. Drawn here rather than in tile_screen.py because the army picker has
-no use for them, and this repo extracts at the SECOND consumer, not the first.
+tiles keep the band to themselves - a row above them would push every tile
+down without giving anything back. Drawn here rather than in tile_screen.py
+because the army picker has no use for them, and this repo extracts at the
+SECOND consumer, not the first.
+
+A TILE IS AS TALL AS ITS CONTENTS, not as tall as the band. It used to be the
+latter, and the difference is the whole of layout()'s preview-box comment
+below: the picture only ever needs what the tallest board's shape asks for,
+and the rest was empty plate above and below every map.
 
 Frame, paging and loop are shared with the army picker - see
 game/ui/tile_screen.py. Only the tile content lives here.
 """
+
+import math
 
 import pygame
 
@@ -245,11 +252,44 @@ class MapSelectScreen(ts.Paged):
         return True
 
     # -- layout -----------------------------------------------------------
-    def _text_height(self):
-        """Room under the picture: name, size line, contents line."""
-        return (self.fonts["name"].get_height()
+    def _name_lines(self, battle_map, tile_width):
+        """How many lines this map's name wraps to in a tile that wide - the
+        same wrap_text() call, at the same width, that _draw_tile() makes, so
+        the reservation cannot disagree with what lands on screen."""
+        return len(wrap_text(self.fonts["name"], battle_map.name,
+                             tile_width - 2 * TILE_PAD) or [""])
+
+    def _text_height(self, name_lines=1):
+        """Room under the picture: the name, the deployment line, the contents
+        line.
+
+        `name_lines` is not decoration. Three of the four shipped maps carry
+        their layout inside their name ("Take Cover (44\"x60\", portrait)") and
+        wrap to TWO lines in a tile; reserving one line's worth put the last
+        line 3 px BELOW the tile's own bottom edge and into the footer strip -
+        the reported "der text ist sehr gequetscht und faellt teilweise raus".
+
+        The 22 is what the drawing spends between the picture and the three
+        lines (12 + 2 + 2) plus 6 px of air, with TILE_PAD under it again."""
+        return (name_lines * self.fonts["name"].get_height()
                 + self.fonts["body"].get_height()
                 + self.fonts["small"].get_height() + 22)
+
+    def _preview_box_height(self, box_width):
+        """How tall the shared preview box has to be for the TALLEST board on
+        this screen to fill it at `box_width`.
+
+        Measured off the maps rather than written down beside them:
+        map_preview.surface_for() letterboxes with min(box_w/w, box_h/h), so
+        every pixel past this one is dead plate on every tile - and a new board
+        with a taller shape raises the cap by itself.
+
+        Over all `items` rather than the current page, for fit_page()'s reason:
+        a box that changed height between pages would re-scale the pictures
+        under the cursor as you flip through them."""
+        tallest = max((box_width * m.height_in / m.width_in for m in self.items),
+                      default=box_width)
+        return max(40, int(math.ceil(tallest)))
 
     def biome_layout(self, screen_rect):
         """Rect per biome button, right-aligned inside the header bar, in
@@ -275,16 +315,38 @@ class MapSelectScreen(ts.Paged):
         page = self.page_items
         tile_width = (area.width - ts.TILE_GAP * (per_page - 1)) // per_page
 
-        # ONE preview box for every tile - same width, same height - filling
-        # whatever is left once the text has its room. Each board is
-        # letterboxed inside it (see map_preview.surface_for), so a portrait
+        # ONE preview box for every tile - same width, same height. Each board
+        # is letterboxed inside it (see map_preview.surface_for), so a portrait
         # board and a landscape one line up instead of each setting its own
         # height, and the difference in shape stays visible.
+        #
+        # AS TALL AS THE TALLEST BOARD NEEDS, and no taller. It used to be
+        # "whatever is left once the text has its room", which made every tile
+        # fill the whole band: measured at 1920x1080 the box came out 414x796
+        # while the tallest board (map1, 44"x60") fills only 565 of it and the
+        # three landscape boards only 303 - so 231 px of every tile, and 493 px
+        # of most of them, was empty plate. That is the reported "die map
+        # kacheln sind sehr hoch", and the height it hands back is what the
+        # footer was short of.
+        #
+        # Where the leftover room is the tighter of the two - 1600x900 and
+        # below, where a portrait board cannot fill its width anyway - this
+        # changes nothing, and the old term still binds.
+        text_height = self._text_height(
+            max((self._name_lines(m, tile_width) for m in page), default=1))
         box_width = max(40, tile_width - 2 * TILE_PAD)
-        box_height = max(40, area.height - self._text_height() - 2 * TILE_PAD)
-        tile_height = min(area.height, box_height + self._text_height() + 2 * TILE_PAD)
+        room = max(40, area.height - text_height - 2 * TILE_PAD)
+        box_height = min(room, self._preview_box_height(box_width))
+        tile_height = box_height + text_height + 2 * TILE_PAD
 
-        rects = ts.tile_rects(area, per_page, len(page), tile_height)
+        # CENTRED in the band now that the tiles no longer fill it - the same
+        # helper and the same argument the faction grid uses (ts.grid_block):
+        # a short block pinned to the top of a tall band reads as a row nailed
+        # to the ceiling with a void under it. Half the reclaimed height goes
+        # above the row and half below, and that lower half is the clearance
+        # the footer's pager was missing.
+        block = ts.grid_block(area, per_page, len(page), tile_height)
+        rects = ts.tile_rects(block, per_page, len(page), tile_height)
         self.tiles = []
         for battle_map, rect in zip(page, rects):
             preview_rect = pygame.Rect(0, 0, box_width, box_height)

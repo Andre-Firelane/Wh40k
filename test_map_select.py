@@ -37,6 +37,7 @@ from game import config, maps  # noqa: E402
 from game.game_state import GameState  # noqa: E402
 from game.ui import map_preview, tile_screen as ts  # noqa: E402
 from game.ui.map_select import MapSelectScreen, map_facts  # noqa: E402
+from game.ui.text_utils import wrap_text  # noqa: E402
 from testkit import Checks  # noqa: E402
 
 c = Checks("map selection")
@@ -295,6 +296,108 @@ many.handle_event(pygame.event.Event(pygame.MOUSEWHEEL, {"y": -1, "x": 0}), SCRE
 c.eq("the wheel pages too", many.page, 2)
 c.eq("a partial page keeps the tile width",
      many.layout(SCREEN_RECT)[0].rect.width, tiles[0].rect.width)
+
+
+# --------------------------------------------------------------------------
+# 3b. The tile is as tall as its CONTENTS, and the text stays inside it
+# --------------------------------------------------------------------------
+print("\n=== 3b. tile height and the text under the picture ===")
+
+# Reported: "Die map kacheln sind sehr hoch. unten der text ist sehr gequetscht
+# und faellt teilweise raus. mach die kacheln etwas kleiner. dann hat der NEXT
+# button auch etwas mehr platz."
+#
+# NOTHING ABOVE THIS SECTION MEASURED EITHER HALF - 166 checks were green while
+# the last line of three of the four tiles sat 3 px BELOW its own tile and
+# inside the footer strip. Two separate faults, so two separate measurements:
+#
+#   the text  - _text_height() reserved ONE name line while three of the four
+#               shipped maps carry their layout in their name and wrap to two.
+#   the tile  - the preview box took "whatever is left over", so a tile filled
+#               the whole band whatever the boards actually needed.
+#
+# Measured at 1920x1080, which is where it was reported and the only shipped
+# resolution whose band is taller than the tallest board needs; 1600x900 is
+# kept beside it because there the leftover room still binds and the height
+# must NOT move.
+WIDE_RECT = pygame.Rect(0, 0, 1920, 1080)
+
+
+def _text_bottom(screen, tile):
+    """Where the last line of a tile's text really ends - walked exactly as
+    _draw_tile() walks it, so this cannot agree with a reservation that the
+    drawing disagrees with."""
+    fonts = screen.fonts
+    width = tile.rect.width - 2 * ts.TILE_PAD
+    lines = wrap_text(fonts["name"], tile.battle_map.name, width) or [""]
+    y = tile.preview_rect.bottom + 12
+    y += len(lines) * fonts["name"].get_height()
+    for role in ("body", "small"):
+        y += fonts[role].get_height() + 2
+    return y, len(lines)
+
+
+for rect in (WIDE_RECT, SCREEN_RECT):
+    tag = f"{rect.width}x{rect.height}"
+    shot = MapSelectScreen()
+    laid = shot.layout(rect)
+    area = ts.tile_area(rect)
+    wrapped = 0
+    for tile in laid:
+        bottom, lines = _text_bottom(shot, tile)
+        wrapped += lines > 1
+        c.true(f"{tag}: {tile.battle_map.key}'s text ends inside its own tile",
+               bottom <= tile.rect.bottom)
+        # Inside the tile is not enough - the tile carries TILE_PAD under the
+        # text, and the reported look was the text pressed against the border
+        # rather than strictly outside it.
+        c.true(f"{tag}: ...with its bottom pad intact",
+               bottom <= tile.rect.bottom - ts.TILE_PAD)
+        c.true(f"{tag}: ...and clear of the footer strip",
+               bottom < rect.bottom - ts.FOOTER_HEIGHT)
+    # LIVENESS. Every check above passes vacuously on a page whose names all
+    # fit one line, and one-line names are exactly the case the old
+    # reservation got right. If no shipped map wraps here any more, this
+    # section has stopped measuring the fault it exists for.
+    c.true(f"{tag}: at least one map name really wraps to two lines", wrapped >= 1)
+
+# THE TILE GAVE HEIGHT BACK. Pinned as a fraction of the band rather than as a
+# pixel count, so a font bump moves it without a false alarm.
+shot = MapSelectScreen()
+laid = shot.layout(WIDE_RECT)
+area = ts.tile_area(WIDE_RECT)
+c.true("1920x1080: a tile no longer fills the whole band",
+       laid[0].rect.height < area.height - 100)
+c.true("...and the row is centred in it, not nailed to the top",
+       abs((laid[0].rect.y - area.y)
+           - (area.bottom - laid[0].rect.bottom)) <= 1)
+c.true("...so the footer has real clearance under the tiles",
+       WIDE_RECT.bottom - ts.FOOTER_HEIGHT - laid[0].rect.bottom > 60)
+
+# THE CAP ITSELF: the shared box is no taller than the tallest board's shape
+# asks for. map_preview.surface_for() letterboxes with min(box_w/w, box_h/h),
+# so every pixel past that is empty plate on EVERY tile - which is what made
+# the tiles "sehr hoch". Measured against the rendered art rather than against
+# the constant that produced the box.
+box = laid[0].preview_rect
+art_heights = [map_preview.surface_for(t.battle_map, box.width, box.height).get_height()
+               for t in laid]
+c.true("1920x1080: the tallest board fills the preview box it is given",
+       box.height - max(art_heights) <= 1)
+c.true("...and the box is still one size for every tile",
+       len({t.preview_rect.size for t in laid}) == 1)
+# The counterweight, or the check above would also pass on a box shrunk to
+# nothing: the picture still has to be the dominant thing in the tile.
+c.true("...while the picture still dominates the tile",
+       box.height > laid[0].rect.height * 0.6)
+
+# WHERE THE BAND IS THE TIGHTER TERM the cap must not bite at all - at
+# 1600x900 a portrait board cannot fill its own width anyway, so the leftover
+# room still decides and the tiles keep the height they had.
+tight = MapSelectScreen()
+tight_tiles = tight.layout(SCREEN_RECT)
+c.eq("1600x900: the band still binds, so the tiles keep the full height",
+     tight_tiles[0].rect.height, ts.tile_area(SCREEN_RECT).height)
 
 
 # --------------------------------------------------------------------------
