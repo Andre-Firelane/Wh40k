@@ -2858,6 +2858,80 @@ Hinweis, und ganz UNTEN der Ausweg-Knopf.
   **Zwei bestehende Sonden STÜRZTEN ab statt rot zu werden** (`_rule_view` ist in ihrer Welt None
   — neunzehnte Instanz dieser Lehre) und degradieren jetzt: 52/72 bzw. 59/72 mit benannten Zeilen.
 
+#### Und ein STRATAGEM sagt es in der Überschrift: violett plus CP (2026-09-09)
+
+**Gemeldet:** *"wenn es sich umbei der fähigkeit ind er linken spalte um ein stratagem handelt,
+muss schon in der überschrift durch violette farbe zu erkenn esien, dass es sich um ein tratatgem
+handelt und die die CP kosten müssen auch teil der Überschrift sein."*
+
+- **Reproduziert vor jeder Änderung** (Cost of Victory, `aeldari_guardian_battlehost`): die
+  Überschrift las `COST OF VICTORY`, gold auf navy wie jede andere — und die 1CP standen zwar
+  schon auf dem Schirm, aber als ERSTE ZEILE DES REGELKASTENS, also unter dem Knopf und unter dem
+  Prompt statt in der Zeile, die man vor dem Entscheiden liest.
+- **`prompt_rule.PromptRule` löst das Tupel ab** (`name`, `blocks`, `is_stratagem`, `cost`), und
+  das ist der `FooterButtons`-Präzedenzfall: `(name, blocks)` wurde an vier Stellen POSITIONELL
+  gelesen, zwei weitere Felder hinten dran wären zwei weitere Positionen zum Verschneiden.
+  `__slots__`, kein `__getitem__`.
+- **FARBE UND KOSTEN KOMMEN AUS EINER ABFRAGE**, und das ist die tragende Entscheidung: die
+  Kosten stehen NUR im Korpus, und der hat sie nur, wo ein STRATAGEM aufgelöst wurde. Sie
+  getrennt zu beziehen (Farbe aus `DecisionManager.is_stratagem`, Kosten aus dem Korpus) kauft
+  genau einen Zustand, für den diese Bitte keine Antwort hat: eine violette Leiste ohne Kosten
+  darin. Der User sagt "die Fähigkeit IN DER LINKEN SPALTE" — das ist die aufgelöste Regel, und
+  der Record IST sie.
+  **Benannte Folge:** eine Entscheidung mit `is_stratagem=True`, deren Prompt kein Stratagem
+  NENNT, bekommt hier die gewöhnliche Überschrift, während `DecisionOverlay` sie violett malte.
+  Die zwei stehen nie gleichzeitig auf dem Schirm (ein Brett-Pick zeichnet absichtlich kein
+  Overlay).
+- **`rules_text.rule_heading()` ist die 36. Extraktion, am zweiten Konsumenten** —
+  `RuleStratagem.heading` und `PromptRule.heading` sind derselbe Satz. An beiden Enden
+  ausgeschrieben würden sie am TRENNZEICHEN driften, und ein Stratagem hätte zwei sichtbar
+  verschiedene Überschriften. Im Test gegen `RuleStratagem.heading` selbst gepinnt, nicht gegen
+  ein Literal.
+- **Die Violett kommt aus `button_style`s `stratagem`-Palette**, wie die Überschrift des
+  `DecisionOverlay` — eine zweite, leicht andere Violett läse sich als andere Art von Ding.
+  **FÜLLUNG UND SCHRIFT, wo das Overlay Schrift und Rahmen tauscht:** diese Leiste hat keinen
+  Rahmen, das sind ihre zwei Hebel. Und die Farbe trägt die Tatsache nicht allein — die CP
+  stehen als TEXT daneben, was ein Graustufen-Screenshot und ein farbenblinder Leser überstehen.
+- **Der Kasten wiederholt die Überschrift NICHT mehr.** `_look_up()` stellte den
+  `Block("stratagem", heading)` voran, weil der Kasten die einzige Stelle war, die die Regel
+  überhaupt benannte; jetzt stünde derselbe String zweimal, vierzig Pixel auseinander.
+- **Gemessen über die 67 Stratagem-Überschriften, die die ausgelieferten Listen fielden:**
+  **36 brauchen mehr als eine Zeile** in dieser 192-px-Spalte — der Umbruch aus dem Abschnitt
+  darüber ist also das, was diese Änderung überhaupt trägt; ohne ihn liefe mehr als die Hälfte
+  aus dem Panel. Das Kosten-Suffix ist einheitlich 43 px breit, und **alle 67 drucken eine
+  Zahl** — der kostenlose Zweig ist damit ein NETZ und kein Live-Fall, wird deshalb an einer
+  konstruierten Regel geprüft (und ist der Grund, warum `is_stratagem` ein eigenes Flag ist
+  statt `cost is not None`).
+- **Getestet:** `test_decision_rule_panel.py` 72 → **101/101** (neu 3f: die Auflösung an der
+  ECHTEN Liste, die Überschrift die wirklich an der Leiste ankommt, die Leiste auf PIXELN —
+  violett gefüllt, violett beschriftet, **null** von der gewöhnlichen Goldfarbe —, die
+  GEGENPROBE, dass eine Ability-Überschrift gold bleibt und keinen Violett-Pixel trägt, und die
+  breiteste gefieldete Überschrift bei 1280×720 samt Knopf und Kasten im Panel). Die gefundene
+  Liste wird GESUCHT statt benannt, damit ein zurückgezogenes Roster keinen Absturz erzeugt.
+  `ab_decision_rule_panel.py` 16 → **26 A/B-Sonden, alle beißend** (Kosten verworfen; Kind
+  verworfen; Kosten am Zeichenort fallengelassen; Accent nie gesetzt; nur Schrift bzw. nur
+  Füllung violett; eine EIGENE Violett statt der Palette; `PromptRule` mit eigenem Formatter;
+  der Kasten wiederholt die Überschrift). Volle Regression **205 Suiten, ~17932 Prüfungen,
+  204 grün / 0 rot / 1 bekannt**, `smoke_unit_pick.py` 7/7.
+- **Im ECHTEN Spiel belegt** (`verify_stratagem_pick_heading.py`, `runpy` auf `selfplay.py`s
+  echte `main()`-Schleife, `aeldari_guardian_battlehost` als PLAYER 1 — die gemeldete Armeeform,
+  und auf der MENSCHEN-Seite, weil "end of your OPPONENT'S Fight phase" die andere Seite fragt):
+
+  | | gefixt | `--neutralize` |
+  |---|---|---|
+  | Überschrift | **`COST OF VICTORY - 1CP`** | `COST OF VICTORY` |
+  | violette Füllung / Schrift | **6210 / 561 px** | **0 / 0** |
+  | gewöhnliches Navy / Gold | **0 / 0** | 6394 / 466 px |
+  | Frames mit Pick-Screen | 1447 | 1445 |
+
+  **GESTELLT wird EINE Tatsache** — dass die Schlacht überhaupt ein Fight-Phasen-Ende erreicht
+  (auf diesem Harness passiv unerreichbar, die dokumentierte MockAgent-Grenze; ein passiver
+  Zähler hätte 0 gemeldet und wie ein Bestehen ausgesehen). Alles danach ist echt: der
+  Controller erhebt seinen eigenen Prompt, `main()` löst die Regel auf, `main()` zeichnet das
+  Panel — und die Farben werden von der LEBENDEN Fläche abgelesen, nicht von den Konstanten, die
+  sie erzeugt haben. `--neutralize` stellt die Vor-Fix-Welt an der ABFRAGE her (Kind und Kosten
+  verworfen, Überschrift zurück als erster Block des Kastens).
+
 ## Total-War-Linien-Formation (rechte Maustaste)
 
 **Einheit auswählen, rechte Maustaste halten und ziehen — der Trupp formiert sich entlang der
