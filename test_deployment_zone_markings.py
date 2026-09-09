@@ -251,7 +251,7 @@ def on_screen(width_const, win_w, win_h, board_w_in, board_h_in, pre_change):
 # sie bitte etwas duenner") read as the fix regressing. The pre-change numbers
 # stay, as the report they were: under a screen pixel.
 for win in ((1920, 1080), (1366, 768)):
-    for map_key in ("map1", "map2", "map3"):
+    for map_key in ("map1", "map2", "map3", "map4"):
         battle_map = maps.get(map_key)
         now, before = on_screen(rmod.DEPLOYMENT_ZONE_LINE_WIDTH, *win,
                                 battle_map.width_in, battle_map.height_in,

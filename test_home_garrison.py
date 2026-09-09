@@ -172,7 +172,11 @@ def board(map_key):
 # toward the board centre so their footprints clear the deployment zones
 # (see game/maps.py), and one of that pair IS the nearest objective to a
 # home objective. The number is measured off the board, not set.
-for map_key, want in (("map1", 17.1), ("map2", 14.8), ("map3", 16.8)):
+# map4 reads 24.2, the longest of the four: two parallel diagonals put a
+# home objective further from everything else than any other layout here,
+# so its home garrison cannot contribute at range at all.
+for map_key, want in (("map1", 17.1), ("map2", 14.8), ("map3", 16.8),
+                      ("map4", 24.2)):
     state = board(map_key)
     zones = getattr(state, "deployment_zones", ())
     for owner in ("Player 1", "Player 2"):
@@ -198,7 +202,7 @@ for map_key, want in (("map1", 17.1), ("map2", 14.8), ("map3", 16.8)):
              need <= 12, False)
 
 # Symmetric: both players face the same problem on these boards.
-for map_key in ("map1", "map2", "map3"):
+for map_key in ("map1", "map2", "map3", "map4"):
     state = board(map_key)
     zones = getattr(state, "deployment_zones", ())
     needs = []
@@ -286,7 +290,7 @@ def home_pick(map_key, army_key):
 
 
 # The reported list, on every map it can be played on.
-for map_key in ("map1", "map2", "map3"):
+for map_key in ("map1", "map2", "map3", "map4"):
     c.eq(f"{map_key}: the Necron home garrison is the Immortals, not the Lychguard",
          home_pick(map_key, "necrons").name, "2 Immortals 1 + Plasmancer")
 
@@ -294,7 +298,7 @@ for map_key in ("map1", "map2", "map3"):
 # answer is the one an earlier report asked for by name ("gretchins das
 # homeobjective halten"), and a role term that out-voted points everywhere
 # would have moved it to the 160-point Battlewagon.
-for map_key in ("map1", "map2", "map3"):
+for map_key in ("map1", "map2", "map3", "map4"):
     c.eq(f"{map_key}: the Ork home garrison is still the Gretchin",
          home_pick(map_key, "orks").name, "2 Gretchin 1")
     # The Aeldari answer MOVED, and not because this rule changed: the Warlock

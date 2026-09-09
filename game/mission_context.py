@@ -132,20 +132,43 @@ def in_own_territory(ctx, x_in, y_in):
     for leaving it and only 3 for leaving the zone.
 
     Which half is whose is DERIVED from where the two deployment zones sit
-    rather than assumed, and the derivation is the PERPENDICULAR BISECTOR of
-    the line between the two zone centres: your territory is every point
-    closer to your own zone than to your opponent's. That is the split for a
-    diagonal or corner deployment as much as for a banded one - the dividing
-    line simply turns with the zones instead of being picked from two board
-    axes.
+    rather than assumed: your territory is every point NEARER YOUR OWN ZONE
+    than your opponent's, measured to the ZONE ITSELF. So the dividing line
+    turns with the zones instead of being picked from two board axes.
 
-    It replaces exactly that axis pick ("whichever of x/y separates them,
-    split the board in half there"), which could only ever produce a
-    horizontal or a vertical line. Behaviour-neutral where the old form
-    applied: measured over a 201x201 grid on all three shipped maps for both
-    players, 0 of 40401 points change hands on each - the shipped zones are
-    symmetric about the board centre, so their bisector IS the old centre
-    line.
+    MEASURED TO THE SHAPE, NOT TO A POINT INSIDE IT, and that correction is
+    what map 4 needed. This compared the two zone CENTRES, whose perpendicular
+    bisector is a fine dividing line only while the two zones are congruent
+    blocks facing each other. Map 4's are TRIANGLES cut off by two PARALLEL
+    diagonals, and the user's requirement is that the boundary be a third line
+    parallel to them, halfway between (User: "die territory grenze ist eine
+    parallele zu den deplyment zones in der mitte zwischen ihnen"). Measured on
+    that board, the centre bisector runs at 69.85 degrees while the zone edges
+    run at 55.71 - fourteen degrees out, and this docstring's own promise that
+    "the dividing line simply turns with the zones" was not being kept.
+
+    Comparing distance to the SHAPES keeps it. A DeploymentZone's
+    distance_to_point() is 0 inside and the perpendicular distance to its edge
+    outside (game/shapes.py: max(0, -signed_distance)), so between two parallel
+    zone edges the tie is exactly the parallel midline, and inside either zone
+    the owner wins outright at 0.
+
+    ON MAP 4 IT IS EXACT, not merely close: over a 401x401 grid, 0 of 160600
+    points disagree with the ideal line through (15,0)-(45,44). The centre rule
+    it replaces disagreed with that line on 5.72% of them.
+
+    WHAT IT CHANGES ON THE SHIPPED MAPS, measured over a 201x201 grid for both
+    players (80802 points): map 1 and map 2 are unmoved (0 each - their zones
+    are axis-aligned bands, so edge distance and centre distance separate them
+    at the same line), and MAP 3 MOVES, 4993 points = 6.18%. That is a
+    deliberate change to a shipped board and not a side effect: map 3's zones
+    are corner quadrants, and against them the shape rule lands CLOSER to the
+    board's own corner-to-corner diagonal than the centre rule did (7.81%
+    disagreement with it against 11.68%), so it is the better answer there too.
+
+    It also still replaces the axis pick this started as ("whichever of x/y
+    separates them, split the board in half there"), which could only ever
+    produce a horizontal or a vertical line.
 
     Falls back to "everything is your territory" when the zones are unknown -
     that scores 0 rather than inventing a free 5 VP."""
@@ -153,13 +176,14 @@ def in_own_territory(ctx, x_in, y_in):
     theirs = [z for z in ctx.deployment_zones if z.owner == ctx.opponent]
     if not mine or not theirs:
         return True
-    my_cx, my_cy = _zone_centre(mine[0])
-    their_cx, their_cy = _zone_centre(theirs[0])
-    # Squared distances: same comparison, no sqrt - this is read once per model
-    # per scoring card.
-    to_mine = (x_in - my_cx) ** 2 + (y_in - my_cy) ** 2
-    to_theirs = (x_in - their_cx) ** 2 + (y_in - their_cy) ** 2
-    return to_mine <= to_theirs
+    # DeploymentZone.distance_to_point(), not the true Euclidean distance the
+    # expansion-objective ranking reaches for: outside a CORNER this reports
+    # the distance to the nearer edge LINE rather than to the corner point, so
+    # it under-reports how far out a point is. Here that is harmless and in the
+    # safe direction - it is the same understatement for both zones, and the
+    # comparison is what matters, not the magnitudes.
+    return (mine[0].distance_to_point(x_in, y_in)
+            <= theirs[0].distance_to_point(x_in, y_in))
 
 
 def table_quarters():

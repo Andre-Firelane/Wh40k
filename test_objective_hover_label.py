@@ -97,7 +97,7 @@ def hover_failures(state, board):
     return out
 
 
-for map_key in ("map1", "map2", "map3"):
+for map_key in ("map1", "map2", "map3", "map4"):
     state, board = scene(map_key)
     c.eq(f"{map_key}: hovering every objective's icon draws its label "
          f"({len(state.objectives)} objectives)", hover_failures(state, board), [])

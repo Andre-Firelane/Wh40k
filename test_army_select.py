@@ -1139,10 +1139,10 @@ print("\n=== 9. per-army map rosters ===")
 
 # EVERY shipped map now fields the whole army: the 30"x30" test board that
 # carried a four-units-a-side roster has been replaced by a full 60"x44" one.
-for key in ("map1", "map2", "map3"):
+for key in ("map1", "map2", "map3", "map4"):
     c.eq(f"{key} fields everything", maps.get(key).roster_for({"Player 1": "orks"}), None)
 c.true("so no shipped map carries a partial roster at all",
-       all(maps.get(k).army_roster is None for k in ("map1", "map2", "map3")))
+       all(maps.get(k).army_roster is None for k in ("map1", "map2", "map3", "map4")))
 
 # The MECHANISM still has to work, because a future small map will want it -
 # and the guard that used to ride on map 3's own table is exercised here

@@ -143,7 +143,7 @@ def part1_deployment():
     print("=" * 78)
     print("PART 1 - deployment: who is designated to hold the home objective")
     print("=" * 78)
-    for map_key in ("map1", "map2", "map3"):
+    for map_key in ("map1", "map2", "map3", "map4"):
         for army_key in ("necrons", "orks", "aeldari"):
             ctrl, state, _ = _pregame(map_key, army_key)
             own = deployment.zone_for(getattr(state, "deployment_zones", ()), OWNER)

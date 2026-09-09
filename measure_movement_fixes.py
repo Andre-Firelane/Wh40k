@@ -17,7 +17,8 @@ spot. For "is the AI's movement any good", use measure_crowded_movement.py.
 
   1. rule 03.03's 2" connectivity built into the per-model placement
      (_anchored_slot/_close_up_to_placed in ai/agent_driver.py)
-  2. every model may CROSS Dense terrain for config.WALL_CROSSING_COST_IN
+  2. every model the AI owns may CROSS Dense terrain, and since
+     config.WALL_CROSSING_COST_IN went to 0 it does so for free
      (config.VEHICLES_CROSS_WALLS; ending on it is still forbidden)
 
 Each is switchable, so all four combinations are measured rather than the two

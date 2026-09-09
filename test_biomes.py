@@ -202,7 +202,7 @@ config.BIOME = _ORIGINAL_BIOME
 # Every biome must change the PICTURE and nothing else. Both halves are
 # checked, because either one alone is worthless: a biome that changes nothing
 # is a dead button, and one that changes the board is a bug.
-for map_key in ("map1", "map2", "map3"):
+for map_key in ("map1", "map2", "map3", "map4"):
     digests = {key: board_digest(map_key, key) for key in biomes.keys()}
     c.eq(f"{map_key}: each biome paints a visibly different board",
          len(set(digests.values())), 4)
@@ -257,7 +257,7 @@ for role, path_of in (("ground", sprites.ground_texture_path),
     shutil.copyfile(path_of(), dest)
     loose[role] = dest
 
-biome_digests = {mk: board_digest(mk, "desert") for mk in ("map1", "map2", "map3")}
+biome_digests = {mk: board_digest(mk, "desert") for mk in ("map1", "map2", "map3", "map4")}
 
 real = (sprites.ground_texture_path, sprites.dense_cover_texture_path,
         sprites.normal_cover_texture_path)

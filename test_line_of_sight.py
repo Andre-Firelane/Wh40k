@@ -115,7 +115,7 @@ def board(map_key):
     return state
 
 
-BOARDS = {key: board(key) for key in ("map1", "map2", "map3")}
+BOARDS = {key: board(key) for key in ("map1", "map2", "map3", "map4")}
 # Re-apply one map so config is left in a known state for anything that reads it
 # after this module (the suites run in one process under run_tests.py).
 maps.apply_to_config(maps.get("map2"))
@@ -172,7 +172,7 @@ c.true("obstacles are still checked before models (printed order is unchanged)",
 
 # ============ 2. fuzz equivalence, has_line_of_sight ============
 
-for map_key in ("map1", "map2", "map3"):
+for map_key in ("map1", "map2", "map3", "map4"):
     state = BOARDS[map_key]
     maps.apply_to_config(maps.get(map_key))
     rng = random.Random(20260908)

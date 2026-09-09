@@ -921,6 +921,15 @@ MAP3 = BattleMap(
 # not smaller. The construction wins and the 0.54" is named here rather than
 # fudged into the coordinates.
 #
+# EVERY FOOTPRINT IS ONE CLEAN RECTANGLE, the standing rule for this project's
+# maps: the art draws irregular rubble spilling past the edges, and the fit
+# lays a rectangle on the piece and discards the overspill. Coverage against
+# the source image, measured on the BUILT board: 92.3% of the drawn terrain
+# falls inside a built footprint, and each footprint sits 84-99% on drawn
+# terrain. The difference IS the discarded rubble - and the one piece at the
+# bottom of that range is the east container, for the reason spelled out at
+# its own line below.
+#
 # PLAYER 2 KEEPS THE LOW-Y CORNER, as on all three other maps, so nothing else
 # in the scene has to know which map is running. The source image tints that
 # corner blue and this engine draws Player 1 blue - that is a palette, not a
@@ -1039,12 +1048,15 @@ def _map4_terrain(state, battle_map):
     # -- the rubble slab and the braced bar beside it ------------------------
     # The art draws these two TOUCHING, and the percentile fit is what opened
     # the seam: it trims a slice off BOTH pieces of a touching pair, so a join
-    # drawn closed came out as a slot. WHICH pairs touch is MEASURED, not
-    # assumed - the two pairs closed on this board are drawn 0.150" apart (the
-    # width of the separator line the art draws between them) while the nearest
-    # pair that does NOT touch stands 1.30" apart and is left open. Without
-    # that control the assurance would also hold on a board that shoved
-    # everything into one lump.
+    # drawn closed came out as a slot.
+    #
+    # WHICH pairs touch is MEASURED, not assumed. In the ART this pair stands
+    # 0.150" apart - the width of the separator line drawn between them - and
+    # the diagonal stack below is closer still, a SINGLE mask component. The
+    # nearest pair that does NOT touch is 1.30" apart in the art and is left
+    # open; on the built board those two stand 1.876" apart while all four
+    # closed seams are flush at 0.000". Without that control the assurance
+    # would hold just as well on a board that shoved everything into one lump.
     #
     # ONLY BARRICADES MOVE, and nothing is ever resized: no objective-carrying
     # piece shifts, so all five objectives stand where they were measured.
@@ -1091,7 +1103,12 @@ def _map4_terrain(state, battle_map):
 
 MAP4 = BattleMap(
     key="map4",
-    name="Sundered (60\"x44\", diagonal deployment)",
+    # SHORT, and that is a constraint rather than taste: the map picker's
+    # confirm button reads "CONFIRM: <name>" and has to fit a 1280px window
+    # (test_menu_presentation.py measures it). "diagonal deployment" spilled
+    # 3px past that clearance; "diagonal" alone says the same thing and
+    # matches map 1's "portrait".
+    name="Sundered (60\"x44\", diagonal)",
     width_in=MAP4_WIDTH_IN,
     height_in=MAP4_HEIGHT_IN,
     # Two PARALLEL diagonals - see _map4_zone(). The first map whose zone edges

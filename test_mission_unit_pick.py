@@ -66,6 +66,11 @@ EXPECTED = {
     # Land despite standing in a quadrant that is otherwise somebody's zone.
     "map3": ["Objective Northwest", "Objective Southeast", "P2 Home Objective",
              "P1 Home Objective", "Objective East", "Objective West"],
+    # Five, and the only board of the four whose central objective stands
+    # EXACTLY on the board centre - so it is its own 180-degree mirror and the
+    # other four sit in two pairs around it.
+    "map4": ["Objective Southeast", "Objective Northwest", "P1 Home Objective",
+             "P2 Home Objective", "Central Objective"],
 }
 COMPASS = {"North": ("y", "<"), "South": ("y", ">"), "West": ("x", "<"), "East": ("x", ">")}
 

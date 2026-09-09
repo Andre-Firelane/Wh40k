@@ -690,7 +690,7 @@ beide Deployment-Modi) nur, wenn eine Änderung wirklich Geometrie/Terrain/Aufst
 
 ## Karten und Szene
 
-Drei Karten (`game/maps.py`), Auswahl über `config.MAP` (steht auf `map2`) oder `python main.py --map 1`.
+Vier Karten (`game/maps.py`), Auswahl über `config.MAP` (steht auf `map2`) oder `python main.py --map 1`.
 Ein `BattleMap` trägt Brettmaße, Deployment-Zonen, Terrain+Objectives, optional ein `roster` (welche
 Einheiten diese Karte fieldet) und die handgesetzten Alt-Positionen. Die Armeelisten selbst liegen
 in `armies/*.json` (die Zeile sagte bis 2026-09-07 `main.py` und war schon lange davor falsch —
@@ -838,6 +838,87 @@ Stellen lesen sie zur Laufzeit; kein `from game.config import` im Repo — gepr�
     Owner-Ziffer, aufgelöst in `roster_for(armies)`) und wird in `test_army_select.py` an einer
     eigens gebauten Karte geprüft statt an einer ausgelieferten.
 
+- **map4 — "Sundered", 60"×44" Querformat mit DIAGONALEN Aufstellungszonen**, gebaut aus dem vom
+  User gelieferten `Sprites/map4.png` (2400×1760 px = exakt 40 px/Zoll, dieselbe Skala wie map3).
+  15 Footprints (8 gemessen, 7 gespiegelt), 31 Features, **5 Objectives**.
+  - **Die Zonen sind DREIECKE hinter zwei PARALLELEN Diagonalen** (User: "schräge deployment
+    zones"). map3s Zonen sind Quadranten mit einem Loch; hier ist der offene Boden ein BAND
+    KONSTANTER BREITE von Ecke zu Ecke, kein Keil. Jede Zone ist ein Viertel des Bretts.
+  - **Die Kanten sind die KONSTRUKTION, nicht die Annotation.** Gemessen an den getönten Pixeln:
+    die zwei Kanten sind auf **0.0008°** parallel, und die pinke läuft durch (0.094, 0) und
+    (30.039, 44) — eine Brettecke und den MITTELPUNKT der gegenüberliegenden Längskante, auf 0.09"
+    bzw. 0.04". Jedes andere Stück spiegelt auf 0.03–0.13", also ist das Zehntelzoll die Zeichnung
+    und nicht der Entwurf. Gebaut wird exakt (0,0)–(30,44) und der 180°-Spiegel (30,0)–(60,44).
+  - **Die "24.25""-Beschriftung im Bild ist KEINE Messung, und das ist geprüft statt angenommen.**
+    Die Konstruktion lässt 44·30/√(30²+44²) = **24.787"** offen, 0.54" mehr als das Label sagt.
+    Das weiße Lineal, auf dem das Label sitzt, ist nur **15.05"** lang und seine Endpunkte stehen
+    **5.06"** bzw. **4.52"** von den zwei gestrichelten Linien entfernt — es überspannt KEINE von
+    beiden. **map3s Präzedenzfall trägt hier NICHT** (dort ist die Annotation die runde Zahl und
+    die Messung weicht um die Strichbreite ab): eine Strichbreite macht die Lücke GRÖSSER, nicht
+    kleiner. Die Konstruktion gewinnt, die 0.54" sind benannt statt in die Koordinaten gefälscht.
+  - **Die Territoriumsgrenze ist die Parallele in der Mitte** (User: "die territory grenze ist eine
+    parallele zu den deplyment zones in der mitte zwischen ihnen") — das ist eine Änderung an der
+    REGEL, nicht eine Zahl in dieser Datei; siehe `### Territorien` oben. Über 401×401 Punkte
+    **0 Abweichungen** von der Ideallinie (15,0)–(45,44).
+  - **Der WINKEL-SIGN ist gemessen, nicht angenommen:** das NW-Ruinen-Footprint als echtes
+    `Obstacle` bei **+55°** deckt **92.1%** der gezeichneten Pixel, bei −55° nur **62.0%**. Also
+    ist `angle_deg` der Bildraum-Winkel ohne Vorzeichenwechsel. **Acht der fünfzehn Stücke stehen
+    schräg** (6× 55°, 2× 63°) — mehr als auf jeder anderen Karte.
+  - **Deckung gegen die Bilddatei, am GEBAUTEN Brett gemessen:** 92.3% des gezeichneten Terrains
+    liegt in einem Footprint, und jedes Footprint liegt zu 84–99% auf gezeichnetem Terrain. Die
+    Differenz IST der verworfene Schutt.
+  - **Das MITTELSTÜCK steht exakt auf der Brettmitte und ist sein eigener Spiegel**, wird also
+    EINMAL gebaut. Es behält `ruin()`s Vier-Seiten-Layout statt `l_walls()`' L — derselbe Grund wie
+    bei map1 und map2: keine Seite eines Stücks AUF der Brettmitte "zeigt zum Feind", und
+    `l_walls()` fiele auf eine willkürliche Ecke zurück. Gebaut werden nur **zwei diagonal
+    gegenüberliegende** Ecken-Ls, damit auch die WÄNDE punktsymmetrisch bleiben — und WELCHE zwei
+    ist hier gemessen statt Geschmack: `"sw"` zeigt zu Player 1s Dreieck, `"ne"` zu Player 2s.
+  - **BERÜHRENDE STÜCKE werden gebaut, wie sie sich berühren** — dieselbe Perzentil-Fit-Ursache wie
+    bei map3. Zwei Nähte plus Spiegel, alle vier bündig auf **0.000"**; verschoben werden nur
+    BARRIKADEN, kein objective-tragendes Stück bewegt sich. Die Kontrolle: das nächste NICHT
+    berührende Paar steht in der Kunst 1.30" und am gebauten Brett **1.876"** auseinander und
+    bleibt offen.
+  - **BENANNTER UNTERSCHIED ZU MAP3: keine dieser Nähte war ein Schuss-Schlitz.** Bei map3 standen
+    zwei RUINEN-Wände 0.15" auseinander und einander zugewandt; hier hat jede Naht eine Barrikade
+    auf mindestens einer Seite, und eine Barrikade ist LIGHT und hat Sicht noch nie blockiert. Das
+    Schließen ist rein optisch, und das steht ausdrücklich da, damit der nächste Leser nicht
+    annimmt, map4 habe map3s Sichtlinien-Fix geerbt.
+  - **Die OST-Container ist die WEST-Container gespiegelt, und das ist eine Entscheidung:**
+    unabhängig gefittet kamen die zwei 0.93" verschieden lang und 4° verdreht heraus. Beide Flanken
+    nebeneinander gerendert (eine um 180° gedreht) zeigte warum — eine dünne schwarze Maßhilfslinie
+    durchtrennt die Spitze der Ost-Container, und die Farbmaske schließt sie aus. Die
+    VOLLSTÄNDIGE wird gemessen und gespiegelt. Ihre Deckungszahl (84.2% gegen 92.2% der West-Seite)
+    ist genau dieser Befund, im gebauten Brett sichtbar.
+  - **Der Seam-Fit der Diagonal-Stapel ist am PROFIL gemessen, nicht geraten:** brauner Slab und
+    grüne Container lasen sich als EINE Maskenkomponente, und die Breiten-Profillinie entlang der
+    55°-Achse zeigt einen sauberen Sprung von ~1.9" auf 3.64" bei u=7.50". (Ein Erosions-Sweep
+    trennt sie auch, setzt die Naht aber dorthin, wo die Erosion zufällig durchbricht — ein
+    Artefakt des Sweeps, keine Messung der Kunst.)
+  - **`garrison_reach_needed_in()` liest hier 24.2"** — die längste der vier Karten. Das Band stellt
+    ein Home Objective weiter von allem anderen ab als jedes andere Layout, eine Home-Garnison kann
+    dort also gar nicht auf Reichweite beitragen. Die Zahl wird vom Brett ABGELESEN, nicht gesetzt.
+  - **Die PAGINIERUNG der Kartenauswahl wird damit zum ersten Mal scharf**: vier Kacheln passen
+    erst ab 1920 px nebeneinander (bei 1600 px drei, bei 1280 px zwei). Dieselbe Maschinerie, die
+    beim fünften Armee-Eintrag im Armee-Screen scharf wurde — hier war sie bis dahin nur gegen eine
+    künstliche Registry gemessen. `test_map_select.py` prüft deshalb jetzt "eine Kachel je Karte
+    AUF DIESER SEITE" plus "jede Karte ist durch Blättern erreichbar" statt einer festen Drei.
+  - **Der NAME ist kurz, und das ist eine Schranke statt Geschmack:** der Confirm-Knopf liest
+    `CONFIRM: <Name>` und muss in ein 1280-px-Fenster passen. "Sundered (60"x44", diagonal
+    deployment)" lief 3 px über die Fußzeilen-Luft; "diagonal" allein sagt dasselbe und passt zu
+    map1s "portrait".
+  - **Player 2 behält die LOW-Y-Ecke**, wie auf allen drei anderen Karten. Sie fieldet die ganze
+    Armee, hat keine handgesetzten Alt-Positionen (nur 03.01s Vorspiel) und ist NICHT der Default.
+  - **Getestet:** neu `test_map4_sundered.py` (**131/131**, acht Abschnitte) plus neu
+    `ab_map4_sundered.py` (**17 A/B-Sonden, alle beißend, keine stürzt ab**). Zehn Cross-Map-Suiten
+    haben map4 dazubekommen; `test_deployment_shapes.py` §9 ("eine vierte Karte erbt die Prüfung
+    gratis") ist genau dafür geschrieben worden und hält: Home-Objectives zu **100%** in ihrer
+    eigenen Zone, Niemandsland-Objectives zu **0%** in einer. `test_rotated_terrain.py`s
+    map3-Sonderfall ist zu einer benannten Menge `ROTATED_MAPS` geworden.
+  - **Eigener Sondenfehler, zwanzigste Instanz derselben Lehre:** zwei Sonden ließen die neue Suite
+    ABSTÜRZEN statt sie rot zu machen (`min()` über eine leere Folge, `next()` ohne Default). Die
+    Suite geht jetzt über `first()`/`safe_min()`, und der Sonden-Treiber MELDET einen Absturz als
+    eigenen Ausgang, damit er nicht als Biss durchgeht.
+
 **Was mit dem alten Testbrett verloren ging — und wohin es umgezogen ist.** Das 30"×30"-Brett war
 kein nachgebautes Layout, sondern die gemeldeten Fehlergeometrien nebeneinander (3"-Korridor, nur
 zur eigenen Kante offene Bucht, 5"-Tür, 7.2" offene Flanke) plus ein Zug in Sekunden. Drei
@@ -913,17 +994,37 @@ ist noch achsparallel — das ist Stufe 2.
   im Leer-Zonen-Fall (0.0 gegen inf); `inf` gewinnt — eine leere Zone enthält nichts, also ist
   24.20 überall erfüllt statt nirgends. Kein Roster erreicht den Fall.
 
-### Territorien: Mittelsenkrechte statt Achsen-Wahl
+### Territorien: Abstand zur ZONE, nicht zu einem Punkt darin
 
-`in_own_territory()` leitete die Trennung schon immer aus den Zonen-Zentren ab, konnte aber nur
-eine WAAGERECHTE oder SENKRECHTE Linie erzeugen. Jetzt: **mein Territorium ist jeder Punkt, der
-meinem Zonen-Zentrum näher ist als dem gegnerischen.** Die Trennlinie dreht sich damit mit den
-Zonen. **Verhaltensneutral, gemessen:** 201×201-Raster, drei Karten, beide Spieler, **0 von 40401
-Punkten** wechseln die Seite — die ausgelieferten Zonen sind punktsymmetrisch zur Brettmitte, ihre
-Mittelsenkrechte IST die alte Mittellinie. Drei Karten hängen dran (Beacon, Outflank, Plunder).
-**Testfalle dabei:** die vier BRETTECKEN unterscheiden die zwei Regeln NICHT (bei symmetrischen
-Eckzonen stimmen sie dort zufällig überein) — der Test muss Punkte nehmen, die auf verschiedenen
-Seiten der Diagonale, aber derselben Seite der Mittellinie liegen.
+`in_own_territory()` leitete die Trennung schon immer aus den Zonen ab, konnte aber zuerst nur
+eine WAAGERECHTE oder SENKRECHTE Linie erzeugen (Achsen-Wahl), dann eine Mittelsenkrechte zwischen
+den zwei Zonen-ZENTREN. Seit map4 gilt: **mein Territorium ist jeder Punkt, der meiner ZONE näher
+ist als der gegnerischen** — gemessen zur FORM über `DeploymentZone.distance_to_point()`, nicht zu
+einem Stellvertreterpunkt darin. Drei Karten hängen dran (Beacon, Outflank, Plunder).
+
+- **Die Zentren-Fassung ist an map4 gescheitert, und zwar an ihrem eigenen Versprechen** ("die
+  Trennlinie dreht sich mit den Zonen"). map4s Zonen sind Dreiecke hinter zwei PARALLELEN
+  Diagonalen, und der User verlangt die Grenze als dritte Parallele in der Mitte. Gemessen: die
+  Zentren-Mittelsenkrechte läuft dort bei **69.85°**, die Zonenkanten bei **55.71°** — vierzehn
+  Grad daneben.
+- **Mit dem Abstand zur FORM ist es exakt, nicht nur nahe dran:** zwischen zwei parallelen Kanten
+  ist der Gleichstand genau die Parallele in der Mitte. Über ein 401×401-Raster **0 von 160600**
+  Punkten weichen von der Ideallinie (15,0)–(45,44) ab; die Zentren-Regel wich auf 5.72% ab.
+- **Was sich auf den ausgelieferten Karten bewegt** (201×201, beide Spieler, 80802 Punkte): map1
+  und map2 **0** (achsparallele Bänder — Kanten- und Zentrenabstand trennen an derselben Linie),
+  **map3 4993 = 6.18%**. Das ist eine bewusste Änderung an einem ausgelieferten Brett und kein
+  Nebeneffekt: gegen map3s Quadranten liegt die Formen-Regel **näher an der Eck-Diagonale des
+  Bretts** als die Zentren-Regel (7.81% Abweichung gegen 11.68%), ist dort also ebenfalls die
+  bessere Antwort.
+- **`_zone_centre()` hat damit KEINEN Produktivleser mehr** und bleibt trotzdem (samt Re-Export in
+  `secondary_missions.py`): `test_deployment_shapes.py` baut beide abgelösten Regeln daraus nach.
+  Eine Vor-Fix-Welt, die man nicht herstellen kann, ist ein Fix, den man nicht messen kann.
+- **Testfalle, die bleibt:** die vier BRETTECKEN unterscheiden die Regeln NICHT (bei symmetrischen
+  Eckzonen stimmen sie dort zufällig überein) — der Test muss Punkte nehmen, die auf verschiedenen
+  Seiten der Diagonale, aber derselben Seite der Mittellinie liegen.
+- **Getestet:** `test_deployment_shapes.py` 106 → **110/110** (der map4-Block misst gegen die
+  IDEALLINIE, nicht gegen den Code, der sie erzeugt), plus drei A/B-Sonden in
+  `ab_map4_sundered.py` (Zentren-Regel zurück, Seiten vertauscht, Abstand zur Bounding Box).
 
 ### Renderer und Aufstellungs-KI ziehen mit
 
@@ -1409,12 +1510,14 @@ Terrain — und auf map3 sogar, WELCHE Einheiten überhaupt antreten (`BattleMap
   nicht: `Renderer` bekommt sein `Board` als Argument und `BattleMap.build()` liest die eigenen Maße.
   Als Prüfung festgehalten, nicht als Zusage.
 - **Alle Karten werden in DIESELBE Box letterboxed** (gleiche Breite, gleiche Höhe, Seitenverhältnis
-  erhalten). Die drei Bretter haben drei Formen (44×60 hoch, 60×44 quer, 30×30) — Kacheln mit je
-  eigener Bildhöhe läsen sich als Layout-Unfall, in einer gemeinsamen Box ist die Form des Bretts
-  selbst Teil der Aussage. Genau dafür ist ein Bild besser als eine Beschreibung.
+  erhalten). Die vier Bretter haben zwei Formen (44×60 hoch, 3× 60×44 quer; das 30×30-Testbrett ist
+  seit map3 weg) — Kacheln mit je eigener Bildhöhe läsen sich als Layout-Unfall, in einer
+  gemeinsamen Box ist die Form des Bretts selbst Teil der Aussage. Genau dafür ist ein Bild besser als eine Beschreibung.
 - **Die Textzeile wiederholt die Brettgröße NICHT** — die steht schon im Kartennamen ("Take Cover
   (44"x60", portrait)"). Stattdessen Zonentiefe und Niemandsland (map1 18"/24", map2 12"/20", map3
-  8"/14") plus Terrain- und Objective-Zahlen, alles am GEBAUTEN Brett gezählt statt danebengeschrieben.
+  21"/12.7", map4 17.5"/25") plus Terrain- und Objective-Zahlen, alles am GEBAUTEN Brett gezählt
+  statt danebengeschrieben. **map4 ist die Karte, mit der der PAGER dieses Screens scharf wird:**
+  vier Kacheln passen erst ab 1920 px nebeneinander.
 - **Er trägt seit den Biomen auch DEREN drei Knöpfe** (ganz oben im Kopfzeilen-Balken, siehe
   `## Biome` unten) — sie gehören hierher, weil die Kacheln darunter Bilder des Bretts sind
   und ein Biom-Klick sie neu malt.
@@ -4354,6 +4457,48 @@ Confirm-Button an den zuständigen Controller routet.
 - **Ein abgelehnter Versuch kostet nichts** — `try_commit_segment()` zieht nur bei Erfolg ab. Deshalb
   ist Hartnäckigkeit billig: `_advance_model_toward()` weicht bei Ablehnung erst SEITLICH aus (±45°,
   kleinste Winkel zuerst — cos(45°) behält 71% Vorwärtsanteil) und kürzt erst danach.
+- **Hausregel: die KI bewegt ALLE ihre Einheiten GRATIS durch Wände** (`config.VEHICLES_CROSS_WALLS`
+  / `WALL_CROSSING_PLAYERS` / `WALL_CROSSING_COST_IN`). Zwei Hälften, die man getrennt lesen muss —
+  ERLAUBNIS und PREIS —, und nur die zweite hat sich 2026-09-09 bewegt (User: "um der ai das
+  movement noch weiter zu erleichtern, darf sie ALLE einheiten durch wände bewegen").
+  - **Die ERLAUBNIS war immer schon keyword-blind.** `Obstacle.blocks_movement_for()` endet mit
+    `return not terrain.may_cross_walls(model)`, und das fragt NUR den OWNER — jede
+    Keyword-Prüfung fällt für ein Modell der KI vorher weg. Gemessen über **alle zehn Listen ×
+    drei Karten × beide Seiten**: Player 2 **0 von 701** Modellen geblockt (MOUNTED **0 von 7**),
+    Player 1 **116 von 701** (MOUNTED **7 von 7**). Auf die Nachfrage "gilt das zb auch für
+    Mounted?" ist das die Antwort — und MOUNTED ist im Repo ohnehin rein beschreibend, es tragen
+    es nur Krootox Rampager und Lokhust Lord (Windriders lesen als FLY).
+  - **Der PREIS war es nicht, und das war die Ungleichheit.** Die 3"-Maut traf per Konstruktion
+    genau die Modelle, die 13.06 nicht ohnehin durchlässt: von den 701 querten **584 gratis**
+    (INFANTRY/BEASTS) und **117 zahlten** (Windrider, War Walker, Lokhust Destroyer, Deffkopta,
+    Crisis-Suits, Coldstar, Krootox Rampager, Avatar). Ein Windrider durfte durch dieselbe Wand
+    wie der Guardian daneben — für die halbe Bewegung. **`WALL_CROSSING_COST_IN = 0.0`** hebt das
+    auf.
+  - **Die Affordability-Sperre fällt als FOLGE mit weg**, nicht als eigene Änderung: unterhalb der
+    Maut blockierte eine Wand die Querung doch (`remaining <= cost` bzw. "die bezahlbare Strecke
+    erreicht gar keine Wand"), und beides liegt hinter `_wall_toll()`s erster Zeile. Gemessen über
+    `measure_crowded_movement.py map2`: **1386 Segmente pro Lauf**, in denen eine Wand ein
+    KI-Modell doch stoppte → **0**.
+  - **Und die KI rechnet jetzt richtig.** Nichts in `ai/` hat die Maut je gelesen (gemessen: null
+    Vorkommen außerhalb `config.py`/`movement.py`), `reachable_this_turn` und `turns_to_reach`
+    waren für diese 117 Modelle also um bis zu 3" zu optimistisch. Bei 0 stimmen sie exakt.
+  - **Gemessen, was es bringt** (derselbe Lauf, Spion auf `_wall_toll`): Gesamtboden
+    **209.1" → 217.7"**, Züge unter 35% des Erreichbaren **14.3% → 11.9%**, Seitwärtszüge
+    **11.9% → 9.5%**, und die schlechteste Einheit der Baseline — der Battlewagon — **30% → 54%**.
+    ISOLIERT (eine Einheit allein) **77% → 92%**. **Der CROWDED-Median bleibt bei 65%**, und das
+    ist keine Enttäuschung, sondern die dokumentierte Aussage dieser Baseline: der Verlust im
+    Gedränge kommt daher, dass die KI sich selbst im Weg steht, nicht von den Wänden.
+  - **ZWEI Dinge bleiben ausdrücklich stehen**, beide mit eigener A/B-Sonde: die Erlaubnis bleibt
+    OWNER-gekeyt (der Mensch spielt die gedruckten Regeln — "für mich als menschlicher spieler
+    soll alles so bleiben"), und **13.05 gilt weiter für alle** — durch eine Wand ja, AUF einer
+    Wand enden nein. Letzteres ist mit Abstand die häufigste Wand-Ablehnung (**5133 gegen 0**
+    Maut-Fälle) und war schon einmal gemessen und bewusst nicht ausgeliefert.
+  - **Der MECHANISMUS bleibt, 3.0 ist eine Zeile entfernt.** `WALL_CROSSING_COST_IN` ist ein
+    Regler, den der User jetzt zweimal gesetzt hat; ihn auf 0 auszuliefern darf `_wall_toll()`
+    nicht still zu totem Code machen. `test_wall_crossing.py` Abschnitt **2b** fährt ihn deshalb
+    an einem selbst gesetzten Wert ungleich 0, Abschnitt **2a** pinnt, was AUSGELIEFERT ist —
+    und 2a muss die A/B im Test selbst haben, weil `Kosten == WALL_CROSSING_COST_IN` bei 0 die
+    Tautologie `0 == 0` ist und auch mit gelöschtem Mechanismus bestünde.
 - **Kohärenz-Buchführung**: die 9"-Spannweitengrenze gilt nur noch für `config.SPREAD_LIMIT_PLAYERS`
   (= Player 1) — für die KI aufgehoben (User: sie würde Screens nicht über die Karte ziehen). Die
   2"-Zusammenhangs-Hälfte gilt für alle; sie ist die eigentliche Anti-Missbrauchs-Regel.
@@ -5314,13 +5459,16 @@ zählt mit**, Kandidaten sind die No-Man's-Land-Objectives. Gemessen:
 | map1 | Central Objective 0.00" | 17.35" |
 | map2 | Central Objective 0.00" | 19.96" |
 | map3 | Objective East + West, je 6.13" | 22.78" |
+| map4 | Central Objective 0.00" | 20.24" |
 
 **map3s Gleichstand ist BIT-IDENTISCH** (Differenz exakt 0.0), die 0.001"-Toleranz ist auf den
 ausgelieferten Karten also nachweislich INERT und nur das Netz für eine künftige Karte, deren
 Spiegelung durch andere Arithmetik läuft (dieselbe 7e-15-Sorte, die schon einmal aus einem
 Rechteck ein Fünfeck gemacht hat). Der Home-Ausschluss ist ebenfalls ein gemessener No-op auf
-allen drei Karten — und wird deshalb an einem KONSTRUIERTEN Brett geprüft, auf dem ein
-Home-Objective wirklich das nächste zur Mitte ist.
+allen vier Karten — und wird deshalb an einem KONSTRUIERTEN Brett geprüft, auf dem ein
+Home-Objective wirklich das nächste zur Mitte ist. **map4 ist der klarste Fall der Tabelle:** sein
+Mittelstück steht EXAKT auf der Brettmitte, ist damit sein eigener 180°-Spiegel, und die zwei
+nächsten stehen 20.24" weit weg — hier arbitriert weder die Toleranz noch der Ausschluss.
 
 ### 26. Extraktion: `game/mission_context.py`
 
@@ -6320,7 +6468,7 @@ Spiellänge definieren.
     Aufstellungszone ist") — also 0 API-Calls. Gleichstände brechen über den Namen, sonst flackerte
     das Ziel zwischen zwei gleich guten Objectives und die Karte wäre unspielbar.
   - **"No Man's Land" und "excl. home objectives" sind DIESELBE Menge**, geometrisch geprüft: ein
-    Objective, dessen Mitte in KEINER Aufstellungszone liegt. Auf allen drei Karten fallen die
+    Objective, dessen Mitte in KEINER Aufstellungszone liegt. Auf allen vier Karten fallen die
     beiden Formulierungen zusammen (Home-Objectives liegen immer in ihrer eigenen Zone), also wird
     nach Geometrie gefiltert und nicht nach dem String "Home" — im Test ist beides gegeneinander
     gepinnt, damit eine künftige Karte, die die Deckung bricht, hier auffällt.
@@ -6338,9 +6486,12 @@ Spiellänge definieren.
     ein Quell-Wächter verlangt genau das.
   - **"Territory" ist die eigene Brett-HÄLFTE** (User: "Territory heißt einfach außerhalb meiner
     Spielfeldhälfte") — deutlich größer als die Aufstellungszone darin, was die 3-VP- von der
-    5-VP-Stufe trennt. Welche Hälfte wem gehört, wird aus den Aufstellungszonen ABGELEITET (Achse,
-    auf der die beiden sich trennen; alle drei Karten teilen auf y), nicht angenommen — im Test für
-    BEIDE Spieler gespiegelt geprüft, sonst wäre die Ableitung eine hartkodierte Seite.
+    5-VP-Stufe trennt. Welche Hälfte wem gehört, wird aus den Aufstellungszonen ABGELEITET, nicht
+    angenommen — im Test für BEIDE Spieler gespiegelt geprüft, sonst wäre die Ableitung eine
+    hartkodierte Seite. **Die ABLEITUNG selbst ist seither zweimal gewachsen** (siehe
+    `### Territorien`): erst eine Achsen-Wahl (die drei damaligen Karten teilten alle auf y), dann
+    die Mittelsenkrechte der Zonen-Zentren, und seit map4 der Abstand zur ZONE — womit die Grenze
+    auf einer Diagonal-Karte wirklich diagonal läuft.
   - **"Outside" heißt: KEIN Modell der Einheit ist drin.** Gemessen mit einem einzelnen
     zurückgezogenen Modell: eins wieder in der Zone kostet die 3 VP, eins wieder in der eigenen
     Hälfte drückt 5 VP auf 3.

@@ -127,7 +127,7 @@ c.true("...and so is a zone given both, which would have two sources of truth",
 
 
 # --------------------------------------------------------------------------
-print("--- 3. the three shipped maps are unchanged, boundary included ---")
+print("--- 3. the shipped maps are unchanged, boundary included ---")
 
 
 def old_contains_point(rects, x, y):
@@ -155,7 +155,7 @@ def old_distance(rects, x, y):
 BASES = (0.63, 0.886, 0.984, 1.18, 1.63, 2.10, 3.10)
 mismatch_grid = mismatch_edge = 0
 edge_points = 0
-for key in ("map1", "map2", "map3"):
+for key in ("map1", "map2", "map3", "map4"):
     bm = maps.MAPS[key]
     maps.apply_to_config(bm)
     st = GameState()
@@ -197,7 +197,7 @@ for key in ("map1", "map2", "map3"):
                     if old_contains_circle(rects, x, y, inset) != z.contains_circle(x, y, inset):
                         mismatch_edge += 1
 
-c.eq("no answer changes anywhere on a board-wide grid (3 maps x 2 zones)", mismatch_grid, 0)
+c.eq("no answer changes anywhere on a board-wide grid (4 maps x 2 zones)", mismatch_grid, 0)
 c.true("the boundary sweep really did sample something", edge_points >= 150)
 c.eq("no answer changes on the AI candidate grid's exact boundary points", mismatch_edge, 0)
 c.true("the tolerance that buys that is far below anything the board means",
@@ -205,7 +205,7 @@ c.true("the tolerance that buys that is far below anything the board means",
 
 # The grid boxes the AI lays candidates over must be the same rectangles too.
 box_mismatch = 0
-for key in ("map1", "map2", "map3"):
+for key in ("map1", "map2", "map3", "map4"):
     bm = maps.MAPS[key]
     maps.apply_to_config(bm)
     st = GameState()
@@ -341,16 +341,17 @@ def old_territory(ctx, x, y):
 
 changed = 0
 sampled = 0
-for key in ("map1", "map2", "map3"):
+for key in ("map1", "map2", "map3", "map4"):
     bm = maps.MAPS[key]
     maps.apply_to_config(bm)
     st = GameState()
     bm.build(st)
     if any(not z.rects for z in st.deployment_zones):
-        # map 3's corner quadrants: the axis pick this replaced could not
-        # express them at all, so there is no old answer to be neutral to.
-        # That it DIFFERS there is the point, and it is measured below.
-        c.true(f"{key}: a corner-zone map is where the two rules must diverge",
+        # map 3's corner quadrants and map 4's diagonals: the axis pick this
+        # replaced could not express either, so there is no old answer to be
+        # neutral to. That it DIFFERS there is the point, and it is measured
+        # below.
+        c.true(f"{key}: a non-rectangular-zone map is where the two rules must diverge",
                any(sm.in_own_territory(Ctx(st.deployment_zones, "Player 1", "Player 2"), x, y)
                    != old_territory(Ctx(st.deployment_zones, "Player 1", "Player 2"), x, y)
                    for x in (5.0, 20.0, 40.0, 55.0) for y in (5.0, 20.0, 30.0, 40.0)))
@@ -364,7 +365,7 @@ for key in ("map1", "map2", "map3"):
                 if sm.in_own_territory(ctx, x, y) != old_territory(ctx, x, y):
                     changed += 1
 c.true("the territory sweep really covered the boards", sampled > 10000)
-c.eq("no point on any shipped map changes territory", changed, 0)
+c.eq("no point on any RECTANGLE-zoned shipped map changes territory", changed, 0)
 
 # And the thing the old form could not express at all - measured on the REAL
 # corner-deployment map rather than a synthetic pair of zones, so this is the
@@ -397,6 +398,44 @@ c.true("...though the axis pick it replaces would have called it theirs",
 c.true("and the mirror point is THEIRS", not sm.in_own_territory(ctx, 25.0, 4.0))
 c.true("...though the axis pick would have called it mine",
        old_territory(ctx, 25.0, 4.0))
+# MAP 4 is why in_own_territory() stopped comparing zone CENTRES and started
+# comparing the zones themselves. Its two zone edges are PARALLEL diagonals, so
+# the user's requirement - "die territory grenze ist eine parallele zu den
+# deplyment zones in der mitte zwischen ihnen" - names an exact line, and the
+# centre bisector is not it. Measured here rather than in map 4's own suite
+# because it is a claim about the RULE: any future board with parallel zone
+# edges gets the same answer.
+bm4 = maps.MAPS["map4"]
+maps.apply_to_config(bm4)
+st4 = GameState()
+bm4.build(st4)
+ctx4 = Ctx(st4.deployment_zones, "Player 1", "Player 2")
+p1_4 = [z for z in st4.deployment_zones if z.owner == "Player 1"][0]
+p2_4 = [z for z in st4.deployment_zones if z.owner == "Player 2"][0]
+c.true("map4 deploys behind two DIAGONAL edges", p1_4.rects == [] and p2_4.rects == [])
+# The band between the zones is a constant width, which is what "parallel"
+# means and what lets a single line be parallel to both at once.
+band = [p1_4.distance_to_point(x, y) + p2_4.distance_to_point(x, y)
+        for x, y in ((0.5, 0.0), (30.0, 22.0), (45.0, 43.9))]
+c.true("...and the open ground between them is a band of constant width",
+       max(band) - min(band) < 1e-6)
+# The ideal midline is both edges shifted half that width: through (15,0) and
+# (45,44). Every point on the board has to fall on the side of it that its
+# owner's zone is on.
+wrong4 = 0
+for i in range(151):
+    for j in range(151):
+        x, y = 60.0 * i / 150, 44.0 * j / 150
+        f = (44.0 * x - 30.0 * y - 44.0 * 15.0) / math.hypot(44.0, 30.0)
+        if abs(f) < 0.02:
+            continue
+        if sm.in_own_territory(ctx4, x, y) != (f < 0):
+            wrong4 += 1
+c.eq("map4's territory boundary IS the parallel midline, everywhere", wrong4, 0)
+c.true("...and the rule it replaced would not have put it there",
+       any(old_territory(ctx4, x, y) != sm.in_own_territory(ctx4, x, y)
+           for x in (10.0, 25.0, 35.0, 50.0) for y in (5.0, 20.0, 38.0)))
+
 c.true("zone_distance is the zone's own answer now, not a second copy",
        approx(sm.zone_distance(p1_zone, 30.0, 22.0), p1_zone.distance_to_point(30.0, 22.0)))
 c.true("...and it is non-zero at the board centre, which no zone reaches",
@@ -516,7 +555,7 @@ def area_points(objective, n=70):
 
 
 checked_home = checked_nml = 0
-for key in ("map1", "map2", "map3"):
+for key in ("map1", "map2", "map3", "map4"):
     battle_map = maps.get(key)
     state = GameState()
     battle_map.build(state)

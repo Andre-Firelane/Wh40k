@@ -152,17 +152,26 @@ def old_waypoints(o, mx, my, cl):
     return out
 
 
+# The boards whose terrain is genuinely turned. Everything else must still be
+# square to the board, which is what keeps the sweep below a real comparison
+# against the pre-rotation arithmetic rather than a vacuous one.
+ROTATED_MAPS = ("map3", "map4")
+
 drift = {}
 checked = 0
-for key in ("map1", "map2", "map3"):
+for key in ("map1", "map2", "map3", "map4"):
     bm = maps.MAPS[key]
     maps.apply_to_config(bm)
     st = GameState()
     bm.build(st)
     axis = [o for o in st.obstacles if abs(o.angle_deg) < 1e-12]
     turned = [o for o in st.obstacles if abs(o.angle_deg) >= 1e-12]
-    if key == "map3":
-        c.true("map3 is the map that actually uses rotation", turned)
+    # WHICH boards use rotation is a fact about those boards, named here so a
+    # fifth one has to say which side it is on rather than sliding in either
+    # way. map 3 was the first (four turned pieces); map 4 is built ON the
+    # diagonal and has eight, the most of any board.
+    if key in ROTATED_MAPS:
+        c.true(f"{key} is one of the maps that actually uses rotation", turned)
     else:
         c.true(f"{key} still builds every piece axis-aligned", not turned)
     # Only the AXIS-ALIGNED pieces have a previous answer to preserve, and the

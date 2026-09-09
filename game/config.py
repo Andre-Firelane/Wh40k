@@ -295,13 +295,39 @@ VEHICLES_CROSS_WALLS = True
 # Charged per crossing segment, and only to models rule 13.06 would otherwise
 # have stopped - INFANTRY already cross for free and must not be billed.
 #
-# The user's own figure. Worth knowing what it costs: over the same 1200
-# attempts, total progress toward the goal ran 9023" under current rules,
-# 8407" with this toll and 10388" with no toll at all. That measurement
-# charged pessimistically (whenever the straight line to the goal crossed a
-# wall, whether or not the path taken did), so the real figure sits between
-# the two - but the toll is the expensive half of the rule, not the cheap one.
-WALL_CROSSING_COST_IN = 3.0
+# ZERO, by the user's decision, and that is what makes the permission above
+# mean the same thing for every unit the AI owns: "darf sie ALLE einheiten
+# durch waende bewegen". The permission was always keyword-blind - it ends in
+# `not may_cross_walls(model)`, so an owner answer, and measured over all ten
+# shipped lists on all three maps it blocks 0 of Player 2's 701 models
+# (MOUNTED included) against 116 of Player 1's. The PRICE was not: of those
+# 701, the 584 INFANTRY/BEASTS models crossed for nothing while the other 117
+# - Windriders, War Walkers, Lokhust Destroyers, Deffkoptas, Crisis suits,
+# the Krootox Rampager, the Avatar - paid. A Windrider was allowed through the
+# same wall a Guardian walked through, at half its move. Now nobody pays.
+#
+# Two things fall out of a zero rather than being coded separately, both in
+# _wall_toll()'s first line: there is no affordability gate any more (below
+# the toll a wall used to block after all - 46 hits in the run below), and
+# nothing in ai/ ever subtracted the toll, so the AI's own reach estimates
+# (reachable_this_turn, turns_to_reach) stop being optimistic by up to 3" for
+# those 117 models and start being exact.
+#
+# THE MECHANISM STAYS, set back to 3.0 in one line: the toll was the user's
+# own figure once and may be again, and test_wall_crossing.py section 2b
+# exercises it at a non-zero value so it cannot rot while shipped off.
+#
+# What it was worth, measured. At the decision, over 1200 attempts: total
+# progress toward the goal ran 9023" under the printed rules, 8407" with the
+# toll and 10388" with none - that run charged pessimistically (whenever the
+# straight line to the goal crossed a wall, whether or not the path taken
+# did), so the real figure sat between the two, but the toll was always the
+# expensive half of the rule rather than the cheap one. Measured again here on
+# the live rule (a spy over measure_crowded_movement.py map2, 42 unit moves):
+# the toll was charged 115 times and blocked a crossing outright 46 times,
+# against 13984 free INFANTRY crossings - so it bit exactly the minority it
+# was written for, which is the reason for removing it rather than tuning it.
+WALL_CROSSING_COST_IN = 0.0
 
 # --- House rule: the 9" spread limit -------------------------------------
 # Rule 09.02's coherency has two halves in this engine: every model within 2"

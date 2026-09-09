@@ -35,7 +35,10 @@ toll (whenever the straight line to the goal meets a wall, whether or not the
 path taken does), which is why its mode C reads as a 7% loss of progress where
 the shipped rule measures ~1%. The rule has since shipped as
 config.VEHICLES_CROSS_WALLS / WALL_CROSSING_COST_IN, charged against the move
-BUDGET in MovementController.clamp_move(). For the live behaviour use
+BUDGET in MovementController.clamp_move() - and the toll half has since been
+switched off (WALL_CROSSING_COST_IN = 0.0), so mode C now describes the
+mechanism rather than what ships. Its mode B, the one this run measured as
+buying almost nothing, is still the half that is NOT lifted. For the live behaviour use
 measure_movement_fixes.py, and for the rule itself test_wall_crossing.py.
 
 Run: python measure_wall_houserule.py [map_key]

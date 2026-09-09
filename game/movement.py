@@ -1308,6 +1308,14 @@ class MovementController:
         house rule (config.VEHICLES_CROSS_WALLS - see there for why it exists;
         Obstacle.blocks_movement_for() is the permission half).
 
+        SHIPPED OFF: config.WALL_CROSSING_COST_IN is 0.0, so the first line
+        below short-circuits and every AI model crosses for nothing, exactly
+        like the INFANTRY the second line already exempted - that is the whole
+        of "ALLE einheiten duerfen durch waende", and it is a value rather than
+        a deletion so 3.0 is one line away. Everything from here down describes
+        the mechanism at a NON-ZERO toll, which is the shape it still has and
+        which test_wall_crossing.py section 2b keeps exercising.
+
         `toll` comes off the distance this step may cover, and `walls_block`
         says to treat Dense terrain as impassable for this step after all. The
         three outcomes:

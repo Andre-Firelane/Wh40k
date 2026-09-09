@@ -604,7 +604,7 @@ c.true("...with Player 1's own names", all(s.name.startswith("1 ") for s in p1))
 # refuses a map that fields only PART of a list by a name that matches nothing,
 # so what has to hold now is that no map filters this list at all.
 armies = {"Player 1": "aeldari", "Player 2": DG_LIST}
-for key in ("map1", "map2", "map3"):
+for key in ("map1", "map2", "map3", "map4"):
     fielded = [s.name for s in squads if maps.get(key).fields(s, armies)]
     c.eq(f"{key} fields the whole Death Guard list", len(fielded), len(squads))
 

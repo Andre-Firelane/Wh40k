@@ -127,7 +127,14 @@ for battle_map in ALL_MAPS:
 # bitten out of the middle, and 12.7" is the true closest approach between the
 # two - the distance between the two points where those circles meet the
 # quadrant boundaries, not a board dimension minus two depths.
-for key, depth, gap in (("map1", 18, 24), ("map2", 12, 20), ("map3", 21, 12.7)):
+# map 4's numbers come out of the same sampling and describe the shape the
+# other three do not have: two PARALLEL diagonals, so its "no man's land" is a
+# band of constant width (24.787" exactly, rounded to 25 by the 1" sampling
+# grid) rather than a closest approach between two facing blocks, and its
+# "depth" is how far the deepest point of a triangle stands from the nearest
+# board edge.
+for key, depth, gap in (("map1", 18, 24), ("map2", 12, 20), ("map3", 21, 12.7),
+                        ("map4", 17.5, 25)):
     deployment, _contents = map_facts(maps.get(key))
     c.true(f"{key}: zones {depth}\" deep -- {deployment}", f'zones {depth:g}" deep' in deployment)
     c.true(f"{key}: {gap}\" of no man's land -- {deployment}", f'{gap:g}" of no man' in deployment)
@@ -145,7 +152,23 @@ print("\n=== 3. the screen ===")
 
 screen = MapSelectScreen(default="map2")
 tiles = screen.layout(SCREEN_RECT)
-c.eq("one tile per map", len(tiles), len(ALL_MAPS))
+# ONE TILE PER MAP ON THIS PAGE, not one per map in the registry - the fourth
+# board is what made that distinction real. At 1600px three tiles clear
+# MIN_TILE_WIDTH, so four maps paginate, and the pager going live here is the
+# same milestone the fifth army list was for the army picker. The stronger
+# claim (every map is reachable) is checked right below, because "3 tiles" on
+# its own would also pass on a screen that had quietly dropped a map.
+c.eq("one tile per map on this page", len(tiles), len(screen.page_items))
+c.true("...and the page really is full, so nothing is being hidden by an "
+       "undersized layout", len(tiles) == min(screen.tiles_per_page, len(ALL_MAPS)))
+seen = []
+for _ in range(screen.page_count):
+    seen += [t.battle_map.key for t in screen.layout(SCREEN_RECT)]
+    screen.turn_page(1)
+c.eq("every map is reachable by paging through the screen",
+     sorted(set(seen)), sorted(m.key for m in ALL_MAPS))
+screen = MapSelectScreen(default="map2")
+tiles = screen.layout(SCREEN_RECT)
 c.true("every tile is inside the screen", all(SCREEN_RECT.contains(t.rect) for t in tiles))
 c.true("tiles do not overlap",
        all(not a.rect.colliderect(b.rect) for i, a in enumerate(tiles) for b in tiles[i + 1:]))
