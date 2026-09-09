@@ -23,7 +23,7 @@
    ]
   },
   {
-   "name": "2 Doomsday Ark 1",
+   "name": "2 Battlewagon 1",
    "owner": "Player 2",
    "placement": "board",
    "embarked_in": null,
@@ -32,13 +32,15 @@
     {
      "x_in": 47.56666666666666,
      "y_in": 9.9,
-     "wounds": 14,
-     "model": "Doomsday Ark",
+     "wounds": 16,
+     "model": "Battlewagon",
      "weapons": [
-      "Armoured Bulk",
-      "Doomsday Cannon",
-      "Gauss Flayer Array",
-      "Gauss Flayer Array"
+      "Big Shoota",
+      "Big Shoota",
+      "Big Shoota",
+      "Big Shoota",
+      "Tracks and Wheels",
+      "Zzap Gun"
      ]
     }
    ]
@@ -103,64 +105,24 @@
    ]
   },
   {
-   "name": "2 Canoptek Wraiths 1",
+   "name": "2 Kill Rig 1",
    "owner": "Player 2",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 25.99771428571428,
-     "y_in": 10.016,
-     "wounds": 4,
-     "model": "Canoptek Wraith",
+     "x_in": 10.366666666666665,
+     "y_in": 9.9,
+     "wounds": 16,
+     "model": "Kill Rig",
      "weapons": [
-      "Vicious Claws"
-     ]
-    },
-    {
-     "x_in": 25.99771428571428,
-     "y_in": 7.948,
-     "wounds": 4,
-     "model": "Canoptek Wraith",
-     "weapons": [
-      "Vicious Claws"
-     ]
-    },
-    {
-     "x_in": 27.7886548207405,
-     "y_in": 8.982,
-     "wounds": 4,
-     "model": "Canoptek Wraith",
-     "weapons": [
-      "Vicious Claws"
-     ]
-    },
-    {
-     "x_in": 24.20677375068806,
-     "y_in": 8.982000000000001,
-     "wounds": 4,
-     "model": "Canoptek Wraith",
-     "weapons": [
-      "Vicious Claws"
-     ]
-    },
-    {
-     "x_in": 25.99771428571428,
-     "y_in": 5.88,
-     "wounds": 4,
-     "model": "Canoptek Wraith",
-     "weapons": [
-      "Vicious Claws"
-     ]
-    },
-    {
-     "x_in": 28.06571428571428,
-     "y_in": 6.434118929947561,
-     "wounds": 4,
-     "model": "Canoptek Wraith",
-     "weapons": [
-      "Vicious Claws"
+      "'Eavy Lobba",
+      "Butcha Boyz",
+      "Savage Horns and Hooves",
+      "Saw Blades",
+      "Stikka Kannon",
+      "Wurrtower"
      ]
     }
    ]
@@ -230,64 +192,23 @@
    ]
   },
   {
-   "name": "2 Lychguard 1 + Overlord",
+   "name": "2 Deff Dread 1",
    "owner": "Player 2",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 9.847857142857144,
-     "y_in": 10.213000000000001,
-     "wounds": 2,
-     "model": "Lychguard",
+     "x_in": 44.410000000000004,
+     "y_in": 10.82,
+     "wounds": 8,
+     "model": "Deff Dread",
      "weapons": [
-      "Hyperphase Sword"
-     ]
-    },
-    {
-     "x_in": 9.847857142857144,
-     "y_in": 8.713000000000001,
-     "wounds": 2,
-     "model": "Lychguard",
-     "weapons": [
-      "Hyperphase Sword"
-     ]
-    },
-    {
-     "x_in": 11.146895248533802,
-     "y_in": 9.463000000000001,
-     "wounds": 2,
-     "model": "Lychguard",
-     "weapons": [
-      "Hyperphase Sword"
-     ]
-    },
-    {
-     "x_in": 8.548819037180486,
-     "y_in": 9.463000000000003,
-     "wounds": 2,
-     "model": "Lychguard",
-     "weapons": [
-      "Hyperphase Sword"
-     ]
-    },
-    {
-     "x_in": 8.548819037180486,
-     "y_in": 10.963000000000001,
-     "wounds": 2,
-     "model": "Lychguard",
-     "weapons": [
-      "Hyperphase Sword"
-     ]
-    },
-    {
-     "x_in": 11.146895248533802,
-     "y_in": 10.963000000000001,
-     "wounds": 6,
-     "model": "Overlord",
-     "weapons": [
-      "Voidscythe"
+      "Big Shoota",
+      "Big Shoota",
+      "Dread Klaw",
+      "Dread Klaw",
+      "Stompy Feet"
      ]
     }
    ]
@@ -353,48 +274,232 @@
    ]
   },
   {
-   "name": "2 Skorpekh Destroyers 1 + Skorpekh Lord",
+   "name": "2 Boyz 1 + Warboss + Painboy",
    "owner": "Player 2",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 44.008,
-     "y_in": 7.948,
-     "wounds": 3,
-     "model": "Skorpekh Destroyer",
+     "x_in": 25.997142857142858,
+     "y_in": 10.02,
+     "wounds": 2,
+     "model": "Boss Nob",
      "weapons": [
-      "Skorpekh Hyperphase Weapons"
+      "Power Klaw",
+      "Slugga"
      ]
     },
     {
-     "x_in": 42.21705946497378,
-     "y_in": 8.982000000000001,
-     "wounds": 3,
-     "model": "Skorpekh Destroyer",
+     "x_in": 25.997142857142858,
+     "y_in": 8.52,
+     "wounds": 1,
+     "model": "Boy",
      "weapons": [
-      "Skorpekh Hyperphase Weapons"
+      "Choppa",
+      "Slugga"
      ]
     },
     {
-     "x_in": 44.008,
-     "y_in": 5.88,
-     "wounds": 3,
-     "model": "Skorpekh Destroyer",
+     "x_in": 27.296180962819516,
+     "y_in": 9.27,
+     "wounds": 1,
+     "model": "Boy",
      "weapons": [
-      "Skorpekh Hyperphase Weapons"
+      "Choppa",
+      "Slugga"
      ]
     },
     {
-     "x_in": 44.008,
-     "y_in": 10.016,
-     "wounds": 7,
-     "model": "Skorpekh Lord",
+     "x_in": 24.559539820835287,
+     "y_in": 9.1899995,
+     "wounds": 1,
+     "model": "Boy",
      "weapons": [
-      "Enmitic Annihilator",
-      "Flensing Claw",
-      "Hyperphase Harvester"
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 25.997142857142858,
+     "y_in": 7.02,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 24.497142857142858,
+     "y_in": 7.421923788646684,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 27.497142857142858,
+     "y_in": 7.421923788646684,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 28.595219068496174,
+     "y_in": 8.52,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 23.399066645789542,
+     "y_in": 8.520000000000001,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 22.997142857142858,
+     "y_in": 10.02,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 25.997142857142858,
+     "y_in": 5.52,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 24.458052212177346,
+     "y_in": 5.791383206463412,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 27.536233502108367,
+     "y_in": 5.791383206463412,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 23.10459861355343,
+     "y_in": 6.572800005964599,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 28.889687100732285,
+     "y_in": 6.572800005964599,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 22.100028540112884,
+     "y_in": 7.77,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 29.894257174172832,
+     "y_in": 7.77,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 30.428777745697793,
+     "y_in": 9.238583200498812,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 21.565507968587923,
+     "y_in": 9.238583200498814,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 25.997142857142858,
+     "y_in": 4.02,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 24.559539820835287,
+     "y_in": 10.8500005,
+     "wounds": 6,
+     "model": "Warboss",
+     "weapons": [
+      "Attack Squig",
+      "Big Choppa",
+      "Kombi-weapon",
+      "Twin Slugga"
+     ]
+    },
+    {
+     "x_in": 21.565507968587923,
+     "y_in": 10.801416799501187,
+     "wounds": 3,
+     "model": "Painboy",
+     "weapons": [
+      "'Urty Syringe",
+      "Power Klaw"
      ]
     }
    ]
@@ -459,220 +564,41 @@
    ]
   },
   {
-   "name": "2 Necron Warriors 1 + Technomancer",
+   "name": "2 Warbikers 1",
    "owner": "Player 2",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 34.00228571428571,
-     "y_in": 2.327999,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 35.44335285220842,
-     "y_in": 3.1599995,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 32.561218576363004,
-     "y_in": 3.1599995000000014,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 35.44335285220842,
-     "y_in": 4.8240004999999995,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 32.561218576363004,
-     "y_in": 4.8240005,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 34.00228571428571,
-     "y_in": 5.656001,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 34.00228571428571,
-     "y_in": 0.992,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 32.50228571428571,
-     "y_in": 1.3939237886466844,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 35.50228571428571,
-     "y_in": 1.393923788646684,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 36.60036192563903,
-     "y_in": 2.492,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 31.404209502932396,
-     "y_in": 2.4920000000000018,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 37.00228571428571,
-     "y_in": 3.992,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 31.002285714285712,
-     "y_in": 3.9920000000000004,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 36.60036192563903,
-     "y_in": 5.491999999999999,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 31.404209502932396,
-     "y_in": 5.492000000000001,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 32.50228571428571,
-     "y_in": 6.590076211353316,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 34.00228571428571,
-     "y_in": 6.992,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 30.105171397255738,
-     "y_in": 1.7419999999999995,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 37.899400031315686,
-     "y_in": 1.742,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 38.43392060284065,
-     "y_in": 3.2105832004988133,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 34.00228571428571,
-     "y_in": 3.992,
+     "x_in": 13.98857142857143,
+     "y_in": 10.02,
      "wounds": 4,
-     "model": "Technomancer",
+     "model": "Boss Nob on Warbike",
      "weapons": [
-      "Staff of Light",
-      "Staff of Light"
+      "Close Combat Weapon",
+      "Power Klaw",
+      "Twin Dakkagun"
+     ]
+    },
+    {
+     "x_in": 13.98857142857143,
+     "y_in": 7.959999999999999,
+     "wounds": 3,
+     "model": "Warbiker",
+     "weapons": [
+      "Close Combat Weapon",
+      "Twin Dakkagun"
+     ]
+    },
+    {
+     "x_in": 15.772583760367374,
+     "y_in": 8.99,
+     "wounds": 3,
+     "model": "Warbiker",
+     "weapons": [
+      "Close Combat Weapon",
+      "Twin Dakkagun"
      ]
     }
    ]
@@ -833,120 +759,41 @@
    ]
   },
   {
-   "name": "2 Immortals 1 + Plasmancer",
+   "name": "2 Warbikers 2",
    "owner": "Player 2",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 29.999999999999996,
-     "y_in": 6.000000000000001,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Blaster"
-     ]
-    },
-    {
-     "x_in": 28.939339828220174,
-     "y_in": 4.939339828220179,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Blaster"
-     ]
-    },
-    {
-     "x_in": 29.611771432346217,
-     "y_in": 7.448888739433603,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Blaster"
-     ]
-    },
-    {
-     "x_in": 31.06066017177982,
-     "y_in": 7.060660171779823,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Blaster"
-     ]
-    },
-    {
-     "x_in": 27.878679656440355,
-     "y_in": 3.878679656440358,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Blaster"
-     ]
-    },
-    {
-     "x_in": 30.77645713530756,
-     "y_in": 8.897777478867205,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Blaster"
-     ]
-    },
-    {
-     "x_in": 32.12132034355964,
-     "y_in": 8.121320343559644,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Blaster"
-     ]
-    },
-    {
-     "x_in": 25.92161495833507,
-     "y_in": 4.0982178221668555,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Blaster"
-     ]
-    },
-    {
-     "x_in": 33.18198051533946,
-     "y_in": 9.181980515339465,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Blaster"
-     ]
-    },
-    {
-     "x_in": 24.23823788593834,
-     "y_in": 4.3260533637646255,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Blaster"
-     ]
-    },
-    {
-     "x_in": 24.14449942836751,
-     "y_in": 7.308859448379255,
+     "x_in": 52.01571428571429,
+     "y_in": 10.02,
      "wounds": 4,
-     "model": "Plasmancer",
+     "model": "Boss Nob on Warbike",
      "weapons": [
-      "Plasmic Lance",
-      "Plasmic Lance"
+      "Close Combat Weapon",
+      "Power Klaw",
+      "Twin Dakkagun"
+     ]
+    },
+    {
+     "x_in": 52.01571428571429,
+     "y_in": 7.959999999999999,
+     "wounds": 3,
+     "model": "Warbiker",
+     "weapons": [
+      "Close Combat Weapon",
+      "Twin Dakkagun"
+     ]
+    },
+    {
+     "x_in": 53.79972661751023,
+     "y_in": 8.99,
+     "wounds": 3,
+     "model": "Warbiker",
+     "weapons": [
+      "Close Combat Weapon",
+      "Twin Dakkagun"
      ]
     }
    ]
@@ -1105,120 +952,120 @@
    ]
   },
   {
-   "name": "2 Immortals 2 + Plasmancer",
+   "name": "2 Gretchin 1",
    "owner": "Player 2",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 13.788571428571426,
-     "y_in": 10.370000000000001,
+     "x_in": 32.02642857142857,
+     "y_in": 6.685000000000002,
      "wounds": 1,
-     "model": "Immortal",
+     "model": "Gretchin",
      "weapons": [
       "Close Combat Weapon",
-      "Tesla Carbine"
+      "Grot Blasta"
      ]
     },
     {
-     "x_in": 13.788571428571426,
-     "y_in": 8.870000000000001,
+     "x_in": 33.325466677105226,
+     "y_in": 7.435000000000002,
      "wounds": 1,
-     "model": "Immortal",
+     "model": "Gretchin",
      "weapons": [
       "Close Combat Weapon",
-      "Tesla Carbine"
+      "Grot Blasta"
      ]
     },
     {
-     "x_in": 15.087609534248084,
-     "y_in": 9.620000000000001,
+     "x_in": 33.325466677105226,
+     "y_in": 8.935000000000002,
      "wounds": 1,
-     "model": "Immortal",
+     "model": "Gretchin",
      "weapons": [
       "Close Combat Weapon",
-      "Tesla Carbine"
+      "Grot Blasta"
      ]
     },
     {
-     "x_in": 12.489533322894768,
-     "y_in": 9.620000000000003,
+     "x_in": 32.02642857142857,
+     "y_in": 5.185000000000002,
      "wounds": 1,
-     "model": "Immortal",
+     "model": "Gretchin",
      "weapons": [
       "Close Combat Weapon",
-      "Tesla Carbine"
+      "Grot Blasta"
      ]
     },
     {
-     "x_in": 15.087609534248084,
-     "y_in": 11.120000000000001,
+     "x_in": 30.526428571428568,
+     "y_in": 5.586923788646686,
      "wounds": 1,
-     "model": "Immortal",
+     "model": "Gretchin",
      "weapons": [
       "Close Combat Weapon",
-      "Tesla Carbine"
+      "Grot Blasta"
      ]
     },
     {
-     "x_in": 13.788571428571426,
-     "y_in": 7.370000000000001,
+     "x_in": 33.52642857142857,
+     "y_in": 5.586923788646686,
      "wounds": 1,
-     "model": "Immortal",
+     "model": "Gretchin",
      "weapons": [
       "Close Combat Weapon",
-      "Tesla Carbine"
+      "Grot Blasta"
      ]
     },
     {
-     "x_in": 12.288571428571425,
-     "y_in": 7.771923788646685,
+     "x_in": 32.02642857142857,
+     "y_in": 3.6850000000000023,
      "wounds": 1,
-     "model": "Immortal",
+     "model": "Gretchin",
      "weapons": [
       "Close Combat Weapon",
-      "Tesla Carbine"
+      "Grot Blasta"
      ]
     },
     {
-     "x_in": 15.288571428571426,
-     "y_in": 7.771923788646685,
+     "x_in": 30.487337926463056,
+     "y_in": 3.956383206463415,
      "wounds": 1,
-     "model": "Immortal",
+     "model": "Gretchin",
      "weapons": [
       "Close Combat Weapon",
-      "Tesla Carbine"
+      "Grot Blasta"
      ]
     },
     {
-     "x_in": 16.386647639924742,
-     "y_in": 8.870000000000001,
+     "x_in": 33.56551921639408,
+     "y_in": 3.956383206463415,
      "wounds": 1,
-     "model": "Immortal",
+     "model": "Gretchin",
      "weapons": [
       "Close Combat Weapon",
-      "Tesla Carbine"
+      "Grot Blasta"
      ]
     },
     {
-     "x_in": 16.788571428571426,
-     "y_in": 10.370000000000001,
+     "x_in": 29.13388432783914,
+     "y_in": 4.737800005964601,
      "wounds": 1,
-     "model": "Immortal",
+     "model": "Gretchin",
      "weapons": [
       "Close Combat Weapon",
-      "Tesla Carbine"
+      "Grot Blasta"
      ]
     },
     {
-     "x_in": 13.788571428571426,
-     "y_in": 5.870000000000001,
-     "wounds": 4,
-     "model": "Plasmancer",
+     "x_in": 32.02642857142857,
+     "y_in": 8.185000000000002,
+     "wounds": 2,
+     "model": "Runtherd",
      "weapons": [
-      "Plasmic Lance",
-      "Plasmic Lance"
+      "Grot-Smacka",
+      "Slugga"
      ]
     }
    ]
@@ -1275,80 +1122,120 @@
    ]
   },
   {
-   "name": "2 Lokhust Destroyers 1 + Lokhust Lord",
+   "name": "2 Gretchin 2",
    "owner": "Player 2",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 48.010285714285715,
-     "y_in": 6.0,
-     "wounds": 3,
-     "model": "Lokhust Destroyer",
+     "x_in": 50.26428571428571,
+     "y_in": 8.870000000000001,
+     "wounds": 1,
+     "model": "Gretchin",
      "weapons": [
       "Close Combat Weapon",
-      "Gauss Cannon"
+      "Grot Blasta"
      ]
     },
     {
-     "x_in": 48.010285714285715,
-     "y_in": 3.932,
-     "wounds": 3,
-     "model": "Lokhust Destroyer",
+     "x_in": 50.26428571428571,
+     "y_in": 7.370000000000001,
+     "wounds": 1,
+     "model": "Gretchin",
      "weapons": [
       "Close Combat Weapon",
-      "Gauss Cannon"
+      "Grot Blasta"
      ]
     },
     {
-     "x_in": 49.80122624931193,
-     "y_in": 4.966,
-     "wounds": 3,
-     "model": "Lokhust Destroyer",
+     "x_in": 50.26428571428571,
+     "y_in": 5.870000000000001,
+     "wounds": 1,
+     "model": "Gretchin",
      "weapons": [
       "Close Combat Weapon",
-      "Gauss Cannon"
+      "Grot Blasta"
      ]
     },
     {
-     "x_in": 46.21934517925949,
-     "y_in": 4.966000000000001,
-     "wounds": 3,
-     "model": "Lokhust Destroyer",
+     "x_in": 48.7251950693202,
+     "y_in": 6.141383206463414,
+     "wounds": 1,
+     "model": "Gretchin",
      "weapons": [
       "Close Combat Weapon",
-      "Gauss Cannon"
+      "Grot Blasta"
      ]
     },
     {
-     "x_in": 49.80122624931193,
-     "y_in": 7.034,
-     "wounds": 3,
-     "model": "Lokhust Destroyer",
+     "x_in": 51.803376359251224,
+     "y_in": 6.141383206463414,
+     "wounds": 1,
+     "model": "Gretchin",
      "weapons": [
       "Close Combat Weapon",
-      "Gauss Cannon"
+      "Grot Blasta"
      ]
     },
     {
-     "x_in": 48.010285714285715,
-     "y_in": 1.8639999999999999,
-     "wounds": 3,
-     "model": "Lokhust Destroyer",
+     "x_in": 47.371741470696286,
+     "y_in": 6.9228000059646,
+     "wounds": 1,
+     "model": "Gretchin",
      "weapons": [
       "Close Combat Weapon",
-      "Gauss Cannon"
+      "Grot Blasta"
      ]
     },
     {
-     "x_in": 46.2193451792595,
-     "y_in": 7.034000000000001,
-     "wounds": 6,
-     "model": "Lokhust Lord",
+     "x_in": 53.15682995787514,
+     "y_in": 6.9228000059646,
+     "wounds": 1,
+     "model": "Gretchin",
      "weapons": [
-      "Staff of Light",
-      "Staff of Light"
+      "Close Combat Weapon",
+      "Grot Blasta"
+     ]
+    },
+    {
+     "x_in": 50.26428571428571,
+     "y_in": 4.370000000000001,
+     "wounds": 1,
+     "model": "Gretchin",
+     "weapons": [
+      "Close Combat Weapon",
+      "Grot Blasta"
+     ]
+    },
+    {
+     "x_in": 48.77214639129659,
+     "y_in": 4.558501033228214,
+     "wounds": 1,
+     "model": "Gretchin",
+     "weapons": [
+      "Close Combat Weapon",
+      "Grot Blasta"
+     ]
+    },
+    {
+     "x_in": 51.75642503727484,
+     "y_in": 4.5585010332282145,
+     "wounds": 1,
+     "model": "Gretchin",
+     "weapons": [
+      "Close Combat Weapon",
+      "Grot Blasta"
+     ]
+    },
+    {
+     "x_in": 50.26428571428571,
+     "y_in": 10.370000000000001,
+     "wounds": 2,
+     "model": "Runtherd",
+     "weapons": [
+      "Grot-Smacka",
+      "Slugga"
      ]
     }
    ]
@@ -1424,6 +1311,115 @@
    ]
   },
   {
+   "name": "2 Flash Gitz 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 42.09,
+     "y_in": 10.21,
+     "wounds": 2,
+     "model": "Kaptin",
+     "weapons": [
+      "Choppa",
+      "Snazzgun"
+     ]
+    },
+    {
+     "x_in": 42.09,
+     "y_in": 8.530000000000001,
+     "wounds": 2,
+     "model": "Flash Git",
+     "weapons": [
+      "Choppa",
+      "Snazzgun"
+     ]
+    },
+    {
+     "x_in": 40.63507732164214,
+     "y_in": 9.370000000000001,
+     "wounds": 2,
+     "model": "Flash Git",
+     "weapons": [
+      "Choppa",
+      "Snazzgun"
+     ]
+    },
+    {
+     "x_in": 40.63507732164214,
+     "y_in": 11.05,
+     "wounds": 2,
+     "model": "Flash Git",
+     "weapons": [
+      "Choppa",
+      "Snazzgun"
+     ]
+    },
+    {
+     "x_in": 42.09,
+     "y_in": 6.8500000000000005,
+     "wounds": 2,
+     "model": "Flash Git",
+     "weapons": [
+      "Choppa",
+      "Snazzgun"
+     ]
+    },
+    {
+     "x_in": 40.410000000000004,
+     "y_in": 7.300154643284287,
+     "wounds": 2,
+     "model": "Flash Git",
+     "weapons": [
+      "Choppa",
+      "Snazzgun"
+     ]
+    },
+    {
+     "x_in": 43.77,
+     "y_in": 7.300154643284286,
+     "wounds": 2,
+     "model": "Flash Git",
+     "weapons": [
+      "Choppa",
+      "Snazzgun"
+     ]
+    },
+    {
+     "x_in": 44.99984535671572,
+     "y_in": 8.530000000000001,
+     "wounds": 2,
+     "model": "Flash Git",
+     "weapons": [
+      "Choppa",
+      "Snazzgun"
+     ]
+    },
+    {
+     "x_in": 39.18015464328429,
+     "y_in": 8.530000000000003,
+     "wounds": 2,
+     "model": "Flash Git",
+     "weapons": [
+      "Choppa",
+      "Snazzgun"
+     ]
+    },
+    {
+     "x_in": 38.730000000000004,
+     "y_in": 10.21,
+     "wounds": 2,
+     "model": "Flash Git",
+     "weapons": [
+      "Choppa",
+      "Snazzgun"
+     ]
+    }
+   ]
+  },
+  {
    "name": "1 Howling Banshees 1 + Jain Zar",
    "owner": "Player 1",
    "placement": "board",
@@ -1488,6 +1484,77 @@
      "weapons": [
       "Blade of Destruction",
       "Silent Death"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2 Tankbustas 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 7.709285714285714,
+     "y_in": 8.185000000000002,
+     "wounds": 2,
+     "model": "Boss Nob",
+     "weapons": [
+      "Choppa",
+      "Rokkit Pistol",
+      "Smash Hammer"
+     ]
+    },
+    {
+     "x_in": 7.709285714285714,
+     "y_in": 6.685000000000002,
+     "wounds": 2,
+     "model": "Tankbusta",
+     "weapons": [
+      "Close Combat Weapon",
+      "Rokkit Launcha",
+      "Rokkit Launcha"
+     ]
+    },
+    {
+     "x_in": 9.00832381996237,
+     "y_in": 7.435000000000002,
+     "wounds": 2,
+     "model": "Tankbusta",
+     "weapons": [
+      "Close Combat Weapon",
+      "Rokkit Launcha"
+     ]
+    },
+    {
+     "x_in": 6.410247608609055,
+     "y_in": 7.435000000000003,
+     "wounds": 2,
+     "model": "Tankbusta",
+     "weapons": [
+      "Close Combat Weapon",
+      "Rokkit Launcha"
+     ]
+    },
+    {
+     "x_in": 6.410247608609056,
+     "y_in": 8.935000000000002,
+     "wounds": 2,
+     "model": "Tankbusta",
+     "weapons": [
+      "Close Combat Weapon",
+      "Rokkit Launcha"
+     ]
+    },
+    {
+     "x_in": 7.709285714285714,
+     "y_in": 5.185000000000002,
+     "wounds": 2,
+     "model": "Tankbusta",
+     "weapons": [
+      "Close Combat Weapon",
+      "Rokkit Launcha"
      ]
     }
    ]
@@ -1563,7 +1630,7 @@
    ]
   },
   {
-   "name": "2 C'tan Shard of the Void Dragon 1",
+   "name": "2 Stormboyz 1",
    "owner": "Player 2",
    "placement": "reserves",
    "embarked_in": null,
@@ -1572,13 +1639,375 @@
     {
      "x_in": 0.0,
      "y_in": 0.0,
-     "wounds": 16,
-     "model": "C'tan Shard of the Void Dragon",
+     "wounds": 2,
+     "model": "Boss Nob",
      "weapons": [
-      "Canoptek Tail Blades",
-      "Spear of the Void Dragon",
-      "Spear of the Void Dragon - Strike",
-      "Voltaic Storm"
+      "Power Klaw",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Stormboy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Stormboy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Stormboy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Stormboy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Stormboy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Stormboy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Stormboy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Stormboy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Stormboy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2 Deffkoptas 1",
+   "owner": "Player 2",
+   "placement": "reserves",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4,
+     "model": "Deffkopta",
+     "weapons": [
+      "Kopta Rokkits",
+      "Slugga",
+      "Spinnin' Blades"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4,
+     "model": "Deffkopta",
+     "weapons": [
+      "Kopta Rokkits",
+      "Slugga",
+      "Spinnin' Blades"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4,
+     "model": "Deffkopta",
+     "weapons": [
+      "Kopta Rokkits",
+      "Slugga",
+      "Spinnin' Blades"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4,
+     "model": "Deffkopta",
+     "weapons": [
+      "Kopta Rokkits",
+      "Slugga",
+      "Spinnin' Blades"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4,
+     "model": "Deffkopta",
+     "weapons": [
+      "Kopta Rokkits",
+      "Slugga",
+      "Spinnin' Blades"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4,
+     "model": "Deffkopta",
+     "weapons": [
+      "Kopta Rokkits",
+      "Slugga",
+      "Spinnin' Blades"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2 Beast Snagga Boyz 1 + Beastboss",
+   "owner": "Player 2",
+   "placement": "embarked",
+   "embarked_in": "2 Kill Rig 1",
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 2,
+     "model": "Beast Snagga Nob",
+     "weapons": [
+      "Power Snappa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
+     "weapons": [
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 6,
+     "model": "Beastboss",
+     "weapons": [
+      "Beast Snagga Klaw",
+      "Beastchoppa",
+      "Shoota"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2 Meganobz 1 + Warboss in Mega Armour",
+   "owner": "Player 2",
+   "placement": "embarked",
+   "embarked_in": "2 Battlewagon 1",
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 3,
+     "model": "Meganob",
+     "weapons": [
+      "Kustom Shoota",
+      "Power Klaw"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 3,
+     "model": "Meganob",
+     "weapons": [
+      "Kustom Shoota",
+      "Power Klaw"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 3,
+     "model": "Meganob",
+     "weapons": [
+      "Kustom Shoota",
+      "Power Klaw"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 3,
+     "model": "Meganob",
+     "weapons": [
+      "Kustom Shoota",
+      "Power Klaw"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 3,
+     "model": "Meganob",
+     "weapons": [
+      "Kustom Shoota",
+      "Power Klaw"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 3,
+     "model": "Meganob",
+     "weapons": [
+      "Kustom Shoota",
+      "Power Klaw"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 7,
+     "model": "Warboss in Mega Armour",
+     "weapons": [
+      "'Uge Choppa",
+      "Big Shoota"
      ]
     }
    ]
@@ -1586,13 +2015,13 @@
  ],
  "armies": {
   "Player 1": "aeldari",
-  "Player 2": "necrons"
+  "Player 2": "orks"
  },
  "turn": {
   "battle_round": 1,
   "phase": "Command",
-  "turn_owner": "Player 1",
-  "active_player": "Player 1"
+  "turn_owner": "Player 2",
+  "active_player": "Player 2"
  },
  "command_points": {
   "Player 1": 1,
@@ -1615,23 +2044,23 @@
   },
   "secondary": {
    "deck": [
-    "centre_ground",
-    "assassination",
-    "defend_stronghold",
-    "secure_no_mans_land",
-    "bring_it_down",
-    "a_grievous_blow",
     "engage_on_all_fronts",
+    "cleanse",
+    "assassination",
     "behind_enemy_lines",
-    "overwhelming_force",
-    "beacon",
-    "no_prisoners",
-    "display_of_might",
     "forward_position",
     "outflank",
+    "beacon",
+    "display_of_might",
+    "centre_ground",
+    "overwhelming_force",
     "a_tempting_target",
     "plunder",
-    "cleanse"
+    "no_prisoners",
+    "a_grievous_blow",
+    "bring_it_down",
+    "secure_no_mans_land",
+    "defend_stronghold"
    ],
    "hand": [],
    "discarded": [],

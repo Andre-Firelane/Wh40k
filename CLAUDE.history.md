@@ -8278,3 +8278,122 @@ zielgenaue Ersetzungen umgestellt. Die Editor-Warnung „file had been modified
 on disk" trat mehrfach auf und bestätigt, dass die andere Sitzung aktiv war.
 Nichts von deren Arbeit wurde angefasst; die volle Regression lief mit beiden
 Änderungsmengen im Baum und ist grün.
+
+# Sitzung 2026-09-09 — die Maut fällt: alle KI-Einheiten queren Wände gratis
+
+**Auftrag:** *"um der ai das movement noch weiter zu erleichtern, darf sie alle
+ALLE einheiten durch wände bewegen."*
+
+## Die Bitte war schon erfüllt — die Messung hat die eigentliche Frage gefunden
+
+Der erste Schritt war nicht ein Edit, sondern eine Reproduktion, und sie hat
+die Aufgabe umgedreht. `Obstacle.blocks_movement_for()` endet mit
+`return not may_cross_walls(model)`, und `may_cross_walls()` fragt
+ausschließlich den OWNER — jede Keyword-Prüfung fällt für ein KI-Modell weg,
+bevor sie gestellt wird. Gemessen über **alle zehn ausgelieferten Listen × drei
+Karten × beide Seiten**: Player 2 **0 von 701** Modellen geblockt, Player 1
+**116 von 701**. Die Erlaubnis galt also längst für ALLE Einheiten.
+
+Damit war die wörtliche Anweisung ein No-op, und das ist genau der Fall, in dem
+Nachfragen richtig ist statt zu raten: „schon erledigt" und „die Maut streichen"
+sind materiell verschiedene Arbeiten. Die Frage wurde MIT den Zahlen gestellt.
+
+**Die Rückfrage des Users war die bessere Frage:** *"Sicher? Gilt das zb auch
+für Mounted?"* — beantwortet durch denselben Sweep, jetzt nach Keyword
+aufgeschlüsselt: MOUNTED **0 von 7** für die KI, **7 von 7** für den Menschen.
+Nebenbefund: MOUNTED ist im Repo rein beschreibend und tragen es nur Krootox
+Rampager und Lokhust Lord — Windriders lesen als FLY, nicht als MOUNTED. Wer die
+Frage aus dem Keyword heraus beantworten wollte, hätte sie falsch beantwortet.
+
+## Die Ungleichheit lag im PREIS, nicht in der Erlaubnis
+
+`WALL_CROSSING_COST_IN = 3.0` traf per Konstruktion genau die Modelle, die 13.06
+nicht ohnehin durchlässt. Von den 701 Modellen der KI querten **584 gratis** und
+**117 zahlten** — Windrider, War Walker, Lokhust Destroyer, Deffkopta,
+Crisis-Suits, Coldstar, Krootox Rampager, Avatar. Ein Windrider durfte durch
+dieselbe Wand wie der Guardian daneben, für die halbe Bewegung. Das ist die
+Lesart, die zu „ALLE einheiten" passt, und der User hat sie gewählt.
+
+Ein Spion über einen echten `measure_crowded_movement.py map2`-Lauf, VOR der
+Änderung: Maut 115-mal bezahlt, 46-mal blockierte eine Wand die Querung doch
+(`remaining <= cost`), 1340-mal blockierte sie, weil die bezahlbare Strecke gar
+keine Wand erreichte — gegen 13984 gratis querende Infanterie-Segmente. Die Maut
+biss also exakt die Minderheit, für die sie geschrieben war, und das war der
+Grund, sie zu STREICHEN statt sie zu justieren.
+
+## Gemessen, was es bringt
+
+Derselbe Lauf nach der Änderung: Gesamtboden **209.1" → 217.7"**, Züge unter 35%
+des Erreichbaren **14.3% → 11.9%**, Seitwärtszüge **11.9% → 9.5%**, und die
+schlechteste Einheit der Baseline — der Battlewagon — **30% → 54%**. ISOLIERT
+**77% → 92%**. Segmente, die eine Wand doch stoppte: **1386 → 0**.
+
+**Der CROWDED-Median bleibt bei 65%**, und das ist keine Enttäuschung: die
+Baseline sagt seit jeher, dass der Verlust im Gedränge daher kommt, dass die KI
+sich selbst im Weg steht. Die Wände waren dort nie die bindende Schranke.
+
+Dazu ein Nebeneffekt, der nicht gesucht war: **nichts in `ai/` hat die Maut je
+gelesen** (gemessen: null Vorkommen außerhalb `config.py`/`movement.py`), die
+Reichweiten-Schätzungen `reachable_this_turn` und `turns_to_reach` waren für
+diese 117 Modelle also um bis zu 3" zu optimistisch. Bei 0 stimmen sie exakt.
+
+## Was stehen bleibt, und warum es eine Zeile bleibt
+
+Die Erlaubnis bleibt OWNER-gekeyt, und 13.05 („nicht AUF einer Wand enden")
+bleibt für alle in Kraft — mit Abstand die häufigste Wand-Ablehnung (5133 gegen
+0 Maut-Fälle), schon einmal gemessen und bewusst nicht ausgeliefert. Beide haben
+eine eigene A/B-Sonde, damit „quert gratis" nicht still zu „quert überall und
+hält überall" wird.
+
+**Der Mechanismus bleibt ebenfalls**, als Wert statt als Löschung: der Regler ist
+jetzt zweimal vom User gesetzt worden, und `_wall_toll()` still zu totem Code zu
+machen hieße, dass 3.0 zurückzuholen ein Neubau wäre statt einer Zeile.
+`test_wall_crossing.py` bekam dafür eine Zweiteilung — **2a** pinnt, was
+ausgeliefert ist, **2b** fährt die Maschinerie an einem selbst gesetzten Wert
+ungleich 0.
+
+## Ein Befund über den TEST, sofort nach dem ersten grünen Lauf
+
+Nach der Änderung meldete die Suite 18/18 — und Abschnitt 2 war zur
+**TAUTOLOGIE** geworden: `Kosten == WALL_CROSSING_COST_IN` ist bei 0 die Aussage
+`0 == 0` und hätte auch mit gelöschtem `_wall_toll()` bestanden. Dieselbe Falle
+wie beim Arena-Biom und bei den T'au-Enhancements (eine Sonde, die beide Seiten
+des Vergleichs bewegt). 2a fährt jetzt DIESELBE Szene an beiden Mautwerten und
+verlangt ein anderes Ergebnis: 8.00" gratis gegen 5.00" bei 3.0.
+
+## Drei eigene Sondenfehler, alle von der Sonde selbst gefunden
+
+1. **Ein still fehlgeschlagenes `str.replace`** (ein Bindestrich zu viel im
+   Anker) hat einen Diagnose-Zähler deklariert und nie installiert. Er meldete
+   `clamp_calls = 0`, was wie ein echter Befund über den KI-Pfad aussah — der
+   ruft `clamp_move()` sehr wohl (`agent_driver.py:996, :1656`). Zweite Instanz
+   dieser Falle nach dem Aura-Anker-Pin.
+2. **Die `--neutralize`-Hälfte biss zuerst NICHT und meldete byte-identische
+   Zahlen.** Ursache: die ausgelieferte KI-Armee (Necrons) ist fast reine
+   INFANTERIE, alle 111 Querungen des Laufs waren also Modelle, die 13.06
+   ohnehin gratis durchlässt — die Maut konnte in diesem Lauf gar nicht beißen.
+   Die Sonde fieldet jetzt die ORKS (Battlewagon, Trukk, Deff Dread, Warbikers)
+   und **zählt die Querungen getrennt nach „hätte gezahlt" und „quert per
+   13.06 ohnehin"**, damit ein solcher Lauf sich selbst erklärt statt sauber
+   auszusehen.
+3. **Unseeded verglich das A/B zwei verschiedene Partien.** Gemessen über vier
+   Seeds bei 9000 Frames: 1207 / 1248 / 338 / 1 committete KI-Segmente — ein
+   Selbstspiel-Lauf bringt seine Bewegungsphasen entweder in Gang oder stallt
+   auf dem ersten Prompt, den er nicht beantworten kann (die dokumentierte
+   Harness-Grenze). Die Sonde seedet jetzt, und beide Hälften spielen dieselbe
+   Partie.
+
+## Parallele Sitzung (Fehlerklasse 20)
+
+Eine zweite Claude-Sitzung baute im selben Baum eine VIERTE Karte („Sundered",
+`game/maps.py` plus `scratch_repro/map4/`). Die volle Regression meldete
+dadurch zwei rote Suiten (`test_map_select.py`, `test_menu_presentation.py`),
+beide mit `Sundered (60"x44", diagonal deployment)` in der Meldung. **A/B
+belegt, dass sie nicht dieser Arbeit gehören:** mit der Maut zurück auf 3.0
+fallen exakt dieselben vier Zeilen. Nichts von deren Arbeit wurde angefasst.
+
+Dazu die dokumentierte Nebenwirkung eines Sondenlaufs: `ab_wall_toll.py`
+schreibt `game/squad.py` und `game/terrain.py` beim Neutralisieren neu und
+normalisiert dabei CRLF auf LF. Inhaltlich identisch (`git diff --stat` leer),
+aber `git status` zeigt die Dateien danach als verändert — nach einem
+Sondenlauf gehört das zurückgesetzt, bevor committet wird.
