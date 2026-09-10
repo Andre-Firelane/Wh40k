@@ -42,6 +42,7 @@ folds below only ask.
 """
 
 from game import aux_alien_expertise, hovering_death, loping_pounce
+from game.relentless_combatants import squad_has_relentless_combatants
 from game.squad import (squad_has_agile_combatant, squad_has_battlesuit_support_system,
                         squad_has_full_throttle, squad_has_war_construct)
 from game.waaagh import squad_waaagh_active
@@ -106,11 +107,15 @@ def may_shoot_after_falling_back(squad):
 def may_charge_after_falling_back(squad):
     """Rule 09.07's charge ban - a SHORTER list than the shooting one, and
     that difference is printed: Battlesuit Support System and Agile Combatant
-    say "shoot", Hovering Death and Full Throttle say both."""
+    say "shoot", Hovering Death and Full Throttle say both, and the Triarch
+    Praetorians' Relentless Combatants says only "declare a charge" (its other
+    clause is a Charge-roll re-roll, which is a different question entirely -
+    see game/relentless_combatants.py)."""
     if squad is None:
         return False
     return (squad_has_full_throttle(squad)
             or hovering_death.squad_ignores_fall_back(squad)
+            or squad_has_relentless_combatants(squad)
             or any(_flag(squad, name) for name in CHARGE_AFTER_FALL_BACK_FLAGS))
 
 

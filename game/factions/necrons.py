@@ -49,6 +49,8 @@ from game.units import (
     HexmarkDestroyerProfile,
     OphydianDestroyerProfile,
     NekrosorAmmentarProfile,
+    TriarchPraetorianProfile,
+    TriarchStalkerProfile,
 )
 from game.weapons import (
     ArmouredBulkProfile,
@@ -74,7 +76,14 @@ from game.weapons import (
     LordsBladeProfile,
     LordStaffOfLightRangedProfile,
     OverlordsBladeProfile,
+    HeatRayDispersedProfile,
+    HeavyGaussCannonArrayProfile,
     ParticleCasterProfile,
+    ParticleShredderProfile,
+    RodOfCovenantMeleeProfile,
+    RodOfCovenantRangedProfile,
+    StalkersForelimbsProfile,
+    VoidbladeProfile,
     PlasmicLanceMeleeProfile,
     PlasmicLanceRangedProfile,
     SkorpekhHyperphaseWeaponsProfile,
@@ -1038,6 +1047,113 @@ DOOMSDAY_ARK = NECRONS.add_datasheet(Datasheet(
         "Overwhelming Obliteration: \"In your Movement phase, if this model Remains "
         "Stationary, until the end of the turn, its doomsday cannon has the "
         "[DEVASTATING WOUNDS] ability.\" - see game/overwhelming_obliteration.py.",
+    ],
+))
+
+
+# ---------------------------------------------------------------------------
+# Triarch - Praetorians, Stalker
+#
+# ONE BATCH BY KEYWORD, and it straddles this file's section banners: the
+# Praetorians are INFANTRY and the Stalker is a VEHICLE. They are kept together
+# because TRIARCH is what makes them one batch, the same way the Deathmarks
+# batch above sits under the Characters banner - the sub-banner is the unit of
+# organisation here, not the keyword the section above happens to name.
+#
+# NEITHER ONE ATTACHES TO ANYTHING. Neither prints a LEADER line and neither
+# appears in any LED BY block on this faction's page (six of those exist,
+# none names a Triarch datasheet) - measured, not inferred from the absence of
+# a pairing in necrons_points.py.
+# ---------------------------------------------------------------------------
+
+_PRAETORIAN_LINE = "Triarch Praetorian"
+PRAETORIANS_TO_CASTER_AND_VOIDBLADE = "Rod of Covenant -> Particle Caster + Voidblade"
+
+TRIARCH_PRAETORIANS = NECRONS.add_datasheet(Datasheet(
+    "Triarch Praetorians",
+    keywords=("INFANTRY", "FLY", "TRIARCH", "PRAETORIANS", "NECRONS"),
+    composition_options=[
+        [ModelLine(TriarchPraetorianProfile, n,
+                   # The rod of covenant is ONE printed entry with a ranged
+                   # and a melee row, so both travel together - the Aeonstave
+                   # and Eldritch Lance arrangement, not the Void Dragon
+                   # spear's exclusive strike/sweep pair.
+                   [RodOfCovenantRangedProfile, RodOfCovenantMeleeProfile],
+                   name=_PRAETORIAN_LINE)]
+        for n in (5, 10)
+    ],
+    wargear_options=[
+        # "All models in this unit can each have their rod of covenant
+        # replaced with 1 particle caster and 1 voidblade" - so the swap gives
+        # up BOTH rows of that one printed entry and takes two weapons back,
+        # which is what the multi-weapon `replaces` form is for. max_models is
+        # None because "all models ... can each" really is unlimited.
+        #
+        # THE PARTICLE CASTER IS THE CANOPTEK WRAITHS' CLASS, SHARED. Its
+        # printed row here is byte-for-byte theirs down to the keywords; only
+        # BS differs (3+ against their 4+), and BS lives on the model profile,
+        # so one class gives each wielder its own printed skill. See the
+        # collision sweep at the head of that block in game/weapons.py.
+        WargearOption(_PRAETORIAN_LINE,
+                      replaces=(RodOfCovenantRangedProfile, RodOfCovenantMeleeProfile),
+                      with_weapons=[ParticleCasterProfile, VoidbladeProfile],
+                      name=PRAETORIANS_TO_CASTER_AND_VOIDBLADE),
+    ],
+    points=NECRONS_POINTS["Triarch Praetorians"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Deep Strike (Core).",
+        "Relentless Combatants: \"You can re-roll Charge rolls made for this unit, and "
+        "this unit is eligible to declare a charge in a turn in which it Fell Back.\" - "
+        "one sentence at TWO seams: the re-roll is offered the instant the Charge roll "
+        "lands (game/relentless_combatants.py), and the Fall Back exemption registers in "
+        "game/move_exceptions.py, which owns rule 09.07's charge ban.",
+    ],
+))
+
+
+_STALKER_LINE = "Triarch Stalker"
+STALKER_TO_PARTICLE_SHREDDER = "Heat Ray -> Particle Shredder"
+STALKER_TO_HEAVY_GAUSS_CANNON_ARRAY = "Heat Ray -> Heavy Gauss Cannon Array"
+
+TRIARCH_STALKER = NECRONS.add_datasheet(Datasheet(
+    "Triarch Stalker",
+    keywords=("VEHICLE", "WALKER", "TRIARCH", "FRAME", "STALKER", "NECRONS"),
+    model_lines=[ModelLine(TriarchStalkerProfile, 1,
+                           # Only the DISPERSED heat ray is carried: the
+                           # focused row is its firing MODE
+                           # (overcharge_profile), not a second gun, because
+                           # the two are one printed datasheet entry.
+                           [HeatRayDispersedProfile, StalkersForelimbsProfile],
+                           name=_STALKER_LINE)],
+    wargear_options=[
+        # "This model's heat ray can be replaced with ONE OF the following".
+        # Both options give up the same weapon, so build_squad() hands them the
+        # same cursor and they cannot both land - and on a one-model line that
+        # makes the exclusivity exact rather than merely non-overlapping, which
+        # is the same coincidence the Enforcer Commander's six-item menu relies
+        # on. A multi-model carrier would need the real exclusion this engine
+        # does not have.
+        WargearOption(_STALKER_LINE, replaces=HeatRayDispersedProfile,
+                      with_weapons=[ParticleShredderProfile],
+                      name=STALKER_TO_PARTICLE_SHREDDER),
+        WargearOption(_STALKER_LINE, replaces=HeatRayDispersedProfile,
+                      with_weapons=[HeavyGaussCannonArrayProfile],
+                      name=STALKER_TO_HEAVY_GAUSS_CANNON_ARRAY),
+    ],
+    points=NECRONS_POINTS["Triarch Stalker"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Deadly Demise D3, Scouts 8\" (Core).",
+        "Invulnerable Save: \"This model has a 4+ invulnerable save.\"",
+        "Targeting Relay: \"In your Shooting phase, each time this model is selected to "
+        "shoot, after resolving its attacks, select one enemy unit that was hit by one or "
+        "more of those attacks. Until the end of the phase, that unit cannot have the "
+        "Benefit of Cover.\" - the Defiler's Barrage of Filth prints the same sentence, so "
+        "both are subclasses of game/cover_denial.py; see game/targeting_relay.py.",
+        "NOTE: this datasheet prints NO base size (\"Use model\", the FRAME keyword). The "
+        "1.575\" radius on its UnitProfile is a TABLE SIZE decision, not a transcription - "
+        "the reasoning is on the profile itself.",
     ],
 ))
 

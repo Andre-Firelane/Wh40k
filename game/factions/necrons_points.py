@@ -111,6 +111,13 @@ NECRONS_POINTS = {
         PointsTier({3: 90, 6: 160}, from_unit=3),
     ]),
     "Lychguard": flat_points({5: 80, 10: 160}),                     # the list says 85 for 5
+    # --- Triarch (the Praetorians batch) ---
+    #
+    # Neither of these two is LED BY anything and neither prints a LEADER
+    # line - checked against the page's own LED BY blocks (six of them on this
+    # faction, none naming a Triarch datasheet), not assumed from the absence
+    # of a pairing here.
+    "Triarch Praetorians": flat_points({5: 80, 10: 160}),
     "Skorpekh Destroyers": UnitPoints([
         PointsTier({3: 85, 6: 170}, to_unit=2),                     # the list says 90 for 3
         PointsTier({3: 95, 6: 180}, from_unit=3),
@@ -133,6 +140,10 @@ NECRONS_POINTS = {
     ]),
 
     # --- Vehicles ---------------------------------------------------------
+    "Triarch Stalker": UnitPoints([
+        PointsTier({1: 110}, to_unit=2),
+        PointsTier({1: 120}, from_unit=3),
+    ]),
     "Doomsday Ark": UnitPoints([
         PointsTier({1: 210}, to_unit=2),                            # the list says 200
         PointsTier({1: 230}, from_unit=3),

@@ -5130,6 +5130,145 @@ class UnmakerGauntletProfile(WeaponProfile):
     damage = 3
 
 
+# --- Triarch: Praetorians / Stalker ----------------------------------------
+#
+# THE COLLISION SWEEP FOR THIS BATCH, run before a class was written - and it
+# came out the OTHER way round from the Destroyer Cult's, which is the point of
+# running it every time rather than assuming:
+#
+#   * "Particle caster" is printed on the Triarch Praetorians and is BYTE-FOR-
+#     BYTE the Canoptek Wraiths' row already here (12" A3 S5 AP0 D1,
+#     [DEVASTATING WOUNDS] [PISTOL]). It is SHARED, not forked. The only
+#     column that differs is BS (4+ Wraiths, 3+ Praetorians) - and BS lives on
+#     the model PROFILE in this engine, not on the weapon, so one class gives
+#     each wielder its own printed skill for free. Cloning it would have been
+#     the inverse of the Destroyer Cult's mistake and just as wrong.
+#   * every other name in this batch is one no datasheet has printed yet.
+#
+# WS/BS ARE ON THE PROFILES, with ONE exception that is genuinely printed: the
+# Triarch Stalker's rows say BS3+ for the focused heat ray and the heavy gauss
+# cannon array, WS3+ for the forelimbs - and BS2+ for the particle shredder.
+# A model whose own rows CONTRADICT each other is exactly what the per-weapon
+# override is for, so the shredder carries one and nothing else does.
+
+
+class RodOfCovenantRangedProfile(WeaponProfile):
+    """Triarch Praetorians' default gun. One printed datasheet entry with a
+    ranged AND a melee row, so it is two weapons in the loadout rather than a
+    firing-mode pair - the arrangement the Aeonstave and the Eldritch Lance
+    already use, and the opposite of the Void Dragon's melee strike/sweep pair
+    (those are two profiles of ONE row, which rule 04.01 makes exclusive)."""
+    name = "Rod of covenant"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 1
+    strength = 5
+    ap = -2
+    damage = 2
+
+
+class RodOfCovenantMeleeProfile(WeaponProfile):
+    """The melee half of the same printed entry - three attacks where the
+    ranged row has one, everything else identical."""
+    name = "Rod of covenant"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    strength = 5
+    ap = -2
+    damage = 2
+
+
+class VoidbladeProfile(WeaponProfile):
+    """Triarch Praetorians' melee alternative, taken together with the
+    particle caster in place of the rod of covenant."""
+    name = "Voidblade"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    strength = 5
+    ap = -2
+    damage = 1
+
+
+class HeatRayFocusedProfile(WeaponProfile):
+    """The heat ray's second mode. Defined before the dispersed profile below
+    because that one names it as its alternate mode."""
+    name = "Heat ray - focused"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 2
+    strength = 9
+    ap = -4
+    damage = 6            # grouping/preview placeholder only - damage_notation is what is rolled
+    damage_notation = D6()
+    melta = 4
+
+
+class HeatRayDispersedProfile(WeaponProfile):
+    """Triarch Stalker's default gun, first of the two printed modes.
+
+    [TORRENT] (24.37), so its printed BS column is "N/A" - no Hit roll is made
+    and the skill is never read. The two modes are a firing-mode PAIR
+    (overcharge_profile) because they are one datasheet entry: without that
+    the Stalker would fire both in the same activation."""
+    name = "Heat ray - dispersed"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 2           # grouping/preview placeholder only - attacks_notation is what is rolled
+    attacks_notation = D6(dice=2)   # printed "2D6"
+    strength = 5
+    ap = -1
+    damage = 1
+    ignores_cover = True
+    torrent = True
+    overcharge_profile = HeatRayFocusedProfile
+
+
+class ParticleShredderProfile(WeaponProfile):
+    """Triarch Stalker, first heat-ray replacement.
+
+    The ONE per-weapon BS override in this batch, and it is printed: this row
+    says 2+ while the Stalker's other two skill-carrying rows say 3+. Not the
+    Canoptek Spyder's "particle beamer" and not the Praetorians' "particle
+    caster" - three particle guns, three classes."""
+    name = "Particle shredder"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 6           # grouping/preview placeholder only - attacks_notation is what is rolled
+    attacks_notation = D6(6)        # printed "D6+6"
+    ballistic_skill = "2+"          # printed on the weapon, BETTER than the Stalker's own 3+
+    strength = 7
+    ap = 0
+    damage = 1
+    blast = True
+    devastating_wounds = True
+
+
+class HeavyGaussCannonArrayProfile(WeaponProfile):
+    """Triarch Stalker, second heat-ray replacement. A separate class from the
+    Lokhust Heavy Destroyers' "Gauss Destructor" and from the Doomsday Ark's
+    "Gauss Flayer Array" - similar names, different rows."""
+    name = "Heavy gauss cannon array"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 6
+    strength = 8
+    ap = -2
+    damage = 2
+    lethal_hits = True
+
+
+class StalkersForelimbsProfile(WeaponProfile):
+    name = "Stalker's forelimbs"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    strength = 7
+    ap = -1
+    damage = 3
+
+
 # ---------------------------------------------------------------------------
 # Death Guard - see game/factions/death_guard.py
 #

@@ -351,6 +351,13 @@ SQUAD_SPRITE_KEYS = {
     # which is not a key on its own). Measured in the suite, not asserted here.
     "Hexmark Destroyer": "Hexmark Destroyer",
     "Ophydian Destroyers": "Ophydian Destroyers",
+    # Triarch. Both files agree with their datasheet exactly. Shadowing checked
+    # the same way and measured in the suite: "Triarch Stalker" is NOT a
+    # substring of "Triarch Praetorians" (the word "Praetorians" sits where
+    # "Stalker" would), and the Canoptek Doomstalker file that arrives in a
+    # later batch does not contain either key.
+    "Triarch Praetorians": "Triarch Praetorians",
+    "Triarch Stalker": "Triarch Stalker",
 
     # --- Death Guard ---
     # EIGHT of these eleven files disagree with the datasheet name, and the

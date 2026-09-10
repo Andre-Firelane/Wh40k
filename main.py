@@ -41,7 +41,7 @@ from game.consolidate import ConsolidateController
 from game.counteroffensive import CounteroffensiveController
 from game.deadly_demise import DeadlyDemiseController
 from game.decision import DecisionManager
-from game.dice import ADVANCE_ROLL, DiceManager
+from game.dice import ADVANCE_ROLL, CHARGE_ROLL, DiceManager
 from game.crushing_impact import CrushingImpactController
 from game.epic_challenge import EpicChallengeController
 from game.fight import FightController
@@ -110,6 +110,8 @@ from game.mechanical_augmentation import AtomicEnergyManipulatorController
 from game.nurgles_gift import NurglesGiftController
 from game.deadly_vectors import DeadlyVectorsController
 from game.barrage_of_filth import BarrageOfFilthController
+from game.targeting_relay import TargetingRelayController
+from game.relentless_combatants import RelentlessCombatantsController
 from game.curse_of_the_walking_pox import CurseOfTheWalkingPoxController
 from game.fevered_strategist import FeveredStrategistDiscount
 from game.lethal_ichor import LethalIchorController
@@ -1886,6 +1888,18 @@ def main(map_key=None):
         auto_players=ai_players, target_pick=_best_damage_target,
     )
     shooting_controller.barrage_of_filth = barrage_of_filth_controller
+    # The Triarch Stalker's Targeting Relay - the SAME printed sentence under
+    # another name, so it is the second subclass of game/cover_denial.py and
+    # gets the same three seams (fed on finished shooting, read back in the
+    # cover test, cleared at the phase boundary). Built here rather than with
+    # the other Necron controllers so the pair stays side by side: they are one
+    # rule with two datasheets on it, and splitting them is how the two would
+    # drift.
+    targeting_relay_controller = TargetingRelayController(
+        decision_manager=decision_manager, game_log=game_log,
+        auto_players=ai_players, target_pick=_best_damage_target,
+    )
+    shooting_controller.targeting_relay = targeting_relay_controller
     pestilent_fallout_controller = PestilentFalloutController(
         turn_tracker=turn_tracker, game_log=game_log,
         auto_players=ai_players, target_pick=_best_damage_target,
@@ -1938,6 +1952,11 @@ def main(map_key=None):
     # granting it (shooting_controller reads it back in the cover test).
     shooting_controller.on_squad_finished_shooting.append(
         barrage_of_filth_controller.on_squad_finished_shooting)
+    # The Triarch Stalker's Targeting Relay, on the same hook and for the same
+    # reason - "each time this model is selected to shoot, after resolving its
+    # attacks" is this seam in longer words.
+    shooting_controller.on_squad_finished_shooting.append(
+        targeting_relay_controller.on_squad_finished_shooting)
     # The Malignant Plaguecaster's Pestilent Fallout - ninth, and the only one
     # that names a WEAPON as well as a target, so it is handed what was fired.
     shooting_controller.on_squad_finished_shooting.append(
@@ -2087,6 +2106,18 @@ def main(map_key=None):
         turn_tracker=turn_tracker, game_log=game_log,
     )
     charge_controller.on_charge_declared = grav_inhibitor_controller.maybe_offer
+    # The Triarch Praetorians' Relentless Combatants, first clause: "you can
+    # re-roll Charge rolls made for this unit". Built HERE and not earlier
+    # because it holds charge_controller - main() is one long function in which
+    # construction order is a real hazard (error class 23), and the AST guard
+    # in test_event_chain_wiring.py section 4 covers `a.b = c`, not constructor
+    # kwargs. Its second clause needs nothing here: it is a predicate
+    # game/move_exceptions.py asks.
+    relentless_combatants_controller = RelentlessCombatantsController(
+        dice_manager=dice_manager, decision_manager=decision_manager,
+        charge_controller=charge_controller, game_log=game_log,
+        auto_players=ai_players,
+    )
     # Rule 11.04's "ends a Charge move" - the Skorpekh Lord's Crimson Harvest.
     # Fed from ChargeController rather than from a phase hook, because that
     # moment exists nowhere else; and it has to be HERE rather than beside the
@@ -3663,6 +3694,7 @@ def main(map_key=None):
         # Chaos Spawn's Lethal Ichor tally and the Poxwalkers' unspent kill
         # credit are per Fight phase. All three clear on the same boundary.
         barrage_of_filth_controller.reset_phase()
+        targeting_relay_controller.reset_phase()
         lethal_ichor_controller.reset_phase()
         curse_of_the_walking_pox_controller.reset_phase()
         # The Death Lord's Chosen grants are all "until the end of the phase".
@@ -5698,6 +5730,17 @@ def main(map_key=None):
                             _adv_squad = movement_controller.selected_squad
                             superlative_strategist_controller.maybe_offer_advance_reroll(_adv_squad)
                             sudden_storm_controller.maybe_offer_advance_reroll(_adv_squad)
+                            if decision_manager.is_pending:
+                                continue
+                        # A CHARGE roll has exactly the same one-instant
+                        # window, for exactly the same reason: acknowledge()
+                        # clears pending_values and reroll_all() then refuses.
+                        # The Triarch Praetorians' Relentless Combatants is the
+                        # only datasheet re-roll of this kind; it asks the
+                        # CHARGING unit, which is the only one whose Charge
+                        # roll this can be.
+                        if dice_manager.roll_kind == CHARGE_ROLL:
+                            relentless_combatants_controller.maybe_offer_charge_reroll()
                             if decision_manager.is_pending:
                                 continue
                         dice_manager.acknowledge()

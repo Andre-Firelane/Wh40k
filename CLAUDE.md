@@ -383,6 +383,16 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
     vierteilige AUSLOESER nicht — und den falsch zu haben ist nicht hypothetisch: die erste
     Fassung von Kroot Packmates lieferte mit dem falschen `target_reactions`-Vertrag aus und
     liess jedes Spiel abstuerzen, sobald irgendeine Einheit ein Schussziel waehlte.
+    Seither **`game/cover_denial.py` (41.)** — „nachdem dieses Modell geschossen hat, kann
+    EINE getroffene Feindeinheit bis zum Ende der Phase keine Deckung haben", gelesen vom
+    Defiler (Barrage of Filth) und vom Triarch Stalker (Targeting Relay), die denselben Satz
+    unter zwei Namen drucken. Geteilt ist genau das, was man zweimal subtil falsch macht: die
+    Kandidaten sind, was WIRKLICH getroffen wurde; „select" ist keine Wahl über das OB; die
+    Marke lebt eine PHASE; und eine befreundete Einheit ist nie Kandidat. Eine Unterklasse
+    besitzt ZWEI Knöpfe (Profil-Flag, gedruckter Name) — als Klassenattribute, damit ein
+    Vergessen LAUT scheitert. **Und `_compute_benefit_of_cover()` hat EINEN Leser** statt
+    zweier `if`s (`cover_denial.denied(target, (…, …))`), also können die zwei sich nie darüber
+    uneinig werden, was „denied" heißt.
     Seither **`weapons.anti_entries()` (31.)** — „wie liest man `WeaponProfile.anti`", gelesen von
     `shooting._wound_crit_threshold()` und von `weapons.printed_keywords()`; es liegt jetzt bei
     dem Feld, das es liest, und `shooting.py` re-exportiert es unter dem alten privaten Namen,
@@ -7465,21 +7475,22 @@ Spiellänge definieren.
   Stratagems). Punkteliste bewusst NUR für gebaute Einheiten (ein KeyError heißt "noch nicht
   transkribiert", nicht "kostenlos").
 
-- **Necrons — 25 von 64 Datenblättern**, und die Zahl bewegt sich mit dem laufenden
+- **Necrons — 27 von 64 Datenblättern**, und die Zahl bewegt sich mit dem laufenden
   Nachzug (siehe `## Die restlichen Necron-Datenblätter`): Necron Warriors, Immortals,
   Lychguard, Skorpekh Destroyers, Lokhust Destroyers,
   Lokhust Heavy Destroyers, Canoptek Wraiths, Doomsday Ark, Overlord, Plasmancer, Technomancer,
   Illuminor Szeras, C'tan Shard of the Void Dragon, Skorpekh Lord, Lokhust Lord;
   dazu Etappe 1 **Chronomancer, Psychomancer, Orikan The Diviner**, Etappe 2
   **Deathmarks, Flayed Ones, Cryptothralls, Tomb Blades** und Etappe 3
-  **Hexmark Destroyer, Ophydian Destroyers, Nekrosor Ammentar**. Armeeregel
+  **Hexmark Destroyer, Ophydian Destroyers, Nekrosor Ammentar** und Etappe 4
+  **Triarch Praetorians, Triarch Stalker**. Armeeregel
   **Reanimation Protocols**
   (`game/reanimation_protocols.py`), Detachment **Awakened Dynasty** (Command Protocols + alle
   sechs Stratagems; die vier Enhancements bleiben reine Daten — anders als die T'au, deren
   neunzehn alle verdrahtet sind).
   Punkteliste bewusst NUR für gebaute Einheiten. **Die erste Fraktion, die die KI spielen soll und
   die nicht Player 2s Default ist** — umschaltbar über `config.PLAYER2_ARMY` / `--army2 necrons`.
-  **Skorpekh Lord, Lokhust Lord und alle zehn Datenblätter der Etappen 1-3 stehen in KEINER
+  **Skorpekh Lord, Lokhust Lord und alle zwölf Datenblätter der Etappen 1-4 stehen in KEINER
   Demo-Armee** — angelegt, getestet, *dormant by roster*, und diese Abwesenheit ist gepinnt,
   damit ein späteres Fielden eine sichtbare Änderung ist.
 
@@ -10622,6 +10633,155 @@ verschluckt werden oder einen älteren verschlucken — für beide neuen ist bei
 GEERBT aus der Basisklasse — ein Quell-Sweep nach dem Wort antwortet dort False, also
 misst die Suite es am OBJEKT), aber KEINE `ai/agent_driver.py`-Urteile: keine der acht
 Wahlen ist armeeweit.
+
+### Etappe 4 — TRIARCH (Triarch Praetorians, Triarch Stalker)
+
+Die kleinste der neun Etappen, und die erste, in der ein gedruckter Waffenname
+**GETEILT statt geforkt** werden muss — die inverse Fehlerform zu der, die
+Etappe 3 dreimal fangen musste.
+
+**Der Kollisions-Sweep lief VOR der ersten Klasse und kam andersherum heraus als
+in Etappe 3.** `Particle caster` steht auf den Triarch Praetorians und ist
+BYTE-FÜR-BYTE die Zeile der Canoptek Wraiths, die es schon gibt (12" A3 S5 AP0 D1,
+[DEVASTATING WOUNDS] [PISTOL]). Die einzige abweichende Spalte ist BS (4+ Wraiths,
+3+ Praetorians) — **und BS lebt in dieser Engine auf dem MODELL-PROFIL, nicht auf
+der Waffe**, also gibt EINE Klasse jedem Träger seine gedruckte Fertigkeit
+gratis. Ein Fork wäre genau der Fehler von Etappe 3 mit umgekehrtem Vorzeichen
+gewesen.
+- **Und die Prüfung dafür war zuerst eine TAUTOLOGIE** — sie verglich die
+  geteilte Klasse mit sich selbst (beide Seiten lasen die Wraiths-Option), also
+  wäre ein Fork ungehindert durchgekommen. Von der eigenen A/B-Sonde gefunden,
+  die als einzige NO BITE meldete. Sie liest jetzt die Option des
+  PRAETORIANEN-Datenblatts gegen die der Wraiths, plus die gelöste BS je
+  Träger — zwei Zeilen, von denen ein Fork die eine besteht und die andere
+  reißt.
+- **Genau EIN per-Waffen-Skill-Override in diesem Schwung, und er ist gedruckt:**
+  der `Particle shredder` des Stalkers sagt BS **2+**, während seine beiden
+  anderen fertigkeitstragenden Zeilen 3+ sagen. Ein Modell, dessen eigene Zeilen
+  sich WIDERSPRECHEN, ist genau der Fall, für den der Override existiert; die
+  sieben übrigen Triarch-Waffen tragen keinen, und das ist als Menge gepinnt.
+- **Der `Heat ray` ist EIN gedrucktes Datenblatt-Feld mit ZWEI Modi**
+  (dispersed 2D6 [TORRENT] / focused [MELTA 4]), also ein Feuermodus-PAAR über
+  `overcharge_profile` wie der Speer des Void Dragon — sonst feuerte der Stalker
+  beide in einer Aktivierung (04.01). Nur die dispersed-Zeile steht im Loadout.
+
+**Relentless Combatants: EIN Satz, ZWEI Klauseln, ZWEI Nähte** — und sie liegen
+nicht nebeneinander.
+- **Klausel 2 („eligible to declare a charge in a turn in which it Fell Back")
+  hatte längst ein Zuhause**: `game/move_exceptions.py` besitzt 09.07s
+  Charge-Bann. Neu ist nur WER — es ist die erste NECRON-Quelle in diesem Fold.
+  **Nur die CHARGE-Hälfte**: der gedruckte Text sagt „declare a charge", nicht
+  „shoot", und das ist der Unterschied zu Hovering Death daneben. Beide
+  Richtungen gepinnt, und die Sonde, die sie in den SCHUSS-Fold legt, beißt.
+- **Klausel 1 („you can re-roll Charge rolls made for this unit") ist die Arbeit**,
+  und ihre Form ist Sudden Storms Advance-Reroll, eine Wurfart weiter:
+  - **Angeboten VOR `acknowledge()`, und nur dort.** `acknowledge()` leert
+    `pending_values`, und `reroll_all()` lehnt danach ab — ein Angebot eine Zeile
+    später ist eines, das nicht angenommen werden kann. Als REIHENFOLGE in
+    `main.py` gepinnt, mit eigener Sonde.
+  - **EINMAL pro Wurf, über `DiceManager.claim_reroll_offer()`.** Ablehnen lässt
+    exakt das Brett stehen, das die Frage erzeugt hat — die gemeldete
+    Endlosschleife, für die dieser Helfer existiert.
+  - **ALLES ODER NICHTS**: ein Charge-Wurf ist 2W6, und 15.02s eigene
+    Formulierung für seine Wiederholung lautet „must be re-rolled in full", also
+    `reroll_all()`. `can_reroll_all()` lehnt ab, sobald ein Würfel des Wurfs
+    schon zweimal geworfen wurde — das hält Command Re-roll und dies vom Stapeln
+    ab, und ist einzeln gemessen.
+  - **Die KI antwortet in BEIDE Richtungen deterministisch**, und ihre Regel ist
+    ENGER als die CP-zahlende in `ai/agent_driver.py`, weil dieser Reroll GRATIS
+    ist: erreichte der Wurf NICHTS und könnte ein 12er etwas erreichen → werfen;
+    erreichte er etwas → BEHALTEN (all-or-nothing, gratis macht das Verzocken
+    einer lebenden Charge nicht gut); ist auch auf einer 12 nichts erreichbar →
+    gar nicht erst fragen. Beide Antworten kommen aus
+    `ChargeController.targets_reachable_with()`, dem ECHTEN 11.04-Tor, statt aus
+    einer zweiten Kopie der Reichweiten-Arithmetik. **Ein MENSCH wird im zweiten
+    Fall trotzdem gefragt** — einen Treffer gegen einen längeren zu tauschen ist
+    ein echtes Urteil, dieselbe Teilung, die das CP-Verdikt an genau dieser
+    Stelle macht.
+  - **Der „hopeless"-Zweig war im TEST zuerst unerreichbar**, und das ist ein
+    Befund über die Engine-Geometrie: 11.02s 12"-Deklarationstor und „auf einer
+    12 erreichbar" sind DIESELBE Messung, ein Feind weit genug für aussichtslos
+    ist also zu weit zum Deklarieren. Der Zustand entsteht erst, wenn sich das
+    Brett MITTEN im Fenster ändert — real in dieser Engine (eine
+    Deklarations-Reaktion kann ein deklariertes Ziel vom Brett nehmen, wofür
+    `reopen_target_selection()` existiert). Die Bühne lässt den Feind nach der
+    Deklaration abziehen, und die Sonde beißt danach.
+
+#### `game/cover_denial.py` — 41. Extraktion, am zweiten Konsumenten
+
+**Targeting Relay ist die Barrage of Filth des Defilers, Wort für Wort.** Beide
+drucken „nach dem Schießen dieses Modells kann eine getroffene Feindeinheit bis
+zum Ende der Phase keine Deckung haben"; die zwei Eröffnungen („each time this
+model is selected to shoot, after resolving its attacks" gegen „after this model
+has shot") unterscheiden sich im Wortlaut und nicht in der Bedeutung —
+`on_squad_finished_shooting` feuert einmal je Aktivierung, also ist es dieselbe
+Naht mit demselben Argument.
+- **Geteilt ist genau das, was man zweimal subtil falsch macht:** die Kandidaten
+  sind, was WIRKLICH GETROFFEN wurde (nicht was anvisiert wurde); es ist NICHT
+  optional („select", nicht „you can" — die einzige Entscheidung ist WELCHE, und
+  bei einem Kandidaten gibt es nichts zu fragen); die Marke lebt eine PHASE, nicht
+  einen Zug; und eine befreundete Einheit ist nie Kandidat.
+- **Eine Unterklasse besitzt ZWEI Knöpfe** — das Profil-Flag und den gedruckten
+  Namen —, als Klassenattribute statt Konstruktor-Argumente: wer einen vergisst,
+  scheitert LAUT bei der Konstruktion statt still eine namenlose Wahl anzubieten.
+- **EIN Leser für die Verweigerung.** `_compute_benefit_of_cover()` fragt
+  `cover_denial.denied(target_squad, (self.barrage_of_filth, self.targeting_relay))`
+  statt zweier `if`s — die zwei können sich damit nie darüber uneinig werden, was
+  „denied" heißt, und eine dritte Quelle ist ein weiterer Name an dieser
+  Aufrufstelle, also im Diff sichtbar. Weiter ZUERST gefragt und False
+  zurückgebend, weil „cannot have" absolut ist, während STEALTH, Miasma of
+  Pestilence und die Rune of Mists Gewährungen sind.
+- **BEFUND, benannt statt übergangen: Barrage of Filth hatte VORHER GAR KEINEN
+  Verhaltenstest.** Drei Quell-Wächter in `test_death_guard_datasheets.py` pinnten,
+  dass es GEBAUT, GEFÜTTERT und GELEERT wird — getrieben hat es nie jemand.
+  `test_necron_triarch.py` §7 ist jetzt seine einzige Verhaltensabdeckung, und
+  deshalb kann die Etappe-3-Lehre („eine Sonde auf die geteilte Basis muss BEIDE
+  Suiten rot machen") hier nicht eingelöst werden — es gibt keine zweite Suite.
+  Das steht im Kopf der Sondendatei, statt es zu übertünchen.
+
+**Die Basisgröße des Stalkers ist eine ENTSCHEIDUNG, keine Transkription**: sein
+Datenblatt druckt „Use model" (FRAME). 80 mm ist an der Myphitic Blight-hauler
+ausgerichtet, dem nächstliegenden Rumpf, den diese Engine schon fieldet
+(W10/T9 gegen seine W12/T8); die 2.1", die Defiler und Plagueburst Crawler
+benutzen, sind die Größe für einen großen KETTEN-Rumpf, und ein Dreibein-Walker
+ist das nicht. Als VERHÄLTNIS gegen die Blight-hauler gepinnt statt gegen eine
+nackte Zahl, damit „warum diese Größe" den Pin überlebt.
+
+**Kein `ai/agent_driver.py`-Urteil**, für beide als Negativraum geprüft: keine der
+zwei Wahlen ist armeeweit, also antwortet jede in ihrem eigenen Controller über
+`auto_players`.
+
+**Getestet:** neu `test_necron_triarch.py` (**143/143**, acht Abschnitte) plus
+`ab_necron_triarch.py` (**24 A/B-Sonden, alle beißend, keine stürzt ab**).
+**Zwei Sonden bissen zuerst NICHT, und beide waren Befunde über den TEST**
+(Fehlerklasse 24) — die Particle-Caster-Tautologie und der unerreichbare
+Hopeless-Zweig, beide oben. **Zwei weitere ließen die Suite ABSTÜRZEN statt sie
+rot zu machen** (22. und 23. Instanz dieser Lehre): ein `None < "3+"`-Vergleich
+in der BS-Zeile (degradiert jetzt über einen Default), und eine Sonde, deren
+EIGENE Änderung einen `NameError` erzeugte, weil sie die Klasse einsetzte, ohne
+sie zu importieren — ein Sondenfehler, kein Testfehler, aber mit demselben
+Ausgang.
+- **Eine eigene Messung, die den Sweep halbiert hätte:** die erste Fassung von
+  §8 rief `ast.get_source_segment()` für JEDEN Call-Knoten in `main.py`, was die
+  Suite auf **36.3 s** brachte — die langsamste des ganzen Repos, gegen 0.2 s für
+  alle anderen sieben Abschnitte zusammen. Die Aufrufausdrücke werden jetzt EINMAL
+  aus den Zeilenspannen gebaut: **0.3 s**, dieselben Prüfungen.
+
+Volle Regression **215 Suiten, ~18932 Prüfungen, 214 grün / 0 rot / 1 bekannt**,
+`run_tests.py --smoke` komplett grün, `selfplay.py map2 1500` mit den
+Default-Armeen UND mit Necrons auf beiden Seiten (beide exit 0).
+`verify_rules_vs_engine.py` meldet unverändert **66 Differenzen, keine davon
+nennt eine Triarch-Einheit**, und `test_weapon_characteristics.py` bleibt bei
+**null** Waffenabweichungen. Der Korpus kostet weiter null Wartung: die zwei
+Namen wandern von `MISSING_NECRONS` nach `faction.datasheets`,
+`rules/necrons/` bleibt bei 49 Datenblättern, `git status --porcelain rules/`
+ist leer.
+
+**Bewusst offen, wie in den Etappen 1-3:** `armies/necrons.json` unangetastet,
+beide *dormant by roster*; und keines der beiden Datenblätter wird von irgendetwas
+GEFÜHRT oder führt selbst etwas — gemessen an den sechs LED-BY-Blöcken der Seite,
+von denen keiner eine Triarch-Einheit nennt, statt aus dem Fehlen eines Eintrags
+in der Paarungstabelle geschlossen.
 
 ## Die sieben Aeldari-Detachment-REGELN
 

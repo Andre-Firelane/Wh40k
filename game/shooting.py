@@ -21,6 +21,7 @@ from game import psychic_communion
 from game import storm_of_silence
 from game import assured_destruction
 from game import swift_demise
+from game import cover_denial
 from game import target_acquisition
 from game import crystalline_targeting
 from game import wave_serpent_shield
@@ -679,11 +680,15 @@ class ShootingController:
         self.terrain_areas = terrain_areas if terrain_areas is not None else []
         self.objectives = objectives if objectives is not None else []  # Breacher Team's Breach and Clear ability - see _wound_reroll_reason()
         self.game_log = game_log
-        # The Defiler's Barrage of Filth (game/barrage_of_filth.py), which strips
-        # cover from a unit it hit. A collaborator like `suppression` above rather
-        # than a flag, because the mark lives for a phase and belongs to nobody's
-        # Squad in particular.
+        # The two abilities that STRIP cover from a unit they hit - the Defiler's
+        # Barrage of Filth and the Triarch Stalker's Targeting Relay, which print
+        # the same sentence and share game/cover_denial.py. Collaborators like
+        # `suppression` above rather than flags, because the mark lives for a
+        # phase and belongs to nobody's Squad in particular. Both are set by
+        # main.py after construction; _compute_benefit_of_cover() folds them
+        # through cover_denial.denied(), so a third one is one more name there.
         self.barrage_of_filth = barrage_of_filth
+        self.targeting_relay = None
         # The Plagueburst Crawler's Spore-laced Shock Waves - fed at target
         # selection, resolved from on_squad_finished_shooting. A collaborator
         # for the same reason barrage_of_filth is one.
@@ -2892,12 +2897,14 @@ class ShootingController:
         "if every model in a unit has this ability", that unit unconditionally
         has the benefit of cover against every ranged attack - checked first
         so a Stealth unit never needs terrain/visibility at all."""
-        if self.barrage_of_filth is not None and self.barrage_of_filth.denies_cover(target_squad):
-            # The Defiler's Barrage of Filth: "that unit CANNOT have the
-            # benefit of Cover". Checked FIRST and returning False, because it
-            # is an absolute statement while everything below it is a grant -
-            # so it has to beat STEALTH and the two Death Guard cover-granting
-            # abilities rather than merely joining them.
+        if cover_denial.denied(target_squad, (self.barrage_of_filth, self.targeting_relay)):
+            # The Defiler's Barrage of Filth and the Triarch Stalker's Targeting
+            # Relay: "that unit CANNOT have the benefit of Cover". Checked FIRST
+            # and returning False, because that is an absolute statement while
+            # everything below it is a grant - so it has to beat STEALTH and the
+            # two Death Guard cover-granting abilities rather than merely
+            # joining them. ONE reader for both, so the two can never disagree
+            # about what "denied" means.
             return False
         if squad_has_stealth(target_squad):
             return True

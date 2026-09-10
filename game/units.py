@@ -320,6 +320,8 @@ class UnitProfile:
     infectious_murder_madness = False  # Nekrosor Ammentar's own ability (Aura): friendly NECRONS units (excluding MONSTER and TITANIC) within 6" get [SUSTAINED HITS 1] on attacks made by a DESTROYER CULT model or against the closest eligible target - see game/nekrosor_ammentar.py
     prophet_of_destruction = False  # Nekrosor Ammentar's own ability: each time this model destroys an enemy unit, one other friendly DESTROYER CULT unit within 9" re-rolls Wound rolls of 1 until the end of the phase - a death-sweep consumer like Vengeful Stars; see game/nekrosor_ammentar.py
     nullstone_field_generator = False  # Nekrosor Ammentar wargear (Aura): friendly NECRONS units within 6" of the bearer have Feel No Pain 5+ against mortal wounds and Psychic Attacks. The first AURA source in game/feel_no_pain.py, so it is stamped on the Squad once per frame like Nurgle's Gift; see game/nekrosor_ammentar.py
+    relentless_combatants = False  # Triarch Praetorians' own ability: their unit re-rolls Charge rolls, AND is eligible to declare a charge in a turn in which it Fell Back - two clauses at two seams, the second being the first DATASHEET source of rule 09.07's charge exemption registered in game/move_exceptions.py; see game/relentless_combatants.py
+    targeting_relay = False  # Triarch Stalker's own ability: after it shoots, one enemy unit it hit cannot have the Benefit of Cover until the end of the phase - the SECOND ability of that exact shape, so both it and the Defiler's Barrage of Filth are subclasses of game/cover_denial.py
     loping_pounce = False  # Kroot Hounds' own ability: while it is active (set at the start of its owner's Command phase when a friendly KROOT INFANTRY unit is within 6"), this unit may declare a charge in a turn in which it Advanced - the THIRD source of that exception, after Waaagh! and Full Throttle, read at the same gate in game/charge.py; see game/loping_pounce.py
     hunting_hounds = False  # Kroot Hounds' own ability: while within 12" of a friendly KROOT CHARACTER model, this model's Objective Control is 1 instead of its printed 0 - read by game/objectives.py; see game/hunting_hounds.py
     airborne_agility = False  # Vespid Stingwings' own ability: at the end of the opponent's turn, a unit not in Engagement Range may take itself off the board into Strategic Reserves; see game/airborne_agility.py
@@ -4713,6 +4715,54 @@ class CtanShardOfTheVoidDragonProfile(UnitProfile):
     enslaved_star_god = True        # "cannot be your WARLORD" - a documented no-op, this engine has no Warlord
     deadly_demise = 6               # documentation leftover only, see deadly_demise_notation below
     deadly_demise_notation = D6()   # "Deadly Demise D6"
+
+
+class TriarchPraetorianProfile(UnitProfile):
+    name = "Triarch Praetorian"
+    base_radius_in = 0.63           # 32 mm
+    movement_in = 10
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 5
+    wounds = 2
+    leadership = "7+"
+    armor_save = "3+"
+    oc = 1
+    infantry = True
+    fly = True
+    deep_strike = True              # rule 24.09
+    reanimation_protocols = True
+    relentless_combatants = True    # see game/relentless_combatants.py
+
+
+class TriarchStalkerProfile(UnitProfile):
+    name = "Triarch Stalker"
+    # ITS DATASHEET PRINTS NO BASE AT ALL ("Use model", the FRAME keyword), so
+    # this is a TABLE SIZE rather than a transcription - the same standing as
+    # the Plagueburst Crawler's, and named here so nobody "corrects" it to a
+    # printed number that does not exist. 80 mm is matched to the Myphitic
+    # Blight-hauler, the closest hull this engine already fields by wounds and
+    # toughness (W10/T9 against this W12/T8); the 2.1" the Crawler and the
+    # Defiler use is the big TRACKED-hull size, and a tripod walker is not
+    # that. It is a gameplay number - edge_distance() reads it, so Engagement
+    # Range, overlap, coherency and formation packing all move with it.
+    base_radius_in = 1.575          # 80 mm - a table size, see above
+    movement_in = 8
+    weapon_skill = "3+"
+    ballistic_skill = "3+"          # the particle shredder's printed 2+ is a per-WEAPON override
+    toughness = 8
+    wounds = 12
+    leadership = "7+"
+    armor_save = "3+"
+    oc = 4
+    invulnerable_save = "4+"
+    vehicle = True
+    walker = True
+    scouts = 8                      # rule 24.31/24.32 (CORE), "Scouts 8''"
+    reanimation_protocols = True
+    targeting_relay = True          # see game/targeting_relay.py
+    deadly_demise = 3               # documentation leftover only, see deadly_demise_notation below
+    deadly_demise_notation = D3()   # "Deadly Demise D3"
 
 
 # ---------------------------------------------------------------------------
