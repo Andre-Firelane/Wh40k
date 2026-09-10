@@ -9,12 +9,25 @@ from game.squad import OBJECTIVE_CONSOLIDATION_RANGE_IN
 OBJECTIVE_RANGE_IN = OBJECTIVE_CONSOLIDATION_RANGE_IN
 
 
+def model_is_within_range_of_objective(model, objective,
+                                       range_in=OBJECTIVE_RANGE_IN):
+    """The same distance, asked of ONE MODEL and ONE objective.
+
+    Fourteen callers ask this per SQUAD; the Geomancer's Obelisk Node Control
+    is the first that prints "while THIS MODEL is within range of an objective
+    marker you control", so the granularity had to exist. Same split as
+    attached_units' unit_/model_has_datasheet_keyword(): one definition of the
+    geometry, two granularities, and the squad-level answer is a fold over
+    this one - so the two can never disagree about what "within range" is."""
+    return objective.terrain_area.distance_to_model(model) <= range_in
+
+
 def is_within_range_of_objective(squad, objectives, range_in=OBJECTIVE_RANGE_IN):
     """Whether any model in squad is within range_in of any objective's
     terrain area - "within range of an objective marker" as used by rule
     12.08's Objective Consolidation."""
     return any(
-        objective.terrain_area.distance_to_model(m) <= range_in
+        model_is_within_range_of_objective(m, objective, range_in)
         for objective in objectives
         for m in squad.models
     )

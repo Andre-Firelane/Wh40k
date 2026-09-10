@@ -1,6 +1,6 @@
 from game import grav_inhibitor_drone, hovering_death, neocapacitor_shields
 from game import (aux_alien_expertise, kauyon_photon_grenades, loping_pounce,
-                  montka_pulse_onslaught, monofilament_web, runes_of_fortune)
+                  montka_pulse_onslaught, pinned as pinned_status, runes_of_fortune)
 from game.dice import CHARGE_ROLL
 from game.roll_bonus import advance_and_charge_bonus, sources as roll_bonus_sources
 from game.squad import squad_has_full_throttle
@@ -273,10 +273,10 @@ class ChargeController:
         if shaken:
             note += f" (-{shaken} - shaken)"
             total -= shaken
-        # The Night Spinner's Monofilament Web leaves a unit `pinned`: -2 on
+        # PINNED: -2 on Charge rolls. Two sources today (the Night Spinner's
         # Charge rolls, and NOT on Advance rolls - the one clause that makes
         # it a different status from shaken. They stack.
-        pinned = monofilament_web.charge_penalty_for(self.active_squad)
+        pinned = pinned_status.charge_penalty_for(self.active_squad)
         if pinned:
             note += f" (-{pinned} - pinned)"
             total -= pinned

@@ -35,7 +35,7 @@ single most regression-prone area in this repo. The Aeldari logic itself lives
 in battle_focus.py, so only the composition is here.
 """
 from game import attached_units, montka_aggressive_mobility, montka_pulse_onslaught
-from game import battle_focus, elemental_ensnarement, flickerjump, monofilament_web, plagues, whirling_death
+from game import battle_focus, elemental_ensnarement, flickerjump, pinned as pinned_status, plagues, whirling_death
 from game.weapons import RANGED
 
 COLDSTAR_MOVEMENT_IN = 12.0
@@ -105,11 +105,12 @@ def effective_movement_in(model):
     from game import guardian_time_to_strike
     total += guardian_time_to_strike.move_bonus_for(squad)
     total -= montka_pulse_onslaught.move_penalty_for(squad)
-    # The Night Spinner's Monofilament Web leaves a unit `pinned`: -2 Move.
-    # A SEPARATE status from `shaken` above, and they STACK - two printed
-    # effects on one unit - which is why this is its own term rather than a
-    # second writer of the same flag. See game/monofilament_web.py.
-    total -= monofilament_web.move_penalty_for(squad)
+    # PINNED: -2 Move. A SEPARATE status from `shaken` above, and they STACK -
+    # two printed effects on one unit - which is why this is its own term rather
+    # than a second writer of the same flag. TWO abilities apply it (the Night
+    # Spinner's Monofilament Web and the Geomancer's Tectonic Reverberations),
+    # which is why the status lives in game/pinned.py; see there.
+    total -= pinned_status.move_penalty_for(squad)
     # The Stonesinger's Elemental Ensnarement leaves a unit `ensnared`: -2
     # Move. The THIRD movement status, and its own term for the same reason -
     # ensnared and shaken can hold at once and both apply. It cannot stack

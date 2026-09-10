@@ -1,6 +1,6 @@
 from game.homing_beacon import HOMING_BEACON_MIN_ENEMY_DISTANCE_IN, HOMING_BEACON_RANGE_IN
 from game import tunnelling_horrors
-from game import unshrouded_truth
+from game import obelisk_node_control, unshrouded_truth
 from game.squad import edge_distance
 from game import ride_the_wind
 
@@ -432,7 +432,24 @@ class IngressController:
             dist = ((x_in - enemy.x_in) ** 2 + (y_in - enemy.y_in) ** 2) ** 0.5
             if dist - token.radius_in - enemy.radius_in <= min_enemy_distance:
                 return False
+        # The Geomancer's Obelisk Node Control - the FIRST rule in this engine
+        # that restricts where the OPPONENT may arrive (game/units.py records
+        # the T'au Jammer Array as not built for exactly that reason). Asked
+        # here rather than in _extra_check() for the same two reasons the zone
+        # restriction above gives: the red/green overlay shows it, and
+        # ai/agent_driver.py's candidate sweep filters on this predicate, so it
+        # never offers itself a spot the rule forbids.
+        if obelisk_node_control.blocks_arrival(
+                squad, x_in, y_in, token.radius_in,
+                self._all_tokens(), self._objectives()):
+            return False
         return True
+
+    def _all_tokens(self):
+        return getattr(self.game_state, "tokens", None) or []
+
+    def _objectives(self):
+        return getattr(self.game_state, "objectives", None) or []
 
     def confirm_ingress(self):
         squad = self.setup_controller.setting_up_squad

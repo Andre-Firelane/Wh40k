@@ -104,8 +104,16 @@ def current_feel_no_pain(model, waaagh=None, mortal=False, psychic=False,
     # flag stamped once per frame in main.py, because this function takes a
     # MODEL and has roughly a dozen call sites. See game/nekrosor_ammentar.py.
     from game.nekrosor_ammentar import nullstone_feel_no_pain
-    return _better_threshold(
+    best = _better_threshold(
         best, nullstone_feel_no_pain(model, mortal=mortal, psychic=psychic))
+    # The Canoptek Spyders' two wargear auras - the Gloom Prism, which is the
+    # Nullstone field's sentence word for word, and the Fabricator Claw Array,
+    # which covers EVERY wound rather than only mortal and Psychic ones. Both
+    # are game/fnp_aura.py instances, and that module folds the pair so this
+    # fold asks one question however many auras a Spyder carries.
+    from game.spyder_wargear import feel_no_pain as spyder_feel_no_pain
+    return _better_threshold(
+        best, spyder_feel_no_pain(model, mortal=mortal, psychic=psychic))
 
 
 class FeelNoPainRoll:

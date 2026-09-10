@@ -35,44 +35,26 @@ Runners' Target Acquisition already needed.
 the Shadow Weaver, there is nothing to choose. Every unit the doomweaver hit is
 pinned, so there is no prompt and nothing for `auto_players` to answer.
 """
-from game import elemental_ensnarement
+from game import pinned as _pinned
 from game.weapons import DoomweaverProfile
 
 MONOFILAMENT_WEB_LABEL = "Monofilament Web"
 
-#: "subtract 2 from that unit's Move characteristic" and "subtract 2 from
-#: Charge rolls made for it".
-PINNED_MOVE_PENALTY = 2
-PINNED_CHARGE_PENALTY = 2
+# THE STATUS ITSELF NOW LIVES IN game/pinned.py, extracted at the second source
+# (the Geomancer's Tectonic Reverberations prints the same two sentences).
+# Re-exported here under the names this module has always had, so every caller
+# - game/charge.py, game/coldstar.py and the Aeldari suite - is unchanged by
+# construction. Only the CLOCK is this ability's own: "until the start of your
+# next turn".
+PINNED_MOVE_PENALTY = _pinned.PINNED_MOVE_PENALTY
+PINNED_CHARGE_PENALTY = _pinned.PINNED_CHARGE_PENALTY
+is_pinned = _pinned.is_pinned
+move_penalty_for = _pinned.move_penalty_for
+charge_penalty_for = _pinned.charge_penalty_for
 
 #: Exported so main.py can ask for the per-weapon hit subset without importing
 #: game/weapons.py - the shape target_acquisition.LONG_RIFLE_NAME has.
 DOOMWEAVER_NAME = DoomweaverProfile.name
-
-
-def is_pinned(squad):
-    """The one question both effects ask.
-
-    Stored as an attribute ON THE SQUAD rather than in the controller, unlike
-    the five enemy MARKS this engine holds per player. The reason is where it
-    is read: a mark is read during an ATTACK, where the attacking controller is
-    in scope, but these two penalties are read by game/coldstar.py's
-    effective_movement_in() and game/charge.py's _capped_roll() - neither of
-    which has a controller and neither of which should grow one for this. Rule
-    for rule the same shape Pulse Onslaught's `shaken` uses, and for the same
-    reason."""
-    return getattr(squad, "pinned_by_player", None) is not None
-
-
-def move_penalty_for(squad):
-    """-2 to the Move characteristic, read by effective_movement_in()."""
-    return PINNED_MOVE_PENALTY if is_pinned(squad) else 0
-
-
-def charge_penalty_for(squad):
-    """-2 on Charge rolls made for this unit. NOT on Advance rolls - that is
-    the one clause `shaken` has and `pinned` does not."""
-    return PINNED_CHARGE_PENALTY if is_pinned(squad) else 0
 
 
 class MonofilamentWebController:
@@ -90,26 +72,13 @@ class MonofilamentWebController:
                    for m in getattr(squad, "models", ()) or ())
 
     def pin(self, squad, by_player):
-        if squad is None or is_pinned(squad):
-            return False
-        # The Stonesinger's ENSNARED status says the unit "cannot be
-        # pinned". Enforced where the pin is APPLIED rather than where it
-        # is read, so a unit ensnared AFTER being pinned keeps the pin it
-        # already had - the printed text prevents BECOMING pinned.
-        if elemental_ensnarement.blocks_pinning(squad):
-            if self.game_log is not None:
-                self.game_log.add(
-                    "[web] %s is ensnared and cannot be pinned." % squad.name,
-                    file_only=True)
-            return False
-        squad.pinned_by_player = by_player
-        if self.game_log is not None:
-            self.game_log.add(
-                "%s: %s is pinned until the start of %s's next turn "
-                "(-%d Move, -%d to Charge rolls)."
-                % (MONOFILAMENT_WEB_LABEL, squad.name, by_player,
-                   PINNED_MOVE_PENALTY, PINNED_CHARGE_PENALTY))
-        return True
+        """Delegates to game/pinned.py, naming THIS ability's clock ("until
+        the start of your next turn"). The ensnared check and the log line
+        live there, with the status."""
+        return _pinned.pin(
+            squad, by_player, until=_pinned.UNTIL_TURN,
+            log=(self.game_log.add if self.game_log is not None else None),
+            label=MONOFILAMENT_WEB_LABEL)
 
     def after_shooting(self, squad, hit_squads, doomweaver_hits=()):
         """No choice to make - every unit the doomweaver hit is pinned."""
@@ -127,9 +96,8 @@ class MonofilamentWebController:
 
         Takes the squads explicitly (or reads the board) because the status
         lives on the squads themselves; there is no central registry to walk."""
-        for squad in (squads or self._squads()):
-            if getattr(squad, "pinned_by_player", None) == player:
-                squad.pinned_by_player = None
+        return _pinned.clear_at(player, _pinned.UNTIL_TURN,
+                                squads or self._squads())
 
     def _squads(self):
         seen = []

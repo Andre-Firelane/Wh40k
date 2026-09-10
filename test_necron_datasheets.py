@@ -338,7 +338,7 @@ c.eq("...and TRIARCH is the whole of the Praetorians batch, counted off the same
      sorted(s.name for s in nec.NECRONS.datasheets.values()
             if "TRIARCH" in s.keywords),
      ["Triarch Praetorians", "Triarch Stalker"])
-c.eq("twenty-seven datasheets are registered", len(nec.NECRONS.datasheets), 27)
+c.eq("thirty-four datasheets are registered", len(nec.NECRONS.datasheets), 34)
 c.eq("the faction keyword is NECRONS", nec.NECRONS.keyword, "NECRONS")
 
 # can_attach() returns a list of REASONS - empty means legal
@@ -380,7 +380,7 @@ missing = sorted(s.name for s in nec.NECRONS.datasheets.values()
 c.eq("every Necron datasheet resolves to a real file, bar the named ones",
      missing, sorted(WITHOUT_ART))
 c.eq("...which is all but the named ones",
-     len(nec.NECRONS.datasheets) - len(missing), 27 - len(WITHOUT_ART))
+     len(nec.NECRONS.datasheets) - len(missing), 34 - len(WITHOUT_ART))
 c.eq("the faction badge is mapped too",
      sprites.FACTION_LOGO_KEYS.get("NECRONS"), "Necron Logo")
 

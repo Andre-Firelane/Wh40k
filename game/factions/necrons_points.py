@@ -123,6 +123,20 @@ NECRONS_POINTS = {
         PointsTier({3: 95, 6: 180}, from_unit=3),
     ]),
 
+    # --- Canoptek (the Spyders batch) ---
+    "Canoptek Scarab Swarms": flat_points({3: 40, 6: 80}),
+    "Canoptek Spyders": flat_points({1: 65, 2: 110}),
+    "Canoptek Doomstalker": flat_points({1: 140}),
+    "Canoptek Reanimator": flat_points({1: 75}),
+    "Canoptek Macrocytes": flat_points({5: 70}),
+    "Canoptek Tomb Crawlers": flat_points({2: 50}),
+    "Geomancer": UnitPoints(
+        [PointsTier({1: 75})],
+        # The sixth Cryptek, and the only one whose SUPPORTED BY list names a
+        # unit outside the two every other one attaches to.
+        supports=("Canoptek Macrocytes", "Immortals", "Necron Warriors"),
+    ),
+
     # --- Beasts -----------------------------------------------------------
     "Canoptek Wraiths": UnitPoints([
         PointsTier({3: 95, 6: 220}, to_unit=1),                     # the list says 220 for 6 - agrees at the 1st unit

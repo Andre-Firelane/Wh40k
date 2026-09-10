@@ -18,7 +18,7 @@ in the weapon NAME instead - the ~15th occurrence of the artefact CLAUDE.md
 records - so game/weapons.py follows the name column throughout.
 """
 
-from game import force_dispositions
+from game import force_dispositions, macrocyte_wargear, spyder_wargear
 from game.factions.datasheet import Datasheet, Gear, ModelLine, WargearOption
 from game.factions.faction import Faction, register_faction
 from game.factions.detachment import Detachment, Enhancement
@@ -51,6 +51,13 @@ from game.units import (
     NekrosorAmmentarProfile,
     TriarchPraetorianProfile,
     TriarchStalkerProfile,
+    CanoptekScarabSwarmProfile,
+    CanoptekSpyderProfile,
+    CanoptekDoomstalkerProfile,
+    CanoptekReanimatorProfile,
+    CanoptekMacrocyteProfile,
+    CanoptekTombCrawlerProfile,
+    GeomancerProfile,
 )
 from game.weapons import (
     ArmouredBulkProfile,
@@ -76,7 +83,24 @@ from game.weapons import (
     LordsBladeProfile,
     LordStaffOfLightRangedProfile,
     OverlordsBladeProfile,
+    AtomiserBeamA1Profile,
+    AtomiserBeamA3Profile,
+    AutomatonClawsProfile,
+    ClawsA2S4Profile,
+    ClawsA4S6Profile,
+    DoomsdayBlasterProfile,
+    DoomstalkerLimbsProfile,
+    FeederMandiblesProfile,
+    GaussScalpelProfile,
     HeatRayDispersedProfile,
+    ParticleBeamerS6Profile,
+    ReanimatorsClawsProfile,
+    TeslaCasterProfile,
+    TransdimensionalIsolatorProfile,
+    TremorglaiveMeleeProfile,
+    TremorglaiveReverberatingBeamProfile,
+    TwinGaussFlayerProfile,
+    TwinGaussReaperProfile,
     HeavyGaussCannonArrayProfile,
     ParticleCasterProfile,
     ParticleShredderProfile,
@@ -108,7 +132,7 @@ from game.weapons import (
     FlayerClawsProfile,
     ScouringEyeProfile,
     ScythedLimbsProfile,
-    ParticleBeamerProfile,
+    ParticleBeamerS5Profile,
     TwinGaussBlasterProfile,
     TwinTeslaCarbineProfile,
     NecronCloseCombatWeaponA4S5Profile,
@@ -701,7 +725,7 @@ TOMB_BLADES = NECRONS.add_datasheet(Datasheet(
         # build_squad()'s cursor groups them and they are mutually exclusive per
         # model by construction, which is what the printed "one of" means.
         WargearOption(_TOMB_BLADE_LINE, replaces=TwinGaussBlasterProfile,
-                      with_weapons=[ParticleBeamerProfile],
+                      with_weapons=[ParticleBeamerS5Profile],
                       name=TOMB_BLADES_TO_PARTICLE_BEAMER),
         WargearOption(_TOMB_BLADE_LINE, replaces=TwinGaussBlasterProfile,
                       with_weapons=[TwinTeslaCarbineProfile],
@@ -1154,6 +1178,302 @@ TRIARCH_STALKER = NECRONS.add_datasheet(Datasheet(
         "NOTE: this datasheet prints NO base size (\"Use model\", the FRAME keyword). The "
         "1.575\" radius on its UnitProfile is a TABLE SIZE decision, not a transcription - "
         "the reasoning is on the profile itself.",
+    ],
+))
+
+
+# ---------------------------------------------------------------------------
+# Canoptek - Scarab Swarms, Spyders, Doomstalker, Reanimator, Macrocytes,
+#            Tomb Crawlers, Geomancer
+#
+# ONE CLOSED SUB-FACTION, and the GEOMANCER belongs to it rather than to the
+# Cryptek batch three blocks up - measured, not filed by keyword: he is the only
+# entry on the Canoptek Macrocytes' SUPPORTED BY line, and his Vanguard
+# Protocols grant Scouts only while he is attached to one. In the Cryptek batch
+# half his datasheet would have had nothing to attach to.
+#
+# TWO PRINTED OPTIONS ARE NOT EXPRESSIBLE, both on the Macrocytes and both the
+# same known limitation: a WargearOption swaps WEAPONS for weapons, and these
+# two trade a weapon away for a piece of non-weapon wargear. Named on the
+# datasheet and pinned in the suite rather than quietly half-built - see the
+# note on that entry.
+# ---------------------------------------------------------------------------
+
+_SCARAB_LINE = "Canoptek Scarab Swarm"
+
+CANOPTEK_SCARAB_SWARMS = NECRONS.add_datasheet(Datasheet(
+    "Canoptek Scarab Swarms",
+    keywords=("SWARM", "FLY", "CANOPTEK", "SCARAB SWARMS", "NECRONS"),
+    composition_options=[
+        [ModelLine(CanoptekScarabSwarmProfile, n, [FeederMandiblesProfile],
+                   name=_SCARAB_LINE)]
+        for n in (3, 6)
+    ],
+    points=NECRONS_POINTS["Canoptek Scarab Swarms"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Self-destruction: \"At the start of the Fight phase, if this unit is within "
+        "Engagement Range of one or more enemy units, you can select one model in this "
+        "unit to destroy. If you do, select one enemy unit within Engagement Range of "
+        "that model and roll one D6, adding 1 to the result if that unit is a VEHICLE. "
+        "On a 2-5, that unit suffers D3 mortal wounds; on a 6+, that unit suffers 3 "
+        "mortal wounds.\" - the only ability here that spends one of your OWN models; "
+        "see game/scarab_self_destruction.py.",
+        "Chittering swarm: \"While an enemy unit is within Engagement Range of this "
+        "unit, subtract 1 from the Objective Control characteristic of models in that "
+        "enemy unit (to a minimum of 1). While this unit is within 6\" of one or more "
+        "friendly CRYPTEK models, the Objective Control characteristic of models in this "
+        "unit is 1.\" - two clauses pointing in OPPOSITE directions, and they are the two "
+        "forms game/objective_control.py already folds; see game/chittering_swarm.py.",
+        "NOTE: printed OC 0, the only one in this faction - which is what makes the "
+        "second half of Chittering swarm worth anything at all.",
+    ],
+))
+
+
+_SPYDER_LINE = "Canoptek Spyder"
+SPYDERS_ADD_TWO_PARTICLE_BEAMERS = "+ 2x Particle Beamer"
+SPYDER_FABRICATOR_CLAW_ARRAY = "Fabricator Claw Array"
+SPYDER_GLOOM_PRISM = "Gloom Prism"
+
+
+def _equip_fabricator_claw_array(token):
+    spyder_wargear.equip_fabricator_claw_array(token)
+
+
+def _equip_gloom_prism(token):
+    spyder_wargear.equip_gloom_prism(token)
+
+
+CANOPTEK_SPYDERS = NECRONS.add_datasheet(Datasheet(
+    "Canoptek Spyders",
+    keywords=("VEHICLE", "FLY", "CANOPTEK", "SPYDERS", "NECRONS"),
+    composition_options=[
+        [ModelLine(CanoptekSpyderProfile, n, [AutomatonClawsProfile],
+                   name=_SPYDER_LINE)]
+        for n in (1, 2)
+    ],
+    wargear_options=[
+        # "Any number of models can each be equipped with 2 particle beamers" -
+        # a pure ADDITION of TWO guns, so replaces=None and both are listed.
+        # This is the S6 beamer, NOT the Tomb Blades' S5 one under the same
+        # printed name; see the collision sweep in game/weapons.py.
+        WargearOption(_SPYDER_LINE, replaces=None,
+                      with_weapons=[ParticleBeamerS6Profile, ParticleBeamerS6Profile],
+                      name=SPYDERS_ADD_TWO_PARTICLE_BEAMERS),
+    ],
+    gear_options=[
+        # THE TWO AURAS ARE GEAR, not weapons - they grant a rule rather than
+        # replacing a gun. all_models=True because the printed text is "any
+        # number of models can EACH be equipped"; and that choice is MEASURED
+        # INERT for these two, because both auras are answered per SQUAD (does
+        # any living bearer stand within 6"), so one carrier and two produce
+        # the same board. Said out loud rather than left as a coincidence.
+        Gear(_SPYDER_LINE, SPYDER_FABRICATOR_CLAW_ARRAY,
+             _equip_fabricator_claw_array, all_models=True),
+        Gear(_SPYDER_LINE, SPYDER_GLOOM_PRISM, _equip_gloom_prism,
+             all_models=True),
+    ],
+    gear_slots={_SPYDER_LINE: 2},
+    points=NECRONS_POINTS["Canoptek Spyders"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Deadly Demise 1 (Core).",
+        "Canoptek Swarm: \"In your Command phase, select one friendly CANOPTEK SCARAB "
+        "SWARM unit within 6\" of this unit. One destroyed model is returned to that "
+        "CANOPTEK SCARAB SWARM unit for each SPYDER model in this unit.\" - the seventh "
+        "model-return ability, and the first that returns models to ANOTHER unit; see "
+        "game/canoptek_swarm.py.",
+        "Fabricator Claw Array (Aura): \"While a friendly NECRONS VEHICLE unit is within "
+        "6\" of the bearer, that unit has the Feel No Pain 6+ ability.\" - see "
+        "game/spyder_wargear.py.",
+        "Gloom Prism (Aura): \"While a friendly NECRONS unit is within 6\" of the bearer, "
+        "models in that unit have the Feel No Pain 5+ ability against mortal wounds and "
+        "Psychic Attacks.\" - Nekrosor Ammentar's Nullstone Field Generator word for "
+        "word, so both are game/fnp_aura.py instances.",
+    ],
+))
+
+
+_DOOMSTALKER_LINE = "Canoptek Doomstalker"
+
+CANOPTEK_DOOMSTALKER = NECRONS.add_datasheet(Datasheet(
+    "Canoptek Doomstalker",
+    keywords=("VEHICLE", "WALKER", "CANOPTEK", "DOOMSTALKER", "NECRONS"),
+    model_lines=[ModelLine(CanoptekDoomstalkerProfile, 1,
+                           [DoomsdayBlasterProfile, TwinGaussFlayerProfile,
+                            DoomstalkerLimbsProfile],
+                           name=_DOOMSTALKER_LINE)],
+    points=NECRONS_POINTS["Canoptek Doomstalker"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Deadly Demise D3 (Core).",
+        "Invulnerable Save: \"This model has a 4+ invulnerable save.\"",
+        "Damaged: 1-4 Wounds Remaining: \"each time this model makes an attack, subtract "
+        "1 from the Hit roll.\"",
+        "Sentinel Construct: \"Each time you target this unit with the Fire Overwatch "
+        "Stratagem, while resolving that Stratagem, hits are scored on unmodified Hit "
+        "rolls of 5+.\" - the Hexmark Destroyer prints the same clause with a 2+, so both "
+        "fold at the one seam that overrides rule 15.09's flat 6; see "
+        "game/sentinel_construct.py.",
+    ],
+))
+
+
+_REANIMATOR_LINE = "Canoptek Reanimator"
+
+CANOPTEK_REANIMATOR = NECRONS.add_datasheet(Datasheet(
+    "Canoptek Reanimator",
+    keywords=("VEHICLE", "WALKER", "CANOPTEK", "REANIMATOR", "NECRONS"),
+    model_lines=[ModelLine(CanoptekReanimatorProfile, 1,
+                           # "equipped with: 2 atomiser beams" - the A3 row,
+                           # not the Macrocytes' A1 one under the same name.
+                           [AtomiserBeamA3Profile, AtomiserBeamA3Profile,
+                            ReanimatorsClawsProfile],
+                           name=_REANIMATOR_LINE)],
+    points=NECRONS_POINTS["Canoptek Reanimator"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Feel No Pain 4+ (Core).",
+        "Nanoscarab Reanimation Beam (Aura): \"While a friendly NECRONS unit is within "
+        "3\" of this model, each time that unit's Reanimation Protocols activate, that "
+        "unit heals an additional D3 wounds.\" - added to the wound count BEFORE it is "
+        "spent, because 01.02.03's cap and 02.02.04's order both read the total; see "
+        "game/reanimation_boost.py.",
+    ],
+))
+
+
+_MACROCYTE_LINE = "Canoptek Macrocyte"
+MACROCYTES_TO_TESLA_CASTER = "Gauss Scalpel -> Tesla Caster"
+MACROCYTES_TO_ATOMISER_BEAM = "Gauss Scalpel -> Atomiser Beam"
+MACROCYTE_NANOSCARAB_PROJECTOR = "Nanoscarab Projector"
+MACROCYTE_ACCELERATOR_MANDIBLE = "Accelerator Mandible"
+
+
+def _equip_nanoscarab_projector(token):
+    macrocyte_wargear.equip_nanoscarab_projector(token)
+
+
+def _equip_accelerator_mandible(token):
+    macrocyte_wargear.equip_accelerator_mandible(token)
+
+
+CANOPTEK_MACROCYTES = NECRONS.add_datasheet(Datasheet(
+    "Canoptek Macrocytes",
+    keywords=("BEASTS", "FLY", "CANOPTEK", "MACROCYTES", "NECRONS"),
+    model_lines=[ModelLine(CanoptekMacrocyteProfile, 5,
+                           [GaussScalpelProfile, ClawsA2S4Profile],
+                           name=_MACROCYTE_LINE)],
+    wargear_options=[
+        WargearOption(_MACROCYTE_LINE, replaces=GaussScalpelProfile,
+                      with_weapons=[TeslaCasterProfile],
+                      name=MACROCYTES_TO_TESLA_CASTER),
+        # "1 model's gauss scalpel or tesla caster can be replaced with 1
+        # atomiser beam AND 1 nanoscarab projector" - the WEAPON half only.
+        # The projector is a Gear item below, and the two are NOT tied
+        # together: build_squad() counts rather than excludes, the same
+        # standing every other "one of the following" here has.
+        WargearOption(_MACROCYTE_LINE, replaces=GaussScalpelProfile,
+                      with_weapons=[AtomiserBeamA1Profile], max_models=1,
+                      name=MACROCYTES_TO_ATOMISER_BEAM),
+    ],
+    gear_options=[
+        Gear(_MACROCYTE_LINE, MACROCYTE_NANOSCARAB_PROJECTOR,
+             _equip_nanoscarab_projector),
+        Gear(_MACROCYTE_LINE, MACROCYTE_ACCELERATOR_MANDIBLE,
+             _equip_accelerator_mandible),
+    ],
+    gear_slots={_MACROCYTE_LINE: 2},
+    points=NECRONS_POINTS["Canoptek Macrocytes"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Scouts 8\" (Core).",
+        "Harassment Swarm (Aura): \"While an enemy unit (excluding MONSTERS and VEHICLES) "
+        "is within 3\" of this unit, each time a model in that unit makes an attack, "
+        "subtract 1 from the Hit roll.\" - the printed noun is ATTACK, so it reaches BOTH "
+        "attack steps; see game/harassment_swarm.py.",
+        "Accelerator Mandible: \"At the start of the Fight phase, select one friendly "
+        "CANOPTEK unit within 3\" of the bearer's unit. Until the end of the phase, "
+        "improve the Weapon Skill characteristic of weapons equipped by models in that "
+        "unit by 1.\" - the FIRST thing in this engine that changes a WS characteristic "
+        "rather than a Hit roll; see game/macrocyte_wargear.py.",
+        "Nanoscarab Projector: \"Once per battle round, when a friendly NECRONS unit "
+        "within 3\" of the bearer activates its Reanimation Protocols, the bearer can use "
+        "this ability. If it does, that unit reanimates 1 additional wound.\" - see "
+        "game/reanimation_boost.py.",
+        "KNOWN LIMITATION: the two printed options that trade a weapon away FOR WARGEAR "
+        "are only half expressible - a WargearOption swaps weapons for weapons. The "
+        "atomiser beam swap and the projector are modelled separately and are not tied "
+        "together, and the accelerator mandible gives up no weapon at all. Same "
+        "structural limit the Commander in Enforcer Battlesuit's first menu records.",
+    ],
+))
+
+
+_TOMB_CRAWLER_LINE = "Canoptek Tomb Crawler"
+TOMB_CRAWLERS_TO_ISOLATOR = "Twin Gauss Reaper -> Transdimensional Isolator"
+
+CANOPTEK_TOMB_CRAWLERS = NECRONS.add_datasheet(Datasheet(
+    "Canoptek Tomb Crawlers",
+    keywords=("BEASTS", "CANOPTEK", "TOMB CRAWLERS", "NECRONS"),
+    model_lines=[ModelLine(CanoptekTombCrawlerProfile, 2,
+                           [TwinGaussReaperProfile, ClawsA4S6Profile],
+                           name=_TOMB_CRAWLER_LINE)],
+    wargear_options=[
+        WargearOption(_TOMB_CRAWLER_LINE, replaces=TwinGaussReaperProfile,
+                      with_weapons=[TransdimensionalIsolatorProfile], max_models=1,
+                      name=TOMB_CRAWLERS_TO_ISOLATOR),
+    ],
+    points=NECRONS_POINTS["Canoptek Tomb Crawlers"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Canoptek Retinue: \"At the start of the Declare Battle Formations step, this "
+        "unit can join one other unit from your army that is being led by a CRYPTEK model "
+        "(a unit cannot have more than one TOMB CRAWLERS unit joined to it and cannot "
+        "have both a TOMB CRAWLERS and a CRYPTOTHRALLS unit joined to it).\" - the SECOND "
+        "carrier of rule 19.01's RETINUE role, and BOTH parentheses fall out of that "
+        "role's one-unit-per-role check; see game/retinue.py.",
+        "Weapon Sentinels: \"Each time a model in this unit makes a ranged attack that "
+        "targets a unit within 12\", you can ignore any or all modifiers to the "
+        "following: that attack's Ballistic Skill characteristic; the Hit roll; the Wound "
+        "roll.\" - the third noun is new here: the first ignore-modifier filter this "
+        "engine has ever put on the WOUND roll; see game/weapon_sentinels.py.",
+    ],
+))
+
+
+_GEOMANCER_LINE = "Geomancer"
+
+GEOMANCER = NECRONS.add_datasheet(Datasheet(
+    "Geomancer",
+    keywords=("INFANTRY", "CHARACTER", "CRYPTEK", "GEOMANCER", "NECRONS"),
+    model_lines=[ModelLine(GeomancerProfile, 1,
+                           # The tremorglaive prints THREE rows: a ranged pair
+                           # (one datasheet entry, so a firing-mode pair) and a
+                           # melee row, which is a separate weapon.
+                           [TremorglaiveReverberatingBeamProfile,
+                            TremorglaiveMeleeProfile],
+                           name=_GEOMANCER_LINE)],
+    points=NECRONS_POINTS["Geomancer"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Support (Core) - the sixth Cryptek, and like the other five he SUPPORTS rather "
+        "than leads.",
+        "Vanguard Protocols: \"If this model is attached to a CANOPTEK MACROCYTES unit "
+        "during the Declare Battle Formations step, this model has the Scouts 8\" "
+        "ability.\" - a LATCHED conditional, and a MEASURED no-op under this engine's "
+        "rule 19.04 reading; see game/vanguard_protocols.py for the measurement.",
+        "Tectonic Reverberations: \"In your Movement phase, you can select one enemy unit "
+        "within 18\" of and visible to this model. Until the start of your next Movement "
+        "phase that enemy unit is pinned. While a unit is pinned, subtract 2 from that "
+        "unit's Move characteristic and subtract 2 from Charge rolls made for it.\" - the "
+        "SECOND source of the Night Spinner's status, one phase's difference in the "
+        "clock; see game/tectonic_reverberations.py and game/pinned.py.",
+        "Obelisk Node Control: \"While this model is within range of an objective marker "
+        "you control, enemy units that are set up on the battlefield from Reserves cannot "
+        "be set up within 12\" of this model.\" - the FIRST rule in this engine that "
+        "restricts where the OPPONENT may arrive; see game/obelisk_node_control.py.",
     ],
 ))
 

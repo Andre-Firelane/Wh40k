@@ -36,6 +36,7 @@ until something can join him, and then it is silently wrong.
 import copy
 
 from game import ai_mode, titanic
+from game.fnp_aura import FeelNoPainAura
 from game.attached_units import (model_has_datasheet_keyword,
                                  unit_has_datasheet_keyword, unit_has_keyword)
 from game.squad import edge_distance
@@ -367,20 +368,30 @@ class ProphetOfDestructionController:
 
 # --------------------------------------------------- Nullstone Field Generator
 
-def unit_in_nullstone_aura(squad, all_tokens=()):
-    """Whether `squad` is a friendly NECRONS unit within 6" of a living bearer.
+#: THE AURA ITSELF IS game/fnp_aura.py, extracted the day the Canoptek Spyders
+#: printed the same sentence under the name "Gloom Prism". This module keeps
+#: only what is Nekrosor Ammentar's own: which flag, which range, which
+#: threshold, and that it covers mortal wounds and Psychic Attacks rather than
+#: every wound.
+#:
+#: NO KEYWORD EXCLUSIONS on this one - its sentence names none, unlike
+#: Infectious Murder-madness three lines above it on the same page. Written out
+#: rather than sharing that predicate for exactly that reason.
+NULLSTONE_AURA = FeelNoPainAura(
+    flag="nullstone_field_generator",
+    threshold=NULLSTONE_FEEL_NO_PAIN,
+    range_in=NULLSTONE_RANGE_IN,
+    squad_flag="nullstone_field_generator",
+    label="Nullstone Field Generator",
+    unit_predicate=_is_necron_unit,
+    mortal_or_psychic_only=True,
+)
 
-    NO KEYWORD EXCLUSIONS on this one - its sentence names none, unlike
-    Infectious Murder-madness three lines above it on the same page. Written
-    separately rather than sharing that predicate for exactly that reason."""
-    if squad is None or not _is_necron_unit(squad):
-        return False
-    for token in _carriers(all_tokens, getattr(squad, "owner", None),
-                           "nullstone_field_generator"):
-        gap = _model_range_to_squad(token, squad)
-        if gap is not None and gap <= NULLSTONE_RANGE_IN:
-            return True
-    return False
+
+def unit_in_nullstone_aura(squad, all_tokens=()):
+    """Whether `squad` is a friendly NECRONS unit within 6" of a living
+    bearer. Kept under its old name; the geometry lives in game/fnp_aura.py."""
+    return NULLSTONE_AURA.covers(squad, all_tokens)
 
 
 def refresh_nullstone(all_tokens=()):
@@ -395,13 +406,7 @@ def refresh_nullstone(all_tokens=()):
     it in main.py's per-frame aura block, for the same two reasons its
     docstring gives: positions change every frame, and a wiped-out bearer must
     stop projecting the aura in the same frame it dies."""
-    squads = {}
-    for token in all_tokens or ():
-        squad = getattr(token, "squad", None)
-        if squad is not None:
-            squads[id(squad)] = squad
-    for squad in squads.values():
-        squad.nullstone_field_generator = unit_in_nullstone_aura(squad, all_tokens)
+    NULLSTONE_AURA.refresh(all_tokens)
 
 
 def nullstone_feel_no_pain(model, mortal=False, psychic=False):
@@ -416,9 +421,4 @@ def nullstone_feel_no_pain(model, mortal=False, psychic=False):
     "AGAINST MORTAL WOUNDS AND PSYCHIC ATTACKS" is an OR, not an AND: either
     kind of wound is covered. Each flag is set by exactly one caller, so every
     other caller keeps the defaults and keeps meaning what it did."""
-    if model is None or not (mortal or psychic):
-        return "-"
-    squad = getattr(model, "squad", None)
-    if squad is None or not getattr(squad, "nullstone_field_generator", False):
-        return "-"
-    return NULLSTONE_FEEL_NO_PAIN
+    return NULLSTONE_AURA.feel_no_pain(model, mortal=mortal, psychic=psychic)

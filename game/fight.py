@@ -1,3 +1,4 @@
+from game import harassment_swarm, macrocyte_wargear
 from game import attached_units
 # Statistics reporting - battle_stats imports only game/weapons.py, so it
 # cannot cycle back into anything here.
@@ -81,7 +82,13 @@ def effective_weapon_skill(model, weapon):
     overrides the model's. Mirrors shooting.py's effective_ballistic_skill()
     exactly, just melee-side (WS instead of BS) - lives here rather than
     shooting.py since nothing there ever needs WS."""
-    return weapon.weapon_skill if weapon.weapon_skill is not None else model.profile.weapon_skill
+    printed = weapon.weapon_skill if weapon.weapon_skill is not None else model.profile.weapon_skill
+    # The Canoptek Macrocytes' Accelerator Mandible: "improve the Weapon Skill
+    # characteristic of weapons equipped by models in that unit by 1". THE
+    # FIRST thing in this engine that changes a WS characteristic rather than
+    # the Hit roll - the ignore-modifier filters above would leave it alone,
+    # because it is not a Modifier. See game/macrocyte_wargear.py.
+    return macrocyte_wargear.improved_weapon_skill(model, printed)
 
 
 def _melee_choice_owner(model, weapon):
@@ -2535,6 +2542,11 @@ class FightController:
         # offering a choice with one sane answer.
         if aspect_warrior_focus.ignores_hit_modifiers(self.fighting_squad):
             modifiers = [m for m in modifiers if m.amount <= 0]
+        # The Canoptek Macrocytes' Harassment Swarm - the printed noun is
+        # "an attack", not "a ranged attack", so it reaches THIS fold too.
+        # Added AFTER the ignore-modifier filter above: it is a worsening
+        # modifier and the printed text gives it no exemption.
+        modifiers.extend(harassment_swarm.hit_modifiers(self.fighting_squad))
         return modifiers
 
     def _wound_modifiers(self, weapon, target_squad):

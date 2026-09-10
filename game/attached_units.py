@@ -396,7 +396,18 @@ def can_attach(leader_squad, bodyguard_squad):
     # but a JOIN that states its own limit.
     # Each helper carries its own conditions and why the direction matters.
     if role is not None:
-        already = [c for c in leader_components(bodyguard_squad) if c.role == role]
+        # components(), NOT leader_components(): that helper answers "which
+        # components are a leader or a support", and RETINUE is a THIRD role
+        # (game/retinue.py) which it deliberately excludes - a Cryptothralls
+        # unit is not a character and must not be counted among a unit's
+        # leader models by 05.03/[PRECISION]. Reading it here meant this check
+        # never SAW a retinue, so BOTH of the printed parentheses that stage 2
+        # said it gave for free - "a unit cannot have more than one
+        # CRYPTOTHRALLS unit joined to it" and "cannot have both a TOMB
+        # CRAWLERS and a CRYPTOTHRALLS unit joined to it" - were unenforced.
+        # Byte-identical for LEADER and SUPPORT by construction: this filters
+        # the same components by the same role, one helper earlier.
+        already = [c for c in components(bodyguard_squad) if c.role == role]
         if already and not (role == LEADER and (
                 _bodyguard_allows_second_leader(bodyguard_squad, leader_squad, already)
                 or _leader_allows_joining_led_unit(leader_squad, already)

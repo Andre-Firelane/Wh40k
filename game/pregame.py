@@ -25,7 +25,7 @@ prompt only goes through DecisionManager when the winner is the human -
 routing the AI's answer through there could consult the agent.
 """
 
-from game import attached_units, deployment
+from game import attached_units, vanguard_protocols, formations, deployment
 from game.squad import (
     INFILTRATORS_MIN_ENEMY_DISTANCE_IN,
     infiltrators_clear_of_enemies,
@@ -438,8 +438,15 @@ class PregameController:
                 ]
             self._log(
                 f"{owner}: {squad.name} joins {merged.name} for the battle "
-                f"(Support Artillery, rule 19.01)."
+                f"({formations.join_rule_label(squad) or 'rule 19.01'}, rule 19.01)."
             )
+            # The Geomancer's Vanguard Protocols: "if this model is ATTACHED to
+            # a CANOPTEK MACROCYTES unit DURING THE DECLARE BATTLE FORMATIONS
+            # STEP". A latched conditional, so it is stamped here, right after
+            # the join that decides it, rather than measured later - and see
+            # game/vanguard_protocols.py for the measurement showing it is a
+            # no-op under this engine's rule 19.04 reading today.
+            vanguard_protocols.apply_at_formations(merged)
         # The absorbed platforms are no longer units of this army - attach()
         # has emptied them and taken them off the board. Dropped here for the
         # same reason attach() drops them from the GameState lists: a squad

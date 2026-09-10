@@ -358,6 +358,21 @@ SQUAD_SPRITE_KEYS = {
     # later batch does not contain either key.
     "Triarch Praetorians": "Triarch Praetorians",
     "Triarch Stalker": "Triarch Stalker",
+    # Canoptek. All seven files agree with their datasheet exactly - the first
+    # batch in this faction where none disagrees, which after eight earlier
+    # ones is worth stating rather than assuming.
+    #
+    # SHADOWING, checked rather than hoped: every key here begins "Canoptek "
+    # and no key is a substring of another ("Canoptek Doomstalker" and
+    # "Triarch Stalker" share only the word "Stalker", which is not a key on
+    # its own). Measured in the suite, not asserted here.
+    "Canoptek Scarab Swarms": "Canoptek Scarab Swarms",
+    "Canoptek Spyders": "Canoptek Spyders",
+    "Canoptek Doomstalker": "Canoptek Doomstalker",
+    "Canoptek Reanimator": "Canoptek Reanimator",
+    "Canoptek Macrocytes": "Canoptek Macrocytes",
+    "Canoptek Tomb Crawlers": "Canoptek Tomb Crawlers",
+    "Geomancer": "Geomancer",
 
     # --- Death Guard ---
     # EIGHT of these eleven files disagree with the datasheet name, and the

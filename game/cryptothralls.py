@@ -67,7 +67,7 @@ this is a condition of the Declare Battle Formations STEP, the same split
 game/formations.py's support_join_errors() already draws for Support Artillery.
 """
 
-from game import attached_units
+from game import attached_units, retinue
 from game.attached_units import (RETINUE, attachment_role, can_attach,
                                  components, leader_components)
 from game.fight_after_death import FightAfterDeath
@@ -211,64 +211,29 @@ class SystematicVigourController:
 
 
 # --------------------------------------------------------------- Cryptek Retinue
+#
+# THE RULE ITSELF NOW LIVES IN game/retinue.py, extracted the day the Canoptek
+# Tomb Crawlers printed the same paragraph. What stays here is the one word
+# that is this datasheet's own: its host must be led by a CRYPTEK INFANTRY
+# model, where the Tomb Crawlers' says only CRYPTEK. Re-exported under the
+# names this module has always had, so its callers are unchanged.
+
+CRYPTOTHRALLS_LABEL = "CRYPTOTHRALLS"
+
 
 def host_is_led_by_cryptek(host):
-    """"one other unit from your army that is being LED BY a CRYPTEK INFANTRY
-    model".
-
-    LED BY, so a component in the LEADER role - a Cryptek that merely stands
-    nearby is not one, and neither is a SUPPORT component... except that every
-    Cryptek in this faction prints CORE: Support, so the printed phrase and
-    this engine's role would never agree if it were read strictly. It is
-    therefore asked of any ATTACHED CHARACTER component that carries the
-    CRYPTEK keyword, which is what "being led by" means at the table."""
-    if host is None:
-        return False
-    for component in leader_components(host) or ():
-        sheet = getattr(component, "datasheet", None)
-        if sheet is None:
-            continue
-        keywords = getattr(sheet, "keywords", None) or ()
-        if CRYPTEK_KEYWORD in keywords and INFANTRY_KEYWORD in keywords:
-            return True
-    return False
+    """"being led by a CRYPTEK INFANTRY model" - both keywords, which is what
+    require_infantry names."""
+    return retinue.host_is_led_by_cryptek(host, require_infantry=True)
 
 
-def retinue_join_errors(retinue, host, already_joined=()):
-    """Why `retinue` cannot join `host` at Declare Battle Formations. Empty
-    list = allowed.
-
-    The PAIRING is delegated to can_attach() rather than re-derived - that is
-    where rule 19.01 lives, and its one-per-role check is what enforces the
-    printed "a unit cannot have more than one CRYPTOTHRALLS unit joined to
-    it". Everything added here is a condition of the step itself."""
-    if retinue is None or host is None:
-        return ["No unit selected."]
-    if attachment_role(retinue) != RETINUE:
-        return ["%s is not a CRYPTOTHRALLS unit." % getattr(retinue, "name", "?")]
-    if retinue is host:
-        return ["A unit cannot join itself."]
-    if getattr(retinue, "owner", None) != getattr(host, "owner", None):
-        return ["%s is not from your army." % getattr(host, "name", "?")]
-    errors = list(can_attach(retinue, host))
-    # "(a unit cannot have more than one CRYPTOTHRALLS unit joined to it)".
-    # 19.01's one-per-ROLE check gives this once the join has HAPPENED; while
-    # declarations are still being collected nothing has attached yet, so the
-    # already-declared list is what makes it checkable - the same argument
-    # game/formations.py's support_join_errors() makes for its own limit.
-    if already_joined and retinue not in already_joined:
-        errors.append(
-            "%s already has a CRYPTOTHRALLS unit joined to it." % host.name)
-    if not host_is_led_by_cryptek(host):
-        errors.append(
-            "%s is not being led by a CRYPTEK INFANTRY model." % host.name)
-    return errors
+def retinue_join_errors(retinue_squad, host, already_joined=()):
+    return retinue.join_errors(retinue_squad, host, already_joined,
+                               require_infantry=True,
+                               unit_label=CRYPTOTHRALLS_LABEL)
 
 
-def eligible_retinue_hosts(retinue, army, joins=None):
-    """Every unit in `army` this retinue could legally join.
-
-    `joins` maps id(host) -> the units already declared into it."""
-    joins = joins or {}
-    return [unit for unit in (army or ())
-            if not retinue_join_errors(retinue, unit, joins.get(id(unit), ()))]
+def eligible_retinue_hosts(retinue_squad, army, joins=None):
+    return retinue.eligible_hosts(retinue_squad, army, joins,
+                                  require_infantry=True,
+                                  unit_label=CRYPTOTHRALLS_LABEL)

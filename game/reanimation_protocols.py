@@ -306,6 +306,10 @@ class ReanimationProtocolsController:
         self._queue = []            # squads still owed a roll this Command phase
         self._current = None        # the squad whose die is on the table
         self._reroll_offered = False
+        # The Canoptek boosts, optional like every other collaborator here -
+        # None means the army rule reanimates exactly what it rolled, which is
+        # what every caller before this batch meant.
+        self.boost = None
         # True only while reanimate() is running, so the placer's
         # synchronous on_done (the AI path) cannot advance the queue
         # from inside _apply(). See _resume_queue().
@@ -456,10 +460,25 @@ class ReanimationProtocolsController:
 
     def _apply(self, squad, rolled):
         self._current = None
+        # The two Canoptek boosts - the Reanimator's aura (+D3) and the
+        # Macrocytes' Nanoscarab Projector (+1). Added to the wound count
+        # BEFORE it is spent, never afterwards: 01.02.03's Starting Strength
+        # cap and 02.02.04's heal-then-revive order both operate on the TOTAL,
+        # so a wound handed over after the fact would be spent under different
+        # rules than the ones that granted it.
+        #
+        # ONLY THIS DOOR. reanimate() has three callers (this army rule,
+        # Protocol of the Undying Legions and the Resurrection Orb), and the
+        # printed boost says "each time that unit's REANIMATION PROTOCOLS
+        # activate" - which is this one. See game/reanimation_boost.py.
+        boosted = rolled
+        if self.boost is not None:
+            boosted += self.boost.extra_wounds(
+                squad, self._tokens(), log=self._log)
         self._applying = True
         try:
             spent, revived = reanimate(
-                squad, rolled,
+                squad, boosted,
                 all_tokens=self._tokens(),
                 position_valid=self.position_valid,
                 game_state=self.game_state,

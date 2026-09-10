@@ -566,6 +566,21 @@ checks.eq("...and NOTHING against an ordinary wound",
 checks.eq("outside it: nothing, even against a mortal wound",
           feel_no_pain.current_feel_no_pain(m_far, mortal=True), "-")
 
+# A BEARER THAT DIED THIS FRAME STOPS PROJECTING. remove_dead_models() runs
+# once a frame, so the corpse is still in squad.models when the stamp is taken
+# - error class 12, and the one thing about this aura that is NOT a property of
+# the printed sentence. Added when Etappe 5's shared FeelNoPainAura probe found
+# that only ONE of the extraction's two carriers measured it; a shared base
+# whose carriers do not both notice a change is the drift the extraction is
+# there to prevent.
+for _m in nek.models:
+    _m.current_wounds = 0
+nekrosor_ammentar.refresh_nullstone(tok_n)
+checks.eq("a bearer killed THIS frame stops projecting at once",
+          (close.nullstone_field_generator,
+           feel_no_pain.current_feel_no_pain(m_close, mortal=True)),
+          (False, "-"))
+
 
 # =========================================================================
 # 7. Tunnelling Horrors - the round gate is the new half

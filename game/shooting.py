@@ -22,6 +22,9 @@ from game import storm_of_silence
 from game import assured_destruction
 from game import swift_demise
 from game import cover_denial
+from game import harassment_swarm
+from game import sentinel_construct
+from game import weapon_sentinels
 from game import target_acquisition
 from game import crystalline_targeting
 from game import wave_serpent_shield
@@ -2342,6 +2345,14 @@ class ShootingController:
             hexmark = inescapable_death.snap_hit_threshold(self.active_squad)
             if hexmark is not None:
                 override = hexmark if override is None else min(override, hexmark)
+            # The Canoptek Doomstalker's Sentinel Construct is the THIRD, and
+            # it prints the Hexmark's wording with another number (5+ against
+            # 2+): "each time you target this unit", so no latch either. Same
+            # better-of fold - min() says what rule 05.04 says about two
+            # sources of one characteristic without inventing a precedence.
+            doomstalker = sentinel_construct.snap_hit_threshold(self.active_squad)
+            if doomstalker is not None:
+                override = doomstalker if override is None else min(override, doomstalker)
             return override if override is not None else 6
         shooter_model, weapon = group["pairs"][0]
         if self.shooting_type == INDIRECT_SHOOTING and weapon.indirect_fire:
@@ -2553,6 +2564,20 @@ class ShootingController:
         # adjuster chain instead.
         if aspect_warrior_focus.ignores_hit_modifiers(self.active_squad):
             modifiers = [m for m in modifiers if m.amount <= 0]
+        # The Canoptek Macrocytes' Harassment Swarm - a DEFENDER-side aura read
+        # at the ATTACKER's seam: the -1 lands on attacks made BY the unit
+        # standing within 3" of the Macrocytes. Added AFTER the ignore-modifier
+        # filters, which is the difference between it and Command Protocols
+        # above: it is a WORSENING modifier, so a unit that ignores those would
+        # otherwise drop it, and the printed text gives it no such exemption.
+        modifiers.extend(harassment_swarm.hit_modifiers(self.active_squad))
+        # The Canoptek Tomb Crawlers' Weapon Sentinels: "you can ignore any or
+        # all modifiers to ... that attack's Ballistic Skill characteristic;
+        # the Hit roll". Same automatic resolution as the three filters above,
+        # gated on the TARGET being within 12" - a property of this attack, so
+        # it is asked with the target in hand.
+        modifiers = weapon_sentinels.filtered(
+            modifiers, self.active_squad, group.get("target_squad"))
         return modifiers
 
     def _wound_modifiers(self, target_squad, strength=None):
@@ -2679,6 +2704,12 @@ class ShootingController:
         # simplification, because the Enhancement is part of _attack_key().
         modifiers.extend(enh_precision_patient_hunter.wound_modifiers(
             self._representative_shooter(), self.turn_tracker))
+        # The Canoptek Tomb Crawlers' Weapon Sentinels, third noun: "you can
+        # ignore any or all modifiers to ... the Wound roll". THE FIRST such
+        # filter on this fold - ignores_hit_modifiers, [PSYCHIC], Kauyon and
+        # Warrior Focus all stop at the Hit roll - and it is the same automatic
+        # resolution, gated on the target being within 12".
+        modifiers = weapon_sentinels.filtered(modifiers, self.active_squad, target_squad)
         return modifiers
 
     def _representative_shooter(self):

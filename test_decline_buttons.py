@@ -197,8 +197,14 @@ c.eq("the panel's no-cost button is the same blue", _panel_fill, blue_fill)
 
 print("\n3) every literal option label in game/ is classified")
 
-# Every string that is the first element of a tuple inside a request() call -
-# i.e. every option label written as a literal anywhere in game/.
+# Every string that is the first element of a tuple inside a call that RAISES
+# options - i.e. every option label written as a literal anywhere in game/.
+#
+# offer_each() IS ON THE LIST, and adding it closed a real blind spot rather
+# than accommodating one module: game/per_unit_offer.py builds its options and
+# hands them to request() one file away, so every per-unit offer's labels were
+# invisible to this sweep. A new spelling of "no" in one of them could not turn
+# this section red, which is the whole thing it is for.
 LITERAL_LABELS = set()
 for root, _dirs, files in os.walk(GAME_DIR):
     for filename in sorted(files):
@@ -210,7 +216,7 @@ for root, _dirs, files in os.walk(GAME_DIR):
                 continue
             name = (node.func.attr if isinstance(node.func, ast.Attribute)
                     else getattr(node.func, "id", ""))
-            if name not in ("request", "request_unit_pick"):
+            if name not in ("request", "request_unit_pick", "offer_each"):
                 continue
             args = list(node.args) + [kw.value for kw in node.keywords if kw.arg == "options"]
             for arg in args:
@@ -226,7 +232,8 @@ c.true("the sweep found the option labels at all", len(LITERAL_LABELS) > 30)
 # game/decline_option.py lands in the first list and turns this red.
 EXPECTED_DECLINES = {
     "Cancel", "Decline", "Do not mark", "Do not use it", "Don't use it",
-    "Keep it", "Keep the card", "Keep the token", "Keep the token - one ability",
+    "Keep it", "Keep the card", "Keep the model", "Keep the token",
+    "Keep the token - one ability",
     "Leave the pool alone", "Leave them unguarded", "No more", "Save it",
     "Save it for later", "Stay on the battlefield", "Stay put",
 }

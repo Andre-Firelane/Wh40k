@@ -4930,7 +4930,7 @@ class ScythedLimbsProfile(WeaponProfile):
     damage = 1
 
 
-class ParticleBeamerProfile(WeaponProfile):
+class ParticleBeamerS5Profile(WeaponProfile):
     """Tomb Blades, one of the two twin-gauss-blaster replacements."""
     name = "Particle beamer"
     weapon_type = RANGED
@@ -5267,6 +5267,258 @@ class StalkersForelimbsProfile(WeaponProfile):
     strength = 7
     ap = -1
     damage = 3
+
+
+# --- Canoptek: Scarabs / Spyders / Doomstalker / Reanimator / Macrocytes /
+# --- Tomb Crawlers / Geomancer ---------------------------------------------
+#
+# THE COLLISION SWEEP FOR THIS BATCH is the biggest one yet - fourteen printed
+# names, and it came out THREE different ways:
+#
+#   * FORK, same name and other numbers. "Particle beamer" is printed on the
+#     Tomb Blades at S5 and on the Canoptek Spyders at S6, everything else
+#     identical - the classic trap. Both classes are now named after their
+#     STRENGTH, the Necron block's own convention (see the three
+#     NecronCloseCombatWeapon* classes): a bare ParticleBeamerProfile lies by
+#     omission the moment the second carrier exists. Same for "Atomiser beam"
+#     (Reanimator A3 AP-2 against Macrocytes A1 AP-1) and "Claws" (Macrocytes
+#     A2 S4 against Tomb Crawlers A4 S6).
+#   * INHERIT, same numbers plus one keyword. "Twin gauss flayer" IS the Necron
+#     Warriors' Gauss Flayer with [TWIN-LINKED], and "Twin gauss reaper" IS the
+#     Immortals' Gauss Reaper with it - so both subclass and override only the
+#     name, the arrangement TwinGaussBlasterProfile already uses. Pinned
+#     against their parents rather than against literals, so the two can never
+#     drift apart silently.
+#   * NEW, a name no datasheet has printed here before - the rest.
+#
+# WS/BS ARE ON THE PROFILES throughout: every one of these seven datasheets
+# agrees with its own rows (the Spyder is BS3+/WS4+, the Doomstalker 4+/4+, the
+# Geomancer 4+/4+, and so on), so not one weapon in this batch carries an
+# override. The Triarch Stalker's particle shredder remains the only Necron
+# weapon that needs one.
+
+
+class FeederMandiblesProfile(WeaponProfile):
+    """Canoptek Scarab Swarms' only weapon."""
+    name = "Feeder mandibles"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 6
+    strength = 2
+    ap = 0
+    damage = 1
+    lethal_hits = True
+
+
+class ParticleBeamerS6Profile(WeaponProfile):
+    """Canoptek Spyders. NOT the Tomb Blades' particle beamer: same printed
+    name, same range, same D6 Attacks, same keywords - and S6 against their
+    S5. See the collision sweep at the head of this block."""
+    name = "Particle beamer"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 3           # grouping/preview placeholder only - attacks_notation is what is rolled
+    attacks_notation = D6()
+    strength = 6
+    ap = 0
+    damage = 1
+    blast = True
+    devastating_wounds = True
+
+
+class AutomatonClawsProfile(WeaponProfile):
+    name = "Automaton claws"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 5
+    strength = 8
+    ap = -2
+    damage = 2
+
+
+class DoomsdayBlasterProfile(WeaponProfile):
+    """Canoptek Doomstalker. The hardest-hitting Necron gun in this engine
+    (S14), and NOT the Doomsday Ark's "Doomsday cannon" - different printed
+    name, different row."""
+    name = "Doomsday blaster"
+    weapon_type = RANGED
+    range_in = 48
+    attacks = 7           # grouping/preview placeholder only - attacks_notation is what is rolled
+    attacks_notation = D6(1)        # printed "D6+1"
+    strength = 14
+    ap = -3
+    damage = 3
+    blast = True
+    heavy = True
+
+
+class TwinGaussFlayerProfile(GaussFlayerProfile):
+    """Canoptek Doomstalker. The Necron Warriors' Gauss Flayer with
+    [TWIN-LINKED] added and nothing else changed - so it INHERITS and
+    overrides only the name, the arrangement TwinGaussBlasterProfile uses.
+    Pinned against its parent in the suite rather than against literals: the
+    assurance is that the two stay identical apart from the keyword."""
+    name = "Twin gauss flayer"
+    twin_linked = True
+
+
+class DoomstalkerLimbsProfile(WeaponProfile):
+    name = "Doomstalker limbs"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    strength = 6
+    ap = 0
+    damage = 1
+
+
+class AtomiserBeamA3Profile(WeaponProfile):
+    """Canoptek Reanimator, which carries TWO of them. Named after its numbers
+    because the Canoptek Macrocytes print the same name at A1 AP-1."""
+    name = "Atomiser beam"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 3
+    strength = 6
+    ap = -2
+    damage = 1
+
+
+class ReanimatorsClawsProfile(WeaponProfile):
+    name = "Reanimator's claws"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    strength = 5
+    ap = 0
+    damage = 1
+
+
+class AtomiserBeamA1Profile(WeaponProfile):
+    """Canoptek Macrocytes. The other half of the "Atomiser beam" fork -
+    a weaker row under the same printed name."""
+    name = "Atomiser beam"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 1
+    strength = 6
+    ap = -1
+    damage = 1
+
+
+class GaussScalpelProfile(WeaponProfile):
+    name = "Gauss scalpel"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 1
+    strength = 4
+    ap = -1
+    damage = 1
+    lethal_hits = True
+
+
+class TeslaCasterProfile(WeaponProfile):
+    """Canoptek Macrocytes. Not the Immortals' "Tesla Carbine" - different
+    printed name and a different row (that one is A2 S5 with [SUSTAINED HITS
+    2]); three tesla guns would be three classes."""
+    name = "Tesla caster"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 1
+    strength = 5
+    ap = 0
+    damage = 1
+    assault = True
+    sustained_hits = 1
+
+
+class ClawsA2S4Profile(WeaponProfile):
+    """Canoptek Macrocytes. Named after its numbers because the Canoptek Tomb
+    Crawlers print "Claws" too, at A4 S6."""
+    name = "Claws"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 2
+    strength = 4
+    ap = -1
+    damage = 1
+
+
+class ClawsA4S6Profile(WeaponProfile):
+    """Canoptek Tomb Crawlers - the other half of the "Claws" fork."""
+    name = "Claws"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    strength = 6
+    ap = -1
+    damage = 1
+
+
+class TransdimensionalIsolatorProfile(WeaponProfile):
+    """Canoptek Tomb Crawlers. Not the Canoptek Wraiths' "Transdimensional
+    Beamer" - similar name, different row."""
+    name = "Transdimensional isolator"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 2
+    strength = 4
+    ap = -2
+    damage = 2
+
+
+class TwinGaussReaperProfile(GaussReaperProfile):
+    """Canoptek Tomb Crawlers: the Immortals' Gauss Reaper with [TWIN-LINKED],
+    inherited for the same reason the Twin gauss flayer above is."""
+    name = "Twin gauss reaper"
+    twin_linked = True
+
+
+class TremorglaiveShockWavePulseProfile(WeaponProfile):
+    """The Tremorglaive's second ranged mode. Defined before the beam profile
+    below because that one names it as its alternate mode.
+
+    [TORRENT] (24.37), so its printed BS column is "N/A" - no Hit roll is made
+    and the skill is never read."""
+    name = "Tremorglaive - shock wave pulse"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 5           # grouping/preview placeholder only - attacks_notation is what is rolled
+    attacks_notation = D6(2)        # printed "D6+2"
+    strength = 4
+    ap = 0
+    damage = 1
+    ignores_cover = True
+    torrent = True
+
+
+class TremorglaiveReverberatingBeamProfile(WeaponProfile):
+    """The Geomancer's default ranged mode, first of the two printed rows.
+    A firing-mode PAIR, because the two are one datasheet entry - the same
+    arrangement the Triarch Stalker's heat ray uses."""
+    name = "Tremorglaive - reverberating beam"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 2
+    strength = 8
+    ap = -2
+    damage = 2
+    melta = 2
+    overcharge_profile = TremorglaiveShockWavePulseProfile
+
+
+class TremorglaiveMeleeProfile(WeaponProfile):
+    """The Tremorglaive's MELEE row - a third profile of the same printed
+    weapon, but a melee one, so it is a separate weapon in the loadout rather
+    than a mode of the ranged pair. The Void Dragon's spear and the Triarch
+    Praetorians' rod of covenant use the same arrangement."""
+    name = "Tremorglaive"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 2
+    strength = 8
+    ap = -2
+    damage = 2
 
 
 # ---------------------------------------------------------------------------

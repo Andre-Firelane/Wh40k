@@ -304,11 +304,15 @@ checks.eq("DOOMWEAVER_NAME matches the printed weapon",
           monofilament_web.DOOMWEAVER_NAME, DoomweaverProfile.name)
 
 # Both seams read it, checked at the source so a removed term is visible.
+# THE STATUS MOVED to game/pinned.py when the Geomancer became its second
+# source, so these two pin the SHARED module rather than this ability's name:
+# a seam that re-imported the Night Spinner's module to answer a Necron
+# ability would be exactly the lying-name problem the extraction fixed.
 checks.true("effective_movement_in() subtracts the pin",
-            "monofilament_web.move_penalty_for(squad)"
+            "pinned_status.move_penalty_for(squad)"
             in open("game/coldstar.py", encoding="utf-8").read())
 checks.true("the Charge roll subtracts it too",
-            "monofilament_web.charge_penalty_for(self.active_squad)"
+            "pinned_status.charge_penalty_for(self.active_squad)"
             in open("game/charge.py", encoding="utf-8").read())
 
 

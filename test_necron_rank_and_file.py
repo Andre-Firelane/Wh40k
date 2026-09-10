@@ -49,7 +49,7 @@ from game.units import (CryptothrallProfile, DeathmarkProfile,
 from game.weapons import (FlayerClawsProfile, GaussBlasterProfile,
                           GaussFlayerProfile, NecronCloseCombatWeaponA1Profile,
                           NecronCloseCombatWeaponA2Profile,
-                          ParticleBeamerProfile, ScouringEyeProfile,
+                          ParticleBeamerS5Profile, ScouringEyeProfile,
                           ScythedLimbsProfile, SynapticDisintegratorProfile,
                           TeslaCarbineProfile, TwinGaussBlasterProfile,
                           TwinTeslaCarbineProfile)
@@ -120,7 +120,7 @@ checks.eq("Scouring eye is a 6\" gun", ScouringEyeProfile().range_in, 6)
 checks.eq("Scythed limbs: A4 S5 AP-1",
           (ScythedLimbsProfile().attacks, ScythedLimbsProfile().strength,
            ScythedLimbsProfile().ap), (4, 5, -1))
-pb = ParticleBeamerProfile()
+pb = ParticleBeamerS5Profile()
 checks.true("Particle beamer rolls a real D6 for Attacks",
             pb.attacks_notation is not None)
 checks.true("...[BLAST] and [DEVASTATING WOUNDS]", pb.blast == 1 and pb.devastating_wounds)
@@ -180,7 +180,7 @@ checks.eq("Tomb Blades: 70/140, then 80/150",
 swapped = build(TOMB_BLADES, n=2,
                 choices={"Tomb Blade": {nec.TOMB_BLADES_TO_PARTICLE_BEAMER: 1}})
 checks.true("a Tomb Blade can trade its twin gauss blaster for a particle beamer",
-            any(isinstance(w, ParticleBeamerProfile) for w in swapped.models[0].weapons))
+            any(isinstance(w, ParticleBeamerS5Profile) for w in swapped.models[0].weapons))
 checks.true("...and the rest of the squad keeps theirs",
             any(isinstance(w, TwinGaussBlasterProfile) for w in swapped.models[1].weapons))
 
@@ -337,6 +337,28 @@ checks.eq("...nor the Cryptothralls themselves", fnp(_thrall), "5+")
 checks.true("a SECOND Cryptothralls unit is refused",
             bool(cryptothralls.retinue_join_errors(
                 build(CRYPTOTHRALLS, n=8), host, already_joined=(thralls,))))
+
+# ...AND ONCE THE JOIN HAS HAPPENED, which is the half this suite was missing
+# and the reason the printed parenthesis went unenforced for two stages. The
+# line above measures the DECLARATION-time list that pregame.py keeps; the
+# claim it was written next to was about rule 19.01 itself ("one unit per ROLE
+# gives this for free"), and 19.01's check read leader_components(), which
+# deliberately excludes the RETINUE role - so it never saw one. Both halves are
+# pinned now, because only the second one is the RULE.
+checks.true("...and 19.01 itself refuses one, now that the join stands",
+            bool(attached_units.can_attach(build(CRYPTOTHRALLS, n=10), host)))
+checks.eq("...while the FIRST retinue was allowed - the check narrows, not bans",
+          attached_units.can_attach(
+              build(CRYPTOTHRALLS, n=11),
+              attached_units.attach(build(D["Technomancer"], n=12),
+                                    build(WARRIORS, n=13, composition_index=0))),
+          [])
+# The one-per-role check is UNMOVED for the two older roles: same components,
+# same role filter, one helper earlier. Measured rather than asserted.
+_lead_host = attached_units.attach(build(D["Technomancer"], n=14),
+                                   build(WARRIORS, n=15, composition_index=0))
+checks.true("a second SUPPORT unit is still refused",
+            bool(attached_units.can_attach(build(D["Technomancer"], n=16), _lead_host)))
 
 # Systematic Vigour: eligibility, at the boundary its two siblings do not print.
 sv = cryptothralls.SystematicVigourController(game_log=tk.Log())

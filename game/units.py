@@ -322,6 +322,20 @@ class UnitProfile:
     nullstone_field_generator = False  # Nekrosor Ammentar wargear (Aura): friendly NECRONS units within 6" of the bearer have Feel No Pain 5+ against mortal wounds and Psychic Attacks. The first AURA source in game/feel_no_pain.py, so it is stamped on the Squad once per frame like Nurgle's Gift; see game/nekrosor_ammentar.py
     relentless_combatants = False  # Triarch Praetorians' own ability: their unit re-rolls Charge rolls, AND is eligible to declare a charge in a turn in which it Fell Back - two clauses at two seams, the second being the first DATASHEET source of rule 09.07's charge exemption registered in game/move_exceptions.py; see game/relentless_combatants.py
     targeting_relay = False  # Triarch Stalker's own ability: after it shoots, one enemy unit it hit cannot have the Benefit of Cover until the end of the phase - the SECOND ability of that exact shape, so both it and the Defiler's Barrage of Filth are subclasses of game/cover_denial.py
+    self_destruction = False  # Canoptek Scarab Swarms' own ability: at the start of the Fight phase a model of this unit can destroy itself to deal D3 (or 3 on a 6+, +1 to the roll against a VEHICLE) mortal wounds to an enemy unit in Engagement Range of it - see game/scarab_self_destruction.py
+    chittering_swarm = False  # Canoptek Scarab Swarms' own ability, TWO Objective Control clauses in one paragraph: an enemy unit in Engagement Range of this unit worsens by 1 (min 1), and this unit's own OC is SET to 1 while within 6" of a friendly CRYPTEK - the second and third consumer of game/objective_control.py's two forms; see game/chittering_swarm.py
+    canoptek_swarm = False  # Canoptek Spyders' own ability: in your Command phase, one destroyed model returns to a friendly CANOPTEK SCARAB SWARM unit within 6" per SPYDER model in this unit - a game/model_return.py consumer routed through game/return_placement.py; see game/canoptek_swarm.py
+    fabricator_claw_array = False  # Canoptek Spyders wargear (Aura): friendly NECRONS VEHICLE units within 6" of the bearer have Feel No Pain 6+ - a game/fnp_aura.py source; see game/spyder_wargear.py
+    gloom_prism = False  # Canoptek Spyders wargear (Aura): friendly NECRONS units within 6" of the bearer have Feel No Pain 5+ against mortal wounds and Psychic Attacks - the SAME printed sentence as Nekrosor Ammentar's Nullstone Field Generator, so both are game/fnp_aura.py sources; see game/spyder_wargear.py
+    sentinel_construct = False  # Canoptek Doomstalker's own ability: each time you target this unit with Fire Overwatch, hits are scored on unmodified 5+ instead of 15.09's flat 6 - the SECOND Necron carrier of that clause after the Hexmark's 2+, folded at the same seam; see game/sentinel_construct.py
+    nanoscarab_reanimation_beam = False  # Canoptek Reanimator's own ability (Aura): a friendly NECRONS unit within 3" heals an ADDITIONAL D3 wounds each time its Reanimation Protocols activate - see game/reanimation_boost.py
+    harassment_swarm = False  # Canoptek Macrocytes' own ability (Aura): an enemy unit (excluding MONSTERS and VEHICLES) within 3" subtracts 1 from its Hit rolls, in BOTH attack steps - see game/harassment_swarm.py
+    accelerator_mandible = False  # Canoptek Macrocytes wargear: at the start of the Fight phase, one friendly CANOPTEK unit within 3" improves the Weapon Skill of its weapons by 1 until the end of the phase - see game/macrocyte_wargear.py
+    nanoscarab_projector = False  # Canoptek Macrocytes wargear: once per battle round, a friendly NECRONS unit within 3" reanimates 1 ADDITIONAL wound - the second source in game/reanimation_boost.py, and the one with a per-round entitlement; see game/macrocyte_wargear.py
+    weapon_sentinels = False  # Canoptek Tomb Crawlers' own ability: a ranged attack against a unit within 12" can ignore any or all modifiers to the Ballistic Skill characteristic, the Hit roll and the Wound roll - a THIRD reader of the ignore-modifier idea, and the first that reaches the WOUND roll; see game/weapon_sentinels.py
+    tectonic_reverberations = False  # Geomancer's own ability: in your Movement phase, one visible enemy unit within 18" is PINNED until the start of your next Movement phase - the SECOND source of the Night Spinner's status, so both read game/pinned.py; see game/tectonic_reverberations.py
+    obelisk_node_control = False  # Geomancer's own ability: while this model is within range of an objective marker you control, enemy units arriving from Reserves cannot be set up within 12" of it - the first rule in this engine that restricts where the OPPONENT may arrive; see game/obelisk_node_control.py
+    vanguard_protocols = False  # Geomancer's own ability: this model has Scouts 8" if it was attached to a CANOPTEK MACROCYTES unit during Declare Battle Formations - a CONDITIONAL core ability resolved at read time, like game/illuminor.py's Lone Operative; see game/vanguard_protocols.py
     loping_pounce = False  # Kroot Hounds' own ability: while it is active (set at the start of its owner's Command phase when a friendly KROOT INFANTRY unit is within 6"), this unit may declare a charge in a turn in which it Advanced - the THIRD source of that exception, after Waaagh! and Full Throttle, read at the same gate in game/charge.py; see game/loping_pounce.py
     hunting_hounds = False  # Kroot Hounds' own ability: while within 12" of a friendly KROOT CHARACTER model, this model's Objective Control is 1 instead of its printed 0 - read by game/objectives.py; see game/hunting_hounds.py
     airborne_agility = False  # Vespid Stingwings' own ability: at the end of the opponent's turn, a unit not in Engagement Range may take itself off the board into Strategic Reserves; see game/airborne_agility.py
@@ -4763,6 +4777,145 @@ class TriarchStalkerProfile(UnitProfile):
     targeting_relay = True          # see game/targeting_relay.py
     deadly_demise = 3               # documentation leftover only, see deadly_demise_notation below
     deadly_demise_notation = D3()   # "Deadly Demise D3"
+
+
+class CanoptekScarabSwarmProfile(UnitProfile):
+    """The only OC 0 model in this faction, which is what makes the second
+    half of Chittering Swarm ("...the Objective Control characteristic of
+    models in this unit is 1") worth anything at all."""
+    name = "Canoptek Scarab Swarm"
+    base_radius_in = 0.787          # 40 mm printed base
+    movement_in = 10
+    weapon_skill = "5+"
+    ballistic_skill = "5+"          # no ranged row on this datasheet - inert, set for symmetry
+    toughness = 2
+    wounds = 4
+    leadership = "8+"
+    armor_save = "6+"
+    oc = 0
+    swarm = True
+    fly = True
+    reanimation_protocols = True
+    self_destruction = True         # see game/scarab_self_destruction.py
+    chittering_swarm = True         # see game/chittering_swarm.py
+
+
+class CanoptekSpyderProfile(UnitProfile):
+    name = "Canoptek Spyder"
+    base_radius_in = 1.181          # 60 mm printed flying base
+    movement_in = 5
+    weapon_skill = "4+"
+    ballistic_skill = "3+"
+    toughness = 7
+    wounds = 6
+    leadership = "8+"
+    armor_save = "3+"
+    oc = 2
+    vehicle = True
+    fly = True
+    reanimation_protocols = True
+    deadly_demise = 1               # "Deadly Demise 1" - a flat X, so no notation
+    canoptek_swarm = True           # see game/canoptek_swarm.py
+
+
+class CanoptekDoomstalkerProfile(UnitProfile):
+    name = "Canoptek Doomstalker"
+    base_radius_in = 1.772          # 90 mm printed base
+    movement_in = 8
+    weapon_skill = "4+"
+    ballistic_skill = "4+"
+    toughness = 8
+    wounds = 12
+    leadership = "8+"
+    armor_save = "3+"
+    oc = 4
+    invulnerable_save = "4+"
+    vehicle = True
+    walker = True
+    reanimation_protocols = True
+    deadly_demise = 3               # documentation leftover only, see deadly_demise_notation below
+    deadly_demise_notation = D3()   # "Deadly Demise D3"
+    damaged_threshold = 4           # "Damaged: 1-4 Wounds Remaining" - see game/shooting.py's _damaged_modifier()
+    sentinel_construct = True       # see game/inescapable_death.py's snap_hit_threshold fold
+
+
+class CanoptekReanimatorProfile(UnitProfile):
+    name = "Canoptek Reanimator"
+    base_radius_in = 1.181          # 60 mm printed base
+    movement_in = 8
+    weapon_skill = "4+"
+    ballistic_skill = "4+"
+    toughness = 6
+    wounds = 6
+    leadership = "7+"
+    armor_save = "3+"
+    oc = 3
+    feel_no_pain = "4+"             # CORE
+    vehicle = True
+    walker = True
+    reanimation_protocols = True
+    nanoscarab_reanimation_beam = True   # see game/reanimation_boost.py
+
+
+class CanoptekMacrocyteProfile(UnitProfile):
+    name = "Canoptek Macrocyte"
+    base_radius_in = 0.561          # 28.5 mm printed base
+    movement_in = 8
+    weapon_skill = "4+"
+    ballistic_skill = "4+"
+    toughness = 3
+    wounds = 1
+    leadership = "8+"
+    armor_save = "4+"
+    oc = 1
+    beasts = True
+    fly = True
+    scouts = 8                      # rule 24.31/24.32 (CORE), "Scouts 8''"
+    reanimation_protocols = True
+    harassment_swarm = True         # see game/harassment_swarm.py
+
+
+class CanoptekTombCrawlerProfile(UnitProfile):
+    name = "Canoptek Tomb Crawler"
+    base_radius_in = 0.984          # 50 mm printed base
+    movement_in = 5
+    weapon_skill = "4+"
+    ballistic_skill = "4+"
+    toughness = 4
+    wounds = 3
+    leadership = "8+"
+    armor_save = "3+"
+    oc = 1
+    beasts = True
+    reanimation_protocols = True
+    # The SECOND carrier of rule 19.01's RETINUE role, after the Cryptothralls
+    # - and it is the same flag on purpose, because attachment_role() reads it
+    # to answer "which of the three roles is this", and the printed clause
+    # "cannot have both a TOMB CRAWLERS and a CRYPTOTHRALLS unit joined to it"
+    # is then given for free by 19.01's one-unit-per-role check. See
+    # game/retinue.py.
+    cryptek_retinue = True
+    weapon_sentinels = True         # see game/weapon_sentinels.py
+
+
+class GeomancerProfile(UnitProfile):
+    name = "Geomancer"
+    base_radius_in = 0.984          # 50 mm printed base
+    movement_in = 8
+    weapon_skill = "4+"
+    ballistic_skill = "4+"
+    toughness = 4
+    wounds = 4
+    leadership = "6+"
+    armor_save = "4+"
+    oc = 1
+    infantry = True
+    character = True
+    support = True                  # CORE: Support - rule 24.34, like every other Cryptek
+    reanimation_protocols = True
+    tectonic_reverberations = True  # see game/tectonic_reverberations.py
+    obelisk_node_control = True     # see game/obelisk_node_control.py
+    vanguard_protocols = True       # see game/vanguard_protocols.py
 
 
 # ---------------------------------------------------------------------------

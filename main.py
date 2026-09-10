@@ -112,6 +112,12 @@ from game.deadly_vectors import DeadlyVectorsController
 from game.barrage_of_filth import BarrageOfFilthController
 from game.targeting_relay import TargetingRelayController
 from game.relentless_combatants import RelentlessCombatantsController
+from game import harassment_swarm, spyder_wargear
+from game.canoptek_swarm import CanoptekSwarmController
+from game.macrocyte_wargear import AcceleratorMandibleController
+from game.reanimation_boost import NanoscarabProjectorController, ReanimationBoost
+from game.scarab_self_destruction import SelfDestructionController
+from game.tectonic_reverberations import TectonicReverberationsController
 from game.curse_of_the_walking_pox import CurseOfTheWalkingPoxController
 from game.fevered_strategist import FeveredStrategistDiscount
 from game.lethal_ichor import LethalIchorController
@@ -1126,6 +1132,38 @@ def main(map_key=None):
         game_state=state, auto_players=ai_players,
         position_valid=_necron_position_valid,
     )
+    # The Canoptek batch. Built here beside the other Necron controllers, and
+    # every one of them gates on a profile flag no other faction carries, so
+    # they are inert in a game with no Necrons in it.
+    nanoscarab_projector_controller = NanoscarabProjectorController(
+        decision_manager=decision_manager, game_log=game_log,
+        turn_tracker=turn_tracker, auto_players=ai_players,
+    )
+    # BOTH reanimation boosts behind one question, so the army rule asks once.
+    # Assigned rather than passed to the constructor because reanimation_
+    # controller is built above - main() is one long function in which
+    # construction order is a real hazard (error class 23).
+    reanimation_controller.boost = ReanimationBoost(
+        projector=nanoscarab_projector_controller)
+    self_destruction_controller = SelfDestructionController(
+        decision_manager=decision_manager, game_state=state, game_log=game_log,
+        dice_manager=dice_manager, auto_players=ai_players,
+        target_pick=_best_damage_target,
+    )
+    canoptek_swarm_controller = CanoptekSwarmController(
+        decision_manager=decision_manager, game_state=state, game_log=game_log,
+        auto_players=ai_players, position_valid=_necron_position_valid,
+    )
+    accelerator_mandible_controller = AcceleratorMandibleController(
+        decision_manager=decision_manager, game_state=state, game_log=game_log,
+        auto_players=ai_players,
+    )
+    tectonic_reverberations_controller = TectonicReverberationsController(
+        decision_manager=decision_manager, game_state=state, game_log=game_log,
+        turn_tracker=turn_tracker, auto_players=ai_players,
+        target_pick=_best_damage_target, obstacles=state.obstacles,
+        terrain_areas=state.terrain_areas,
+    )
     technomancer_controller = TechnomancerController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
         game_state=state, auto_players=ai_players,
@@ -1838,6 +1876,11 @@ def main(map_key=None):
     # Undying Legions is the third and is built AFTER this line, so it takes its
     # placer as a constructor argument instead.
     resurrection_orb_controller.placer = return_placement_controller
+    # The Canoptek Spyders' Canoptek Swarm - the seventh model-return
+    # ability, and it goes through the same placer for the same reason:
+    # rule 01.02.03 says a returning model is SET UP, and setting up is
+    # the controlling player's job.
+    canoptek_swarm_controller.placer = return_placement_controller
 
     # Rule 03.01's pre-game sequence. Built even when disabled (it just stays
     # IDLE) so every gate below can read it unconditionally.
@@ -4074,6 +4117,15 @@ def main(map_key=None):
             # "Until the start of your next Movement phase" - Spirit Mark's own
             # reset, one phase later than a Guide/Doom mark.
             spirit_mark_controller.start_of_movement_phase(turn_tracker.turn_owner)
+            # The Geomancer's Tectonic Reverberations. The CLEAR runs first and
+            # the OFFER second, in that order: "until the start of your next
+            # Movement phase" and "in your Movement phase" are the same instant
+            # a turn apart, so last turn's pin has to expire before this turn's
+            # is placed - the arrangement Admired Leader's own pair records.
+            tectonic_reverberations_controller.clear_at_start_of_movement(
+                turn_tracker.turn_owner)
+            tectonic_reverberations_controller.offer_at_start_of_movement(
+                turn_tracker.turn_owner)
             movement_controller.reset_movement_phase()
             ingress_controller.reset_movement_phase()
             transport_controller.reset_movement_phase()
@@ -4101,6 +4153,18 @@ def main(map_key=None):
             # (12.04), so it is offered to whoever owns a bearer rather than
             # to the turn owner. Its own once-per-battle ledger keeps it
             # silent after the first use.
+            # The Canoptek Scarab Swarms' Self-destruction and the Macrocytes'
+            # Accelerator Mandible - both "at the start of THE Fight phase",
+            # bare rather than "your", and the Fight phase is shared (12.04),
+            # so both players are offered rather than only the turn owner.
+            _fight_owners = sorted({t.squad.owner for t in state.tokens
+                                    if t.squad is not None})
+            self_destruction_controller.reset_phase()
+            accelerator_mandible_controller.reset_phase(
+                {t.squad for t in state.tokens if t.squad is not None})
+            for _owner in _fight_owners:
+                self_destruction_controller.offer_at_start_of_fight(_owner)
+                accelerator_mandible_controller.offer_at_start_of_fight(_owner)
             the_stars_are_right_controller.offer_at_start_of_fight_phase(
                 {t.squad for t in state.tokens if t.squad is not None})
             # Kill Rig's Spirit of Gork: "at the start of the Fight phase".
@@ -4197,6 +4261,10 @@ def main(map_key=None):
             # instant a round apart, so this one call clears last round's mark
             # and then offers this round's - in that order, which is its own
             # test line because the two lines look independent.
+            # The Canoptek Spyders' Canoptek Swarm: "in your Command phase", so
+            # the turn owner's, and once per Spyder unit.
+            canoptek_swarm_controller.reset_phase()
+            canoptek_swarm_controller.offer_at_command_phase(turn_tracker.turn_owner)
             admired_leader_controller.begin_command_phase(turn_tracker.turn_owner)
             # ...and Light of Clarity, on the same clock and through the same
             # shared machine.
@@ -4511,6 +4579,7 @@ def main(map_key=None):
         deadly_vectors_controller, lethal_ichor_controller,
         spore_laced_controller, sickening_impact_controller,
         internal_grenade_racks_controller,
+        self_destruction_controller,
         # Aspect Host's Khaine's Vengeance runs a Desperate Escape test on the
         # falling-back unit, which belongs to the TURN OWNER - so a human
         # victim's allocation is a genuine board click.
@@ -4744,6 +4813,11 @@ def main(map_key=None):
             # unit). Neither may be rolled over by a phase change.
             or internal_grenade_racks_controller.is_busy
             or internal_grenade_racks_controller.pending_damage_choice is not None
+            # The Canoptek Scarab Swarms' Self-destruction: two dice steps and
+            # then an allocation, so it blocks the same way its neighbours do -
+            # and it is ANSWERABLE at the click branch below, which is what
+            # keeps this a guard rather than a deadlock (error class 25).
+            or self_destruction_controller.is_busy
             or wraith_form_controller.is_busy
             or wraith_form_controller.pending_damage_choice is not None
             or drakolithe_controller.is_busy
@@ -5811,6 +5885,7 @@ def main(map_key=None):
                         kroot_linebreakers_controller.resolve_pending_battle_shock()
                         wraith_form_controller.on_dice_acknowledged()
                         internal_grenade_racks_controller.on_dice_acknowledged()
+                        self_destruction_controller.on_dice_acknowledged()
                         # The three list-holding abilities answer only the
                         # Feel No Pain leg - they roll their own dice inline.
                         drakolithe_controller.on_dice_acknowledged()
@@ -5870,6 +5945,18 @@ def main(map_key=None):
                     clicked = input_manager.token_at_event(state.tokens, board, event.pos)
                     if clicked is not None and clicked in crushing_impact_controller.pending_damage_choice:
                         crushing_impact_controller.choose_damage_model(clicked)
+            elif self_destruction_controller.pending_damage_choice is not None:
+                # The Canoptek Scarab Swarms' Self-destruction - rule 06.02, the
+                # DEFENDER allocates. Written in the canonical form beside it:
+                # event type and button, then the board rect, then
+                # token_at_event()'s three-argument call.
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in self_destruction_controller.pending_damage_choice:
+                        self_destruction_controller.choose_damage_model(clicked)
             elif internal_grenade_racks_controller.pending_damage_choice is not None:
                 # Retaliation Cadre's Internal Grenade Racks - rule 06.02, the
                 # DEFENDER allocates. The canonical form of this branch: event
@@ -6757,6 +6844,14 @@ def main(map_key=None):
         # measurement because its reader, feel_no_pain.current_feel_no_pain(),
         # takes a MODEL and has about a dozen call sites.
         nekrosor_ammentar.refresh_nullstone(state.tokens)
+        # The Canoptek Spyders' two Feel No Pain auras and the Macrocytes'
+        # Harassment Swarm, stamped here for the same two reasons: positions
+        # change every frame, and a bearer wiped out this frame must stop
+        # projecting in the same frame it dies. All three have readers that
+        # take a MODEL and are asked per wound or per attack group, which is
+        # why none of them is a live measurement.
+        spyder_wargear.refresh(state.tokens)
+        harassment_swarm.refresh(state.tokens)
         # Spirit Conclave's Spirit Guides aura is read from the squad by
         # game/battle_focus.py, which cannot import a controller (it is
         # reached from game/squad.py's own import chain). So every squad is
@@ -7369,6 +7464,7 @@ def main(map_key=None):
         renderer.draw_damage_choice_highlight(board_surface, board, spore_laced_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, sickening_impact_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, internal_grenade_racks_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, self_destruction_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, wraith_form_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, drakolithe_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, harvester_of_souls_controller.pending_damage_choice)

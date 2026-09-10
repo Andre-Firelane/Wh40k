@@ -29,10 +29,20 @@ def scout_distance(squad):
     individual model's `scouts` is still None - a bare min() over the raw
     attribute list would raise. min rather than max so a mixed attached unit
     gets the conservative distance."""
+    # The Geomancer's Vanguard Protocols: "if this model is attached to a
+    # CANOPTEK MACROCYTES unit ... this model has the Scouts 8" ability". A
+    # LATCHED conditional, decided at Declare Battle Formations, so it is asked
+    # of the attachment rather than measured. Asked FIRST because it can only
+    # ever grant - and see game/vanguard_protocols.py for the measurement that
+    # makes it a no-op under this engine's rule 19.04 reading today.
+    from game import vanguard_protocols
+    granted = vanguard_protocols.scouts_for(squad)
     if not unit_wide_ability(squad, "scouts"):
-        return None
+        return granted
     values = [m.profile.scouts for m in squad.models if m.profile.scouts]
-    return min(values) if values else None
+    if granted is not None:
+        values.append(granted)
+    return min(values) if values else granted
 
 
 def has_scouts(squad):

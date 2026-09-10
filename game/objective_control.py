@@ -65,12 +65,22 @@ def effective_oc(model, all_tokens=None, objective=None):
     answer - which is why the test pins the current disjointness rather than
     leaving it to luck.
     """
-    from game import (enh_admired_leader, enh_craftworlds_champion,
-                      enh_light_of_clarity, enh_strategic_conqueror,
-                      enh_strategic_savant)
+    from game import (chittering_swarm, enh_admired_leader,
+                      enh_craftworlds_champion, enh_light_of_clarity,
+                      enh_strategic_conqueror, enh_strategic_savant)
     oc = hunting_hounds.objective_control(model, all_tokens)
     oc = enh_craftworlds_champion.objective_control(model, oc)
+    # Chittering Swarm's SECOND clause - the THIRD setter, and the first that
+    # can meet another one: a Scarab is neither KROOT nor ASURYANI, so it is
+    # still disjoint from the two above, but that is now a fact about three
+    # sets rather than two and the test pins it as such.
+    oc = chittering_swarm.objective_control(model, oc, all_tokens)
     oc = plagues.worsen_oc(model, oc)
+    # Chittering Swarm's FIRST clause - the SECOND worsener, aimed at the
+    # ENEMY of the unit that has the ability. Beside Soulrot rather than after
+    # the adders, because both are worseners with the same printed floor, and
+    # the adders come last so a purchased +1 always buys one.
+    oc = chittering_swarm.worsen_enemy_oc(model, oc, all_tokens)
     oc += enh_strategic_conqueror.oc_bonus(model, objective, all_tokens)
     oc += enh_admired_leader.oc_bonus(model)
     oc += enh_strategic_savant.oc_bonus(model)

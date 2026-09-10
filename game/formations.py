@@ -256,13 +256,17 @@ CRYPTEK_RETINUE = "Cryptek Retinue"
 
 
 def join_rule_label(joiner):
-    """The printed rule that lets `joiner` join something, or None."""
+    """The printed rule that lets `joiner` join something, or None.
+
+    THREE rules now, not two: the Canoptek Tomb Crawlers print "Canoptek
+    Retinue" where the Cryptothralls print "Cryptek Retinue", and the panel
+    heading has to say which - naming the wrong one over an offer is exactly
+    what this function exists to prevent."""
     if is_support_platform(joiner):
         return SUPPORT_ARTILLERY
-    from game import cryptothralls
-    if attached_units.attachment_role(joiner) == attached_units.RETINUE:
-        return CRYPTEK_RETINUE
-    return None
+    from game import retinue
+    carrier = retinue.carrier_of(joiner)
+    return carrier[0] if carrier else None
 
 
 def eligible_join_targets(platform, army, joins=None, destinations=None):
@@ -279,11 +283,14 @@ def eligible_join_targets(platform, army, joins=None, destinations=None):
     lives."""
     joins = joins or {}
     destinations = destinations or {}
-    label = join_rule_label(platform)
-    if label == CRYPTEK_RETINUE:
-        from game import cryptothralls
-        return cryptothralls.eligible_retinue_hosts(platform, army, joins)
-    if label is None:
+    from game import retinue
+    carrier = retinue.carrier_of(platform)
+    if carrier is not None:
+        label, require_infantry = carrier
+        return retinue.eligible_hosts(platform, army, joins,
+                                      require_infantry=require_infantry,
+                                      unit_label=label)
+    if join_rule_label(platform) is None:
         return []
     return [
         unit for unit in army

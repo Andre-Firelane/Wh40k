@@ -52,3 +52,24 @@ def is_engaged(squad, all_tokens=()):
             if edge_distance(model, token) <= ENGAGEMENT_RANGE_IN:
                 return True
     return False
+
+
+def units_are_engaged(squad, other):
+    """Whether these TWO specific units are within Engagement Range of each
+    other, living models only.
+
+    is_engaged() above asks "is anything engaging me"; this asks about a NAMED
+    pair, which is what a clause aimed at one unit needs ("while an ENEMY UNIT
+    is within Engagement Range of THIS unit"). Same 2" and the same living
+    filter, so the two can never disagree about what Engagement Range means.
+
+    First consumer: Canoptek Scarab Swarms' Chittering Swarm."""
+    if squad is None or other is None:
+        return False
+    mine = [m for m in (getattr(squad, "models", ()) or ()) if not m.is_dead()]
+    theirs = [m for m in (getattr(other, "models", ()) or ()) if not m.is_dead()]
+    for a in mine:
+        for b in theirs:
+            if edge_distance(a, b) <= ENGAGEMENT_RANGE_IN:
+                return True
+    return False
