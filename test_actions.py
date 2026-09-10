@@ -25,6 +25,7 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 import testkit as tk  # noqa: E402
 from game import config, maps, secondary_missions as sm  # noqa: E402
 from game.actions import ActionController, start_eligibility  # noqa: E402
+import game.objectives as objectives_mod  # noqa: E402
 from game.game_state import GameState  # noqa: E402
 from game.turn import PHASES, PHASE_MOVEMENT, PHASE_SHOOTING  # noqa: E402
 from game.factions import aeldari as ae  # noqa: E402
@@ -57,6 +58,21 @@ def mission_ctx(tokens):
 def controller(tokens, movement_controller=None):
     return ActionController(tokens_source=lambda: tokens, game_log=tk.Log(),
                             movement_controller=movement_controller)
+
+
+def refresh_control(tokens):
+    """Recompute 14.02 from the board, the way main.py's advance_turn_phase()
+    does at every phase boundary.
+
+    Needed since Cleanse's UNITS line grew its control term. Staging a unit ON
+    an objective while leaving controlled_by at None is a board state that
+    cannot survive a phase boundary - and the Shooting phase, the only phase
+    this action may start in, is one boundary after the models stopped moving.
+    Deriving it here rather than assigning "Player 1" keeps the suite honest:
+    if a staged unit does not actually hold the objective, the checks below
+    say so instead of being told otherwise."""
+    for objective in board.objectives:
+        objective.update_control(tokens)
 
 
 # --- 1. the seven start-eligibility conditions ---
@@ -128,6 +144,7 @@ checks.true("a unit that did not Advance is fine",
             start_eligibility(squad, tokens, FakeMovement())[0])
 
 # Already started an action this turn.
+refresh_control(tokens)   # Cleanse's UNITS line needs the objective held
 ac = controller(tokens)
 ac.start(sm.CLEANSE_ACTION, squad, CENTRAL, mission_ctx(tokens))
 ok, reason = start_eligibility(squad, tokens, None, ac.states)
@@ -138,6 +155,7 @@ checks.true("...and says why", "already started" in (reason or ""))
 # --- 2. the two locks, and their printed asymmetry ---
 print("--- 2. the locks ---")
 
+refresh_control(tokens)
 ac = controller(tokens)
 checks.eq("before starting, nothing is locked", ac.blocks_shooting(squad), False)
 ac.start(sm.CLEANSE_ACTION, squad, CENTRAL, mission_ctx(tokens))
@@ -157,6 +175,7 @@ checks.eq("the end of the turn clears both", ac.blocks_shooting(squad), False)
 # copy - the point is that the code reads it, not that a unit has it.
 titanic = unit_on(CENTRAL, "1 Titan 1")
 titanic.models[0].profile = type("T", (type(titanic.models[0].profile),), {"titanic": True})()
+refresh_control(list(titanic.models))
 ac2 = controller(list(titanic.models))
 ac2.start(sm.CLEANSE_ACTION, titanic, CENTRAL, mission_ctx(list(titanic.models)))
 checks.eq("a TITANIC unit may still shoot", ac2.blocks_shooting(titanic), False)
@@ -170,7 +189,7 @@ print("--- 3. cancellation ---")
 def after_move(move_kind):
     squad_ = unit_on(CENTRAL, "1 Rangers M")
     toks = list(squad_.models)
-    CENTRAL.controlled_by = "Player 1"
+    refresh_control(toks)
     ctrl = controller(toks)
     ctrl.start(sm.CLEANSE_ACTION, squad_, CENTRAL, mission_ctx(toks))
     if move_kind is not False:
@@ -198,6 +217,7 @@ far = unit_on(CENTRAL, "1 Rangers F")
 for model in far.models:
     model.x_in += 40
 all_tokens = list(on_central.models) + list(on_home.models) + list(far.models)
+refresh_control(all_tokens)
 ctx = mission_ctx(all_tokens)
 
 # UNITS: "One friendly unit within range of an objective (excl. your home
@@ -207,13 +227,39 @@ checks.eq("a unit on YOUR OWN home objective does not", sm.cleanse_units(on_home
 checks.eq("a unit near no objective does not", sm.cleanse_units(far, ctx), False)
 enemy_home = next(o for o in board.objectives if o.name == "P2 Home Objective")
 on_enemy_home = unit_on(enemy_home, "1 Rangers E")
+refresh_control(list(on_enemy_home.models))
 checks.true("but the ENEMY's home objective is a legal target",
             sm.cleanse_units(on_enemy_home, mission_ctx(list(on_enemy_home.models))))
+# The control term, at its own boundary: an objective the ENEMY holds cannot
+# be Cleansed at all, because "COMPLETES ... if that unit STILL controls that
+# objective" presupposes control at the start. This is the reported bug's own
+# shape - the button used to appear here and could never pay out.
+CENTRAL.controlled_by = "Player 2"
+checks.eq("an objective the ENEMY controls is not a legal target",
+          sm.cleanse_units(on_central, ctx), False)
+CENTRAL.controlled_by = None
+checks.eq("...nor one nobody controls", sm.cleanse_units(on_central, ctx), False)
+refresh_control(all_tokens)
+checks.true("...and it is a target again once you hold it",
+            sm.cleanse_units(on_central, ctx))
+# WITHIN RANGE stays 3" - the fix added the control term, it did not narrow the
+# reach. A unit off the footprint may still act on ground a SQUADMATE holds.
+beside = unit_on(CENTRAL, "1 Rangers N")
+_bmnx, _bmny, _bmxx, _bmxy = CENTRAL.terrain_area.bounding_box
+for _m in beside.models:
+    _m.x_in = _bmxx + _m.radius_in + 1.0
+_beside_tokens = all_tokens + list(beside.models)
+refresh_control(_beside_tokens)
+checks.eq("the unit itself is NOT standing on the objective",
+          objectives_mod.is_on_objective(beside, [CENTRAL]), False)
+checks.true("...but a squadmate holds it, so it is still within range and legal",
+            sm.cleanse_units(beside, mission_ctx(_beside_tokens)))
 
 # USE LIMIT: "Unlimited. Each unit must be within range of a different
 # objective." - a cap on the TARGET, not on the number of actions.
 second = unit_on(CENTRAL, "1 Rangers B")
 tokens2 = list(on_central.models) + list(second.models)
+refresh_control(tokens2)
 ctrl = controller(tokens2)
 ctrl.start(sm.CLEANSE_ACTION, on_central, CENTRAL, mission_ctx(tokens2))
 checks.eq("a second unit cannot take the same objective",
@@ -225,11 +271,15 @@ checks.eq("and there is no cap on how many actions run at once",
 
 # COMPLETES: "End of your turn, if that unit controls that objective."
 def completes(control, move_away=False):
+    """Start while you hold it - which the UNITS line now requires - then let
+    control change, which is the sequence the printed "STILL controls" describes."""
     squad_ = unit_on(CENTRAL, "1 Rangers C")
     toks = list(squad_.models)
-    CENTRAL.controlled_by = control
+    refresh_control(toks)
     ctrl_ = controller(toks)
     state = ctrl_.start(sm.CLEANSE_ACTION, squad_, CENTRAL, mission_ctx(toks))
+    checks.true("the action starts while you hold the objective", state is not None)
+    CENTRAL.controlled_by = control
     if move_away:
         for model in squad_.models:
             model.x_in += 40
@@ -444,4 +494,64 @@ checks.true("can_declare_charge() asks the controller",
 checks.true("confirm_move() reports the move KIND, not just the move",
             "self.action_controller.notify_move(self.selected_squad, self.move_mode)" in MOVEMENT)
 
+# ---------------------------------------------------------------------------
+# THE OBJECTIVE-ACTION GATE: one definition, two readers.
+#
+# Cleanse (Secondary) and Secure Asset (Primary) print the SAME UNITS line and
+# the SAME COMPLETES line. They lived in two modules with two copies of the
+# gate, and the copies were BOTH wrong in the same way - offering on a 3"
+# buffer while completion needs 14.02's footprint control. A set difference at
+# the source, so a third objective action cannot quietly grow a third reading.
+import ast  # noqa: E402
+
+MCTX = io.open("game/mission_context.py", encoding="utf-8").read()
+SECONDARY = io.open("game/secondary_missions.py", encoding="utf-8").read()
+PRIMARY = io.open("game/primary_missions.py", encoding="utf-8").read()
+
+checks.true("the gate has ONE definition",
+            "def objective_action_targets_for(" in MCTX)
+
+
+def _delegates(src, func_name):
+    """Whether `func_name`'s BODY really calls the shared gate - by AST, not by
+    substring, because both modules NAME it in prose as well (that is exactly
+    the guard-matches-its-own-comment trap this repo has paid for five times)."""
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, ast.FunctionDef) and node.name == func_name:
+            return any(isinstance(c, ast.Call)
+                       and getattr(c.func, "id", None) == "objective_action_targets_for"
+                       for c in ast.walk(node))
+    return False
+
+
+checks.true("Cleanse reads it", _delegates(SECONDARY, "cleanse_targets_for"))
+checks.true("Secure Asset reads it", _delegates(PRIMARY, "secure_asset_targets_for"))
+# ...and neither keeps a private copy of the old bare-range form.
+for _label, _src, _fn in (("Cleanse", SECONDARY, "cleanse_targets_for"),
+                          ("Secure Asset", PRIMARY, "secure_asset_targets_for")):
+    for _node in ast.walk(ast.parse(_src)):
+        if isinstance(_node, ast.FunctionDef) and _node.name == _fn:
+            checks.eq(f"{_label} keeps no private range copy",
+                      any(isinstance(c, ast.Call)
+                          and getattr(c.func, "id", None) == "is_within_range_of_objective"
+                          for c in ast.walk(_node)), False)
+
+# The gate is a SUBSET of "objectives you control" - the whole point of the
+# term, and the invariant that makes the offer honest. Measured rather than
+# asserted: walk a grid and check every offer against 14.02.
+_probe = unit_on(CENTRAL, "1 Rangers Grid")
+del _probe.models[1:]
+_pm = _probe.models[0]
+_offers = _uncontrolled = 0
+for _gx in range(0, int(config.BOARD_WIDTH_IN), 2):
+    for _gy in range(0, int(config.BOARD_HEIGHT_IN), 2):
+        _pm.x_in, _pm.y_in = float(_gx), float(_gy)
+        _toks = [_pm]
+        refresh_control(_toks)
+        for _o in sm.cleanse_targets_for(_probe, mission_ctx(_toks)):
+            _offers += 1
+            if _o.controlled_by != "Player 1":
+                _uncontrolled += 1
+checks.true("the sweep actually found offers", _offers > 0)   # liveness
+checks.eq("every offered objective is one you control", _uncontrolled, 0)
 checks.finish()

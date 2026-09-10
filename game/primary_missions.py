@@ -59,6 +59,7 @@ from game.mission_context import (
     MissionContext,
     _live_squads,
     _non_home_objectives,
+    objective_action_targets_for,
     _other_player,
     central_objectives,
     own_home_objective,
@@ -444,8 +445,10 @@ def secure_asset_units(squad, ctx):
 
 
 def secure_asset_targets_for(squad, ctx):
-    return [o for o in _non_home_objectives(ctx)
-            if is_within_range_of_objective(squad, [o])]
+    """Word for word Cleanse's UNITS line, so it reads the SAME definition -
+    including the control term its own COMPLETES line implies with "still".
+    See mission_context.objective_action_targets_for() for why."""
+    return objective_action_targets_for(squad, ctx)
 
 
 def secure_asset_use_limit(started, squad, target, ctx):

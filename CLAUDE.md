@@ -363,6 +363,13 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
     Zug es deshalb nicht bewegen", gelesen von `clamp_move()`, `is_movable()`, der KI-Spreizung,
     dem Renderer, dem Panel und der Logzeile. Keine Extraktion im engeren Sinn, sondern eine
     HAUSREGEL, die es an einer Stelle als getarnte Optimierung schon gab.
+    Seither **`mission_context.objective_action_targets_for()` (38.)** — „auf welchen
+    Objectives darf diese Einheit eine OBJECTIVE ACTION beginnen", gelesen von Cleanse
+    (Secondary) und Secure Asset (Primary), die dieselbe UNITS- UND dieselbe COMPLETES-Zeile
+    drucken und beide eine eigene Kopie hatten. **Beide Kopien waren gleich falsch**, und das
+    ist die lehrreiche Hälfte: das START-Tor las die 3"-Fassung von „within range of an
+    objective", das COMPLETES-Tor die 14.02-Fassung — dieselbe Frage, zwei Antworten, drei Zoll
+    auseinander (siehe `## Cleanse bot einen Knopf an, der nicht auszahlen konnte`).
     Seither **`weapons.anti_entries()` (31.)** — „wie liest man `WeaponProfile.anti`", gelesen von
     `shooting._wound_crit_threshold()` und von `weapons.printed_keywords()`; es liegt jetzt bei
     dem Feld, das es liest, und `shooting.py` re-exportiert es unter dem alten privaten Namen,
@@ -5862,6 +5869,10 @@ nicht fest.
 
 - **Secure Asset** ist Cleanse mit PLUNDERS Use Limit (einmal pro ZUG, nicht Cleanses
   Eindeutigkeit pro Objective) — zwei Formen, die gleich aussehen.
+  **Seit 2026-09-10 teilen die zwei auch ihr START-Tor** (`mission_context.objective_action_
+  targets_for()`): dieselbe UNITS- und dieselbe COMPLETES-Zeile, also darf es nicht zwei Kopien
+  geben — es gab sie, und beide waren gleich falsch. Siehe `## Cleanse bot einen Knopf an, der
+  nicht auszahlen konnte`.
 - **Booby Trap** ist Plunders Form (`completes_immediately`) mit CLEANSES Use Limit
   (Eindeutigkeit auf dem Ziel). Es ist die einzige Action mit einem echten CALLBACK, weil
   *trapped* eine bleibende Tatsache über das BRETT ist statt über diesen Zug.
@@ -6996,7 +7007,10 @@ Spiellänge definieren.
       Brett durch Ausprobieren.
 - **Cleanse ist die erste Karte mit einer AKTION** (Regel 16.01, siehe den Abschnitt darüber). Ihre
   fünf Zeilen: STARTS in der eigenen Schussphase, UNITS eine Einheit in Reichweite eines Objectives
-  **außer dem eigenen Home-Objective**, USE LIMIT unbegrenzt aber jede Einheit an einem ANDEREN
+  **außer dem eigenen Home-Objective** — **und seit 2026-09-10 eines, das sie schon KONTROLLIERT**,
+  weil COMPLETES „if that unit STILL controls" sagt und „still" Kontrolle beim Start voraussetzt
+  (die 3" Reichweite bleiben; siehe `## Cleanse bot einen Knopf an, der nicht auszahlen konnte`) —,
+  USE LIMIT unbegrenzt aber jede Einheit an einem ANDEREN
   Objective, COMPLETES am Zugende falls die Einheit das Objective kontrolliert, EFFECT das Objective
   ist gecleanst. 2 VP für eins, 5 VP für zwei oder mehr.
   - **"excl. your home objective" ist SINGULAR und POSSESSIV** — das Home-Objective des GEGNERS ist
@@ -10957,6 +10971,144 @@ Tatsache samt Grund.
 **Lehre für die nächste Fraktion:** ein Armeeregel-Flag gehört gegen die FACTION-Zeile des Korpus
 geprüft, nicht gegen die Fraktionszugehörigkeit — `test_aeldari_detachment_stratagems.py`s
 Abschnitt 6z tut das jetzt für JEDES gebaute Aeldari-Datenblatt und würde ein siebtes sofort nennen.
+
+## Cleanse bot einen Knopf an, der nicht auszahlen konnte (2026-09-10)
+
+**Gemeldet:** *"Actions wie plunder werden angeboten, obwohl Einheit gar nicht auf einem objective
+steht ( muss nach Move aktualisiert werden)"*
+
+**ERST DIE MELDUNG NACHLESEN, DANN MESSEN — und beide Hälften des Satzes waren anders gemeint,
+als sie klingen.**
+
+### Plunder war in der gemeldeten Partie nie gezogen
+
+`logs/game_20260909_221504.log` listet die zehn Karten, die Player 1 gezogen hat: Engage on All
+Fronts, Centre Ground, **Cleanse**, No Prisoners, A Grievous Blow, A Tempting Target, Bring It
+Down, Overwhelming Force, Beacon, Behind Enemy Lines. „Actions **wie** plunder" nennt also die
+KLASSE, und auf dem Schirm stand CLEANSE. Ohne diesen Blick ins Log wäre die ganze Untersuchung
+an Plunder gelaufen — das genau nichts falsch macht.
+
+- **Plunder selbst ist regelrichtig und bleibt unangetastet.** Seine gedruckte UNITS-Zeile
+  verlangt eine TERRAIN AREA außerhalb des eigenen Territoriums, **kein Objective**. Auf map4
+  sind 8 von 15 Areas plünderbar und **5 davon tragen gar kein Objective** — der Knopf erscheint
+  dort also zu Recht auf einer schlichten Ruine. Das ist die Verwechslung, die die Meldung
+  benennt, und sie ist eine Verwechslung, kein Fehler.
+- **Die REFRESH-Hälfte war ebenfalls kein Fehler, und das ist gemessen statt angenommen.**
+  `available_actions_for()` läuft pro Frame ohne jeden Cache (`action_panel.py`), `_context()`
+  baut frisch bei jedem Aufruf, und jedes Ziel-Prädikat liest Modellpositionen live. Eine Einheit
+  durch den ECHTEN Pfad hinein → hinaus → hinein bewegt: Angebot erscheint, verschwindet, kommt
+  zurück. **Die Laufzeit-Sonde zeigt es sogar in BEIDEN Welten** — „nach 30" weg: keine Angebote"
+  gilt auch in der Vor-Fix-Welt.
+
+### Der echte Fehler: EINE Frage, ZWEI Antworten, drei Zoll auseinander
+
+Diese Engine hat zwei Definitionen von „within range of an objective", und sie sind nicht
+dieselbe Menge:
+
+| | Definition | gelesen von |
+|---|---|---|
+| `objectives.is_within_range_of_objective()` | Fußabdruck **+ 3"** (12.08s Objective Consolidation) | Cleanse/Secure Asset **START**-Tor |
+| `Objective.level_of_control()` | Fußabdruck-**ÜBERLAPPUNG** (14.02) | `controlled_by`, das die **COMPLETION** verlangt |
+
+Beide Karten drucken dieselben zwei Zeilen — *"UNITS: One friendly unit within range of an
+objective (excluding your home objective)"* und *"COMPLETES: End of your turn, if that unit STILL
+controls that objective"* — und **beide Module hatten eine eigene Kopie des Tors, beide gleich
+falsch**.
+
+**Gemessen bei 0.5" über jedes ausgelieferte Brett** — der Anteil der Angebote, bei dem die
+Einheit gar nicht zur Kontrolle beitragen kann:
+
+| Karte | START-Tor deckt | Kontroll-Tor deckt | Fallen-Ring |
+|---|---|---|---|
+| map1 | 44.8 % | 20.2 % | **55 % jedes Angebots** |
+| map2 | 48.8 % | 20.6 % | 58 % |
+| map3 | 47.8 % | 18.5 % | 61 % |
+| **map4** (gemeldet) | 46.8 % | 19.1 % | **59 %** |
+
+**End-to-end reproduziert bei 0.06" neben dem Fußabdruck** — optisch nicht davon zu
+unterscheiden, dass die Einheit darauf steht: Knopf gezeichnet, Aktion gestartet, 16.01 sperrt
+Schießen UND Chargen für den Rest des Zuges, `controlled_by` bleibt `None`, **nichts vollendet**.
+Der Spieler zahlt den vollen Preis für nichts, und nichts auf dem Schirm sagt warum.
+
+**`is_on_objective()`s eigener Docstring hält GENAU DIESE Meldung schon fest** — aus dem früheren
+Breach-and-Clear-Bericht (*"nur wenn Ziel auf Objective steht"*, weil der 3"-Puffer „was
+triggering far more often than intended"). Der Fix landete dort und hat diese zwei Aktionen nie
+erreicht.
+
+### Der Fix: „STILL" ist das tragende Wort (User-Entscheidung)
+
+`mission_context.objective_action_targets_for()` (38. Extraktion) fügt den KONTROLL-Term hinzu,
+den die COMPLETES-Zeile ohnehin impliziert: *"if that unit **STILL** controls"* setzt Kontrolle
+beim START voraus.
+
+- **Die 3" BLEIBEN.** Der gedruckte Wortlaut ist „within range", und eine Einheit 3" daneben darf
+  weiter auf Boden handeln, den ein SQUADMATE hält — das vollendet einwandfrei. Die Alternative
+  (auf den Fußabdruck verengen, wie bei Breach and Clear) war die zweite Option und wurde
+  ausdrücklich NICHT gewählt; die A/B-Sonde 4 fährt sie und muss beißen, sonst ist die Zusicherung
+  „die Reichweite hat überlebt" weg.
+- **Und es IST der Stand nach der Bewegung** — die zweite Hälfte der Meldung, gratis:
+  `controlled_by` wird in `advance_turn_phase()` an jeder Phasengrenze neu gerechnet, also ist es
+  in der Schussphase (der einzigen, in der beide Aktionen starten dürfen) der Stand vom Ende der
+  Bewegungsphase. Kein neuer Sweep nötig.
+- **Die Verengung schließt die Falle vollständig**, weil Completion `controlled_by == owner` UND
+  Reichweite verlangt: was beim Start beides erfüllt, scheitert am Ende nur noch, wenn die
+  Kontrolle wirklich kippt — legitimes Spiel, keine Falle.
+
+### Warum keine der drei Suiten es sah
+
+**Zu `cleanse_targets_for()`/`cleanse_units()` gab es GAR KEINEN Verhaltenstest** —
+`test_secondary_missions.py` fasste von Cleanse nur `completes_immediately`, die Redraw-Klausel
+und `cleanse_use_limit` an. Deshalb blieb es bei 553/553 grün, während sich das Verhalten
+deutlich änderte.
+
+**Zwei fremde Suiten wurden zu Recht ROT** und sind ehrlich nachgezogen statt aufgeweicht:
+`test_actions.py` und `test_primary_missions.py` stellten eine Einheit AUF ein Objective und
+ließen `controlled_by` auf `None` — **ein Brettzustand, der keine Phasengrenze überlebt**, weil
+`update_control()` ihn dort erzeugt hätte. Beide bekommen jetzt ein `refresh_control(tokens)`, das
+14.02 vom BRETT ableitet, wie `main.py` es tut, statt „Player 1" hinzuschreiben: stellt eine Bühne
+eine Einheit hin, die das Objective gar nicht hält, sagt die Suite das, statt es anders behauptet
+zu bekommen. `completes()` startet jetzt, während man hält, und lässt die Kontrolle DANACH kippen
+— die Folge, die „STILL controls" beschreibt, und ein besserer Test als vorher.
+
+**Der Wächter ist eine MENGENDIFFERENZ an der Quelle** (`test_actions.py`, Abschnitt 7): das Tor
+hat EINE Definition, beide Leser rufen sie per AST nachgewiesen auf, und keiner darf eine private
+`is_within_range_of_objective()`-Kopie behalten. Per AST, weil beide Module die Funktion auch in
+PROSA nennen — die „Wächter matcht seine eigene Erklärung"-Falle, sechste Instanz. Dazu ein
+Gitter-Sweep mit Liveness-Zeile: jedes angebotene Objective muss eines sein, das man kontrolliert.
+
+### Getestet
+
+`test_actions.py` 79 → **108/108**, `test_primary_missions.py` 264 → **268/268**,
+`test_secondary_missions.py` **553/553** unverändert. Neu `ab_objective_action_gate.py`
+(**6 A/B-Sonden, alle beißend**; die ganze Vor-Fix-Welt kippt beide Suiten). Volle Regression
+**208 Suiten, ~18259 Prüfungen, 207 grün / 0 rot / 1 bekannt**.
+
+**Ein eigener Sondenfehler, zwanzigste Instanz derselben Lehre:** Sonde 4 ließ die Suite mit
+`NameError` ABSTÜRZEN statt sie rot zu machen (`is_on_objective` ist in `mission_context.py` nicht
+importiert). Ein funktionslokaler Import in der Sondenfassung degradiert sie zu ROT — und die rote
+Zeile nennt jetzt genau die richtige Zusicherung („aber ein Squadmate hält es, also weiter in
+Reichweite und legal").
+
+**Im ECHTEN Spiel belegt** (`verify_objective_action_gate.py`, `runpy` auf `selfplay.py`s echte
+`main()`-Schleife, map4 — das gemeldete Brett):
+
+| | gefixt | `--neutralize` |
+|---|---|---|
+| Angebot, während DU hältst | `['Cleanse: Objective Southeast']` | dasselbe |
+| Angebot, während der GEGNER hält | **keins** | **`['Cleanse: Objective Southeast']`** |
+| Angebot, während NIEMAND hält | **keins** | **`['Cleanse: Objective Southeast']`** |
+| Angebot nach 30" weg | keins | keins |
+
+Die letzte Zeile ist in BEIDEN Welten gleich, und das ist die Aussage: **die Reichweite hat sich
+immer aktualisiert**, es fehlte allein die Kontrolle.
+**VIER gestellte Tatsachen, jede benannt:** die Deck-Flagge (selfplay leert
+`SECONDARY_MISSION_CARD_PLAYERS` beim Import — das dokumentierte Harness-Opt-out, hier auf den von
+`game/config.py` AUSGELIEFERTEN Wert zurückgesetzt), Cleanse auf der Hand, Schussphase **und**
+eigener Zug, und eine Einheit auf einem Nicht-Home-Objective. Alles danach ist echt.
+**Zwei eigene Sondenfehler dabei, beide gemessen statt geraten:** `advance_phase()` wickelt hinter
+Fight in den Zug des ANDEREN Spielers, wodurch `available_actions_for()` zu Recht nichts liefert
+und die Sonde eine wahrheitsgetreu aussehende Null meldete; und die Sonde MISST die Ablehnung
+jetzt (`measured refusal: plays_cards=False`), statt eine Geschichte über den Harness zu erzählen.
 
 ## Fünf Meldungen aus einer Partie (2026-09-09)
 

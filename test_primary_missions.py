@@ -64,6 +64,21 @@ def clear_control():
         objective.controlled_by = None
 
 
+def refresh_control(tokens):
+    """Recompute 14.02 from the board, the way main.py's advance_turn_phase()
+    does at every phase boundary.
+
+    Secure Asset's UNITS line now carries the control term its own COMPLETES
+    line implies with "still". Staging a unit ON an objective while leaving
+    controlled_by at None is a board state that cannot survive a phase
+    boundary, and the Shooting phase - the only phase this action may start in
+    - is one boundary after the models stopped moving. Derived rather than
+    assigned, so a staged unit that does not really hold the objective makes
+    the checks below say so."""
+    for objective in board.objectives:
+        objective.update_control(list(tokens))
+
+
 def ctx(player="Player 1", tokens=(), **kw):
     return mc.MissionContext(
         player, tokens=list(tokens), objectives=board.objectives,
@@ -584,10 +599,22 @@ clear_control()
 central_obj = OBJ["Central Objective"]
 ccx, ccy = mc.objective_centre(central_obj)
 holder = unit("Player 1", ccx, ccy, models=3, name="1 Holders 1")
+refresh_control(tokens_of(holder))
 ctrl, ledger, actions, turn, log, box = controller(pm.SECURE_ASSET, tokens_of(holder))
 
 offers = ctrl.available_actions_for(holder)
 checks.true("Secure Asset is offered to a unit on an objective", bool(offers))
+# The control term, at its own boundary. This is the reported bug's shape:
+# the button used to appear on an objective the unit could not control, the
+# unit paid 16.01's shooting AND charging lock, and nothing ever completed.
+central_obj.controlled_by = "Player 2"
+checks.eq("it is NOT offered while the ENEMY controls the objective",
+          ctrl.available_actions_for(holder), [])
+central_obj.controlled_by = None
+checks.eq("...nor while nobody does", ctrl.available_actions_for(holder), [])
+refresh_control(tokens_of(holder))
+checks.true("...and it is offered again once you hold it",
+            bool(ctrl.available_actions_for(holder)))
 checks.true("...naming the objective as its target",
             any(t is central_obj for _l, _a, t in offers))
 checks.eq("it is NOT offered to the enemy's units",

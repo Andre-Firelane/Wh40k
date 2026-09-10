@@ -31,6 +31,7 @@ second consumer", not "extract everything that looks generic".
 """
 
 from game import config
+from game.objectives import is_within_range_of_objective
 
 # Rule 03.04's Engagement Range and the objective range live on the units they
 # belong to. This one is a MISSION distance: "not within 6" of the centre of
@@ -293,6 +294,70 @@ def _non_home_objectives(ctx):
         if not any(z.contains_point(cx, cy) for z in mine):
             out.append(objective)
     return out
+
+
+def objective_action_targets_for(squad, ctx):
+    """The objectives this unit may START an OBJECTIVE ACTION on.
+
+    Cleanse and Secure Asset print the SAME two lines word for word:
+
+        UNITS:     One friendly unit within range of an objective
+                   (excluding your home objective).
+        COMPLETES: End of your turn, if that unit STILL controls that objective.
+
+    "STILL" is the load-bearing word and the whole reason this function
+    exists: it presupposes control at the moment the action starts. Without
+    that term the two lines answer the same question differently, and they
+    disagree by exactly 3".
+
+  User: "Actions wie plunder werden angeboten, obwohl Einheit gar nicht auf
+   einem objective steht (muss nach Move aktualisiert werden)."
+
+    WHY THE TWO DISAGREED. This engine has two definitions of "within range
+    of an objective" and they are not the same set:
+
+      objectives.is_within_range_of_objective()  footprint + 3" (rule 12.08's
+                                                 Objective Consolidation)
+      Objective.level_of_control()               footprint OVERLAP only (14.02)
+
+    The START gate read the first, and COMPLETES reads controlled_by, which is
+    the second. MEASURED at 0.5" resolution over every shipped board, the gap
+    between them:
+
+        map1  offered on 44.8% of the board, 20.2% can control -> 55% of offers
+        map2             48.8%               20.6%             -> 58%
+        map3             47.8%               18.5%             -> 61%
+        map4             46.8%               19.1%             -> 59%
+
+    So on the reported board (map4) nearly SIX IN TEN offers stood where the
+    unit could not contribute to controlling the objective at all - while
+    16.01 locked it out of shooting AND charging for the rest of the turn.
+    Reproduced end to end at 0.06" off the footprint: button drawn, action
+    started, both locks applied, controlled_by None, nothing completed.
+
+    is_on_objective()'s own docstring in game/objectives.py records this exact
+    complaint from an earlier report about Breach and Clear ("nur wenn Ziel auf
+    Objective steht", because the 3" buffer "was triggering far more often than
+    intended"). That fix landed there and never reached these two actions.
+
+    WHAT THIS DOES NOT DO, and it is a user decision rather than an oversight:
+    it does NOT narrow the reach to the footprint. The printed word is "within
+    range", the 3" stays, and a unit 3" away may still act on an objective a
+    SQUADMATE is holding - which completes perfectly well. What it adds is the
+    control term the COMPLETES line already implies.
+
+    AND IT IS THE POST-MOVE BOARD, which is the second half of the report.
+    controlled_by is recomputed in main.py's advance_turn_phase() at every
+    phase boundary, so during the Shooting phase - the only phase either
+    action may start in - it is the state as of the end of the Movement phase.
+    That is the refresh the report asked for, and it comes for free rather
+    than needing a new sweep. (The RANGE half needed nothing: target options
+    are rebuilt live every frame, measured, with no cache anywhere on the
+    path.)
+    """
+    return [o for o in _non_home_objectives(ctx)
+            if o.controlled_by == ctx.player
+            and is_within_range_of_objective(squad, [o])]
 
 
 class MissionContext:

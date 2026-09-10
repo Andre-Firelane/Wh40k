@@ -93,7 +93,7 @@ from game.mission_context import (  # noqa: F401  (re-exported for the cards)
     unit_has_presence_in,
     zone_distance,
 )
-from game.mission_context import CENTRE_EXCLUSION_IN
+from game.mission_context import CENTRE_EXCLUSION_IN, objective_action_targets_for
 
 
 # A card's scoring instant. The two supplied cards differ, and the difference
@@ -982,10 +982,17 @@ def cleanse_units(squad, ctx):
 
 
 def cleanse_targets_for(squad, ctx):
-    """The objectives this unit could Cleanse - within range, and not the
-    player's own home objective."""
-    return [o for o in _non_home_objectives(ctx)
-            if is_within_range_of_objective(squad, [o])]
+    """The objectives this unit could Cleanse - within range, not the player's
+    own home objective, and ALREADY CONTROLLED by them.
+
+    The control term is the shared one (mission_context.objective_action_targets_for),
+    because Secure Asset prints the identical pair of lines and the two must
+    not drift: "COMPLETES ... if that unit STILL controls that objective"
+    presupposes control at the start. See that function for the measurement -
+    without the term, 58% of every offer on map2 stood where the unit could
+    not contribute to control at all, while 16.01 locked it out of shooting
+    and charging."""
+    return objective_action_targets_for(squad, ctx)
 
 
 def cleanse_use_limit(started, squad, target, ctx):
