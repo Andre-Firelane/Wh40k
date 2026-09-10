@@ -4869,6 +4869,96 @@ class HyperphaseHarvesterProfile(WeaponProfile):
     damage = 3
 
 
+# --- Deathmarks / Flayed Ones / Cryptothralls / Tomb Blades ----------------
+#
+# FOUR SHARES AND TWO INHERITANCES, measured before a class was written:
+#   * the Deathmarks' "Close combat weapon" IS NecronCloseCombatWeaponA2Profile
+#     (A2 S4 AP0 D1) and the Tomb Blades' IS NecronCloseCombatWeaponA1Profile
+#     (A1 S4). Cloning either would have been the inverse of the "same name,
+#     other numbers" trap - the numbers are the same, so the class is.
+#   * the two twin guns are their single-barrelled siblings plus [TWIN-LINKED]
+#     and nothing else, so they INHERIT and override only `name` and that one
+#     keyword - the shape the five Wave Serpent twins already use, and the one
+#     that keeps them pinned against each other instead of against literals.
+
+
+class SynapticDisintegratorProfile(WeaponProfile):
+    """Deathmarks. [PRECISION] is what the datasheet is for: a 36" sniper that
+    can pick a CHARACTER out of an attached unit (rule 24.28)."""
+    name = "Synaptic disintegrator"
+    weapon_type = RANGED
+    range_in = 36
+    attacks = 1
+    strength = 5
+    ap = -2
+    damage = 2
+    heavy = True
+    precision = True
+
+
+class FlayerClawsProfile(WeaponProfile):
+    """Flayed Ones."""
+    name = "Flayer claws"
+    weapon_type = MELEE
+    attacks = 4
+    strength = 4
+    ap = -1
+    damage = 1
+    sustained_hits = 1
+    twin_linked = True
+
+
+class ScouringEyeProfile(WeaponProfile):
+    """Cryptothralls. Six inches of range, which is the whole character of the
+    datasheet - it is a bodyguard, not a gun."""
+    name = "Scouring eye"
+    weapon_type = RANGED
+    range_in = 6
+    attacks = 2
+    strength = 5
+    ap = -1
+    damage = 1
+
+
+class ScythedLimbsProfile(WeaponProfile):
+    """Cryptothralls."""
+    name = "Scythed limbs"
+    weapon_type = MELEE
+    attacks = 4
+    strength = 5
+    ap = -1
+    damage = 1
+
+
+class ParticleBeamerProfile(WeaponProfile):
+    """Tomb Blades, one of the two twin-gauss-blaster replacements."""
+    name = "Particle beamer"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 3  # preview/grouping placeholder only - attacks_notation is rolled
+    attacks_notation = D6()
+    strength = 5
+    ap = 0
+    damage = 1
+    blast = 1
+    devastating_wounds = True
+
+
+class TwinGaussBlasterProfile(GaussBlasterProfile):
+    """Tomb Blades' default gun: the Immortals' Gauss Blaster with
+    [TWIN-LINKED] added and nothing else changed. Inherited rather than
+    copied, so the two stay pinned to each other."""
+    name = "Twin gauss blaster"
+    twin_linked = True
+
+
+class TwinTeslaCarbineProfile(TeslaCarbineProfile):
+    """The other replacement, and the same relationship to the Immortals'
+    Tesla Carbine."""
+    name = "Twin tesla carbine"
+    twin_linked = True
+
+
 # --- Crypteks: Chronomancer / Psychomancer / Orikan The Diviner -------------
 #
 # The two staves each print ONE name across a ranged and a melee row, which is

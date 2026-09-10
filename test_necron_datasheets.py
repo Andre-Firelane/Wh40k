@@ -327,7 +327,7 @@ c.true("the Destroyer Cult is five datasheets - both Lords joined it",
             nec.LOKHUST_HEAVY_DESTROYERS, nec.SKORPEKH_LORD, nec.LOKHUST_LORD)))
 c.true("every datasheet carries the NECRONS faction keyword",
        all("NECRONS" in s.keywords for s in nec.NECRONS.datasheets.values()))
-c.eq("eighteen datasheets are registered", len(nec.NECRONS.datasheets), 18)
+c.eq("twenty-two datasheets are registered", len(nec.NECRONS.datasheets), 22)
 c.eq("the faction keyword is NECRONS", nec.NECRONS.keyword, "NECRONS")
 
 # can_attach() returns a list of REASONS - empty means legal
@@ -356,11 +356,18 @@ print("--- 6. sprites ---")
 # Checked at the MODEL, not in the table: a key that maps to no file on disk is
 # precisely the failure a glance at the dict cannot see, and sprite_for() is
 # what the renderer actually calls.
-missing = [s.name for s in nec.NECRONS.datasheets.values()
-           if not sprites.sprite_for(build(s).models[0])]
-c.eq("every Necron datasheet resolves to a real file", missing, [])
-c.eq("...all eighteen of them",
-     len(nec.NECRONS.datasheets) - len(missing), 18)
+# The batch brought datasheets whose art the user has NOT supplied, so this
+# stops being "every one" and becomes a NAMED list - the Aeldari precedent.
+# Both directions matter: a sheet that quietly loses its art fails the first
+# line, and a name that stays on the list after art arrives fails the second,
+# so the exception cannot outlive its reason.
+WITHOUT_ART = ["Flayed Ones"]
+missing = sorted(s.name for s in nec.NECRONS.datasheets.values()
+                 if not sprites.sprite_for(build(s).models[0]))
+c.eq("every Necron datasheet resolves to a real file, bar the named ones",
+     missing, sorted(WITHOUT_ART))
+c.eq("...which is twenty-one of the twenty-two",
+     len(nec.NECRONS.datasheets) - len(missing), 22 - len(WITHOUT_ART))
 c.eq("the faction badge is mapped too",
      sprites.FACTION_LOGO_KEYS.get("NECRONS"), "Necron Logo")
 

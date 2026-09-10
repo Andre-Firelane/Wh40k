@@ -5,7 +5,7 @@ from game import enh_higher_duty
 from game import windrider_overflight
 from game import aura_ruler
 from game import base_contact
-from game import charge, config, consolidate, crushing_impact, epic_challenge, explosives, fall_back, fight, chronometron, fire_and_fade, firing_deck, formations, greater_good, loadout, movement, overwatch, path_of_the_outcast, pregame, setup, shooting, sprites
+from game import charge, config, consolidate, crushing_impact, epic_challenge, explosives, fall_back, fight, chronometron, evasion_engrams, fire_and_fade, firing_deck, formations, greater_good, loadout, movement, overwatch, path_of_the_outcast, pregame, setup, shooting, sprites
 from game.ingress import SHORTENED_BLADE_MIN_ENEMY_DISTANCE_IN
 from game.squad import is_at_half_strength
 from game.turn import PHASE_MOVEMENT, PHASE_SHOOTING, PHASE_CHARGE, PHASE_FIGHT
@@ -181,6 +181,7 @@ class ActionPanel:
         path_of_the_outcast_controller=None,
         fire_and_fade_controller=None,
         chronometron_controller=None,
+        evasion_engrams_controller=None,
         overflight_controller=None,
         higher_duty_controller=None,
         warhost_fire_and_fade_controller=None,
@@ -260,6 +261,7 @@ class ActionPanel:
             path_of_the_outcast_controller=path_of_the_outcast_controller,
             fire_and_fade_controller=fire_and_fade_controller,
             chronometron_controller=chronometron_controller,
+            evasion_engrams_controller=evasion_engrams_controller,
             overflight_controller=overflight_controller,
             higher_duty_controller=higher_duty_controller,
             warhost_fire_and_fade_controller=warhost_fire_and_fade_controller,
@@ -300,6 +302,7 @@ class ActionPanel:
         path_of_the_outcast_controller=None,
         fire_and_fade_controller=None,
         chronometron_controller=None,
+        evasion_engrams_controller=None,
         overflight_controller=None,
         higher_duty_controller=None,
         warhost_fire_and_fade_controller=None,
@@ -559,6 +562,7 @@ class ActionPanel:
             path_of_the_outcast_controller=path_of_the_outcast_controller,
             fire_and_fade_controller=fire_and_fade_controller,
             chronometron_controller=chronometron_controller,
+            evasion_engrams_controller=evasion_engrams_controller,
             overflight_controller=overflight_controller,
             higher_duty_controller=higher_duty_controller,
             warhost_fire_and_fade_controller=warhost_fire_and_fade_controller,
@@ -1279,8 +1283,12 @@ class ActionPanel:
         join_targets = formations.eligible_join_targets(
             squad, pregame_controller.army(owner), joins, destinations)
         if join_targets:
+            # The heading NAMES THE RULE rather than hard-coding one: two
+            # printed rules now let a unit join another here, and "Support
+            # Artillery" over a Cryptothralls offer would name the wrong one.
             button_y = self._draw_text(
-                surface, rect, "Support Artillery", button_y + 4, color=HINT_COLOR, gap=4,
+                surface, rect, formations.join_rule_label(squad) or "Join a unit",
+                button_y + 4, color=HINT_COLOR, gap=4,
             )
             for target in join_targets:
                 # Named by its UNIT and shown with its loadout, for the reason
@@ -2094,6 +2102,7 @@ class ActionPanel:
         path_of_the_outcast_controller=None,
         fire_and_fade_controller=None,
         chronometron_controller=None,
+        evasion_engrams_controller=None,
         overflight_controller=None,
         higher_duty_controller=None,
         warhost_fire_and_fade_controller=None,
@@ -2213,6 +2222,11 @@ class ActionPanel:
             # it does", so only a CONFIRMED move may set it.
             is_chronometron = (movement_controller.move_mode
                                == chronometron.CHRONOMETRON_MOVE_MODE)
+            # The Tomb Blades' Evasion Engrams - the same shape again, and
+            # here for the same reason: the charge lock is applied only on a
+            # CONFIRMED move.
+            is_evasion_engrams = (movement_controller.move_mode
+                                  == evasion_engrams.EVASION_ENGRAMS_MOVE_MODE)
             # Windrider Host's Overflight - the THIRD reactive move (see
             # MovementController.REACTIVE_MOVE_MODES). Its printed WHEN says
             # "the end of THE Fight phase", which belongs to nobody, so the
@@ -2256,6 +2270,8 @@ class ActionPanel:
                 confirm_callback = fire_and_fade_controller.confirm_move
             elif is_chronometron and chronometron_controller is not None:
                 confirm_callback = chronometron_controller.confirm_move
+            elif is_evasion_engrams and evasion_engrams_controller is not None:
+                confirm_callback = evasion_engrams_controller.confirm_move
             elif is_overflight and overflight_controller is not None:
                 confirm_callback = overflight_controller.confirm_move
             elif is_higher_duty and higher_duty_controller is not None:
@@ -2317,6 +2333,8 @@ class ActionPanel:
                 cancel_callback = fire_and_fade_controller.cancel_move
             elif is_chronometron and chronometron_controller is not None:
                 cancel_callback = chronometron_controller.cancel_move
+            elif is_evasion_engrams and evasion_engrams_controller is not None:
+                cancel_callback = evasion_engrams_controller.cancel_move
             elif is_overflight and overflight_controller is not None:
                 cancel_callback = overflight_controller.cancel_move
             elif is_higher_duty and higher_duty_controller is not None:

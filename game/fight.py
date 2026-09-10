@@ -1308,6 +1308,7 @@ class FightController:
             # two melee-worded sources; see game/crit_hit.py.
             crit_threshold = crit_hit_threshold(
                 group["pairs"][0][0], target_squad, self.whispering_web, melee_only=True,
+                hit_threshold=threshold,
             )
             results = [_resolve_roll(r, threshold, crit_threshold) for r in rolls]
             hits = sum(1 for r in results if r != "fail")
@@ -1340,6 +1341,7 @@ class FightController:
             self._pending_ones_reroll = None
             crit_threshold = crit_hit_threshold(
                 group["pairs"][0][0], target_squad, self.whispering_web, melee_only=True,
+                hit_threshold=ctx["threshold"],
             )
             results = [_resolve_roll(r, ctx["threshold"], crit_threshold) for r in rolls]
             extra_hits = sum(1 for r in results if r != "fail")
@@ -1377,6 +1379,7 @@ class FightController:
             self._pending_hit_reroll = None
             crit_threshold = crit_hit_threshold(
                 group["pairs"][0][0], target_squad, self.whispering_web, melee_only=True,
+                hit_threshold=ctx["hit_threshold"],
             )
             results = [_resolve_roll(r, ctx["hit_threshold"], crit_threshold) for r in rolls]
             extra_hits = sum(1 for r in results if r != "fail")

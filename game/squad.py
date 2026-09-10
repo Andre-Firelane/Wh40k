@@ -962,7 +962,13 @@ def squad_has_stealth(squad):
     to change a single answer.""" 
     if getattr(squad, "granted_stealth_until_phase", False):
         return True
-    return unit_wide_ability(squad, "stealth")
+    # The Tomb Blades' Shadowloom grants Stealth to a BEARER, so 24.33's
+    # every-model question is asked with a predicate rather than an
+    # attribute name: one shadowloom grants the unit nothing, six grant
+    # it Stealth, which is the printed rule working as written.
+    from game import tomb_blade_wargear
+    return attached_units.unit_has_ability(
+        squad, tomb_blade_wargear.model_has_stealth)
 
 
 def squad_has_greater_good(squad):

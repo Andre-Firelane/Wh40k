@@ -489,7 +489,14 @@ def _attack_key(model, weapon):
             # Seersight Strike and Psychic Destroyer are per BEARER and change
             # characteristics this key groups on - fourth and fifth instance of
             # the one-representative fix. (False, False) for every other model.
-            enh_psychic_weapons.attack_key(model))
+            enh_psychic_weapons.attack_key(model),
+            # The Tomb Blades' Nebuloscope is per BEARER ([IGNORES COVER] on
+            # the bearer's ranged weapons), and cover is decided per attack
+            # SEQUENCE - so two Tomb Blades of one squad, one scoped and one
+            # not, must not share a group and let the representative answer
+            # for both. Sixth instance of the one-representative fix; False
+            # for every other model in the game.
+            bool(getattr(model, "nebuloscope", False)))
 
 
 def _weapon_eligible_for_type(weapon, shooting_type, squad):
@@ -3414,6 +3421,14 @@ class ShootingController:
         #   Fury of the Void    +1 STRENGTH vs a riven unit - a characteristic,
         #                       not a modifier, so it must reach the weapon
         #                       BEFORE the wound threshold is computed
+        # The Tomb Blades' Nebuloscope: [IGNORES COVER] on the BEARER's ranged
+        # weapons. Read off the group's representative, which _attack_key()
+        # above makes exact by splitting scoped models from unscoped ones.
+        # Applied to the weapon rather than added as a term in
+        # _ignores_cover() so it rides the one weapon-level test that
+        # function already has - see game/tomb_blade_wargear.py.
+        from game import tomb_blade_wargear
+        weapon = tomb_blade_wargear.adjusted_weapon(weapon, pairs[0][0])
         weapon = corsair_abilities.piratical_hero_adjusted_weapon(weapon, self.active_squad)
         weapon = corsair_abilities.faolchu_adjusted_weapon(weapon, self.active_squad)
         if self.piratical_raiders is not None:

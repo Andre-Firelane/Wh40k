@@ -298,6 +298,15 @@ class UnitProfile:
     targeting_array = False  # Hammerhead and Sky Ray Gunships' own ability: once per shooting activation, re-roll ONE Hit or ONE Wound die - a single-die re-roll like rule 15.02's Command Re-roll, with a panel button instead of CP; see game/targeting_array.py
     velocity_tracker = False  # Sky Ray Gunship's own ability: re-roll the Hit roll against a target that can FLY - a ShootingController._hit_reroll_reason() entry; see game/velocity_tracker.py
     drone_harassment = False  # Piranhas' own ability: at the end of your Movement phase, one enemy unit within 12" must take a Battle-shock test; see game/drone_harassment.py
+    hyperspace_hunters = False  # Deathmarks' own ability: once per turn, in the Reinforcements step of the opponent's Movement phase, this unit may shoot an enemy unit that just arrived from Reserves within 18" - a full reactive activation restricted to that one target, see game/hyperspace_hunters.py
+    flesh_hunger = False  # Flayed Ones' own ability: melee attacks against a Below Half-strength target turn every successful Hit roll into a Critical Hit. NOT a fixed number - the crit threshold IS the hit threshold, the same shape as Baharroth's Cry of the Wind; see game/crit_hit.py
+    bound_creation = False  # Cryptothralls' own ability: while this unit is in the same unit as a CRYPTEK model, THAT model has Feel No Pain 4+. The arrow points from bodyguard to leader, which is the opposite of every other grant here - see game/cryptothralls.py
+    systematic_vigour = False  # Cryptothralls' own ability: a model destroyed by a melee attack that has not fought this phase stays on the board on a 2+ and fights after the attacker finishes. The third consumer of game/fight_after_death.py
+    cryptek_retinue = False  # Cryptothralls' own rule: at Declare Battle Formations this whole UNIT may join one other unit being led by a CRYPTEK INFANTRY model. The THIRD attachment role (attached_units.RETINUE) and the only one where a non-character unit joins - see game/cryptothralls.py
+    evasion_engrams = False  # Tomb Blades' own ability: after this unit has shot it may make a 6" Normal move, at the cost of its charge. The FOURTH of the Tactical Acumen shape, and the one with NO Engagement Range clause printed - see game/evasion_engrams.py
+    nebuloscope = False  # Tomb Blades wargear: ranged weapons equipped by the BEARER gain [IGNORES COVER]. A per-token grant set by the Gear item, so this default only exists to keep getattr honest; see game/tomb_blade_wargear.py
+    shadowloom = False  # Tomb Blades wargear: the BEARER has Stealth. Per-token like the two around it - and per rule 24.33 the UNIT only has Stealth if every model does, which is what makes buying one meaningful and buying three not
+    shieldvanes = False  # Tomb Blades wargear: the BEARER has Sv3+ and M8". A TRADE, not an upgrade - the save improves and the move worsens - so both halves are overrides
     timesplinter_mantle = False  # Chronomancer's own ability, HALF of it: "melee attacks that target this unit have -1 to Hit rolls". A DEFENDER-side melee malus, so it is a FightController._hit_modifiers() entry read off the TARGET squad - the same shape game/forewarned.py already sits in. The other half of the printed ability is plain `stealth` above; see game/timesplinter_mantle.py
     chronometron = False  # Chronomancer's own ability: after this model's unit has shot, if it is not in Engagement Range, it may make a 5" Normal move and then cannot declare a charge. Asurmen's Tactical Acumen one number apart, plus Fire and Fade's engagement clause - see game/chronometron.py
     nightmare_shroud = False  # Psychomancer's own ability (Aura): in the Battle-Shock step of your opponent's Command phase, an enemy unit BELOW its Starting Strength within 6" must take a Battle-shock test at -1 - see game/psychomancer.py
@@ -4293,6 +4302,93 @@ class OrikanTheDivinerProfile(UnitProfile):
     reanimation_protocols = True
     master_chronomancer = True      # see game/invulnerable_save.py
     the_stars_are_right = True      # see game/the_stars_are_right.py
+
+
+class DeathmarkProfile(UnitProfile):
+    """Datasheet: Deathmarks (Necrons).
+
+    T5 on a 1-wound INFANTRY body, which is the datasheet: a 36" sniper squad
+    that arrives by Deep Strike and shoots things as they arrive."""
+    name = "Deathmark"
+    base_radius_in = 0.630          # 32 mm
+    movement_in = 5
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 5
+    wounds = 1
+    leadership = "7+"
+    armor_save = "3+"
+    oc = 1
+    infantry = True
+    deep_strike = True              # rule 24.09
+    reanimation_protocols = True
+    hyperspace_hunters = True       # see game/hyperspace_hunters.py
+
+
+class FlayedOneProfile(UnitProfile):
+    """Datasheet: Flayed Ones (Necrons)."""
+    name = "Flayed One"
+    base_radius_in = 0.561          # 28.5 mm
+    movement_in = 5
+    weapon_skill = "3+"
+    ballistic_skill = "4+"          # no ranged weapon printed
+    toughness = 4
+    wounds = 1
+    leadership = "7+"
+    armor_save = "4+"
+    oc = 1
+    infantry = True
+    infiltrators = True             # rule 24.20
+    stealth = True                  # rule 24.33
+    reanimation_protocols = True
+    flesh_hunger = True             # see game/crit_hit.py
+
+
+class CryptothrallProfile(UnitProfile):
+    """Datasheet: Cryptothralls (Necrons).
+
+    Sv3+ W3 on a two-model unit that exists to stand in front of a Cryptek -
+    which is what both of its abilities and its Cryptek Retinue rule are for."""
+    name = "Cryptothrall"
+    base_radius_in = 0.630          # 32 mm
+    movement_in = 5
+    weapon_skill = "4+"
+    ballistic_skill = "4+"
+    toughness = 4
+    wounds = 3
+    leadership = "8+"
+    armor_save = "3+"
+    oc = 1
+    infantry = True
+    reanimation_protocols = True
+    bound_creation = True           # see game/cryptothralls.py
+    systematic_vigour = True        # see game/cryptothralls.py
+    cryptek_retinue = True          # attached_units.RETINUE; see game/cryptothralls.py
+
+
+class TombBladeProfile(UnitProfile):
+    """Datasheet: Tomb Blades (Necrons).
+
+    MOUNTED and FLY on a 32 mm flying base, M12" - the fastest thing this
+    faction fields. Its Shieldvanes wargear TRADES that speed for a save
+    (Sv3+, M8"), which is why game/tomb_blade_wargear.py overrides rather than
+    improves: one half of that swap is worse, and a max() would silently keep
+    the 12"."""
+    name = "Tomb Blade"
+    base_radius_in = 0.630          # 32 mm flying base
+    movement_in = 12
+    weapon_skill = "4+"
+    ballistic_skill = "3+"
+    toughness = 5
+    wounds = 2
+    leadership = "7+"
+    armor_save = "4+"
+    oc = 2
+    mounted = True
+    fly = True                      # rule 21.03
+    scouts = 9.0                    # "Scouts 9\"" - rule 24.31
+    reanimation_protocols = True
+    evasion_engrams = True          # see game/evasion_engrams.py
 
 
 class IlluminorSzerasProfile(UnitProfile):

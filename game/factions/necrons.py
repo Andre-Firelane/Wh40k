@@ -42,6 +42,10 @@ from game.units import (
     ChronomancerProfile,
     PsychomancerProfile,
     OrikanTheDivinerProfile,
+    DeathmarkProfile,
+    FlayedOneProfile,
+    CryptothrallProfile,
+    TombBladeProfile,
 )
 from game.weapons import (
     ArmouredBulkProfile,
@@ -88,7 +92,16 @@ from game.weapons import (
     AbyssalLanceRangedProfile,
     AbyssalLanceMeleeProfile,
     StaffOfTomorrowProfile,
+    SynapticDisintegratorProfile,
+    FlayerClawsProfile,
+    ScouringEyeProfile,
+    ScythedLimbsProfile,
+    ParticleBeamerProfile,
+    TwinGaussBlasterProfile,
+    TwinTeslaCarbineProfile,
 )
+
+from game import tomb_blade_wargear
 
 NECRONS = register_faction(Faction("Necrons", "NECRONS"))
 
@@ -559,6 +572,152 @@ ORIKAN_THE_DIVINER = NECRONS.add_datasheet(Datasheet(
         "Attacks and Strength characteristics of this model's Staff of Tomorrow and "
         "every successful Wound roll made for this model's attacks scores a Critical "
         "Wound.\" - see game/the_stars_are_right.py.",
+    ],
+))
+
+
+# ---------------------------------------------------------------------------
+# Rank and file - Deathmarks, Flayed Ones, Cryptothralls, Tomb Blades
+# ---------------------------------------------------------------------------
+
+_DEATHMARK_LINE = "Deathmark"
+
+DEATHMARKS = NECRONS.add_datasheet(Datasheet(
+    "Deathmarks",
+    keywords=("INFANTRY", "DEATHMARKS", "NECRONS"),
+    composition_options=[
+        [ModelLine(DeathmarkProfile, n,
+                   # The Necron A2 close combat weapon is EXACTLY this row
+                   # (A2 S4 AP0 D1), so it is shared rather than cloned - the
+                   # inverse of the "same name, other numbers" trap.
+                   [SynapticDisintegratorProfile, NecronCloseCombatWeaponA2Profile],
+                   name=_DEATHMARK_LINE)]
+        for n in (5, 10)
+    ],
+    points=NECRONS_POINTS["Deathmarks"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Deep Strike (Core).",
+        "Hyperspace Hunters: \"Once per turn, in the Reinforcements step of your "
+        "opponent's Movement phase, when an enemy unit is set up on the battlefield "
+        "from Reserves within 18\\\" of and visible to this unit, this unit can shoot as "
+        "if it were your Shooting phase, but must only target that enemy unit when "
+        "doing so, and can only do so if that enemy unit is an eligible target.\" - see "
+        "game/hyperspace_hunters.py.",
+    ],
+))
+
+
+_FLAYED_ONE_LINE = "Flayed One"
+
+FLAYED_ONES = NECRONS.add_datasheet(Datasheet(
+    "Flayed Ones",
+    keywords=("INFANTRY", "FLAYED ONES", "NECRONS"),
+    composition_options=[
+        [ModelLine(FlayedOneProfile, n, [FlayerClawsProfile], name=_FLAYED_ONE_LINE)]
+        for n in (5, 10)
+    ],
+    points=NECRONS_POINTS["Flayed Ones"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Infiltrators, Stealth (Core).",
+        "Flesh Hunger: \"Each time a model in this unit makes a melee attack, if the "
+        "target of that attack is Below Half-strength, a successful Hit roll scores a "
+        "Critical Hit.\" NOT a fixed threshold - the crit threshold IS the hit "
+        "threshold, the same shape as Baharroth's Cry of the Wind; see game/crit_hit.py.",
+    ],
+))
+
+
+_CRYPTOTHRALL_LINE = "Cryptothrall"
+
+CRYPTOTHRALLS = NECRONS.add_datasheet(Datasheet(
+    "Cryptothralls",
+    keywords=("INFANTRY", "CRYPTOTHRALLS", "NECRONS"),
+    model_lines=[ModelLine(CryptothrallProfile, 2,
+                           [ScouringEyeProfile, ScythedLimbsProfile],
+                           name=_CRYPTOTHRALL_LINE)],
+    points=NECRONS_POINTS["Cryptothralls"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Bound Creation: \"While this unit is in the same unit as a CRYPTEK model, that "
+        "CRYPTEK model has the Feel No Pain 4+ ability.\" The SECOND bodyguard-to-leader "
+        "Feel No Pain grant here, after Death Guard's Silent Bodyguard - see "
+        "game/cryptothralls.py.",
+        "Systematic Vigour: \"Each time a CRYPTOTHRALL model in this unit is destroyed by "
+        "a melee attack, if that model has not fought this phase, roll one D6: on a 2+, "
+        "do not remove it from play. The destroyed model can fight after the attacking "
+        "model's unit has finished making its attacks, and it is then removed from "
+        "play.\" - the third consumer of game/fight_after_death.py.",
+        "Cryptek Retinue: \"At the start of the Declare Battle Formations step, this unit "
+        "can join one other unit from your army that is being led by a CRYPTEK INFANTRY "
+        "model (a unit cannot have more than one CRYPTOTHRALLS unit joined to it). If it "
+        "does, until the end of the battle, every model in this unit counts as being "
+        "part of that Bodyguard unit, and that Bodyguard unit's Starting Strength is "
+        "increased accordingly.\" - the THIRD attachment role "
+        "(attached_units.RETINUE), see game/cryptothralls.py.",
+    ],
+))
+
+
+_TOMB_BLADE_LINE = "Tomb Blade"
+TOMB_BLADES_TO_PARTICLE_BEAMER = "Twin Gauss Blaster -> Particle Beamer"
+TOMB_BLADES_TO_TWIN_TESLA_CARBINE = "Twin Gauss Blaster -> Twin Tesla Carbine"
+TOMB_BLADES_SHIELDVANES = "Shieldvanes"
+TOMB_BLADES_NEBULOSCOPE = "Nebuloscope"
+TOMB_BLADES_SHADOWLOOM = "Shadowloom"
+
+TOMB_BLADES = NECRONS.add_datasheet(Datasheet(
+    "Tomb Blades",
+    keywords=("MOUNTED", "FLY", "TOMB BLADES", "NECRONS"),
+    composition_options=[
+        [ModelLine(TombBladeProfile, n,
+                   # Again the shared Necron A1 close combat weapon.
+                   [TwinGaussBlasterProfile, NecronCloseCombatWeaponA1Profile],
+                   name=_TOMB_BLADE_LINE)]
+        for n in (3, 6)
+    ],
+    wargear_options=[
+        # "Any number of models can each have their twin gauss blaster replaced
+        # with ONE OF the following" - both give up the same printed weapon, so
+        # build_squad()'s cursor groups them and they are mutually exclusive per
+        # model by construction, which is what the printed "one of" means.
+        WargearOption(_TOMB_BLADE_LINE, replaces=TwinGaussBlasterProfile,
+                      with_weapons=[ParticleBeamerProfile],
+                      name=TOMB_BLADES_TO_PARTICLE_BEAMER),
+        WargearOption(_TOMB_BLADE_LINE, replaces=TwinGaussBlasterProfile,
+                      with_weapons=[TwinTeslaCarbineProfile],
+                      name=TOMB_BLADES_TO_TWIN_TESLA_CARBINE),
+    ],
+    gear_options=[
+        # Its own printed bullet, so its own slot: shieldvanes can be taken
+        # ALONGSIDE a nebuloscope or a shadowloom.
+        Gear(_TOMB_BLADE_LINE, TOMB_BLADES_SHIELDVANES,
+             tomb_blade_wargear.equip_shieldvanes, all_models=True, group="vanes"),
+        # "...one of the following", so these two SHARE a slot and a model may
+        # carry only one of them.
+        Gear(_TOMB_BLADE_LINE, TOMB_BLADES_NEBULOSCOPE,
+             tomb_blade_wargear.equip_nebuloscope, all_models=True, group="optic"),
+        Gear(_TOMB_BLADE_LINE, TOMB_BLADES_SHADOWLOOM,
+             tomb_blade_wargear.equip_shadowloom, all_models=True, group="optic"),
+    ],
+    gear_slots={_TOMB_BLADE_LINE: {"vanes": 1, "optic": 1}},
+    points=NECRONS_POINTS["Tomb Blades"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Scouts 9\\\" (Core).",
+        "Evasion Engrams: \"In your Shooting phase, after this unit has shot, it can make "
+        "a Normal move of up to 6\\\". If it does, until the end of the turn, this unit is "
+        "not eligible to declare a charge.\" NOTE: unlike its two closest neighbours "
+        "(Fire and Fade, Chronometron) it prints NO Engagement Range clause - see "
+        "game/evasion_engrams.py.",
+        "Nebuloscope (Wargear): \"Ranged weapons equipped by the bearer have the "
+        "[IGNORES COVER] ability.\" - see game/tomb_blade_wargear.py.",
+        "Shadowloom (Wargear): \"The bearer has the Stealth ability.\" Per rule 24.33 the "
+        "UNIT only has Stealth if EVERY model does - see game/tomb_blade_wargear.py.",
+        "Shieldvanes (Wargear): \"The bearer has a 3+ Save characteristic and a Move "
+        "characteristic of 8\\\".\" A TRADE - the save improves and the move worsens - so "
+        "both halves are overrides; see game/tomb_blade_wargear.py.",
     ],
 ))
 

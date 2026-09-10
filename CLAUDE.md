@@ -9944,6 +9944,17 @@ Objective unbedroht, beide Welten befreien den Überschuss, und die Sonde misst 
 - **Formationen rotieren nicht mit der Marschrichtung** (`_formation_slot()` bewahrt Versätze in
   Brett-Koordinaten) — ein nach Norden aufgestellter Trupp trägt seinen Charakter beim Ostzug auf der
   Flanke.
+- **Die Zug-nach-dem-Schießen-FAMILIE gehört extrahiert, und zwar überfällig.** Fünf Module
+  derselben Form: `tactical_acumen.py` (Asurmen, 6", kein ER-Satz), `fire_and_fade.py`
+  (Lone-Spear, 6", ER-Satz), `warhost_fire_and_fade.py` (Stratagem, 6", + Embark-Lock),
+  `chronometron.py` (Chronomancer, 5", ER-Satz), `evasion_engrams.py` (Tomb Blades, 6", kein
+  ER-Satz). `fire_and_fade.py` argumentiert für Zwillinge statt einer geteilten Klasse ("sie
+  unterscheiden sich in ihrem Prädikat") — eine faire Lesart bei ZWEI. Bei FÜNF sind die
+  variierenden Teile auf **vier Knöpfe** zusammengefallen: Prädikat, Distanz, ob der gedruckte
+  Text eine Engagement-Range-Klausel trägt, und welche Locks beim Confirm greifen. Nach der
+  Zweiter-Konsument-Regel dieses Repos also fällig; bewusst NICHT in einer Datenblatt-Etappe
+  gemacht (das schriebe vier laufende Module und ihre Suiten mitten in einer anderen Arbeit um),
+  und als Kandidat samt Knopfliste in `game/evasion_engrams.py`s Docstring festgehalten.
 
 
 ## Die restlichen Aeldari-Datenblätter (27 Stück, sieben Etappen)
@@ -10241,6 +10252,133 @@ Controller konstruiert und keine Suite `main()` fährt (Fehlerklasse 23).
 **Bewusst offen, wie bei den Aeldari:** keines der 32 steht in einer Demo-Armee
 (`armies/necrons.json` unangetastet, Golden Master unbewegt außer den sechs Rollen-Zeilen),
 und die KI bekommt `auto_players` in jedem neuen Controller, aber KEINE
+`ai/agent_driver.py`-Urteile — als Negativraum geprüft.
+
+### Etappe 2 — das Fußvolk (Deathmarks, Flayed Ones, Cryptothralls, Tomb Blades)
+
+Vier Datenblätter, die NICHTS teilen außer der Fraktion — das Gegenteil von Etappe 1, wo
+ein Chassis drei Charaktere trug. Der Inhalt ist deshalb fast vollständig, an welcher NAHT
+jede Fähigkeit landet, und drei dieser Nähte sind neu.
+
+**Cryptek Retinue ist eine DRITTE Anbindungsform (19.01), und fast alles dafür stand
+schon.** `attach()` merged Modelle, summiert Punkte UND summiert `starting_model_count` aus
+den Komponenten — was wörtlich das gedruckte *"that Bodyguard unit's Starting Strength is
+increased accordingly"* ist, und das reicht weit über Buchführung hinaus: genau diese Zahl
+deckelt 01.02.03 Reanimation Protocols und liest Below Half-strength. Gemessen: 11 → 13.
+`pregame.py`s JOIN-Ziel und seine Auflösungsschleife sind generisch. Neu ist EIN Rollenname.
+- **`attached_units.RETINUE` ist eine eigene ROLLE und nicht eine zweite Art SUPPORT**, und
+  das ist der ganze Trick: 19.01s Ein-Unit-pro-ROLLE-Prüfung liefert damit das gedruckte
+  *"(a unit cannot have more than one CRYPTOTHRALLS unit joined to it)"* gratis, während ein
+  Cryptek und ein Retinue weiter nebeneinander attachen dürfen.
+- Die einzige Bedingung, die nichts davon kennt, ist *"being led by a CRYPTEK INFANTRY
+  model"*. Sie bleibt bewusst AUSSERHALB von `can_attach()` — das besitzt Regel 19.01 und
+  hat kein Geschäft damit zu wissen, was ein Cryptek ist; es ist eine Bedingung des
+  Declare-Battle-Formations-SCHRITTS, dieselbe Teilung, die `formations.py`s
+  `support_join_errors()` für Support Artillery schon zieht.
+- **`formations.join_rule_label()` ist neu, weil das Panel jetzt ZWEI gedruckte Regeln in
+  derselben Überschrift zeigen kann** ("Support Artillery" / "Cryptek Retinue"), und
+  `eligible_join_targets()` dispatcht auf die Regel: die Zusatzbedingungen der zwei sind
+  nicht dieselben.
+
+**SELBST EINGEBAUTE REGRESSION, gefunden durch LESEN und nicht durch Tests, und die volle
+Suite blieb dabei grün.** Etappe 1 hat den Crypteks ihre korrekte SUPPORT-Rolle gegeben —
+und `formations.is_support_platform()` las die attachment-ROLLE, gab also für alle fünf
+Crypteks True zurück. Das Vorspiel-Panel hätte jedem Cryptek ein "Support Artillery"-Angebot
+gemacht. Behoben, indem das SUPPORT-WEAPON-Keyword gefragt wird — das ist, was die drei
+Plattformen wirklich unterscheidet —, und in `test_necron_crypteks.py` in BEIDE Richtungen
+gepinnt (die fünf Crypteks sind draußen, die D-cannon Platform ist weiter drin). **Die
+Lehre ist die alte:** eine Rollen-Korrektur ist eine Änderung an einer Frage mit mehreren
+Lesern, und der zweite Leser sieht dem ersten nicht ähnlich.
+
+**Flesh Hunger ist die ZWEITE Krit-Schwelle, die gar keine Zahl ist.** *"A successful Hit
+roll scores a Critical Hit"* heißt: die Krit-Schwelle IST die Trefferschwelle, dieselbe Form
+wie Baharroths Cry of the Wind — also `min(threshold, hit_threshold)` statt gegen eine
+Konstante. Ein Test, der eine 6 oder eine 5 pinnt, besteht mit der Regel als festem Wert
+implementiert und sähe nicht, dass ein WS3+-Modell auf 3en krittet, was die ganze Fähigkeit
+ist. Dafür reichen `fight.py`s drei Melee-Aufrufe jetzt `hit_threshold=` durch.
+
+**Shieldvanes ist ein TRADE, und beide Hälften sind deshalb OVERRIDES**: Sv 4+ → 3+ ist
+besser, M 12" → 8" ist SCHLECHTER. Ein `_better()`-Fold, wie fast jeder andere Grant dieser
+Engine geschrieben ist, behielte still die 12" und verschenkte den 3+. Jede Hälfte hat ihre
+eigene A/B-Sonde, weil ein Fix, der nur die gute Hälfte trägt, genau so aussieht wie einer,
+der beide trägt.
+
+**Shadowloom wird am UNIT gefragt, mit einem PRÄDIKAT statt eines Attributnamens.** Rule
+24.33 ist eine Jedes-Modell-Fähigkeit, also gewährt EIN Shadowloom der Einheit nichts und
+sechs gewähren ihr Stealth — das ist der gedruckte Text, wie er dasteht, keine
+Vereinfachung. `squad_has_stealth()` fragt deshalb
+`attached_units.unit_has_ability(squad, tomb_blade_wargear.model_has_stealth)`.
+
+**Der Nebuloscope ist ein KEYWORD-GRANT, also die teuerste Fehlerform dieses Repos — und
+[IGNORES COVER] ist der milde Fall.** Sein EINZIGER Leser ist
+`ShootingController._ignores_cover()`, das ohnehin einen Waffen-Term ODERt; der Grant landet
+also auf der WAFFE in der Adjuster-Kette und es gibt kein zweites Tor zu verfehlen. Dazu ein
+Eintrag in `_attack_key()`, **sechste Instanz des Ein-Repräsentanten-Fixes**: Deckung wird
+pro Angriffs-SEQUENZ entschieden, zwei Tomb Blades einer Einheit — einer beskopt, einer
+nicht — dürfen also keine Gruppe teilen.
+
+**Evasion Engrams ist das FÜNFTE Modul einer Familie, und das ist der Punkt, an dem sie
+benannt gehört.** Tactical Acumen (6", kein ER-Satz), Fire and Fade (6", ER-Satz), Warhosts
+Fire and Fade (6", + Embark-Lock), Chronometron (5", ER-Satz), Evasion Engrams (6", kein
+ER-Satz). Die variierenden Teile sind auf **vier Knöpfe** zusammengefallen — Prädikat,
+Distanz, ob der gedruckte Text eine Engagement-Range-Klausel trägt, welche Locks beim
+Confirm greifen —, also ist die Extraktion nach der eigenen Zweiter-Konsument-Regel dieses
+Repos überfällig. **Sie ist hier NICHT gemacht**: sie würde vier laufende Module und ihre
+Suiten mitten in einer Datenblatt-Etappe umschreiben, was der Weg ist, auf dem sich ein
+Refactor einschmuggelt. Als benannter Kandidat samt Knopfliste in
+`game/evasion_engrams.py`s Docstring festgehalten.
+- **Und dass es KEINE Engagement-Range-Klausel druckt, ist die Transkription und kein
+  Versehen** — seine zwei nächsten Nachbarn drucken eine. Ein Tomb-Blade-Trupp im Nahkampf
+  DARF diesen Zug machen. In der Suite gegen den Chronometron in DERSELBEN Lage gemessen,
+  damit es nicht in Übereinstimmung "repariert" wird.
+
+**Hyperspace Hunters baut nichts Neues**: `start_reactive_shooting(restrict_to=)` gibt es
+seit Vengeful Stars, `on_ingress_resolved` seit Rapid Ingress. **Die eine Falle in dem
+Haken:** er feuert auf CANCEL genauso wie auf Ankunft — er heißt "der Ingress-Versuch ist
+vorbei", nicht "eine Einheit ist angekommen". `ingressed_this_turn` trennt die beiden, sonst
+bekämen die Deathmarks eine Gratissalve auf eine Einheit, die gar nicht auf dem Brett steht.
+
+**Systematic Vigour ist der DRITTE Konsument von `game/fight_after_death.py`** (nach Undying
+Spite 4+ und Malevolent Souls 3+) und unterscheidet sich in genau einer gedruckten Klausel:
+*"if that model has not fought this phase"*, die keiner der zwei Nachbarn druckt. Sie wird
+am SQUAD beantwortet, und das ist die verfügbare Granularität statt einer Abkürzung — 12.02
+wählt die EINHEIT, `fought_squad_ids` führt Einheiten, "dieses Modell hat gekämpft" und
+"seine Einheit hat gekämpft" können hier nicht auseinanderfallen. Aufgeschrieben, weil das
+gedruckte Wort MODEL ist.
+
+**Bound Creation ist die ZWEITE Bodyguard→Leader-FNP-Gewährung** (nach Death Guards Silent
+Bodyguard) und liest sich pro MODELL, nicht pro Einheit: der gedruckte Gegenstand ist *"that
+CRYPTEK model"*. Gemessen in einer gemergten Einheit: Technomancer 4+, Necron Warrior 5+,
+Cryptothrall 5+ — jede falsche Lesart gibt den 4+ mindestens einem der anderen zwei. Der
+CRYPTEK wird über die DATENBLATT-Keyword-Leiste der Komponente gefragt, die einzige
+Granularität, auf der die Frage nach einem 19.01-Merge überhaupt beantwortbar ist.
+
+**Getestet:** neu `test_necron_rank_and_file.py` (**99/99**, neun Abschnitte) plus
+`ab_necron_rank_and_file.py` (**31 A/B-Sonden, alle beißend**). **Vier bissen zuerst nicht,
+und alle vier waren Befunde über den TEST** (Fehlerklasse 24):
+- Die Hyperspace-Hunters-Prüfungen lasen den RÜCKGABEWERT von `offer_on_arrival()` — der
+  ohne Shooting-Controller in BEIDEN Welten False ist, also war "abgelehnt" von "gefeuert"
+  nicht zu unterscheiden. Jetzt über einen aufzeichnenden Stub, was gleich die
+  `restrict_to`-Klausel messbar macht (eine fünfte Sonde, die vorher gar nicht möglich war).
+- Die CRYPTEK-Klausel war nur an ihrem PRÄDIKAT geprüft, nicht dort, wo der Schritt sie
+  fragt (`retinue_join_errors`).
+- Der Nebuloscope-Copy-Wächter benutzte eine FRISCHE Waffen-Instanz, die eine
+  In-Place-Mutation überlebt — er nimmt jetzt die Instanz, die das Modell wirklich trägt.
+- Und der Grant war nur am eigenen Modul gemessen, nie durch `shooting.py`s echte
+  Adjuster-Kette. Beide Enden sind jetzt gepinnt, plus die `_attack_key()`-Spaltung.
+- **Eine fünfte Sonde ließ die Suite ABSTÜRZEN statt rot zu werden** (`attach()` wirft auf
+  einer illegalen Paarung) — **zwanzigste Instanz** dieser Lehre; sie degradiert jetzt.
+
+Volle Regression **213 Suiten, ~18637 Prüfungen, 212 grün / 0 rot / 1 bekannt**, und
+`selfplay.py map2` (1500 Frames, exit 0) — keine Formalie, weil `main()` drei neue
+Controller konstruiert und keine Suite `main()` fährt (Fehlerklasse 23).
+
+**Ein Sprite fehlt, und das ist gepinnt statt geglättet:** Flayed Ones haben keine Kunst
+(`WITHOUT_ART` in `test_necron_datasheets.py`), die anderen drei zeichnen ihre eigene. Am
+MODELL geprüft, nicht an der Tabelle.
+
+**Bewusst offen, wie in Etappe 1:** `armies/necrons.json` unangetastet, alle vier *dormant
+by roster*; `auto_players` in jedem neuen Controller, aber KEINE
 `ai/agent_driver.py`-Urteile — als Negativraum geprüft.
 
 ## Die sieben Aeldari-Detachment-REGELN

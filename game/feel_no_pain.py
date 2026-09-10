@@ -64,6 +64,13 @@ def current_feel_no_pain(model, waaagh=None, mortal=False, psychic=False,
     # keeps its own 4+ rather than being dragged down to 6+, which is exactly
     # what "never worse than printed" is for.
     best = _better_threshold(best, rites_of_feasting_feel_no_pain(model))
+    # The Cryptothralls' Bound Creation - the SECOND bodyguard-to-leader
+    # grant here, after Silent Bodyguard above. It differs in asking only
+    # that a Cryptothrall is present (not that every bodyguard prints it)
+    # and in naming "that CRYPTEK MODEL" rather than the leader, so it is a
+    # per-model keyword question - see game/cryptothralls.py.
+    from game.cryptothralls import bound_creation_feel_no_pain
+    best = _better_threshold(best, bound_creation_feel_no_pain(model))
     # The Ethereal's Failure Is Not an Option - the THIRD datasheet to print
     # Rites of Reanimation's exact sentence, and folded identically.
     best = _better_threshold(best, failure_is_not_an_option_feel_no_pain(model))

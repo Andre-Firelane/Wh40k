@@ -156,6 +156,27 @@ attached_units.attach(build(nec.NECRONS.datasheets["Overlord"], n=8), host)
 checks.eq("a Cryptek still joins a unit that already has a Leader (19.01)",
           attached_units.can_attach(build(CHRONOMANCER, n=8), host), [])
 
+# THE REGRESSION THE ROLE CORRECTION NEARLY SHIPPED. formations.py's
+# is_support_platform() used to ask the ATTACHMENT ROLE, which was exact only
+# while the three Aeldari SUPPORT WEAPON platforms were the game's only
+# SUPPORT-role units. Giving the Crypteks their correct role made all five of
+# them answer True, and the pre-game panel began offering each a "Support
+# Artillery" join - a clause printed on three datasheets and on none of these.
+# The whole suite stayed green. It now asks the SUPPORT WEAPON keyword.
+from game import formations
+from game.factions import aeldari as _ae
+for sheet, _p in SHEETS:
+    checks.eq("%s is NOT offered the Support Artillery join" % sheet.name,
+              bool(formations.is_support_platform(build(sheet, n=21))), False)
+for _built in ("Plasmancer", "Technomancer"):
+    checks.eq("...nor is the %s, whose role was corrected with them" % _built,
+              bool(formations.is_support_platform(
+                  build(nec.NECRONS.datasheets[_built], n=21))), False)
+_plat = tk.build(_ae.AELDARI.datasheets["D-cannon Platform"], "Player 1",
+                 name="1 D-cannon Platform 1")
+checks.true("...and the platform the clause IS printed on still is",
+            bool(formations.is_support_platform(_plat)))
+
 # --- 4. Timesplinter Mantle ---
 print("--- 4. Timesplinter Mantle ---")
 

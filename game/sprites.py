@@ -333,6 +333,9 @@ SQUAD_SPRITE_KEYS = {
     "Chronomancer": "Chronomancer",
     "Psychomancer": "Psychomancer",
     "Orikan The Diviner": "Orikan the Diviner",
+    "Deathmarks": "Deathmarks",
+    "Cryptothralls": "Cryptothralls",
+    "Tomb Blades": "Tomb Blades",
 
     # --- Death Guard ---
     # EIGHT of these eleven files disagree with the datasheet name, and the

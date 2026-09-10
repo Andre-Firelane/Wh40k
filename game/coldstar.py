@@ -62,6 +62,14 @@ def effective_movement_in(model):
     characteristic"), so it lands after this and not instead of it."""
     squad = getattr(model, "squad", None)
     base = model.profile.movement_in
+    # The Tomb Blades' Shieldvanes: "the bearer has a Move characteristic
+    # of 8 inches". An OVERRIDE of the printed 12" and a WORSE one, so it
+    # replaces the base before anything else folds - a max() here would
+    # keep the 12" and hand out the wargear's save for nothing.
+    from game import tomb_blade_wargear
+    _tb = tomb_blade_wargear.movement_override_in(model)
+    if _tb is not None:
+        base = _tb
     if squad is not None and squad_has_coldstar_commander(squad):
         base = COLDSTAR_MOVEMENT_IN
     # Warp Spiders' Flickerjump is a second override of the same shape. The two

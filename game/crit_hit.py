@@ -71,6 +71,25 @@ def _threshold_number(value):
         return None
 
 
+def _flesh_hunger_applies(model, target_squad):
+    """Flayed Ones' Flesh Hunger, both of its conditions.
+
+    Read off the MODEL rather than the unit ("each time a model in this unit
+    makes a melee attack") - exact by construction here, since every model in
+    one attack group belongs to one unit, and it keeps working if the squad is
+    ever an attached one whose other component does not print it.
+
+    "Below Half-strength" is game/squad.py's is_below_half_strength(), the
+    same answer the four DESTROYER CULT re-rolls read - one definition of the
+    phrase rather than a second count of models."""
+    if model is None or target_squad is None:
+        return False
+    if not getattr(model.profile, "flesh_hunger", False):
+        return False
+    from game.squad import is_below_half_strength
+    return is_below_half_strength(target_squad)
+
+
 def crit_hit_threshold(model, target_squad=None, whispering_web=None, melee_only=False,
                        hit_threshold=None, weapon=None):
     """The unmodified hit roll this model needs for a Critical Hit.
@@ -123,6 +142,26 @@ def crit_hit_threshold(model, target_squad=None, whispering_web=None, melee_only
             threshold = min(threshold, UNBRIDLED_CARNAGE_CRIT_HIT_THRESHOLD)
         if _mandiblasters_applies(model, squad):
             threshold = min(threshold, MANDIBLASTERS_CRIT_HIT_THRESHOLD)
+        # Flayed Ones' Flesh Hunger: "each time a model in this unit makes a
+        # melee attack, if the target of that attack is Below Half-strength, a
+        # successful Hit roll scores a Critical Hit."
+        #
+        # THE SECOND SOURCE THAT IS NOT A NUMBER. Like Cry of the Wind below,
+        # the threshold is not fixed - it is whatever this attack needs to hit,
+        # so the grant is min()ed against `hit_threshold` rather than against a
+        # constant. The fallback when a caller has none is the model's own
+        # printed Weapon Skill, which is the same answer whenever nothing is
+        # modifying the roll (the dice-panel label's case).
+        #
+        # MELEE-only by the printed wording, hence its place inside this guard,
+        # and TARGET-specific, which is why it needs target_squad - a Flayed One
+        # swinging at a full-strength unit gets rule 05.01's unmodified 6.
+        if (_flesh_hunger_applies(model, target_squad)):
+            needed = hit_threshold
+            if needed is None:
+                needed = _threshold_number(getattr(model.profile, "weapon_skill", None))
+            if needed is not None:
+                threshold = min(threshold, needed)
     if whispering_web is not None and whispering_web.applies(squad, target_squad):
         threshold = min(threshold, WHISPERING_WEB_CRIT_HIT_THRESHOLD)
     # Baharroth's Cry of the Wind: "each time this model is set up on the

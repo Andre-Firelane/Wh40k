@@ -57,6 +57,12 @@ a Token's own profile flags and weapons - and so needs no support here.
 
 LEADER = "leader"
 SUPPORT = "support"
+#: The Cryptothralls' Cryptek Retinue - a whole non-character UNIT joining a
+#: bodyguard unit. ITS OWN ROLE rather than a second kind of SUPPORT, and that
+#: is what buys the printed "(a unit cannot have more than one CRYPTOTHRALLS
+#: unit joined to it)" for free: 19.01's one-unit-per-ROLE check below then
+#: enforces it, while a retinue and a Cryptek can still attach side by side.
+RETINUE = "retinue"
 BODYGUARD = "bodyguard"
 
 
@@ -124,6 +130,10 @@ def attachment_role(squad):
         return LEADER
     if all(m.profile.support for m in squad.models):
         return SUPPORT
+    # The Cryptothralls' Cryptek Retinue - see RETINUE above. Last, so a model
+    # that somehow printed both keeps the answer it had before this existed.
+    if all(getattr(m.profile, "cryptek_retinue", False) for m in squad.models):
+        return RETINUE
     return None
 
 
@@ -391,7 +401,7 @@ def can_attach(leader_squad, bodyguard_squad):
                 _bodyguard_allows_second_leader(bodyguard_squad, leader_squad, already)
                 or _leader_allows_joining_led_unit(leader_squad, already)
                 or _join_not_bound_by_leader_slot(leader_squad, already))):
-            label = "leader" if role == LEADER else "support"
+            label = {LEADER: "leader", SUPPORT: "support"}.get(role, "retinue")
             errors.append(
                 f'"{bodyguard_squad.name}" already has a {label} unit attached '
                 f'("{already[0].name}") - 19.01 allows only one of each.'
@@ -409,7 +419,9 @@ def can_attach(leader_squad, bodyguard_squad):
         # printed text says "join" - and this message became player-facing the
         # day Support Artillery got its Declare Battle Formations offer, where
         # it is the reason a Guardian unit is not on the list.
-        verb = "join" if attachment_role(leader_squad) == SUPPORT else "lead"
+        # A retinue joins as well - its printed text says "can join one other
+        # unit", the same word the SUPPORT platforms use.
+        verb = "lead" if attachment_role(leader_squad) == LEADER else "join"
         errors.append(
             f'"{leader_squad.name}" cannot {verb} "{bodyguard_squad.name}" - '
             f'it may only {verb}: {", ".join(allowed)} (19.01).'

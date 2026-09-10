@@ -809,10 +809,14 @@ with none_fielded():
 _key_shoot = io.open("game/shooting.py", encoding="utf-8").read()
 _main_src2 = io.open("main.py", encoding="utf-8").read()
 _key_fight = io.open("game/fight.py", encoding="utf-8").read()
+# Matched WITHOUT the closing parenthesis. Pinning it made this red the day a
+# SIXTH key term was appended (the Tomb Blades' Nebuloscope) - the same
+# interpunction trap "or loping_pounce.is_active(squad))" already cost once.
+# What is being asserted is that the term is IN the key, not that it is last.
 c.true("the ranged key carries the psychic-weapon term",
-       "enh_psychic_weapons.attack_key(model))" in _key_shoot)
+       "enh_psychic_weapons.attack_key(model)" in _key_shoot)
 c.true("the melee key carries Aspect of Murder's",
-       "enh_aspect_of_murder.attack_key(model))" in _key_fight)
+       "enh_aspect_of_murder.attack_key(model)" in _key_fight)
 with only("WARHOST_PLAYERS"):
     c.true("the bearer keys differently from a squadmate",
            epw.attack_key(_pw_model) != epw.attack_key(sq("Farseer").models[0]))

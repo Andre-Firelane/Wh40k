@@ -147,6 +147,9 @@ from game import move_exceptions
 from game.coordinated_leadership import CoordinatedLeadershipController
 from game.fire_and_fade import FireAndFadeController
 from game.chronometron import ChronometronController
+from game.evasion_engrams import EvasionEngramsController
+from game.hyperspace_hunters import HyperspaceHuntersController
+from game.cryptothralls import SystematicVigourController
 from game.psychomancer import (HarbingerOfDespairController,
                                NightmareShroudController)
 from game.the_stars_are_right import TheStarsAreRightController
@@ -1456,6 +1459,12 @@ def main(map_key=None):
         movement_controller=movement_controller, decision_manager=decision_manager,
         all_tokens=state.tokens, game_log=game_log, auto_players=ai_players,
     )
+    # The Tomb Blades' Evasion Engrams - the fifth of this shape. See that
+    # module's docstring for why the family is not yet one class.
+    evasion_engrams_controller = EvasionEngramsController(
+        movement_controller=movement_controller, decision_manager=decision_manager,
+        all_tokens=state.tokens, game_log=game_log, auto_players=ai_players,
+    )
     # The Psychomancer's two forced Battle-Shock tests, and Orikan's
     # once-per-battle. battle_shock_controller is built far above, so both
     # of the first two have their dependency in hand here.
@@ -1718,6 +1727,7 @@ def main(map_key=None):
         kroot_packmates_controller.on_squad_finished_shooting)
     shooting_controller.on_squad_finished_shooting.append(fire_and_fade_controller.offer_after_shooting)
     shooting_controller.on_squad_finished_shooting.append(chronometron_controller.offer_after_shooting)
+    shooting_controller.on_squad_finished_shooting.append(evasion_engrams_controller.offer_after_shooting)
     # Lhykhis' Whispering Web - fifth consumer, and back to caring WHICH units
     # were hit, like Fire Support. Differs from it in scope: the mark benefits
     # every friendly AELDARI model, not just one transport's passengers.
@@ -1979,6 +1989,35 @@ def main(map_key=None):
     # Wind switches on.
     ingress_controller.on_ingress_resolved.append(grenade_pack_controller.offer_after_setup)
     ingress_controller.on_ingress_resolved.append(_note_set_up_on_battlefield)
+
+    # The Deathmarks' Hyperspace Hunters: "when an enemy unit is set up on the
+    # battlefield from Reserves within 18" of and visible to this unit". Built
+    # HERE rather than beside the other Necron controllers because it needs
+    # both shooting_controller (far above) and ingress_controller (just above)
+    # - error class 23, and no suite drives main() to find that out.
+    #
+    # Visibility is the real test, reusing the same line_of_sight call every
+    # other "visible to" clause makes - unit to unit, so any living model of
+    # the watcher seeing any living model of the arrival.
+    def _hunters_can_see(watcher, arrival):
+        return any(
+            line_of_sight.has_line_of_sight(
+                m, t, state.obstacles, state.tokens, state.terrain_areas)
+            for m in watcher.models if not m.is_dead()
+            for t in arrival.models if not t.is_dead()
+        )
+
+    hyperspace_hunters_controller = HyperspaceHuntersController(
+        shooting_controller=shooting_controller, decision_manager=decision_manager,
+        ingress_controller=ingress_controller, all_tokens=state.tokens,
+        game_log=game_log, visible_to=_hunters_can_see, auto_players=ai_players,
+    )
+    # The arriving unit is set up in the MOVING player's Reinforcements step,
+    # so turn_owner is whose Movement phase it is - the printed "your
+    # OPPONENT'S" is then the controller's own test.
+    ingress_controller.on_ingress_resolved.append(
+        lambda squad: hyperspace_hunters_controller.offer_on_arrival(
+            squad, turn_tracker.turn_owner))
     homing_beacon_controller = HomingBeaconController(all_tokens=state.tokens, game_log=game_log)
     fire_overwatch_controller = FireOverwatchController(
         stratagem_controller, shooting_controller, all_tokens=state.tokens, turn_tracker=turn_tracker, game_log=game_log,
@@ -2640,6 +2679,11 @@ def main(map_key=None):
     malevolent_souls_controller = MalevolentSoulsController(
         game_state=state, game_log=game_log, turn_tracker=turn_tracker,
         fight_controller=fight_controller)
+    # The Cryptothralls' Systematic Vigour - the third consumer of the same
+    # shared ledger, built beside the second for the same reason.
+    systematic_vigour_controller = SystematicVigourController(
+        game_state=state, game_log=game_log, turn_tracker=turn_tracker,
+        fight_controller=fight_controller)
     # The Wraithlord's Fated Hero picks its hated keyword in the pre-battle
     # step registered further down; the controller has to exist before both
     # attack controllers are handed it.
@@ -2764,6 +2808,7 @@ def main(map_key=None):
             undying_spite_controller.resolve_after_attacks(_fighter)
             to_their_final_breath_controller.resolve_after_attacks(_fighter)
             malevolent_souls_controller.resolve_after_attacks(_fighter)
+            systematic_vigour_controller.resolve_after_attacks(_fighter)
             # Vaul's Vengeance: "after that enemy unit has finished making its
             # attacks" - the melee half of the same instant.
             vauls_vengeance_controller.on_attacker_finished(_fighter)
@@ -3579,6 +3624,7 @@ def main(map_key=None):
         # so no model survives on a Stratagem that has expired.
         undying_spite_controller.reset_phase()
         malevolent_souls_controller.reset_phase()
+        systematic_vigour_controller.reset_phase()
         # "At the end of the phase, set up the destroyed model" - ANY phase,
         # so this is resolved at every boundary, exactly like Fuegan's.
         eternal_revenant_controller.resolve_end_of_phase()
@@ -3693,6 +3739,8 @@ def main(map_key=None):
             # The Psychomancer's Harbinger of Despair is "once per TURN",
             # per bearer unit - the same shape as the two above it.
             harbinger_of_despair_controller.reset_turn()
+            # Hyperspace Hunters is "once per turn" per hunting unit.
+            hyperspace_hunters_controller.reset_turn()
             # Warp Spiders' Flickerjump grants its 24" Move "until the end of
             # the turn" too. Its other half (no charge) rides on
             # charge_locked_until_end_of_turn, cleared in the loop right below.
@@ -4588,6 +4636,7 @@ def main(map_key=None):
             or kroot_linebreakers_controller.pending_damage_choice is not None
             or crushing_strides_controller.pending_damage_choice is not None
             or malevolent_souls_controller.is_busy
+            or systematic_vigour_controller.is_busy
             # Retaliation Cadre's Internal Grenade Racks owes a
             # dice-then-allocation cycle, and its Puretide Engram Neurochip
             # drains a QUEUE of D6s (one per Stratagem that targeted a bearer's
@@ -6573,6 +6622,7 @@ def main(map_key=None):
         # second consumer of this mechanism did not have to copy the four halves
         # of "back on the board" into this loop.
         malevolent_souls_controller.intercept_destroyed(_swept)
+        systematic_vigour_controller.intercept_destroyed(_swept)
         # Nurgle's Gift: re-derive Squad.afflicted / Squad.afflicted_plague for
         # every unit, once per frame. Here, right AFTER the sweep, because the
         # aura is measured against LIVING Death Guard models and a unit wiped
@@ -7281,6 +7331,7 @@ def main(map_key=None):
             path_of_the_outcast_controller=path_of_the_outcast_controller,
             fire_and_fade_controller=fire_and_fade_controller,
             chronometron_controller=chronometron_controller,
+            evasion_engrams_controller=evasion_engrams_controller,
             overflight_controller=overflight_controller,
             higher_duty_controller=higher_duty_controller,
             warhost_fire_and_fade_controller=warhost_fire_and_fade_controller,

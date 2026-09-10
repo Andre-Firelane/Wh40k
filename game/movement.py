@@ -504,7 +504,7 @@ class MovementController:
         "torchstar", "tactical_acumen", "fire_and_fade",
         "warhost_fire_and_fade", "nomads_of_the_hidden_way",
         "retro_thrusters", "retro_thrusters_fall_back",
-        "chronometron",
+        "chronometron", "evasion_engrams",
     })
 
     def start_battle_focus_move(self, squad, max_distance, move_mode="battle_focus"):

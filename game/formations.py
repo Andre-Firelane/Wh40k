@@ -182,12 +182,28 @@ MAX_SUPPORT_WEAPONS_PER_UNIT = 1
 def is_support_platform(squad):
     """Whether `squad` is a unit that joins via Support Artillery.
 
-    Asked of the ATTACHMENT ROLE rather than of a datasheet name or a new
-    flag: game/attached_units.py already answers "is every model in this unit
-    a SUPPORT model" (24.34), and a fourth platform would be covered by
-    building it, not by editing a list here."""
+    ASKED OF THE SUPPORT WEAPON KEYWORD, AND THAT IS A CORRECTION. It used to
+    read the ATTACHMENT ROLE - "is every model in this unit a SUPPORT model"
+    (24.34) - which was exact while the three Aeldari platforms were the only
+    SUPPORT-role units in the game. They are not any more: the Necron Crypteks
+    print "CORE: Support" too, and the day their profiles started carrying the
+    matching role the pre-game panel began offering all five of them a Support
+    Artillery join.
+
+    That is the wrong question, because the join is not a property of the
+    Support ability at all. It is a printed clause on THREE datasheets ("At
+    the start of the Declare Battle Formations step, this model can join one
+    GUARDIAN DEFENDERS unit from your army"), and every other Support model
+    attaches at list-building time instead. The SUPPORT WEAPON keyword is
+    what those three share and what the clause is printed beside, so a fourth
+    platform is still covered by building it rather than by editing a list -
+    the property the old reading was chosen for, kept.
+
+    MEASURED, not assumed: the three platforms set `support_weapon` and print
+    the keyword; the five Crypteks set neither."""
     return (squad is not None and getattr(squad, "models", None)
-            and attached_units.attachment_role(squad) == attached_units.SUPPORT)
+            and attached_units.unit_has_keyword(
+                squad, lambda m: getattr(m.profile, "support_weapon", False)))
 
 
 def support_join_errors(platform, target, already_joined=(), target_destination=None):
@@ -228,13 +244,47 @@ def support_join_errors(platform, target, already_joined=(), target_destination=
     return errors
 
 
+#: Which printed rule lets a unit join another at Declare Battle Formations.
+#: TWO of them now, and they are genuinely different rules rather than one
+#: mechanism with two names - Support Artillery is printed on three SUPPORT
+#: WEAPON platforms and names GUARDIAN DEFENDERS; Cryptek Retinue is printed on
+#: the Cryptothralls and names "a unit being led by a CRYPTEK INFANTRY model".
+#: The panel heading says which, because "Support Artillery" over a
+#: Cryptothralls offer would name the wrong rule.
+SUPPORT_ARTILLERY = "Support Artillery"
+CRYPTEK_RETINUE = "Cryptek Retinue"
+
+
+def join_rule_label(joiner):
+    """The printed rule that lets `joiner` join something, or None."""
+    if is_support_platform(joiner):
+        return SUPPORT_ARTILLERY
+    from game import cryptothralls
+    if attached_units.attachment_role(joiner) == attached_units.RETINUE:
+        return CRYPTEK_RETINUE
+    return None
+
+
 def eligible_join_targets(platform, army, joins=None, destinations=None):
     """Every unit in `army` that `platform` could legally join.
 
-    `joins` maps id(target) -> the platforms already declared into it;
-    `destinations` maps id(unit) -> its own declaration."""
+    `joins` maps id(target) -> the units already declared into it;
+    `destinations` maps id(unit) -> its own declaration.
+
+    DISPATCHES ON THE RULE, because there are two of them now and their extra
+    conditions are not the same one: the platforms' limit is one SUPPORT WEAPON
+    MODEL per unit and a ban on joining a unit bound for a TRANSPORT, the
+    retinue's is one CRYPTOTHRALLS UNIT per host and a host led by a Cryptek.
+    Both delegate rule 19.01 itself to can_attach(), which is the one place it
+    lives."""
     joins = joins or {}
     destinations = destinations or {}
+    label = join_rule_label(platform)
+    if label == CRYPTEK_RETINUE:
+        from game import cryptothralls
+        return cryptothralls.eligible_retinue_hosts(platform, army, joins)
+    if label is None:
+        return []
     return [
         unit for unit in army
         if not support_join_errors(platform, unit, joins.get(id(unit), ()),

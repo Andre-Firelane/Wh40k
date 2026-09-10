@@ -53,6 +53,22 @@ NECRONS_POINTS = {
         {1: 55}, supports=("Immortals", "Necron Warriors")),
     "Orikan The Diviner": flat_points(
         {1: 90}, supports=("Immortals", "Necron Warriors")),
+    # --- rank and file (the Deathmarks batch) ---
+    "Deathmarks": UnitPoints([
+        PointsTier({5: 60, 10: 120}, to_unit=2),
+        PointsTier({5: 70, 10: 130}, from_unit=3),
+    ]),
+    "Flayed Ones": flat_points({5: 55, 10: 100}),
+    # Its pairings are NOT here: the Cryptek Retinue is not a printed
+    # "SUPPORT: ..." line but a rule with a runtime condition ("a unit being
+    # led by a CRYPTEK INFANTRY model"), so it is answered by
+    # cryptothralls.retinue_join_errors() and leadable_unit_names() correctly
+    # returns nothing - which is what makes can_attach() skip its pairing check.
+    "Cryptothralls": flat_points({2: 60}),
+    "Tomb Blades": UnitPoints([
+        PointsTier({3: 70, 6: 140}, to_unit=2),
+        PointsTier({3: 80, 6: 150}, from_unit=3),
+    ]),
     "Technomancer": UnitPoints(
         [PointsTier({1: 80}, to_unit=1),                            # the list says 80 - agrees for the 1st
          PointsTier({1: 90}, from_unit=2)],
