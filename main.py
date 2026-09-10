@@ -11,7 +11,8 @@ from ai.agent_driver import AIMemory, take_one_action
 from ai.claude_agent import ClaudeAgent
 # from ai.mock_agent import MockAgent  # free/offline alternative - no API key or network needed
 from game import attached_units, battle_focus, biomes, charge, config, consolidate, crushing_impact, enhancements, epic_challenge, explosives, fall_back, fight, firing_deck, greater_good, line_of_sight, maps, movement, overwatch, pregame, setup, shooting, starflare_ignition, status_effects, strands_of_fate
-from game import montka, prompt_rule, unit_pick
+from game import base_contact
+from game import damage_pick, montka, prompt_rule, unit_pick
 from game.arrokon_protocol import ArrokonProtocolController
 from game.shortened_blade import ShortenedBladeController
 from game.torchstar_gambit import TorchstarGambitController
@@ -4259,6 +4260,39 @@ def main(map_key=None):
         input_manager.end_line_drag()
         game_menu.show()
 
+    # THE ONE LIST of controllers that can be waiting for a model click. It
+    # used to live inside _any_pending_damage_choice() below, where only the AI
+    # pause could see it - so the left panel kept its own answer for TWO of
+    # these 27 and drew whatever branch matched next for the other 25 (reported
+    # as the Fire Overwatch screen appearing over a mortal-wound allocation).
+    # Lifted here, unchanged, so the panel, the board highlight, the AI pause
+    # and the click branch all read one list. See game/damage_pick.py.
+    damage_choice_controllers = (
+        shooting_controller, fight_controller, explosives_controller,
+        deadly_demise_controller, crushing_impact_controller,
+        transport_controller, fall_back_controller,
+        deadly_vectors_controller, lethal_ichor_controller,
+        spore_laced_controller, sickening_impact_controller,
+        internal_grenade_racks_controller,
+        # Aspect Host's Khaine's Vengeance runs a Desperate Escape test on the
+        # falling-back unit, which belongs to the TURN OWNER - so a human
+        # victim's allocation is a genuine board click.
+        khaines_vengeance_controller,
+        # The six mortal-wound carriers: rule 06.02 hands the pick to the
+        # TARGET's owner, so a human target is the same board click.
+        living_lightning_controller, matter_absorption_controller,
+        crimson_harvest_controller, eater_plague_controller,
+        kroot_linebreakers_controller, crushing_strides_controller,
+        # Isha's Fury, the Grenade Pack Flyover, the Grav-inhibitor Field and
+        # Flickerjump - four more allocations belonging to the TARGET's owner.
+        ishas_fury_controller, grenade_pack_controller,
+        grav_inhibitor_controller, flickerjump_controller,
+        # Four abilities that OPEN a rule 06.02 allocation and could not answer
+        # it. See test_event_chain_wiring.py section 17.
+        wraith_form_controller, drakolithe_controller,
+        harvester_of_souls_controller, monofilament_snare_controller,
+    )
+
     def _any_pending_damage_choice():
         """Whether any controller is currently waiting for the HUMAN
         (clicking which of THEIR OWN models takes a wound/mortal wound -
@@ -4303,45 +4337,15 @@ def main(map_key=None):
         against; a Player-2-owned choice is never touched by any board
         click, so pausing the AI over one achieves nothing but starves it of
         the only call that could ever resolve it."""
-        return any(
-            c.pending_damage_choice and c.pending_damage_choice[0].squad is not None
-            and c.pending_damage_choice[0].squad.owner != "Player 2"
-            for c in (
-                shooting_controller, fight_controller, explosives_controller,
-                deadly_demise_controller, crushing_impact_controller,
-                transport_controller, fall_back_controller,
-                deadly_vectors_controller, lethal_ichor_controller,
-                spore_laced_controller, sickening_impact_controller,
-                internal_grenade_racks_controller,
-                # Aspect Host's Khaine's Vengeance runs a Desperate Escape
-                # test on the falling-back unit, which belongs to the TURN
-                # OWNER - so a human victim's allocation is a genuine board
-                # click and needs the same one-frame pause.
-                khaines_vengeance_controller,
-                # The six mortal-wound carriers: rule 06.02 hands the pick to
-                # the TARGET's owner, so a human target is the same race.
-                living_lightning_controller, matter_absorption_controller,
-                crimson_harvest_controller, eater_plague_controller,
-                kroot_linebreakers_controller, crushing_strides_controller,
-                # Isha's Fury, the Grenade Pack Flyover, the Grav-inhibitor
-                # Field and Flickerjump. Four more allocations that belong to
-                # the TARGET's owner (06.02), so a human victim is the same
-                # same-frame race the rest of this list guards. All four
-                # already block the phase in _has_unresolved_declaration(),
-                # already have a click branch below, and already draw their
-                # eligible models - this list was the only one of the three
-                # that was short, and the only one nothing was checking. See
-                # test_event_chain_wiring.py's section 12.
-                ishas_fury_controller, grenade_pack_controller,
-                grav_inhibitor_controller, flickerjump_controller,
-                # Four abilities that OPEN a rule 06.02 allocation and could
-                # not answer it - the wounds were rolled, logged and never
-                # applied against a multi-model target. See
-                # test_event_chain_wiring.py section 17.
-                wraith_form_controller, drakolithe_controller,
-                harvester_of_souls_controller, monofilament_snare_controller,
-            )
-        )
+        # Reads the ONE list above, through game/damage_pick.py - the same
+        # question the panel, the board highlight and the click branch ask.
+        #
+        # human_players REPLACES a hardcoded `!= "Player 2"`, and that is a
+        # BEHAVIOUR FIX rather than a refactor: with config.AI_PLAYERS set to
+        # {"Player 1"} the old literal made this fire on the AI's OWN
+        # allocations, which is precisely the starvation deadlock the
+        # docstring above describes.
+        return damage_pick.pending(damage_choice_controllers, human_players) is not None
 
     def _has_unresolved_declaration():
         """Real user report: "decline charge button blieb links stehen,
@@ -5551,6 +5555,35 @@ def main(map_key=None):
                         # an unresolved hazard step froze the phase for good.
                         khaines_vengeance_controller.on_dice_acknowledged()
                         pregame_controller.on_dice_acknowledged()  # rule 03.01 roll-offs
+            # THE LEFT PANEL STAYS USABLE while an allocation is open, and it
+            # goes ABOVE the ~27 damage branches below because those are the
+            # ones that were swallowing the click.
+            #
+            # User: the whole left column - including the global toolbar
+            # toggles - went dead during a mortal-wound allocation. The reason
+            # is structural: every damage branch below requires
+            # board_rect_screen.collidepoint(event.pos) in its BODY, so a click
+            # on the panel matched the branch and then did nothing at all.
+            # _draw_global_toolbar()'s own docstring promises the opposite
+            # ("every left-panel click in main.py's event loop already routes
+            # to handle_click() regardless of the current phase/controller
+            # state") - a comment describing behaviour no code delivered.
+            #
+            # This is the minimal safe insertion into a ~48-branch chain
+            # (Fehlerklasse 15): its condition names left_panel_rect, so it can
+            # only ever take an event a damage branch would have matched and
+            # then ignored. A BOARD click does not match it and falls through
+            # untouched; event.type short-circuits before event.pos is read
+            # (KEYDOWN has none); button == 1 keeps the wheel out, per the
+            # documented "eine Radrastung ist ZWEI Events" trap. None of the
+            # branches below move.
+            #
+            # No ai_action_paused_this_frame here: the allocation is still
+            # open, so this frame's snapshot already paused the AI.
+            elif (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                  and left_panel_rect.collidepoint(event.pos)
+                  and damage_pick.pending(damage_choice_controllers, human_players) is not None):
+                action_panel.handle_click(event.pos)
             elif crushing_impact_controller.pending_damage_choice is not None:
                 if (
                     event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
@@ -6723,7 +6756,15 @@ def main(map_key=None):
         greater_good_target_models = {token for token in state.tokens if token.squad in greater_good_eligible_squads}
 
         fire_overwatch_eligible_squads = get_fire_overwatch_eligible_squads()
-        fire_overwatch_target_models = {token for token in state.tokens if token.squad in fire_overwatch_eligible_squads}
+        # With an allocation open the panel says ALLOCATE, so the overwatch
+        # rings have to stand down - otherwise the board offers two different
+        # clicks for one question, which is half of what made the reported
+        # situation "sehr verwirrend". Gated on the DERIVED set rather than on
+        # get_fire_overwatch_eligible_squads(), whose cache miss runs
+        # show_loading_overlay() and a full sweep.
+        fire_overwatch_target_models = (
+            set() if damage_pick.pending(damage_choice_controllers, human_players) is not None
+            else {token for token in state.tokens if token.squad in fire_overwatch_eligible_squads})
 
         # Defensive full clear: board_rect_screen/left_panel_rect/
         # right_panel_rect/reserves_panel_rect are sized to exactly tile the
@@ -6907,6 +6948,17 @@ def main(map_key=None):
                     placing_models=(setup_controller.placing_models
                                     if setup_controller.is_partial else None),
                 )
+        # WHICH MODELS THE BASE-CONTACT HOUSE RULE HAS FROZEN. Drawn
+        # unconditionally at frame-body indent, the pinned pattern for a
+        # view-level control (Fehlerklasse 15): it self-gates on the move mode,
+        # so no state branch can get between the rule and its own feedback. A
+        # model that simply will not pick up is indistinguishable from a stuck
+        # drag without this.
+        renderer.draw_frozen_models(
+            board_surface, board,
+            base_contact.frozen_models(movement_controller.selected_squad,
+                                       state.tokens, movement_controller.move_mode))
+
         # User report: the objective label used to be drawn permanently and
         # constantly covered the terrain/models under it - now it only
         # slides out on hover over a small "i" icon, so the current mouse
@@ -6954,6 +7006,9 @@ def main(map_key=None):
         # panel's screen and the decision overlay's stand-aside are three views
         # of one fact and must not be able to disagree.
         frame_unit_pick = board_unit_pick()
+        # Derived fresh each frame for the same reason board_unit_pick() is:
+        # resolving one allocation can open the next within a single event.
+        frame_damage_pick = damage_pick.pending(damage_choice_controllers, human_players)
         # WHAT the rule being answered actually says, for the right panel.
         # User: "immer wenn ich aufgefordert werde durch eine Fähigkeit etwas
         # auf dem Spielfeld auszuwählen... schreibe die Fähigkeit Regel mit in
@@ -7122,6 +7177,7 @@ def main(map_key=None):
             # appended by keyword like everything after fate_dice_pool.
             return_placement_controller=return_placement_controller,
             unit_pick=frame_unit_pick,
+            damage_pick=frame_damage_pick,
             # "WHY YOU ARE CHOOSING": the printed rule behind a board
             # pick. It lived in the right panel, which is the emptier
             # column - but the question is already in THIS one, and the

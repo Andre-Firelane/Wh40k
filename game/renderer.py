@@ -120,6 +120,14 @@ RETURNING_MODEL_COLOR = (255, 255, 255)
 RETURNING_MODEL_BUMP_PX = 3.0        # on-screen px, through _ring_bump() - see draw_squad_outline
 RETURNING_MODEL_GAP_PX = 3.5         # between the two rings
 RETURNING_MODEL_WIDTH_PX = 2.5
+
+# A model the base-contact house rule has frozen for this Pile-In or
+# Consolidation. A DIFFERENT hue from the white returning-model rings and from
+# every team colour: this says "you cannot drag this one", which is the only
+# feedback a player gets that a refused drag was a rule and not a stuck mouse.
+FROZEN_MODEL_COLOR = (255, 170, 40)
+FROZEN_MODEL_BUMP_PX = 2.5
+FROZEN_MODEL_WIDTH_PX = 2.0
 ASSIGNING_MODEL_COLOR = (190, 60, 230)
 # GREEN, back where it started (User: "ändere die spielerfarbe von spieler 1
 # wieder zu grün. blau kann man schlecht erkennen auf blauem grund"). The
@@ -1754,6 +1762,30 @@ class Renderer:
                 pygame.draw.circle(surface, RETURNING_MODEL_COLOR,
                                    (round(px), round(py)), round(base_px + extra),
                                    width=width)
+
+    def draw_frozen_models(self, surface, board, models):
+        """A ring around each model the base-contact house rule will not let
+        this Pile-In or Consolidation move.
+
+        A silently refused control is a bug in itself - the model simply will
+        not pick up, and without this the player has no way to tell that from
+        a stuck drag. Same MODEL-list shape as draw_returning_models() above,
+        and for the same reason: it is a subset of a unit that is otherwise
+        standing normally.
+
+        Dead models are drawn like everywhere else here (Fehlerklasse 12):
+        base_contact.frozen_models() already filters them, so anything that
+        arrives is meant to be rung."""
+        if not models:
+            return
+        bump = self._ring_bump(FROZEN_MODEL_BUMP_PX)
+        width = self._ring_width(FROZEN_MODEL_WIDTH_PX)
+        for model in models:
+            px, py = board.to_px(model.x_in, model.y_in)
+            base_px = board.in_to_px_len(model.radius_in)
+            pygame.draw.circle(surface, FROZEN_MODEL_COLOR,
+                               (round(px), round(py)), round(base_px + bump),
+                               width=width)
 
     def draw_placement_identity(self, surface, board, squad, placing_models=None):
         """Which unit is being placed, drawn on the board during a Set Up.

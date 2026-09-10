@@ -1,3 +1,4 @@
+from game import base_contact
 from game import config, geometry
 from game import scuttling_walker
 from game.coherency import coherency_report
@@ -1186,10 +1187,17 @@ class MovementController:
             self.on_scout_move_finished(_finished_scout)
 
     def is_movable(self, token):
+        # The base-contact house rule is applied here TOO, not instead: this
+        # gates PICKING A MODEL UP, which is the clearest feedback there is for
+        # the single-model drag - the model simply cannot be grabbed. It cannot
+        # replace the clamp, because the group drag and the line drag loop over
+        # selected_squad.models directly and never ask this.
         return (
             self.state == MOVING
             and self.selected_squad is not None
             and token in self.selected_squad.models
+            and not base_contact.is_frozen(token, self.selected_squad,
+                                           self.all_tokens, self.move_mode)
         )
 
     def _enemy_models(self, token):
@@ -1210,6 +1218,24 @@ class MovementController:
         origin = self.last_waypoint.get(token.id)
         if origin is None:
             return x_in, y_in
+
+        # HOUSE RULE: a model already in base contact may not be moved by a
+        # Pile-In or a Consolidation. Enforced HERE because every human and AI
+        # move path routes its position through this one method - the single
+        # drag, the whole-unit drag, the line drag, the AI's rigid phase-1
+        # offset, its phase-2 spread and its objective consolidation - so one
+        # return covers all of them and they cannot disagree.
+        #
+        # Not in _instant_violations(): that REJECTS with an error string, so a
+        # group drag would emit one error line per frozen model on every
+        # commit, for entirely legal play. "This model may not move" is a
+        # BUDGET fact, and the budget is what this method is for.
+        #
+        # Gated on the MOVE MODE, so a Fall Back (either mode), a charge, a
+        # Surge, a Scout move and the ordinary Movement-phase move all still
+        # take a model out of contact. See game/base_contact.py.
+        if base_contact.is_frozen(token, self.selected_squad, self.all_tokens, self.move_mode):
+            return origin
 
         ox, oy = origin
         dx, dy = x_in - ox, y_in - oy

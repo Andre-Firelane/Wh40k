@@ -122,26 +122,48 @@ class StratagemController:
             cost += surcharge.available_surcharge(player, stratagem, targets)
         return max(0, cost)
 
-    def can_use(self, player, stratagem, targets, extra_cp=0):
+    def refusal(self, player, stratagem, targets, extra_cp=0):
+        """Why this use is not allowed, as a player-facing string, or None.
+
+        can_use() is derived from this so the rule has ONE reader. It exists
+        because a stratagem button that silently is not drawn is how an
+        eligibility bug hides - reported as "Insane bravery wird manchmal
+        nicht angeboten", where the cause turned out to be four different
+        clauses at four different times, none of which said anything.
+
+        PERFORMANCE, because this file carries a scar (the 660 ms Arro'kon
+        sweep): this returns on the FIRST failure exactly as can_use() did,
+        and the common case falls through to None with no allocation at all.
+        The two f-strings only run in the branches where no button is drawn
+        anyway. Measured with measure_shooting_frame_cost.py, before/after."""
         if (player, stratagem.name) in self.used_this_phase:
-            return False
+            return "already used this phase (15.01)"
         if stratagem.max_per_battle is not None:
-            if self.used_this_battle.get((player, stratagem.name), 0) >= stratagem.max_per_battle:
-                return False
+            used = self.used_this_battle.get((player, stratagem.name), 0)
+            if used >= stratagem.max_per_battle:
+                return "already used %d of %d times this battle" % (used, stratagem.max_per_battle)
         if stratagem.when is not None and not stratagem.when(self, player):
-            return False
+            return "not usable in this phase"
         cost = self._cost_for(player, stratagem, targets, extra_cp)
         if self.command_points is not None and self.command_points.cp.get(player, 0) < cost:
-            return False
+            have = self.command_points.cp.get(player, 0)
+            # A surcharge is a materially different answer from "you are
+            # simply short": something on the table made it dearer.
+            dearer = (" - a surcharge is making it unaffordable"
+                      if self._surcharge_for(player, stratagem, targets) else "")
+            return "needs %d CP, you have %d%s" % (cost, have, dearer)
         for target in targets:
             # Rule 01.07: a battle-shocked unit can't be targeted by any
             # stratagem, regardless of whose it is - except a stratagem that
             # explicitly opts out (see Stratagem.allow_battle_shocked_target).
             if getattr(target, "battle_shocked", False) and not stratagem.allow_battle_shocked_target:
-                return False
+                return "the target unit is battle-shocked (01.07)"
             if not stratagem.allow_repeat_target and (player, target) in self.targeted_this_phase:
-                return False
-        return True
+                return '"%s" was already targeted by a Stratagem this phase (15.01)' % target.name
+        return None
+
+    def can_use(self, player, stratagem, targets, extra_cp=0):
+        return self.refusal(player, stratagem, targets, extra_cp) is None
 
     def _surcharge_for(self, player, stratagem, targets):
         """The extra CP this usage carries - a pure query, like _cost_for."""

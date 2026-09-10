@@ -7,6 +7,7 @@ from ai.observation import build_observation, build_planning_observation
 from game import status_effects
 from game.ingress import INGRESS_MIN_BATTLE_ROUND
 from game import arrokon_protocol as arrokon_module
+from game import base_contact
 from game import coldstar
 from game import combat_focus
 from game import config
@@ -3629,8 +3630,28 @@ def _spread_into_engagement(movement_controller, squad, target_squad, clearance,
     claimed = []
     for _pass in range(2):
         for model, nearest_enemy in close_in_pairs():
-            if edge_distance(model, nearest_enemy) <= clearance + 0.05:
-                continue  # already as tight against the enemy as it can get
+            # TWO DIFFERENT THINGS, split apart. The house rule (a model in
+            # base contact may not be MOVED by a Pile-In or a Consolidation)
+            # used to be indistinguishable from an optimisation that shares
+            # this line - and the charge path uses the same line at 1.05", so
+            # they had to be separated rather than retuned.
+            #
+            # Routed through base_contact.is_frozen() rather than repeating
+            # the distance test: the skip and clamp_move()'s clamp must not
+            # disagree (Fehlerklasse 10). A model the AI thinks it can move
+            # but the clamp freezes wastes a whole pass; one the AI skips but
+            # the clamp would have allowed loses ground. Kept even though the
+            # clamp would freeze it anyway, so the candidate ladder is not
+            # burned on a model that cannot move.
+            if movement_controller.move_mode in base_contact.FROZEN_MOVE_MODES:
+                if base_contact.is_frozen(model, squad, movement_controller.all_tokens,
+                                          movement_controller.move_mode):
+                    continue
+            elif edge_distance(model, nearest_enemy) <= clearance + 0.05:
+                # CHARGE ONLY, and the 1.05" is unchanged on purpose: that
+                # measure_charge_scenes.py comes out identical is the check
+                # that this split did not leak.
+                continue  # already as tight against the target as it can get
             # NOTE: deliberately NOT "skip anything already in Engagement
             # Range". That is what it used to do, and it is why a pile-in
             # gained almost nothing: the front ranks - already engaged - stood
@@ -5472,9 +5493,15 @@ def _pile_in_squad(pile_in_controller, movement_controller, squad):
     game_log = getattr(movement_controller, "game_log", None)
     if game_log is not None:
         after = _engaged_model_count(squad, targets)
+        # ...and how many the base-contact house rule held still, because a
+        # diagnostic line that leaves out the disputed number sends the next
+        # investigation back to the board.
+        frozen = len(base_contact.frozen_models(
+            squad, movement_controller.all_tokens, movement_controller.move_mode))
         game_log.add(
             f"  [pile in] {squad.name} -> {target.name}: {before} -> {after} of "
-            f"{len(squad.models)} model(s) in Engagement Range",
+            f"{len(squad.models)} model(s) in Engagement Range"
+            + (f"; {frozen} frozen in base contact" if frozen else ""),
             file_only=True,
         )
 

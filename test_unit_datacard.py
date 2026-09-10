@@ -27,8 +27,10 @@ import pygame  # noqa: E402
 pygame.init()
 pygame.font.init()
 
+import io  # noqa: E402
 import testkit as tk  # noqa: E402
 from game import army_lists, attached_units, rules_text  # noqa: E402
+from game.factions import faction as factions  # noqa: E402
 from game.ui import unit_datacard as udc  # noqa: E402
 from game.weapons import MELEE  # noqa: E402
 
@@ -53,13 +55,14 @@ def find(key, needle):
 
 
 def measure(overlay, token):
-    groups = overlay._ability_groups(token)
-    ranged = [w for w in token.weapons if w.weapon_type != MELEE]
-    melee = [w for w in token.weapons if w.weapon_type == MELEE]
-    return overlay._content_height(
-        token, token.profile.stat_rows(token.current_wounds), ranged, melee,
-        (), overlay._attached_lines(token), overlay._enhancement_lines(token), groups,
-    )
+    """Through the card's OWN gatherer, not a hand-rebuilt argument list.
+
+    It used to rebuild that list here, and the copy went stale the moment a
+    section was added: the KEYWORDS section broke this invariant on four
+    fixtures because the height was measured without it. card_parts() is the
+    one gatherer draw() uses, so a new section is now measured by
+    construction."""
+    return overlay._content_height(token, overlay.card_parts(token))
 
 
 def ink(surface, rect, bg=BG):
@@ -223,16 +226,33 @@ for label, squad in (("Dire Avengers + Asurmen", AVENGERS), ("Dark Reapers", REA
     height = measure(overlay, token)
     SURFACE.fill(BG)
     overlay.draw(SURFACE, token, (60, 40))
-    checks.eq(f"{label}: the card is drawn at its measured height",
-              overlay.last_rect.height, height)
-    # The strip just inside the bottom border must be the card's own fill:
-    # content that ran past its own measurement would be clipped there instead,
-    # and the last printed rule would end mid-sentence. Measured against
-    # BOX_BG_COLOR, not the board - the card covers the board here.
-    tail = pygame.Rect(overlay.last_rect.x + udc.PADDING, overlay.last_rect.bottom - 6,
-                       overlay.last_rect.width - 2 * udc.PADDING, 4)
-    checks.eq(f"{label}: nothing is cut off at the bottom edge",
-              ink(SURFACE, tail, udc.BOX_BG_COLOR), 0)
+    # The card is CAPPED at what the window fits and scrolls beyond that (see
+    # draw()'s own note), so the invariant is "drawn == measured, or the cap".
+    # Boyz + Warboss + Painboy is three components' worth of rules AND, since
+    # the keyword bar was added, three keyword blocks - it genuinely no longer
+    # fits 1080px, and pinning the uncapped number here would have meant
+    # either shrinking the fixture or hiding that.
+    fits = max(udc.MIN_CARD_HEIGHT, SURFACE.get_height() - 2 * udc.SCREEN_MARGIN)
+    checks.eq(f"{label}: the card is drawn at its measured height (or the cap)",
+              overlay.last_rect.height, min(height, fits))
+    if height <= fits:
+        # The strip just inside the bottom border must be the card's own fill:
+        # content that ran past its own measurement would be clipped there
+        # instead, and the last printed rule would end mid-sentence. Measured
+        # against BOX_BG_COLOR, not the board - the card covers the board here.
+        tail = pygame.Rect(overlay.last_rect.x + udc.PADDING, overlay.last_rect.bottom - 6,
+                           overlay.last_rect.width - 2 * udc.PADDING, 4)
+        checks.eq(f"{label}: nothing is cut off at the bottom edge",
+                  ink(SURFACE, tail, udc.BOX_BG_COLOR), 0)
+    else:
+        # A capped card ends in its own scroll hint, which is the whole point
+        # of the cap - so ink at the bottom edge is CORRECT here, and its
+        # absence would mean the hint was never drawn.
+        tail = pygame.Rect(overlay.last_rect.x + udc.PADDING, overlay.last_rect.bottom - 6,
+                           overlay.last_rect.width - 2 * udc.PADDING, 4)
+        checks.true(f"{label}: too tall to fit, so it ends in its scroll hint",
+                    ink(SURFACE, tail, udc.BOX_BG_COLOR) > 0)
+        checks.true(f"{label}: ...and it really is scrollable", overlay._scroll_max > 0)
     checks.true(f"{label}: and the card is taller than its stat block alone", height > 200)
 
 
@@ -594,6 +614,113 @@ checks.true("the widest printed keyword string (%d px) fits the full table width
 checks.true("...and would NOT have fitted the %d px name column"
             % (udc.NAME_COLUMN_WIDTH - 8),
             _widest_px > udc.NAME_COLUMN_WIDTH - 8)
+
+
+# --- 11. the unit's own KEYWORDS bar ---------------------------------------
+print("--- 11. the unit's keyword bar ---")
+
+# User: "Keywords fehlen in Einheiten Info". Every printed datasheet ends with
+# a keyword bar and the card drew ten sections, none of them that one - not a
+# decision, just a section game/rules_text.py's whitelist filtered out.
+
+# VERBATIM against the datasheet's own .md, the same standard section 3 holds
+# the abilities to. Read straight off the file rather than from a literal, so
+# a GW update moves the test with the corpus.
+_reapers_md = io.open(rules_text.rules_path(REAPERS.datasheet), encoding="utf-8").read()
+_reaper_rows = rules_text.keywords_for(REAPERS.datasheet)
+checks.eq("a plain datasheet yields both printed lines",
+          [r.label for r in _reaper_rows], ["KEYWORDS", "FACTION KEYWORDS"])
+checks.true("...and there is something to check verbatim", bool(_reaper_rows))
+for _row in _reaper_rows:
+    checks.true(f"'{_row.label}' is verbatim from the .md",
+                f"{_row.label}: {_row.body}" in _reapers_md)
+
+# THE MEASUREMENT THAT SETTLES THE SOURCE. Datasheet.keywords is the obvious
+# place to read this from and it is wrong for half the roster - most engine
+# tuples omit the faction keyword the page prints. Counted over everything
+# built, so this stays true as datasheets are added.
+_differs = 0
+_all_sheets = []
+for _fac in factions.FACTIONS.values():
+    _all_sheets.extend(_fac.datasheets.values())
+for _ds in _all_sheets:
+    _rows = rules_text.keywords_for(_ds)
+    _printed = next((r.body for r in _rows if r.label == "KEYWORDS"), None)
+    if _printed is None:
+        continue
+    if [k.strip() for k in _printed.split(";")] != list(_ds.keywords):
+        _differs += 1
+checks.true("built datasheets: %d of %d have an engine tuple that differs from"
+            " the printed line - which is why the corpus is the source"
+            % (_differs, len(_all_sheets)), _differs > 50)
+checks.true("...and most sheets set no faction_keywords at all",
+            sum(1 for d in _all_sheets if not d.faction_keywords) > 50)
+
+# THE SCRAPE DEFECT, which is why this must not grow its own parser.
+# Corsair Voidscarred prints "KEYWORDS - ALL MODELS:" with an EN DASH and the
+# scrape ran two printed lines together. The shared classifier falls it back to
+# plain prose, so the text still REACHES the card - a startswith("KEYWORDS:")
+# test would have dropped this unit's keywords in silence.
+_corsair = factions.FACTIONS["AELDARI"].datasheets["Corsair Voidscarred"]
+_corsair_rows = rules_text.keywords_for(_corsair)
+checks.true("the en-dash sheet still yields rows", len(_corsair_rows) >= 2)
+checks.true("...carrying its keywords in the body",
+            any("ANHRATHE" in r.body for r in _corsair_rows))
+checks.eq("...and its odd first line degrades to prose rather than vanishing",
+          (_corsair_rows[0].label if _corsair_rows else "MISSING"), None)
+
+# ONE BLOCK PER COMPONENT for an attached unit - rule 19.03 POOLS keywords, so
+# which ones are live is genuinely the union of several bars. A Farseer leading
+# Guardian Defenders makes PSYKER and BATTLELINE both true of one unit.
+_kw_groups = card()._keyword_groups(AVENGERS.models[0])
+checks.true("an attached unit gets one keyword block per component",
+            len(_kw_groups) >= 2)
+checks.true("...each labelled with its component",
+            all(h for h, _ in _kw_groups))
+_kw_bodies = " | ".join(r.body for _h, rows in _kw_groups for r in rows)
+checks.true("the bodyguard's own keywords are shown", "DIRE AVENGERS" in _kw_bodies)
+checks.true("...and the leader's, which 19.03 pools into the same unit",
+            "PHOENIX LORD" in _kw_bodies or "ASURMEN" in _kw_bodies)
+_plain_kw = card()._keyword_groups(REAPERS.models[0])
+checks.eq("a plain unit is one unlabelled block", [h for h, _ in _plain_kw], [None])
+checks.eq("a token with no squad shows no keywords",
+          card()._keyword_groups(type("T", (), {"squad": None})()), [])
+
+# THE SECTION IS REALLY DRAWN, and this is checked two ways because neither
+# alone is enough. A spy on the section drawer catches "the branch is gone";
+# ink in the BAND the section occupies catches "it was called and painted
+# nothing". Total ink across the whole card would catch neither - a card that
+# reserved the height and drew nothing still has more ink than a shorter one,
+# which is exactly what an A/B probe on the draw branch proved.
+_c = card()
+_titles = []
+_real_draw = _c._draw_abilities
+_c._draw_abilities = (lambda surf, box, y, groups, title="ABILITIES":
+                      (_titles.append(title), _real_draw(surf, box, y, groups, title))[1])
+SURFACE.fill(BG)
+_c.draw(SURFACE, WRAITHS.models[0], (60, 40))
+checks.true("the fixture has keywords to draw", bool(_c._keyword_groups(WRAITHS.models[0])))
+checks.true("the KEYWORDS section is drawn", "KEYWORDS" in _titles)
+# .index() would RAISE when the probe removes the branch, taking the whole run
+# down instead of turning one line red - the repo's standing lesson about
+# probes that crash rather than bite.
+checks.eq("...AFTER the abilities, where a printed datasheet puts it",
+          _titles[-1] if _titles else "NOTHING DRAWN", "KEYWORDS")
+
+# The band the section occupies must carry ink of its own.
+_band_h = _c._abilities_height(_c._keyword_groups(WRAITHS.models[0]))
+_band = pygame.Rect(_c.last_rect.x + udc.PADDING,
+                    _c.last_rect.bottom - udc.PADDING - _band_h,
+                    _c.last_rect.width - 2 * udc.PADDING, _band_h)
+checks.true("...and that band really carries ink",
+            ink(SURFACE, _band, udc.BOX_BG_COLOR) > 40)
+
+_no_kw = card()
+_no_kw._keyword_groups = lambda _t: []
+SURFACE.fill(BG)
+_no_kw.draw(SURFACE, WRAITHS.models[0], (60, 40))
+checks.true("a unit with no keyword rows gets a shorter card",
+            _c.last_rect.height > _no_kw.last_rect.height)
 
 
 checks.finish()

@@ -20,10 +20,15 @@ TWO CLAUSES, AND ONLY ONE OF THEM CAN FIRE HERE
     gets.
 
 "A DAMAGE ROLL OF 1" NAMES THE DIE, NOT THE TOTAL. The D-cannon's Damage is
-D6+2, so the die showing a 1 arrives at the session as a 3. That distinction
-already cost this repo one careful piece of work - Branching Fates' damage half
-had to compute `face_for_total()` for exactly the same reason - so the face is
+D6+2, so the die showing a 1 arrives at the session as a 3, and the face is
 derived from the notation rather than compared against the total.
+
+This reading is now the repo's ONLY one, and getting there took a user report.
+Branching Fates' damage half read the structurally identical phrase ("change
+the result of one ... Damage roll to an unmodified 6") as the RESULT instead,
+so it set a D6+2 die to 4 - capping a weapon at less than its own maximum. Two
+readings of one phrase, in one engine, shipped side by side. If a third
+Damage-die ability arrives, it belongs on THIS side.
 
 "WITH ITS D-CANNON" is a per-WEAPON condition, not a per-unit one: the
 platform's shuriken catapult re-rolls nothing.

@@ -167,23 +167,42 @@ class UnitDatacardOverlay:
 
     # -------------------------------------------------------------- the card
 
+    def card_parts(self, token, transport_controller=None):
+        """Every section the card draws, gathered ONCE.
+
+        The height and the drawing MUST be measured off the same parts - the
+        hazard this card already carries a comment about, one layer up. It is
+        public because test_unit_datacard.py pins "measured height == drawn
+        height", and it used to rebuild this argument list by hand: adding the
+        KEYWORDS section went straight past that copy and the invariant broke
+        on four fixtures at once. One gatherer, two readers (error class 10)."""
+        return dict(
+            stat_rows=token.profile.stat_rows(token.current_wounds),
+            ranged_weapons=[w for w in token.weapons if w.weapon_type != MELEE],
+            melee_weapons=[w for w in token.weapons if w.weapon_type == MELEE],
+            cargo_lines=self._cargo_lines(token, transport_controller),
+            attached_lines=self._attached_lines(token),
+            enhancement_lines=self._enhancement_lines(token),
+            ability_groups=self._ability_groups(token),
+            keyword_groups=self._keyword_groups(token),
+        )
+
     def draw(self, surface, token, mouse_pos, transport_controller=None):
         if token.profile is None:
             return
 
         self._reset_scroll(token)
-        stat_rows = token.profile.stat_rows(token.current_wounds)
-        ranged_weapons = [w for w in token.weapons if w.weapon_type != MELEE]
-        melee_weapons = [w for w in token.weapons if w.weapon_type == MELEE]
-        cargo_lines = self._cargo_lines(token, transport_controller)
-        attached_lines = self._attached_lines(token)
-        enhancement_lines = self._enhancement_lines(token)
-        ability_groups = self._ability_groups(token)
+        parts = self.card_parts(token, transport_controller)
+        stat_rows = parts["stat_rows"]
+        ranged_weapons = parts["ranged_weapons"]
+        melee_weapons = parts["melee_weapons"]
+        cargo_lines = parts["cargo_lines"]
+        attached_lines = parts["attached_lines"]
+        enhancement_lines = parts["enhancement_lines"]
+        ability_groups = parts["ability_groups"]
+        keyword_groups = parts["keyword_groups"]
 
-        content_height = self._content_height(
-            token, stat_rows, ranged_weapons, melee_weapons, cargo_lines, attached_lines,
-            enhancement_lines, ability_groups,
-        )
+        content_height = self._content_height(token, parts)
         # The card now routinely outgrows the window - a datasheet's full
         # printed ability text runs to several paragraphs - so it is capped at
         # what fits and the remainder scrolls. User: "wahrscheinlich muss fuer
@@ -256,7 +275,10 @@ class UnitDatacardOverlay:
             )
 
         if ability_groups:
-            self._draw_abilities(surface, box_rect, y, ability_groups)
+            y = self._draw_abilities(surface, box_rect, y, ability_groups)
+        # LAST, where a printed datasheet puts its keyword bar.
+        if keyword_groups:
+            self._draw_abilities(surface, box_rect, y, keyword_groups, title="KEYWORDS")
 
         surface.set_clip(prev_clip)
 
@@ -300,6 +322,40 @@ class UnitDatacardOverlay:
         abilities = rules_text.abilities_for(getattr(squad, "datasheet", None))
         return [(None, abilities)] if abilities else []
 
+    def _keyword_groups(self, token):
+        """[(heading or None, [rules_text.Ability])] - the datasheet's printed
+        KEYWORDS bar, in the same shape as _ability_groups().
+
+        User report: "Keywords fehlen in Einheiten Info". Every printed
+        datasheet ends with this bar and the card never drew it - not a
+        deliberate omission, just a section game/rules_text.py's whitelist
+        filtered out (see keywords_for() there for why the corpus is the
+        source and not Datasheet.keywords or the UnitProfile flags).
+
+        ONE GROUP PER COMPONENT for an attached unit (19.01), and here that is
+        not merely consistency: rule 19.03 POOLS keywords across a merged
+        unit, so which ones are live is genuinely the union of several
+        datasheets' bars - a Farseer leading Guardian Defenders makes PSYKER
+        and BATTLELINE both true of one unit, and showing only one datasheet's
+        bar would state half of it. Deduplicated by datasheet for the same
+        reason abilities are: two merged Warlock Conclaves print one bar."""
+        squad = getattr(token, "squad", None)
+        if squad is None:
+            return []
+        if attached_units.is_attached_unit(squad):
+            groups, seen = [], set()
+            for component in attached_units.components(squad):
+                datasheet = getattr(component, "datasheet", None)
+                if datasheet is None or id(datasheet) in seen:
+                    continue
+                seen.add(id(datasheet))
+                keywords = rules_text.keywords_for(datasheet)
+                if keywords:
+                    groups.append((component.name, keywords))
+            return groups
+        keywords = rules_text.keywords_for(getattr(squad, "datasheet", None))
+        return [(None, keywords)] if keywords else []
+
     def _ability_line_height(self):
         return self.font.get_height() + 2
 
@@ -334,8 +390,15 @@ class UnitDatacardOverlay:
                                               text_width - BULLET_INDENT, line_height=line_height)
         return height + ABILITY_GAP
 
-    def _draw_abilities(self, surface, box_rect, y, groups):
-        title_surf = self.section_font.render("ABILITIES", True, HEADER_COLOR)
+    def _draw_abilities(self, surface, box_rect, y, groups, title="ABILITIES"):
+        """Also draws the KEYWORDS section - same shape, different heading.
+
+        The keyword bar arrives as rules_text.Ability rows with a `label`
+        ("KEYWORDS", "FACTION KEYWORDS"), which is exactly the "CORE: Deep
+        Strike, Leader" shape _draw_ability() already sets, so the two
+        sections share their measuring and their drawing rather than growing a
+        second near-identical pair that could drift apart."""
+        title_surf = self.section_font.render(title, True, HEADER_COLOR)
         surface.blit(title_surf, (box_rect.x + PADDING, y))
         y += title_surf.get_height() + 4
 
@@ -490,11 +553,20 @@ class UnitDatacardOverlay:
             return []
         return ["Enhancement:"] + [f"  {spec.name} ({spec.points} pts)" for spec in carried]
 
-    def _content_height(self, token, stat_rows, ranged_weapons, melee_weapons, cargo_lines=(),
-                        attached_lines=(), enhancement_lines=(), ability_groups=()):
+    def _content_height(self, token, parts):
         """Measured against the SAME wrapping the drawing does - a card
         sized for one line per entry while the text needs two would clip
-        its own last section."""
+        its own last section.
+
+        Takes card_parts()' dict rather than eight positional arguments, so a
+        new section cannot be added to the drawing and forgotten here."""
+        ranged_weapons = parts["ranged_weapons"]
+        melee_weapons = parts["melee_weapons"]
+        cargo_lines = parts["cargo_lines"]
+        attached_lines = parts["attached_lines"]
+        enhancement_lines = parts["enhancement_lines"]
+        ability_groups = parts["ability_groups"]
+        keyword_groups = parts["keyword_groups"]
         text_width = self._text_width()
         height = PADDING  # top
         height += wrapped_text_height(
@@ -513,6 +585,8 @@ class UnitDatacardOverlay:
             height += self.section_font.get_height() + 4 + self._weapon_table_height(melee_weapons) + SECTION_GAP
         if ability_groups:
             height += self._abilities_height(ability_groups)
+        if keyword_groups:
+            height += self._abilities_height(keyword_groups)
         height += PADDING - SECTION_GAP  # bottom margin (last section already added a gap)
         return height
 

@@ -24,6 +24,7 @@ Sections:
 import copy
 import inspect
 import io
+import re
 import os
 import sys
 
@@ -325,9 +326,12 @@ with settings_as(MONTKA_PLAYERS=("Player 2",)):
 # the source can answer it, and it is asked as the guarded CALL rather than as
 # a mention, so a line in a docstring or a commented-out call cannot satisfy it.
 _MAIN_SRC = io.open("main.py", encoding="utf-8").read()
+# Asked as "is the module imported", not as a literal import LINE: this used
+# to match "from game import montka" and went red the moment another module
+# was added to that same line, which is a fact about formatting rather than
+# about the wiring. Same lesson as this repo's punctuation pins.
 c.true("main.py imports the module that owns the stamp",
-       "from game import montka" in _MAIN_SRC
-       or "from game import montka," in _MAIN_SRC)
+       any(ln.startswith("from game import ") and "montka" in [n.strip() for n in ln.split("import ", 1)[1].split(",")] for ln in _MAIN_SRC.splitlines()))
 c.true("main.py stamps the flag on every phase change",
        "montka.refresh_killing_blow(_detachment_squads, turn_tracker)" in _MAIN_SRC)
 # ...and it is stamped BEFORE anything in that block could read it, next to the

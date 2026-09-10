@@ -140,8 +140,14 @@ checks.eq("an all-hits roll with no crit payoff is NOT offered",
 # The third roll type, which the token does not cover, and which keeps its own
 # offer inside the damage session (see game/unmodified_six_controller.py's own
 # note on why a Damage roll cannot go through the die-picking path).
-checks.eq("a Damage roll of 2 becomes 6", bf.damage_change(led, model, 2), 6)
-checks.eq("...and one that is already 6 buys nothing", bf.damage_change(led, model, 6), None)
+checks.eq("a Damage DIE showing 2 becomes a 6", bf.damage_change(led, model, 2), 6)
+checks.eq("...and one already showing a 6 buys nothing", bf.damage_change(led, model, 6), None)
+# THE GATE IS THE FACE, NOT THE RESULT, and this is the line the reported bug
+# lived in: on a D6+2 a die of 5 is a result of 7, which the old result-based
+# gate read as "already 6+, nothing to gain" and withheld. The die can still
+# become a 6 and pay 8.
+checks.eq("a die of 5 is still worth changing - the RESULT is not the gate",
+          bf.damage_change(led, model, 5), 6)
 
 # ONCE PER PHASE, across all three roll types - one shared resource.
 bf.spend(led)
@@ -191,21 +197,38 @@ from game.factions import tau_empire as tau  # noqa: E402
 from game.unmodified_six_controller import UnmodifiedSixController  # noqa: E402
 from game.decision import DecisionManager  # noqa: E402
 
-# The Damage half is a left-panel button too now, spent WHILE the Damage roll
-# is still on the table. User: "branching fate für den damage roll war gerade
-# noch ein overlay." It cannot go through the die-PICKING path the Hit and
-# Wound rolls use, because a Damage roll is one die whose RESULT is what the
-# rule talks about - and nine weapons in this repo print a bonus (D6+1, D6+2),
-# so the die that produces a result of 6 is not always a 6.
+# The Damage half is a left-panel button too, spent WHILE the Damage roll is
+# still on the table. User: "branching fate für den damage roll war gerade
+# noch ein overlay." It stays out of the die-PICKING path the Hit and Wound
+# rolls use, but only because a Damage roll is ONE die with no failure to
+# convert - what it does to that die is now identical: it becomes a 6.
+#
+# THE SECOND REPORT: "branching fates auf brightlance damage Wurf hat den Wurf
+# auf 4 geändert, nicht auf 6". It used to set the RESULT to 6, so a D6+2 got
+# a 4 - capping a weapon whose own maximum is 8, and withholding the offer
+# entirely once the result already reached 6. 22 weapon profiles here print a
+# Damage bonus (12x +1, 9x +2, 1x +6), and [MELTA] adds one at RUNTIME.
 
 
-def damage_scene(gap=6.0, faces=(1, 6, 6, 1, 2)):
-    """A led Guardian unit shooting the Farseer's own Eldritch Storm - the one
-    weapon here with a rolled Damage - into a W13 Devilfish.
+def damage_scene(gap=6.0, faces=(1, 6, 6, 1, 2), weapon="Eldritch Storm"):
+    """A led Guardian unit shooting a weapon with a rolled Damage into a W13
+    Devilfish.
 
     Not a W1 Strike Team: excess damage does not carry over from model to
     model, so against 1-wound models a 2 and a 6 both read as "one wound lost"
-    and the test would prove nothing."""
+    and the test would prove nothing.
+
+    TWO WEAPONS, and the second one is the point. The Farseer's own Eldritch
+    Storm is a plain D3, so it answers BOTH readings of "an unmodified 6"
+    identically - which is exactly why the reported bug survived here. The
+    Heavy Weapon Platform in this very squad carries a BRIGHT LANCE (D6+2),
+    the weapon from the report, so the bonus case is reachable end to end. An
+    earlier comment in this file claimed it was not ("no rostered weapon here
+    prints both a Damage bonus and a Farseer") - measured, that was wrong, and
+    the excuse is why nothing caught it.
+
+    The two need different dice scripts: the Eldritch Storm rolls its Attacks
+    (D6) first, the Bright Lance is a flat A1 and does not."""
     unit = led_unit()
     target = tk.build(tau.DEVILFISH, "Player 2", name="1 Devilfish 1")
     state = tk.GameState()
@@ -226,7 +249,7 @@ def damage_scene(gap=6.0, faces=(1, 6, 6, 1, 2)):
                                   decision_manager=dec, game_log=log, obstacles=[])
     shooting.start_shooting(unit)
     shooting.choose_target_squad(target)
-    key = next(r[0] for r in shooting.weapon_eligibility() if r[1] == "Eldritch Storm")
+    key = next(r[0] for r in shooting.weapon_eligibility() if r[1] == weapon)
     # The Eldritch Storm rolls its Attacks (D6) AND its Damage (D3), so the
     # sequence is: attacks, hit, wound, save, damage. One attack keeps it
     # short; the save must FAIL or no damage is ever rolled.
@@ -312,23 +335,70 @@ checks.eq("...because the resource is used", bf.available(spent["unit"]), False)
 # gate itself is checked directly in section 4 instead, which is the honest
 # place for a condition no rostered weapon can produce.
 
-# THE BONUS CASE, which is why this cannot reuse the die-picking path: on a
-# D6+2 the RESULT has to become 6, so the die has to become a 4 - setting it
-# to 6 would mean 8. face_for_total() owns that, and it is checked directly
-# because no rostered weapon here prints both a Damage bonus and a Farseer.
+# THE BONUS CASE, END TO END, on the weapon from the report. The Bright Lance
+# is D6+2, so the two readings differ by 2 damage on every single use - which
+# the D3 scene above cannot see. Sequence for it: hit, wound, save, damage (a
+# flat A1, so no Attacks roll).
+LANCE = "Bright Lance"
+
+
+def lance(die):
+    sc = damage_scene(faces=(6, 6, 1, die), weapon=LANCE)
+    checks.true(f"the Bright Lance reaches its Damage roll (die {die})",
+                run_to_damage_roll(sc))
+    checks.eq(f"...and it rolled a {die}", sc["dice"].pending_values, [die])
+    return sc
+
+
+# 1) THE REPORTED CASE: die 1. The log said "counts as an unmodified 6 (die 1
+#    -> 4)" and 6 damage landed. The die is what becomes a 6, so 8 lands.
+rep_kept = finish(lance(1))
+rep_used = lance(1)
+rep_used["ctrl"].start(bf)
+finish(rep_used)
+checks.eq("kept: a D6+2 die of 1 is 3 damage", wounds_lost(rep_kept), 3)
+checks.eq("used: the DIE becomes a 6, so 8 damage lands - not 6",
+          wounds_lost(rep_used), 8)
+checks.eq("the die on the table really was set to 6",
+          rep_used["dice"].last_values, [6])
+checks.true("the log names the resulting amount, not just the die",
+            any("for 8 damage" in line for line in rep_used["log"].lines))
+
+# 2) THE WITHHELD CASE: die 5 is a RESULT of 7, which the old gate read as
+#    "already 6+, nothing to gain" and offered nothing at all.
+five = lance(5)
+offered_five = [m.__name__ for m, _sq, _mo in five["ctrl"].available_sources()]
+checks.eq("a die of 5 (result 7) IS offered - the old reading withheld it",
+          offered_five, ["game.branching_fates"])
+five["ctrl"].start(bf)
+finish(five)
+checks.eq("...and it pays 8, above what the result-based reading could reach",
+          wounds_lost(five), 8)
+
+# 3) THE HONEST REFUSAL: a die already showing a 6 buys nothing. Without this
+#    the two above would also pass on an ability that offers itself always.
+six = lance(6)
+checks.eq("a die already showing a 6 is not offered",
+          six["ctrl"].available_sources(), [])
+checks.true("...and the resource is untouched", bf.available(six["unit"]))
+
+# 4) THE D3 IS UNCHANGED by the flip - its die had no bonus riding on it, so
+#    both readings always agreed here. Pinned so the flip is provably narrow.
+checks.eq("the Eldritch Storm's D3 still pays 6", wounds_lost(used), 6)
+
+# WHICH ROLLS THE RULE CAN NAME A DIE OF AT ALL. With two dice on the table
+# "the result ... to an unmodified 6" stops naming one face, so the offer is
+# declined rather than guessed at.
 from game.dice_notation import D3, D6, DiceNotationRoll  # noqa: E402
 
-plain = DiceNotationRoll(D6(), 1, None, "probe")
-checks.eq("a plain D6 wants a 6 for a result of 6", DiceNotationRoll.face_for_total(
-    type("R", (), {"count": 1, "notation": D6()})(), 6), 6)
-checks.eq("a D6+2 wants a 4", DiceNotationRoll.face_for_total(
-    type("R", (), {"count": 1, "notation": D6(bonus=2)})(), 6), 4)
-checks.eq("a D3 wants a 6 - taken literally, see the module docstring",
-          DiceNotationRoll.face_for_total(
-              type("R", (), {"count": 1, "notation": D3()})(), 6), 6)
+checks.true("a plain D6 is one die", DiceNotationRoll(D6(), 1, None, "p").single_die)
+checks.true("so is a D6+2 - the bonus is irrelevant now the DIE is what is set",
+            DiceNotationRoll(D6(bonus=2), 1, None, "p").single_die)
+checks.true("so is a D3", DiceNotationRoll(D3(), 1, None, "p").single_die)
 checks.eq("a MULTI-die roll is refused rather than guessed at",
-          DiceNotationRoll.face_for_total(
-              type("R", (), {"count": 1, "notation": D6(dice=2)})(), 6), None)
+          DiceNotationRoll(D6(dice=2), 1, None, "p").single_die, False)
+checks.eq("...and so is the same notation rolled twice",
+          DiceNotationRoll(D6(), 2, None, "p").single_die, False)
 
 
 # --- 6. Guide --------------------------------------------------------------

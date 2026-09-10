@@ -119,26 +119,23 @@ class DiceNotationRoll:
             return None
         return sum(values) + self.notation.bonus * self.count
 
-    def face_for_total(self, wanted):
-        """The single die face that would make this roll come to `wanted`, or
-        None if this roll is not one die or no face could.
+    @property
+    def single_die(self):
+        """Whether this roll is exactly one die - which is what lets an
+        ability name "the die" of it at all.
 
-        Not simply `wanted`: a Damage characteristic can print a bonus (nine
-        weapons in this repo do - D6+1, D6+2), and game/branching_fates.py
-        commits to reading "change the result of one Damage roll to an
-        unmodified 6" as the RESULT becoming 6. So on a D6+2 the die has to
-        become a 4. Setting it to 6 instead would mean 8, which is a different
-        reading of the rule.
+        game/branching_fates.py sets a Damage die to an unmodified 6. With two
+        or more dice on the table "the result ... to an unmodified 6" stops
+        naming one face, and rather than guess which die to take, the offer is
+        declined. Measured: every dice-notation Damage characteristic in this
+        repo throws exactly one die (0 of 56 use `dice=`), so this never
+        declines in practice - but a future 2D6 would, instead of silently
+        doing something arbitrary.
 
-        Deliberately refuses a multi-die roll rather than guessing how to
-        spread a target across several dice. Measured: every dice-notation
-        Damage characteristic in this repo throws exactly one die, so this
-        never declines in practice - but a future 2D6 would, loudly, instead
-        of silently doing something arbitrary."""
-        if self.count * self.notation.dice != 1:
-            return None
-        face = wanted - self.notation.bonus * self.count
-        return face if 1 <= face else None
+        Note this is NOT the same question as "does the notation print a
+        bonus". The bonus is irrelevant now that the DIE is what gets set -
+        that was the old result-based reading's problem, not this one's."""
+        return self.count * self.notation.dice == 1
 
     def on_dice_acknowledged(self):
         if not self.is_pending:

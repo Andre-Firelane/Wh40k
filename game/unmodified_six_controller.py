@@ -70,14 +70,15 @@ SOURCES = (aspect_shrine, branching_fates)
 # The roll kinds a die can be changed on, per ability. Both cover the Hit and
 # Wound rolls; only Branching Fates covers the Damage roll.
 #
-# The Damage roll is handled apart from the other two throughout this module,
-# because it is a different shape: it is not a die that succeeds or fails, it
-# is a rolled AMOUNT, and "change the result of one Damage roll to an
-# unmodified 6" is about that amount. A Damage characteristic can print a
-# bonus (nine weapons here do - D6+1, D6+2), so the DIE that produces a result
-# of 6 is not always a 6 - see DiceNotationRoll.face_for_total(), which is
-# what keeps the reading game/branching_fates.py committed to ("the sentence
-# says what the result becomes, not what the die shows").
+# The Damage roll is still handled apart from the other two, but only because
+# of its SHAPE, not its arithmetic: it is not a die that succeeds or fails, so
+# there is no failure to convert and no "does a critical buy anything" gate -
+# the offer stands whenever the die is not already a 6. What it does to the
+# die is now identical to the Hit and Wound halves (set it to 6), which is
+# what the printed sentence's single predicate requires - see
+# game/branching_fates.py. It was NOT identical before: it set the RESULT to
+# 6, so a D6+2 got a 4 and the ability capped a weapon at less than its own
+# maximum.
 DIE_ROLL_KINDS = (HIT_ROLL, WOUND_ROLL)
 ROLL_KINDS = {
     aspect_shrine: (HIT_ROLL, WOUND_ROLL),
@@ -173,23 +174,23 @@ class UnmodifiedSixController:
     def _damage_offer(self):
         """(new_face, squad, model) for a DAMAGE roll worth changing, or None.
 
-        Rule reading, unchanged from the prompt this replaces: the RESULT
-        becomes 6, so the die is set to whatever face produces 6 after the
-        weapon's printed bonus (D6+2 -> a 4). face_for_total() owns that
-        arithmetic and declines a multi-die roll rather than guessing."""
+        The DIE becomes an unmodified 6, exactly as on a Hit or Wound roll -
+        the printed sentence has one predicate for all three. The weapon's
+        printed bonus is deliberately NOT consulted: it rides along, so a
+        D6+2 pays 8. Declines a multi-die roll, where "the die" would name
+        nothing (DiceNotationRoll.single_die)."""
         context = self._damage_context()
         if context is None:
             return None
         squad, model, roll = context
-        amount = roll.projected_total
-        if amount is None:
+        if not roll.single_die:
             return None
-        wanted = branching_fates.damage_change(squad, model, amount)
-        if wanted is None:
-            return None  # already 6+, or the ability is not live
-        face = roll.face_for_total(wanted)
-        if face is None or self.dice_manager.pending_values[0] == face:
+        values = self.dice_manager.pending_values
+        if not values:
             return None
+        face = branching_fates.damage_change(squad, model, values[0])
+        if face is None:
+            return None  # the die is already a 6, or the ability is not live
         return (face, squad, model)
 
     def available_sources(self):
@@ -261,8 +262,7 @@ class UnmodifiedSixController:
             return
         self._source = source
         if self.dice_manager.roll_kind == DAMAGE_ROLL:
-            # One die, and the face is determined by the wanted RESULT - so
-            # there is nothing for the player to pick.
+            # One die, and it becomes a 6 - so there is nothing to pick.
             self._apply_damage()
             return
         changeable = self._changeable_indices()
@@ -305,7 +305,12 @@ class UnmodifiedSixController:
             )
 
     def _apply_damage(self):
-        """Set the single Damage die so the roll comes to 6, and spend."""
+        """Set the single Damage die to an unmodified 6, and spend.
+
+        The log line names the resulting AMOUNT as well as the die, because
+        with a printed bonus the two differ (a D6+2 die of 6 is 8 damage) and
+        a line that says only "an unmodified 6" next to 8 wounds sends the
+        next investigation back to the board."""
         source, self._source = self._source, None
         offer = self._damage_offer()
         if source is not branching_fates or offer is None:
@@ -316,10 +321,12 @@ class UnmodifiedSixController:
             return
         source.spend(squad)
         if self.game_log is not None:
+            context = self._damage_context()
+            total = context[2].projected_total if context is not None else None
+            amount = "" if total is None else f", for {total} damage"
             self.game_log.add(
                 f"{squad.name}: {source.ACCEPT_LABEL} - {self.dice_manager.label or 'a Damage roll'} "
-                f"counts as an unmodified {unmodified_six.UNMODIFIED_SIX} "
-                f"(die {was} -> {face})."
+                f"die {was} counts as an unmodified {unmodified_six.UNMODIFIED_SIX}{amount}."
             )
 
     def reset(self):

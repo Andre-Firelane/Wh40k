@@ -39,9 +39,16 @@ RULES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 # The ability-bearing sections of a datasheet .md, in the order a real
 # datasheet prints them. Everything else in the file is already on the card by
 # other means (Profile -> the stat table, Ranged/Melee Weapons -> the weapon
-# tables, Led By/Leader -> the attached-unit lines) or is army-building
-# information a player does not need mid-battle (Points, Unit Composition,
-# Wargear Options).
+# tables, Led By/Leader -> the attached-unit lines, Keywords -> keywords_for()
+# below) or is army-building information a player does not need mid-battle
+# (Points, Unit Composition, Wargear Options).
+#
+# "Keywords" was in NEITHER list until a user report ("Keywords fehlen in
+# Einheiten Info") - it was filtered out by this whitelist without ever being
+# a decision, which is why the paragraph above did not mention it. It has its
+# own reader rather than joining this tuple: the card draws it as its own
+# section at the BOTTOM, where a printed datasheet puts it, not among the
+# abilities.
 #
 # "Damaged: ..." is matched by PREFIX because the threshold is part of the
 # heading and differs per datasheet ("Damaged: 1-4 Wounds Remaining" through
@@ -696,3 +703,55 @@ def abilities_for(datasheet):
         abilities = []
     _cache[path] = abilities
     return abilities
+
+
+_keyword_cache = {}
+
+
+def keywords_for(datasheet):
+    """The datasheet's printed KEYWORDS bar, verbatim, as Ability rows.
+
+    Returned in the same shape as abilities_for() so the card can draw both
+    with one helper: a "label" row per printed line, so "KEYWORDS" and
+    "FACTION KEYWORDS" hang off their values the way the page prints them.
+
+    THE CORPUS, NOT Datasheet.keywords, and that is measured rather than
+    stylistic: of the 130 built datasheets 66 have an engine tuple that
+    differs from the printed line (most are missing the faction keyword -
+    Guardian Defenders prints "... AELDARI; GRENADES; ..." and the tuple has
+    no AELDARI, in a different order), and 76 have an empty faction_keywords
+    (only the 54 Aeldari sheets set it). The card's pinned promise is the
+    printed text, not a self-generated variant, and here the two disagree for
+    half the roster.
+
+    UnitProfile's ~22 keyword booleans are the third source and are NOT used:
+    they are per MODEL and deliberately partial - only the handful some rule
+    actually reads has a flag - so they can neither reproduce the printed bar
+    nor be told apart from it once merged.
+
+    Parsed through _corpus_lines(), never a hand-rolled startswith("KEYWORDS:"):
+    rules/aeldari/Corsair Voidscarred.md prints "KEYWORDS - ALL MODELS:" with
+    an EN DASH and the scrape ran two printed lines together with no separator
+    ("...VOIDSCARREDWAY SEEKER: PSYKER"). The shared classifier falls that line
+    back to plain prose, so its text still reaches the card; a prefix test
+    would have dropped that unit's keywords silently.
+
+    [] for anything unresolvable, for the same reason abilities_for() returns
+    []: this runs from the render path."""
+    path = rules_path(datasheet)
+    if not path:
+        return []
+    if path in _keyword_cache:
+        return _keyword_cache[path]
+    rows = []
+    try:
+        body = _section_named(path, "Keywords")
+        for line in _corpus_lines(body or ""):
+            if line.kind == "label":
+                rows.append(Ability("Keywords", label=line.label, body=line.body))
+            elif line.body:
+                rows.append(Ability("Keywords", body=line.body))
+    except OSError:
+        rows = []
+    _keyword_cache[path] = rows
+    return rows

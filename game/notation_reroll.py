@@ -54,7 +54,9 @@ class DamageRerollOffer:
         self.automatic_faces = set(automatic_faces)
         # Needed only by automatic_faces, and only because "a Damage roll of 1"
         # names the DIE, not the total - a D6+2 showing a 1 arrives here as a
-        # 3. Same distinction Branching Fates' face_for_total() had to make.
+        # 3. Branching Fates reads its own "to an unmodified 6" the same way
+        # and therefore needs no such conversion: it SETS the die and lets the
+        # bonus ride. The two used to disagree, and that was the bug.
         self.notation = notation
         # Whether the "you can re-roll" QUESTION may be asked at all, as
         # opposed to whether there is a die left to ask about (can_offer()).

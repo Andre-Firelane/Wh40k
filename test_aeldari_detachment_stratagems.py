@@ -2835,7 +2835,8 @@ with settings_as(**SC_ON):
     c.eq("...and an improved Damage too", _kept.damage, 5)
     c.true("...on a COPY", _kept is not _improved)
     # A ROLLED Damage is left alone - comparing a number to a notation is
-    # meaningless, and nine weapons here print one.
+    # meaningless, and 56 weapon profiles here print one (22 of them with a
+    # bonus).
     _note = _SeerWeaponNotation()
     _note.damage = 1
     c.eq("a weapon with a Damage notation keeps whatever the chain produced",

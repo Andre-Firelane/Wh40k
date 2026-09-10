@@ -869,13 +869,26 @@ def _function_node(name):
 
 
 def _pause_snapshot_names():
-    """The controller names in _any_pending_damage_choice()'s `for c in (...)`."""
-    fn = _function_node("_any_pending_damage_choice")
-    if fn is None:
-        return set()
-    for node in ast.walk(fn):
-        if isinstance(node, ast.comprehension) and isinstance(node.iter, ast.Tuple):
-            return {e.id for e in node.iter.elts if isinstance(e, ast.Name)}
+    """The controller names in main()'s `damage_choice_controllers` tuple.
+
+    It used to live inside _any_pending_damage_choice()'s own comprehension,
+    where only the AI pause could see it - so the LEFT PANEL kept a separate
+    answer for two of these and drew whatever branch matched next for the rest
+    (reported as the Fire Overwatch screen appearing over a mortal-wound
+    allocation). The tuple is now a main()-level local read by four callers:
+    the AI pause, the panel, the board highlight and the click branch.
+
+    Still read by AST rather than by regex, for the reason this section always
+    gave: the tuple carries comments BETWEEN its elements, and the function
+    above it has a 44-line docstring that names controllers in prose."""
+    for node in ast.walk(MAIN):
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            if (isinstance(target, ast.Name)
+                    and target.id == "damage_choice_controllers"
+                    and isinstance(node.value, ast.Tuple)):
+                return {e.id for e in node.value.elts if isinstance(e, ast.Name)}
     return set()
 
 
@@ -1799,5 +1812,176 @@ for _node in ast.walk(ast.parse(_SHOOT_SRC)):
         ck.eq("%s() takes the squad" % _node.name, _args[-1], "squad")
         ck.eq("...with no default that could hide a missed caller" % (),
               len(_node.args.defaults), 0)
+
+
+# --- 20. the LEFT PANEL answers for every controller, not two of them -------
+# Reported: "manchmal muss ich Einheiten fuer die Verteilung irgendwelcher
+# Mortal wounds auswaehlen, links steht aber overwatch."
+#
+# Measured: Fire Overwatch is branch #29 of 30 and sits BELOW the damage
+# branches, so it never hid them. What it filled was the hole left by the 25
+# controllers that had NO branch: the dispatch fell through the whole chain
+# and drew whatever matched next. Sections 6/10/11/12 could not see this -
+# every one of them STARTS at "who does main.py ask", and the panel not asking
+# is invisible from there.
+#
+# This section pins the shape that makes a 28th controller safe by
+# construction: ONE list, read by all four callers.
+print("--- 20. the left panel reads the shared damage-pick list ---")
+
+_PANEL_SRC = io.open(os.path.join("game", "ui", "action_panel.py"), encoding="utf-8").read()
+
+# 1. The panel must not keep its own answer. Two hand-maintained branches on
+#    two named controllers is exactly what it had.
+ck.eq("the panel holds no pending_damage_choice branch of its own",
+      _PANEL_SRC.count("pending_damage_choice"), 0)
+
+# 2. It reads the record instead, in exactly one branch - two would be the
+#    same drift returning under a new name.
+ck.eq("...it draws the allocation screen from one branch",
+      _PANEL_SRC.count("if damage_pick is not None:"), 1)
+
+# 3. The record has to REACH it, by keyword, through all three stages of the
+#    positional chain this file carries a scar from (Fehlerklasse 22).
+_DISPATCH_ARGS = _PANEL_SRC.count("damage_pick=None,")
+ck.eq("damage_pick is a keyword parameter at both signature stages",
+      _DISPATCH_ARGS, 2)
+ck.eq("...and draw() hands it to _draw_dispatch() by keyword",
+      _PANEL_SRC.count("damage_pick=damage_pick,"), 1)
+ck.true("main.py passes it to the panel BY KEYWORD",
+        "damage_pick=frame_damage_pick," in SRC)
+
+# 4. The four readers all come off the SAME list. This is the whole point:
+#    section 12 already proves every asked controller is in that list, so once
+#    the panel reads it too, a 28th controller cannot fall through again.
+ck.true("the shared list exists as a main() local",
+        bool(_pause_snapshot_names()))
+_PENDING_CALLS = SRC.count("damage_pick.pending(damage_choice_controllers")
+ck.true("...and main() derives every reader from it (%d call sites)" % _PENDING_CALLS,
+        _PENDING_CALLS >= 3)
+ck.true("the AI pause reads it",
+        "return damage_pick.pending(damage_choice_controllers, human_players) is not None" in SRC)
+ck.true("the frame record reads it",
+        "frame_damage_pick = damage_pick.pending(damage_choice_controllers, human_players)" in SRC)
+
+# 5. OWNERSHIP comes from ai_mode, never from a hardcoded player name - the
+#    literal it replaced re-created a documented starvation deadlock the moment
+#    config.AI_PLAYERS put the human on Player 2.
+# Asked of the CODE, not of the function text: that docstring is 44 lines and
+# tells the whole starvation story, "Player 2" included. A guard that matches
+# its own explanation is a trap this repo has been caught by five times.
+_PAUSE_FN = _function_node("_any_pending_damage_choice")
+_PAUSE_CODE = [n for n in (_PAUSE_FN.body if _PAUSE_FN else [])
+               if not (isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant)
+                       and isinstance(n.value.value, str))]
+_PAUSE_STRINGS = {n.value for stmt in _PAUSE_CODE for n in ast.walk(stmt)
+                  if isinstance(n, ast.Constant) and isinstance(n.value, str)}
+ck.eq('no player-name literal is left in the AI-pause path',
+      sorted(v for v in _PAUSE_STRINGS if "Player" in v), [])
+
+# 6. The panel stays USABLE while an allocation is open. Its own toolbar
+#    docstring promises this ("every left-panel click ... already routes to
+#    handle_click() regardless of the current phase/controller state") and it
+#    was false: every damage branch requires a BOARD click in its body, so a
+#    panel click matched a branch and then did nothing.
+# ...and it has to sit ABOVE the damage branches, or they swallow it first.
+ck.true("...and it sits above the first damage branch",
+        0 <= SRC.find("and damage_pick.pending(damage_choice_controllers, human_players) is not None):")
+        < SRC.find("elif crushing_impact_controller.pending_damage_choice is not None:"))
+
+# 7. The board must not ring two different answers at once - with the panel
+#    saying ALLOCATE, the overwatch rings stand down.
+ck.true("the overwatch highlight stands down while an allocation is open",
+        "set() if damage_pick.pending(damage_choice_controllers, human_players) is not None" in SRC)
+
+
+# --- 21. Insane Bravery's offer is Command-phase-only, ON PURPOSE ----------
+# Rule 15.04's printed WHEN is "just before a battle-shock roll is made for a
+# friendly unit" - no phase clause. This engine makes such a roll in ELEVEN
+# places: the mandatory 08.03 Command-phase sweep, plus TEN others. Insane
+# Bravery is offered at exactly one of them.
+#
+# That gap is a DECISION (the user chose "say why the button is missing"
+# rather than "widen the rule"), and this section exists because a documented
+# gap is the shape whose JUSTIFICATION goes stale while the assertion stays
+# green - which is exactly what happened to Mont'ka's [ASSAULT] gap in section
+# 7. So this pins the MEASURED mechanism, not the story: the two lines below
+# ARE the gap, and changing either one makes this red.
+print("--- 21. Insane Bravery's Command-phase gap, measured ---")
+
+_IB_SRC = io.open(os.path.join("game", "insane_bravery.py"), encoding="utf-8").read()
+_BS_SRC = io.open(os.path.join("game", "battle_shock.py"), encoding="utf-8").read()
+
+# THE MECHANISM. The offer hangs off can_roll(), and can_roll() is
+# Command-phase-only. Read out of why_cannot_roll()'s body by AST, because
+# PHASE_COMMAND appears elsewhere in that module.
+ck.true("Insane Bravery's gate is the battle-shock eligibility itself",
+        "self.battle_shock_controller.why_cannot_roll(squad)" in _IB_SRC)
+_WCR = ""
+for _node in ast.walk(ast.parse(_BS_SRC)):
+    if isinstance(_node, ast.FunctionDef) and _node.name == "why_cannot_roll":
+        _WCR = ast.get_source_segment(_BS_SRC, _node) or ""
+ck.true("why_cannot_roll() was found", bool(_WCR))
+ck.true("...and it is Command-phase-only, which is what narrows 15.04",
+        "PHASE_COMMAND" in _WCR)
+
+# THE TRIGGERS THAT BYPASS IT, by name. An ELEVENTH goes red here and forces
+# a decision instead of joining the gap in silence.
+_TRIGGERS = set()
+for _fname in sorted(os.listdir("game")):
+    if not _fname.endswith(".py"):
+        continue
+    _src = io.open(os.path.join("game", _fname), encoding="utf-8").read()
+    _tree = ast.parse(_src)
+    for _node in ast.walk(_tree):
+        if not isinstance(_node, ast.Call):
+            continue
+        _fn = _node.func
+        if isinstance(_fn, ast.Attribute) and _fn.attr in (
+                "start_forced_roll", "start_desperate_escape_roll"):
+            _TRIGGERS.add(_fname[:-3])
+    # The shared base is ONE call site serving THREE abilities, so its
+    # subclasses are counted individually - the count is about how many rules
+    # can order a test, not how many lines call the method.
+    for _node in ast.walk(_tree):
+        if isinstance(_node, ast.ClassDef) and any(
+                isinstance(b, ast.Name) and b.id == "BattleShockAfterShooting"
+                for b in _node.bases):
+            _TRIGGERS.add(_fname[:-3])
+
+_KNOWN_TRIGGERS = sorted([
+    "battle_shock_after_shooting",   # the shared base, and:
+    "face_of_death",                 #   Maugan Ra
+    "panicked_quarry",               #   the Leystalker
+    "outcast_eldritch_suppression",  #   Path of the Outcast's stratagem
+    "drone_harassment",
+    "fall_back",                     # 09.07 Desperate Escape
+    "grav_inhibitor_field",
+    "kauyon_photon_grenades",
+    "mortal_wound_abilities",        # Kroot Linebreakers
+    "neocapacitor_shields",
+    "presentiment_of_dread",
+])
+ck.true("the sweep is live - it found %d out-of-turn battle-shock triggers"
+        % len(_TRIGGERS), len(_TRIGGERS) >= 10)
+ck.eq("the bypassed triggers are exactly these - an 11th forces a decision",
+      sorted(_TRIGGERS), _KNOWN_TRIGGERS)
+
+# Presentiment of Dread is the one that fires INSIDE a Command phase, so it is
+# the only one that can take the mandatory 08.03 button and Insane Bravery away
+# together (its own docstring reads "Command phase" literally, so the opponent
+# may use it in yours). Measured, because that is the reachable half of the gap.
+_POD = io.open(os.path.join("game", "presentiment_of_dread.py"), encoding="utf-8").read()
+ck.true("Presentiment of Dread is the trigger that fires in a Command phase",
+        "PHASE_COMMAND" in _POD)
+
+# THE OFFER IS MADE IN EXACTLY ONE PLACE, so widening it is a deliberate act.
+_PANEL = io.open(os.path.join("game", "ui", "action_panel.py"), encoding="utf-8").read()
+ck.eq("the panel asks the explainer exactly once",
+      _PANEL.count("insane_bravery_controller.why_not"), 1)
+ck.eq("...and nothing else in game/ offers the stratagem",
+      sum(1 for f in os.listdir("game") if f.endswith(".py")
+          and "insane_bravery" in io.open(os.path.join("game", f), encoding="utf-8").read()
+          and f not in ("insane_bravery.py",)), 0)
 
 ck.finish()

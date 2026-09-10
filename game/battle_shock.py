@@ -50,15 +50,43 @@ class BattleShockController:
     def _qualifies(self, squad):
         return squad.battle_shocked or is_at_half_strength(squad)
 
-    def can_roll(self, squad):
-        if squad is None or self.rolling_squad is not None or squad in self.rolled_squad_ids:
-            return False
+    def why_cannot_roll(self, squad):
+        """Rule 08.03's clauses, each with its own reason - (True, None) when
+        the unit does owe a roll.
+
+        Shape borrowed from game/actions.py's start_eligibility(), whose
+        docstring says why it exists: "the reason string exists so a refused
+        offer can say WHY rather than silently not appearing, which is how an
+        eligibility bug hides." Reported here as "Insane bravery wird manchmal
+        nicht angeboten" - the button hung off can_roll() and vanished without
+        a word whenever any of these went false.
+
+        can_roll() is derived from this, never the other way round, so the
+        rule cannot end up with two disagreeing readers.
+
+        NAMED LIMITATION, not fixed here: `rolled_squad_ids` holds SQUADS, not
+        ids - one of a family of five fields in game/activation_state.py that
+        all lie the same way (fought_/piled_in_/consolidated_/observer_), and
+        all five are save-slot names, so the rename is a file-format change
+        and stays out of this."""
+        if squad is None:
+            return False, None
+        if self.rolling_squad is not None:
+            return False, "a Battle-Shock roll is already being made"
+        if squad in self.rolled_squad_ids:
+            return False, "this unit has already made its Battle-Shock roll this phase"
         if self.turn_tracker is not None:
             if self.turn_tracker.phase != PHASE_COMMAND:
-                return False
+                return False, "only in the Command phase"
             if squad.owner != self.turn_tracker.active_player:
-                return False
-        return self._qualifies(squad)
+                return False, "only in your own Command phase"
+        if not self._qualifies(squad):
+            return False, ("this unit owes no Battle-Shock roll - it is neither"
+                           " battle-shocked nor below half strength (08.03)")
+        return True, None
+
+    def can_roll(self, squad):
+        return self.why_cannot_roll(squad)[0]
 
     def has_pending_required_rolls(self, all_tokens, active_player):
         """Rule 08.03: whether any of active_player's units still need to

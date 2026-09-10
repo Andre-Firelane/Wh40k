@@ -31,10 +31,31 @@ which is precious enough that a player will hoard it, this refreshes every
 phase, so the gate inherited from unmodified_six.py does most of the work:
 nothing is offered on a roll where changing a die would buy nothing.
 
-"AN UNMODIFIED 6" ON A DAMAGE ROLL is taken literally, including where the
-Damage characteristic is a D3 and a 6 could never come up on its own - the
-sentence says what the result becomes, not what the die shows. Noted rather
-than quietly capped.
+"AN UNMODIFIED 6" ON A DAMAGE ROLL SETS THE DIE, exactly as it does on the
+Hit and Wound rolls, and that is forced by the printed sentence: there is one
+verb and one object list - "change the result of one Hit roll, one Wound roll
+OR one Damage roll ... to an unmodified 6" - so all three share the predicate.
+"An unmodified 6" names a DIE FACE throughout these rules (05.01/05.02 both
+speak of the unmodified roll), and the hit/wound halves have always read it
+that way. So does the one OTHER ability in this engine that talks about a
+Damage die: game/structural_collapse.py's header says outright that "a Damage
+roll of 1" names the die and not the total, and derives the face from the
+notation for exactly that reason. Two readings of one phrase were shipped side
+by side; this is the one that had two thirds of the engine already agreeing
+with it.
+
+REPORTED, and this is what the earlier reading cost. It set the RESULT to 6
+instead, so on a D6+2 the die became a 4 ("Bright Lance counts as an
+unmodified 6 (die 1 -> 4)" - the user's log). Two consequences, both wrong:
+the ability CAPPED a weapon whose own maximum is 8, and it withheld itself
+entirely once the result already reached 6 (a roll of 5 on a D6+2 is a 7, so
+nothing was offered - while setting the die would have paid 8). On a Railgun
+(D6+6) it could never be offered at all. 22 weapon profiles here print a
+Damage bonus, and [MELTA] plus two enhancements add one at RUNTIME.
+
+Where the Damage characteristic is a D3, the die is still set to 6 - an
+impossible face for that die, taken literally, unchanged by the above and
+noted rather than quietly capped.
 """
 
 from game import attached_units
@@ -91,12 +112,19 @@ def button_label(squad):
     return "Branching Fates (once per phase)"
 
 
-def damage_change(squad, model, amount):
-    """The Damage half: the rolled amount becomes 6, or None if there is
-    nothing to gain (it already is 6 or more) or the ability is unavailable."""
+def damage_change(squad, model, face):
+    """The Damage half: the rolled DIE becomes an unmodified 6, or None if
+    there is nothing to gain (it already shows one) or the ability is
+    unavailable.
+
+    Takes the die FACE, not the resulting amount - see the module docstring.
+    Gating on the face is what makes this the same question the Hit and Wound
+    halves ask, so one rule cannot have two disagreeing readers: a D6+2 that
+    rolled a 5 is a result of 7 and still worth changing, because the die can
+    still become a 6 and pay 8."""
     if not _usable(squad, model):
         return None
-    if amount >= BRANCHING_FATES_RESULT:
+    if face >= BRANCHING_FATES_RESULT:
         return None
     return BRANCHING_FATES_RESULT
 

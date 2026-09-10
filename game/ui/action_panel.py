@@ -4,6 +4,7 @@ from game import warhost_fire_and_fade
 from game import enh_higher_duty
 from game import windrider_overflight
 from game import aura_ruler
+from game import base_contact
 from game import charge, config, consolidate, crushing_impact, epic_challenge, explosives, fall_back, fight, fire_and_fade, firing_deck, formations, greater_good, loadout, movement, overwatch, path_of_the_outcast, pregame, setup, shooting, sprites
 from game.ingress import SHORTENED_BLADE_MIN_ENEMY_DISTANCE_IN
 from game.squad import is_at_half_strength
@@ -207,6 +208,7 @@ class ActionPanel:
         # what is being asked while the board carries the answer. Appended by
         # keyword like everything above it.
         unit_pick=None,
+        damage_pick=None,
         # The printed rule behind a board pick, drawn by _draw_unit_pick_ui().
         decision_rule=None,
     ):
@@ -265,6 +267,7 @@ class ActionPanel:
             unmodified_six_controller=unmodified_six_controller,
             return_placement_controller=return_placement_controller,
             unit_pick=unit_pick,
+            damage_pick=damage_pick,
             decision_rule=decision_rule,
         )
         # The FULL rect, not the shortened one: this strip is pinned to the
@@ -318,6 +321,7 @@ class ActionPanel:
         proactive_stratagems=None,
         return_placement_controller=None,
         unit_pick=None,
+        damage_pick=None,
         # The printed rule behind a board pick, drawn by _draw_unit_pick_ui().
         decision_rule=None,
     ):
@@ -405,17 +409,28 @@ class ActionPanel:
             )
             return
 
-        if shooting_controller.pending_damage_choice is not None:
+        # ONE branch for all 27 controllers that can be waiting for a model
+        # click, where there used to be two - shooting and fight - and 25
+        # controllers with no branch at all. Reported as the Fire Overwatch
+        # screen appearing over a mortal-wound allocation: overwatch is branch
+        # #29, BELOW this one, so it never hid anything; what it filled was the
+        # hole left by a controller that had no screen and fell through the
+        # whole chain. See game/damage_pick.py.
+        #
+        # KEPT IN THIS SLOT deliberately, not moved above unit_pick(#1). In
+        # main.py's event chain `decision_manager.is_pending` sits ~170 lines
+        # ABOVE the first damage branch, so while a decision is open a board
+        # click resolves the PICK, not the allocation - a panel that said
+        # "click a highlighted model" there would be describing a control the
+        # chain refuses, which is this same bug pointed the other way.
+        if damage_pick is not None:
+            # Naming the UNIT is strictly more than the old text said, at no
+            # cost: the record already carries it. Naming the ABILITY is a
+            # measured refusal - see game/damage_pick.py's docstring.
             self._draw_action_required(
                 surface, rect, DAMAGE_CHOICE_ACCENT_COLOR,
-                "Choose which model takes the wound. Click a highlighted model on the battlefield."
-            )
-            return
-
-        if fight_controller is not None and fight_controller.pending_damage_choice is not None:
-            self._draw_action_required(
-                surface, rect, DAMAGE_CHOICE_ACCENT_COLOR,
-                "Choose which model takes the wound. Click a highlighted model on the battlefield."
+                f'Choose which model of "{damage_pick.squad.name}" takes the wound. '
+                f"Click a highlighted model on the battlefield."
             )
             return
 
@@ -2148,6 +2163,19 @@ class ActionPanel:
             is_charge = movement_controller.move_mode == "charge"
             is_pile_in = movement_controller.move_mode == "pile_in"
             is_consolidate = movement_controller.move_mode == "consolidate"
+            # THE BASE-CONTACT HOUSE RULE, said out loud. Those models simply
+            # will not pick up, and a control that refuses in silence is a bug
+            # in itself - the board rings them, and this says why.
+            if is_pile_in or is_consolidate:
+                _frozen = base_contact.frozen_models(
+                    movement_controller.selected_squad,
+                    movement_controller.all_tokens, movement_controller.move_mode)
+                if _frozen:
+                    text_y = self._draw_text(
+                        surface, rect,
+                        "%d model(s) are in base contact and cannot be moved "
+                        "(house rule)." % len(_frozen),
+                        text_y, color=HINT_COLOR)
             is_surge = movement_controller.move_mode == "surge"
             is_fall_back = movement_controller.move_mode == "fall_back"
             # The Torchstar Gambit's own Normal move (1CP, Shooting phase):
@@ -2407,11 +2435,27 @@ class ActionPanel:
                 self._buttons.append((shock_rect, lambda: battle_shock_controller.start_roll(squad)))
                 button_y += shock_rect.height + BUTTON_GAP
 
-                if insane_bravery_controller is not None and insane_bravery_controller.can_use(squad):
-                    bravery_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
-                    bravery_rect = self._draw_button(surface, bravery_rect, "Insane Bravery (1CP)", accent="stratagem")
-                    self._buttons.append((bravery_rect, lambda: insane_bravery_controller.use(squad)))
-                    button_y += bravery_rect.height + BUTTON_GAP
+                if insane_bravery_controller is not None:
+                    # User: "Insane bravery wird manchmal nicht angeboted."
+                    # It was never broken - four different clauses could each
+                    # remove the button (spent, 15.01's same-squad rule, CP,
+                    # or the unit no longer owing a roll) and none said so. A
+                    # HINT LINE rather than a greyed-out button, deliberately:
+                    # this file states the opposite convention in three places
+                    # ("no chrome for a control that cannot do anything"), and
+                    # button_style.draw_button() has no disabled state - adding
+                    # one would be a new visual language in a module every
+                    # screen reads, to say what one line of prose says better.
+                    bravery_ok, bravery_why = insane_bravery_controller.why_not(squad)
+                    if bravery_ok:
+                        bravery_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
+                        bravery_rect = self._draw_button(surface, bravery_rect, "Insane Bravery (1CP)", accent="stratagem")
+                        self._buttons.append((bravery_rect, lambda: insane_bravery_controller.use(squad)))
+                        button_y += bravery_rect.height + BUTTON_GAP
+                    elif bravery_why:
+                        button_y = self._draw_text(
+                            surface, rect, f"Insane Bravery (1CP): {bravery_why}",
+                            button_y, color=HINT_COLOR, gap=BUTTON_GAP)
 
             # Drawn above "Move"/"Advance" because its WHEN is the start of
             # the phase: once anything has moved the window is shut, so the
