@@ -43,6 +43,7 @@ meaning what it did.
 
 from game import death_guard_defenders, illuminor, spiritseer
 from game import enh_spirit_stone_of_raelyth
+from game import nekrosor_ammentar
 
 #: (predicate, range) for every CONDITIONAL grant. A source is a pair, not a
 #: subclass: what it shares is the question, not any behaviour.
@@ -61,6 +62,12 @@ SOURCES = (
     # sentence, same signature, one more entry.
     (enh_spirit_stone_of_raelyth.grants_lone_operative,
      enh_spirit_stone_of_raelyth.SPIRIT_STONE_RANGE_IN),
+    # Nekrosor Ammentar's Protective Disciples - the FIFTH, and the narrowest:
+    # Illuminor Szeras's identical sentence asks for any friendly NECRONS unit,
+    # this one for a DESTROYER CULT one. Same signature, one more entry, which
+    # is the whole point of the fold.
+    (nekrosor_ammentar.grants_lone_operative,
+     nekrosor_ammentar.PROTECTIVE_DISCIPLES_LONE_OPERATIVE_RANGE_IN),
 )
 
 

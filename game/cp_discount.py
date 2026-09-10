@@ -74,9 +74,23 @@ class OncePerRoundCpDiscount:
     def _round(self):
         return getattr(self.turn_tracker, "battle_round", None)
 
+    def window_key(self):
+        """The ONCE-PER window this entitlement resets on.
+
+        A battle round for every ability here today, all of which print
+        "once per battle round". A card whose printed text says something else
+        overrides THIS rather than _round(), so the base name keeps meaning
+        exactly the battle round it is named after - the Hexmark Destroyer's
+        Inescapable Death is the first such card, and it says "once per TURN"
+        (game/inescapable_death.py). A battle round holds both players' turns
+        (07.03), so the two windows are genuinely different."""
+        return self._round()
+
     def available(self, player):
-        """"Once per battle round" - per army, not per bearer."""
-        return self._used_in_round.get(player) != self._round()
+        """"Once per battle round" - per army, not per bearer. The window
+        itself comes from window_key(), so a subclass with a different printed
+        one changes only that."""
+        return self._used_in_round.get(player) != self.window_key()
 
     # --- the two halves ---------------------------------------------------
 
@@ -93,7 +107,7 @@ class OncePerRoundCpDiscount:
         """Called only once a discounted use has actually gone through."""
         if self.available_discount(player, stratagem, targets) <= 0:
             return
-        self._used_in_round[player] = self._round()
+        self._used_in_round[player] = self.window_key()
         if self.game_log is not None:
             self.game_log.add(self.log_line(player, stratagem))
 

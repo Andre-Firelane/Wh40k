@@ -370,6 +370,19 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
     ist die lehrreiche Hälfte: das START-Tor las die 3"-Fassung von „within range of an
     objective", das COMPLETES-Tor die 14.02-Fassung — dieselbe Frage, zwei Antworten, drei Zoll
     auseinander (siehe `## Cleanse bot einen Knopf an, der nicht auszahlen konnte`).
+    Seither **`attached_units.model_has_datasheet_keyword()` (39.)** — „traegt DIESES
+    MODELL dieses Datenblatt-Keyword", gefragt an der KOMPONENTE, aus der es stammt.
+    `cryptothralls.py` hatte es fuer „that CRYPTEK model" ausgeschrieben, Nekrosor
+    Ammentars Infectious Murder-madness fragt dasselbe fuer DESTROYER CULT. Es KANN nicht
+    `unit_has_datasheet_keyword()` mit einem Modell sein — ein Modell weiss nicht, von
+    welchem Datenblatt es kommt.
+    Seither **`game/reactive_bodyguard_shooting.py` (40.)** — „einmal pro Zug, wenn eine
+    befreundete Einheit in der Naehe beschossen wird, schiess danach zurueck", gelesen von
+    Kroot Packmates (T'au, 6", KROOT INFANTRY) und Multi-threat Eliminator (Necrons, 3",
+    NECRONS). Der SCHWANZ war schon geteilt (`start_reactive_shooting(restrict_to=)`), der
+    vierteilige AUSLOESER nicht — und den falsch zu haben ist nicht hypothetisch: die erste
+    Fassung von Kroot Packmates lieferte mit dem falschen `target_reactions`-Vertrag aus und
+    liess jedes Spiel abstuerzen, sobald irgendeine Einheit ein Schussziel waehlte.
     Seither **`weapons.anti_entries()` (31.)** — „wie liest man `WeaponProfile.anti`", gelesen von
     `shooting._wound_crit_threshold()` und von `weapons.printed_keywords()`; es liegt jetzt bei
     dem Feld, das es liest, und `shooting.py` re-exportiert es unter dem alten privaten Namen,
@@ -7452,16 +7465,23 @@ Spiellänge definieren.
   Stratagems). Punkteliste bewusst NUR für gebaute Einheiten (ein KeyError heißt "noch nicht
   transkribiert", nicht "kostenlos").
 
-- **Necrons** — Necron Warriors, Immortals, Lychguard, Skorpekh Destroyers, Lokhust Destroyers,
+- **Necrons — 25 von 64 Datenblättern**, und die Zahl bewegt sich mit dem laufenden
+  Nachzug (siehe `## Die restlichen Necron-Datenblätter`): Necron Warriors, Immortals,
+  Lychguard, Skorpekh Destroyers, Lokhust Destroyers,
   Lokhust Heavy Destroyers, Canoptek Wraiths, Doomsday Ark, Overlord, Plasmancer, Technomancer,
-  Illuminor Szeras, C'tan Shard of the Void Dragon. Armeeregel **Reanimation Protocols**
+  Illuminor Szeras, C'tan Shard of the Void Dragon, Skorpekh Lord, Lokhust Lord;
+  dazu Etappe 1 **Chronomancer, Psychomancer, Orikan The Diviner**, Etappe 2
+  **Deathmarks, Flayed Ones, Cryptothralls, Tomb Blades** und Etappe 3
+  **Hexmark Destroyer, Ophydian Destroyers, Nekrosor Ammentar**. Armeeregel
+  **Reanimation Protocols**
   (`game/reanimation_protocols.py`), Detachment **Awakened Dynasty** (Command Protocols + alle
   sechs Stratagems; die vier Enhancements bleiben reine Daten — anders als die T'au, deren
   neunzehn alle verdrahtet sind).
   Punkteliste bewusst NUR für gebaute Einheiten. **Die erste Fraktion, die die KI spielen soll und
   die nicht Player 2s Default ist** — umschaltbar über `config.PLAYER2_ARMY` / `--army2 necrons`.
-  Dazu **Skorpekh Lord** und **Lokhust Lord** — angelegt, getestet, in KEINER Demo-Armee (siehe
-  unten).
+  **Skorpekh Lord, Lokhust Lord und alle zehn Datenblätter der Etappen 1-3 stehen in KEINER
+  Demo-Armee** — angelegt, getestet, *dormant by roster*, und diese Abwesenheit ist gepinnt,
+  damit ein späteres Fielden eine sichtbare Änderung ist.
 
   - **Reanimation Protocols ist die erste Mechanik, die MEHRERE Modelle in ein stehendes Squad
     zurückholt.** Der Datenblatt-Text ("heals D3 wounds") ist nur die Hälfte; die eigentliche
@@ -8435,9 +8455,12 @@ KI-Pfad.**
   'Ere We Go im WAAAGH-Zug, 'Ard as Nails, Ammo Runt, Grot Orderly, Spirit of Gork — und die
   **gesamte Necron-Fraktion**: Reanimation Protocols samt Warriors-Reroll, Resurrection Orb,
   Technomancer, Matter Absorption, Living Lightning, Wraith Form und alle sechs
-  Awakened-Dynasty-Protokolle. **KORREKTUR: Plasmacyte stand hier zu Unrecht** — `use()` hat
-  ueberhaupt keinen Aufrufer, die Faehigkeit ist fuer BEIDE Seiten unverdrahtet (siehe die
-  KI-Weiche oben). Die drei proaktiven davon (Hungry Void, Sudden Storm, Conquering
+  Awakened-Dynasty-Protokolle. **Und seit Etappe 3 auch der Plasmacyte** — er stand hier
+  einmal zu Unrecht (`use()` hatte ueberhaupt keinen Aufrufer, die Faehigkeit war fuer
+  BEIDE Seiten unverdrahtet), und das ist mit dem ZWEITEN Traeger derselben gedruckten
+  Wargear-Zeile behoben: der Offer haengt jetzt an `FightController._start_fighting()`,
+  deterministisch fuer `auto_players` und als Prompt fuer den Menschen. Die drei proaktiven
+  davon (Hungry Void, Sudden Storm, Conquering
   Tyrant) über `_verdict()`/`_handle_*()`-Paare, alles übrige über `auto_players`.
 - **Fernkampfeinheiten bekommen den Charge gar nicht erst angeboten** (`game/combat_focus.py`,
   gelesen von `_shooting_specialist_charge_block()`). User: "havey destroyer - die sollten nicht
@@ -8986,9 +9009,12 @@ ein EIGENER Bug, der auch mit eingeschalteter KI zugeschlagen hätte.**
   deterministisch fuer alle. Vor dem Bau ist die PROMPTZAHL zu messen: Reanimation feuert fuer jede
   Einheit jede Command-Phase, und ein Prompt pro Wunde koennte schlimmer sein als das, was er behebt
   (`measure_stim_injectors_prompts.py` ist die Vorlage).
-- `raid_and_run`, `plasmacyte`, `dlc_signal_pox` sind fuer BEIDE Seiten unverdrahtet — eine andere
-  Fehlerklasse als die gemeldete, hier benannt statt nebenbei gebaut. **CLAUDE.md fuehrte Plasmacyte
-  faelschlich als fertigen KI-Pfad**; diese Zeile ist unten korrigiert.
+- `raid_and_run` und `dlc_signal_pox` sind fuer BEIDE Seiten unverdrahtet — eine andere
+  Fehlerklasse als die gemeldete, hier benannt statt nebenbei gebaut. **`plasmacyte` stand
+  bis zur Necron-Etappe 3 in dieser Liste**: sein Grant, sein Per-Phasen-Reset und sein
+  Markenzaehler waren verdrahtet und nichts hat je GEFRAGT. Behoben, als die Ophydian
+  Destroyers dieselbe Zeile woertlich druckten — der zweite Traeger ist der Ort, an dem
+  eine fehlende Haelfte sichtbar wird.
 
 ## Elf Meldungen aus drei Partien (2026-09-06)
 
@@ -10381,6 +10407,222 @@ MODELL geprüft, nicht an der Tabelle.
 by roster*; `auto_players` in jedem neuen Controller, aber KEINE
 `ai/agent_driver.py`-Urteile — als Negativraum geprüft.
 
+### Etappe 3 — der DESTROYER CULT (Hexmark, Ophydian Destroyers, Nekrosor Ammentar)
+
+Drei Datenblätter, **acht Fähigkeiten**, und fast jede ist der ZWEITE Träger von etwas,
+das schon da war. Der Inhalt der Etappe ist deshalb, an welcher NAHT jede landet — und
+die vier Stellen, an denen der neue gedruckte Text von dem abweicht, dem er gleicht.
+
+**DER SCHWERSTE FUND WAR NICHT GESUCHT: der Plasmacyte wurde nie ANGEBOTEN.** `use()`
+und `can_use()` in `game/plasmacyte.py` hatten **null Aufrufer** in `game/`, `ai/` und
+`main.py` — gemessen, nicht vermutet. Der [DEVASTATING WOUNDS]-Grant hing in
+`FightController`s Adjuster-Kette, der Per-Phasen-Reset wurde aus `main.py` gerufen, das
+Gear zählte die Marken — und nichts hat je gefragt. **Kein Skorpekh-Destroyer-Trupp hat
+je einen Plasmacyten benutzt.** Achte Instanz der „gebaut, aber nie GEFÜTTERT"-Klasse,
+und sie ist erst aufgefallen, weil die Ophydian Destroyers dieselbe Wargear-Zeile WÖRTLICH
+drucken: **der zweite Träger ist der Ort, an dem eine fehlende Hälfte sichtbar wird.**
+Der Grant hängt jetzt an `FightController._start_fighting()` — dem einen Ort, an dem 12.04s
+„selected to fight" für BEIDE Wege dorthin passiert —, neben Path of the Warrior, das an
+demselben Moment und aus demselben Grund gefragt wird. **Es bleibt eine echte Wahl**: die
+Nutzungen sind ein PRO-SCHLACHT-Konto, eine aufzuheben ist also eine Entscheidung, anders
+als die Einmal-pro-Runde-Berechtigungen, die dieses Repo automatisch auflöst.
+
+#### Inescapable Death: drei Klauseln, ZWEI Berechtigungen
+
+*"Once per turn, one unit from your army with this ability can be targeted with the Fire
+Overwatch Stratagem for 0CP, even if you have already used that Stratagem on a different
+unit this phase. In addition, each time you target this unit with the Fire Overwatch
+Stratagem, while resolving that Stratagem, hits are scored on unmodified Hit rolls of 2+."*
+
+| # | Klausel | Fenster |
+|---|---|---|
+| 1 | „for 0CP" | einmal pro **ZUG** |
+| 2 | „even if you have already used that Stratagem ... this phase" | einmal pro **ZUG** (dieselbe) |
+| 3 | „each time you target this unit ... 2+" | **jedes Mal**, gar keine Berechtigung |
+
+- **1 und 2 sind EIN Satz und EINE Berechtigung**, also implementiert EIN Objekt beide
+  Schnittstellen. Auf zwei Objekte verteilt könnten sie sich darüber uneinig werden, ob
+  die Berechtigung noch da ist — und der Spieler bekäme eine Gratisnutzung, die 15.01
+  danach ablehnt, oder eine erlaubte Wiederholung, die CP kostet.
+- **Klausel 3 ist der Unterschied zu ihrem Beinahe-Zwilling.**
+  `game/enh_protector_of_the_paths.py` druckt dieselbe Idee mit *„while resolving THAT
+  Stratagem"* und trägt dafür einen `_free_activation`-LATCH. Dieses Datenblatt druckt
+  diese Wörter nicht, bekommt also keinen Latch: **eine zweite, voll bezahlte Fire
+  Overwatch auf denselben Hexmark trifft weiter auf 2+.** Eine kopierte Implementierung
+  besteht jede andere Zeile der Suite und fällt genau an dieser.
+- **`StratagemController.repeat_permissions` ist neu** — die Liste, die 15.01s
+  „nicht zweimal dasselbe Stratagem pro Phase" für EINE Nutzung aufhebt. Eine EIGENE
+  Liste neben `cost_discounts` und nicht eine zweite Pflicht darauf: „discount" wäre
+  ein lügender Name für eine Regel über TIMING, und die zwei werden zu verschiedenen
+  Zeitpunkten gefragt. Reine ABFRAGE, wie `available_discount()` — `refusal()` läuft
+  pro Frame aus dem Panel und aus Fire Overwatchs eigenem Eignungs-Sweep.
+  **Nicht zu verwechseln mit `Stratagem.allow_repeat_target`**: das hebt die
+  ZIEL-Hälfte von 15.01 für ein ganzes Stratagem auf, dies die STRATAGEM-Hälfte für
+  eine einzelne Nutzung.
+- **„Once per TURN", nicht „once per battle round"** — der erste `cp_discount`-Konsument,
+  der das nicht druckt. Eine Schlachtrunde hält BEIDE Spielerzüge (07.03), die zwei
+  Fenster als gleich zu lesen halbiert also die Karte. `OncePerRoundCpDiscount` bekam
+  dafür `window_key()`; die fünf bestehenden Konsumenten sind unberührt, weil der
+  Default `_round()` bleibt. **Gemessen über eine ZUG-Grenze UND eine RUNDEN-Grenze
+  getrennt**: ein Test, der nur die Runde weiterschaltet, besteht mit dem geerbten
+  Fenster.
+- **„For 0CP" ist NICHT „−1CP", und auf der ausgelieferten Karte fallen die zwei
+  Lesarten ZUSAMMEN** — Fire Overwatch kostet genau 1. Genau der Fehler, vor dem
+  `game/free_stratagem_once_per_round.py`s Docstring warnt („would look right on every
+  1CP Stratagem"), und die A/B-Sonde, die ihn einbaute, meldete gegen jede Zeile NO BITE.
+  Die Zusicherung wird deshalb an einer KONSTRUIERTEN höheren Kosten gemessen — dieselbe
+  Behandlung, die dieses Repo jedem Mechanismus gibt, dessen Live-Fall zwei Lesarten
+  nicht trennt.
+
+#### `game/reactive_bodyguard_shooting.py` — 40. Extraktion, am zweiten Konsumenten
+
+Multi-threat Eliminator ist Kroot Packmates mit zwei geänderten Wörtern (3" statt 6",
+NECRONS statt KROOT INFANTRY). Beide drucken denselben vierteiligen Auslöser und enden
+in dem Satz, den auch Protocol of the Vengeful Stars druckt — der SCHWANZ war längst
+geteilt (`start_reactive_shooting(restrict_to=)`), der KOPF nicht.
+
+- **Geteilt ist, was zweimal subtil falsch zu machen ist:** der `target_reactions`-Vertrag
+  (`maybe_offer(attacking_squad, target_squad, melee=False)` — und den falsch zu haben ist
+  nicht hypothetisch: `KrootPackmatesController` lieferte mit NUR einer pluralen
+  `on_targets_selected()` aus, deren Docstring behauptete, DAS sei der Vertrag, und jedes
+  Spiel starb mit einem `AttributeError`, sobald irgendeine Einheit ein Schussziel wählte);
+  „after that enemy unit has finished making its attacks" als GESCHULDETER Schuss statt
+  eines sofortigen; das Einmal-pro-Zug-Konto pro SPIELER statt pro Squad; und ein Reaktor,
+  der an genau dem Angriff gestorben ist, den er beantwortet.
+- **Jede Unterklasse besitzt fünf Dinge**: Flag, Reichweite, welche befreundeten Einheiten
+  sie schützt, Label und Promptwortlaut. Als Klassenattribute plus EINE Methode, nicht als
+  Konstruktorargumente — eine Unterklasse, die eines vergisst, scheitert laut bei der
+  Definition statt still bei 0".
+- **DER REAKTOR IST EIN SQUAD**, und Multi-threat Eliminator ist der Grund, das
+  aufzuschreiben: sein Text sagt „one MODEL with this ability ... can shoot", wo sein
+  Zwilling „that unit" sagt. Eine Schussaktivierung ist hier pro SQUAD, und der Hexmark
+  ist eine Ein-Modell-Einheit ohne LEADER-Zeile — die zwei Lesarten können für keinen der
+  beiden Träger auseinanderfallen. Ein künftiger Träger mit mehreren Modellen bräuchte
+  eine Pro-Modell-Aktivierung, die es nicht gibt; benannt statt zum Wiederentdecken.
+- **Verhaltensneutral belegt:** `test_tau_kroot_and_vespid.py` blieb ohne eine einzige
+  Anpassung grün.
+
+#### `attached_units.model_has_datasheet_keyword()` — 39. Extraktion
+
+„Trägt DIESES MODELL dieses Datenblatt-Keyword", gefragt an der KOMPONENTE, aus der es
+stammt. `game/cryptothralls.py` hatte es für *„that CRYPTEK model"* ausgeschrieben;
+Infectious Murder-madness fragt dasselbe für *„if that model has the DESTROYER CULT
+keyword"*. **Es kann nicht `unit_has_datasheet_keyword()` mit einem Modell sein** — ein
+Modell weiß nicht, von welchem Datenblatt es kommt, und 19.01s Merge bewahrt jede
+Komponente samt Datenblatt; der Abgleich gegen `starting_models` ist die einzige
+Granularität, auf der die Frage nach einem Merge überhaupt beantwortbar ist.
+
+#### Nekrosor Ammentars vier Fähigkeiten
+
+- **Protective Disciples ist der FÜNFTE konditionale Lone Operative**
+  (`game/conditional_lone_operative.py`) und der ENGSTE: Illuminor Szeras' identischer
+  Satz fragt nach irgendeiner befreundeten NECRONS-Einheit, dieser nach einer DESTROYER
+  CULT. Neben Necron Warriors zu stehen tut hier nichts — die halbe Hälfte, die eine
+  Kopie seines Moduls verliert, und deshalb steht der Nicht-Cult-Fall als eigene Zeile
+  in der Suite.
+- **Infectious Murder-madness hat ZWEI Klauseln mit „ODER", und sie werden auf
+  VERSCHIEDENEN Granularitäten gefragt** — der Teil, den man versehentlich flach macht:
+  „if THAT MODEL has the DESTROYER CULT keyword" ist pro MODELL (über die Extraktion
+  oben), „or that ENEMY UNIT is the closest eligible target" ist eine Eigenschaft des
+  ANGRIFFS und wird deshalb vom AUFRUFER gemessen — jeder Angriffsschritt kennt seine
+  eigenen berechtigten Ziele, und das hier neu herzuleiten wäre eine zweite Meinung zu
+  Regel 10.02. **In der Suite wird jede Klausel mit der anderen ABGESCHALTET gemessen**;
+  beide gleichzeitig zu stellen besteht mit einer von beiden unimplementiert.
+  - **GEMESSEN statt angenommen:** auf jedem gebauten Datenblatt werden DESTROYER-CULT-
+    Einheiten nur von DESTROYER-CULT-Charakteren geführt (Skorpekh Lord → Skorpekh
+    Destroyers, Lokhust Lord → die zwei Lokhust-Blätter), es kann also keine Einheit
+    geben, die ein DC- und ein Nicht-DC-Modell hält. Das macht 04.03s
+    Ein-Repräsentant-Gruppierung hier EXAKT statt zu einer Abkürzung — und es ist als
+    Mengendifferenz über die Paarungstabelle gepinnt, damit eine künftige Paarung, die
+    es bricht, als rote Zeile auffällt statt als still falscher Grant.
+  - **Die eigene Einheit des Trägers ist NICHT ausgenommen** („a friendly NECRONS unit",
+    nicht „another"), drei Zeilen unter Protective Disciples, das sehr wohl „other" sagt.
+- **Prophet of Destruction** hängt am Todes-Sweep, neben Vengeful Stars und Pinpoint
+  Counter-Offensive, und beantwortet „wer hat es getötet" mit derselben einzigen Antwort,
+  die diese Engine hat. **Die 9" werden vom LEBENDEN Träger gemessen** — das Gegenteil
+  von Vengeful Stars, dessen 6" von den LEICHEN aus gemessen werden müssen, weil sein
+  gedruckter Text sie so benennt.
+- **Nullstone Field Generator ist die ERSTE AURA-Quelle in `feel_no_pain.py`s Fold.**
+  Jede andere konditionale Quelle dort liest ein Flag, das etwas anderes gesetzt hat;
+  diese ist ein 6"-Reichweitentest, und `current_feel_no_pain()` nimmt ein MODELL und hat
+  rund ein Dutzend Aufrufstellen. Also ein SQUAD-FLAG, einmal pro Frame gestempelt, neben
+  Nurgle's Gift und aus dessen zwei Gründen. **Gemessen gegen eine MORTAL-, eine
+  PSYCHIC- und eine GEWÖHNLICHE Wunde** — nur der dritte Fall trennt „die Aura wirkt" von
+  „die Aura ist bedingungslos".
+
+#### Tunnelling Horrors: zwei vorhandene Hälften, EINE Phase auseinander
+
+Die Entnahme ist Airborne Agilitys Satz Wort für Wort; die erzwungene Rückkehr ist
+Unshrouded Truths Runden-Tor-Override. **Neu ist allein die UHR:** jenes Stratagem wird in
+DEINER Bewegungsphase benutzt und die Einheit kommt in DERSELBEN zurück, sein Flag wird
+also am Phasenende gelöscht. Dieses wird am Ende des GEGNERZUGES benutzt und die Einheit
+kommt in der NÄCHSTEN eigenen Bewegungsphase — das Flag muss also den Rest des
+Gegnerzuges UND die eigene Command-Phase überleben und wird am Ende der Bewegungsphase
+gelöscht, in der es geschuldet war. Ein Per-Phasen-Reset wäre genau die halblange Flagge,
+um die es in Fehlerklasse 14 geht.
+- **„(including in your first turn)" ist die Klammer, die den Override TRAGEND macht**
+  statt dekorativ: eine Einheit, die am Ende des ersten Gegnerzuges tunnelt, wird in
+  Schlachtrunde 1 zurückerwartet, was 20.03 rundweg verbietet.
+- **KEIN Deep-Strike-Grant**, anders als bei Unshrouded Truth — die Ophydian Destroyers
+  drucken [DEEP STRIKE] selbst. Ausdrücklich vermerkt, weil die zwei Fähigkeiten sonst so
+  dicht beieinanderliegen, dass eine fehlende Zeile wie ein Versehen aussieht.
+
+#### Waffen: der Kollisions-Sweep lief VOR der ersten Klasse
+
+- **„Close combat weapon" wird ein DRITTES Mal gedruckt** (Hexmark, A4 WS3+ S5) und die
+  Zahlen passen zu KEINER der zwei bestehenden → eigene Klasse, nach den ZAHLEN benannt
+  wie ihre zwei Nachbarn, weil der Royal Warden dieselbe Zeile druckt und sie teilen wird.
+  Im Test GEGENEINANDER gepinnt (drei verschiedene Zahlensätze unter einem Namen), nicht
+  gegen Literale.
+- **„Blade tail and whip coils" SIEHT aus wie der Canoptek Wraiths' „Whip Coils"** und
+  ist es nicht: anderer gedruckter Name, andere Zahlen (A6 S6 AP-1 [EXTRA ATTACKS] gegen
+  A8 S5 AP0). Zwei Klassen, und die Ähnlichkeit ist aufgeschrieben, damit keine in die
+  andere gefaltet wird.
+- **Nekrosor Ammentar behält seine gedruckten 80 mm**, und das ist eine Entscheidung.
+  Die stehende Vorgabe „alle Destroyer sollen die gleiche Größe haben" setzt beide Lords
+  auf 50 mm trotz gedruckter 60, und der mit ihr protokollierte Grund ist Regel 19.01: ein
+  Lord wird in einen Destroyer-Trupp GEMERGT. Nekrosor Ammentar druckt gar keine
+  LEADER-Zeile, kann also nie gemergt werden, und seine zwei Etappen-Nachbarn drucken
+  ohnehin 50 mm. Jedes Modell, dessen NAME „Destroyer" sagt, ist hier weiterhin 50 mm;
+  seiner sagt es nicht.
+
+**Getestet:** neu `test_necron_destroyer_cult.py` (**146/146**, neun Abschnitte) plus
+`ab_necron_destroyer_cult.py` (**41 A/B-Sonden, alle beißend, keine stürzt ab**).
+**Drei Sonden bissen zuerst NICHT, und alle drei waren Befunde über den TEST**
+(Fehlerklasse 24): die Protective-Disciples-Reichweite war gar nicht gemessen (es stand
+keine Cult-Einheit AUSSERHALB der 3" auf dem Brett); die Melee-Ablehnung des geteilten
+Basisklassen-Vertrags war in der KROOT-Suite ungemessen, sodass eine Änderung an der
+Basis nur EINEM ihrer zwei Träger auffiel — genau die Drift, gegen die die Extraktion
+gebaut ist; und „gratis gegen −1 CP" ist bei einem 1-CP-Stratagem gar nicht
+unterscheidbar (siehe oben). **Eine Sonde ließ die Suite ABSTÜRZEN statt rot zu werden**
+(`restrict_to` ist dann None und ein nacktes `r.name` bricht den Lauf ab) —
+**einundzwanzigste Instanz** dieser Lehre; sie degradiert jetzt.
+
+Volle Regression **214 Suiten, ~18788 Prüfungen, 213 grün / 0 rot / 1 bekannt**, und
+`selfplay.py map2` (1500 Frames, exit 0) mit den Default-Armeen UND mit Necrons auf
+BEIDEN Seiten — keine Formalie, weil `main()` fünf neue Controller konstruiert und keine
+Suite `main()` fährt (Fehlerklasse 23). Der Korpus kostete **null** Wartung: der Name
+wandert von `MISSING_NECRONS` nach `faction.datasheets`, `rules/necrons/` bleibt bei 49
+Dateien, und zwei `--offline`-Läufe erzeugen keinen Diff.
+**Zwei fremde Pins wurden zu Recht rot und sind STÄRKER nachgezogen statt nachgezählt:**
+`test_aeldari_enhancements.py` zählte die konditionalen Lone-Operative-Quellen und pinnt
+jetzt ihre MODUL-MENGE (eine sechste muss sich benennen, und eine still ERSETZTE kommt
+nicht mehr durch, indem die Zahl gleich bleibt); und `test_tau_kroot_and_vespid.py`
+pinnte Kroot Packmates als das LETZTE Element des `target_reactions`-Tupels — Formatierung
+statt Bedeutung — und liest es jetzt per AST als Menge.
+
+**Ein Sprite fehlt und ist gepinnt:** Nekrosor Ammentar hat keine Kunst (die 27 vom User
+gelieferten Necron-Dateien enthalten ihn nicht), die anderen zwei zeichnen ihre eigene.
+Am MODELL geprüft, und die Verschattung ist GEMESSEN statt gehofft: `_key_for_name()`
+liefert den ERSTEN Schlüssel, der Teilstring des Squad-Namens ist, also kann ein neuer
+verschluckt werden oder einen älteren verschlucken — für beide neuen ist beides leer.
+
+**Bewusst offen, wie in Etappe 1 und 2:** `armies/necrons.json` unangetastet, alle drei
+*dormant by roster*; `auto_players` in jedem neuen Controller (bei Multi-threat Eliminator
+GEERBT aus der Basisklasse — ein Quell-Sweep nach dem Wort antwortet dort False, also
+misst die Suite es am OBJEKT), aber KEINE `ai/agent_driver.py`-Urteile: keine der acht
+Wahlen ist armeeweit.
+
 ## Die sieben Aeldari-Detachment-REGELN
 
 **Aeldari geht von einem auf acht modellierte Detachments** (User: "jetzt folgende detachment
@@ -11391,7 +11633,9 @@ in dem `game/enhancements.py` entstand. Ersetzt durch den gemessenen Grund.
 - **`resurrection_orb._use()` verbrennt den Orb bei abgebrochener Platzierung.**
 - **`fought_squad_ids`/`shot_squad_ids` halten Squads, keine Ids** — lügender
   Name mit zwei Trägern, ~12 Module, außerhalb dieses Umfangs.
-- **`plasmacyte` ist für beide Seiten unerreichbar** (steht schon oben).
+- ~~**`plasmacyte` ist für beide Seiten unerreichbar**~~ — **erledigt in Necron-Etappe 3**:
+  der Offer haengt jetzt an `FightController._start_fighting()`, dem einen Ort, an dem
+  12.04s "selected to fight" fuer beide Wege dorthin passiert.
 
 ### Getestet
 

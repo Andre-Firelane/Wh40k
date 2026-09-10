@@ -16,6 +16,7 @@ accompany every ability claim and are listed against the sections they protect.
   7. Source guards
 """
 
+import ast
 import testkit as tk
 from game import bounty_hunters as bh
 from game import hunting_hounds, loping_pounce, objective_control, oversight_drone, plagues
@@ -434,6 +435,20 @@ tk.line_up(_friend, x=60.0, y=20.0)
 ck.eq("beyond 6\", nothing reacts", _pk.reactors_for(_friend), [])
 tk.line_up(_friend, x=23.0, y=20.0)
 
+# "IN YOUR OPPONENT'S SHOOTING PHASE", so a MELEE trigger is declined - the
+# half of maybe_offer()'s contract this suite did not measure. Found by an A/B
+# probe that deleted the melee clause from the shared base
+# (game/reactive_bodyguard_shooting.py) and reported NO BITE here: a change to
+# that base is meant to be visible to BOTH its carriers, and it was visible to
+# only one.
+ck.true("a MELEE attack never triggers it - the printed WHEN names a phase",
+        not _pk.maybe_offer(_shooter, _friend, melee=True))
+ck.true("...and the ranged form still does",
+        _pk.maybe_offer(_shooter, _friend))
+_pk._owed = None
+_pk._used_this_turn.clear()
+tk.pick_option(_pk.decision_manager, "Decline")
+
 ck.true("the reaction is offered when the enemy picks its target",
         _pk.on_targets_selected(_shooter, [_friend]))
 tk.pick_option(_pk.decision_manager, "Shoot back")
@@ -540,8 +555,21 @@ ck.true("Bounty Hunters is chosen at the start of the battle",
         "bounty_hunters_controller.select_at_start_of_battle(" in _main)
 ck.true("the SAME bounty ledger reaches both attack controllers",
         _main.count("bounty_hunters=bounty_hunters_controller") == 2)
+# Read as a SET of names via the AST rather than as the literal tuple text,
+# which pinned Kroot Packmates as the LAST element and went red the moment a
+# sixth reactor was appended - formatting, not meaning. The same lesson the
+# closing-bracket and indentation pins in this repo already record.
+_rx_names = []
+for _node in ast.walk(ast.parse(_main)):
+    if (isinstance(_node, ast.Assign) and len(_node.targets) == 1
+            and isinstance(_node.targets[0], ast.Name)
+            and _node.targets[0].id == "shooting_target_reactions"
+            and isinstance(_node.value, ast.Tuple)):
+        _rx_names = [e.id for e in _node.value.elts if isinstance(e, ast.Name)]
+ck.true("the sweep found the tuple at all (%d reactors)" % len(_rx_names),
+        len(_rx_names) >= 4)
 ck.true("Kroot Packmates is in the shooting target_reactions list",
-        "kroot_packmates_controller,\n    )" in _main)
+        "kroot_packmates_controller" in _rx_names)
 ck.true("...and fires only once the attacker has finished",
         "kroot_packmates_controller.on_squad_finished_shooting)" in _main)
 ck.true("Kroot Linebreakers is on the charge hook",

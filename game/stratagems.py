@@ -97,6 +97,29 @@ class StratagemController:
         # Fired after stratagem.effect() rather than before, so a Neurochip CP
         # can never be spent by the very use that granted it.
         self.on_targets_chosen = []
+        # Optional collaborators that lift rule 15.01's "not the same Stratagem
+        # twice in a phase" for ONE use, each with
+        # permits_repeat(player, stratagem, targets) -> bool.
+        #
+        # A LIST for the same reason cost_discounts is one, and a SEPARATE list
+        # rather than a second duty on that one: "discount" would be a lying
+        # name for a rule about timing, and the two are asked at different
+        # points (the price is asked after the timing has already passed).
+        #
+        # ONE consumer today - the Hexmark Destroyer's Inescapable Death, whose
+        # printed sentence is "...for 0CP, EVEN IF you have already used that
+        # Stratagem on a different unit this phase". Both halves hang off the
+        # same once-per-turn entitlement, which is why one object implements
+        # both interfaces rather than two objects agreeing by accident.
+        #
+        # A PURE QUERY, like available_discount(): refusal() runs every frame
+        # from the panel and from Fire Overwatch's own eligibility sweep, so
+        # asking must never spend anything.
+        #
+        # Stratagem.allow_repeat_target is NOT this: that one lifts the
+        # per-TARGET half of 15.01 for a whole Stratagem, this lifts the
+        # per-STRATAGEM half for a single use.
+        self.repeat_permissions = []
 
     def reset_phase(self):
         self.used_this_phase = set()
@@ -136,7 +159,8 @@ class StratagemController:
         and the common case falls through to None with no allocation at all.
         The two f-strings only run in the branches where no button is drawn
         anyway. Measured with measure_shooting_frame_cost.py, before/after."""
-        if (player, stratagem.name) in self.used_this_phase:
+        if ((player, stratagem.name) in self.used_this_phase
+                and not self._repeat_permitted(player, stratagem, targets)):
             return "already used this phase (15.01)"
         if stratagem.max_per_battle is not None:
             used = self.used_this_battle.get((player, stratagem.name), 0)
@@ -161,6 +185,12 @@ class StratagemController:
             if not stratagem.allow_repeat_target and (player, target) in self.targeted_this_phase:
                 return '"%s" was already targeted by a Stratagem this phase (15.01)' % target.name
         return None
+
+    def _repeat_permitted(self, player, stratagem, targets):
+        """Whether something on the table lifts 15.01's once-per-phase clause
+        for THIS use - a pure query, like _cost_for()."""
+        return any(p.permits_repeat(player, stratagem, targets)
+                   for p in self.repeat_permissions)
 
     def can_use(self, player, stratagem, targets, extra_cp=0):
         return self.refusal(player, stratagem, targets, extra_cp) is None

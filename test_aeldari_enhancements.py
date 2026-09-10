@@ -261,11 +261,19 @@ from game import (command_phase_mark, conditional_lone_operative,  # noqa: E402
 from game.enh_admired_leader import AdmiredLeaderController  # noqa: E402
 from game.enh_light_of_clarity import LightOfClarityController  # noqa: E402
 
-# --- conditional LONE OPERATIVE: four carriers, one fold -------------------
+# --- conditional LONE OPERATIVE: five carriers, one fold -------------------
 # Three already existed and TWO of their comments each called themselves "the
 # second", which is what three copies of one shape look like from the inside.
-c.eq("four conditional sources are registered",
-     len(conditional_lone_operative.SOURCES), 4)
+# The fifth is Nekrosor Ammentar's Protective Disciples (Necrons) - this line
+# went red when it arrived, which is exactly what it is for. Pinned as the
+# MODULE SET rather than a bare count, so a sixth has to name itself here and
+# a source that is silently REPLACED cannot pass by keeping the number the
+# same.
+c.eq("the registered conditional sources, by module",
+     sorted(f.__module__.rsplit(".", 1)[-1]
+            for f, _r in conditional_lone_operative.SOURCES),
+     ["death_guard_defenders", "enh_spirit_stone_of_raelyth", "illuminor",
+      "nekrosor_ammentar", "spiritseer"])
 _se_src = io.open("game/status_effects.py", encoding="utf-8").read()
 c.true("status_effects folds them instead of listing them",
        "conditional_lone_operative.granted_ranges(squad, all_tokens)" in _se_src)

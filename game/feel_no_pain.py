@@ -94,9 +94,18 @@ def current_feel_no_pain(model, waaagh=None, mortal=False, psychic=False,
     # path, the damage session that knows the weapon, and the devastating
     # session respectively - so every other caller keeps the defaults and
     # keeps meaning what it did.
-    return _better_threshold(
+    best = _better_threshold(
         best, enh_runes_of_warding.feel_no_pain(
             model, mortal=mortal, psychic=psychic, devastating=devastating))
+    # Nekrosor Ammentar's Nullstone Field Generator - the first AURA source in
+    # this fold. Every other conditional one above reads a flag on the model or
+    # on its squad that something else already put there; this one is a 6"
+    # range test, and it is answered the same way Nurgle's Gift's is: a squad
+    # flag stamped once per frame in main.py, because this function takes a
+    # MODEL and has roughly a dozen call sites. See game/nekrosor_ammentar.py.
+    from game.nekrosor_ammentar import nullstone_feel_no_pain
+    return _better_threshold(
+        best, nullstone_feel_no_pain(model, mortal=mortal, psychic=psychic))
 
 
 class FeelNoPainRoll:

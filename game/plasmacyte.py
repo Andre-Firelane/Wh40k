@@ -35,6 +35,8 @@ more times than it has Plasmacytes.
 
 import copy
 
+from game import ai_mode
+
 
 def plasmacyte_count(squad):
     """How many Plasmacytes this unit still has, summed over its living
@@ -91,3 +93,63 @@ def adjusted_weapon(weapon, squad):
     granted = copy.copy(weapon)
     granted.devastating_wounds = True
     return granted
+
+
+class PlasmacyteController:
+    """The OFFER, and the reason this class exists at all.
+
+    BUILT, WIRED, AND NEVER FED - the eighth instance of that class in this
+    repo, and measured rather than suspected: `use()` and `can_use()` above had
+    ZERO callers anywhere in game/, ai/ or main.py. The grant was in
+    FightController's adjuster chain, the per-phase reset was called from
+    main.py, the Gear item counted the tokens - and nothing ever asked the
+    player, so no Skorpekh Destroyer unit has ever used a Plasmacyte. A unit
+    test that drives use() directly is green throughout; only the absence of a
+    CALLER shows it, which is why CLAUDE.md keeps a source-side guard for this
+    shape rather than a behaviour test.
+
+    Found when the Ophydian Destroyers arrived printing the identical wargear
+    ability - the second carrier is where a missing half becomes visible.
+
+    "WHEN THIS UNIT IS SELECTED TO FIGHT" is FightController._start_fighting(),
+    the one place rule 12.04's selection happens for both routes into it
+    (normal selection and 12.08's forced fight). It is offered beside Aspect
+    Host's Path of the Warrior, which is asked at that same instant and for the
+    same reason: before any dice, once per activation.
+
+    "YOU CAN USE THIS ABILITY" is a real choice and stays one - the uses are a
+    per-BATTLE ledger, so holding one back for a better activation is a genuine
+    decision, unlike the once-per-round entitlements this repo resolves
+    automatically. The AI answers it deterministically instead of paying for a
+    prompt."""
+
+    def __init__(self, decision_manager=None, game_log=None, auto_players=()):
+        self.decision_manager = decision_manager
+        self.game_log = game_log
+        self.auto_players = ai_mode.players(auto_players)
+
+    def offer(self, squad):
+        """Raise the choice for `squad`, or resolve it for an AI owner."""
+        if not can_use(squad):
+            return False
+        if squad.owner in self.auto_players or self.decision_manager is None:
+            return self._use(squad)
+        self.decision_manager.request(
+            squad.owner,
+            "%s: Plasmacyte - spend one for [DEVASTATING WOUNDS] on this unit's "
+            "melee weapons until the end of the phase? (%d left)"
+            % (squad.name, remaining_uses(squad)),
+            [("Spend a Plasmacyte", lambda: self._use(squad)),
+             ("Save it", lambda: None)],
+        )
+        return True
+
+    def _use(self, squad):
+        if not use(squad):
+            return False
+        if self.game_log is not None:
+            self.game_log.add(
+                "%s uses a Plasmacyte: its melee weapons have [DEVASTATING WOUNDS] "
+                "until the end of the phase (%d left)."
+                % (squad.name, remaining_uses(squad)))
+        return True

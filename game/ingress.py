@@ -1,4 +1,5 @@
 from game.homing_beacon import HOMING_BEACON_MIN_ENEMY_DISTANCE_IN, HOMING_BEACON_RANGE_IN
+from game import tunnelling_horrors
 from game import unshrouded_truth
 from game.squad import edge_distance
 from game import ride_the_wind
@@ -127,6 +128,20 @@ class IngressController:
         # round gate - so it does, and only for the unit it was used on. See
         # game/unshrouded_truth.py.
         if unshrouded_truth.applies(squad):
+            return True
+        # The Ophydian Destroyers' Tunnelling Horrors prints the same override
+        # one phase later - "this unit MUST make an ingress move in your next
+        # Movement phase (INCLUDING IN YOUR FIRST TURN)". That parenthesis is
+        # what makes it load-bearing: a unit that tunnelled at the end of the
+        # opponent's first turn is expected back in battle round 1, which 20.03
+        # forbids. See game/tunnelling_horrors.py for why its flag has a
+        # different lifetime from its twin's.
+        #
+        # NOT added to _has_deep_strike() below, which reads the same
+        # unshrouded_truth.applies() two methods down: that grant exists
+        # because an ASURYANI INFANTRY unit has no Deep Strike of its own, and
+        # the Ophydian Destroyers print [DEEP STRIKE] on their datasheet.
+        if tunnelling_horrors.applies(squad):
             return True
         # Windrider Host's Ride the Wind: "for the purposes of SETTING UP ...
         # on the battlefield, treat the current battle round number as being

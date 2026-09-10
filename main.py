@@ -75,6 +75,12 @@ from game.enh_torc_of_morai_heg import TorcOfMoraiHegSurcharge
 from game.enh_rune_of_mists import RuneOfMistsController
 from game.enh_spirit_stone_of_raelyth import SpiritStoneOfRaelythController
 from game.path_of_the_warrior import PathOfTheWarriorController
+from game.inescapable_death import InescapableDeathDiscount
+from game.multi_threat_eliminator import MultiThreatEliminatorController
+from game.tunnelling_horrors import TunnellingHorrorsController
+from game.plasmacyte import PlasmacyteController
+from game.nekrosor_ammentar import ProphetOfDestructionController
+from game import nekrosor_ammentar, tunnelling_horrors
 from game.shepherds_of_the_dead import ShepherdsOfTheDeadController
 from game.word_of_the_phoenix import WordOfThePhoenixController
 from game.inevitable_death import InevitableDeathController
@@ -1244,6 +1250,17 @@ def main(map_key=None):
     # predicate finds no War Shaper unless one is on the table.
     stratagem_controller.cost_discounts.append(
         WarLeaderDiscount(turn_tracker=turn_tracker, game_log=game_log))
+    # The Hexmark Destroyer's Inescapable Death goes into TWO lists, and it is
+    # ONE object in both on purpose: "...for 0CP, EVEN IF you have already used
+    # that Stratagem on a different unit this phase" is one sentence with one
+    # once-per-TURN allowance, so the price and the 15.01 exemption must never
+    # be able to disagree about whether it is still there. Its third clause
+    # (Snap Shooting hits on 2+) needs no object at all - it is not tied to the
+    # free use, unlike its Aeldari near-twin's. See game/inescapable_death.py.
+    inescapable_death_discount = InescapableDeathDiscount(
+        turn_tracker=turn_tracker, game_log=game_log)
+    stratagem_controller.cost_discounts.append(inescapable_death_discount)
+    stratagem_controller.repeat_permissions.append(inescapable_death_discount)
     # Both reactive stratagems above fire at the same moment in the sequence,
     # so both controllers go into the one target_reactions list that
     # ShootingController/FightController iterate at that point.
@@ -1269,9 +1286,16 @@ def main(map_key=None):
         decision_manager=decision_manager, game_state=state, turn_tracker=turn_tracker,
         game_log=game_log, auto_players=ai_players,
     )
+    # The Hexmark Destroyer's Multi-threat Eliminator is the SECOND carrier of
+    # Kroot Packmates' shape, so it is the same class with two words changed
+    # (game/reactive_bodyguard_shooting.py) and reacts at the same instant.
+    multi_threat_eliminator_controller = MultiThreatEliminatorController(
+        decision_manager=decision_manager, game_state=state, turn_tracker=turn_tracker,
+        game_log=game_log, auto_players=ai_players,
+    )
     shooting_target_reactions = (
         stim_injectors_controller, ard_as_nails_controller, psychic_shield_controller,
-        kroot_packmates_controller,
+        kroot_packmates_controller, multi_threat_eliminator_controller,
     )
     fight_target_reactions = (
         stim_injectors_controller, ard_as_nails_controller, forewarned_controller,
@@ -1517,6 +1541,13 @@ def main(map_key=None):
     airborne_agility_controller = AirborneAgilityController(
         decision_manager=decision_manager, game_state=state, game_log=game_log,
         auto_players=ai_players)
+    # Ophydian Destroyers' Tunnelling Horrors - the same instant and the same
+    # withdrawal as Airborne Agility above, plus an owed ingress move in the
+    # owner's NEXT Movement phase. Constructed beside it so the shared timing
+    # is visible.
+    tunnelling_horrors_controller = TunnellingHorrorsController(
+        decision_manager=decision_manager, game_state=state, game_log=game_log,
+        auto_players=ai_players)
     # Retaliation Cadre's Prototype Weapon System and Advanced Acquisition
     # Cadre's Unmasking Suite: both open on "selected to shoot" and close on
     # "until those attacks are resolved"/"until this unit has shot", which is
@@ -1725,6 +1756,9 @@ def main(map_key=None):
     targeting_array_controller.shooting_controller = shooting_controller
     shooting_controller.on_squad_finished_shooting.append(
         kroot_packmates_controller.on_squad_finished_shooting)
+    multi_threat_eliminator_controller.shooting_controller = shooting_controller
+    shooting_controller.on_squad_finished_shooting.append(
+        multi_threat_eliminator_controller.on_squad_finished_shooting)
     shooting_controller.on_squad_finished_shooting.append(fire_and_fade_controller.offer_after_shooting)
     shooting_controller.on_squad_finished_shooting.append(chronometron_controller.offer_after_shooting)
     shooting_controller.on_squad_finished_shooting.append(evasion_engrams_controller.offer_after_shooting)
@@ -2106,6 +2140,13 @@ def main(map_key=None):
         piratical_raiders=piratical_raiders_controller,
         fury_of_the_void=fury_of_the_void_controller,
         whispering_web=whispering_web_controller,
+        # The Plasmacyte's OFFER. Passed by KEYWORD into an already long
+        # signature (error class 22). This is the half the ability was missing:
+        # the grant, the per-phase reset and the token count all shipped, and
+        # nothing ever asked - measured, not suspected. See game/plasmacyte.py.
+        plasmacyte=PlasmacyteController(
+            decision_manager=decision_manager, game_log=game_log,
+            auto_players=ai_players),
     )
 
     # Placed AFTER fight_controller: Experimental Modifications takes it for
@@ -2563,6 +2604,14 @@ def main(map_key=None):
         dice_manager, attack_controllers=(shooting_controller, fight_controller),
         game_log=game_log,
     )
+
+    # Nekrosor Ammentar's Prophet of Destruction - fed by the death sweep,
+    # like Protocol of the Vengeful Stars and Mont'ka's Pinpoint
+    # Counter-Offensive, and answering the same "who was attacking at the
+    # time" question because this engine has no other.
+    prophet_of_destruction_controller = ProphetOfDestructionController(
+        decision_manager=decision_manager, game_state=state, game_log=game_log,
+        auto_players=ai_players)
 
     # --- Awakened Dynasty, the six protocols ------------------------------
     # Built unconditionally, like the Necron datasheet controllers above:
@@ -3558,6 +3607,10 @@ def main(map_key=None):
         psychic_communion.reset_phase({t.squad for t in state.tokens if t.squad is not None})
         # The Farseer's Branching Fates is "once per phase".
         branching_fates.reset_phase({t.squad for t in state.tokens if t.squad is not None})
+        # Nekrosor Ammentar's Prophet of Destruction is "until the end of the
+        # phase" as well - the grant only, not the killing that opened it.
+        nekrosor_ammentar.prophet_reset_phase(
+            {t.squad for t in state.tokens if t.squad is not None})
         # Aeldari Battle Focus: both per-phase restrictions ("this unit has
         # already performed an Agile Manoeuvre", "this manoeuvre has already
         # been triggered") plus Swift as the Wind's own "until the end of the
@@ -3712,6 +3765,11 @@ def main(map_key=None):
             # unlike Airborne Agility, which is per unit.
             ride_the_wind_controller.offer_at_end_of_turn(
                 {t.squad for t in state.tokens if t.squad is not None}, ending_player)
+            # Ophydian Destroyers' Tunnelling Horrors - the third offer at this
+            # instant, and the same "your OPPONENT'S turn" reading as the two
+            # above it.
+            tunnelling_horrors_controller.offer_at_end_of_turn(
+                {t.squad for t in state.tokens if t.squad is not None}, ending_player)
             # Doomsday Ark's Overwhelming Obliteration: "until the end of the
             # turn", so it expires with the other one-turn grants rather than
             # at the phase boundary above.
@@ -3774,6 +3832,7 @@ def main(map_key=None):
             loping_pounce.reset_turn(
                 {t.squad for t in state.tokens if t.squad is not None})
             kroot_packmates_controller.reset_turn()
+            multi_threat_eliminator_controller.reset_turn()
             # The Twin Lance's Neocapacitor Shields: likewise "until the end
             # of the turn", and on the turn-taker's own units (the ones that
             # would have been charging), so ending_squads is exactly right.
@@ -4204,6 +4263,16 @@ def main(map_key=None):
             # just happened is controlled_by this player only from that
             # recompute onwards.
             marker_beacon_controller.offer_at_end_of_movement_phase(mover_before)
+            # Ophydian Destroyers' Tunnelling Horrors: the owed ingress move
+            # was for "your NEXT Movement phase", and this is the end of it -
+            # so the obligation (and the round-gate override it carries) stops
+            # here. NOT at the end of every phase like its Unshrouded Truth
+            # twin: this one is armed at the end of the OPPONENT'S turn and has
+            # to survive the rest of it plus the owner's Command phase. See
+            # game/tunnelling_horrors.py.
+            tunnelling_horrors.reset_movement_phase(
+                {t.squad for t in state.tokens if t.squad is not None}
+                | set(state.reserves))
             # The Farseer's Guide: "at the end of your Movement phase, select
             # one enemy unit". Before the Flickerjump roll below for the same
             # reason that one goes before Rapid Ingress - a decision already
@@ -6638,6 +6707,13 @@ def main(map_key=None):
         # the same frame's answer rather than one frame late.
         signal_pox_controller.refresh(state.tokens)
         nurgles_gift_controller.refresh(state.tokens)
+        # Nekrosor Ammentar's Nullstone Field Generator, for exactly the two
+        # reasons Nurgle's Gift gives one line up: positions change every
+        # frame, and a bearer wiped out this frame must stop projecting the
+        # aura in the same frame it dies. It is a squad flag rather than a live
+        # measurement because its reader, feel_no_pain.current_feel_no_pain(),
+        # takes a MODEL and has about a dozen call sites.
+        nekrosor_ammentar.refresh_nullstone(state.tokens)
         # Spirit Conclave's Spirit Guides aura is read from the squad by
         # game/battle_focus.py, which cannot import a controller (it is
         # reached from game/squad.py's own import chain). So every squad is
@@ -6666,6 +6742,15 @@ def main(map_key=None):
             # phase - so the Fight phase's attacker counts too. Same "who was
             # attacking at the time" answer; this engine has no other.
             pinpoint_controller.notify_unit_destroyed(
+                _wiped,
+                getattr(shooting_controller, "active_squad", None)
+                or getattr(fight_controller, "fighting_squad", None))
+            # Nekrosor Ammentar's Prophet of Destruction reads the same
+            # instant and the same attacker, and likewise names no phase - so
+            # it takes the Fight phase's attacker too, exactly like Pinpoint
+            # directly above. Unlike Vengeful Stars its 9" is measured from
+            # the LIVING killer rather than from the corpses.
+            prophet_of_destruction_controller.notify_unit_destroyed(
                 _wiped,
                 getattr(shooting_controller, "active_squad", None)
                 or getattr(fight_controller, "fighting_squad", None))

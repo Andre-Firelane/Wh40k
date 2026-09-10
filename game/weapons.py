@@ -5026,6 +5026,110 @@ class StaffOfTomorrowProfile(WeaponProfile):
     devastating_wounds = True
 
 
+# --- Destroyer Cult: Hexmark / Ophydian / Nekrosor Ammentar ----------------
+#
+# THE COLLISION SWEEP FOR THIS BATCH, run before a class was written, because
+# the Necron block has now been burned in both directions:
+#   * "Close combat weapon" is printed a THIRD time here (Hexmark Destroyer,
+#     A4 WS3+ S5) and the numbers match NEITHER of the two that exist, so it
+#     is a new class - the "same printed name, other numbers" trap.
+#     Deliberately named after the NUMBERS rather than the datasheet, like its
+#     two neighbours, because the Royal Warden prints this exact row too and
+#     will share it.
+#   * "Blade tail and whip coils" LOOKS like the Canoptek Wraiths' "Whip
+#     Coils" and is not: different printed name, and different numbers
+#     (A6 S6 AP-1 with [EXTRA ATTACKS] against A8 S5 AP0). Two classes, and
+#     the resemblance is written down so neither is folded into the other.
+#   * everything else in this batch is a name no datasheet has printed yet.
+#
+# WS/BS are on the PROFILES again - the Hexmark agrees with his own two rows
+# (BS2+ ranged, WS3+ melee) and so does Nekrosor Ammentar (2+ throughout), so
+# none of these carries an override.
+
+
+class NecronCloseCombatWeaponA4S5Profile(WeaponProfile):
+    """The A4/S5 Necron Close Combat Weapon (Hexmark Destroyer; the Royal
+    Warden prints the identical row).
+
+    The THIRD set of numbers this printed name carries in this faction, after
+    NecronCloseCombatWeaponA1Profile (A1 S4) and
+    NecronCloseCombatWeaponA2Profile (A2 S4)."""
+    name = "Close Combat Weapon"
+    weapon_type = MELEE
+    attacks = 4
+    strength = 5
+    ap = 0
+    damage = 1
+
+
+class EnmiticDisintegratorPistolsProfile(WeaponProfile):
+    """Hexmark Destroyer. Six [PISTOL] shots at BS2+ with [IGNORES COVER] -
+    the whole datasheet is this row plus the two abilities that fire it out of
+    turn."""
+    name = "Enmitic disintegrator pistols"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 6
+    strength = 6
+    ap = -2
+    damage = 1
+    pistol = True
+    ignores_cover = True
+
+
+class OphydianHyperphaseWeaponsProfile(WeaponProfile):
+    """Ophydian Destroyers. A FOURTH hyperphase weapon, and a fourth set of
+    numbers - the Lychguard's Hyperphase Sword (A3 S6 AP-2 D1), the Skorpekh
+    Hyperphase Weapons (A4 S7 AP-2 D2) and the Skorpekh Lord's Hyperphase
+    Harvester (A4 S10 AP-3 D3) are all different rows under similar names."""
+    name = "Ophydian hyperphase weapons"
+    weapon_type = MELEE
+    attacks = 5
+    strength = 4
+    ap = -2
+    damage = 2
+
+
+class EnmiticDisintegratorsProfile(WeaponProfile):
+    """Nekrosor Ammentar. NOT the Hexmark's "Enmitic disintegrator pistols"
+    above (different printed name, different numbers), and not the Lokhust
+    Heavy Destroyers' Enmitic Exterminator either - three enmitic guns, three
+    classes."""
+    name = "Enmitic disintegrators"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 4
+    strength = 6
+    ap = -2
+    damage = 1
+    pistol = True
+    ignores_cover = True
+    sustained_hits = 2
+
+
+class BladeTailAndWhipCoilsProfile(WeaponProfile):
+    """Nekrosor Ammentar's [EXTRA ATTACKS] row - rule 24.11, so it is made IN
+    ADDITION to the Unmaker Gauntlet rather than instead of it, which is why
+    the two are not a firing-mode pair like the Void Dragon's spear."""
+    name = "Blade tail and whip coils"
+    weapon_type = MELEE
+    attacks = 6
+    strength = 6
+    ap = -1
+    damage = 1
+    extra_attacks = True
+
+
+class UnmakerGauntletProfile(WeaponProfile):
+    """Nekrosor Ammentar's main melee row: S10 AP-3 D3 at WS2+."""
+    name = "Unmaker Gauntlet"
+    weapon_type = MELEE
+    attacks = 6
+    strength = 10
+    ap = -3
+    damage = 3
+
+
 # ---------------------------------------------------------------------------
 # Death Guard - see game/factions/death_guard.py
 #

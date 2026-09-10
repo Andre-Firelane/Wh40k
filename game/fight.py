@@ -2,7 +2,7 @@ from game import attached_units
 # Statistics reporting - battle_stats imports only game/weapons.py, so it
 # cannot cycle back into anything here.
 from game import battle_stats
-from game import aux_experimental_modifications, awakened_dynasty, montka_pinpoint_counter_offensive, destroyer_cult, destroyer_hive, dlc_grim_reapers, gift_of_contagion, guardian_protocols, protocol_hungry_void, implacable_eradication, mechanical_augmentation, monster_hunters, plagues, plasmacyte, reroll_scope
+from game import aux_experimental_modifications, awakened_dynasty, nekrosor_ammentar, swift_demise, montka_pinpoint_counter_offensive, destroyer_cult, destroyer_hive, dlc_grim_reapers, gift_of_contagion, guardian_protocols, protocol_hungry_void, implacable_eradication, mechanical_augmentation, monster_hunters, plagues, plasmacyte, reroll_scope
 from game import way_of_the_short_blade
 from game.ard_as_nails import ARD_AS_NAILS_WOUND_PENALTY, ard_as_nails_wound_modifier_applies
 from game.damage_resolution import DamageAllocationSession, DevastatingWoundAllocationSession, MortalWoundAllocationSession, displayed_save_threshold, save_is_impossible, AUTO_FAILED_SAVE
@@ -213,7 +213,7 @@ class FightController:
         waaagh=None, target_reactions=(), lethal_ichor=None, guide=None, doom=None, whispering_web=None,
         advanced_scouting=None, bounty_hunters=None, fated_hero=None, herald_of_ynnead=None,
         path_of_the_warrior=None, shepherds_of_the_dead=None, misfortune=None, spirit_mark=None,
-        piratical_raiders=None, fury_of_the_void=None,
+        piratical_raiders=None, fury_of_the_void=None, plasmacyte=None,
         objectives=None,
     ):
         self.game_log = game_log
@@ -237,6 +237,11 @@ class FightController:
         self.fated_hero = fated_hero
         self.shepherds_of_the_dead = shepherds_of_the_dead
         self.path_of_the_warrior = path_of_the_warrior
+        # The Plasmacyte's OFFER (game/plasmacyte.py). None means nobody on the
+        # table carries one, which is every non-Necron battle. Appended to the
+        # signature rather than inserted, and passed by keyword from main.py -
+        # this constructor is long and error class 22 is about exactly that.
+        self.plasmacyte = plasmacyte
         self.herald_of_ynnead = herald_of_ynnead
         self.misfortune = misfortune
         self.spirit_mark = spirit_mark
@@ -701,6 +706,13 @@ class FightController:
         # moment the unit is selected to fight and before any dice.
         if self.path_of_the_warrior is not None:
             self.path_of_the_warrior.offer(squad)
+        # The Plasmacyte ("when this unit is SELECTED TO FIGHT, you can use
+        # this ability") - the same instant, before any dice, once per
+        # activation. This offer is what the ability was missing: its grant,
+        # its per-phase reset and its token count all shipped, and nothing
+        # ever asked. See game/plasmacyte.py.
+        if self.plasmacyte is not None:
+            self.plasmacyte.offer(squad)
         self._used_other_melee_weapon = set()
         self._reset_engagement_snapshot()
         self._hazardous_count = 0
@@ -1447,6 +1459,16 @@ class FightController:
                     wounds=wounds, crits=crits, target_profile=target_profile,
                     reason=implacable_eradication.IMPLACABLE_ERADICATION_LABEL,
                 )
+            elif ones and nekrosor_ammentar.prophet_applies(self.fighting_squad):
+                # Prophet of Destruction. Its text says "makes an attack", so
+                # it reaches this phase as well as the shooting one - and it
+                # is a plain automatic 1s re-roll with no "instead", which is
+                # why it is here rather than in game/reroll_scope.py.
+                self._begin_ones_reroll(
+                    "wound", ones, wound_threshold, weapon, target_squad, weapon_label,
+                    wounds=wounds, crits=crits, target_profile=target_profile,
+                    reason=nekrosor_ammentar.PROPHET_LABEL,
+                )
             else:
                 self._resolve_wounds(weapon, target_squad, target_profile, weapon_label, wounds, crits)
 
@@ -1579,6 +1601,20 @@ class FightController:
         weapon = mechanical_augmentation.adjusted_weapon(
             weapon, self.fighting_squad,
             target_squad if target_squad is not None else self.target_squad,
+            self.all_tokens)
+        # Nekrosor Ammentar's Infectious Murder-madness. Its printed text says
+        # "makes an attack", not "a ranged attack", so it reaches this phase
+        # too - beside Mechanical Augmentation, which it shares that reading
+        # with. The closest-eligible-target half is measured against
+        # engaged_enemy_squads(), rule 12.02's own answer to what a melee unit
+        # may attack, rather than a second opinion built here.
+        _mm_target = target_squad if target_squad is not None else self.target_squad
+        weapon = nekrosor_ammentar.adjusted_weapon(
+            weapon, self.fighting_squad, pairs[0][0],
+            swift_demise.is_closest_target(
+                self.fighting_squad, _mm_target,
+                self.engaged_enemy_squads(self.fighting_squad)
+                if self.fighting_squad is not None else []),
             self.all_tokens)
         # Skorpekh Destroyers' Plasmacyte: [DEVASTATING WOUNDS] on melee
         # weapons until the end of the phase - the same shape as Ferocious

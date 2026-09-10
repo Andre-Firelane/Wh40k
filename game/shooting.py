@@ -39,7 +39,7 @@ from game.drive_by_dakka import drive_by_dakka_adjusted_weapon
 from game.gun_crazy_showoffs import gun_crazy_adjusted_weapon, unit_has_gun_crazy_showoffs
 from game.ammo_runt import ammo_runt_adjusted_weapon
 from game.nova_charge import nova_charge_adjusted_weapon
-from game import awakened_dynasty, destroyer_cult, dlc_mortarions_teachings, exemplars_of_montka, gift_of_contagion, hovering_death, miasma_of_pestilence, protocol_conquering_tyrant, protocol_sudden_storm, guardian_protocols, implacable_eradication, mechanical_augmentation, monster_hunters, overwhelming_obliteration, plagues, reroll_scope, sunforge, target_uploaded, way_of_the_short_blade
+from game import awakened_dynasty, destroyer_cult, nekrosor_ammentar, dlc_mortarions_teachings, exemplars_of_montka, gift_of_contagion, hovering_death, miasma_of_pestilence, protocol_conquering_tyrant, protocol_sudden_storm, guardian_protocols, implacable_eradication, mechanical_augmentation, monster_hunters, overwhelming_obliteration, plagues, reroll_scope, sunforge, target_uploaded, way_of_the_short_blade
 from game import weapon_range
 from game.retaliation_cadre import bonded_heroes_adjusted_weapon
 from game import (aux_experimental_modifications, aux_guided_fire,
@@ -68,6 +68,7 @@ from game import enh_breath_of_vaul
 from game import enh_guiding_presence
 from game import enh_mirage_field
 from game import enh_protector_of_the_paths
+from game import inescapable_death
 from game import enh_rune_of_mists
 from game import enh_shimmerstone
 from game import enh_assassins_eye
@@ -2325,6 +2326,17 @@ class ShootingController:
             # beat. None means nothing applies and the printed 6 stands.
             override = enh_protector_of_the_paths.snap_hit_threshold(
                 self.protector_of_the_paths, self.active_squad, self.objectives)
+            # The Hexmark Destroyer's Inescapable Death is the SECOND, and it
+            # differs in one printed word: "each time you target this unit"
+            # rather than "while resolving THAT Stratagem", so it needs no
+            # latch and applies to a fully paid Fire Overwatch as well.
+            # BETTER-OF, not first-wins: no unit can carry both today (one is
+            # Necron, one an Aeldari Enhancement), and min() says what rule
+            # 05.04 says about two sources of one characteristic without
+            # inventing a precedence rule.
+            hexmark = inescapable_death.snap_hit_threshold(self.active_squad)
+            if hexmark is not None:
+                override = hexmark if override is None else min(override, hexmark)
             return override if override is not None else 6
         shooter_model, weapon = group["pairs"][0]
         if self.shooting_type == INDIRECT_SHOOTING and weapon.indirect_fire:
@@ -3252,6 +3264,12 @@ class ShootingController:
                 # Path of the Warrior's SECOND option - the same plain
                 # automatic 1s re-roll on the other roll.
                 ones_reason = path_of_the_warrior.PATH_OF_THE_WARRIOR_LABEL
+            elif nekrosor_ammentar.prophet_applies(self.active_squad):
+                # Prophet of Destruction: a plain automatic re-roll of 1s with
+                # no "instead" clause, so it belongs here and NOT in
+                # game/reroll_scope.py - putting it there would offer a
+                # whole-roll option the printed text never gives.
+                ones_reason = nekrosor_ammentar.PROPHET_LABEL
             else:
                 ones_reason = None
             if ones and ones_reason is not None and not wound_choice:
@@ -3545,6 +3563,22 @@ class ShootingController:
         # out to no change, which is what the printed text says.
         weapon = mechanical_augmentation.adjusted_weapon(
             weapon, self.active_squad, target_squad, self.all_tokens)
+        # Nekrosor Ammentar's Infectious Murder-madness - [SUSTAINED HITS 1]
+        # for any friendly NECRONS unit inside his 6". Beside Mechanical
+        # Augmentation because they are the faction's two datasheet AURAS and
+        # both need the board. In the chain rather than at the wound step for
+        # the standing reason every keyword grant is: _crit_note() must know at
+        # ROLL time that a critical die is a sustained one.
+        #
+        # The representative model is pairs[0][0], and that is EXACT rather
+        # than the one-representative shortcut: no unit this engine can build
+        # holds both a DESTROYER CULT model and a non-DESTROYER-CULT one (see
+        # game/nekrosor_ammentar.py, where that is measured and pinned).
+        weapon = nekrosor_ammentar.adjusted_weapon(
+            weapon, self.active_squad, pairs[0][0],
+            swift_demise.is_closest_target(
+                self.active_squad, target_squad, self._eligible_target_squads()),
+            self.all_tokens)
         # Awakened Dynasty's Protocol of the Sudden Storm: [ASSAULT] on ranged
         # weapons until the end of the turn.
         weapon = protocol_sudden_storm.adjusted_weapon(weapon, self.active_squad)

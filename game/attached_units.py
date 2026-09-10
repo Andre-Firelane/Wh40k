@@ -737,6 +737,51 @@ def unit_has_datasheet_keyword(squad, keyword):
     return any(keyword in (getattr(s, "keywords", None) or ()) for s in sheets if s is not None)
 
 
+
+def model_has_datasheet_keyword(squad, model, keyword):
+    """Whether THIS MODEL carries a datasheet keyword, asked of the COMPONENT
+    it came from.
+
+    THE 39TH EXTRACTION, at the second consumer. game/cryptothralls.py wrote
+    this out for "that CRYPTEK model" (Bound Creation); Nekrosor Ammentar's
+    Infectious Murder-madness asks the identical question for "if that model
+    has the DESTROYER CULT keyword", and a second hand-written copy is the
+    shape this repo consolidates.
+
+    WHY IT CANNOT BE unit_has_datasheet_keyword() WITH A MODEL: a model does
+    not know which datasheet it came from - that function's own docstring says
+    so. 19.01's merge keeps each component's datasheet on its
+    AttachedComponent, and matching the model against a component's
+    `starting_models` is the only granularity at which a per-MODEL keyword
+    question can be answered after a merge.
+
+    THE UNMERGED CASE IS THE COMMON ONE and is answered from squad.datasheet:
+    a unit that was never merged has no components at all, and every one of
+    its models came from that one sheet. Written first so the ordinary path
+    costs one lookup.
+
+    A DEAD MODEL IS NOT FILTERED HERE, deliberately: this answers "what is this
+    model", not "is it still contributing". Every caller already knows which
+    model it is holding, and remove_dead_models() runs once per frame - a
+    filter here would make the answer depend on when in the frame it is
+    asked."""
+    if squad is None or model is None:
+        return False
+    comps = components(squad)
+    if not comps:
+        sheet = getattr(squad, "datasheet", None)
+        return keyword in (getattr(sheet, "keywords", None) or ())
+    for component in comps:
+        sheet = getattr(component, "datasheet", None)
+        if sheet is None:
+            continue
+        if keyword not in (getattr(sheet, "keywords", None) or ()):
+            continue
+        if any(m is model for m in getattr(component, "starting_models", ()) or ()):
+            return True
+    return False
+
+
 def unit_has_faction_keyword(squad, keyword):
     """Rule 19.03 once more, for the datasheet's OTHER printed keyword line.
 

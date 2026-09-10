@@ -67,6 +67,7 @@ this is a condition of the Declare Battle Formations STEP, the same split
 game/formations.py's support_join_errors() already draws for Support Artillery.
 """
 
+from game import attached_units
 from game.attached_units import (RETINUE, attachment_role, can_attach,
                                  components, leader_components)
 from game.fight_after_death import FightAfterDeath
@@ -131,19 +132,11 @@ def bound_creation_feel_no_pain(model):
 def _model_is_cryptek(model, squad):
     """Whether THIS model is a CRYPTEK, asked of the component it came from.
 
-    19.01 merges the models but keeps each component's datasheet on its
-    AttachedComponent, which is the only granularity at which "that CRYPTEK
-    MODEL" can be answered once a unit is merged - squad.datasheet alone would
-    answer for the bodyguard and never for the leader."""
-    for component in components(squad) or ():
-        sheet = getattr(component, "datasheet", None)
-        if sheet is None:
-            continue
-        if CRYPTEK_KEYWORD not in (getattr(sheet, "keywords", None) or ()):
-            continue
-        if any(m is model for m in getattr(component, "starting_models", ()) or ()):
-            return True
-    return False
+    The twenty lines that used to stand here are now
+    attached_units.model_has_datasheet_keyword() - Nekrosor Ammentar's
+    Infectious Murder-madness asks the same question of a different keyword,
+    and the second copy is what this repo extracts at."""
+    return attached_units.model_has_datasheet_keyword(squad, model, CRYPTEK_KEYWORD)
 
 
 # ----------------------------------------------------------- Systematic Vigour

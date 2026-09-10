@@ -321,13 +321,20 @@ print("--- 5. keywords and leaders ---")
 c.true("Warriors and Immortals are BATTLELINE",
        "BATTLELINE" in nec.NECRON_WARRIORS.keywords and "BATTLELINE" in nec.IMMORTALS.keywords)
 c.true("the Overlord is a NOBLE", "NOBLE" in nec.OVERLORD.keywords)
-c.true("the Destroyer Cult is five datasheets - both Lords joined it",
+c.true("the Destroyer Cult is eight datasheets - the Hexmark batch joined it",
        all("DESTROYER CULT" in s.keywords for s in
            (nec.SKORPEKH_DESTROYERS, nec.LOKHUST_DESTROYERS,
-            nec.LOKHUST_HEAVY_DESTROYERS, nec.SKORPEKH_LORD, nec.LOKHUST_LORD)))
+            nec.LOKHUST_HEAVY_DESTROYERS, nec.SKORPEKH_LORD, nec.LOKHUST_LORD,
+            nec.HEXMARK_DESTROYER, nec.OPHYDIAN_DESTROYERS, nec.NEKROSOR_AMMENTAR)))
+c.eq("...and that is the WHOLE cult, counted off the keyword line",
+     sorted(s.name for s in nec.NECRONS.datasheets.values()
+            if "DESTROYER CULT" in s.keywords),
+     ["Hexmark Destroyer", "Lokhust Destroyers", "Lokhust Heavy Destroyers",
+      "Lokhust Lord", "Nekrosor Ammentar", "Ophydian Destroyers",
+      "Skorpekh Destroyers", "Skorpekh Lord"])
 c.true("every datasheet carries the NECRONS faction keyword",
        all("NECRONS" in s.keywords for s in nec.NECRONS.datasheets.values()))
-c.eq("twenty-two datasheets are registered", len(nec.NECRONS.datasheets), 22)
+c.eq("twenty-five datasheets are registered", len(nec.NECRONS.datasheets), 25)
 c.eq("the faction keyword is NECRONS", nec.NECRONS.keyword, "NECRONS")
 
 # can_attach() returns a list of REASONS - empty means legal
@@ -361,13 +368,15 @@ print("--- 6. sprites ---")
 # Both directions matter: a sheet that quietly loses its art fails the first
 # line, and a name that stays on the list after art arrives fails the second,
 # so the exception cannot outlive its reason.
-WITHOUT_ART = ["Flayed Ones"]
+# Nekrosor Ammentar joined the list with the Destroyer Cult batch: the user
+# supplied 27 Necron sprites and his is not among them.
+WITHOUT_ART = ["Flayed Ones", "Nekrosor Ammentar"]
 missing = sorted(s.name for s in nec.NECRONS.datasheets.values()
                  if not sprites.sprite_for(build(s).models[0]))
 c.eq("every Necron datasheet resolves to a real file, bar the named ones",
      missing, sorted(WITHOUT_ART))
-c.eq("...which is twenty-one of the twenty-two",
-     len(nec.NECRONS.datasheets) - len(missing), 22 - len(WITHOUT_ART))
+c.eq("...which is all but the named ones",
+     len(nec.NECRONS.datasheets) - len(missing), 25 - len(WITHOUT_ART))
 c.eq("the faction badge is mapped too",
      sprites.FACTION_LOGO_KEYS.get("NECRONS"), "Necron Logo")
 

@@ -313,6 +313,13 @@ class UnitProfile:
     harbinger_of_despair = False  # Psychomancer's own ability: once per turn, at the start of any of five phases, one enemy unit within 18" must take a Battle-shock test at -1. Its sibling above shares the -1 and the forced test; only the trigger differs - see game/psychomancer.py
     master_chronomancer = False  # Orikan The Diviner's own ability: while this model is LEADING a unit (19.01), models in that unit have a 4+ invulnerable save - one more _better() fold in game/invulnerable_save.py, read with attached_units.leader_ability()
     the_stars_are_right = False  # Orikan The Diviner's own ability: once per battle, at the start of the Fight phase, TRIPLE the Attacks and Strength of his Staff of Tomorrow and make every successful Wound roll a Critical Wound, until the end of the phase - see game/the_stars_are_right.py
+    inescapable_death = False  # Hexmark Destroyer's own ability: once per TURN a unit with this ability may be targeted with Fire Overwatch for 0CP even if that Stratagem was already used this phase, and any Fire Overwatch on it hits on unmodified 2+ instead of 15.09's flat 6 - see game/inescapable_death.py
+    multi_threat_eliminator = False  # Hexmark Destroyer's own ability: once per turn, after an enemy unit has shot a friendly NECRONS unit within 3" of this model, this model shoots back at that unit as if it were your Shooting phase - a ShootingController.start_reactive_shooting() consumer, the same shape as Hyperspace Hunters and Kroot Packmates; see game/multi_threat_eliminator.py
+    tunnelling_horrors = False  # Ophydian Destroyers' own ability: at the end of the opponent's turn an unengaged unit may take itself into Strategic Reserves and MUST make an ingress move in its next Movement phase - Airborne Agility's withdrawal plus Unshrouded Truth's round-gate override, one phase later; see game/tunnelling_horrors.py
+    protective_disciples = False  # Nekrosor Ammentar's own ability: while within 3" of one or more other friendly DESTROYER CULT units, this model has Lone Operative - the FIFTH conditional grant of that shape, registered in game/conditional_lone_operative.py; see game/nekrosor_ammentar.py
+    infectious_murder_madness = False  # Nekrosor Ammentar's own ability (Aura): friendly NECRONS units (excluding MONSTER and TITANIC) within 6" get [SUSTAINED HITS 1] on attacks made by a DESTROYER CULT model or against the closest eligible target - see game/nekrosor_ammentar.py
+    prophet_of_destruction = False  # Nekrosor Ammentar's own ability: each time this model destroys an enemy unit, one other friendly DESTROYER CULT unit within 9" re-rolls Wound rolls of 1 until the end of the phase - a death-sweep consumer like Vengeful Stars; see game/nekrosor_ammentar.py
+    nullstone_field_generator = False  # Nekrosor Ammentar wargear (Aura): friendly NECRONS units within 6" of the bearer have Feel No Pain 5+ against mortal wounds and Psychic Attacks. The first AURA source in game/feel_no_pain.py, so it is stamped on the Squad once per frame like Nurgle's Gift; see game/nekrosor_ammentar.py
     loping_pounce = False  # Kroot Hounds' own ability: while it is active (set at the start of its owner's Command phase when a friendly KROOT INFANTRY unit is within 6"), this unit may declare a charge in a turn in which it Advanced - the THIRD source of that exception, after Waaagh! and Full Throttle, read at the same gate in game/charge.py; see game/loping_pounce.py
     hunting_hounds = False  # Kroot Hounds' own ability: while within 12" of a friendly KROOT CHARACTER model, this model's Objective Control is 1 instead of its printed 0 - read by game/objectives.py; see game/hunting_hounds.py
     airborne_agility = False  # Vespid Stingwings' own ability: at the end of the opponent's turn, a unit not in Engagement Range may take itself off the board into Strategic Reserves; see game/airborne_agility.py
@@ -4389,6 +4396,95 @@ class TombBladeProfile(UnitProfile):
     scouts = 9.0                    # "Scouts 9\"" - rule 24.31
     reanimation_protocols = True
     evasion_engrams = True          # see game/evasion_engrams.py
+
+
+
+class HexmarkDestroyerProfile(UnitProfile):
+    """Datasheet: Hexmark Destroyer (Necrons).
+
+    A one-model CHARACTER whose whole datasheet is one gun and two abilities
+    that fire it OUTSIDE its own Shooting phase - Inescapable Death (a cheaper,
+    more accurate Fire Overwatch) and Multi-threat Eliminator (a free
+    activation when something shoots a neighbour). LONE OPERATIVE is PRINTED
+    here, unlike Illuminor Szeras's and Nekrosor Ammentar's, which are
+    conditional grants."""
+    name = "Hexmark Destroyer"
+    base_radius_in = 0.984          # 50 mm - the Destroyer size, and printed
+    movement_in = 8
+    weapon_skill = "3+"
+    ballistic_skill = "2+"
+    toughness = 5
+    wounds = 5
+    leadership = "6+"
+    armor_save = "3+"
+    oc = 1
+    infantry = True
+    character = True
+    deep_strike = True              # rule 24.09
+    lone_operative = 12.0           # rule 24.24, the printed default range
+    reanimation_protocols = True
+    inescapable_death = True        # see game/inescapable_death.py
+    multi_threat_eliminator = True  # see game/multi_threat_eliminator.py
+
+
+class OphydianDestroyerProfile(UnitProfile):
+    """Datasheet: Ophydian Destroyers (Necrons).
+
+    M10" INFANTRY with a five-attack AP-2 D2 melee row and no gun at all -
+    Deep Strike plus Tunnelling Horrors is how it gets there."""
+    name = "Ophydian Destroyer"
+    base_radius_in = 0.984          # 50 mm - printed, and the Destroyer size
+    movement_in = 10
+    weapon_skill = "3+"
+    ballistic_skill = "4+"          # no ranged weapon printed
+    toughness = 5
+    wounds = 3
+    leadership = "7+"
+    armor_save = "4+"
+    oc = 2
+    infantry = True
+    deep_strike = True              # rule 24.09
+    reanimation_protocols = True
+    tunnelling_horrors = True       # see game/tunnelling_horrors.py
+
+
+class NekrosorAmmentarProfile(UnitProfile):
+    """Datasheet: Nekrosor Ammentar (Necrons).
+
+    T8 W9 with a 4+ invulnerable on an 80 mm INFANTRY base, three auras and
+    Fights First - the Destroyer Cult's EPIC HERO.
+
+    THE 80 MM IS KEPT, and that is a decision rather than a transcription
+    reflex. The standing user instruction "alle Destroyer sollen die gleiche
+    Groesse haben" is why both Lords sit on 50 mm despite printing 60 mm, and
+    the reason recorded with it is rule 19.01: a Lord LEADS a Destroyer squad
+    and is merged into it, so a bigger base would be seen shoulder to shoulder
+    with 50 mm ones. Nekrosor Ammentar prints no LEADER line at all - he can
+    never be merged into anything - so that reason does not reach him, and his
+    two stage-mates (Hexmark Destroyer, Ophydian Destroyers) print 50 mm
+    anyway. Every model whose datasheet NAME says "Destroyer" is still 50 mm
+    here; this one's does not."""
+    name = "Nekrosor Ammentar"
+    base_radius_in = 1.575          # 80 mm
+    movement_in = 10
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 8
+    wounds = 9
+    leadership = "6+"
+    armor_save = "3+"
+    oc = 3
+    invulnerable_save = "4+"
+    infantry = True
+    character = True
+    epic_hero = True
+    fights_first = True             # rule 24.13 (CORE), not rule 11.04's post-charge grant
+    deep_strike = True              # rule 24.09
+    reanimation_protocols = True
+    protective_disciples = True         # see game/nekrosor_ammentar.py
+    infectious_murder_madness = True    # see game/nekrosor_ammentar.py
+    prophet_of_destruction = True       # see game/nekrosor_ammentar.py
+    nullstone_field_generator = True    # see game/nekrosor_ammentar.py
 
 
 class IlluminorSzerasProfile(UnitProfile):

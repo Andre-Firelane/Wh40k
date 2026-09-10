@@ -46,6 +46,9 @@ from game.units import (
     FlayedOneProfile,
     CryptothrallProfile,
     TombBladeProfile,
+    HexmarkDestroyerProfile,
+    OphydianDestroyerProfile,
+    NekrosorAmmentarProfile,
 )
 from game.weapons import (
     ArmouredBulkProfile,
@@ -99,6 +102,12 @@ from game.weapons import (
     ParticleBeamerProfile,
     TwinGaussBlasterProfile,
     TwinTeslaCarbineProfile,
+    NecronCloseCombatWeaponA4S5Profile,
+    EnmiticDisintegratorPistolsProfile,
+    OphydianHyperphaseWeaponsProfile,
+    EnmiticDisintegratorsProfile,
+    BladeTailAndWhipCoilsProfile,
+    UnmakerGauntletProfile,
 )
 
 from game import tomb_blade_wargear
@@ -718,6 +727,130 @@ TOMB_BLADES = NECRONS.add_datasheet(Datasheet(
         "Shieldvanes (Wargear): \"The bearer has a 3+ Save characteristic and a Move "
         "characteristic of 8\\\".\" A TRADE - the save improves and the move worsens - so "
         "both halves are overrides; see game/tomb_blade_wargear.py.",
+    ],
+))
+
+
+# ---------------------------------------------------------------------------
+# Destroyer Cult - Hexmark Destroyer, Ophydian Destroyers, Nekrosor Ammentar
+#
+# The fifth, sixth and seventh DESTROYER CULT datasheets. game/destroyer_cult.py
+# already carries four re-rolls printed under that keyword; none of these three
+# adds a fifth, which is worth noting rather than assumed - the keyword names a
+# cult, not a mechanic.
+# ---------------------------------------------------------------------------
+
+_HEXMARK_LINE = "Hexmark Destroyer"
+
+HEXMARK_DESTROYER = NECRONS.add_datasheet(Datasheet(
+    "Hexmark Destroyer",
+    keywords=("INFANTRY", "CHARACTER", "DESTROYER CULT", "HEXMARK DESTROYER", "NECRONS"),
+    model_lines=[ModelLine(HexmarkDestroyerProfile, 1,
+                           [EnmiticDisintegratorPistolsProfile,
+                            # The THIRD set of numbers this faction prints
+                            # under "Close combat weapon" (A4 S5), so its own
+                            # class - the numbers here match NEITHER of the two
+                            # that already exist.
+                            NecronCloseCombatWeaponA4S5Profile],
+                           name=_HEXMARK_LINE)],
+    points=NECRONS_POINTS["Hexmark Destroyer"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Deep Strike, Lone Operative (Core).",
+        "Inescapable Death: \"Once per turn, one unit from your army with this ability "
+        "can be targeted with the Fire Overwatch Stratagem for 0CP, even if you have "
+        "already used that Stratagem on a different unit this phase. In addition, each "
+        "time you target this unit with the Fire Overwatch Stratagem, while resolving "
+        "that Stratagem, hits are scored on unmodified Hit rolls of 2+.\" THREE clauses "
+        "and only TWO of them share an entitlement - see game/inescapable_death.py.",
+        "Multi-threat Eliminator: \"Once per turn, in your opponent's Shooting phase, "
+        "when an enemy unit makes a ranged attack that targets a friendly NECRONS unit "
+        "within 3\\\" of a model with this ability, after that enemy unit has shot, one "
+        "model with this ability that is within 3\\\" of that target can shoot as if it "
+        "were your Shooting phase, but it must target only that enemy unit when doing "
+        "so, and can only do so if that enemy unit is an eligible target.\" - the SECOND "
+        "carrier of the Kroot Packmates shape; see game/multi_threat_eliminator.py.",
+    ],
+))
+
+
+_OPHYDIAN_LINE = "Ophydian Destroyer"
+OPHYDIAN_PLASMACYTE = "Plasmacyte"
+
+OPHYDIAN_DESTROYERS = NECRONS.add_datasheet(Datasheet(
+    "Ophydian Destroyers",
+    keywords=("INFANTRY", "DESTROYER CULT", "OPHYDIAN DESTROYERS", "NECRONS"),
+    composition_options=[
+        [ModelLine(OphydianDestroyerProfile, n, [OphydianHyperphaseWeaponsProfile],
+                   name=_OPHYDIAN_LINE)]
+        for n in (3, 6)
+    ],
+    gear_options=[
+        # The SAME printed wargear the Skorpekh Destroyers carry, word for
+        # word, so it shares _equip_plasmacyte() and its documented gap: the
+        # "for every 3 models" ratio is a LIST-BUILDING limit and this engine
+        # has no army-building step to enforce it in.
+        Gear(_OPHYDIAN_LINE, OPHYDIAN_PLASMACYTE, _equip_plasmacyte, max_count=2),
+    ],
+    gear_slots={_OPHYDIAN_LINE: 2},   # the six-model unit's maximum, as above
+    points=NECRONS_POINTS["Ophydian Destroyers"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Deep Strike (Core).",
+        "Tunnelling Horrors: \"At the end of your opponent's turn, if this unit is "
+        "unengaged, you can use this ability. If you do: place this unit in strategic "
+        "reserves; this unit must make an ingress move in your next Movement phase "
+        "(including in your first turn).\" Airborne Agility's withdrawal plus Unshrouded "
+        "Truth's round-gate override, one phase apart - see "
+        "game/tunnelling_horrors.py.",
+        "Plasmacyte (Wargear): \"Once per battle for each Plasmacyte this unit has, when "
+        "this unit is selected to fight, you can use this ability. If you do, until the "
+        "end of the phase, melee weapons equipped by models in this unit have the "
+        "[DEVASTATING WOUNDS] ability.\" The SECOND carrier of this exact text, and the "
+        "one that revealed nothing had ever OFFERED it - see game/plasmacyte.py.",
+    ],
+))
+
+
+_NEKROSOR_LINE = "Nekrosor Ammentar"
+
+NEKROSOR_AMMENTAR = NECRONS.add_datasheet(Datasheet(
+    "Nekrosor Ammentar",
+    keywords=("INFANTRY", "CHARACTER", "EPIC HERO", "DESTROYER CULT",
+              "NEKROSOR AMMENTAR", "NECRONS"),
+    model_lines=[ModelLine(NekrosorAmmentarProfile, 1,
+                           [EnmiticDisintegratorsProfile,
+                            UnmakerGauntletProfile,
+                            BladeTailAndWhipCoilsProfile],
+                           name=_NEKROSOR_LINE)],
+    points=NECRONS_POINTS["Nekrosor Ammentar"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Deep Strike, Fights First (Core).",
+        "Invulnerable Save: \"This model has a 4+ invulnerable save.\"",
+        "Protective Disciples: \"While this model is within 3\\\" of one or more other "
+        "friendly DESTROYER CULT units, this model has the Lone Operative ability.\" "
+        "Illuminor Szeras's sentence with a narrower keyword - the FIFTH conditional "
+        "grant registered in game/conditional_lone_operative.py.",
+        "Infectious Murder-madness (Aura): \"While a friendly NECRONS unit (excluding "
+        "MONSTER and TITANIC units) is within 6\\\" of this model, each time a model in "
+        "that unit makes an attack, if that model has the DESTROYER CULT keyword or that "
+        "enemy unit is the closest eligible target, that attack has the [SUSTAINED HITS "
+        "1] ability.\" - see game/nekrosor_ammentar.py.",
+        "Prophet of Destruction: \"Each time this model destroys an enemy unit, select "
+        "one other friendly DESTROYER CULT unit within 9\\\" of it. Until the end of the "
+        "phase, each time a model in that unit makes an attack, re-roll a Wound roll of "
+        "1.\" - a death-sweep consumer like Protocol of the Vengeful Stars; see "
+        "game/nekrosor_ammentar.py.",
+        "Nullstone Field Generator (Wargear, Aura): \"While a friendly NECRONS unit is "
+        "within 6\\\" of the bearer, models in that unit have the Feel No Pain 5+ ability "
+        "against mortal wounds and Psychic Attacks.\" The FIRST aura source in "
+        "game/feel_no_pain.py's fold, so it is stamped on the Squad once per frame like "
+        "Nurgle's Gift - see game/nekrosor_ammentar.py.",
+        "NOTE: no printed LEADER line - none of the three datasheets in this batch has "
+        "one, so all three always fight as their own unit. That is what makes "
+        "\"this model destroys\" and \"his unit destroyed\" the same statement for "
+        "Prophet of Destruction, the same shortcut Illuminor Szeras records.",
     ],
 ))
 

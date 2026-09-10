@@ -336,6 +336,21 @@ SQUAD_SPRITE_KEYS = {
     "Deathmarks": "Deathmarks",
     "Cryptothralls": "Cryptothralls",
     "Tomb Blades": "Tomb Blades",
+    # Destroyer Cult. Both files agree with their datasheet exactly, which
+    # after eight Necron disagreements is worth stating rather than assuming.
+    # NEKROSOR AMMENTAR HAS NO ART - pinned as an absence in
+    # test_necron_destroyer_cult.py, at the MODEL, so adding one later is a
+    # visible change.
+    #
+    # SHADOWING, checked rather than hoped: _key_for_name() returns the FIRST
+    # key that is a substring of the squad name, so a new key can be swallowed
+    # by an earlier one or swallow a later one. Neither happens here -
+    # "Hexmark Destroyer" and "Ophydian Destroyers" each contain no other key,
+    # and no other Necron squad name contains either of them ("Lokhust
+    # Destroyers" and "Skorpekh Destroyers" share only the word "Destroyer",
+    # which is not a key on its own). Measured in the suite, not asserted here.
+    "Hexmark Destroyer": "Hexmark Destroyer",
+    "Ophydian Destroyers": "Ophydian Destroyers",
 
     # --- Death Guard ---
     # EIGHT of these eleven files disagree with the datasheet name, and the

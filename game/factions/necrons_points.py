@@ -53,6 +53,11 @@ NECRONS_POINTS = {
         {1: 55}, supports=("Immortals", "Necron Warriors")),
     "Orikan The Diviner": flat_points(
         {1: 90}, supports=("Immortals", "Necron Warriors")),
+    # --- Destroyer Cult (the Hexmark batch) ---
+    # Not in the user's 13-entry army list, so there is no list column to
+    # disagree with for any of these three.
+    "Hexmark Destroyer": flat_points({1: 75}),
+    "Nekrosor Ammentar": flat_points({1: 185}),
     # --- rank and file (the Deathmarks batch) ---
     "Deathmarks": UnitPoints([
         PointsTier({5: 60, 10: 120}, to_unit=2),
@@ -101,6 +106,10 @@ NECRONS_POINTS = {
     "Immortals": flat_points({5: 70, 10: 140}),                     # the list says 150 for 10
 
     # --- Infantry ---------------------------------------------------------
+    "Ophydian Destroyers": UnitPoints([
+        PointsTier({3: 80, 6: 150}, to_unit=2),
+        PointsTier({3: 90, 6: 160}, from_unit=3),
+    ]),
     "Lychguard": flat_points({5: 80, 10: 160}),                     # the list says 85 for 5
     "Skorpekh Destroyers": UnitPoints([
         PointsTier({3: 85, 6: 170}, to_unit=2),                     # the list says 90 for 3
