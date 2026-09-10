@@ -8,7 +8,13 @@ from game.ramshackle import adjusted_ap as ramshackle_adjusted_ap
 from game.thresholds import parse_threshold
 from game.invulnerable_save import effective_invulnerable_save
 from game.weapons import MELEE  # imports only dice_notation, so this cannot cycle
-
+# Statistics reporting. battle_stats imports only game/weapons.py, which this
+# file already imports, so this cannot cycle. Every wound in the game passes
+# through the three _finish_apply() methods below - they hold three of the
+# only four calls to Token.apply_damage() - so reporting from here reaches
+# all of them without threading anything through the 25 sites that build
+# these sessions.
+from game import battle_stats
 
 def _resolve_save(roll, ap, sv_threshold, insv_threshold):
     """Rule 05.04: unmodified 1 always inflicts damage; an invulnerable save
@@ -176,10 +182,18 @@ class DamageAllocationSession:
 
     def __init__(
         self, rolls, weapon, target_squad, dice_manager=None, log=None, priority_group=None, stealth_drones=None,
-        waaagh=None, damage_reroll=None,
+        waaagh=None, damage_reroll=None, attacker_squad=None,
     ):
         self.weapon = weapon
         self.target_squad = target_squad
+        # Bookkeeping only, never read for any rule - the same standing this
+        # pair already has on DiceManager.roll() and DiceNotationRoll. This
+        # session knows the weapon and the target but has never known who was
+        # firing, and game/battle_stats.py's "Best Killing Units" is the first
+        # thing to need it. Both production call sites pass it, because
+        # _begin_damage_allocation() in the two attack controllers are the
+        # only two there are.
+        self.attacker_squad = attacker_squad
         self.dice_manager = dice_manager
         self.log = log
         self.stealth_drones = stealth_drones
@@ -545,6 +559,12 @@ class DamageAllocationSession:
                          f"{model.profile.name} reduces this attack's Damage "
                          f"{reduced} -> {after}.")
             reduced = after
+        # Statistics: what the defender's damage-reduction abilities took off
+        # this attack. Reported HERE, at the one place all five sources meet,
+        # rather than inferred later as the gap between an attack's potential
+        # and what it did - that gap also contains a Damage die simply rolling
+        # low, and a D6 coming up 3 is not something the defender did.
+        battle_stats.report_prevented(model, amount - reduced)
         return reduced
 
     def _apply_feel_no_pain(self, model, roll, amount, was_pending):
@@ -582,6 +602,7 @@ class DamageAllocationSession:
 
     def _finish_apply(self, model, roll, amount):
         model.apply_damage(amount)
+        battle_stats.report_damage(self.attacker_squad, model, amount)
         if self.log is not None:
             status = "destroyed" if model.is_dead() else f"{model.current_wounds}/{model.profile.wounds} wounds"
             self.log(f"Roll {roll}: {amount} damage to {model.profile.name} ({status}).")
@@ -646,8 +667,15 @@ class MortalWoundAllocationSession:
     #: arrive too late for the wound that triggered it.
     on_mortal_wounds = None
 
-    def __init__(self, squad, count, dice_manager=None, log=None, waaagh=None):
+    def __init__(self, squad, count, dice_manager=None, log=None, waaagh=None,
+                 attacker_squad=None):
         self.squad = squad
+        # Who is inflicting these - bookkeeping only, see the same field on
+        # DamageAllocationSession. Defaults to None and STAYS None at almost
+        # every call site: 20 ability modules build one of these and none
+        # passes an attacker, so those mortal wounds credit no killer and are
+        # counted in BattleStats.unattributed_wounds instead.
+        self.attacker_squad = attacker_squad
         self.dice_manager = dice_manager
         self.log = log
         self.waaagh = waaagh  # Orks army rule "Waaagh!" - optional, like DamageAllocationSession's own; see game/waaagh.py
@@ -733,6 +761,7 @@ class MortalWoundAllocationSession:
 
     def _finish_apply(self, model, amount):
         model.apply_damage(amount)
+        battle_stats.report_damage(self.attacker_squad, model, amount)
         self.remaining -= 1
         self.inflicted += 1
         if self.log is not None:
@@ -751,8 +780,14 @@ class DevastatingWoundAllocationSession:
     Pain): see DamageAllocationSession's docstring - same pending_fnp/
     on_fnp_acknowledged() pattern."""
 
-    def __init__(self, squad, damage, crit_count, dice_manager=None, log=None, waaagh=None):
+    def __init__(self, squad, damage, crit_count, dice_manager=None, log=None, waaagh=None,
+                 attacker_squad=None):
         self.squad = squad
+        # [DEVASTATING WOUNDS] only ever comes off an attack, and the two
+        # sites that build this (ShootingController/FightController) both
+        # know the attacker - so unlike the mortal-wound session above, this
+        # one is named in practice.
+        self.attacker_squad = attacker_squad
         self.damage = damage
         self.dice_manager = dice_manager
         self.log = log
@@ -826,6 +861,7 @@ class DevastatingWoundAllocationSession:
 
     def _finish_apply(self, model, amount):
         model.apply_damage(amount)
+        battle_stats.report_damage(self.attacker_squad, model, amount)
         self.remaining_crits -= 1
         if self.log is not None:
             status = "destroyed" if model.is_dead() else f"{model.current_wounds}/{model.profile.wounds} wounds"

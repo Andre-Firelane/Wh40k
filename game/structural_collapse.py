@@ -34,6 +34,7 @@ Damage-die ability arrives, it belongs on THIS side.
 platform's shuriken catapult re-rolls nothing.
 """
 from game.weapons import DCannonProfile
+from game import titanic
 
 STRUCTURAL_COLLAPSE_LABEL = "Structural Collapse"
 
@@ -58,7 +59,8 @@ def applies(squad, weapon):
 def targets_titanic(target_squad):
     """The second clause's condition, kept live but currently unreachable.
 
-    No built datasheet carries TITANIC - see the module docstring. Written as a
-    predicate so that adding one is a data change rather than a code change."""
-    models = getattr(target_squad, "models", None) or ()
-    return any(getattr(m.profile, "titanic", False) for m in models)
+    Asked at the KEYWORD line. This used to read `profile.titanic`, a field
+    UnitProfile does not declare, so the clause was a silent no-op rather
+    than the live-when-a-carrier-exists predicate it was written to be -
+    see game/titanic.py."""
+    return titanic.is_titanic_unit(target_squad)

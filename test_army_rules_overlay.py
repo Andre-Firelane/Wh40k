@@ -391,10 +391,12 @@ c.true("it is drawn after the notices",
        MAIN.index("army_rules_overlay.draw(screen)") > MAIN.index("_notice.draw(screen)"))
 # And it suppresses the hover datacard, which would otherwise sit on top of the
 # very text that was just opened.
-c.true("the hover datacard steps aside for it",
-       "if army_rules_overlay.is_pending:" in MAIN
-       and MAIN.index("if army_rules_overlay.is_pending:\n            # The reader is drawn")
-       < MAIN.index("unit_datacard.update_hover("))
+# find(), never index(): a guard that CRASHES when its needle moves reports
+# "the suite died" instead of naming the assertion that broke - which is what
+# happened here when the Unit Statistics resume joined this very branch.
+_aside = MAIN.find("if army_rules_overlay.is_pending or unit_stats_overlay_view.is_pending:")
+_hover = MAIN.find("unit_datacard.update_hover(")
+c.true("the hover datacard steps aside for it", 0 <= _aside < _hover)
 
 
 # --- 6. the REPORTED scroll bug: the wheel must not close it ----------------

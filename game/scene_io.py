@@ -192,7 +192,7 @@ def _squad_entries(state):
 
 
 def capture(state, map_key, turn_tracker=None, command_points=None, armies=None,
-            missions=None, activation=None):
+            missions=None, activation=None, stats=None):
     """The current board position as a plain dict, ready for write().
 
     `missions` is {slot: controller} for anything carrying mission state - see
@@ -264,7 +264,32 @@ def capture(state, map_key, turn_tracker=None, command_points=None, armies=None,
         [squad for squad, _p, _t in entries.values()], activation)
     if acted:
         data["activation"] = acted
+    # The Unit Statistics resume - battle-long, exactly like the VP ledger, so
+    # a save that dropped it would reload a battle whose history is blank.
+    # OPTIONAL on the way in and written only when it holds something, which
+    # is what lets FORMAT_VERSION stay at 1: this is the same arrangement
+    # `armies` and `missions` above arrived under, and a snapshot written
+    # before it existed simply has no such line.
+    if stats is not None:
+        recorded = stats.save_state()
+        if recorded.get("units"):
+            data["stats"] = recorded
     return data
+
+
+def restore_stats(data, stats):
+    """Put the Unit Statistics resume back.
+
+    Its own function rather than a branch inside restore(), for the ordering
+    reason restore_turn()/restore_missions() are: whatever begins the battle
+    builds a fresh ledger, so applying this before that would be quietly
+    thrown away."""
+    if stats is None:
+        return []
+    saved = data.get("stats")
+    if not saved:
+        return []
+    return stats.load_state(saved)
 
 
 def restore_missions(data, missions):

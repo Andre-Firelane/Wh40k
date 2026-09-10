@@ -370,12 +370,14 @@ checks.eq("...and lands as D6+2 = 6 damage", kept["damage"], 6)
 checks.true("no prompt is raised against a non-TITANIC target", not kept["asked"])
 
 # ...and the TITANIC branch is written, not merely absent. Nothing built
-# carries the keyword, so it is staged by hand - the same treatment the
-# believed-no-op predicate itself gets.
+# carries the keyword, so it is staged by hand - AT THE KEYWORD LINE, which is
+# what the predicate reads (see game/titanic.py). The earlier staging hung a
+# `titanic` attribute on a throwaway profile copy, a field UnitProfile does not
+# declare, so both the staging and the predicate answered False and the section
+# passed without ever reaching the branch it names.
 _tit = tk.shooting_scene(ae.D_CANNON_PLATFORM, ae.WRAITHLORD, attacker_owner="Player 2")
-for _m in _tit["target"].models:
-    _m.profile = type(_m.profile.__class__.__name__ + "Titanic",
-                      (_m.profile.__class__,), {"titanic": True})()
+_tit["target"].datasheet = type("TitanicSheet", (), {
+    "keywords": tuple(ae.WRAITHLORD.keywords) + ("TITANIC",)})()
 checks.true("the staged target really reads as TITANIC",
             structural_collapse.targets_titanic(_tit["target"]))
 _tsc = _tit["shooting"]

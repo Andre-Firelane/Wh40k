@@ -87,6 +87,35 @@ def anti_entries(weapon):
     return tuple(anti)
 
 
+def max_damage(weapon):
+    """The most Damage one attack with this weapon could ever do.
+
+    Lives here, beside the two fields it reads, because the answer is a fact
+    about the weapon and nothing else - the same reason anti_entries() above
+    sits here rather than in shooting.py, which first needed it.
+
+    READS THE NOTATION, NEVER THE PLAIN INT. Where damage_notation is set the
+    `damage` beside it is only a grouping/preview placeholder (its own comment
+    in WeaponProfile says so), and it is MEASURABLY inconsistent about what it
+    holds - counted over every weapon in this file that carries one, 38 of 56
+    store something that is NOT the maximum: the Bright Lance stores 8 for a
+    printed D6+2 (the maximum), the Starshot missile 3 for a plain D6 (the
+    mean), the Blaster 4 for D6+1, and the Wurrtower 1 for a D6. Reading it
+    would make "what could that shot have done" come out anywhere from 1 to 8
+    for the same printed characteristic, depending on which datasheet asked.
+
+    So: sides x dice + bonus for a notation - D6+2 is 8, 2D6 is 12 - and the
+    fixed int only where there is no notation at all.
+
+    game/battle_stats.py's "Best Tanking Units" is the caller: it values every
+    attack a unit turned aside at what that attack could have done, which is
+    exactly this number."""
+    notation = weapon.damage_notation
+    if notation is not None:
+        return notation.sides * notation.dice + notation.bonus
+    return weapon.damage
+
+
 #: (attribute, printed spelling) for every keyword that is a plain on/off flag.
 #: The ones carrying a VALUE (anti/blast/cleave/melta/rapid_fire/
 #: sustained_hits) are spelled in printed_keywords() below, because their

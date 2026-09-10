@@ -11,6 +11,9 @@ from game.waaagh import effective_feel_no_pain
 from game import armoured_layered_wards
 from game import enh_runes_of_warding
 from game import ynnari_abilities
+# Statistics reporting. battle_stats imports only game/weapons.py, so this
+# cannot cycle back into anything here.
+from game import battle_stats
 
 
 def _better_threshold(a, b):
@@ -136,6 +139,13 @@ class FeelNoPainRoll:
         rolls = self.dice_manager.last_values
         successes = sum(1 for r in rolls if r >= self._threshold)
         self.reduced_amount = max(0, self.amount - successes)
+        # Statistics: every wound this ability just shrugged off. Reported
+        # from inside the roll rather than at its six users, because this is
+        # the ONE place a Feel No Pain reduction is ever computed - all three
+        # sessions in game/damage_resolution.py build one of these and then
+        # only read `reduced_amount`. Capped at `amount` for the same reason
+        # the line above is: successes can exceed the wounds on the table.
+        battle_stats.report_prevented(self.model, min(successes, self.amount))
         if self.log is not None:
             self.log(
                 f"Feel No Pain ({self.model.profile.name}): rolled {rolls} - "

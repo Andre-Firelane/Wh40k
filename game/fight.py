@@ -1,4 +1,7 @@
 from game import attached_units
+# Statistics reporting - battle_stats imports only game/weapons.py, so it
+# cannot cycle back into anything here.
+from game import battle_stats
 from game import aux_experimental_modifications, awakened_dynasty, montka_pinpoint_counter_offensive, destroyer_cult, destroyer_hive, dlc_grim_reapers, gift_of_contagion, guardian_protocols, protocol_hungry_void, implacable_eradication, mechanical_augmentation, monster_hunters, plagues, plasmacyte, reroll_scope
 from game import way_of_the_short_blade
 from game.ard_as_nails import ARD_AS_NAILS_WOUND_PENALTY, ard_as_nails_wound_modifier_applies
@@ -1070,6 +1073,13 @@ class FightController:
             "weapon_label": weapon_label,
             "pairs": pairs,
             "target_squad": target_squad,
+            # Statistics only, never read for any rule (game/battle_stats.py's
+            # "Best Tanking Units"): how many attacks this weapon made, and how
+            # many of them reached damage allocation. The difference is what
+            # the defender turned aside - by not being hit, not being wounded,
+            # or making its save - and _finish_group() reports it.
+            "attacks": 0,
+            "landed": 0,
         }
         self._twin_linked_used = False  # rule 24.38: fresh chance to re-roll for each new weapon group's attacks
         self._hit_reroll_used = False  # Monster Hunters: likewise a fresh chance per weapon group
@@ -1117,6 +1127,9 @@ class FightController:
         group = self.current_group
         weapon_label, target_squad = group["weapon_label"], group["target_squad"]
         fighter_model = group["pairs"][0][0]
+        # Statistics: see shooting.py's identical line - the one point per
+        # group where the attack count is known, reached by both paths in.
+        group["attacks"] = total_attacks
         # Rule 24.37 ([TORRENT]): "that attack automatically hits the
         # target" - no hit roll, so no die can come up a natural 6: every
         # attack becomes an ordinary (non-critical) hit.
@@ -1788,6 +1801,11 @@ class FightController:
         elif rolls is not None:
             summary += f" {rolls}"
         self._log(f"{summary}: {saved} saved, {failed} failed.")
+        # Statistics: a failed save is an attack that GOT THROUGH to damage
+        # allocation. Captured here because this is the only place saved/failed
+        # are read, and the session is discarded on the next line.
+        if self.current_group is not None:
+            self.current_group["landed"] = self.current_group.get("landed", 0) + failed
         self.damage_session = None
         if self._devastating_crits > 0:
             weapon = self.current_group["pairs"][0][1]
@@ -1810,8 +1828,15 @@ class FightController:
         damage_weapon = melta_adjusted_weapon(weapon, self.current_group["pairs"], target_squad)
         self.devastating_wound_session = DevastatingWoundAllocationSession(
             target_squad, damage_weapon.damage, self._devastating_crits, dice_manager=self.dice_manager, log=self._log,
-            waaagh=self.waaagh,
+            waaagh=self.waaagh, attacker_squad=self.fighting_squad,
         )
+        # Statistics: a [DEVASTATING WOUNDS] crit skips the save entirely, so
+        # it GOT THROUGH - counted alongside the failed saves rather than as
+        # something the defender turned aside. Read before the line below
+        # zeroes it.
+        if self.current_group is not None:
+            self.current_group["landed"] = (
+                self.current_group.get("landed", 0) + self._devastating_crits)
         self._devastating_crits = 0
         self.pending_step = "devastating"
         self._check_devastating_wounds_done()
@@ -2326,7 +2351,7 @@ class FightController:
                 self.lethal_ichor.notify_melee_allocation(target_squad, self.fighting_squad)
         self.damage_session = DamageAllocationSession(
             rolls, weapon, target_squad, dice_manager=self.dice_manager, log=self._log, priority_group=priority_group,
-            stealth_drones=self.stealth_drones, waaagh=self.waaagh,
+            stealth_drones=self.stealth_drones, waaagh=self.waaagh, attacker_squad=self.fighting_squad,
         )
         # Same resume hook as game/shooting.py's - see
         # DamageAllocationSession.on_resumed. No damage_reroll is passed here
@@ -2502,8 +2527,41 @@ class FightController:
                 guardian_protocols.GUARDIAN_PROTOCOLS_LABEL))
         return modifiers
 
+    def _report_group_statistics(self):
+        """Hand this weapon group's outcome to game/battle_stats.py.
+
+        The weapon reported is the one the DAMAGE actually used - the adjusted
+        profile, then melta_adjusted_weapon() on top - because [MELTA X] raises
+        the Damage characteristic at half range, and "what could that shot have
+        done" has to be asked of the shot that was really taken.
+
+        Statistics only. Nothing here is read by any rule, and a failure to
+        report can never change a battle."""
+        group = self.current_group
+        if group is None or not group.get("pairs"):
+            return
+        target_squad = group.get("target_squad")
+        weapon = melta_adjusted_weapon(
+            self._adjusted_weapon(group["pairs"], target_squad), group["pairs"], target_squad)
+        battle_stats.report_group(group, weapon)
+
     def _finish_group(self):
         self.pending_step = None
+        # Statistics (game/battle_stats.py's "Best Tanking Units"): report the
+        # group before current_group is cleared below.
+        #
+        # HERE and not in _check_allocation_done(), which is where the save
+        # results are: a group whose attacks ALL missed never builds a
+        # DamageAllocationSession at all, so that method never runs for it -
+        # and a volley that misses entirely is the single most important thing
+        # a defender can be credited with. This method is the one every path
+        # out of a weapon group passes through.
+        #
+        # Rule 13.08 splits one weapon SELECTION into cover sub-groups, each
+        # running its own full sequence and each arriving here; reporting per
+        # sequence is right, since each has its own attacks and its own
+        # outcome.
+        self._report_group_statistics()
         # Safety net for the paths that reach here WITHOUT going through
         # _finish_group_after_wounds() - notably the "target was destroyed
         # before this group finished resolving" abandon branch. Mortal wounds

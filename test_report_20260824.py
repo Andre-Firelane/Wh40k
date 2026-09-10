@@ -64,7 +64,7 @@ class ChargingAgent(Agent):
 
     def plan_turn(self, observation):
         return {"turn_intent": "(test plan) charge.", "unit_plans": {}}
-from game import attached_units, combat_focus, config, deployment, maps, pregame
+from game import attached_units, combat_focus, config, deployment, maps, pregame, terrain
 from game.charge import ChargeController
 from game.decision import DecisionManager
 from game.dice import DiceManager
@@ -446,11 +446,31 @@ c.eq("a plain screen still does not - it would stop screening",
      deployment_ai._wants_hidden_pass(gret, {"roles": {id(gret): "screen"}}), False)
 
 
+# The board the 2026-08-24 report was played on had 0.60" ruin walls; they are
+# half that now. That is a change to the SCENE, not to the fix this section
+# guards, and it broke the A/B half rather than the result: measured on the
+# thinner board the shipped placement is bit-identical (+2.982", 0 of 3 hidden)
+# while the PRE-FIX comparison point moves from -3.042"/1-of-3 to
+# -0.060"/3-of-3, so the old AI no longer reproduces the reported mistake and
+# three A/B lines go red against an unchanged game.
+#
+# So the scene rebuilds the reported board rather than the current one - the
+# same reason measure_reported_moves.py reconstructs its boards from the logs.
+# Both halves use it, because the comparison is "old AI vs new AI on ONE
+# board" and splitting the thickness across them would compare two boards.
+REPORTED_WALL_THICKNESS_IN = 0.6
+
+
 def deploy_scene(after=True):
     """The reported deployment: the real Necron list, map2, the real AI."""
     battle_map = maps.apply_to_config(maps.get("map2"))
     state = GameState()
-    battle_map.build(state)
+    shipped = terrain.WALL_THICKNESS_IN
+    terrain.WALL_THICKNESS_IN = REPORTED_WALL_THICKNESS_IN
+    try:
+        battle_map.build(state)
+    finally:
+        terrain.WALL_THICKNESS_IN = shipped
     setup = SetupController(state, obstacles=state.obstacles, all_tokens=state.tokens,
                             board_width_in=config.BOARD_WIDTH_IN,
                             board_height_in=config.BOARD_HEIGHT_IN)

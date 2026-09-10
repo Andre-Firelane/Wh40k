@@ -3,6 +3,7 @@ import pygame
 from game import attached_units, config, enhancements, rules_text, starflare_ignition
 from game.fight import effective_weapon_skill
 from game.shooting import effective_ballistic_skill
+from game.ui import stat_table
 from game.ui.text_utils import draw_wrapped_text, wrap_text, wrapped_text_height
 from game.dice_notation import describe as describe_dice_notation
 from game.weapons import MELEE, printed_keywords
@@ -642,18 +643,12 @@ class UnitDatacardOverlay:
         return ROW_HEIGHT + sum(self._weapon_row_height(w) for w in weapons)
 
     def _column_layout(self, box_rect, column_count, name_column=False):
-        table_width = box_rect.width - 2 * PADDING
-        if name_column:
-            other_width = (table_width - NAME_COLUMN_WIDTH) / (column_count - 1)
-            widths = [NAME_COLUMN_WIDTH] + [other_width] * (column_count - 1)
-        else:
-            widths = [table_width / column_count] * column_count
-        positions = []
-        x = box_rect.x + PADDING
-        for w in widths:
-            positions.append(x)
-            x += w
-        return widths, positions
+        """Delegates to game/ui/stat_table.py - the same arithmetic, now shared
+        with the Unit Statistics overlay's resume tables."""
+        return stat_table.column_layout(
+            box_rect.x + PADDING, box_rect.width - 2 * PADDING, column_count,
+            first_width=NAME_COLUMN_WIDTH if name_column else None,
+        )
 
     def _draw_columns(self, surface, box_rect, y, headers, values):
         """The M/WS/BS/T/W/Ld/Sv/OC stat block: one evenly-spaced column per
@@ -741,16 +736,7 @@ class UnitDatacardOverlay:
         return table_rect.bottom + SECTION_GAP
 
     def _draw_row(self, surface, widths, positions, row_y, row_height, values, font, color):
-        for i, (w, x, val) in enumerate(zip(widths, positions, values)):
-            if i == 0:
-                # The name column is the only left-aligned, wrappable one -
-                # the rest are short numbers centered in their column.
-                lines = wrap_text(font, val, w - 8) or [val]
-                line_height = font.get_height() + 2
-                line_y = row_y + (row_height - len(lines) * line_height) // 2
-                for line in lines:
-                    surface.blit(font.render(line, True, color), (x + 4, line_y))
-                    line_y += line_height
-            else:
-                val_surf = font.render(val, True, color)
-                surface.blit(val_surf, val_surf.get_rect(center=(x + w / 2, row_y + row_height // 2)))
+        """Delegates to game/ui/stat_table.py - the name column is the only
+        left-aligned, wrappable one; the rest are short numbers centred in
+        their column."""
+        stat_table.draw_row(surface, widths, positions, row_y, row_height, values, font, color)

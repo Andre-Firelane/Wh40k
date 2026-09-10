@@ -266,9 +266,11 @@ BACKGROUND_COLOR = (22, 24, 28)  # dark battlefield background, subtle board gui
 #
 # The case for symmetry was put and turned down, and is recorded here because
 # it is the thing to re-read if the balance ever looks off: every Dense feature
-# on both maps is exactly 0.60" thick (measured, not assumed - min 0.60",
-# median 0.60", max 0.60" across map 1's 28 and map 2's 14), so these are low
-# walls rather than solid blocks and a vehicle grinding over one is not
+# on all four maps is exactly terrain.WALL_THICKNESS_IN thick - 0.30" since
+# the user asked for half the old 0.60" (measured, not assumed: min = median
+# = max across map 1's 28, map 2's 14, map 3's 20 and map 4's 16 Dense
+# features), so these are low walls rather than solid blocks and a vehicle
+# grinding over one is not
 # far-fetched for either side; and an asymmetric rule makes later balance
 # observations harder to read, because a win or loss can always be attributed
 # to the handicap. Set this to ("Player 1", "Player 2") to make it symmetric.

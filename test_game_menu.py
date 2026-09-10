@@ -506,8 +506,14 @@ c.true("...after the army-rules reader",
        _index("game_menu.draw(screen") > _index("army_rules_overlay.draw(screen)"))
 c.true("...and before the frame is shown",
        _index("game_menu.draw(screen") < main_src.rindex("pygame.display.flip()"))
-c.true("the button is not drawn under an overlay",
-       "if not game_menu.is_pending and not army_rules_overlay.is_pending:" in main_src)
+# Three overlays now, since the Unit Statistics resume joined them. Pinned as
+# the set of names the condition MENTIONS rather than as one exact line, so a
+# fourth reader shows up here as a named miss and not as a whitespace
+# mismatch.
+_hide = main_src.find("if (not game_menu.is_pending and not army_rules_overlay.is_pending")
+c.true("the button is not drawn under an overlay", _hide >= 0)
+c.true("...including the Unit Statistics resume",
+       "not unit_stats_overlay_view.is_pending" in main_src[_hide:_hide + 200])
 # Now that it lives in the right panel it is inside the AI-busy DIM
 # (ai_busy_dim_rects), and it stays bright because it is drawn after it. That
 # is wanted rather than tolerated - a stuck prompt is precisely the state a

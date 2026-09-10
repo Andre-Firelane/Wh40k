@@ -18,13 +18,13 @@ these files are the transcription source when they are (see MISSING_BY_FOLDER
 in the script). Detachments are snapshotted in full for every faction, built
 or not, for the same reason.
 
-Last fetched: 2026-09-04
+Last fetched: 2026-09-10
 
 | Faction | Files | Wahapedia version |
 | --- | --- | --- |
 | [Aeldari](aeldari/) | 74 | Faction Pack. Aeldari (11th edition, version 1.3) |
 | [Orks](orks/) | 17 | Faction Pack. Orks (11th edition, version 1.2) |
-| [Necrons](necrons/) | 15 | Faction Pack. Necrons (11th edition, version 1.2) |
+| [Necrons](necrons/) | 49 | Faction Pack. Necrons (11th edition, version 1.2) |
 | [T'au Empire](tau_empire/) | 43 | Faction Pack. T’au Empire (11th edition, version 1.2) |
 | [Death Guard](death_guard/) | 11 | Faction Pack. Death Guard (11th edition, version 1.2) |
 
@@ -188,21 +188,55 @@ Last fetched: 2026-09-04
 
 **Datasheets:**
 
+- [Annihilation Barge](necrons/Annihilation Barge.md)
+- [Canoptek Doomstalker](necrons/Canoptek Doomstalker.md)
+- [Canoptek Macrocytes](necrons/Canoptek Macrocytes.md)
+- [Canoptek Reanimator](necrons/Canoptek Reanimator.md)
+- [Canoptek Scarab Swarms](necrons/Canoptek Scarab Swarms.md)
+- [Canoptek Spyders](necrons/Canoptek Spyders.md)
+- [Canoptek Tomb Crawlers](necrons/Canoptek Tomb Crawlers.md)
 - [Canoptek Wraiths](necrons/Canoptek Wraiths.md)
+- [Catacomb Command Barge](necrons/Catacomb Command Barge.md)
+- [Chronomancer](necrons/Chronomancer.md)
+- [Convergence Of Dominion](necrons/Convergence Of Dominion.md)
+- [Cryptothralls](necrons/Cryptothralls.md)
+- [C’tan Shard of the Deceiver](necrons/C'tan Shard of the Deceiver.md)
+- [C’tan Shard of the Nightbringer](necrons/C'tan Shard of the Nightbringer.md)
 - [C’tan Shard of the Void Dragon](necrons/C'tan Shard of the Void Dragon.md)
+- [Deathmarks](necrons/Deathmarks.md)
+- [Doom Scythe](necrons/Doom Scythe.md)
 - [Doomsday Ark](necrons/Doomsday Ark.md)
+- [Flayed Ones](necrons/Flayed Ones.md)
+- [Geomancer](necrons/Geomancer.md)
+- [Ghost Ark](necrons/Ghost Ark.md)
+- [Hexmark Destroyer](necrons/Hexmark Destroyer.md)
 - [Illuminor Szeras](necrons/Illuminor Szeras.md)
 - [Immortals](necrons/Immortals.md)
+- [Imotekh The Stormlord](necrons/Imotekh The Stormlord.md)
 - [Lokhust Destroyers](necrons/Lokhust Destroyers.md)
 - [Lokhust Heavy Destroyers](necrons/Lokhust Heavy Destroyers.md)
 - [Lokhust Lord](necrons/Lokhust Lord.md)
 - [Lychguard](necrons/Lychguard.md)
+- [Monolith](necrons/Monolith.md)
 - [Necron Warriors](necrons/Necron Warriors.md)
+- [Nekrosor Ammentar](necrons/Nekrosor Ammentar.md)
+- [Night Scythe](necrons/Night Scythe.md)
+- [Ophydian Destroyers](necrons/Ophydian Destroyers.md)
+- [Orikan The Diviner](necrons/Orikan The Diviner.md)
 - [Overlord](necrons/Overlord.md)
+- [Overlord with translocation shroud](necrons/Overlord with translocation shroud.md)
 - [Plasmancer](necrons/Plasmancer.md)
+- [Psychomancer](necrons/Psychomancer.md)
+- [Royal Warden](necrons/Royal Warden.md)
 - [Skorpekh Destroyers](necrons/Skorpekh Destroyers.md)
 - [Skorpekh Lord](necrons/Skorpekh Lord.md)
 - [Technomancer](necrons/Technomancer.md)
+- [The Silent King](necrons/The Silent King.md)
+- [Tomb Blades](necrons/Tomb Blades.md)
+- [Transcendent C’tan](necrons/Transcendent C'tan.md)
+- [Trazyn The Infinite](necrons/Trazyn The Infinite.md)
+- [Triarch Praetorians](necrons/Triarch Praetorians.md)
+- [Triarch Stalker](necrons/Triarch Stalker.md)
 
 ## T'au Empire
 

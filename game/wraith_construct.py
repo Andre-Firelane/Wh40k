@@ -45,9 +45,9 @@ Wraithknight is built.)
 """
 
 from game.attached_units import unit_has_datasheet_keyword
+from game.titanic import TITANIC_KEYWORD, is_titanic_unit  # noqa: F401 - re-exported
 
 WRAITH_CONSTRUCT_KEYWORD = "WRAITH CONSTRUCT"
-TITANIC_KEYWORD = "TITANIC"
 
 
 def is_wraith_construct_unit(squad):
@@ -58,12 +58,12 @@ def is_wraith_construct_unit(squad):
     return unit_has_datasheet_keyword(squad, WRAITH_CONSTRUCT_KEYWORD)
 
 
-def is_titanic_unit(squad):
-    """Its own question, because only one of the four printed clauses
-    excludes TITANIC - see the module docstring."""
-    if squad is None:
-        return False
-    return unit_has_datasheet_keyword(squad, TITANIC_KEYWORD)
+# is_titanic_unit() is RE-EXPORTED from game/titanic.py rather than defined
+# here. It lived in this module while one Aeldari Enhancement was the only
+# clause pairing the two keywords; four core-rule, Necron and Death Guard
+# callers later, a reader named for WRAITH CONSTRUCT was answering a question
+# that has nothing to do with wraith constructs (error class 11). Callers of
+# this module do not move - the name still resolves here.
 
 
 def is_non_titanic_wraith_construct(squad):

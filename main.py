@@ -48,6 +48,7 @@ from game.fight import FightController
 from game.insane_bravery import InsaneBraveryController
 from game.game_log import GameLog
 from game.missions import MissionController
+from game.battle_stats import BattleStats
 from game.secondary_missions import SecondaryMissionController
 from game.primary_missions import PrimaryMissionController
 from game.actions import ActionController
@@ -302,6 +303,7 @@ from game.ui.map_select import MapSelectScreen
 from game.ui import game_menu as game_menu_module
 from game.ui.game_menu import GameMenu
 from game import ai_mode
+from game import battle_stats as battle_stats_module
 from game.ui.ai_busy_badge import AiBusyBadge, ai_mode_toggle_rect, draw_ai_mode_toggle
 from game.ui import round_progress_bar
 from game.ui.decision_overlay import DecisionOverlay
@@ -312,6 +314,8 @@ from game.ui.fight_warning_overlay import FightWarningOverlay
 from game.ui.turn_plan_overlay import TurnPlanOverlay
 from game.ui.dice_panel import DicePanel
 from game.ui.army_rules_overlay import ArmyRulesOverlay
+from game.ui.unit_stats_overlay import UnitStatsOverlay
+from game.ui import unit_stats_overlay
 from game.ui.game_status_panel import GameStatusPanel
 from game.ui.log_panel import LogPanel
 from game.ui.mission_cards import MissionCardsOverlay
@@ -773,6 +777,15 @@ def main(map_key=None):
     turn_tracker = TurnTracker(game_log=game_log, deferred_start=config.PREGAME_DEPLOYMENT)
     command_points = CommandPointManager(game_log=game_log)
     mission_controller = MissionController(game_log=game_log)
+    # The Unit Statistics ledger (user: "wie jede einheit performt hat als
+    # resumee"). Built HERE, before the three controllers that report into
+    # it, and published on its own module so the seams that record - the
+    # three sessions in game/damage_resolution.py, game/feel_no_pain.py and
+    # confirm_move() - reach it without 25 call sites learning that
+    # statistics exist. Cleared when this battle ends so a second main()
+    # in the same process starts from zero.
+    battle_stats = BattleStats()
+    battle_stats_module.CURRENT = battle_stats
     # The human's Tactical Secondary Mission deck (user-supplied - the AI
     # keeps its standard Secondary; see game/secondary_missions.py). Built
     # here, next to the ledger it credits, so both battle-start paths below
@@ -1896,6 +1909,16 @@ def main(map_key=None):
             player_factions = derive_player_factions(_all_squads(state, pregame_controller))
         return player_factions
 
+    def _stats_players():
+        """[(player, faction keyword)] in board order, for the Unit Statistics
+        overlay's badge row - which doubles as its player switch.
+
+        The THIRD reader of current_player_factions() above, and deliberately
+        not a fourth derivation of the same fact: a screen that names an army
+        has to name the same one the panel and the turn banner do."""
+        factions = current_player_factions()
+        return [(player, factions.get(player)) for player in sorted(armies)]
+
     ingress_controller = IngressController(
         setup_controller, state, state.tokens, game_log=game_log, turn_tracker=turn_tracker,
         board_width_in=board.width_in, board_height_in=board.height_in,
@@ -2899,6 +2922,7 @@ def main(map_key=None):
     turn_start_overlay = TurnStartOverlay()
     fight_warning_overlay = FightWarningOverlay()
     army_rules_overlay = ArmyRulesOverlay()
+    unit_stats_overlay_view = UnitStatsOverlay()
     # The in-game half of the game menu (user: "im spiel öffnet ein druck auf
     # ESC das menü"). Same object as the startup screen, different host - see
     # game/ui/game_menu.py for why the two are one class.
@@ -2937,6 +2961,10 @@ def main(map_key=None):
     # rather than recomputing the geometry - two computations of one rect is
     # how a control ends up clickable somewhere it is not drawn.
     ai_toggle_rect = None
+    # Same story for the Unit Statistics button that sits beside it - it is
+    # placed FROM the switch's drawn rect, so it only exists once the switch
+    # has been drawn.
+    stats_button_rect = None
 
     def _set_ai_mode(on, source):
         """The one place the mode changes, so every route logs it the same.
@@ -4241,7 +4269,7 @@ def main(map_key=None):
         written = scene_io.write(
             scene_io.capture(state, battle_map.key, turn_tracker, command_points,
                              armies=armies, missions=_mission_slots(),
-                             activation=_activation_slots()),
+                             activation=_activation_slots(), stats=battle_stats),
             path,
         )
         game_log.add(f"Board position {reason} to {written} "
@@ -4751,6 +4779,9 @@ def main(map_key=None):
         # restore that ran first would have the flag wiped straight back off.
         complaints += scene_io.restore_activation(
             loaded, [e["squad"] for e in scene_units], _activation_slots())
+        # Same ordering rule again: begin_battle() built a fresh ledger above,
+        # so the resume goes back on after it, never before.
+        complaints += scene_io.restore_stats(loaded, battle_stats)
         game_log.add(
             f"Loaded {os.path.basename(config.LOAD_SCENE)}: battle round "
             f"{turn_tracker.battle_round}, {turn_tracker.phase} phase, "
@@ -5089,6 +5120,7 @@ def main(map_key=None):
             # from, so the button is hit-tested exactly where it was DRAWN.
             if (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
                     and not army_rules_overlay.is_pending
+                    and not unit_stats_overlay_view.is_pending
                     and game_menu.button_rect(right_panel_rect).collidepoint(event.pos)):
                 _open_game_menu()
                 continue
@@ -5108,9 +5140,30 @@ def main(map_key=None):
             # how a control ends up clickable somewhere it is not drawn.
             if (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
                     and not army_rules_overlay.is_pending
+                    and not unit_stats_overlay_view.is_pending
                     and ai_toggle_rect is not None
                     and ai_toggle_rect.collidepoint(event.pos)):
                 _set_ai_mode(not ai_mode.enabled(), "AI toggle")
+                continue
+
+            # The Unit Statistics button, sitting beside the AI switch (user:
+            # "der knopf fuer das overlay soll nebn dem schalter fuer die KI
+            # sein"). Same pre-chain placement and the same reason: it is drawn
+            # ON the board, so without this the press is either eaten by one of
+            # the ~40 state-gated branches below or falls through to the board
+            # and starts a camera pan. Hit-tested against the rect the last
+            # frame DREW, never a freshly computed one.
+            if (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and not army_rules_overlay.is_pending
+                    and not unit_stats_overlay_view.is_pending
+                    and stats_button_rect is not None
+                    and stats_button_rect.collidepoint(event.pos)):
+                unit_stats_overlay_view.show(
+                    battle_stats, _stats_players(), state.all_squads())
+                continue
+
+            if unit_stats_overlay_view.is_pending:
+                unit_stats_overlay_view.handle_event(event)
                 continue
 
             if army_rules_overlay.is_pending:
@@ -7324,6 +7377,7 @@ def main(map_key=None):
             or mission_draw_overlay.is_pending or waaagh_notice_overlay.is_pending
             or turn_start_overlay.is_pending or turn_plan_overlay.is_pending
             or fight_warning_overlay.is_pending or army_rules_overlay.is_pending
+            or unit_stats_overlay_view.is_pending
             or game_menu.is_pending
         )
         # The Stratagem tooltip: rest on a Stratagem button and its printed
@@ -7361,9 +7415,9 @@ def main(map_key=None):
             # A modal is up. The card is drawn over the board, so it would sit
             # on top of the very prompt that has to be answered first.
             _datacard_token = None
-        if army_rules_overlay.is_pending:
-            # The reader is drawn over the board, so the hover card would sit
-            # on top of the very text that was just opened.
+        if army_rules_overlay.is_pending or unit_stats_overlay_view.is_pending:
+            # A reader is drawn over the board, so the hover card would sit
+            # on top of the very thing that was just opened.
             _datacard_token = None
         if game_menu.is_pending:
             # Same again for the menu, which is drawn over everything.
@@ -7427,12 +7481,23 @@ def main(map_key=None):
         ai_toggle_rect = draw_ai_mode_toggle(
             screen, board_rect_screen, ai_mode.enabled(), ai_toggle_font,
         )
+        # ...and the Unit Statistics button immediately to its left, placed
+        # from the rect the switch just reported rather than measured out of
+        # the board corner a second time. Drawn in the same pass so it shares
+        # the switch's standing over the dice panel's backdrop padding.
+        stats_button_rect = unit_stats_overlay.draw_button(
+            screen, board_rect_screen, ai_toggle_font, ai_toggle_rect,
+            mouse_pos=pygame.mouse.get_pos(),
+        )
 
         # LAST, over everything including the notices: it is the one overlay the
         # player opened deliberately, and it owns every event while it is up
         # (see the branch at the top of the event loop), so nothing behind it
         # can be acted on anyway.
         army_rules_overlay.draw(screen)
+        # Same standing, same reason: opened deliberately, owns every event
+        # while it is up.
+        unit_stats_overlay_view.draw(screen)
 
         # The MENU button, and then the menu itself - the very last two things
         # in the frame. The button is hidden while either overlay is up: it
@@ -7445,7 +7510,8 @@ def main(map_key=None):
         # the rest of the right panel (ai_busy_dim_rects), and that is wanted
         # rather than tolerated: a stuck prompt is precisely the state a player
         # most wants to reach the menu from.
-        if not game_menu.is_pending and not army_rules_overlay.is_pending:
+        if (not game_menu.is_pending and not army_rules_overlay.is_pending
+                and not unit_stats_overlay_view.is_pending):
             game_menu.draw_button(screen, right_panel_rect, pygame.mouse.get_pos())
         # LAST of all, over every notice and both readers: it is the way out of
         # the game, so nothing may cover it.
@@ -7456,6 +7522,11 @@ def main(map_key=None):
         clock.tick(config.FPS)
 
     game_log.close()
+    # This battle's statistics ledger goes with it. main() is ONE BATTLE and
+    # run() may call it again in the same process (the menu's "New Game"), so
+    # leaving it published would let the next battle open its resume on the
+    # last one's numbers.
+    battle_stats_module.CURRENT = None
     # What the APPLICATION should do next - QUIT, or NEW_GAME when the in-game
     # menu asked for a fresh battle. run() loops on this; a harness calling
     # main() directly is free to ignore it, exactly as it ignored the None

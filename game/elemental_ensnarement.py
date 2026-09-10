@@ -34,6 +34,7 @@ game/coldstar.py's effective_movement_in(), which has no controller in scope.
 """
 
 from game import ai_mode
+from game import titanic
 
 ELEMENTAL_ENSNAREMENT_LABEL = "Elemental Ensnarement"
 
@@ -103,7 +104,7 @@ class ElementalEnsnarementController:
                 continue
             if not _living(other) or not is_monster_or_vehicle_unit(other):
                 continue
-            if any(getattr(m.profile, "titanic", False) for m in _living(other)):
+            if titanic.is_titanic_unit(other):
                 continue
             if visible_to is not None and not visible_to(other):
                 continue

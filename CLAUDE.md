@@ -1247,6 +1247,102 @@ weil ein Punkt-zu-Ecke-Abstand kein Rand ist). Volle Regression **152 Suiten, ~1
 151 grün / 0 rot / 1 bekannt**, alle sieben Smokes (inkl. `smoke_pregame.py map3`) und
 `selfplay.py` auf allen drei Karten.
 
+## Die Wände sind halb so dick (game/terrain.py)
+
+**`WALL_THICKNESS_IN = 0.3`, halbiert von 0.60"** (User: "Die Wände sind insgesamt etwas dick.
+Kannst du die Dicke um 50% reduzieren?"). Vorher standen vier Default-Literale `wall_thickness=0.6`
+in `ruin_walls()`, `ruin()`, `l_walls()` und `ruin_l()`, und **kein einziger Aufrufer überschrieb
+sie** — vier Kopien einer Zahl, also vier Chancen, dass drei sich bewegen und eine stehenbleibt.
+
+- **Die Änderung tut GENAU EINE Sache, und das ist gemessen statt behauptet.** Über alle vier
+  Karten sind Wandzahl (28/14/20/16), Position, Außenkante und **Segmentlängen BYTE-IDENTISCH**;
+  nur die Dicke geht von 0.60" auf 0.30". Die Segmentlängen sind die wichtige Zeile: die Türbreite
+  hängt an derselben Zahl (`gap = min(door_width, w - 2t, h - 2t)`), eine dünnere Wand hätte also
+  auf jedem Footprint unter 4.2" die TÜR verbreitert — bestellt war die Dicke, nicht die Tür. Auf
+  den ausgelieferten Karten bindet überall `door_width`, der Nebeneffekt existiert also nicht.
+- **Die Außenkante bewegt sich nicht**: beide Builder rücken jede Wand um ihre HALBE Dicke ein, ein
+  dünnerer Balken wächst also nach INNEN. Gemessen: 0 Wände abseits ihres Footprints auf allen vier
+  Karten (schlimmster Rest 3.6e-15"). Damit erbt map3s Naht-Fix ungefragt — seine 18 berührenden
+  Wandpaare berühren sich weiter, und kein Paar liegt zwischen 0 und 1".
+- **Sichtlinien sind UNVERÄNDERT**, und das ist der Befund, den man nicht rät: über ein festes
+  Schussraster je Karte **459/449/449/447 von je 518 geblockt, in beiden Welten dieselbe Zahl**.
+  Eine Wand blockiert über ihre LÄNGE, nicht über ihre Dicke.
+- **Was sich wirklich bewegt, ist der Boden**: legale Standfläche für eine 25-mm-Base
+  **90.2 → 91.3 %** (map1), 94.1 → 94.9 % (map2), 94.0 → 94.9 % (map3), 94.1 → 94.9 % (map4) —
+  exakt die halbierte Wandfläche (73.0 → 36.5 sq.in auf map1).
+- **Zur Aufrufzeit aufgelöst (`wall_thickness=None`), nicht als Default eingefroren.** Ein
+  `wall_thickness=WALL_THICKNESS_IN` im Signaturkopf wird bei der DEFINITION ausgewertet, ein Test
+  könnte die Dicke danach nicht mehr setzen — und genau das braucht der historische Report-Test
+  unten. Die vier Signaturen reichen `None` durch, die zwei bauenden Funktionen lösen im Rumpf auf.
+
+### Die KI-Bewegung ist chaotisch gegenüber Geometrie — über acht Welten gemessen
+
+Die dokumentierte Baseline-Welt (map2/Orks) fällt deutlich, und das wäre allein gelesen ein
+Alarm. Über acht Welten (vier Karten × zwei Armeen) ist es Rauschen:
+
+| Welt | vorher (0.6) | nachher (0.3) |
+|---|---|---|
+| map1 Orks | 72 % / 220.6" | 68 % / 225.1" |
+| map1 Necrons | 67 % / 132.5" | 66 % / 131.7" |
+| **map2 Orks** (die Baseline) | **76 % / 232.9"** | **65 % / 214.1"** |
+| map2 Necrons | 60 % / 119.9" | **65 % / 127.3"** |
+| map3 Orks | 65 % / 213.1" | 65 % / **225.9"** |
+| map3 Necrons | 67 % / 124.8" | 64 % / 117.8" |
+| map4 Orks | 77 % / 232.8" | 77 % / 234.0" |
+| map4 Necrons | 58 % / 123.9" | 58 % / 119.2" |
+
+**Gesamtboden über alle acht: −0.4 %.** Die Vorzeichen sind gegenläufig, der größte Verlust
+(map2/Orks) und der größte Gewinn (map3/Orks, map2/Necrons) liegen in derselben Größenordnung.
+Das ist wörtlich die schon dokumentierte Eigenschaft ("−12" in derselben Welt bei +0.7" lokaler
+Wirkung"), und der Grund, warum die Regel lautet: über MEHRERE Welten messen.
+
+- **ISOLIERT wird es BESSER** (map2/Orks 287.9" → 292.3"), was die physische Erwartung bestätigt:
+  eine dünnere Wand kann einen Weg nur öffnen. Der Verlust im Gedränge ist eine UMLEITUNG — die
+  Einheiten nehmen andere Wege und stehen sich anderswo im Weg —, keine neue Sperre.
+- **Über 32 randomisierte Formations-Welten** (Startpunkt, Zielwinkel und Modellreihenfolge
+  variiert): mittlere Ausnutzung 85.9 % → 85.5 %, und **0 stehengebliebene Modelle in beiden**.
+- **Charges unverändert**: leicht 60/60 vollendet in beiden (engagierte Modelle 267 → 270), hart
+  59/60 in beiden (229 → 218, slot-first-Leitern 58 → 59).
+
+### Zwei Report-Tests hingen an der Wandgeometrie — und beide sagten das Falsche
+
+Beide sind A/B-Sonden, die eine GEMELDETE Szene reproduzieren, und beide waren gegen die alte
+Dicke kalibriert. Keiner der zwei Fehlschläge war ein Fehler am Spiel.
+
+- **`test_report_fixes.py` §5** (die Retry-Leiter gegen einen Ein-Schuss-Pfad): die Route des
+  Blocks streift eine Ruinenecke auf map2 — zwei Wandsegmente liegen wirklich im Korridor —, also
+  verschiebt die dünnere Wand, wie die Formation daran vorbeikommt, und ein Modell blieb 0.09"
+  zurück. **Die Leiter ist in Ordnung:** ein erneuter Sweep über denselben Raum fand **8 gültige
+  Fixtures bei der neuen Dicke und 9 bei der alten**. Die Szene ist deshalb aus der SCHNITTMENGE
+  neu gewählt statt auf die aktuelle Zahl nachgetunt, und die Ersatzszene ist die schärfste darin:
+  der Ein-Schuss-Pfad strandet dort **9 von 22** statt der 5 des Originals, und sie liefert bei
+  BEIDEN Dicken identische Zahlen — sie kann also nicht wieder daran hängen.
+- **`test_report_20260824.py` §4** (die `assault`-Aufstellungsrolle): **die ausgelieferte
+  Aufstellung ist bit-identisch** (+2.982", 0 von 3 verdeckt, in beiden Welten). Verschoben hat
+  sich der VERGLEICHSPUNKT — die Vor-Fix-KI setzt die Skorpekh auf dem dünneren Brett bei −0.060"
+  mit 3 von 3 verdeckt statt bei −3.042" mit 1 von 3, reproduziert den gemeldeten Fehler also
+  nicht mehr, und drei A/B-Zeilen gingen gegen ein unverändertes Spiel rot. Die Szene baut jetzt
+  das GEMELDETE Brett (`REPORTED_WALL_THICKNESS_IN = 0.6`) statt des aktuellen — derselbe Grund,
+  aus dem `measure_reported_moves.py` seine Bretter aus den Logs rekonstruiert. **Beide Hälften
+  benutzen es**, weil der Vergleich "alte KI gegen neue KI auf EINEM Brett" ist; die Dicke zwischen
+  ihnen aufzuteilen hieße, zwei Bretter zu vergleichen.
+
+**Die Lehre, die über diese Sitzung hinausgeht:** eine A/B-Sonde, die eine gemeldete Szene
+nachstellt, gehört an die GEOMETRIE dieses Berichts gepinnt, nicht an den Default. Sonst zeigt sie
+irgendwann rot auf eine Änderung, die ihren Gegenstand gar nicht berührt — und der teure Teil ist
+nicht die rote Zeile, sondern dass sie wie eine Regression aussieht.
+
+**Zwei Kommentare mussten mit, sonst wären sie stillschweigend falsch geworden:**
+`game/config.py`s Symmetrie-Argument für die Wand-Hausregel behauptete "jedes Dense-Feature auf
+beiden Karten ist exakt 0.60" dick" (jetzt: `terrain.WALL_THICKNESS_IN`, und über alle VIER
+Karten), und `test_wall_crossing.py`s synthetische Wand war ein hartcodiertes `0.6` mit derselben
+Behauptung daneben — sie wird jetzt AUS der Konstante gebaut und kann nicht mehr von den Brettern
+abdriften, für die sie einsteht.
+
+**Getestet:** volle Regression **208 Suiten, ~18259 Prüfungen, 207 grün / 0 rot / 1 bekannt**,
+`run_tests.py --smoke` komplett grün (alle neun schweren Skripte, inkl. `smoke_pregame.py map2`
+und `selfplay.py map2 1500`).
+
 ## Game Menu (game/ui/game_menu.py, main.py's run())
 
 **Der Rahmen um das Spiel** (User: "momentan startet das spiel direkt mit der map auswahl und
@@ -2322,6 +2418,149 @@ beschriftet sein. und das Volk Logo/Farbe muss drin sein").
   seine Display-Surface nicht mehr lesbar. Gemessen wird jetzt IM Frame, eine
   Scanline statt der ganzen Spur (14k `get_at()` je Frame wären eine eigene
   Messverfälschung).
+
+## Unit Statistics — das Resümee der Partie (game/battle_stats.py, game/ui/unit_stats_overlay.py)
+
+**Ein großes Overlay mit drei Tabellen pro Spieler** (User: "EIn großes Overlay, dass
+eineheitenstatistiken anzeigt wäre cool. Beim echten 40k macht man sich immer gedanken, wie jede
+einheit performt hat als resumee"). Knopf **neben dem KI-Schalter**; umschaltbar pro Spieler über
+die zwei Fraktions-Badges.
+
+**Vorher sammelte diese Engine GAR KEINE Statistiken** — gemessen: kein Modul unter `game/`, und
+die einzigen Buchführungen sind zweckgebunden und schmal (`record_destroyed_squad` für VP,
+`moved_distance_this_turn` für [HEAVY] 24.16, pro Zug überschrieben).
+
+### Die drei Zahlen, und warum sie so definiert sind
+
+| Tabelle | Definition |
+|---|---|
+| **Best Killing** | zugefügte Wunden + Punkte **pro rata**: `(wunden/startwunden_des_ziels) × ziel.points` |
+| **Best Tanking** | `(angriffe − gelandete) × max_damage(waffe)` + FNP + Schadensminderung |
+| **Fastest** | Zoll, **jeder** bestätigte Zug, gemessen am weitesten gelaufenen Einzelmodell |
+
+- **Punkte pro rata statt „Punkte zerstörter Einheiten"** (User-Entscheidung): dieselbe Rechnung,
+  die `observation.damage_value()` schon benutzt (`fraction_of_unit × points`), und sie braucht
+  **keine Kill-Attribution** — die diese Engine nachweislich nicht hat
+  (`main.py`s Todes-Sweep: *"there is no kill attribution here"*). Wer einen 300-Punkte-Panzer
+  weichschießt, bekommt seinen Anteil.
+- **Tanking zählt ANGRIFFE, nicht Schadenspunkte.** „Potenzial minus tatsächlich" wäre die
+  naheliegende Formel und ist falsch: sie zählt ÜBERSCHUSSSCHADEN mit, und billiges Kanonenfutter
+  stünde an der Spitze der Tabelle (eine D6+2-Waffe auf einen 1-Wunden-Guardian „verhindert" dann
+  7). FNP und Minderung werden **getrennt und ausdrücklich** gezählt, nie als Restgröße — sonst
+  zählte ein D6, der 3 würfelt, als verhindert.
+- **`weapons.max_damage()` ist neu und liest die NOTATION, nie den flachen Int daneben.**
+  Gemessen: **38 von 56** Waffen mit `damage_notation` speichern einen Platzhalter, der nicht das
+  Maximum ist (Bright Lance 8 für D6+2 — richtig; Starshot 3 für D6; Wurrtower 1 für D6). Den zu
+  lesen ließe dieselbe gedruckte Charakteristik zwischen 1 und 8 herauskommen.
+
+### Wo aufgezeichnet wird
+
+- **`Token.apply_damage()` ist ein echter Einzeltrichter** — 4 Aufrufstellen, 3 davon die drei
+  `_finish_apply()` in `damage_resolution.py`. Dort sind Waffe, Ziel und Betrag bekannt, **der
+  Angreifer nicht**.
+- **`DamageAllocationSession` und `DevastatingWoundAllocationSession` haben je 2 Bauplätze**, beide
+  in den Angriffs-Controllern → sie bekommen ein optionales `attacker_squad=`.
+  **`MortalWoundAllocationSession` hat 22 über 21 Module** und bleibt unattributiert (siehe
+  Benannte Lücke).
+- **Der Tanking-Abschluss liegt bei `_finish_group()`, NICHT bei `_check_allocation_done()`** — und
+  das ist der Kern: **eine komplett danebengegangene Salve baut gar keine `DamageAllocationSession`**,
+  also läuft jene Methode nie, und das ist der wichtigste Fall überhaupt. `_finish_group()` ist der
+  eine Ausgang, den jeder Pfad nimmt.
+- **Fehlschläge an der WURFSTELLE zu zählen wäre DOPPELT** (die Reroll-Zweige rechnen neu und
+  addieren) — deshalb `attacks` (in `_continue_resolution_with_attacks()`, dem gemeinsamen Schwanz
+  beider Pfade) gegen `landed` (aus `damage_session.failed` plus den Devastating-Crits, die den
+  Save überspringen und deshalb NICHT verhindert sind).
+- **`battle_stats.CURRENT` ist eine MODUL-Ablage**, gesetzt von `main()` — exakt die Begründung, die
+  `MortalWoundAllocationSession.on_mortal_wounds` schon trägt: 25 Bauplätze über 20 Module sollen
+  nicht lernen, dass es Statistiken gibt. Sie liegt bei `battle_stats`, damit es EINE Antwort auf
+  „wohin gehen Statistiken" gibt statt einer Kopie je meldendem Modul.
+- **Strecke bei `confirm_move()`**, neben `action_controller.notify_move()` — der Stelle, die im
+  Kommentar selbst als *"the one place every confirmed move passes through"* ausgewiesen ist.
+  `moved_distance_this_turn` wird bewusst NICHT wiederverwendet (Zuweisung statt Summe, pro
+  Spielerzug geleert, absichtlich auf Bewegungsphasen-Züge verengt); die ARITHMETIK ist als
+  `MovementController._farthest_moved()` extrahiert und hat jetzt zwei Leser.
+- **Gekeyt nach `squad.name`**, dem dokumentierten Identifier — der einzige Schlüssel, der den
+  `--load`-Neubau überlebt. `absorbed_into` (19.01) wird verfolgt.
+
+### Das Overlay
+
+Form nach `army_rules_overlay.py`: eigenes `handle_event`, also **NICHT in `_front_notice()`**
+(das ist die Ordnung der Klick-weg-Notices mit `.dismiss()`), Scrim, Scrollen per Rad/Tastatur,
+Klick oder ESC schließt. **`event.button == 1` ist tragend** — pygame liefert zu jeder Radrastung
+zusätzlich MOUSEBUTTONDOWN 4/5, ohne die Prüfung schließt Scrollen das Fenster.
+**Die Badges werden VOR dem Dismiss-Zweig getroffen**, sonst schließt ein Armee-Wechsel den Screen.
+
+- **Der Knopf leitet seine Lage aus `ai_mode_toggle_rect()` ab** und setzt sich links daneben —
+  „neben" ist damit per Konstruktion wahr. **Ausdrücklich KEIN `avoid_rects`**: der KI-Schalter
+  soll stehenbleiben, und `test_game_menu.py` pinnt dessen Abwesenheit im Negativ. Im echten Spiel
+  gemessen: Knopf `(614,40,78,26)`, Schalter `(700,40,92,26)`.
+- **`game/ui/stat_table.py`** ist die Extraktion am ZWEITEN Konsumenten: `column_layout()`/
+  `draw_row()` lagen privat in `UnitDatacardOverlay` (Statblock und Waffentabellen), die drei
+  Resümee-Tabellen stellen dieselben zwei Fragen. `unit_datacard.py` DELEGIERT und behält seine
+  Konstanten, seine 110 Pixel-Prüfungen sind also per Konstruktion unverändert. **Bewusst NICHT
+  absorbiert:** `mission_cards._draw_scoring()` (rechtsbündige VP-Spalte) und `rules_body`s
+  `"table"`-Block (zwei Zellen, kein Umbruch) — andere Formen, kein zweiter Konsument.
+- **Zahlenspalten haben eine FESTE Breite**, keinen Anteil: sonst landen eine Zwei- und eine
+  Drei-Spalten-Tabelle an verschiedenen x, und die drei Abschnitte lesen sich nicht mehr als eine
+  Seite.
+- **Eigener Fehler, von der Vorhersage-gegen-Gezeichnetes-Prüfung gefunden:** Höhenrechnung las
+  `section_font.get_height()` (13), das Zeichnen die gerenderte Fläche (15) — 6 px über drei
+  Abschnitte. `_heading_height()` ist jetzt die eine Antwort. Dieselbe Prüfung hat bei den
+  Missionskarten schon einmal einen doppelt gezählten Abstand gefunden.
+
+### Speichern
+
+Optionaler `stats`-Abschnitt in `scene_io.capture()` plus `restore_stats()`, **`FORMAT_VERSION`
+bleibt 1** (der `armies`/`missions`-Präzedenzfall; nur geschrieben, wenn nicht leer, also sind
+unberührte Schlachten byte-identisch). Wiederhergestellt NACH `begin_battle()`.
+
+### Benannte Lücken
+
+1. **Mortal Wounds aus Fähigkeits-Modulen sind unattributiert** — sie zählen in
+   `BattleStats.unattributed_wounds` und krediteren keinen Killer. Tanking ist davon UNBERÜHRT
+   (es liest keine Wunden). Stufe 2 wäre `source_squad=` über 21 Module, bewacht als
+   MENGENDIFFERENZ; `verify_unit_stats.py` misst die Größe, bevor das entschieden wird.
+2. **`spirit_of_gork.py:271` schreibt `current_wounds` direkt** und umgeht `apply_damage()`.
+3. **[SUSTAINED HITS] untertreibt „verhindert" leicht** — gezählt werden die Angriffe der Waffe,
+   nicht die Zusatztreffer des Keywords. Vertretbar: einen Angriff, den es nie gab, hat der
+   Verteidiger nicht verhindert.
+
+### Getestet
+
+Neu `test_battle_stats.py` (**61/61**, acht Abschnitte — durch die ECHTEN Controller, Fernkampf
+UND Nahkampf, inklusive der komplett danebengegangenen Salve und eines echten `confirm_move()`)
+und `test_unit_stats_overlay.py` (**75/75**, auf PIXELN). Neu **`ab_unit_stats.py`: 24 A/B-Sonden,
+alle beißend**.
+- **DREI Sonden bissen zuerst NICHT, und alle drei waren Befunde über den TEST** (Fehlerklasse 24):
+  die Suite fuhr **gar keine Nahkampf-Aktivierung** (`game/fight.py` ist eine zweite Verdrahtung
+  derselben Nähte); die Strecke wurde nur am Ledger geprüft und nie durch das echte
+  `confirm_move()`; und die Leer-Zustands-Prüfung zählte die **Fußzeile** mit, die dieselbe Farbe
+  hat, bestand also auch ohne Leer-Text.
+- **Zwei eigene Fixture-Fehler dabei**, beide gemessen: `tk.line_up()` spreizt zehn Boyz über
+  09.02s 9"-Grenze (der Confirm scheiterte aus einem Grund, der mit Statistiken nichts zu tun
+  hat), und bei lauter Sechsen **rettet** ein 5+-Save — der Nahkampf-Test maß die falsche Sache.
+  Dazu: `confirm_move()` gibt gar keinen Wahrheitswert zurück, der Erfolgstest ist `errors`
+  (Fehlerklasse 6).
+- **Zwei fremde Pins wurden zu Recht rot** und sind nachgezogen; einer von ihnen **stürzte per
+  `.index()` ab statt rot zu werden** und degradiert jetzt.
+
+**Im ECHTEN Spiel belegt** (`verify_unit_stats.py`, `runpy` auf `selfplay.py`s echte
+`main()`-Schleife):
+
+| | gefixt | `--neutralize` |
+|---|---|---|
+| Einheiten auf der Killing-Tabelle | **1** | 0 |
+| Einheiten auf der Tanking-Tabelle | **1** | 0 |
+| Einheiten auf der Fastest-Tabelle | **1** (passiv, 6 bei 8000 Frames) | 0 |
+| STATS-Knopf gezeichnet | **1199 Frames, neben dem Schalter** | 0 |
+
+**EINE Tatsache wird gestellt, und die Messung sagt warum:** über **8000** Frames löst ein
+MockAgent-Lauf **null** Angriffsgruppen auf (die dokumentierte Harness-Grenze), ein passiver
+Zähler hätte also 0 gemeldet und wie ein Bestehen ausgesehen. Gestellt ist der ANGRIFF; alles
+danach ist echt — `main()`s eigene Squads, eine echte `DamageAllocationSession`, das echte
+`_finish_apply()`, das von `main()` veröffentlichte Ledger. Der verhinderte Schaden kam dabei
+ungeplant aus **Molten Form des Avatars**, also wirklich aus der Minderungs-Naht.
+Perf-Gegenprobe: `measure_shooting_frame_cost.py` unverändert bei **0.017 ms/Frame**.
 
 ## Die Toggle-Leiste unten links (game/ui/button_style.py, game/whole_unit_drag.py)
 
@@ -8319,11 +8558,16 @@ Die wichtigste Einsicht dieses Repos zur KI-Bewegung, weil sie erklärt, warum F
   und einen halben Zug gewinnen); die vermeintliche Schussfeld-Lücke war fast vollständig ein
   Messfehler (jedem Modell wurde die beste Waffe der EINHEIT zugerechnet). Was die Messung
   STATTDESSEN fand — Einheiten scheitern an ihrer eigenen FORM — ist als `_place_packed()` umgesetzt.
-- **Aktueller Stand (map2, Gedränge, seit dem Review 2026-09-09):** Orks **74 % Median / 232.9"
-  Gesamtboden**, 0 Stalls (vor der Landeplatz-Suche 65 % / 217.7"); **Necrons 60 % / 119.9"**
-  (`--army=necrons`, neue zweite Baseline; vorher 60 % / 117.9"); Necrons isoliert 68 % / 139.4".
-  Ausgangslage der ganzen Messreihe war 54 % / 185". **Der Median hier ist `statistics.median`;
-  der Harness selbst druckt den oberen Median** (bei 42 Zeilen 76 % statt 74 % — dieselbe Welt).
+- **Aktueller Stand (map2, Gedränge, seit der Wandhalbierung 2026-09-10):** Orks
+  **65 % / 214.1" Gesamtboden** bei 1 Stall, Necrons **65 % / 127.3"**; isoliert Orks
+  87 % / 292.3", Necrons 66 % / 136.7". Zahlen wie der Harness sie druckt (oberer Median).
+  Ausgangslage der ganzen Messreihe war 54 % / 185".
+  **Davor, mit den 0.60"-Wänden:** Orks 76 % / 232.9" und Necrons 60 % / 119.9", beide 0
+  Stalls. **Diese eine Welt ist NICHT der Maßstab für die Änderung, die sie bewegt hat** —
+  über alle vier Karten × beide Armeen gemessen ist der Gesamtboden **−0.4 %** und die
+  Vorzeichen sind gegenläufig (map2/Necrons und map3/Orks gewinnen, was map2/Orks verliert);
+  siehe `## Die Wände sind halb so dick`. Der Stall ist ein CROWDED-Effekt: ISOLIERT stallt
+  auf keiner Karte etwas, und dort wird der Boden größer statt kleiner.
 - **EINE Welt ist chaotisch, und das ist gemessen:** eine Änderung, die den ERSTEN Zug der
   Deffkoptas um 0.8" verschiebt, verändert jeden späteren Zug (−12" in derselben Welt bei +0.7"
   lokaler Wirkung). Wer eine kleine Änderung beurteilt, misst sie PAARWEISE (jeder Zug zweimal vom
@@ -11316,7 +11560,9 @@ hatte nichts: `clamp_move()` kannte keinen Kontakt-Term. Consolidate hatte auf k
   unverändert herauskommt, ist die Prüfung, dass die Spaltung nicht geleckt hat.
 - **KOLLATERALSCHADEN: NULL, gemessen.** Charge 100/100 mit 447 engagierten Modellen, hart 96/100
   mit 365, Orks crowded **76 % / 232.9"**, Necrons **60 % / 119.9"**, und die gemeldeten
-  Bewegungsfälle A/B/C/S1/S2 unverändert — alles identisch zur dokumentierten Baseline. Auch die
+  Bewegungsfälle A/B/C/S1/S2 unverändert — alles identisch zur damals dokumentierten
+  Baseline. (Die zwei Crowded-Zahlen sind seither von der Wandhalbierung bewegt worden und
+  stehen hier als der Stand, gegen den DIESE Änderung gemessen wurde.) Auch die
   Pile-in-Profile bewegen sich nicht (`[(10,10), (3,8), (3,8)]`), und der gemeldete Warbikers-Fall
   bleibt bei 2 von 3: **dessen Front stand mit 0.01" Abstand ohnehin schon still.** Der Gewinn ist
   die MENSCHENSEITE und der CONSOLIDATE, die beide gar keine Regel hatten.

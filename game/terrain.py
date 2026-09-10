@@ -368,8 +368,21 @@ class TerrainArea:
 
 ALL_RUIN_CORNERS = ("nw", "ne", "sw", "se")
 
+# How thick a ruin wall is. ONE definition rather than a literal on each of
+# the four builders below: they all mean the same thing, and four copies of
+# a number are four chances for three of them to move and one to stay.
+#
+# Halved from 0.60" on the user's call ("Die Wände sind insgesamt etwas
+# dick. Kannst du die Dicke um 50% reduzieren?"). The walls stay pinned to
+# the SAME outer edge - ruin_walls() and l_walls() inset each wall by half
+# its own thickness, so a thinner wall grows inward-facing floor rather than
+# moving the footprint boundary, and two touching footprints keep touching
+# walls (map3 depends on that: its mid-line pair had a 0.15" shooting slit
+# closed by butting the footprints together).
+WALL_THICKNESS_IN = 0.3
 
-def ruin_walls(x_in, y_in, width_in, height_in, wall_thickness=0.6, door_width=3.0, category=DENSE, corners=ALL_RUIN_CORNERS):
+
+def ruin_walls(x_in, y_in, width_in, height_in, wall_thickness=None, door_width=3.0, category=DENSE, corners=ALL_RUIN_CORNERS):
     """Rule 13.01/13.02: a terrain *area* (the footprint/boundary) is not
     itself one solid obstacle - it's occupied by one or more terrain
     *features*. A ruin's features are its walls; the space between and
@@ -386,6 +399,8 @@ def ruin_walls(x_in, y_in, width_in, height_in, wall_thickness=0.6, door_width=3
     `corners` selects which of them get built (all four by default). Passing
     a subset is how a footprint keeps some of its walls and loses the rest
     without inventing a second wall layout with different segment lengths."""
+    if wall_thickness is None:
+        wall_thickness = WALL_THICKNESS_IN
     half_w, half_h = width_in / 2, height_in / 2
     x0, x1 = x_in - half_w, x_in + half_w
     y0, y1 = y_in - half_h, y_in + half_h
@@ -417,7 +432,7 @@ def ruin_walls(x_in, y_in, width_in, height_in, wall_thickness=0.6, door_width=3
     return walls
 
 
-def ruin(x_in, y_in, width_in, height_in, wall_thickness=0.6, door_width=3.0, wall_category=DENSE, floor_category=LIGHT, corners=ALL_RUIN_CORNERS):
+def ruin(x_in, y_in, width_in, height_in, wall_thickness=None, door_width=3.0, wall_category=DENSE, floor_category=LIGHT, corners=ALL_RUIN_CORNERS):
     """A ruin terrain feature as a whole: its footprint isn't just implied
     by where the walls happen to be - it's the rubble-strewn floor the walls
     stand on, occupying the entire area (Light by default: walkable, gives
@@ -431,7 +446,7 @@ def ruin(x_in, y_in, width_in, height_in, wall_thickness=0.6, door_width=3.0, wa
     return [footprint] + ruin_walls(x_in, y_in, width_in, height_in, wall_thickness, door_width, wall_category, corners)
 
 
-def l_walls(x_in, y_in, width_in, height_in, facing_x, facing_y, wall_thickness=0.6, category=DENSE, wall_fraction=2 / 3, h_wall_fraction=None, v_wall_fraction=None, angle_deg=0.0):
+def l_walls(x_in, y_in, width_in, height_in, facing_x, facing_y, wall_thickness=None, category=DENSE, wall_fraction=2 / 3, h_wall_fraction=None, v_wall_fraction=None, angle_deg=0.0):
     """Two doorless walls on the two sides of the footprint nearest a
     given facing point (default use: the board's center, standing in for
     "faces the enemy" - both players approach from opposite edges, so the
@@ -457,6 +472,8 @@ def l_walls(x_in, y_in, width_in, height_in, facing_x, facing_y, wall_thickness=
     A fraction of 0 omits that arm entirely rather than emitting a
     zero-length obstacle, which is how a piece keeps only one of the two
     walls."""
+    if wall_thickness is None:
+        wall_thickness = WALL_THICKNESS_IN
     half_w, half_h = width_in / 2, height_in / 2
     # Everything below is computed in the FOOTPRINT'S OWN FRAME (centred on the
     # origin, axis-aligned) and transformed back at the end. For angle_deg=0
@@ -504,7 +521,7 @@ def l_walls(x_in, y_in, width_in, height_in, facing_x, facing_y, wall_thickness=
     return walls
 
 
-def ruin_l(x_in, y_in, width_in, height_in, facing_x, facing_y, wall_thickness=0.6, wall_category=DENSE, floor_category=LIGHT, wall_fraction=2 / 3, h_wall_fraction=None, v_wall_fraction=None, angle_deg=0.0):
+def ruin_l(x_in, y_in, width_in, height_in, facing_x, facing_y, wall_thickness=None, wall_category=DENSE, floor_category=LIGHT, wall_fraction=2 / 3, h_wall_fraction=None, v_wall_fraction=None, angle_deg=0.0):
     """Like ruin(), but with l_walls() instead of ruin_walls() for the wall
     features: an L of two partial walls (see l_walls()) facing
     (facing_x, facing_y) instead of doored walls on all four sides.

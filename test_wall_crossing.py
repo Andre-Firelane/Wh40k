@@ -31,19 +31,23 @@ from game.factions import build_squad
 from game.factions.orks import BOYZ, DEFF_DREAD, TRUKK
 from game.movement import MovementController
 from game.squad import model_terrain_violation
-from game.terrain import DENSE, Obstacle
+from game.terrain import DENSE, WALL_THICKNESS_IN, Obstacle
 from game.turn import PHASE_MOVEMENT, PHASES, TurnTracker
 
 c = Checks("wall crossing")
 
-# A single wall, thin like every real one on both maps (measured: min 0.60",
-# median 0.60", max 0.60" across map 1's 28 and map 2's 14 Dense features),
-# lying across the lane between start and goal.
-WALL = Obstacle(20.0, 24.0, 12.0, 0.6, DENSE)
+# A single wall, thin like every real one on all four maps - built FROM the
+# shared constant rather than from a literal, so it cannot drift away from
+# the boards it stands in for the way its own hardcoded 0.6 just did when
+# the walls were halved. Measured: min = median = max = WALL_THICKNESS_IN
+# across map 1's 28, map 2's 14, map 3's 20 and map 4's 16 Dense features.
+# It lies across the lane between start and goal.
+WALL = Obstacle(20.0, 24.0, 12.0, WALL_THICKNESS_IN, DENSE)
 # Close enough to the wall that an 8"-mover still clears it even while section
 # 2b has the toll switched back on: it has to reach wall.max_y + its own radius
-# (24.30 + 1.18 = 25.48"), and 8" - 3" of toll leaves 5". At the shipped toll
-# of 0 it simply walks the full 8".
+# (24.15 + 1.18 = 25.33", the wall being half as thick as it used to be), and
+# 8" - 3" of toll leaves 5". At the shipped toll of 0 it simply walks the
+# full 8".
 START = (20.0, 21.0)
 GOAL = (20.0, 32.0)
 

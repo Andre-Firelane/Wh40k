@@ -171,10 +171,13 @@ ac.reset_for_turn()
 checks.eq("the end of the turn clears both", ac.blocks_shooting(squad), False)
 
 # The asymmetry: the shooting lock excludes TITANIC, the charge lock does not.
-# No datasheet here carries the keyword, so it is set on a throwaway profile
-# copy - the point is that the code reads it, not that a unit has it.
+# STAGED AT THE KEYWORD LINE, which is where the engine reads it (see
+# game/titanic.py). This used to hang a `titanic` attribute on a throwaway
+# profile copy - a field UnitProfile does not declare, so the reader answered
+# False and the check passed for the wrong reason. Nothing built carried the
+# keyword, so nothing could tell the difference until the Monolith.
 titanic = unit_on(CENTRAL, "1 Titan 1")
-titanic.models[0].profile = type("T", (type(titanic.models[0].profile),), {"titanic": True})()
+titanic.datasheet = type("TitanSheet", (), {"keywords": ("VEHICLE", "TITANIC")})()
 refresh_control(list(titanic.models))
 ac2 = controller(list(titanic.models))
 ac2.start(sm.CLEANSE_ACTION, titanic, CENTRAL, mission_ctx(list(titanic.models)))

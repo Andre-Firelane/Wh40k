@@ -301,10 +301,21 @@ mob = attached_units.attach(build_squad(PAINBOY, "Player 2", name="2 Painboy 1")
 # those slots collide in the first place. Swept before settling on it - the
 # same block sent straight forward leaves nobody behind even before the fix,
 # so a test built on that scene would have proved nothing.
+#
+# AND THE SCENE IS PINNED TO THE WALL GEOMETRY, which is why it moved once.
+# Its route brushes a ruin corner on map2, so halving terrain.WALL_THICKNESS_IN
+# shifted where the formation squeezes past it and left one model 0.09" short -
+# a butterfly through a self-blocking block, not a broken ladder: re-sweeping
+# the same space found 8 valid fixtures at the new thickness and 9 at the old,
+# and across 32 randomised worlds the ladder still leaves nobody standing at
+# either one. So the fixture was re-picked from the INTERSECTION of the two
+# sweeps rather than re-tuned to the current number, and the replacement is
+# the sharpest scene in it: the one-shot path strands 9 of 22 here, where the
+# original scene stranded 5.
 for i, model in enumerate(mob.models):
-    model.x_in, model.y_in = 20.0 + (i % 5) * 1.35, 8.0 + (i // 5) * 1.35
+    model.x_in, model.y_in = 22.0 + (i % 5) * 1.35, 10.0 + (i // 5) * 1.35
 st.tokens = list(mob.models)
-GOAL = (28.0, 26.0)
+GOAL = (30.0, 24.0)
 
 
 def one_move():

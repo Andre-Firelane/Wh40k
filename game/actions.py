@@ -47,6 +47,7 @@ Disembark locks already do.
 """
 
 from game.squad import ENGAGEMENT_RANGE_IN, edge_distance
+from game import titanic
 
 
 class ActionDefinition:
@@ -152,8 +153,11 @@ def start_eligibility(squad, tokens, movement_controller=None, started_this_turn
         return False, "battle-shocked"
     if profile.oc <= 0:
         return False, "OC 0"
-    # TITANIC is the printed exception, and also not a keyword here.
-    if not _flag(profile, "titanic") and _is_engaged(squad, tokens):
+    # TITANIC is the printed exception. Asked at the KEYWORD line, not at a
+    # profile flag: this used to read `_flag(profile, "titanic")`, a field
+    # UnitProfile does not declare, so it was unconditionally False - see
+    # game/titanic.py.
+    if not titanic.is_titanic_unit(squad) and _is_engaged(squad, tokens):
         return False, "engaged"
     if squad.fell_back_this_turn:
         return False, "Fell Back this turn"
@@ -223,7 +227,10 @@ class ActionController:
         from game import aac_microdrone_support
         if aac_microdrone_support.is_active(squad):
             return False
-        return not _flag(squad.models[0].profile, "titanic") if squad.models else True
+        # Same repair as above, and the empty-squad answer is unchanged:
+        # a squad with no models carries no keyword, so this still returns
+        # True for one.
+        return not titanic.is_titanic_unit(squad)
 
     def blocks_charge(self, squad):
         """"It is not eligible to declare a charge" - no TITANIC carve-out on

@@ -197,12 +197,72 @@ MISSING_AELDARI = [
     "Ynnari Venom",
 ]
 
+# The same thing for Necrons, the faction furthest behind its own page once
+# Aeldari caught up (15 of 64 built). Measured off rules/.cache/necrons.html
+# with the same subtraction the Aeldari list documents above: 64 blocks, minus
+# 15 built, minus 12 Legends (`sLegendary`), minus 5 TITANIC
+# (`tooltip_contentTitanic` in the KEYWORD BAR), minus the two below that are
+# out of scope for building = 32 build targets.
+#
+# Forge World removes nothing extra here, and that is worth writing down rather
+# than leaving as a gap in the arithmetic: `FW_logo2` in the index marks the
+# Obelisk, the Tesseract Vault, the Seraptek Heavy Construct and the Tomb
+# Citadel Walls, and all four are already Legends or TITANIC.
+#
+# THE MONOLITH IS THE ONE TITANIC ENTRY, by instruction ("nur der monolith
+# sollte als einzige titanische einheit angelegt werden"). It would be the
+# FIRST datasheet in this engine to carry that keyword, which turns a family of
+# clauses this repo has written out as documented no-ops into live rules - see
+# CLAUDE.md. The other five TITANIC sheets stay out entirely, Legends and all.
+#
+# NIGHT SCYTHE IS NOT AN AIRCRAFT, measured rather than assumed: it reads like
+# one and its 11th-edition keyword bar says "VEHICLE; FLY; TRANSPORT" with no
+# AIRCRAFT at all, so it is an ordinary transport and it is built. Only the
+# Doom Scythe carries the keyword.
+MISSING_NECRONS = [
+    # -- build targets --------------------------------------------------
+    # Crypteks - the SUPPORT-character chassis the Plasmancer/Technomancer
+    # already share. The Geomancer sits with the Canopteks instead: it is the
+    # only unit the Canoptek Macrocytes can be supported by, and its Vanguard
+    # Protocols only grant Scouts while it is attached to one.
+    "Chronomancer", "Psychomancer", "Orikan The Diviner",
+    # Rank and file
+    "Deathmarks", "Flayed Ones", "Cryptothralls", "Tomb Blades",
+    # Destroyer Cult
+    "Hexmark Destroyer", "Ophydian Destroyers", "Nekrosor Ammentar",
+    # Triarch
+    "Triarch Praetorians", "Triarch Stalker",
+    # Canoptek - one closed sub-faction, plus the Geomancer that supports it
+    "Canoptek Scarab Swarms", "Canoptek Spyders", "Canoptek Doomstalker",
+    "Canoptek Reanimator", "Canoptek Macrocytes", "Canoptek Tomb Crawlers",
+    "Geomancer",
+    # C'tan - measured: all four print T11 Sv3+ W16 Ld6+ OC4 and a 4+
+    # invulnerable, and differ ONLY in Move (8" against the Void Dragon's 10").
+    "C'tan Shard of the Deceiver", "C'tan Shard of the Nightbringer",
+    "Transcendent C'tan",
+    # Named characters. Every one of the four Leaders attaches only to units
+    # that are already built (Immortals, Lychguard, Necron Warriors).
+    "Imotekh The Stormlord", "Trazyn The Infinite", "Royal Warden",
+    "Overlord with translocation shroud", "The Silent King",
+    # Vehicles
+    "Catacomb Command Barge", "Annihilation Barge", "Ghost Ark", "Night Scythe",
+    # The one TITANIC entry
+    "Monolith",
+    # -- deliberately out of scope for building, snapshotted anyway ------
+    # Same reasoning as the two tails above: free to take from the same fetch,
+    # so a later decision to build one needs no new research. AIRCRAFT and
+    # FORTIFICATION are both documented no-op keywords in game/actions.py, and
+    # there is no verticality here.
+    "Doom Scythe", "Convergence Of Dominion",
+]
+
 # folder -> the not-yet-built names that folder snapshots anyway. Keyed on the
 # OUTPUT FOLDER rather than on the Faction object, so adding a third list is a
 # dict entry instead of another `elif faction is ...` branch.
 MISSING_BY_FOLDER = {
     "tau_empire": MISSING_TAU,
     "aeldari": MISSING_AELDARI,
+    "necrons": MISSING_NECRONS,
 }
 
 BLOCK_TAGS = {"div", "p", "tr", "table", "h1", "h2", "h3", "h4", "ul", "ol"}

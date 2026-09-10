@@ -1,4 +1,7 @@
 from game import base_contact
+# Statistics reporting - battle_stats imports only game/weapons.py, so it
+# cannot cycle back into anything here.
+from game import battle_stats
 from game import config, geometry
 from game import scuttling_walker
 from game.coherency import coherency_report
@@ -973,6 +976,26 @@ class MovementController:
     # Set by main.py - the Exodites' Drakolithe, read at the same seam.
     drakolithe = None
 
+    def _farthest_moved(self, squad):
+        """How far the model that travelled furthest in `squad` has come since
+        this move began - straight-line start to end, not path length.
+
+        Extracted at the second consumer: rule 24.16's [HEAVY] bookkeeping in
+        confirm_move() has always asked this, and game/battle_stats.py's
+        "Fastest Units" now asks it too. Two copies would be two answers the
+        moment one of them learned about, say, a model that was re-landed by
+        the friendly-clamp search.
+
+        Reads self.move_start, so it is only meaningful DURING a move -
+        _clear_move_state() empties that dict."""
+        farthest = 0.0
+        for model in squad.models:
+            start = self.move_start.get(model.id)
+            if start is not None:
+                dist = ((model.x_in - start[0]) ** 2 + (model.y_in - start[1]) ** 2) ** 0.5
+                farthest = max(farthest, dist)
+        return farthest
+
     def confirm_move(self):
         if self.selected_squad is None:
             return
@@ -1100,13 +1123,8 @@ class MovementController:
             # the only Movement-phase move types; Charge/Pile-In/Consolidate
             # happen in later phases, after this turn's Shooting phase - and
             # thus this [HEAVY] check - has already passed).
-            max_dist = 0.0
-            for model in self.selected_squad.models:
-                start = self.move_start.get(model.id)
-                if start is not None:
-                    dist = ((model.x_in - start[0]) ** 2 + (model.y_in - start[1]) ** 2) ** 0.5
-                    max_dist = max(max_dist, dist)
-            self.moved_distance_this_turn[self.selected_squad] = max_dist
+            self.moved_distance_this_turn[self.selected_squad] = self._farthest_moved(
+                self.selected_squad)
         # Where every model STOOD before this move, kept past the state clear
         # below. Canoptek Wraiths' Wraith Form needs the segment each model
         # actually travelled ("one enemy unit it MOVED OVER"), and
@@ -1121,6 +1139,23 @@ class MovementController:
         # recognised by name rather than guessed at.
         if self.action_controller is not None:
             self.action_controller.notify_move(self.selected_squad, self.move_mode)
+        # Statistics (game/battle_stats.py's "Fastest Units"): distance covered,
+        # reported from the SAME seam as rule 16.01 above and for the same
+        # reason - this is the one place every confirmed move passes through.
+        #
+        # EVERY move type counts, which is why it is here and not in the
+        # narrower branch further up: moved_distance_this_turn is deliberately
+        # confined to Movement-phase moves for rule 24.16's sake, is an
+        # assignment rather than a sum, and is wiped every player turn. The
+        # question here is how far this unit got all battle, whatever rule
+        # moved it.
+        #
+        # Measured as the FARTHEST any one model travelled - the same
+        # arithmetic the [HEAVY] bookkeeping above uses, from the same
+        # move_start snapshot, which is still populated at this point
+        # (_clear_move_state() empties it further down).
+        battle_stats.report_move(self.selected_squad, self.move_mode,
+                                 self._farthest_moved(self.selected_squad))
         # The Shadow Weaver Platform's Monofilament Snare: a snared unit rolls
         # a D6 per model each time it makes a Normal, Advance or Fall Back move
         # and bleeds a mortal wound for every 1. Reported from the SAME seam as
