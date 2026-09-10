@@ -4869,6 +4869,73 @@ class HyperphaseHarvesterProfile(WeaponProfile):
     damage = 3
 
 
+# --- Crypteks: Chronomancer / Psychomancer / Orikan The Diviner -------------
+#
+# The two staves each print ONE name across a ranged and a melee row, which is
+# this repo's Staff-of-Light shape: two classes, one printed name, and the
+# datasheet lists both. WS/BS live on the PROFILE (all three Crypteks agree
+# with their own weapons), so none of these carries an override.
+
+
+class AeonstaveRangedProfile(WeaponProfile):
+    """Chronomancer, ranged row."""
+    name = "Aeonstave"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 3  # preview/grouping placeholder only - attacks_notation is rolled
+    attacks_notation = D6()
+    strength = 5
+    ap = -1
+    damage = 1
+    blast = 1
+
+
+class AeonstaveMeleeProfile(WeaponProfile):
+    """Chronomancer, melee row. Same printed name, no [BLAST] - 24.05 is a
+    ranged-only keyword and the melee row does not print it."""
+    name = "Aeonstave"
+    weapon_type = MELEE
+    attacks = 3
+    strength = 5
+    ap = -1
+    damage = 1
+
+
+class AbyssalLanceRangedProfile(WeaponProfile):
+    """Psychomancer, ranged row."""
+    name = "Abyssal lance"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 1
+    strength = 6
+    ap = -3
+    damage = 3
+
+
+class AbyssalLanceMeleeProfile(WeaponProfile):
+    """Psychomancer, melee row - identical numbers to the ranged one, which is
+    what the sheet prints."""
+    name = "Abyssal lance"
+    weapon_type = MELEE
+    attacks = 1
+    strength = 6
+    ap = -3
+    damage = 3
+
+
+class StaffOfTomorrowProfile(WeaponProfile):
+    """Orikan The Diviner. His only weapon, and the reason his profile carries
+    WS 3+ rather than the 4+ the other two Crypteks print."""
+    name = "Staff of Tomorrow"
+    weapon_type = MELEE
+    attacks = 2
+    strength = 4
+    ap = -3
+    damage = 2  # preview/grouping placeholder only - damage_notation is rolled
+    damage_notation = D3()
+    devastating_wounds = True
+
+
 # ---------------------------------------------------------------------------
 # Death Guard - see game/factions/death_guard.py
 #

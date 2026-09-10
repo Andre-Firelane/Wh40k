@@ -327,7 +327,7 @@ c.true("the Destroyer Cult is five datasheets - both Lords joined it",
             nec.LOKHUST_HEAVY_DESTROYERS, nec.SKORPEKH_LORD, nec.LOKHUST_LORD)))
 c.true("every datasheet carries the NECRONS faction keyword",
        all("NECRONS" in s.keywords for s in nec.NECRONS.datasheets.values()))
-c.eq("fifteen datasheets are registered", len(nec.NECRONS.datasheets), 15)
+c.eq("eighteen datasheets are registered", len(nec.NECRONS.datasheets), 18)
 c.eq("the faction keyword is NECRONS", nec.NECRONS.keyword, "NECRONS")
 
 # can_attach() returns a list of REASONS - empty means legal
@@ -359,8 +359,8 @@ print("--- 6. sprites ---")
 missing = [s.name for s in nec.NECRONS.datasheets.values()
            if not sprites.sprite_for(build(s).models[0])]
 c.eq("every Necron datasheet resolves to a real file", missing, [])
-c.eq("...all fifteen of them",
-     len(nec.NECRONS.datasheets) - len(missing), 15)
+c.eq("...all eighteen of them",
+     len(nec.NECRONS.datasheets) - len(missing), 18)
 c.eq("the faction badge is mapped too",
      sprites.FACTION_LOGO_KEYS.get("NECRONS"), "Necron Logo")
 

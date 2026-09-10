@@ -298,6 +298,12 @@ class UnitProfile:
     targeting_array = False  # Hammerhead and Sky Ray Gunships' own ability: once per shooting activation, re-roll ONE Hit or ONE Wound die - a single-die re-roll like rule 15.02's Command Re-roll, with a panel button instead of CP; see game/targeting_array.py
     velocity_tracker = False  # Sky Ray Gunship's own ability: re-roll the Hit roll against a target that can FLY - a ShootingController._hit_reroll_reason() entry; see game/velocity_tracker.py
     drone_harassment = False  # Piranhas' own ability: at the end of your Movement phase, one enemy unit within 12" must take a Battle-shock test; see game/drone_harassment.py
+    timesplinter_mantle = False  # Chronomancer's own ability, HALF of it: "melee attacks that target this unit have -1 to Hit rolls". A DEFENDER-side melee malus, so it is a FightController._hit_modifiers() entry read off the TARGET squad - the same shape game/forewarned.py already sits in. The other half of the printed ability is plain `stealth` above; see game/timesplinter_mantle.py
+    chronometron = False  # Chronomancer's own ability: after this model's unit has shot, if it is not in Engagement Range, it may make a 5" Normal move and then cannot declare a charge. Asurmen's Tactical Acumen one number apart, plus Fire and Fade's engagement clause - see game/chronometron.py
+    nightmare_shroud = False  # Psychomancer's own ability (Aura): in the Battle-Shock step of your opponent's Command phase, an enemy unit BELOW its Starting Strength within 6" must take a Battle-shock test at -1 - see game/psychomancer.py
+    harbinger_of_despair = False  # Psychomancer's own ability: once per turn, at the start of any of five phases, one enemy unit within 18" must take a Battle-shock test at -1. Its sibling above shares the -1 and the forced test; only the trigger differs - see game/psychomancer.py
+    master_chronomancer = False  # Orikan The Diviner's own ability: while this model is LEADING a unit (19.01), models in that unit have a 4+ invulnerable save - one more _better() fold in game/invulnerable_save.py, read with attached_units.leader_ability()
+    the_stars_are_right = False  # Orikan The Diviner's own ability: once per battle, at the start of the Fight phase, TRIPLE the Attacks and Strength of his Staff of Tomorrow and make every successful Wound roll a Critical Wound, until the end of the phase - see game/the_stars_are_right.py
     loping_pounce = False  # Kroot Hounds' own ability: while it is active (set at the start of its owner's Command phase when a friendly KROOT INFANTRY unit is within 6"), this unit may declare a charge in a turn in which it Advanced - the THIRD source of that exception, after Waaagh! and Full Throttle, read at the same gate in game/charge.py; see game/loping_pounce.py
     hunting_hounds = False  # Kroot Hounds' own ability: while within 12" of a friendly KROOT CHARACTER model, this model's Objective Control is 1 instead of its printed 0 - read by game/objectives.py; see game/hunting_hounds.py
     airborne_agility = False  # Vespid Stingwings' own ability: at the end of the opponent's turn, a unit not in Engagement Range may take itself off the board into Strategic Reserves; see game/airborne_agility.py
@@ -4174,7 +4180,13 @@ class PlasmancerProfile(UnitProfile):
     oc = 1
     infantry = True
     character = True
-    leader = True
+    # SUPPORT, not Leader - its printed CORE line reads "Support" and so does
+    # this datasheet's abilities_text. It carried `leader = True` until the
+    # Cryptek batch measured it: 19.01 allows one Leader AND one Support on a
+    # unit, so the wrong flag meant a Necron Warriors squad with an Overlord
+    # could not also take this model - can_attach() refused it as a second
+    # leader. See game/attached_units.py's attachment_role().
+    support = True
     reanimation_protocols = True
     leading_ranged_crit_on_5 = True  # printed here as "Harbinger of Destruction"; see game/crit_hit.py
     living_lightning = True          # see game/mortal_wound_abilities.py
@@ -4194,10 +4206,93 @@ class TechnomancerProfile(UnitProfile):
     infantry = True
     character = True
     fly = True
-    leader = True
+    # SUPPORT, not Leader - its printed CORE line reads "Support" and so does
+    # this datasheet's abilities_text. It carried `leader = True` until the
+    # Cryptek batch measured it: 19.01 allows one Leader AND one Support on a
+    # unit, so the wrong flag meant a Necron Warriors squad with an Overlord
+    # could not also take this model - can_attach() refused it as a second
+    # leader. See game/attached_units.py's attachment_role().
+    support = True
     reanimation_protocols = True
     rites_of_reanimation = True     # see game/feel_no_pain.py
     technomancer_repair = True      # see game/technomancer.py
+
+
+class ChronomancerProfile(UnitProfile):
+    """Datasheet: Chronomancer (Necrons).
+
+    The first of three Crypteks in this batch, and they share a chassis with
+    the Plasmancer already here: M5" T4 Sv4+ W4 Ld6+ OC1 on a 40 mm base. What
+    separates them is the invulnerable save (this one and Orikan print 4+, the
+    Psychomancer prints none) and their own abilities."""
+    name = "Chronomancer"
+    base_radius_in = 0.787          # 40 mm printed base
+    movement_in = 5
+    weapon_skill = "4+"
+    ballistic_skill = "4+"
+    toughness = 4
+    wounds = 4
+    leadership = "6+"
+    armor_save = "4+"
+    invulnerable_save = "4+"
+    oc = 1
+    infantry = True
+    character = True
+    support = True                  # its CORE line reads Support
+    reanimation_protocols = True
+    stealth = True                  # Timesplinter Mantle, first half - rule 24.33
+    timesplinter_mantle = True      # ...and its second half; see game/timesplinter_mantle.py
+    chronometron = True             # see game/chronometron.py
+
+
+class PsychomancerProfile(UnitProfile):
+    """Datasheet: Psychomancer (Necrons).
+
+    The one Cryptek of the three with NO invulnerable save printed - checked
+    against the corpus rather than assumed from its two neighbours."""
+    name = "Psychomancer"
+    base_radius_in = 0.787          # 40 mm printed base
+    movement_in = 5
+    weapon_skill = "4+"
+    ballistic_skill = "4+"
+    toughness = 4
+    wounds = 4
+    leadership = "6+"
+    armor_save = "4+"
+    oc = 1
+    infantry = True
+    character = True
+    support = True                  # its CORE line reads Support
+    reanimation_protocols = True
+    nightmare_shroud = True         # see game/psychomancer.py
+    harbinger_of_despair = True     # see game/psychomancer.py
+
+
+class OrikanTheDivinerProfile(UnitProfile):
+    """Datasheet: Orikan The Diviner (Necrons).
+
+    WS 3+ where the other two Crypteks print 4+, because his Staff of Tomorrow
+    does - the profile carries it rather than the weapon, which is this repo's
+    rule: a per-weapon override exists only where a sheet contradicts its own
+    bearer, and his single weapon does not."""
+    name = "Orikan The Diviner"
+    base_radius_in = 0.787          # 40 mm printed base
+    movement_in = 5
+    weapon_skill = "3+"
+    ballistic_skill = "4+"          # he prints no ranged weapon at all
+    toughness = 4
+    wounds = 4
+    leadership = "6+"
+    armor_save = "4+"
+    invulnerable_save = "4+"
+    oc = 1
+    infantry = True
+    character = True
+    epic_hero = True                # rule 15.03 (Epic Challenge) and [ANTI-EPIC HERO]
+    support = True                  # its CORE line reads Support
+    reanimation_protocols = True
+    master_chronomancer = True      # see game/invulnerable_save.py
+    the_stars_are_right = True      # see game/the_stars_are_right.py
 
 
 class IlluminorSzerasProfile(UnitProfile):

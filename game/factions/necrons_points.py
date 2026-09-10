@@ -37,12 +37,26 @@ NECRONS_POINTS = {
     ),
     "Plasmancer": UnitPoints(
         [PointsTier({1: 55})],                                      # the list agrees
-        leads=("Immortals", "Necron Warriors"),
+        # SUPPORTS, not leads. Both spellings resolve identically today -
+        # leadable_unit_names() falls back from one to the other - but the
+        # printed line reads "SUPPORT" and the profile now carries the matching
+        # role, so the pairing is written where the role expects to find it.
+        supports=("Immortals", "Necron Warriors"),
     ),
+    # --- Crypteks (the Chronomancer batch) ---
+    "Chronomancer": UnitPoints(
+        [PointsTier({1: 70}, to_unit=1),
+         PointsTier({1: 80}, from_unit=2)],
+        supports=("Immortals", "Necron Warriors"),
+    ),
+    "Psychomancer": flat_points(
+        {1: 55}, supports=("Immortals", "Necron Warriors")),
+    "Orikan The Diviner": flat_points(
+        {1: 90}, supports=("Immortals", "Necron Warriors")),
     "Technomancer": UnitPoints(
         [PointsTier({1: 80}, to_unit=1),                            # the list says 80 - agrees for the 1st
          PointsTier({1: 90}, from_unit=2)],
-        leads=("Canoptek Wraiths", "Immortals", "Necron Warriors"),
+        supports=("Canoptek Wraiths", "Immortals", "Necron Warriors"),
     ),
     # Neither this nor the Skorpekh Lord is in the user's 13-entry army list -
     # both were added on their own, so there is no list column to disagree with.

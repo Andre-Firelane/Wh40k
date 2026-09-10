@@ -5,7 +5,7 @@ from game import enh_higher_duty
 from game import windrider_overflight
 from game import aura_ruler
 from game import base_contact
-from game import charge, config, consolidate, crushing_impact, epic_challenge, explosives, fall_back, fight, fire_and_fade, firing_deck, formations, greater_good, loadout, movement, overwatch, path_of_the_outcast, pregame, setup, shooting, sprites
+from game import charge, config, consolidate, crushing_impact, epic_challenge, explosives, fall_back, fight, chronometron, fire_and_fade, firing_deck, formations, greater_good, loadout, movement, overwatch, path_of_the_outcast, pregame, setup, shooting, sprites
 from game.ingress import SHORTENED_BLADE_MIN_ENEMY_DISTANCE_IN
 from game.squad import is_at_half_strength
 from game.turn import PHASE_MOVEMENT, PHASE_SHOOTING, PHASE_CHARGE, PHASE_FIGHT
@@ -180,6 +180,7 @@ class ActionPanel:
         hungry_void_controller=None,
         path_of_the_outcast_controller=None,
         fire_and_fade_controller=None,
+        chronometron_controller=None,
         overflight_controller=None,
         higher_duty_controller=None,
         warhost_fire_and_fade_controller=None,
@@ -258,6 +259,7 @@ class ActionPanel:
             proactive_stratagems=proactive_stratagems,
             path_of_the_outcast_controller=path_of_the_outcast_controller,
             fire_and_fade_controller=fire_and_fade_controller,
+            chronometron_controller=chronometron_controller,
             overflight_controller=overflight_controller,
             higher_duty_controller=higher_duty_controller,
             warhost_fire_and_fade_controller=warhost_fire_and_fade_controller,
@@ -297,6 +299,7 @@ class ActionPanel:
         # frame. See main.py's own warning about this call chain.
         path_of_the_outcast_controller=None,
         fire_and_fade_controller=None,
+        chronometron_controller=None,
         overflight_controller=None,
         higher_duty_controller=None,
         warhost_fire_and_fade_controller=None,
@@ -555,6 +558,7 @@ class ActionPanel:
             proactive_stratagems=proactive_stratagems,
             path_of_the_outcast_controller=path_of_the_outcast_controller,
             fire_and_fade_controller=fire_and_fade_controller,
+            chronometron_controller=chronometron_controller,
             overflight_controller=overflight_controller,
             higher_duty_controller=higher_duty_controller,
             warhost_fire_and_fade_controller=warhost_fire_and_fade_controller,
@@ -2089,6 +2093,7 @@ class ActionPanel:
         hungry_void_controller=None,
         path_of_the_outcast_controller=None,
         fire_and_fade_controller=None,
+        chronometron_controller=None,
         overflight_controller=None,
         higher_duty_controller=None,
         warhost_fire_and_fade_controller=None,
@@ -2203,6 +2208,11 @@ class ActionPanel:
             # conditional on the move actually being confirmed), so it needs
             # its own branch for exactly the same reason.
             is_fire_and_fade = movement_controller.move_mode == fire_and_fade.FIRE_AND_FADE_MOVE_MODE
+            # The Chronomancer's Chronometron - Fire and Fade's third twin,
+            # and here for the same reason: its charge lock is applied "if
+            # it does", so only a CONFIRMED move may set it.
+            is_chronometron = (movement_controller.move_mode
+                               == chronometron.CHRONOMETRON_MOVE_MODE)
             # Windrider Host's Overflight - the THIRD reactive move (see
             # MovementController.REACTIVE_MOVE_MODES). Its printed WHEN says
             # "the end of THE Fight phase", which belongs to nobody, so the
@@ -2244,6 +2254,8 @@ class ActionPanel:
                 confirm_callback = tactical_acumen_controller.confirm_move
             elif is_fire_and_fade and fire_and_fade_controller is not None:
                 confirm_callback = fire_and_fade_controller.confirm_move
+            elif is_chronometron and chronometron_controller is not None:
+                confirm_callback = chronometron_controller.confirm_move
             elif is_overflight and overflight_controller is not None:
                 confirm_callback = overflight_controller.confirm_move
             elif is_higher_duty and higher_duty_controller is not None:
@@ -2303,6 +2315,8 @@ class ActionPanel:
                 cancel_callback = path_of_the_outcast_controller.cancel_move
             elif is_fire_and_fade and fire_and_fade_controller is not None:
                 cancel_callback = fire_and_fade_controller.cancel_move
+            elif is_chronometron and chronometron_controller is not None:
+                cancel_callback = chronometron_controller.cancel_move
             elif is_overflight and overflight_controller is not None:
                 cancel_callback = overflight_controller.cancel_move
             elif is_higher_duty and higher_duty_controller is not None:

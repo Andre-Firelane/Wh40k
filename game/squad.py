@@ -948,7 +948,18 @@ def squad_has_stealth(squad):
     friendly unit for one phase. That is the first TEMPORARY grant of it, so
     it is asked here rather than written as a flag on the models - a granted
     ability that has to be un-set on every model is exactly how one gets left
-    set. See game/hallucinogen_grenades.py, which owns the expiry.""" 
+    set. See game/hallucinogen_grenades.py, which owns the expiry.
+
+    THE CHRONOMANCER'S TIMESPLINTER MANTLE NEEDS NO SOURCE HERE, and that is
+    worth writing down because it looks like it should. It prints "This unit
+    has Stealth", so a Chronomancer attached to Immortals gives the attached
+    unit Stealth even though no Immortal prints it - which reads like exactly
+    the case unit_wide_ability()'s every-model question gets wrong. It is not:
+    that helper delegates to attached_units.unit_has_ability(), which is
+    19.04's COMPONENT-wise reading ("every model of ANY still-conferring
+    component"), and the Chronomancer is a component all of whose models print
+    it. MEASURED, after an A/B probe that removed an extra source here failed
+    to change a single answer.""" 
     if getattr(squad, "granted_stealth_until_phase", False):
         return True
     return unit_wide_ability(squad, "stealth")

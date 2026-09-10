@@ -504,17 +504,17 @@
   C'tan Shard of the Void Dragon x1 (90,110,140) [Canoptek Tail Blades, Spear of the Void Dragon, Spear of the Void Dragon - Strike, Voltaic Storm] {}
   enhancements: -
 1 Immortals 1 + Plasmancer | deploy | pts=195 | models=11
-  components: Immortals/bodyguard, Plasmancer/leader
+  components: Immortals/bodyguard, Plasmancer/support
   Immortal x10 (100,130,150) [Close Combat Weapon, Gauss Blaster] {}
   Plasmancer x1 (110,170,190) [Plasmic Lance, Plasmic Lance] {}
   enhancements: -
 1 Immortals 2 + Plasmancer | deploy | pts=195 | models=11
-  components: Immortals/bodyguard, Plasmancer/leader
+  components: Immortals/bodyguard, Plasmancer/support
   Immortal x10 (120,145,175) [Close Combat Weapon, Tesla Carbine] {}
   Plasmancer x1 (110,170,190) [Plasmic Lance, Plasmic Lance] {}
   enhancements: -
 1 Necron Warriors 1 + Technomancer | deploy | pts=270 | models=21
-  components: Necron Warriors/bodyguard, Technomancer/leader
+  components: Necron Warriors/bodyguard, Technomancer/support
   Necron Warrior x20 (90,120,130) [Close Combat Weapon, Gauss Flayer] {}
   Technomancer x1 (120,160,140) [Staff of Light, Staff of Light] {}
   enhancements: -
@@ -549,17 +549,17 @@
   C'tan Shard of the Void Dragon x1 (90,110,140) [Canoptek Tail Blades, Spear of the Void Dragon, Spear of the Void Dragon - Strike, Voltaic Storm] {}
   enhancements: -
 2 Immortals 1 + Plasmancer | deploy | pts=195 | models=11
-  components: Immortals/bodyguard, Plasmancer/leader
+  components: Immortals/bodyguard, Plasmancer/support
   Immortal x10 (100,130,150) [Close Combat Weapon, Gauss Blaster] {}
   Plasmancer x1 (110,170,190) [Plasmic Lance, Plasmic Lance] {}
   enhancements: -
 2 Immortals 2 + Plasmancer | deploy | pts=195 | models=11
-  components: Immortals/bodyguard, Plasmancer/leader
+  components: Immortals/bodyguard, Plasmancer/support
   Immortal x10 (120,145,175) [Close Combat Weapon, Tesla Carbine] {}
   Plasmancer x1 (110,170,190) [Plasmic Lance, Plasmic Lance] {}
   enhancements: -
 2 Necron Warriors 1 + Technomancer | deploy | pts=270 | models=21
-  components: Necron Warriors/bodyguard, Technomancer/leader
+  components: Necron Warriors/bodyguard, Technomancer/support
   Necron Warrior x20 (90,120,130) [Close Combat Weapon, Gauss Flayer] {}
   Technomancer x1 (120,160,140) [Staff of Light, Staff of Light] {}
   enhancements: -

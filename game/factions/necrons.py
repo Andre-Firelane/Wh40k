@@ -39,6 +39,9 @@ from game.units import (
     SkorpekhDestroyerProfile,
     SkorpekhLordProfile,
     TechnomancerProfile,
+    ChronomancerProfile,
+    PsychomancerProfile,
+    OrikanTheDivinerProfile,
 )
 from game.weapons import (
     ArmouredBulkProfile,
@@ -80,6 +83,11 @@ from game.weapons import (
     VoltaicStormProfile,
     WarscytheProfile,
     WhipCoilsProfile,
+    AeonstaveRangedProfile,
+    AeonstaveMeleeProfile,
+    AbyssalLanceRangedProfile,
+    AbyssalLanceMeleeProfile,
+    StaffOfTomorrowProfile,
 )
 
 NECRONS = register_faction(Faction("Necrons", "NECRONS"))
@@ -465,6 +473,92 @@ TECHNOMANCER = NECRONS.add_datasheet(Datasheet(
         "NECRONS model within 6\" of the bearer. That model regains up to D3 lost wounds. "
         "Each model can only be selected for this ability once per turn.\" - see "
         "game/technomancer.py.",
+    ],
+))
+
+
+# ---------------------------------------------------------------------------
+# Crypteks - Chronomancer, Psychomancer, Orikan The Diviner
+#
+# All three print CORE: Support, share the Plasmancer's chassis (M5" T4 Sv4+
+# W4 Ld6+ OC1 on a 40 mm base) and attach to the same two bodyguard units. The
+# GEOMANCER is the fourth Cryptek of this batch and is deliberately NOT here:
+# it is the only unit the Canoptek Macrocytes can be supported by, and its
+# Vanguard Protocols grant Scouts only while it is attached to one, so both of
+# its printed clauses would be unreachable until that datasheet exists.
+# ---------------------------------------------------------------------------
+
+_CHRONOMANCER_LINE = "Chronomancer"
+
+CHRONOMANCER = NECRONS.add_datasheet(Datasheet(
+    "Chronomancer",
+    keywords=("INFANTRY", "CHARACTER", "CRYPTEK", "CHRONOMANCER", "NECRONS"),
+    model_lines=[ModelLine(ChronomancerProfile, 1,
+                           [AeonstaveRangedProfile, AeonstaveMeleeProfile],
+                           name=_CHRONOMANCER_LINE)],
+    points=NECRONS_POINTS["Chronomancer"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Support (Core).",
+        "Timesplinter Mantle: \"This unit has Stealth. Melee attacks that target this "
+        "unit have -1 to hit rolls.\" Both halves in game/timesplinter_mantle.py - the "
+        "Stealth half is a GRANT to the unit, so it is a second source in "
+        "squad_has_stealth() rather than the every-model reading rule 24.33 gives a "
+        "datasheet that prints the CORE ability.",
+        "Chronometron: \"In your Shooting phase, after this model's unit has shot, if it "
+        "is not within Engagement Range of any enemy units, that unit can make a Normal "
+        "move of up to 5\" as if it were your Movement phase. If it does, until the end "
+        "of the turn, that unit is not eligible to declare a charge.\" - see "
+        "game/chronometron.py, the third twin of Asurmen's Tactical Acumen.",
+    ],
+))
+
+
+_PSYCHOMANCER_LINE = "Psychomancer"
+
+PSYCHOMANCER = NECRONS.add_datasheet(Datasheet(
+    "Psychomancer",
+    keywords=("INFANTRY", "CHARACTER", "CRYPTEK", "PSYCHOMANCER", "NECRONS"),
+    model_lines=[ModelLine(PsychomancerProfile, 1,
+                           [AbyssalLanceRangedProfile, AbyssalLanceMeleeProfile],
+                           name=_PSYCHOMANCER_LINE)],
+    points=NECRONS_POINTS["Psychomancer"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Support (Core).",
+        "Nightmare Shroud (Aura): \"In the Battle-Shock step of your opponent's Command "
+        "phase, if an enemy unit that is below its Starting Strength is within 6\" of "
+        "this model, that enemy unit must take a Battle-Shock test, subtracting 1 from "
+        "the test when it does so.\" - see game/psychomancer.py.",
+        "Harbinger of Despair: \"Once per turn, at the start of your Command, Movement, "
+        "Shooting, Charge or Fight phase, you can select one enemy unit within 18\" of "
+        "this model. That unit must take a Battle-Shock test, subtracting 1 from the "
+        "test when it does so.\" - its sibling above one trigger apart; both fold onto "
+        "BattleShockController.start_forced_roll(penalty=), see game/psychomancer.py.",
+    ],
+))
+
+
+_ORIKAN_LINE = "Orikan The Diviner"
+
+ORIKAN_THE_DIVINER = NECRONS.add_datasheet(Datasheet(
+    "Orikan The Diviner",
+    keywords=("INFANTRY", "CHARACTER", "EPIC HERO", "CRYPTEK", "CHRONOMANCER",
+              "ORIKAN THE DIVINER", "NECRONS"),
+    model_lines=[ModelLine(OrikanTheDivinerProfile, 1,
+                           [StaffOfTomorrowProfile], name=_ORIKAN_LINE)],
+    points=NECRONS_POINTS["Orikan The Diviner"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Support (Core).",
+        "Master Chronomancer: \"While this model is leading a unit, models in that unit "
+        "have a 4+ invulnerable save.\" - one more _better() fold in "
+        "game/invulnerable_save.py, read with attached_units.leader_ability().",
+        "The Stars Are Right: \"Once per battle, at the start of the Fight phase, this "
+        "model can use this ability. If it does, until the end of the phase, triple the "
+        "Attacks and Strength characteristics of this model's Staff of Tomorrow and "
+        "every successful Wound roll made for this model's attacks scores a Critical "
+        "Wound.\" - see game/the_stars_are_right.py.",
     ],
 ))
 

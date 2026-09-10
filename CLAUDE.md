@@ -10112,6 +10112,137 @@ als Negativraum geprüft: kein Name taucht in `ai/agent_driver.py` auf), und au�
 hat keines ein Sprite — alle Abwesenheiten sind am MODELL gepinnt, damit späteres Hinzufügen eine
 sichtbare Änderung ist.
 
+## Die restlichen Necron-Datenblätter (32 Stück, zehn Etappen)
+
+**Die Necrons waren mit 15 von 64 Datenblättern die am schlechtesten abgedeckte gebaute
+Fraktion** (T'au 33/40, Aeldari 54/99). Der User hat 27 Sprite-Dateien nach
+`Sprites/Necrons/` gelegt und dann gesagt: *"schau, an wie die letzten datasheets aus
+wahapedia extrahiert wurden. keine legends keine titanischen. nur der monolith sollte als
+einzige titanische einheit angelegt werden."*
+
+**Der Umfang ist GEMESSEN**, mit derselben Subtraktion wie beim Aeldari-Nachzug: 64 Blöcke
+− 15 gebaut − 12 Legends (`sLegendary`) − 5 TITANIC (`tooltip_contentTitanic` in der
+KEYWORD-LEISTE, Monolith ausgenommen) − 2 (AIRCRAFT/FORTIFICATION, User-Entscheidung) =
+**32**. Forge World entfernt nichts (alle vier `FW_logo2`-Träger sind ohnehin Legends oder
+TITANIC). **Night Scythe bleibt DRIN** — es liest sich wie ein Aircraft und ist in 11e
+keins (`VEHICLE; FLY; TRANSPORT`, ohne AIRCRAFT), genau die Sorte Annahme, die ungeprüft
+ein Datenblatt gekostet hätte.
+
+**Gemessene Waffen-Kollisionen, und sie laufen in BEIDE Richtungen:** 65 Waffennamen, 7
+mit Namenskollision — aber die MEISTEN sind byte-gleich und müssen **GETEILT** werden
+(`Overlord's blade`, `Gauss cannon`, `Gauss flayer array`, `Particle caster`, `Staff of
+light`, die Fahrzeug-`Armoured bulk`); nur ~3-4 sind echte Forks (der Menhir-`Armoured
+bulk` A1 S4, die `Close combat weapon` in drei Ausprägungen). **Die erste Fassung des
+Plans las alle sieben als Forks** — sie zu klonen wäre der inverse Fehler gewesen, und
+`test_necron_datasheets.py` pinnt die Familien GEGENEINANDER als verschieden, also hätte
+eine identische vierte den Pin erfüllt und still dupliziert.
+
+### Etappe 0 — Korpus, und die TITANIC-Reparatur, die vorgezogen werden musste
+
+`MISSING_NECRONS` in `fetch_datasheet_rules.py` (32 + Doom Scythe + Convergence Of
+Dominion). `rules/necrons/` **15 → 49**, zwei `--offline`-Läufe byte-identisch.
+
+**Der Monolith wäre das ERSTE TITANIC-Datenblatt dieser Engine, und das Versprechen hielt
+nicht.** Ein Dutzend Klauseln stehen als *"documented no-op"* da, mehrere mit dem
+wörtlichen *"it starts working by itself the day a TITANIC datasheet exists"*. Gemessen:
+**TITANIC wurde an DREI unvereinbaren Stellen beantwortet**, und eine davon war eine stille
+Lüge — **vier Stellen lasen `getattr(profile, "titanic", False)` bzw. `_flag(profile,
+"titanic")`, ein Feld, das `UnitProfile` gar nicht deklariert** (`game/actions.py` zweimal,
+`game/elemental_ensnarement.py`, `game/structural_collapse.py`). Unbedingt False, von innen
+verdrahtet aussehend. Byte-für-byte der Fehler, den `game/wraith_construct.py`s Docstring
+für `spiritseer.py` bereits anklagt.
+
+- **Neu `game/titanic.py`** als EINE Definition (Keyword-Leiste über
+  `unit_has_datasheet_keyword()`); `wraith_construct.py` re-exportiert, seine Aufrufer
+  bewegen sich nicht. Es liegt NICHT dort, weil vier der Leser Necron-, Death-Guard- und
+  Kernregel-Stellen sind, die mit Wraith Constructs nichts zu tun haben (Fehlerklasse 11).
+- **VORGEZOGEN aus Etappe 9**, weil Nekrosor Ammentar (Etappe 3) *"excluding MONSTER and
+  TITANIC units"* druckt und damit sechs Etappen vor dem Monolith gegen diesen Mechanismus
+  schreibt.
+- **Gemessen, dass es etwas repariert:** `test_support_weapon_platforms.py` **163 → 166** —
+  die drei Zeilen der D-cannon-Klausel gegen ein TITANIC-Ziel waren rot, weil Staging UND
+  Leser dasselbe nicht existierende Feld lasen und sich einig falsch waren.
+- **Zwei Test-Stagings mussten mitziehen** (`test_actions.py`,
+  `test_support_weapon_platforms.py`): beide inszenierten TITANIC durch ein
+  `titanic`-Attribut auf einer Wegwerf-Profilkopie, also die VOR-FIX-Welt.
+- **NICHT alles davon ist dormant:** zwei der vier Stellen sind CROSS-FACTION-Leser auf
+  ausgelieferten Rostern (Elemental Ensnarement ist Aeldari, die D-cannon-Klausel ebenso).
+- **Eigener Messfehler, notiert weil er sich wiederholen wird:** mein erster Sweep grepte
+  `\.titanic\b` und fand nur Kommentare — der Feldname ist dort ein STRING-ARGUMENT, kein
+  Attributzugriff.
+- Neu `test_titanic_reader.py` (**19/19**, Abschnitt 4 eine MENGENDIFFERENZ per AST: kein
+  Modul darf `titanic` je wieder als Profilfeld lesen) plus `ab_titanic_reader.py`
+  (**6 Sonden, alle beißend**). **Zwei bissen zuerst nicht, beide Befunde über den TEST:**
+  16.01s ENGAGED-Ausnahme war gar nicht gemessen (nur die Schuss-Hälfte), und zur
+  Aeldari-Ensnarement-Ausnahme gab es keine Prüfung.
+
+### Etappe 1 — die Crypteks (Chronomancer, Psychomancer, Orikan The Diviner)
+
+**Vorher eine 19.01-Korrektur, die die Etappe erzwungen hat:** Plasmancer und Technomancer
+drucken beide `CORE: Support`, ihre Profile setzten aber `leader = True`. Reproduziert: eine
+Necron-Warriors-Einheit mit einem Overlord konnte KEINEN Technomancer mehr aufnehmen —
+`can_attach()` meldete *"already has a leader unit attached ... 19.01 allows only one of
+each"*, obwohl ein Leader und ein Support nebeneinander erlaubt sind. Gemessen sicher: alle
+Necron-Suiten grün, und der Golden Master bewegt **genau sechs Zeilen**, alle nur das
+Rollen-Label. Die Paarungen ziehen von `leads=` auf `supports=` nach.
+
+**Die Abteilung der Fähigkeiten — knapp ein Viertel ist eine FALTE:**
+- **Chronometron** = `game/tactical_acumen.py`/`fire_and_fade.py` zum DRITTEN Mal, 6" → 5".
+  Der eine echte Unterschied ist der SUBJEKT: "this model's UNIT", also 19.03s
+  Any-Model-Pooling statt `leader_ability()` — sonst verlöre ein allein stehender
+  Chronomancer seine eigene Fähigkeit.
+- **Timesplinter Mantle** (melee −1) = ein `FightController._hit_modifiers()`-Eintrag, die
+  Naht, in der `forewarned.py` schon sitzt. Melee-only, also NICHT in `shooting.py`.
+- **Nightmare Shroud / Harbinger of Despair** = beide `start_forced_roll(penalty=)`, das die
+  −1 schon konnte. Ein Modul, zwei Auslöser; die Aura hält eine QUEUE, weil
+  `start_forced_roll()` einen Wurf zur Zeit nimmt.
+- **Master Chronomancer** = ein `_better()`-Fold in `invulnerable_save.py`.
+- **The Stars Are Right** ist die einzige echte Mechanik: "triple" ist ein MULTIPLIKATOR
+  (A2 S4 → A6 S12, zwei Toughness-Grenzen auf einmal), und "every successful Wound roll
+  scores a Critical Wound" ist in dieser Engine *die Krit-Schwelle IST die Wundschwelle*.
+  Dafür bekam `fight.py` **einen** Helfer `_wound_crit()`, durch den alle vier
+  Krit-Wund-Stellen laufen.
+
+**Der wertvollste Fund der Etappe kam von einer Sonde, die NICHT biss.** Ich hatte
+`squad_has_stealth()` eine dritte Quelle gegeben, weil Timesplinter Mantle *"This unit has
+Stealth"* druckt und `unit_wide_ability()` wie die falsche Frage aussieht. Die Sonde, die
+sie entfernte, änderte **keine einzige Antwort**: `unit_wide_ability()` delegiert an
+`attached_units.unit_has_ability()`, und das ist 19.04s KOMPONENTEN-weise Lesart ("jedes
+Modell IRGENDEINER noch gewährenden Komponente"). Die Quelle war redundant und ihr eigener
+Docstring behauptete das Gegenteil. **Beides entfernt bzw. korrigiert** — eine Zeile, die
+ihre Notwendigkeit behauptet und keine hat, ist dieselbe Klasse wie ein Kommentar, der ein
+Verhalten verspricht, das kein Code einlöst.
+
+**Der Wiring-Wächter hat zweimal zugeschlagen, und beide Male zu Recht:**
+- **§18** meldete `the_stars_are_right.offer_at_start_of_fight_phase` als Schleife mit
+  ungetaggtem Prompt. Richtig: das ist "JEDE berechtigte Einheit bekommt ihr eigenes
+  Angebot", also `game/per_unit_offer.py`, nicht "wähle eine von mehreren". Auf einem
+  ausgelieferten Roster kann es nicht beißen (Orikan ist EPIC HERO), und es ist trotzdem
+  richtig geschrieben, weil die FORM das ist, was der nächste Träger erbt.
+- **§21** (Insane Braverys dokumentierte Command-Phasen-Lücke) meldete den zwölften
+  Auslöser und ERZWANG eine Entscheidung. Sie steht jetzt namentlich drin, samt der
+  Beobachtung, dass **Nightmare Shroud der einzige der zwölf ist, der INNERHALB einer
+  Command-Phase feuert** (der gegnerischen) — die dichteste an der Kante der Lücke, und der
+  Punkt, an dem eine spätere Revision anfangen sollte.
+
+**Getestet:** neu `test_necron_crypteks.py` (**116/116**, neun Abschnitte) plus
+`ab_necron_crypteks.py` (**23 A/B-Sonden, alle beißend**). **Vier bissen zuerst nicht:** die
+Stealth-Quelle (der Fund oben), und drei Testlücken — Nightmare Shrouds
+Starting-Strength-Tor war mit nur EINEM Kandidaten nicht messbar, die Waffennamens-Klausel
+war ungeprüft, und die Krit-Hälfte wurde am MODUL statt an `fight.py`s echtem `_wound_crit()`
+gemessen. **Eine fünfte Sonde war ein Befund über die SONDE:** sie weitete nur einen
+redundanten Early-out und meldete zu Recht NO BITE — was wirklich schiefgehen kann, ist das
+FALSCHE Modell zu fragen, und so ist sie jetzt geschrieben.
+
+Volle Regression **212 Suiten, ~18532 Prüfungen, 211 grün / 0 rot / 1 bekannt**, und
+`selfplay.py map2` (1200 Frames, exit 0) — keine Formalie, weil `main()` vier neue
+Controller konstruiert und keine Suite `main()` fährt (Fehlerklasse 23).
+
+**Bewusst offen, wie bei den Aeldari:** keines der 32 steht in einer Demo-Armee
+(`armies/necrons.json` unangetastet, Golden Master unbewegt außer den sechs Rollen-Zeilen),
+und die KI bekommt `auto_players` in jedem neuen Controller, aber KEINE
+`ai/agent_driver.py`-Urteile — als Negativraum geprüft.
+
 ## Die sieben Aeldari-Detachment-REGELN
 
 **Aeldari geht von einem auf acht modellierte Detachments** (User: "jetzt folgende detachment

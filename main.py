@@ -146,6 +146,10 @@ from game import loping_pounce
 from game import move_exceptions
 from game.coordinated_leadership import CoordinatedLeadershipController
 from game.fire_and_fade import FireAndFadeController
+from game.chronometron import ChronometronController
+from game.psychomancer import (HarbingerOfDespairController,
+                               NightmareShroudController)
+from game.the_stars_are_right import TheStarsAreRightController
 from game.root_of_honour import RootOfHonourController
 from game.war_leader import WarLeaderDiscount
 from game import overwhelming_obliteration, plasmacyte
@@ -1444,6 +1448,30 @@ def main(map_key=None):
         movement_controller=movement_controller, decision_manager=decision_manager,
         all_tokens=state.tokens, game_log=game_log, auto_players=ai_players,
     )
+    # The Chronomancer's Chronometron - the third of the same shape, built
+    # beside its two twins so the construction order is obvious rather than
+    # inferred (error class 23: main() is one long function and no suite
+    # drives it).
+    chronometron_controller = ChronometronController(
+        movement_controller=movement_controller, decision_manager=decision_manager,
+        all_tokens=state.tokens, game_log=game_log, auto_players=ai_players,
+    )
+    # The Psychomancer's two forced Battle-Shock tests, and Orikan's
+    # once-per-battle. battle_shock_controller is built far above, so both
+    # of the first two have their dependency in hand here.
+    nightmare_shroud_controller = NightmareShroudController(
+        battle_shock_controller=battle_shock_controller,
+        all_tokens=state.tokens, game_log=game_log,
+    )
+    harbinger_of_despair_controller = HarbingerOfDespairController(
+        battle_shock_controller=battle_shock_controller,
+        decision_manager=decision_manager, all_tokens=state.tokens,
+        game_log=game_log, auto_players=ai_players,
+    )
+    the_stars_are_right_controller = TheStarsAreRightController(
+        decision_manager=decision_manager, game_log=game_log,
+        auto_players=ai_players,
+    )
     # His OTHER ability: a mark placed on the unit he HIT, read by every
     # other KROOT unit in the army until the end of the turn.
     advanced_scouting_controller = AdvancedScoutingController(game_log=game_log)
@@ -1689,6 +1717,7 @@ def main(map_key=None):
     shooting_controller.on_squad_finished_shooting.append(
         kroot_packmates_controller.on_squad_finished_shooting)
     shooting_controller.on_squad_finished_shooting.append(fire_and_fade_controller.offer_after_shooting)
+    shooting_controller.on_squad_finished_shooting.append(chronometron_controller.offer_after_shooting)
     # Lhykhis' Whispering Web - fifth consumer, and back to caring WHICH units
     # were hit, like Fire Support. Differs from it in scope: the mark benefits
     # every friendly AELDARI model, not just one transport's passengers.
@@ -3324,6 +3353,12 @@ def main(map_key=None):
         # and its ledger keys on (unit, phase) - so it is cleared on every
         # phase change, unconditionally, like stratagem_controller above.
         path_of_the_warrior_controller.reset_phase()
+        # Orikan's The Stars Are Right lasts "until the end of the phase".
+        # The ACTIVE mark is what clears here; the once-per-battle ledger
+        # inside the controller deliberately does not - "once per battle" is
+        # the one duration that outlives every boundary.
+        the_stars_are_right_controller.reset_phase(
+            {t.squad for t in state.tokens if t.squad is not None})
         # Soulsight lasts one activation, but its latch is cleared on the
         # phase boundary too - the activation ledger in
         # game/activation_reroll.py forgets per squad, and this makes sure
@@ -3655,6 +3690,9 @@ def main(map_key=None):
             # turn" (Resurrection Orb) - both per-TURN ledgers, cleared here.
             technomancer_controller.reset_turn()
             resurrection_orb_controller.reset_turn()
+            # The Psychomancer's Harbinger of Despair is "once per TURN",
+            # per bearer unit - the same shape as the two above it.
+            harbinger_of_despair_controller.reset_turn()
             # Warp Spiders' Flickerjump grants its 24" Move "until the end of
             # the turn" too. Its other half (no charge) rides on
             # charge_locked_until_end_of_turn, cleared in the loop right below.
@@ -3783,6 +3821,13 @@ def main(map_key=None):
         if turn_tracker.phase == PHASE_COMMAND:
             command_points.gain_core_cp()
             battle_shock_controller.reset_command_phase()
+            # The Psychomancer's Nightmare Shroud: "in the Battle-Shock step
+            # of your OPPONENT'S Command phase". The owner test lives in the
+            # controller, so this passes whose phase it is rather than
+            # deciding here who the Necrons are.
+            nightmare_shroud_controller.begin_battle_shock_step(
+                {t.squad for t in state.tokens if t.squad is not None},
+                turn_tracker.turn_owner)
             # Primary mission ("Hold the Line", user-supplied):
             # PRIMARY_POINTS_PER_OBJECTIVE per objective controlled at the
             # start of your own Command phase, from battle round
@@ -3912,6 +3957,13 @@ def main(map_key=None):
                 squad.ingress_locked = False
         if turn_tracker.phase == PHASE_FIGHT:
             retro_thrusters_controller.reset_fight_phase()
+            # Orikan The Diviner's The Stars Are Right: "at the start of THE
+            # Fight phase" - bare, not "your", and the Fight phase is shared
+            # (12.04), so it is offered to whoever owns a bearer rather than
+            # to the turn owner. Its own once-per-battle ledger keeps it
+            # silent after the first use.
+            the_stars_are_right_controller.offer_at_start_of_fight_phase(
+                {t.squad for t in state.tokens if t.squad is not None})
             # Kill Rig's Spirit of Gork: "at the start of the Fight phase".
             # Offered for the phase's own turn owner only - the ability
             # belongs to its controller's turn, like every other
@@ -3967,6 +4019,14 @@ def main(map_key=None):
         # KROOT unit in range, so the unconditional call costs nothing.
         root_of_honour_controller.offer_at_start_of_phase(
             {t.squad for t in state.tokens if t.squad is not None})
+        # The Psychomancer's Harbinger of Despair: "once per turn, at the
+        # start of your Command, Movement, Shooting, Charge or Fight phase".
+        # All five of the bearer's own phases, so it sits beside Root of
+        # Honour above rather than in any one phase block - but unlike that
+        # one it is "YOUR" phase, so it is offered to the turn owner only.
+        harbinger_of_despair_controller.offer_at_start_of_phase(
+            {t.squad for t in state.tokens if t.squad is not None},
+            turn_tracker.turn_owner)
         if turn_tracker.phase == PHASE_COMMAND:
             # Kroot Hounds' Loping Pounce: "AT THE START of your Command
             # phase" - checked once and latched for the turn, which is what
@@ -5532,6 +5592,10 @@ def main(map_key=None):
                         charge_controller.on_dice_acknowledged()
                         fight_controller.on_dice_acknowledged()
                         battle_shock_controller.on_dice_acknowledged()
+                        # Nightmare Shroud can have queued more than one
+                        # test; start_forced_roll() takes one at a time, so
+                        # each acknowledged roll releases the next.
+                        nightmare_shroud_controller.on_dice_acknowledged()
                         # After battle_shock's: the Grav-Inhibitor Field's own
                         # first step IS a Battle-Shock test, and its second roll
                         # is queued only once that outcome has been applied.
@@ -7216,6 +7280,7 @@ def main(map_key=None):
             # _draw_movement_ui().
             path_of_the_outcast_controller=path_of_the_outcast_controller,
             fire_and_fade_controller=fire_and_fade_controller,
+            chronometron_controller=chronometron_controller,
             overflight_controller=overflight_controller,
             higher_duty_controller=higher_duty_controller,
             warhost_fire_and_fade_controller=warhost_fire_and_fade_controller,

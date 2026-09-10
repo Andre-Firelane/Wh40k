@@ -1961,6 +1961,17 @@ _KNOWN_TRIGGERS = sorted([
     "mortal_wound_abilities",        # Kroot Linebreakers
     "neocapacitor_shields",
     "presentiment_of_dread",
+    # The Psychomancer's two, and the DECISION this section exists to force:
+    # they join the gap. Harbinger of Despair fires at the start of any of five
+    # phases, so it is the ordinary case. NIGHTMARE SHROUD IS THE ONE TRIGGER
+    # OF THE TWELVE THAT FIRES INSIDE A COMMAND PHASE - the OPPONENT's, in its
+    # Battle-Shock step - and its target belongs to the player whose Command
+    # phase it is, which is the one player 15.04 would let use Insane Bravery.
+    # It bypasses the offer anyway because start_forced_roll() bypasses
+    # can_roll() by design. Recorded rather than quietly widened: this is the
+    # closest of the twelve to the gap's edge, and the next revisit should
+    # start here.
+    "psychomancer",
 ])
 ck.true("the sweep is live - it found %d out-of-turn battle-shock triggers"
         % len(_TRIGGERS), len(_TRIGGERS) >= 10)

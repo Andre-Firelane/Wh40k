@@ -21,6 +21,8 @@ from game.squad import allocation_target_model, allocation_target_profile, attac
 from game.thresholds import parse_threshold as _parse_threshold
 from game.turn import PHASE_FIGHT
 from game import forewarned
+from game import timesplinter_mantle
+from game import the_stars_are_right
 from game import protect
 from game.doom import DOOM_WOUND_BONUS
 from game import psychic_guidance
@@ -1354,7 +1356,7 @@ class FightController:
         elif self.pending_step == "wound_reroll_ones":
             ctx = self._pending_ones_reroll
             self._pending_ones_reroll = None
-            crit_threshold = _wound_crit_threshold(ctx["weapon"], ctx["target_squad"])
+            crit_threshold = self._wound_crit(ctx["weapon"], ctx["target_squad"], ctx["threshold"])
             results = [_resolve_roll(r, ctx["threshold"], crit_threshold) for r in rolls]
             extra_wounds = sum(1 for r in results if r != "fail")
             extra_crits = sum(1 for r in results if r == "critical")
@@ -1397,7 +1399,7 @@ class FightController:
         elif self.pending_step == "wound":
             wound_threshold = _wound_threshold(weapon.strength, attached_unit_toughness(target_squad))
             wound_threshold = apply_modifiers(wound_threshold, self._wound_modifiers(weapon, target_squad))
-            crit_threshold = _wound_crit_threshold(weapon, target_squad)
+            crit_threshold = self._wound_crit(weapon, target_squad, wound_threshold)
             results = [_resolve_roll(r, wound_threshold, crit_threshold) for r in rolls]
             wounds = sum(1 for r in results if r != "fail")
             crits = sum(1 for r in results if r == "critical")
@@ -1452,7 +1454,7 @@ class FightController:
             # _pending_twin_linked_reroll by _reroll_wound()).
             ctx = self._pending_twin_linked_reroll
             self._pending_twin_linked_reroll = None
-            crit_threshold = _wound_crit_threshold(ctx["weapon"], ctx["target_squad"])
+            crit_threshold = self._wound_crit(ctx["weapon"], ctx["target_squad"], ctx["wound_threshold"])
             results = [_resolve_roll(r, ctx["wound_threshold"], crit_threshold) for r in rolls]
             extra_wounds = sum(1 for r in results if r != "fail")
             extra_crits = sum(1 for r in results if r == "critical")
@@ -1493,6 +1495,33 @@ class FightController:
             if self.devastating_wound_session is not None:
                 self.devastating_wound_session.on_fnp_acknowledged()
                 self._check_devastating_wounds_done()
+
+    def _wound_crit(self, weapon, target_squad, wound_threshold=None):
+        """Rule 05.02's critical-wound threshold, plus the one grant that does
+        not lower it to a NUMBER.
+
+        [ANTI-X Y+] lowers the threshold to Y, which _wound_crit_threshold()
+        answers on its own. Orikan The Diviner's The Stars Are Right instead
+        says "every successful Wound roll scores a Critical Wound" - which in
+        this engine's terms is a critical threshold EQUAL TO the wound
+        threshold, so it needs that second number and cannot live in the
+        shared helper.
+
+        `wound_threshold=None` means "work it out", which is what _crit_note()
+        needs: it runs at ROLL time to label the dice, before the wound step
+        has computed anything, and a panel that said "critical on 6+" while
+        resolution crit on 4+ would be exactly the diagnostic line that omits
+        the number in dispute.
+        """
+        base = _wound_crit_threshold(weapon, target_squad)
+        model = self.current_group["pairs"][0][0] if self.current_group else None
+        if not the_stars_are_right.is_active(model):
+            return base
+        if wound_threshold is None:
+            wound_threshold = apply_modifiers(
+                _wound_threshold(weapon.strength, attached_unit_toughness(target_squad)),
+                self._wound_modifiers(weapon, target_squad))
+        return the_stars_are_right.crit_wound_threshold(model, wound_threshold, base)
 
     def _adjusted_weapon(self, pairs, target_squad=None):
         """This weapon group's melee profile with every conditional grant
@@ -1553,6 +1582,14 @@ class FightController:
         # Rage above, and in the chain for the same reason: _crit_note()
         # must know at ROLL time that a critical die is a devastating one.
         weapon = plasmacyte.adjusted_weapon(weapon, self.fighting_squad)
+        # Orikan The Diviner's The Stars Are Right: triple the Attacks and
+        # Strength of HIS Staff of Tomorrow for the phase. Read off
+        # pairs[0][0] rather than swept over the group, and that is exact
+        # rather than the one-representative shortcut: the staff is his
+        # alone, so a group carrying it can only be his. The module checks
+        # the weapon class as well, so an attached unit's own melee weapons
+        # are untouched - see game/the_stars_are_right.py.
+        weapon = the_stars_are_right.adjusted_weapon(weapon, pairs[0][0])
         # The Skorpekh Lord's United In Destruction: [LETHAL HITS] on the whole
         # unit's melee weapons while he leads it. In the chain rather than at
         # the wound step because _crit_note() must know at ROLL time that a
@@ -1607,7 +1644,7 @@ class FightController:
             if weapon.sustained_hits or weapon.sustained_hits_notation is not None:
                 labels.append("SUSTAINED HIT")
         else:
-            threshold = _wound_crit_threshold(weapon, target_squad)
+            threshold = self._wound_crit(weapon, target_squad)
             labels = ["DEVASTATING WOUND"] if weapon.devastating_wounds else []
         return {"crit_threshold": threshold, "crit_labels": tuple(labels)}
 
@@ -2410,6 +2447,10 @@ class FightController:
         # attack that targets that enemy unit, add 1 to the Hit roll" - a
         # bonus, so a -1 on the threshold. Army-wide, not unit-wide, which
         # is why the mark is held per player. See game/guide.py.
+        # The Chronomancer's Timesplinter Mantle: "melee attacks that target
+        # this unit have -1 to hit rolls". Defender-side and melee-only, so it
+        # sits here and NOT in shooting.py - see game/timesplinter_mantle.py.
+        modifiers.extend(timesplinter_mantle.hit_modifiers(target_squad))
         # The other half of Forewarned - see _wound_modifiers().
         if forewarned.applies(target_squad):
             modifiers.append(Modifier(forewarned.FOREWARNED_PENALTY, "Forewarned"))

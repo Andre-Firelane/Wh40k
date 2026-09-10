@@ -34,6 +34,10 @@ SHIMMERSHIELD_INVULNERABLE_SAVE = "4+"
 DISPERSION_SHIELD_INVULNERABLE_SAVE = "4+"
 FORCESHIELD_INVULNERABLE_SAVE = "4+"
 MISTSHIELD_INVULNERABLE_SAVE = "4+"
+#: Orikan The Diviner's Master Chronomancer - granted to the LED unit, not
+#: to the bearer, which is what separates it from the four per-BEARER items
+#: above and puts it beside the Serpent Shield instead.
+MASTER_CHRONOMANCER_INVULNERABLE_SAVE = "4+"
 
 
 def unit_has_serpent_shield(squad):
@@ -96,6 +100,16 @@ def effective_invulnerable_save(model, waaagh=None, melee=False):
 
     if unit_has_serpent_shield(squad):
         save = _better(save, SERPENT_SHIELD_INVULNERABLE_SAVE)
+
+    # Orikan The Diviner's Master Chronomancer: "while this model is leading a
+    # unit, models in that unit have a 4+ invulnerable save". A 19.04 leader
+    # grant, so it is asked with leader_ability() rather than off the models -
+    # none of the bodyguards prints it, which is the whole point of one. Folded
+    # through _better() like every other source, so it cannot make an existing
+    # save worse.
+    from game import attached_units
+    if attached_units.leader_ability(squad, "master_chronomancer"):
+        save = _better(save, MASTER_CHRONOMANCER_INVULNERABLE_SAVE)
 
     # Dire Avengers' Shimmershield: "The BEARER has a 4+ invulnerable save" -
     # one model, not the unit, so unlike the Serpent Shield above it is read

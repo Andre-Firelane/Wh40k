@@ -325,6 +325,14 @@ SQUAD_SPRITE_KEYS = {
     "Lokhust Heavy Destroyers": "Necron Heavy Destroyer",
     "Doomsday Ark": "Necron Doomsday Ark",
     "C'tan Shard of the Void Dragon": "Necron Shard of the Void Dragon",
+    # Crypteks. DER ORDNER GEWINNT: the Orikan file spells "the" in lower case
+    # where the datasheet spells it "The". os.path.isfile is case-insensitive
+    # on Windows, so an unmapped name would APPEAR to work here and break on a
+    # case-sensitive filesystem - which is why it is written out rather than
+    # left to the resolver.
+    "Chronomancer": "Chronomancer",
+    "Psychomancer": "Psychomancer",
+    "Orikan The Diviner": "Orikan the Diviner",
 
     # --- Death Guard ---
     # EIGHT of these eleven files disagree with the datasheet name, and the
