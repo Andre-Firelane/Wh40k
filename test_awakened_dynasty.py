@@ -304,8 +304,11 @@ tk.line_up(target, x=20.0, y=60.0)     # now 40in away, well outside half range
 c.eq("outside half range it does nothing at all",
      protocol_conquering_tyrant.applies(shooters, w.GaussFlayerProfile(), pairs, target), False)
 
-c.true("it registers as a ones-or-whole source, so 'failures only' is never "
-       "offered - that would let a 2 that missed be thrown again",
+# Its base clause is a MANDATORY re-roll of the 1s, so the offer ends in "the
+# 1s only" rather than "Keep result". It does NOT suppress the failures-only
+# option: "you can re-roll the Hit roll FOR THAT ATTACK instead" is a permission
+# per die, and this datasheet is the one that spells that scope out.
+c.true("it registers as a mandatory-1s source",
        reroll_scope.is_ones_or_whole(protocol_conquering_tyrant.CONQUERING_TYRANT_LABEL))
 ct.reset_phase([shooters])
 c.eq("the grant expires at the end of the phase",

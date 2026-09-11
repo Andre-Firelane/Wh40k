@@ -98,6 +98,15 @@ COHERENCY_REMOVAL_COLOR = (200, 20, 20)
 COHERENCY_REMOVAL_BUMP_PX = 2.0
 COHERENCY_REMOVAL_WIDTH_PX = 2.5
 DAMAGE_CHOICE_COLOR = (255, 210, 0)
+# The units that still owe a Retro-thrusters move at the end of the Fight phase
+# (The Twin Lance). Teal, and the SAME teal as the left panel's box for this
+# (action_panel.RETRO_ACCENT_COLOR): the panel names the unit and the board
+# shows where it is, and a player has to join those two at a glance. Not the
+# coherency red - nothing is wrong here - and not the shoot-target orange,
+# which already means "this is what you are about to hit".
+RETRO_PENDING_COLOR = (90, 225, 215)
+RETRO_PENDING_BUMP_PX = 3.0
+RETRO_PENDING_WIDTH_PX = 2.0
 # The models a PARTIAL placement is putting back - rule 01.02.03's model
 # return (Reanimation Protocols, Grot Orderly, Word of the Phoenix, ...). User:
 # "Widerbeleben - ich kann nicht erkennen, welche einheiten gerade
@@ -1737,6 +1746,23 @@ class Renderer:
                 surface, SELECTED_MODEL_COLOR, (round(px), round(py)), round(r_px),
                 width=self._ring_width(SELECTION_ANCHOR_WIDTH_PX),
             )
+
+    def draw_retro_thrusters_pending(self, surface, board, squads):
+        """A ring around every unit that still owes a Retro-thrusters move.
+
+        A SQUAD list, unlike draw_returning_models() below: the subject really
+        is the whole unit - it is the unit that gets selected and moved - so
+        this goes through draw_squad_outline(), the shared "this whole UNIT is
+        the subject" loop.
+
+        The board half of a fix whose other half is action_panel's
+        _draw_retro_thrusters_pending(). Fight is the last phase, so this
+        window and the end of the turn are one instant and the AI holds its
+        own turn open across it; with nothing drawn, that reads as the AI
+        having stopped. The panel says WHICH units; this says WHERE."""
+        for squad in squads or ():
+            self.draw_squad_outline(surface, board, squad, RETRO_PENDING_COLOR,
+                                    RETRO_PENDING_BUMP_PX, RETRO_PENDING_WIDTH_PX)
 
     def draw_returning_models(self, surface, board, models):
         """A double white ring around each model a PARTIAL placement is putting

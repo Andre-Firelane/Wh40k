@@ -44,6 +44,7 @@ from game.drive_by_dakka import drive_by_dakka_adjusted_weapon
 from game.gun_crazy_showoffs import gun_crazy_adjusted_weapon, unit_has_gun_crazy_showoffs
 from game.ammo_runt import ammo_runt_adjusted_weapon
 from game.nova_charge import nova_charge_adjusted_weapon
+from game import damaged_attacks, triarch_auras
 from game import awakened_dynasty, destroyer_cult, nekrosor_ammentar, dlc_mortarions_teachings, exemplars_of_montka, gift_of_contagion, hovering_death, miasma_of_pestilence, protocol_conquering_tyrant, protocol_sudden_storm, guardian_protocols, implacable_eradication, mechanical_augmentation, monster_hunters, overwhelming_obliteration, plagues, reroll_scope, sunforge, target_uploaded, way_of_the_short_blade
 from game import weapon_range
 from game.retaliation_cadre import bonded_heroes_adjusted_weapon
@@ -404,8 +405,16 @@ def _damaged_modifier(model):
     this only ever needs the upper bound (UnitProfile.damaged_threshold).
     Shared by shooting.py's and fight.py's own _hit_modifiers() - the
     ability isn't restricted to ranged attacks."""
+    from game import damaged_attacks
     threshold = model.profile.damaged_threshold
     if threshold is not None and model.current_wounds <= threshold:
+        return [Modifier(1, "Damaged")]
+    # The Silent King's tier is UNIT-wide ("each time this unit makes an
+    # attack"), keyed off SZAREKH's wounds - so a Triarchal Menhir on full
+    # wounds takes it too, and the per-model test above answers no for it.
+    # Asked second so the two can never stack into -2 on Szarekh himself:
+    # his own wounds satisfy the first branch and it returns there.
+    if damaged_attacks.covers_model(model):
         return [Modifier(1, "Damaged")]
     return []
 
@@ -2251,8 +2260,13 @@ class ShootingController:
         # target-selection snapshot, never recomputed - see
         # game/gun_crazy_showoffs.py.
         is_closest = self._closest_target_snapshot.get(target_squad, False)
+        # The Silent King's damaged tier halves "that MODEL's weapons", so it
+        # lands per pair inside this sum rather than on the total - a Menhir
+        # beside a damaged Szarekh keeps its own Attacks.
         total_attacks = sum(
-            gun_crazy_adjusted_weapon(w, [(m, w)], is_closest).attacks for m, w in pairs
+            damaged_attacks.attacks_for(
+                m, gun_crazy_adjusted_weapon(w, [(m, w)], is_closest))
+            for m, w in pairs
         )
         total_attacks += extra_attack_dice(weapon, target_squad, weapon_key, self.split_fire, self.assignments, pairs)
         # Cadre Fireblade's "Volley Fire" (user-supplied): +1 A to every ranged
@@ -3208,6 +3222,13 @@ class ShootingController:
             # failures-or-whole offer the printed text never gives.
             warrior_hit_ones = (self.path_of_the_warrior is not None
                                 and self.path_of_the_warrior.hit_ones_apply(self.active_squad))
+            # The Silent King's Phaeron of the Stars: "re-roll a Hit roll of 1
+            # AND re-roll a Wound roll of 1". Both halves are PLAIN automatic
+            # 1s - no "you can", no "instead" - so each joins its own
+            # disjunction here and neither belongs in game/reroll_scope.py,
+            # which drives the failures-or-whole offer this text never gives.
+            stars_aura = triarch_auras.is_active(
+                self.active_squad, triarch_auras.PHAERON_OF_THE_STARS)
             automatic_ones = ones and not ones_or_whole_choice and (
                 self._forward_observers_applies(target_squad)
                 or swift_demise.applies(self.active_squad)
@@ -3217,6 +3238,7 @@ class ShootingController:
                 or fireknife_ones
                 or reavers_ones
                 or warrior_hit_ones
+                or stars_aura
             )
             if automatic_ones:
                 if self._forward_observers_applies(target_squad):
@@ -3227,6 +3249,9 @@ class ShootingController:
                     ones_reason = fireknife.FIREKNIFE_LABEL
                 elif reavers_ones:
                     ones_reason = reavers_of_the_void.REAVERS_OF_THE_VOID_LABEL
+                elif stars_aura:
+                    ones_reason = triarch_auras.TRIARCH_ABILITY_NAMES[
+                        triarch_auras.PHAERON_OF_THE_STARS]
                 elif swift_demise.applies(self.active_squad):
                     ones_reason = swift_demise.SWIFT_DEMISE_LABEL
                 elif hard_wired:
@@ -3339,6 +3364,12 @@ class ShootingController:
                 # Path of the Warrior's SECOND option - the same plain
                 # automatic 1s re-roll on the other roll.
                 ones_reason = path_of_the_warrior.PATH_OF_THE_WARRIOR_LABEL
+            elif triarch_auras.is_active(self.active_squad,
+                                         triarch_auras.PHAERON_OF_THE_STARS):
+                # The second half of the same printed sentence as the hit
+                # step above - one ability, two rolls.
+                ones_reason = triarch_auras.TRIARCH_ABILITY_NAMES[
+                    triarch_auras.PHAERON_OF_THE_STARS]
             elif nekrosor_ammentar.prophet_applies(self.active_squad):
                 # Prophet of Destruction: a plain automatic re-roll of 1s with
                 # no "instead" clause, so it belongs here and NOT in
@@ -4113,14 +4144,15 @@ class ShootingController:
         free_hits, free_crits, free_count = rerollable
         free_misses = free_count - free_hits
         kept_hits, kept_crits = hits - free_hits, crits - free_crits
-        # Swift Demise grants only TWO scopes, and "failed hits" is not one of
-        # them: its entitlement is the 1s, or - against the closest eligible
-        # target - the whole roll. Offering "failures only" there would let a
-        # Windrider re-roll a 2 that missed, which the printed text does not
-        # allow. Every other source keeps all three.
+        # A two-clause source (Swift Demise, Fireknife) gets the failures-only
+        # option like every other source. It used to be suppressed for them, on
+        # the reading that "you can re-roll the Hit roll INSTEAD" meant all or
+        # nothing - see game/reroll_scope.py for why that was wrong and for the
+        # user report it cost. What membership still decides is the LAST option
+        # below: their 1s are mandatory, so they cannot simply keep the result.
         swift = reroll_scope.is_ones_or_whole(reason)
         options = []
-        if free_misses > 0 and not swift:
+        if free_misses > 0:
             options.append((
                 f"Re-roll failed hit rolls ({free_misses} dice)",
                 lambda: self._reroll_hit(
@@ -4152,6 +4184,14 @@ class ShootingController:
             options.append(
                 ("Keep result", lambda: self._apply_sustained_hits(hits, crits, weapon, target_squad, weapon_label))
             )
+        # Spent on OFFERING, not on taking - game/fight.py's twin has always
+        # done this, and this line is the one that was missing. Only this
+        # method's "1s only" branch returns through _finish_hit_roll(), so only
+        # here could the gate open a second time on the same weapon group and
+        # hand the ability a free second use. Deliberately NOT inside
+        # _begin_ones_reroll(): that is also Forward Observers' automatic path,
+        # where spending this flag would silently eat a later offer.
+        self._hit_reroll_used = True
         self.decision_manager.request(owner, f"{weapon_label}: {reason} - re-roll the Hit roll?", options)
 
     def _reroll_hit(self, count, hits, crits, weapon, target_squad, weapon_label, hit_threshold, reason, full=False):
@@ -4344,20 +4384,27 @@ class ShootingController:
         reason = self._wound_reroll_reason(weapon, target_squad)
         free_wounds, free_crits, free_no_effect = rerollable
         keep = ("Keep result", lambda: self._resolve_wounds(weapon, target_squad, target_profile, weapon_label, wounds, crits))
-        # A two-clause source (Implacable Eradication) grants the 1s OR the
-        # whole roll, never "the failures" - offering that would allow
-        # re-rolling a 2 that failed, which the printed text does not permit.
-        # And with 1s on the table the base clause is MANDATORY, so "keep
-        # result" is not a legal answer: the player picks which re-roll to
-        # take. Exactly the arrangement _offer_hit_reroll_choice() already
-        # uses; see game/reroll_scope.py.
+        # A two-clause source (Implacable Eradication) gets the failures-only
+        # option like every other source - "you can re-roll the Wound roll" is
+        # a permission per attack, and re-rolling fewer dice than allowed is
+        # forbearance, not an illegal extra (game/reroll_scope.py). What its
+        # membership still decides is that the base clause is MANDATORY, so
+        # with 1s on the table "keep result" is not a legal answer: the player
+        # picks which re-roll to take. Exactly the arrangement
+        # _offer_hit_reroll_choice() uses.
         if reroll_scope.is_ones_or_whole(reason):
             total = free_wounds + free_no_effect
             kept_wounds, kept_crits = wounds - free_wounds, crits - free_crits
-            options = [(
+            options = []
+            if free_no_effect > 0:
+                options.append((
+                    f"Re-roll failed wound rolls ({free_no_effect} dice)",
+                    lambda: self._reroll_wound(free_no_effect, wounds, crits, weapon, target_squad, target_profile, weapon_label, wound_threshold, reason),
+                ))
+            options.append((
                 f"Re-roll the whole Wound roll ({total} dice)",
                 lambda: self._reroll_wound(total, kept_wounds, kept_crits, weapon, target_squad, target_profile, weapon_label, wound_threshold, reason, full=True),
-            )]
+            ))
             if ones > 0:
                 options.append((
                     f"Re-roll the 1s only ({ones} dice)",

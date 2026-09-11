@@ -428,6 +428,24 @@ c.eq("it reads its own config setting", aux.SETTING, "AUXILIARY_CADRE_PLAYERS")
 c.true("...which game/detachments.py actually writes",
        aux.SETTING in detachments.all_settings())
 
+def _main_nested(src, name):
+    """The source of main()'s nested function `name`, or "" if it is gone.
+
+    Why not a textual index() comparison of the two call sites: the
+    start-of-Shooting offers no longer LIVE at the phase change. They were
+    moved into a deferred function that main()'s Rapid Ingress -> Fire
+    Overwatch chain calls from its tail, so the phase-change reset runs first
+    at RUNTIME while appearing later in the FILE. Reported as "Rapid ingress
+    und eater plague overlays ueberlappen sich"; the ordering itself is pinned
+    in test_shooting_start_order.py and test_one_modal_at_a_time.py.
+    """
+    import ast
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, ast.FunctionDef) and node.name == name:
+            return ast.get_source_segment(src, node) or ""
+    return ""
+
+
 # -- wiring ----------------------------------------------------------------
 _main = io.open("main.py", encoding="utf-8").read()
 c.true("the controller is built in main()",
@@ -438,9 +456,13 @@ c.true("the line-of-sight half is injected",
        "auxiliary_cadre_controller.line_of_sight_check" in _main)
 c.true("the offer is made at the start of the Shooting phase",
        "auxiliary_cadre_controller.offer_at_start_of_shooting_phase(" in _main)
-c.true("...with its once-per-phase memo reset first",
-       _main.index("auxiliary_cadre_controller.reset_phase()")
-       < _main.index("auxiliary_cadre_controller.offer_at_start_of_shooting_phase("))
+_phase_change = _main_nested(_main, "advance_turn_phase")
+_deferred_offers = _main_nested(_main, "_offer_start_of_shooting_phase")
+c.true("...with its once-per-phase memo reset AT the phase change",
+       "auxiliary_cadre_controller.reset_phase()" in _phase_change)
+c.true("...and the offer itself deferred behind the end-of-Movement reactions",
+       "auxiliary_cadre_controller.offer_at_start_of_shooting_phase(" in _deferred_offers
+       and "auxiliary_cadre_controller.offer_at_start_of_shooting_phase(" not in _phase_change)
 c.true("the mark is cleared at the end of the turn",
        "auxiliary_cadre_controller.reset_turn()" in _main)
 c.true("is_detectable is handed the controller",

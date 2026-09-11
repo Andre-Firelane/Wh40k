@@ -17,6 +17,29 @@ rest of the screen down instead of being drawn over."""
 import re
 
 
+def ellipsised(font, text, max_width):
+    """`text`, cut short with an ellipsis if it is wider than `max_width`.
+
+    For the ONE line that has to stay one line: the header's hint sits in a bar
+    of fixed height beside whatever control a screen has put in there, so it
+    can neither wrap nor be allowed to run underneath. Cutting is the honest
+    failure here - the sentence's front half is the part that carries it
+    ("Crucible (60"x44", corner deployment) selected - press Confirm...").
+
+    max_width None or <= 0 means "no limit", so the callers with a bar to
+    themselves pass nothing and get exactly what they got before."""
+    if not max_width or max_width <= 0 or font.size(text)[0] <= max_width:
+        return text
+    ellipsis = "..."
+    budget = max_width - font.size(ellipsis)[0]
+    if budget <= 0:
+        return ellipsis
+    cut = text
+    while cut and font.size(cut)[0] > budget:
+        cut = cut[:-1]
+    return cut.rstrip() + ellipsis
+
+
 def wrap_text(font, text, max_width):
     """Splits `text` into lines that each fit `max_width`.
 

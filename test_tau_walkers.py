@@ -244,9 +244,12 @@ _bleeding.models[0].current_wounds = 0.5
 ck.true("a unit whose models are all alive but hurt is still at Starting Strength",
         fireknife.at_starting_strength(_bleeding))
 
-# Its two clauses are ALTERNATIVES ("instead"), so "failures only" must not be
-# on offer - which is exactly what reroll_scope decides.
-ck.true("it is registered as a ones-or-whole source",
+# Its base clause is not optional, so "Keep result" is not among its answers -
+# that is what reroll_scope decides. It does NOT decide that "failures only" is
+# forbidden: this pin used to say so, and the user report that corrected it was
+# about this very datasheet ("Fireknife kann all failed hits rerollen, wenn
+# Gegner noch volles Leben hat. das wurde mir nicht angeboten").
+ck.true("it is registered as a mandatory-1s source",
         reroll_scope.is_ones_or_whole(fireknife.FIREKNIFE_LABEL))
 
 # End to end through the real controller.

@@ -6341,6 +6341,12 @@ def _take_one_action(
     # their own controllers via auto_players, and the remaining three are
     # irrelevant to the AI by user instruction.
     grim_reapers_controller=None,
+    # Appended, like everything above it: this call is made positionally for
+    # its first dozen arguments, and inserting one mid-signature has silently
+    # shifted every later argument before. A WaitNotice (game/wait_notice.py)
+    # so the Fight-phase branch can say WHY it is not advancing - without it,
+    # every state but DONE is a silent frame loop that reads as a hang.
+    fight_wait_notice=None,
 ):
     """Resolve exactly ONE pending decision for `player` (Player 2 by
     default) and return - this is the function main.py's "A" key calls. A
@@ -6664,8 +6670,72 @@ def _take_one_action(
                 retro_thrusters_controller.announce_wait_once(player)
                 return
             advance_phase_fn()
+        else:
+            # EVERY OTHER reason this branch stops, said out loud once.
+            #
+            # There was no `else` here at all, so any state but DONE was a
+            # silent frame loop - the AI simply stopped, with nothing on
+            # screen or in the log to say what it was waiting for. Reported
+            # as "Zug 3 KI macht nichts mehr nach Fight Step. ich musste end
+            # of turn anklicken", which was the retro-thrusters wait above;
+            # but that one at least announced itself, and the three states
+            # below did not. A human unit still owing a Pile In is the most
+            # likely of them: pile_in_controller's pending list is not
+            # filtered by player, so one unanswered Pile In on EITHER side
+            # keeps the Fight step from beginning at all.
+            _announce_fight_wait(player, turn_tracker, fight_controller,
+                                 pile_in_controller, fight_wait_notice)
     else:
         advance_phase_fn()
+
+
+def _announce_fight_wait(player, turn_tracker, fight_controller,
+                         pile_in_controller, notice):
+    """Name the reason the Fight phase is not advancing, once per reason per
+    phase. Cheap enough to call every frame - WaitNotice refuses a repeat
+    before the phase resets.
+
+    Deliberately silent while the turn belongs to the HUMAN: waiting is then
+    the correct behaviour and they have their own End Turn button. The states
+    below are read from game/fight.py's own names rather than re-derived."""
+    if notice is None or turn_tracker is None or fight_controller is None:
+        return
+    if turn_tracker.turn_owner != player:
+        return
+    state = fight_controller.state
+    if state == fight_module.NOT_STARTED:
+        pending = (pile_in_controller.squads_pending_pile_in()
+                   if pile_in_controller is not None else [])
+        if pending:
+            owners = sorted({s.owner for s in pending})
+            notice.say_once(
+                "pile_in",
+                f"{player} is waiting: the Fight step cannot begin until "
+                f"{len(pending)} unit(s) have piled in or skipped (12.03) - "
+                + "; ".join(f"{o}: " + ", ".join(s.name for s in pending if s.owner == o)
+                            for o in owners)
+            )
+        return
+    if state == fight_module.SELECTING:
+        whose = getattr(fight_controller, "whose_turn", None)
+        if whose is not None and whose != player:
+            notice.say_once(
+                "selecting",
+                f"{player} is waiting for {whose} to select a unit to fight, or to Pass (12.04)."
+            )
+        else:
+            # Neither side can act and nobody may pass: not a wait at all but
+            # an engine state that should not exist. Said out loud for that
+            # reason.
+            notice.say_once(
+                "stuck",
+                f"{player} has no unit it can select to fight and no Pass available."
+            )
+        return
+    notice.say_once(
+        "activation",
+        f"{player} is waiting on an open fight activation ({state})."
+    )
 
 
 def _maybe_call_waaagh(player, turn_tracker, waaagh_controller):

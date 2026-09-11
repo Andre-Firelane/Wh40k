@@ -3,6 +3,7 @@ from game import attached_units
 # Statistics reporting - battle_stats imports only game/weapons.py, so it
 # cannot cycle back into anything here.
 from game import battle_stats
+from game import damaged_attacks, triarch_auras
 from game import aux_experimental_modifications, awakened_dynasty, nekrosor_ammentar, swift_demise, montka_pinpoint_counter_offensive, destroyer_cult, destroyer_hive, dlc_grim_reapers, gift_of_contagion, guardian_protocols, protocol_hungry_void, implacable_eradication, mechanical_augmentation, monster_hunters, plagues, plasmacyte, reroll_scope
 from game import way_of_the_short_blade
 from game import strength_over_toughness
@@ -1136,7 +1137,8 @@ class FightController:
             self._continue_resolution_with_attacks(weapon, total_attacks)
             return
 
-        total_attacks = sum(w.attacks for _, w in pairs)
+        # Per PAIR, not on the total - see shooting.py's twin.
+        total_attacks = sum(damaged_attacks.attacks_for(m, w) for m, w in pairs)
         total_attacks += extra_attack_dice(weapon, target_squad, weapon_key, self.split_fire, self.assignments, pairs)
         total_attacks += waaagh_extra_attacks(pairs, self.waaagh)  # Orks army rule "Waaagh!" (user-supplied): +1 A to melee weapons of models with this ability, while active
         self._continue_resolution_with_attacks(weapon, total_attacks)
@@ -1467,6 +1469,16 @@ class FightController:
                     wounds=wounds, crits=crits, target_profile=target_profile,
                     reason=implacable_eradication.IMPLACABLE_ERADICATION_LABEL,
                 )
+            elif ones and triarch_auras.is_active(
+                    self.fighting_squad, triarch_auras.PHAERON_OF_THE_STARS):
+                # The wound half of the same printed sentence as the hit
+                # step above - one ability, two rolls, both phases.
+                self._begin_ones_reroll(
+                    "wound", ones, wound_threshold, weapon, target_squad, weapon_label,
+                    wounds=wounds, crits=crits, target_profile=target_profile,
+                    reason=triarch_auras.TRIARCH_ABILITY_NAMES[
+                        triarch_auras.PHAERON_OF_THE_STARS],
+                )
             elif ones and nekrosor_ammentar.prophet_applies(self.fighting_squad):
                 # Prophet of Destruction. Its text says "makes an attack", so
                 # it reaches this phase as well as the shooting one - and it
@@ -1653,6 +1665,13 @@ class FightController:
         # Awakened Dynasty's Protocol of the Hungry Void: +1 Strength on melee
         # weapons, and +1 AP as well while a CHARACTER leads the unit.
         weapon = protocol_hungry_void.adjusted_weapon(weapon, self.fighting_squad)
+        # The Silent King's Phaeron of the Blades, second clause: "each time a
+        # model in that unit makes a MELEE attack, add 1 to the Strength
+        # characteristic of that attack". Melee-only by its printed words, so
+        # it lands in THIS chain and not in shooting.py's - the absence there
+        # is pinned. Its other clause (the Charge re-roll) is a different seam
+        # entirely, game/charge_reroll.py.
+        weapon = triarch_auras.blades_adjusted_weapon(weapon, self.fighting_squad)
         # Auxiliary Cadre's Experimental Modifications: +1 AP, and in BOTH
         # chains - the printed text says "attacks", not "ranged attacks".
         weapon = aux_experimental_modifications.adjusted_weapon(
@@ -2089,6 +2108,21 @@ class FightController:
                 rerollable=(free_hits, free_crits, free_count - ones),
             )
             return
+        if ones and triarch_auras.is_active(self.fighting_squad,
+                                            triarch_auras.PHAERON_OF_THE_STARS):
+            # The Silent King's Phaeron of the Stars. Its text says "makes an
+            # attack", so it reaches this phase as well as the shooting one,
+            # and both of its halves are plain automatic 1s - see
+            # game/triarch_auras.py.
+            free_hits, free_crits, free_count = rerollable
+            self._begin_ones_reroll(
+                "hit", ones, hit_threshold, weapon, target_squad, weapon_label,
+                hits=hits, crits=crits,
+                reason=triarch_auras.TRIARCH_ABILITY_NAMES[
+                    triarch_auras.PHAERON_OF_THE_STARS],
+                rerollable=(free_hits, free_crits, free_count - ones),
+            )
+            return
         self._apply_sustained_hits(hits, crits, weapon, target_squad, weapon_label)
 
     def _apply_sustained_hits(self, hits, crits, weapon, target_squad, weapon_label):
@@ -2171,12 +2205,14 @@ class FightController:
         free_hits, free_crits, free_count = rerollable
         free_misses = free_count - free_hits
         kept_hits, kept_crits = hits - free_hits, crits - free_crits
-        # A two-clause source (Whirling Onslaught) grants the 1s OR the whole
-        # roll - "failures only" is not among its options, since that would
-        # allow re-rolling a 2 that missed. See game/reroll_scope.py.
+        # A two-clause source (Whirling Onslaught) gets the failures-only option
+        # like every other source; what its membership decides is that its 1s
+        # are MANDATORY, so the last option below is "the 1s only" rather than
+        # "keep result". See game/reroll_scope.py for the reading that used to
+        # suppress this and the user report it cost.
         ones_or_whole = reroll_scope.is_ones_or_whole(reason)
         options = []
-        if free_misses > 0 and not ones_or_whole:
+        if free_misses > 0:
             options.append((
                 f"Re-roll failed hit rolls ({free_misses} dice)",
                 lambda: self._reroll_hit(
@@ -2306,16 +2342,24 @@ class FightController:
         option, plus the failures-only subset of it: "you can re-roll the Wound
         roll" permits re-rolling fewer of its dice than all."""
         reason = self._wound_reroll_reason(weapon, target_squad)
-        # A two-clause source grants the 1s OR the whole roll, never the
-        # failures - see game/reroll_scope.py and shooting.py's twin.
+        # A two-clause source gets the failures-only option like every other
+        # source; its membership decides only that the 1s are MANDATORY, so it
+        # ends in "the 1s only" rather than "keep result". See
+        # game/reroll_scope.py and shooting.py's twin.
         if reroll_scope.is_ones_or_whole(reason) and rerollable is not None:
             free_wounds, free_crits, free_no_effect = rerollable
             free_count = free_wounds + free_no_effect
             kept_wounds, kept_crits = wounds - free_wounds, crits - free_crits
-            options = [(
+            options = []
+            if free_no_effect > 0:
+                options.append((
+                    f"Re-roll failed wound rolls ({free_no_effect} dice)",
+                    lambda: self._reroll_wound(free_no_effect, wounds, crits, weapon, target_squad, target_profile, weapon_label, wound_threshold, reason=reason),
+                ))
+            options.append((
                 f"Re-roll the whole Wound roll ({free_count} dice)",
-                lambda: self._reroll_wound(free_count, kept_wounds, kept_crits, weapon, target_squad, target_profile, weapon_label, wound_threshold),
-            )]
+                lambda: self._reroll_wound(free_count, kept_wounds, kept_crits, weapon, target_squad, target_profile, weapon_label, wound_threshold, reason=reason),
+            ))
             if ones > 0:
                 options.append((
                     f"Re-roll the 1s only ({ones} dice)",
@@ -2353,9 +2397,16 @@ class FightController:
             owner, f"{weapon_label}: {reason} - re-roll the Wound roll?", options,
         )
 
-    def _reroll_wound(self, no_effect, wounds, crits, weapon, target_squad, target_profile, weapon_label, wound_threshold):
+    def _reroll_wound(self, no_effect, wounds, crits, weapon, target_squad, target_profile, weapon_label, wound_threshold, reason="[TWIN-LINKED]"):
         """Only the `no_effect` FAILED dice get rolled again - see
-        shooting.py's identical method."""
+        shooting.py's identical method.
+
+        `reason` is APPENDED to the signature with the old hard-coded value as
+        its default, so every existing caller keeps the label it had. It exists
+        because the label was not always true: this method is reached by four
+        wound re-roll sources, and an Implacable Eradication re-roll has been
+        announcing itself as "[TWIN-LINKED]" - a diagnostic line that names the
+        wrong ability sends the next investigation to the wrong datasheet."""
         self._twin_linked_used = True
         self._pending_twin_linked_reroll = {
             "wounds": wounds, "crits": crits, "weapon": weapon, "target_squad": target_squad,
@@ -2363,7 +2414,7 @@ class FightController:
         }
         self.dice_manager.roll(
             count=no_effect, sides=6,
-            label=f"Wound Roll (re-rolling {no_effect} failed): {weapon_label} [TWIN-LINKED]",
+            label=f"Wound Roll (re-rolling {no_effect} failed): {weapon_label} {reason}",
             success_threshold=wound_threshold,
             target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, roll_kind=WOUND_ROLL,
             is_reroll=True,  # these dice have now used their one re-roll

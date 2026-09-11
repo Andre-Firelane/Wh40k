@@ -56,6 +56,24 @@ def none_fielded():
     return settings_as(**{s: () for s in ALL_SETTINGS})
 
 
+def _main_nested(src, name):
+    """The source of main()'s nested function `name`, or "" if it is gone.
+
+    Why not a textual index() comparison of the two call sites: the
+    start-of-Shooting offers no longer LIVE at the phase change. They were
+    moved into a deferred function that main()'s Rapid Ingress -> Fire
+    Overwatch chain calls from its tail, so the phase-change reset runs first
+    at RUNTIME while appearing later in the FILE. Reported as "Rapid ingress
+    und eater plague overlays ueberlappen sich"; the ordering itself is pinned
+    in test_shooting_start_order.py and test_one_modal_at_a_time.py.
+    """
+    import ast
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, ast.FunctionDef) and node.name == name:
+            return ast.get_source_segment(src, node) or ""
+    return ""
+
+
 def before(src, first, second):
     """`first` appears in `src`, and before `second`. NOT str.index(): a
     missing needle would RAISE and abort the run instead of turning one line
@@ -1372,9 +1390,13 @@ c.true("...hands it to the shooting controller",
        "shooting_controller.guiding_presence = guiding_presence_controller" in _main_src2)
 c.true("...and drives it at the start of the Shooting phase",
        "guiding_presence_controller.offer_at_start_of_shooting_phase(" in _main_src2)
-c.true("...clearing the previous mark first",
-       before(_main_src2, "guiding_presence_controller.reset_phase()",
-              "guiding_presence_controller.offer_at_start_of_shooting_phase("))
+_gp_phase_change = _main_nested(_main_src2, "advance_turn_phase")
+_gp_deferred = _main_nested(_main_src2, "_offer_start_of_shooting_phase")
+c.true("...clearing the previous mark AT the phase change",
+       "guiding_presence_controller.reset_phase()" in _gp_phase_change)
+c.true("...and offering it behind the end-of-Movement reactions",
+       "guiding_presence_controller.offer_at_start_of_shooting_phase(" in _gp_deferred
+       and "guiding_presence_controller.offer_at_start_of_shooting_phase(" not in _gp_phase_change)
 
 
 # --- 3d. Breath of Vaul: two re-rolls, two different rolls ----------------

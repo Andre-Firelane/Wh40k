@@ -2239,4 +2239,67 @@ for harness in ("smoke_pregame.py", "smoke_log_input.py", "smoke_setup_screens.p
     checks.eq(f"{harness} turns the Secondary Mission deck off",
               src.count("config.SECONDARY_MISSION_CARD_PLAYERS = ()"), 1)
 
+
+# --- 11. every card with a detail says which KIND of detail it is ---------
+print("--- 11. detail: remembered choice or live readout ---")
+# A SET DIFFERENCE at the source, not a list of card names. The strip's
+# collapsed bar may show a REMEMBERED CHOICE (A Tempting Target's objective)
+# and must never show a LIVE READOUT ("presence in 2 of 4 table quarters") -
+# a bar claiming a live score was the first version of that strip and was
+# reported as wrong. A behaviour test cannot see the twelfth card, because it
+# does not exist yet; this line does.
+_all_cards = [v for v in vars(sm).values() if isinstance(v, sm.SecondaryMissionCard)]
+checks.true("the sweep actually found the cards", len(_all_cards) >= 17)
+
+_with_detail = [c for c in _all_cards if c.detail(sm.MissionContext(
+    "Player 1", card_state={})) is not None or c._detail is not None]
+_remembered = [c for c in _all_cards if c._subject is not None]
+_live = [c for c in _all_cards if c.detail_is_live]
+
+checks.eq("every card with a detail declares which kind it is",
+          sorted(c.key for c in _with_detail
+                 if c._subject is None and not c.detail_is_live), [])
+checks.eq("and none claims to be both",
+          sorted(c.key for c in _remembered if c.detail_is_live), [])
+checks.eq("a card with no detail declares neither",
+          sorted(c.key for c in _all_cards
+                 if c._detail is None and (c._subject is not None or c.detail_is_live)), [])
+# Vacuity guards: the two halves have to be non-empty, or the set difference
+# above is satisfied by a file in which nothing is classified at all.
+checks.true("there really are remembered-choice cards", len(_remembered) >= 4)
+checks.true("...and live-readout cards", len(_live) >= 7)
+checks.eq("the two halves account for every detail-carrying card",
+          len(_remembered) + len(_live), len(_with_detail))
+
+# THE load-bearing property, and the reason `subject` is a separate field
+# rather than a shortened `detail`: it must not move when the board does.
+# Without this the guard above passes on a subject that simply returns the
+# whole live sentence.
+_probe_obj = next(o for o in board.objectives if o.controlled_by is None)
+_probe = sm.SecondaryMissionController(player="Player 1")
+_probe.set_tokens_source(lambda: [])
+_probe.set_objectives_source(lambda: board.objectives)
+_probe.set_zones_source(lambda: board.deployment_zones)
+_probe.card_state.setdefault("a_tempting_target", {})["objective"] = _probe_obj
+_probe.card_state.setdefault("beacon", {})["objective"] = _probe_obj
+
+_moved = []
+for _card in _remembered:
+    if _card.key not in ("a_tempting_target", "beacon"):
+        continue  # the two this probe can stage; the other two need a guard/home objective
+    _probe_obj.controlled_by = None
+    _before_subject = _probe.subject_for(_card)
+    _before_detail = _probe.detail_for(_card)
+    _probe_obj.controlled_by = "Player 2"
+    checks.eq(f"{_card.key}: the subject does not move when control flips",
+              _probe.subject_for(_card), _before_subject)
+    if _probe.detail_for(_card) != _before_detail:
+        _moved.append(_card.key)
+_probe_obj.controlled_by = None
+# ...and at least one of them HAS a live half, or "the subject did not move"
+# is satisfied by a card whose detail never moves either - which proves
+# nothing about the split. Measured: A Tempting Target and Defend Stronghold
+# print "(held by X)", Beacon and Burden of Trust do not.
+checks.eq("...on a card whose detail genuinely does move", _moved, ["a_tempting_target"])
+
 checks.finish()

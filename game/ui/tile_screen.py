@@ -39,6 +39,10 @@ import pygame
 
 from game import config
 from game.ui import button_style
+# Moved to text_utils at its second consumer (the mission strip's collapsed
+# bar needs the same one-line cut); re-exported so every caller here and in
+# test_menu_presentation.py keeps resolving ts.ellipsised.
+from game.ui.text_utils import ellipsised  # noqa: F401
 
 BG_COLOR = (12, 16, 24)
 TITLE_COLOR = (255, 215, 0)
@@ -313,29 +317,6 @@ def header_bar(screen_rect):
     before anything is drawn. Computing the same rectangle in two places is
     how a control ends up a few pixels off the bar it looks like it is in."""
     return pygame.Rect(screen_rect.x, screen_rect.y, screen_rect.width, HEADER_HEIGHT - 18)
-
-
-def ellipsised(font, text, max_width):
-    """`text`, cut short with an ellipsis if it is wider than `max_width`.
-
-    For the ONE line that has to stay one line: the header's hint sits in a bar
-    of fixed height beside whatever control a screen has put in there, so it
-    can neither wrap nor be allowed to run underneath. Cutting is the honest
-    failure here - the sentence's front half is the part that carries it
-    ("Crucible (60"x44", corner deployment) selected - press Confirm...").
-
-    max_width None or <= 0 means "no limit", so the callers with a bar to
-    themselves pass nothing and get exactly what they got before."""
-    if not max_width or max_width <= 0 or font.size(text)[0] <= max_width:
-        return text
-    ellipsis = "..."
-    budget = max_width - font.size(ellipsis)[0]
-    if budget <= 0:
-        return ellipsis
-    cut = text
-    while cut and font.size(cut)[0] > budget:
-        cut = cut[:-1]
-    return cut.rstrip() + ellipsis
 
 
 def draw_header(surface, screen_rect, fonts, title, hint, accent, notes=(),

@@ -102,6 +102,14 @@ PILE_IN_BOX_BG_COLOR = (38, 26, 10)
 # Cap on how many unit names one player's line lists before it collapses to
 # "+N more" - the panel is 220px wide and an engaged blob runs deep.
 PILE_IN_NAMES_SHOWN = 4
+# Retro-thrusters still outstanding at the end of the Fight phase (The Twin
+# Lance). A colour of its OWN, not the pile-in orange: the two can be on
+# screen in the same phase, they name different units, and a test that samples
+# pixels could not tell them apart if they shared one. Teal, because the board
+# ring that goes with it (renderer.RETRO_PENDING_COLOR) is the same colour -
+# one fact, two places, and a player has to connect them at a glance.
+RETRO_ACCENT_COLOR = (90, 225, 215)
+RETRO_BOX_BG_COLOR = (10, 34, 34)
 
 
 #: How long the cursor must rest on a Stratagem button before its printed
@@ -1726,7 +1734,49 @@ class ActionPanel:
             config.PANEL_TEXT_COLOR, PILE_IN_ACCENT_COLOR, bg_color=PILE_IN_BOX_BG_COLOR,
         )
 
-    def _draw_fight_step_status(self, surface, rect, button_width, fight_controller, pile_in_controller, start_y=None):
+    def _draw_retro_thrusters_pending(self, surface, rect, button_width,
+                                      retro_thrusters_controller, text_y):
+        """Name the units that still owe a Retro-thrusters decision.
+
+        The exact shape of _draw_pile_in_pending() above, and for the exact
+        same reason. Fight is the LAST phase (07.02), so "the end of the Fight
+        phase" and "the end of the turn" are one instant, and the turn-taker
+        closes that window for BOTH players - which means the AI holds its own
+        turn open while a human unit still owes this. Reported as the AI
+        having stopped: "Zug 3 KI macht nichts mehr nach Fight Step. ich
+        musste end of turn anklicken."
+
+        It looked like a hang because the only sign was one line in the game
+        log. The button itself is invisible until the unit is selected (see
+        game/retro_thrusters.py's own note on that), so a player who does not
+        already know the ability exists has nothing to act on.
+
+        Grouped by owner and listed by name rather than filtered to "your
+        units": the panel has no notion of which player is the human, and
+        inventing one here would be a second copy of a fact main.py already
+        owns. A squad name carries the owner's digit as its first character."""
+        pending = retro_thrusters_controller.pending_squads()
+        by_owner = {}
+        for squad in pending:
+            by_owner.setdefault(squad.owner, []).append(squad.name)
+
+        lines = [f"Retro-thrusters pending for {len(pending)} unit(s) - the turn cannot "
+                 f"end until each one has moved or skipped."]
+        for owner in sorted(by_owner):
+            names = by_owner[owner]
+            shown = names[:PILE_IN_NAMES_SHOWN]
+            if len(names) > PILE_IN_NAMES_SHOWN:
+                shown.append(f"+{len(names) - PILE_IN_NAMES_SHOWN} more")
+            lines.append(f"{owner}: {', '.join(shown)}")
+        lines.append("Select one on the battlefield, then Move 6\" / Fall Back / Skip.")
+
+        return self._draw_message_box(
+            surface, rect, button_width, text_y, lines,
+            config.PANEL_TEXT_COLOR, RETRO_ACCENT_COLOR, bg_color=RETRO_BOX_BG_COLOR,
+        )
+
+    def _draw_fight_step_status(self, surface, rect, button_width, fight_controller, pile_in_controller, start_y=None,
+                                retro_thrusters_controller=None):
         """Phase-wide Fight status (whose turn to select, or the Begin
         Fight Step / Pass buttons) - returns the y position right after
         whatever it drew, so a caller that also has a specific squad
@@ -1745,6 +1795,13 @@ class ActionPanel:
         elif fight_controller.state == fight.SELECTING:
             text = f"Fight: {fight_controller.whose_turn}'s turn to select a unit."
             text_y = self._draw_text(surface, rect, text, text_y, gap=7)
+            # Not only in DONE: the alternation can still be running while a
+            # unit that already fought owes its move, and a player who is told
+            # about it only at the very end has less time to act on it.
+            if (retro_thrusters_controller is not None
+                    and retro_thrusters_controller.pending_squads()):
+                text_y = self._draw_retro_thrusters_pending(
+                    surface, rect, button_width, retro_thrusters_controller, text_y)
             if fight_controller.can_pass():
                 pass_rect = pygame.Rect(rect.x + BUTTON_MARGIN, text_y, button_width, BUTTON_HEIGHT)
                 pass_rect = self._draw_button(surface, pass_rect, "Pass (no eligible unit in range)")
@@ -1752,6 +1809,13 @@ class ActionPanel:
                 text_y = pass_rect.bottom + BUTTON_GAP
             return text_y
         elif fight_controller.state == fight.DONE:
+            # DONE is exactly when the Retro-thrusters window opens, so this is
+            # the branch that used to say "Fight step complete." while the turn
+            # was in fact held open for a decision nobody could see.
+            if (retro_thrusters_controller is not None
+                    and retro_thrusters_controller.pending_squads()):
+                return self._draw_retro_thrusters_pending(
+                    surface, rect, button_width, retro_thrusters_controller, text_y)
             return self._draw_text(surface, rect, "Fight step complete.", text_y, gap=0)
         return text_y
 
@@ -2204,7 +2268,8 @@ class ActionPanel:
 
         if squad is None:
             if in_fight_phase:
-                self._draw_fight_step_status(surface, rect, button_width, fight_controller, pile_in_controller)
+                self._draw_fight_step_status(surface, rect, button_width, fight_controller, pile_in_controller,
+                                             retro_thrusters_controller=retro_thrusters_controller)
             else:
                 # With nothing picked this column was completely empty except
                 # for the header and the toggle strip - the same 220 px of
@@ -2231,7 +2296,8 @@ class ActionPanel:
             # frozen. Now always shown during the Fight phase, stacked above
             # the selected squad's own status/buttons instead of one hiding
             # the other.
-            text_y = self._draw_fight_step_status(surface, rect, button_width, fight_controller, pile_in_controller, start_y=text_y)
+            text_y = self._draw_fight_step_status(surface, rect, button_width, fight_controller, pile_in_controller, start_y=text_y,
+                                                  retro_thrusters_controller=retro_thrusters_controller)
             text_y += 10
 
         # No portrait and no name here any more: _draw_selection_header() has

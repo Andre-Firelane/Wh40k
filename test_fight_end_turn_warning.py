@@ -325,4 +325,57 @@ c.true("...and that block really is just that function (sanity, given it is "
        "advance_turn_phase()" in ai_adv_src and "elif fight_warning_overlay" not in ai_adv_src)
 
 
+
+# --- 4. the SECOND reason: Retro-thrusters -----------------------------------
+print("\n--- 4. the second reason ---")
+# Fight is the last phase (07.02), so this click also closes "the end of the
+# Fight phase" - the window The Twin Lance's Retro-thrusters lives in. It used
+# to go straight through and throw that free move away without a word, which
+# read from the outside as the AI having stopped: "Zug 3 KI macht nichts mehr
+# nach Fight Step. ich musste end of turn anklicken."
+#
+# ONE overlay with two reasons, not a ninth entry in _front_notice(): both
+# answer the same question - may this End Turn click go through - and two would
+# have to be clicked away one after the other.
+
+r = FightWarningOverlay()
+c.eq("the melee reason alone still warns, exactly as before", r.warn_once(["A"]), True)
+r.dismiss()
+r.reset()
+c.eq("the retro reason ALONE warns too",
+     r.warn_once([], retro_names=["1 The Twin Lance 1"]), True)
+c.true("...and it is pending", r.is_pending)
+r.dismiss()
+r.reset()
+c.eq("neither reason raises nothing at all", r.warn_once([], retro_names=[]), False)
+
+# Still ONE warning per phase, whichever reason raised it - a player who clicks
+# again after being told means it.
+r.reset()
+r.warn_once([], retro_names=["1 The Twin Lance 1"])
+r.dismiss()
+c.eq("a second click in the same phase goes through",
+     r.warn_once([], retro_names=["1 The Twin Lance 1"]), False)
+
+# The single-reason PICTURE must not have moved: this box was already shown to
+# the player and signed off on. The heading only widens when both reasons are
+# standing at once.
+melee_only, both = FightWarningOverlay(), FightWarningOverlay()
+melee_only.warn_once(["A"])
+both.warn_once(["A"], retro_names=["1 The Twin Lance 1"])
+c.true("two reasons make a taller box than one",
+       drawn_height(both) > drawn_height(melee_only))
+retro_only = FightWarningOverlay()
+retro_only.warn_once([], retro_names=["1 The Twin Lance 1"])
+c.true("...and the retro-only box is drawn at all", drawn_height(retro_only) > 0)
+
+# main.py has to ASK for the second reason, or none of the above is reachable.
+c.true("the shared gate asks the retro-thrusters controller",
+       "retro_names=[s.name for s in retro_thrusters_controller.pending_squads(\"Player 1\")]"
+       in src)
+# Asked for "Player 1" like its neighbour, and for the same reason: the Fight
+# step is SHARED (12.04), so the human can owe this during the AI's own turn.
+c.eq("...for the human, not for the turn owner",
+     "retro_thrusters_controller.pending_squads(turn_tracker.turn_owner)" in src, False)
+
 c.finish()

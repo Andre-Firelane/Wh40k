@@ -88,6 +88,7 @@ from game.neocapacitor_shields import NeocapacitorShieldsController
 from game.nova_charge import NovaChargeController
 from game.overwatch import FireOverwatchController
 from game.retro_thrusters import RetroThrustersController
+from game.wait_notice import WaitNotice
 from game.pile_in import PileInController
 from game.puretide import PuretideController
 from game.rapid_ingress import RapidIngressController
@@ -108,6 +109,10 @@ from game.mortal_wound_abilities import (
 from game.wraith_form import WraithFormController
 from game.mechanical_augmentation import AtomicEnergyManipulatorController
 from game.nurgles_gift import NurglesGiftController
+from game.eternity_gate import EternityGateController
+from game.triarch_auras import VoiceOfTheTriarchController
+from game.phaeron_of_the_blades import PhaeronOfTheBladesController
+from game import eternity_gate, triarch_auras, triarchal_menhirs
 from game.deadly_vectors import DeadlyVectorsController
 from game.barrage_of_filth import BarrageOfFilthController
 from game.targeting_relay import TargetingRelayController
@@ -2253,6 +2258,29 @@ def main(map_key=None):
         charge_controller=charge_controller, game_log=game_log,
         auto_players=ai_players,
     )
+    # The SECOND carrier of game/charge_reroll.py, built beside the first so
+    # the pair is visible in one place. Its predicate is an AURA rather than
+    # rule 19.04's unit_wide_ability(), which is the whole reason the
+    # machinery was extracted.
+    phaeron_blades_controller = PhaeronOfTheBladesController(
+        dice_manager=dice_manager, decision_manager=decision_manager,
+        charge_controller=charge_controller, game_log=game_log,
+        auto_players=ai_players,
+    )
+    # The Silent King's Voice of the Triarch. Idempotent per battle round,
+    # exactly like battle_focus_pool.sync_battle_round() below.
+    voice_of_the_triarch_controller = VoiceOfTheTriarchController(
+        decision_manager=decision_manager, game_log=game_log,
+        game_state=state, auto_players=ai_players,
+    )
+    # The Monolith's Eternity Gate - the FOURTH arrival mode. It needs the
+    # IngressController, which is built earlier, and the turn_tracker for its
+    # "excluding the first battle round" gate.
+    eternity_gate_controller = EternityGateController(
+        decision_manager=decision_manager, game_log=game_log,
+        game_state=state, ingress_controller=ingress_controller,
+        turn_tracker=turn_tracker, auto_players=ai_players,
+    )
     # Rule 11.04's "ends a Charge move" - the Skorpekh Lord's Crimson Harvest.
     # Fed from ChargeController rather than from a phase hook, because that
     # moment exists nowhere else; and it has to be HERE rather than beside the
@@ -3175,6 +3203,11 @@ def main(map_key=None):
     # The Twin Lance's Retro-thrusters - built after fight_controller because
     # its "was eligible to fight this phase" latch reads that controller's own
     # rule 12.04 answer; see game/retro_thrusters.py.
+    # Why the AI's Fight phase is not advancing, said once per reason per
+    # phase. Built here because it is reset on the same boundary
+    # retro_thrusters_controller is, and for the same window - see
+    # game/wait_notice.py, which those two share.
+    fight_wait_notice = WaitNotice(game_log=game_log)
     retro_thrusters_controller = RetroThrustersController(
         fight_controller=fight_controller, movement_controller=movement_controller,
         turn_tracker=turn_tracker, all_tokens=state.tokens, game_log=game_log,
@@ -3477,6 +3510,10 @@ def main(map_key=None):
         # complete - the same reason the points lines below are logged here.
         battle_focus_pool.sync_battle_round(turn_tracker.battle_round)
         fate_dice_pool.sync_battle_round(turn_tracker.battle_round)
+        # "At the start of the battle round, select one Triarch ability" -
+        # idempotent per round, so it rides the same seam as the two above.
+        voice_of_the_triarch_controller.sync_battle_round(
+            turn_tracker.battle_round, state.tokens)
 
         # Logged here rather than at construction because _player_squads()
         # walks tokens + embarked_squads + reserves, and with a pre-game all
@@ -3569,11 +3606,78 @@ def main(map_key=None):
             primary_mission_controller.score_end_of_battle()
             battle_end_overlay.show(mission_controller)
 
+    # The start-of-Shooting-phase offers, owed until the reactions to the END
+    # of the Movement phase have finished. See the PHASE_SHOOTING block inside
+    # advance_turn_phase() for the report that put them here.
+    #
+    # A one-element list rather than a name, because advance_turn_phase() and
+    # the chain's tail are both nested functions and neither may rebind a
+    # local of main().
+    _shooting_start_owed = [None]
+
+    def _offer_start_of_shooting_phase(owner):
+        """The five abilities whose printed WHEN is the start of the Shooting
+        phase. Called once per Shooting phase, after the end-of-Movement
+        reactions have played out."""
+        squads = {t.squad for t in state.tokens if t.squad is not None}
+        # The Void Dragon's Matter Absorption is "at the START of your Shooting
+        # phase"; the Plasmancer's Living Lightning is "in your Shooting
+        # phase", which this instant also satisfies.
+        matter_absorption_controller.offer_at_shooting_phase(squads, owner)
+        living_lightning_controller.offer_at_shooting_phase(squads, owner)
+        # Typhus' Eater Plague is "in your Shooting phase" too, and shares
+        # Living Lightning's 18"-and-visible targeting.
+        eater_plague_controller.offer_at_shooting_phase(squads, owner)
+        # Auxiliary Cadre's Harnessed Alien Instincts is "IN your Shooting
+        # phase" - not "after this unit has shot" - so it is offered at the
+        # start, once per eligible KROOT/VESPID unit, the same instant the For
+        # The Greater Good army rule picks its Observers. A unit that never
+        # fires can still mark.
+        auxiliary_cadre_controller.offer_at_start_of_shooting_phase(owner)
+        # Guiding Presence is re-selected every Shooting phase - same instant,
+        # same printed reason as the two above.
+        guiding_presence_controller.offer_at_start_of_shooting_phase(owner)
+
+    def _take_start_of_shooting_offers():
+        """Make the owed offers, at most once per Shooting phase.
+
+        TAKEN, not read: the token is cleared before the offers run, so a
+        chain that somehow fires twice cannot offer twice. The only thing that
+        arms it is the PHASE_SHOOTING block, which runs once per phase.
+
+        Reached from two places on purpose - the tail of the Rapid Ingress ->
+        Fire Overwatch chain (the normal route, every time) and the safety net
+        at the top of advance_turn_phase() (which only ever finds anything if
+        that chain failed to run). The net is the more important of the two:
+        a collision is a nuisance, but abilities that silently never fire
+        would be a worse bug than the one being fixed."""
+        owner, _shooting_start_owed[0] = _shooting_start_owed[0], None
+        if owner is not None:
+            _offer_start_of_shooting_phase(owner)
+
     def advance_turn_phase():
         # Rule 15.07 (Rapid Ingress): any pending offer from a PREVIOUS
         # Movement-phase-end has now had its one phase's window to be
         # dragged onto the board - forfeit it before possibly opening a
         # new one below.
+        # THE SAFETY NET. If the Shooting-phase offers were armed and the
+        # chain below never reached its tail, they are forfeited here rather
+        # than carried into a phase they do not belong to - and said out loud,
+        # because a silent forfeit is exactly the failure this whole change is
+        # trying not to introduce.
+        #
+        # BEFORE expire_if_unused(): that call fires the deferred chain, whose
+        # tail takes the token. Running it first would let the offers arrive in
+        # the Charge phase instead. The one world that lands here is a human
+        # who buys Rapid Ingress, never places the unit, and clicks through the
+        # whole Shooting phase - a path on which that Stratagem's CP is already
+        # forfeit.
+        if _shooting_start_owed[0] is not None:
+            owed_owner, _shooting_start_owed[0] = _shooting_start_owed[0], None
+            game_log.add(
+                f"{owed_owner}: the start-of-Shooting-phase abilities were not offered "
+                f"this phase - the Rapid Ingress window was still open when it ended."
+            )
         rapid_ingress_controller.expire_if_unused()
         # The "you can still fight" warning is once per PHASE, and this is the
         # one place a phase ever changes (ai_advance_phase() routes through
@@ -4253,6 +4357,15 @@ def main(map_key=None):
                 turn_tracker,
             )
         if turn_tracker.phase == PHASE_MOVEMENT:
+            # The Monolith's Eternity Gate: "In your Movement phase (excluding
+            # the first battle round)". The per-turn ledger is cleared first,
+            # then every Monolith of the unit whose phase this is gets its
+            # offer - the same clear-then-offer order the Geomancer's pin
+            # below documents, and for the same reason.
+            eternity_gate_controller.reset_turn()
+            for _gate_squad in eternity_gate.bearer_squads(state.tokens):
+                if _gate_squad.owner == turn_tracker.turn_owner:
+                    eternity_gate_controller.offer(_gate_squad)
             # "Until the start of your next Movement phase" - Spirit Mark's own
             # reset, one phase later than a Guide/Doom mark.
             spirit_mark_controller.start_of_movement_phase(turn_tracker.turn_owner)
@@ -4287,6 +4400,11 @@ def main(map_key=None):
                 squad.ingress_locked = False
         if turn_tracker.phase == PHASE_FIGHT:
             retro_thrusters_controller.reset_fight_phase()
+            # Same window, same boundary: without this the AI's "why I am
+            # waiting" line would be said once per BATTLE instead of once per
+            # Fight phase, and every later phase would go silent again - this
+            # repo's own rule that a "deferred until X" note needs a point at X.
+            fight_wait_notice.reset()
             # Orikan The Diviner's The Stars Are Right: "at the start of THE
             # Fight phase" - bare, not "your", and the Fight phase is shared
             # (12.04), so it is offered to whoever owns a bearer rather than
@@ -4458,36 +4576,32 @@ def main(map_key=None):
             lord_of_the_storm_controller.offer_at_end_of_command_phase(
                 {t.squad for t in state.tokens if t.squad is not None}, mover_before)
         if turn_tracker.phase == PHASE_SHOOTING:
-            # The Void Dragon's Matter Absorption is "at the START of your
-            # Shooting phase"; the Plasmancer's Living Lightning is "in your
-            # Shooting phase", which this instant also satisfies. Both reset
-            # their once-per-phase ledgers first.
+            # THE RESETS RUN NOW; THE OFFERS ARE OWED. The two used to sit
+            # together here, and that put the start of the Shooting phase
+            # AHEAD of the end of the Movement phase - which is backwards, and
+            # which collided on screen. Reported: "Rapid ingress und eater
+            # plague overlays ueberlappen sich." Reproduced from the game log
+            # (logs/game_20260911_132318.log:506-518): Rapid Ingress was
+            # accepted, its placement opened, and Eater Plague rolled its dice
+            # and allocated five mortal wounds on top of it - two things
+            # wanting the board and the left panel at once, with the dice not
+            # even acknowledgeable until the decision underneath was answered.
+            #
+            # A reset belongs to the PHASE CHANGE and has to happen here: it
+            # clears last turn's marks and once-per-phase memos, and deferring
+            # it would let them live into the new phase.
             living_lightning_controller.reset_phase()
             matter_absorption_controller.reset_phase()
-            matter_absorption_controller.offer_at_shooting_phase(
-                {t.squad for t in state.tokens if t.squad is not None}, turn_tracker.turn_owner)
-            living_lightning_controller.offer_at_shooting_phase(
-                {t.squad for t in state.tokens if t.squad is not None}, turn_tracker.turn_owner)
-            # Typhus' Eater Plague is "in your Shooting phase" too, and shares
-            # Living Lightning's 18"-and-visible targeting - so it is offered
-            # at the same instant and resets the same way.
             eater_plague_controller.reset_phase()
-            eater_plague_controller.offer_at_shooting_phase(
-                {t.squad for t in state.tokens if t.squad is not None}, turn_tracker.turn_owner)
-            # Auxiliary Cadre's Harnessed Alien Instincts is "IN your Shooting
-            # phase" - not "after this unit has shot" - so it is offered at the
-            # start, once per eligible KROOT/VESPID unit, the same instant the
-            # For The Greater Good army rule picks its Observers. A unit that
-            # never fires can still mark. reset_phase() clears only the
-            # once-per-unit memo; the mark itself is turn-scoped.
             auxiliary_cadre_controller.reset_phase()
-            auxiliary_cadre_controller.offer_at_start_of_shooting_phase(turn_tracker.turn_owner)
-            # Guiding Presence is re-selected every Shooting phase, so the
-            # previous mark is cleared and a new one offered in the same
-            # breath - the same instant, and for the same printed reason, as
-            # the two above.
             guiding_presence_controller.reset_phase()
-            guiding_presence_controller.offer_at_start_of_shooting_phase(turn_tracker.turn_owner)
+            # An OFFER belongs after the reactions to the phase that just
+            # ended. Armed here, taken at the tail of the Rapid Ingress ->
+            # Fire Overwatch chain below. The owner is captured NOW rather
+            # than re-read later: by the time the chain runs, a save roll or a
+            # reactive Stratagem may have moved active_player, and this repo
+            # has the same bug on record at four other deferred call sites.
+            _shooting_start_owed[0] = turn_tracker.turn_owner
         if phase_before == PHASE_SHOOTING:
             greater_good_controller.reset_shooting_phase()
             # The Vespid Oversight Drone's grant is "until the end of the
@@ -4561,7 +4675,8 @@ def main(map_key=None):
             flickerjump_controller.end_of_phase()
             rapid_ingress_controller.offer(
                 mover_before, decision_manager,
-                on_resolved=lambda: fire_overwatch_controller.offer(mover_before),
+                on_resolved=lambda: fire_overwatch_controller.offer(
+                    mover_before, on_resolved=_take_start_of_shooting_offers),
                 homing_beacon_controller=homing_beacon_controller,
             )
         # Rule 15.11 (Heroic Intervention): WHEN is "end of your opponent's
@@ -5041,8 +5156,20 @@ def main(map_key=None):
         routes walks straight past is not a warning."""
         if not turn_tracker.is_last_phase:
             return False
+        # TWO reasons, one warning. The second is The Twin Lance's
+        # Retro-thrusters, which opens at the end of the Fight phase - and
+        # because Fight is the last phase, this click closes that window too.
+        # Reported as the AI having stopped ("Zug 3 KI macht nichts mehr nach
+        # Fight Step. ich musste end of turn anklicken"): the AI was holding
+        # its turn open for exactly that decision, and the click that ended the
+        # turn threw the free move away in silence.
+        #
+        # Asked for "Player 1" like the line above it, and for the same reason:
+        # the Fight step is SHARED (12.04), so the human can owe either of
+        # these during the AI's own turn, and it is always the human clicking.
         return fight_warning_overlay.warn_once(
-            [s.name for s in fight_controller.squads_that_could_still_fight("Player 1")])
+            [s.name for s in fight_controller.squads_that_could_still_fight("Player 1")],
+            retro_names=[s.name for s in retro_thrusters_controller.pending_squads("Player 1")])
 
     def run_ai_pregame_action():
         """Player 2's side of rule 03.01's opening sequence - one action per
@@ -5124,6 +5251,7 @@ def main(map_key=None):
             # own controllers via auto_players; the other three are irrelevant
             # to the AI by user instruction.
             grim_reapers_controller=grim_reapers_controller,
+            fight_wait_notice=fight_wait_notice,
         )
         # User: "ich würde den plan gerne ausführlicher in einem großen text
         # prompt sehen am anfang des gegnerischen zuges nachdem er erstellt
@@ -6002,6 +6130,13 @@ def main(map_key=None):
                         # roll this can be.
                         if dice_manager.roll_kind == CHARGE_ROLL:
                             relentless_combatants_controller.maybe_offer_charge_reroll()
+                            # The SECOND carrier of the same sentence - The
+                            # Silent King's Phaeron of the Blades. Asked in the
+                            # same instant and claimed under its own label, so
+                            # each may ask once about one roll; no unit can hold
+                            # both today and the suite pins that.
+                            if not decision_manager.is_pending:
+                                phaeron_blades_controller.maybe_offer_charge_reroll()
                             if decision_manager.is_pending:
                                 continue
                         dice_manager.acknowledge()
@@ -7028,6 +7163,13 @@ def main(map_key=None):
             # eligible to fight this phase" cannot be recomputed once the phase
             # has ended.
             raid_and_run_controller.note_eligibility()
+        # The Silent King's "Triarchal Menhirs": "if this unit's Szarekh model
+        # is destroyed, all of this unit's remaining Triarchal Menhir models are
+        # also destroyed". BEFORE the sweep, because it has to see Szarekh dead
+        # while the Menhirs are still standing - the one ability in this engine
+        # that WANTS the pre-sweep window error class 12 is otherwise about.
+        for _sk_squad in state.all_squads():
+            triarchal_menhirs.apply(_sk_squad, game_log)
         _swept = state.remove_dead_models()
         # Undying Spite: destroyed models that have not fought roll a D6 and,
         # on a 4+, are put straight back so they can strike after the attacker
@@ -7073,6 +7215,11 @@ def main(map_key=None):
         # projecting in the same frame it dies. All three have readers that
         # take a MODEL and are asked per wound or per attack group, which is
         # why none of them is a live measurement.
+        # The Silent King's three Triarch auras, stamped once per frame for
+        # the same pair of reasons Nurgle's Gift above is: the readers are
+        # per-MODEL and per-SQUAD seams with no board in hand, and one of
+        # them runs on the movement path.
+        triarch_auras.refresh_active_auras(state.tokens)
         spyder_wargear.refresh(state.tokens)
         harassment_swarm.refresh(state.tokens)
         # Spirit Conclave's Spirit Guides aura is read from the squad by
@@ -7657,6 +7804,13 @@ def main(map_key=None):
         if fight_attack_pair is not None:
             renderer.draw_attack_arrow(board_surface, board, fight_attack_pair[0], fight_attack_pair[1])
         renderer.draw_coherency_removal_highlight(board_surface, board, coherency_enforcer.pending_squad)
+        # The units that still owe a Retro-thrusters move. Suppressed while a
+        # damage allocation is open below: the board must not ring two answers
+        # to two different questions at once, and the allocation is the one
+        # that blocks everything (see _any_pending_damage_choice()).
+        if not _any_pending_damage_choice():
+            renderer.draw_retro_thrusters_pending(
+                board_surface, board, retro_thrusters_controller.pending_squads())
         renderer.draw_damage_choice_highlight(board_surface, board, shooting_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, fight_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, explosives_controller.pending_damage_choice)

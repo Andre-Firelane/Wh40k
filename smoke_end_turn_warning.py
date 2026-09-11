@@ -322,7 +322,9 @@ if NEUTRALIZE:
     # Stubbing warn_once() (rather than deleting one call site) is what
     # main.py looked like before - the click went straight through to
     # advance_turn_phase() and the attacks were gone.
-    FightWarningOverlay.warn_once = lambda self, unit_names: False
+    # *a/**k: the overlay now carries a SECOND reason (Retro-thrusters), and
+    # a one-armed stub would raise TypeError instead of neutralising.
+    FightWarningOverlay.warn_once = lambda self, *a, **k: False
 
 try:
     main.main(MAP_KEY)

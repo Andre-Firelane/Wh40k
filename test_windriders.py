@@ -186,22 +186,47 @@ checks.true("...and the roll is named Swift Demise, not Forward Observers",
 checks.eq("...over exactly the two 1s", len(away["dice"].pending_values or []), 2)
 
 # (b) THE closest target: a decision, and it is the either/or.
-near = shoot("target", [1, 1, 6, 6, 6, 6])
+#
+# Three dice miss and two of them are 1s, so "failed" and "the 1s" are
+# DIFFERENT counts. That matters: the obvious fixture ([1, 1, 6, 6, 6, 6])
+# makes both options read "(2 dice)", and then a test cannot tell which of
+# them it is looking at - nor whether the failures option is there at all.
+near = shoot("target", [1, 1, 2, 6, 6, 6])
 checks.true("closest target: a decision IS raised", near["decision"].is_pending)
 labels = tk.options_of(near["decision"])
 checks.true("...offering the whole roll", any("whole Hit roll" in l for l in labels))
 checks.true("...and the 1s only", any("1s only" in l for l in labels))
+# ...and the failures, like every other re-roll in this engine. This used to be
+# suppressed here on the reading that "you can re-roll the Hit roll INSTEAD"
+# meant all-or-nothing; it is a permission PER ATTACK, so re-rolling fewer dice
+# than allowed is forbearance. See game/reroll_scope.py.
+checks.true("...and the failures", any("failed hit rolls" in l for l in labels))
 # The 1s re-roll is MANDATORY, so declining altogether is not a legal answer -
 # this is the one re-roll offer in the engine without a "Keep result".
 checks.eq("...and NOT 'Keep result' - the 1s re-roll is not optional",
           [l for l in labels if "Keep" in l], [])
-checks.eq("...exactly two options", len(labels), 2)
-checks.true("...the 1s option names how many", any("(2 dice)" in l for l in labels))
+checks.eq("...exactly three options", len(labels), 3)
+checks.true("...the 1s option names how many", any("1s only (2 dice)" in l for l in labels))
+checks.true("...and the failures option names its own, larger count",
+            any("failed hit rolls (3 dice)" in l for l in labels))
 
 # Taking the 1s option throws exactly those dice.
 tk.script(6, 6, default=6)
 tk.pick_option(near["decision"], "1s only")
 checks.eq("choosing the 1s throws 2 dice", len(near["dice"].pending_values or []), 2)
+# ...and the offer is SPENT by being made, so the same weapon group cannot come
+# back for a second use of the one ability. Only this path returns through
+# _finish_hit_roll(), which is why it was the one that could.
+near["dice"].acknowledge()
+near["shooting"].on_dice_acknowledged()
+checks.eq("...and no second offer follows it", near["decision"].is_pending, False)
+
+# Taking the failures instead throws all three.
+fails = shoot("target", [1, 1, 2, 6, 6, 6])
+tk.script(default=6)
+tk.pick_option(fails["decision"], "failed hit rolls")
+checks.eq("choosing the failures throws 3 dice",
+          len(fails["dice"].pending_values or []), 3)
 
 # Taking the whole roll instead throws every still-free die.
 whole = shoot("target", [1, 1, 6, 6, 6, 6])

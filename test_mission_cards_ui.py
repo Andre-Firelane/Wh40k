@@ -549,4 +549,192 @@ checks.true("a card with a scoring table still fits its own content",
 checks.true("...and does not over-reserve",
             _prect.bottom - _strip2._last_content_bottom <= mcui.CARD_PADDING + 4)
 
+# --- 10. a remembered choice is readable WITHOUT hovering -----------------
+print("--- 10. the remembered choice ---")
+# User: "ich sehe bei Tempting Target nicht welches gewaehlt wurde. das soll
+# hervorgehoben auf der karte stehen."
+#
+# The chosen objective used to be the card's LAST block - below the whole
+# printed prose, in plain body type, and only drawn at all once the card was
+# expanded (_draw_card's `rect.height >= BAR_HEIGHT + TEXT_REVEAL_MARGIN`
+# gate). A player scanning the strip could not see it, and a player hovering
+# had to read to the bottom.
+#
+# It now appears twice: as the short name on the COLLAPSED bar, and as a
+# highlighted TARGET row at the TOP of the info block once opened.
+#
+# The counter-check is the load-bearing half of this section. Seven of the
+# eleven cards carrying a `detail` are LIVE progress readouts ("presence in 2
+# of 4 table quarters"), and a bar showing one of those would re-introduce a
+# bug this strip already had reported against it - see _build_cards(). So
+# every assertion below has its twin on a live card.
+
+
+class _Obj:
+    def __init__(self, name):
+        self.name = name
+        self.controlled_by = None
+
+
+_A = next(c for c in sm.ALL_CARDS if c.key == "a_tempting_target")   # remembered choice
+_B = next(c for c in sm.ALL_CARDS if c.key == "engage_on_all_fronts")  # live readout
+
+_sub_deck = sm.SecondaryMissionController(player="Player 1")
+_sub_deck.set_tokens_source(lambda: [])
+_sub_deck.set_objectives_source(lambda: [])
+_sub_deck.hand = [_A, _B]
+_sub_deck.card_state.setdefault("a_tempting_target", {})["objective"] = _Obj("Objective Southeast")
+
+checks.eq("the remembered card offers a subject",
+          _sub_deck.subject_for(_A), "Objective Southeast")
+checks.eq("...carrying the NAME only, not the live holder",
+          "held by" in (_sub_deck.subject_for(_A) or ""), False)
+checks.eq("a live-readout card offers none", _sub_deck.subject_for(_B), None)
+checks.true("...though it still has a detail to show when opened",
+            bool(_sub_deck.detail_for(_B)))
+
+_sub_strip = mcui.MissionCardsOverlay()
+_built = _sub_strip._build_cards("Player 1", mission, _sub_deck)
+_card_a = next(c for c in _built if c.title == _A.name)
+_card_b = next(c for c in _built if c.title == _B.name)
+
+checks.eq("the remembered choice takes the bar's status slot",
+          _card_a.status, "Objective Southeast")
+checks.eq("...in the detail colour", _card_a.status_color, mcui.CARD_DETAIL_COLOR)
+checks.eq("a live card keeps its timing there", _card_b.status, _B.timing_label)
+# Moved, not duplicated: leaving it at the foot as well would print the same
+# fact twice on one card.
+checks.eq("the remembered card no longer carries a foot block", _card_a.detail, None)
+checks.true("the live card still does", bool(_card_b.detail))
+def _field(rows, row, col):
+    """rows[row][col] or None. A probe that drops the TARGET row leaves a
+    2-tuple here, and an IndexError aborts the run instead of naming the
+    assurance that broke - this repo has paid for that lesson repeatedly."""
+    try:
+        return rows[row][col]
+    except (IndexError, TypeError):
+        return None
+
+
+checks.eq("the choice leads the info block", _field(_card_a.info, 0, 0), "TARGET")
+checks.eq("...with its own highlight colour",
+          _field(_card_a.info, 0, 2), mcui.CARD_DETAIL_COLOR)
+checks.eq("the timing is not lost - it is the next row",
+          _field(_card_a.info, 1, 0), "WHEN")
+checks.eq("...and an ordinary row still has no colour of its own",
+          _field(_card_a.info, 1, 2), None)
+
+# --- on PIXELS, collapsed: the whole point is "without hovering" -----------
+_SHOT = pygame.Surface((640, 1080))
+_SUB_BG = (30, 34, 40)
+
+
+def _sub_settle(mouse_pos, frames=80):
+    for _ in range(frames):
+        _SHOT.fill(_SUB_BG)
+        _sub_strip.draw(_SHOT, LEFT_PANEL, mission, _sub_deck, mouse_pos=mouse_pos)
+    return _sub_strip._rects(LEFT_PANEL, _sub_strip._cards)
+
+
+def _ink(rect, color, tol=12):
+    """Count pixels in `rect` within `tol` of `color` on every channel."""
+    n = 0
+    for y in range(max(0, rect.top), min(_SHOT.get_height(), rect.bottom)):
+        for x in range(max(0, rect.left), min(_SHOT.get_width(), rect.right)):
+            px = _SHOT.get_at((x, y))[:3]
+            if all(abs(px[i] - color[i]) <= tol for i in range(3)):
+                n += 1
+    return n
+
+
+_rects_c = _sub_settle(NOWHERE)
+_idx_a = next(i for i, c in enumerate(_sub_strip._cards) if c.title == _A.name)
+_idx_b = next(i for i, c in enumerate(_sub_strip._cards) if c.title == _B.name)
+_bar_a = pygame.Rect(_rects_c[_idx_a].x, _rects_c[_idx_a].y,
+                     _rects_c[_idx_a].width, mcui.BAR_HEIGHT)
+_bar_b = pygame.Rect(_rects_c[_idx_b].x, _rects_c[_idx_b].y,
+                     _rects_c[_idx_b].width, mcui.BAR_HEIGHT)
+
+checks.true("every card is collapsed for this measurement",
+            all(abs(r.height - mcui.BAR_HEIGHT) < 1 for r in _rects_c))
+checks.true("the remembered choice is inked on the collapsed bar",
+            _ink(_bar_a, mcui.CARD_DETAIL_COLOR) > 20)
+# THE counter-check: without it this section passes just as well on a strip
+# that prints every card's live detail on its bar.
+checks.eq("a live card puts nothing of the sort on its own bar",
+          _ink(_bar_b, mcui.CARD_DETAIL_COLOR), 0)
+checks.true("...and still shows its timing there",
+            _ink(_bar_b, mcui.CARD_TIMING_COLOR) > 20)
+
+# The title outranks the choice for room: a card whose NAME is cut cannot be
+# found in the stack, which is worse than a shortened objective name.
+# Measured with a choice long enough to THREATEN the title: with a short one
+# there is 100px of slack and the rule is never exercised, so the probe that
+# removes it would change nothing and report a clean run. Burden of Trust's
+# three assignments are the real case (183px against a 360px card).
+_sub_deck.card_state["a_tempting_target"]["objective"] = _Obj(
+    "Central Objective, Objective Southeast, Objective Northwest")
+_rects_long = _sub_settle(NOWHERE)
+_bar_long = pygame.Rect(_rects_long[_idx_a].x, _rects_long[_idx_a].y,
+                        _rects_long[_idx_a].width, mcui.BAR_HEIGHT)
+_long_card = _sub_strip._cards[_idx_a]
+_title_w = _sub_strip.title_font.size(_A.name)[0]
+_tag_w = _sub_strip.category_font.size("S")[0] + 6
+_title_x = _bar_long.x + mcui.CARD_PADDING + _tag_w
+_drawn = _sub_strip._last_bar_status.get(_A.name)
+_status_w = _sub_strip.status_font.size(_drawn or "")[0] + 8
+checks.true("the fixture really is too long for the bar",
+            _sub_strip.status_font.size(_long_card.subject)[0]
+            > _bar_long.right - mcui.CARD_PADDING - _title_x - _title_w)
+checks.true("the title still gets its full natural width",
+            _bar_long.right - mcui.CARD_PADDING - _status_w - _title_x >= _title_w)
+checks.true("...and the choice is shortened honestly rather than cut silently",
+            (_drawn or "").endswith("..."))
+_sub_deck.card_state["a_tempting_target"]["objective"] = _Obj("Objective Southeast")
+_sub_settle(NOWHERE)
+
+# --- on PIXELS, expanded: the choice leads, and it is highlighted ----------
+_rects_e = _sub_settle(_rects_c[_idx_a].center)
+_card_rect_a = _rects_e[_idx_a]
+checks.true("the remembered card expanded", _card_rect_a.height > mcui.BAR_HEIGHT * 2)
+
+_info_top = _card_rect_a.y + mcui.BAR_HEIGHT + mcui.BODY_GAP
+_first_row_h = _sub_strip._line_height() + mcui.INFO_ROW_GAP
+_first_row = pygame.Rect(_card_rect_a.x, _info_top, _card_rect_a.width, _first_row_h)
+_rest = pygame.Rect(_card_rect_a.x, _info_top + _first_row_h,
+                    _card_rect_a.width,
+                    _sub_strip._info_height(_sub_strip._cards[_idx_a]) - _first_row_h)
+checks.true("the first info row is drawn in the highlight colour",
+            _ink(_first_row, mcui.CARD_DETAIL_COLOR) > 20)
+# Counter-check: without this the section passes on a card drawn entirely in
+# the highlight colour, which would be no highlight at all.
+checks.true("the rows below it are not",
+            _ink(_rest, mcui.CARD_DETAIL_COLOR) == 0
+            and _ink(_rest, mcui.CARD_INFO_COLOR) > 20)
+
+# The prediction/drawing agreement, which is what a new block would break.
+# This is the same pair test section 8 makes, re-made for a card whose info
+# block grew a row - the exact shape that pushes everything below it down.
+checks.true("the card reserved enough height for what it drew",
+            _sub_strip._last_content_bottom is not None
+            and _sub_strip._last_content_bottom <= _card_rect_a.bottom - 2)
+checks.true("...and not far too much",
+            _card_rect_a.bottom - _sub_strip._last_content_bottom <= mcui.CARD_PADDING + 4)
+
+# A live card keeps its detail at the FOOT, below the printed prose - the
+# named decision, pinned so it is not "tidied up" into the info block later.
+_rects_eb = _sub_settle(_rects_c[_idx_b].center)
+_card_rect_b = _rects_eb[_idx_b]
+checks.true("the live card expanded too", _card_rect_b.height > mcui.BAR_HEIGHT * 2)
+_body_top = _card_rect_b.y + mcui.BAR_HEIGHT + mcui.BODY_GAP
+_upper = pygame.Rect(_card_rect_b.x, _body_top, _card_rect_b.width,
+                     max(1, (_card_rect_b.bottom - _body_top) // 2))
+_lower = pygame.Rect(_card_rect_b.x, _upper.bottom, _card_rect_b.width,
+                     _card_rect_b.bottom - _upper.bottom)
+checks.eq("a live detail is not promoted into the info block",
+          _ink(_upper, mcui.CARD_DETAIL_COLOR), 0)
+checks.true("...it is still drawn at the foot of the card",
+            _ink(_lower, mcui.CARD_DETAIL_COLOR) > 20)
+
+
 checks.finish()

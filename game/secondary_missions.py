@@ -218,7 +218,8 @@ class SecondaryMissionCard:
                  requires_action=False, on_draw=None, detail=None,
                  draw_choices=None, draw_prompt=None,
                  when_drawn_shuffles_back=False, action=None,
-                 when_drawn_is_mandatory=False, min_battle_round=None):
+                 when_drawn_is_mandatory=False, min_battle_round=None,
+                 subject=None, detail_is_live=False):
         self.key = key
         self.name = name
         self.text = text
@@ -259,6 +260,43 @@ class SecondaryMissionCard:
         # A card that is not live until a given battle round ("2ND ROUND
         # ONWARD"). None = live from the start.
         self.min_battle_round = min_battle_round
+        # The SHORT name of whatever this card remembered - "Objective
+        # Southeast", "1 Dark Reapers 1". Distinct from `detail` above, and the
+        # distinction is the whole point rather than a matter of length.
+        #
+        # Eleven cards carry a `detail`, and they split in two:
+        #
+        #   A REMEMBERED CHOICE, fixed once made - A Tempting Target, Beacon,
+        #   Defend Stronghold, Burden of Trust. Without seeing it the card is
+        #   unplayable: its printed text says "your tempting target" and never
+        #   WHICH one. User report: "ich sehe bei Tempting Target nicht welches
+        #   gewaehlt wurde. das soll hervorgehoben auf der karte stehen."
+        #
+        #   A LIVE PROGRESS READOUT, different every frame - "Presence in 2 of
+        #   4 table quarters", "No Man's Land: holding 2 of 3". Seven cards.
+        #
+        # Only the first kind may appear on the strip's COLLAPSED bar, and that
+        # is not taste. game/ui/mission_cards.py's _build_cards() records the
+        # reported bug this would otherwise re-introduce: a bar showing a live
+        # "would this score if the turn ended now" snapshot was the first
+        # version and was wrong, because a card is measured at its own printed
+        # instant and at no other.
+        #
+        # `subject` therefore carries the NAME ONLY, never the live half - "P1
+        # Home Objective", not "P1 Home Objective (held by nobody)". The full
+        # sentence stays in `detail`, one hover away.
+        #
+        # An EXPLICIT field set by the card's author, deliberately not a
+        # heuristic like "has on_draw": Burden of Trust and Defend Stronghold
+        # have none, so that test would mis-sort two of the four today and
+        # would go on mis-sorting silently for whoever writes the twelfth card.
+        # Same reason `detail_is_live` is declared rather than inferred - it
+        # has no reader in the UI at all; it exists so the source guard in
+        # test_secondary_missions.py can make the next author say which kind
+        # this is. The name follows DecisionManager.request(subject=...) and
+        # PromptRule.subject, which already mean "the thing being chosen".
+        self._subject = subject
+        self.detail_is_live = detail_is_live
 
     @property
     def timing_label(self):
@@ -310,6 +348,14 @@ class SecondaryMissionCard:
 
     def detail(self, ctx):
         return self._detail(ctx) if self._detail is not None else None
+
+    def subject(self, ctx):
+        """The short name of this card's remembered choice, or None.
+
+        Total like detail(), and for the same reason - it runs every frame
+        from the strip, so a card reads its state with .get() rather than
+        being wrapped in a guard that would swallow a real defect."""
+        return self._subject(ctx) if self._subject is not None else None
 
     def info_rows(self):
         """The facts about this card that its printed prose does NOT carry, as
@@ -578,6 +624,16 @@ def _tempting_target_detail(ctx):
     return f"Target: {target.name} (held by {holder})"
 
 
+def _tempting_target_subject(ctx):
+    """The chosen objective's NAME, and nothing else.
+
+    Not "(held by ...)": that half changes every time control flips, and the
+    collapsed bar must not carry a live reading - see
+    SecondaryMissionCard.subject. The holder is still in detail() above."""
+    target = ctx.card_state.get("objective")
+    return target.name if target is not None else None
+
+
 A_TEMPTING_TARGET = SecondaryMissionCard(
     key="a_tempting_target",
     name="A Tempting Target",
@@ -590,6 +646,7 @@ A_TEMPTING_TARGET = SecondaryMissionCard(
     score=_tempting_target,
     on_draw=_tempting_target_on_draw,
     detail=_tempting_target_detail,
+    subject=_tempting_target_subject,
 )
 
 # "north"/"south"/"west"/"east" are just labels for the four board edges; the
@@ -973,6 +1030,16 @@ def _defend_stronghold_detail(ctx):
     return f"Your home objective: {home.name} (held by {holder})"
 
 
+def _defend_stronghold_subject(ctx):
+    """The home objective's name. It is DERIVED rather than remembered - the
+    card has no card_state - but it is fixed for the whole battle, which is
+    what the bar needs. The "(held by ...)" half is live and stays in
+    detail(); this is the card where that distinction does the most work,
+    since its name never moves and its holder can flip every phase."""
+    home = own_home_objective(ctx)
+    return home.name if home is not None else None
+
+
 def cleanse_units(squad, ctx):
     """Cleanse's UNITS line: "One friendly unit within range of an objective
     (excl. your home objective)"."""
@@ -1142,6 +1209,20 @@ def _burden_of_trust_detail(ctx):
     return "Guards - " + "; ".join(parts)
 
 
+def _burden_of_trust_subject(ctx):
+    """The guarded objectives by name - WITHOUT the OK/lapsed mark, which is
+    live (a guard that walks away lapses mid-turn).
+
+    This is the one subject that can outgrow the bar: three assignments run
+    well past the room a 360px card leaves beside its title. The strip
+    ellipsises it rather than cutting it silently; the full list with its
+    marks is in detail()."""
+    pairs = _guard_assignments(ctx)
+    if not pairs:
+        return None
+    return ", ".join(objective.name for objective, _squad in pairs)
+
+
 def _beacon_candidates(ctx):
     """"Choose one friendly unit on the battlefield (or embarked in a
     TRANSPORT) as your beacon unit."
@@ -1196,6 +1277,11 @@ def _beacon_detail(ctx):
     return f"Beacon: {beacon.name}"
 
 
+def _beacon_subject(ctx):
+    beacon = ctx.card_state.get("objective")
+    return beacon.name if beacon is not None else None
+
+
 BEACON = SecondaryMissionCard(
     key="beacon",
     name="Beacon",
@@ -1211,6 +1297,7 @@ BEACON = SecondaryMissionCard(
     draw_prompt="Beacon: choose one of your units on the battlefield (or embarked) "
                 "as your beacon unit.",
     detail=_beacon_detail,
+    subject=_beacon_subject,
 )
 
 NO_PRISONERS = SecondaryMissionCard(
@@ -1236,6 +1323,7 @@ OUTFLANK = SecondaryMissionCard(
     timing=TIMING_END_OF_YOUR_TURN,
     score=_outflank,
     detail=_outflank_detail,
+    detail_is_live=True,
 )
 
 ENGAGE_ON_ALL_FRONTS = SecondaryMissionCard(
@@ -1255,6 +1343,7 @@ ENGAGE_ON_ALL_FRONTS = SecondaryMissionCard(
     timing=TIMING_END_OF_YOUR_TURN,
     score=_engage_on_all_fronts,
     detail=_engage_detail,
+    detail_is_live=True,
 )
 
 FORWARD_POSITION = SecondaryMissionCard(
@@ -1271,6 +1360,7 @@ FORWARD_POSITION = SecondaryMissionCard(
     when_drawn_may_redraw=_behind_enemy_lines_when_drawn,  # same clause, same wording
     when_drawn_shuffles_back=True,
     detail=_forward_position_detail,
+    detail_is_live=True,
 )
 
 DEFEND_STRONGHOLD = SecondaryMissionCard(
@@ -1291,6 +1381,7 @@ DEFEND_STRONGHOLD = SecondaryMissionCard(
     when_drawn_is_mandatory=True,
     min_battle_round=DEFEND_STRONGHOLD_FROM_ROUND,
     detail=_defend_stronghold_detail,
+    subject=_defend_stronghold_subject,
 )
 
 DISPLAY_OF_MIGHT = SecondaryMissionCard(
@@ -1304,6 +1395,7 @@ DISPLAY_OF_MIGHT = SecondaryMissionCard(
     timing=TIMING_END_OF_ANY_TURN,
     score=_display_of_might,
     detail=_display_of_might_detail,
+    detail_is_live=True,
 )
 
 PLUNDER_ACTION = ActionDefinition(
@@ -1336,6 +1428,7 @@ PLUNDER = SecondaryMissionCard(
     when_drawn_may_redraw=_plunder_when_drawn,
     when_drawn_shuffles_back=True,
     detail=_plunder_detail,
+    detail_is_live=True,
     requires_action=True,
     action=PLUNDER_ACTION,
 )
@@ -1361,6 +1454,7 @@ SECURE_NO_MANS_LAND = SecondaryMissionCard(
     timing=TIMING_END_OF_YOUR_TURN,
     score=_secure_no_mans_land,
     detail=_secure_no_mans_land_detail,
+    detail_is_live=True,
 )
 
 CLEANSE_ACTION = ActionDefinition(
@@ -1389,6 +1483,7 @@ CLEANSE = SecondaryMissionCard(
     when_drawn_may_redraw=_cleanse_when_drawn,
     when_drawn_shuffles_back=True,
     detail=_cleanse_detail,
+    detail_is_live=True,
     # The first card that needs rule 16.01 at all - see game/actions.py.
     requires_action=True,
     action=CLEANSE_ACTION,
@@ -1423,6 +1518,7 @@ BURDEN_OF_TRUST = SecondaryMissionCard(
     timing=TIMING_END_OF_OPPONENT_TURN_FINAL_ROUND,
     score=_burden_of_trust,
     detail=_burden_of_trust_detail,
+    subject=_burden_of_trust_subject,
 )
 
 A_GRIEVOUS_BLOW = SecondaryMissionCard(
@@ -2269,6 +2365,17 @@ class SecondaryMissionController:
         "the feature just does nothing"). Cards keep their own detail functions
         total instead, reading state with .get()."""
         return card.detail(self._context(card=card))
+
+    def subject_for(self, card):
+        """The short name of what this card remembered ("Objective Southeast"),
+        or None for a card that remembered nothing.
+
+        Its own half of detail_for() above: that one returns the full sentence
+        for the opened card, this one the bare name for the collapsed bar,
+        which must not carry anything that changes between frames. See
+        SecondaryMissionCard.subject for why the split is by an explicit field
+        rather than by guessing from the text."""
+        return card.subject(self._context(card=card))
 
     def begin_end_of_turn(self, ending_player, battle_round=None):
         """The end-of-turn step: offer every achieved card, one at a time, then

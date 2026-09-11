@@ -2,7 +2,8 @@ import pygame
 
 from game import config
 from game.missions import PRIMARY_MISSION_NAME, PRIMARY_MISSION_TEXT
-from game.ui.text_utils import draw_wrapped_text, split_paragraphs, wrapped_text_height
+from game.ui.text_utils import (draw_wrapped_text, ellipsised, split_paragraphs,
+                                wrapped_text_height)
 
 # Layout. A card is now a full-width HORIZONTAL bar, stacked with the others
 # and expanding its HEIGHT on hover - user: "Aendere das Layout vielleicht noch
@@ -58,6 +59,8 @@ SCORE_VP_WIDTH = 52
 SCORE_HEADER_GAP = 3
 PARAGRAPH_GAP = 5         # between two sentences of the printed prose
 TEXT_REVEAL_MARGIN = 6    # below (bar + this) don't bother rendering the body mid-slide
+SUBJECT_GAP = 10          # between the title and a remembered choice sharing the bar
+SUBJECT_MIN_WIDTH = 30    # below this the choice is dropped from the bar rather than cut to nothing
 
 CARD_BG_COLOR = (14, 20, 30)
 CARD_TITLE_COLOR = (255, 215, 0)
@@ -66,7 +69,12 @@ CARD_CATEGORY_COLOR = (170, 220, 245)
 CARD_SCORE_COLOR = (255, 230, 170)
 CARD_READY_COLOR = (140, 245, 160)   # a Secondary whose cash-in prompt is open right now
 CARD_TIMING_COLOR = (135, 160, 185)  # muted: WHEN a Secondary is checked, not a claim that it is met
-CARD_DETAIL_COLOR = (255, 205, 120)  # a card's WHEN DRAWN choice (which objective, which unit)
+CARD_DETAIL_COLOR = (255, 205, 120)  # what a card remembered or is tracking - see _build_cards()
+# Named for the WHEN DRAWN choice it was introduced for, and now carrying
+# both kinds of detail: the remembered choice (highlighted, on the bar and
+# leading the info block) and the live progress readout (at the foot of the
+# opened card). The two are told apart by SecondaryMissionCard.subject, not
+# by this colour.
 CARD_INFO_COLOR = (150, 195, 225)    # the facts the printed prose does not carry - timing, action, draw clause
 CARD_INFO_LABEL_COLOR = (120, 155, 185)  # the label column, one step back from its own value
 TITLE_RULE_COLOR = (52, 70, 90)      # hairline between the metadata, the printed text, and the detail
@@ -94,7 +102,7 @@ SECONDARY = "Secondary"
 
 class _MissionCard:
     def __init__(self, player, category, title, text, status=None, status_color=None,
-                 detail=None, info=(), scoring=()):
+                 detail=None, info=(), scoring=(), subject=None):
         self.player = player       # whose progress this card is about
         self.category = category   # "Primary"/"Secondary"
         self.title = title
@@ -115,6 +123,11 @@ class _MissionCard:
         # row: `info` is one-off facts about the card, this repeats per scoring
         # box and is the only place the VP appear outside the prose.
         self.scoring = [tuple(row) for row in scoring]
+        # The short name of a remembered choice ("Objective Southeast"), shown
+        # on the COLLAPSED bar so it is readable without hovering. None for a
+        # card that remembered nothing, and never a live reading - see
+        # SecondaryMissionCard.subject and _build_cards() below.
+        self.subject = subject
         self.height = float(BAR_HEIGHT)    # animated, collapsed by default
 
 
@@ -158,6 +171,7 @@ class MissionCardsOverlay:
         self._cards = []          # rebuilt every frame from live state - see _build_cards()
         self._heights = {}        # card key -> animated height, so it survives the rebuild
         self._last_content_bottom = None  # y the last expanded card's content really reached
+        self._last_bar_status = {}        # card title -> the status text as it was really drawn
 
     # ------------------------------------------------------------- contents
 
@@ -225,14 +239,52 @@ class MissionCardsOverlay:
             else:
                 status, color = card.timing_label, CARD_TIMING_COLOR
             # A card whose WHEN DRAWN clause picked something (A Tempting
-            # Target's objective) carries that choice as its own block under
-            # the body - its printed text says "your tempting target" and never
-            # WHICH one, so without this the card cannot be played.
+            # Target's objective) carries that choice - its printed text says
+            # "your tempting target" and never WHICH one, so without it the
+            # card cannot be played.
+            #
+            # Where that choice exists it is shown TWICE, and each placement
+            # answers a different complaint. User: "ich sehe bei Tempting
+            # Target nicht welches gewaehlt wurde. das soll hervorgehoben auf
+            # der karte stehen." It used to be the card's LAST block, below
+            # the whole printed prose, in plain body type - so it was invisible
+            # without hovering and easy to miss even then.
+            #
+            #   * `subject` on the collapsed BAR: the name alone, always
+            #     visible. It takes the slot the timing had, and that loses
+            #     nothing - SecondaryMissionCard.info_rows() opens with
+            #     ("WHEN", timing_label), so opening the card still shows it.
+            #     Only the card that remembered something trades the slot.
+            #
+            #   * a TARGET row at the TOP of the info block, highlighted:
+            #     alongside WHEN and ACTION, where a player already looks for
+            #     the facts the prose does not carry.
+            #
+            # Deliberately a plain info row rather than a block of its own:
+            # _full_height() already measures info rows, so the prediction and
+            # the drawing cannot drift apart - the one failure this layout is
+            # most exposed to (see _last_content_bottom).
+            #
+            # A LIVE detail (Engage's "presence in 2 of 4 table quarters")
+            # stays exactly where it was, at the foot of the card. It must not
+            # reach the bar: a bar showing a live "would this score now"
+            # reading was the first version of this strip and was reported as
+            # wrong - see the offered_now() comment above.
+            subject = secondary_controller.subject_for(card)
+            detail = secondary_controller.detail_for(card)
+            info = list(card.info_rows())
+            if subject is not None and detail:
+                info.insert(0, ("TARGET", detail, CARD_DETAIL_COLOR))
+                detail = None
+                if not vp:
+                    # READY still wins the slot: a prompt that is open right
+                    # now is the more urgent of the two, and it is the only
+                    # state in which the card is about to pay.
+                    status, color = subject, CARD_DETAIL_COLOR
             cards.append(_MissionCard(
                 player, SECONDARY, card.name, card.text,
                 status=status, status_color=color,
-                detail=secondary_controller.detail_for(card),
-                info=card.info_rows(),
+                detail=detail, info=info, subject=subject,
             ))
         return cards
 
@@ -301,7 +353,8 @@ class MissionCardsOverlay:
             return 0
         line_height = self._line_height()
         height = 0
-        for label, value in card.info:
+        for row in card.info:
+            value = row[1]
             rows = max(
                 wrapped_text_height(self.body_font, value, self._info_value_width(),
                                     line_height=line_height),
@@ -454,13 +507,36 @@ class MissionCardsOverlay:
         surface.blit(tag_surf, (text_x, rect.y + (BAR_HEIGHT - self.category_font.get_height()) // 2))
         title_x = text_x + tag_surf.get_width() + 6
 
+        title_surf = self.title_font.render(card.title, True, CARD_TITLE_COLOR)
+        status_text = card.status
+        if status_text and card.subject:
+            # A remembered choice outranks the timing in this slot, and the
+            # room for it is MEASURED rather than assumed: carrying both would
+            # overflow three of the four cards that have one (-2px, -19px and
+            # -57px against a 360px card), while the choice on its own leaves
+            # 100px, 187px, 102px and 27px of slack. The timing is not lost -
+            # info_rows() opens with it, so it is there the moment the card is
+            # opened.
+            #
+            # The TITLE keeps its full width and the choice takes what is left:
+            # a card whose name is cut is a card you cannot find in the stack,
+            # which is worse than a shortened objective name. Burden of Trust
+            # is the one that really needs this - three assignments run 183px.
+            room = (rect.right - CARD_PADDING - title_x
+                    - title_surf.get_width() - SUBJECT_GAP)
+            status_text = (ellipsised(self.status_font, status_text, room)
+                           if room >= SUBJECT_MIN_WIDTH else None)
+        # What the bar really ended up saying, after any shortening. Recorded
+        # rather than recomputed, for the same reason _last_content_bottom is:
+        # a caller (or a test) that derives it a second time is deriving a
+        # different number, and the ellipsis is exactly where the two part.
+        self._last_bar_status[card.title] = status_text
         status_surf = None
-        if card.status:
+        if status_text:
             status_surf = self.status_font.render(
-                card.status, True, card.status_color or CARD_SCORE_COLOR)
+                status_text, True, card.status_color or CARD_SCORE_COLOR)
         status_width = (status_surf.get_width() + 8) if status_surf is not None else 0
         title_room = max(10, rect.right - CARD_PADDING - status_width - title_x)
-        title_surf = self.title_font.render(card.title, True, CARD_TITLE_COLOR)
         if title_surf.get_width() > title_room:
             title_surf = title_surf.subsurface(
                 pygame.Rect(0, 0, title_room, title_surf.get_height())).copy()
@@ -539,7 +615,14 @@ class MissionCardsOverlay:
         value column, so the block reads as a table."""
         value_x = text_x + INFO_LABEL_WIDTH + INFO_COLUMN_GAP
         value_width = self._info_value_width()
-        for label, value in card.info:
+        for row in card.info:
+            # A row may carry its own value colour as a third field. Only the
+            # remembered-choice row uses it today (CARD_DETAIL_COLOR, so the
+            # chosen objective stands out among the ordinary metadata); every
+            # other row is a plain pair and falls back to CARD_INFO_COLOR, so
+            # no existing row moves a pixel.
+            label, value = row[0], row[1]
+            value_color = row[2] if len(row) > 2 else CARD_INFO_COLOR
             label_surf = self.info_label_font.render(label, True, CARD_INFO_LABEL_COLOR)
             # Baselines: the label font is smaller than the value font, so it
             # is nudged down to sit on the value's first line rather than
@@ -548,7 +631,7 @@ class MissionCardsOverlay:
                 text_x, y + max(0, (self.body_font.get_height()
                                     - self.info_label_font.get_height()) // 2)))
             end_y = draw_wrapped_text(
-                surface, self.body_font, value, CARD_INFO_COLOR,
+                surface, self.body_font, value, value_color,
                 value_x, y, value_width, line_height=line_height,
             )
             y = max(end_y, y + line_height) + INFO_ROW_GAP

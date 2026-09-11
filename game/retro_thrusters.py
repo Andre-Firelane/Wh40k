@@ -69,6 +69,8 @@ turn is waiting, since the button itself is only visible once the unit is
 selected.
 """
 
+from game import wait_notice
+
 
 def unit_has_retro_thrusters(squad):
     """True while at least one live model with the ability is in the unit -
@@ -100,7 +102,12 @@ class RetroThrustersController:
         self._used_this_phase = set()
         self.active_squad = None          # the unit whose Retro-thrusters move is open, if any
         self._fall_back = False
-        self._wait_announced = set()      # owners already told the turn is being held for them
+        # Owners already told the turn is being held for them. A WaitNotice
+        # rather than a set of its own: ai/agent_driver.py's Fight-phase branch
+        # needs the same once-per-phase ledger for every OTHER reason it stops
+        # there, and two copies of "has this been said yet" is the drift this
+        # repo keeps merging back together. See game/wait_notice.py.
+        self._wait_notice = wait_notice.WaitNotice(game_log=game_log)
 
     def reset_fight_phase(self):
         """A new Fight phase: nothing latched, nothing used yet."""
@@ -108,7 +115,7 @@ class RetroThrustersController:
         self._used_this_phase = set()
         self.active_squad = None
         self._fall_back = False
-        self._wait_announced = set()
+        self._wait_notice.reset()
 
     def note_eligibility(self):
         """Latch which units with this ability are eligible to fight right
@@ -188,10 +195,10 @@ class RetroThrustersController:
         if self.game_log is None:
             return
         for squad in self.pending_squads():
-            if squad.owner == player or squad.owner in self._wait_announced:
+            if squad.owner == player:
                 continue
-            self._wait_announced.add(squad.owner)
-            self.game_log.add(
+            self._wait_notice.say_once(
+                squad.owner,
                 f"{squad.owner}: {squad.name} can still use Retro-thrusters - "
                 f"select it to move or skip; the turn ends once you do."
             )

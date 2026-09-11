@@ -175,4 +175,104 @@ checks.eq("dismissing it hands the screen to the next", front_of([a, b, c]), c)
 c.is_pending = False
 checks.eq("and then to nobody", front_of([a, b, c]), None)
 
+
+# --- 6. the start of a phase waits for the END of the one before it ---
+print("--- 6. offers owed, resets now ---")
+# Reported: "Rapid ingress und eater plague overlays ueberlappen sich."
+# Same class as everything above, one layer out: not two notices drawn at once,
+# but two OFFERS raised in the same call - a board placement (Rapid Ingress)
+# and a dice roll plus mortal-wound allocation (Eater Plague), each wanting the
+# board and the left panel. advance_turn_phase() ran the `phase ==
+# PHASE_SHOOTING` block BEFORE the `phase_before == PHASE_MOVEMENT` block, so
+# the start of the new phase was offered ahead of the reactions to the end of
+# the old one - backwards as a rule, and a collision on screen.
+#
+# A SET DIFFERENCE rather than a list of the five names that moved: a SIXTH
+# start-of-Shooting ability added to the old block would collide in exactly the
+# same way, and this line has to name it.
+import ast  # noqa: E402
+
+TREE = ast.parse(MAIN)
+
+
+def _func(name):
+    for node in ast.walk(TREE):
+        if isinstance(node, ast.FunctionDef) and node.name == name:
+            return node
+    return None
+
+
+def _offer_calls(node):
+    """Every `x.offer*(...)` raised anywhere inside this node."""
+    found = set()
+    for sub in ast.walk(node):
+        if (isinstance(sub, ast.Call) and isinstance(sub.func, ast.Attribute)
+                and sub.func.attr.startswith("offer")):
+            owner = getattr(sub.func.value, "id", "?")
+            found.add(owner + "." + sub.func.attr)
+    return found
+
+
+_advance = _func("advance_turn_phase")
+_deferred = _func("_offer_start_of_shooting_phase")
+checks.true("advance_turn_phase() is still there to read", _advance is not None)
+checks.true("...and the deferred offer exists", _deferred is not None)
+
+# EVERY `if turn_tracker.phase == PHASE_SHOOTING:` block inside it - there are
+# two, and taking only the first would let a later one hide an offer.
+_entering_shooting = []
+for _node in ast.walk(_advance) if _advance else []:
+    if not isinstance(_node, ast.If):
+        continue
+    _t = _node.test
+    if (isinstance(_t, ast.Compare)
+            and isinstance(_t.left, ast.Attribute) and _t.left.attr == "phase"
+            and getattr(_t.left.value, "id", None) == "turn_tracker"
+            and len(_t.comparators) == 1
+            and getattr(_t.comparators[0], "id", None) == "PHASE_SHOOTING"):
+        _entering_shooting.append(_node)
+checks.true("the entering-Shooting block(s) are findable", bool(_entering_shooting))
+
+_in_block = set()
+for _node in _entering_shooting:
+    _in_block |= _offer_calls(_node)
+checks.eq("NOTHING is offered the instant the Shooting phase is entered",
+          sorted(_in_block), [])
+
+# Liveness for the line above: those blocks must still DO something, or the
+# emptiness is vacuous. The resets belong to the phase change and stay.
+_resets = set()
+for _block in _entering_shooting:
+    for _node in ast.walk(_block):
+        if (isinstance(_node, ast.Call) and isinstance(_node.func, ast.Attribute)
+                and _node.func.attr.startswith("reset")):
+            _resets.add(getattr(_node.func.value, "id", "?"))
+checks.true("...but the phase-change RESETS still run there (5 of them)",
+            len(_resets) >= 5)
+
+# And the offers themselves are still raised - from the deferred function.
+_deferred_offers = _offer_calls(_deferred) if _deferred else set()
+for _name in ("matter_absorption_controller.offer_at_shooting_phase",
+              "living_lightning_controller.offer_at_shooting_phase",
+              "eater_plague_controller.offer_at_shooting_phase",
+              "auxiliary_cadre_controller.offer_at_start_of_shooting_phase",
+              "guiding_presence_controller.offer_at_start_of_shooting_phase"):
+    checks.true(_name.split(".")[0] + " is offered from the deferred function",
+                _name in _deferred_offers)
+
+# The chain that ends in it: Rapid Ingress -> Fire Overwatch -> the offers.
+# Behind Fire Overwatch, not in front of it - a Snap Shooting salvo wants the
+# board and the panel exactly as much as a placement does.
+_tail = None
+for _node in ast.walk(_advance) if _advance else []:
+    if (isinstance(_node, ast.Call) and isinstance(_node.func, ast.Attribute)
+            and _node.func.attr == "offer"
+            and getattr(_node.func.value, "id", None) == "fire_overwatch_controller"):
+        _tail = _node
+checks.true("Fire Overwatch's offer carries the start-of-Shooting offers behind it",
+            _tail is not None
+            and any(k.arg == "on_resolved"
+                    and getattr(k.value, "id", None) == "_take_start_of_shooting_offers"
+                    for k in _tail.keywords))
+
 checks.finish()

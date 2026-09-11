@@ -73,6 +73,11 @@ class FireOverwatchController:
         self.player = None  # whose choice this is (the opponent of _mover), while state == CHOOSING_UNIT
         self._mover = None  # whose phase this actually is, to restore once the snap shot ends
         self._on_resolved = None
+        # ...and where it waits while the snap shot it started plays out. See
+        # choose_unit() for why picking a unit DEFERS the chain instead of
+        # continuing it - the same deferral RapidIngressController._pick() does
+        # one link earlier, for the same reason.
+        self._deferred_on_resolved = None
         self._stratagem = Stratagem(name="Fire Overwatch", cp_cost=FIRE_OVERWATCH_CP_COST, effect=self._resolve)
 
     def _all_squads(self):
@@ -138,9 +143,21 @@ class FireOverwatchController:
         # self._mover is deliberately left set - _resolve()/_on_shot_finished()
         # (below) still need it to restore turn_tracker.active_player once
         # the Snap Shooting activation this triggers actually concludes.
+        #
+        # THE CHAIN IS DEFERRED, NOT CONTINUED HERE. use() starts a whole Snap
+        # Shooting activation - dice, saves, allocation, several frames of it -
+        # and firing on_resolved() on this line would drop whatever comes next
+        # on top of a salvo still being resolved. That is the same mistake
+        # RapidIngressController._pick() records one link earlier in this very
+        # chain ("this steals the decision-overlay modal away from the
+        # Reserves-panel drag they still needed to make"), and the reported
+        # collision it caused here was Eater Plague's dice landing underneath a
+        # Rapid Ingress placement.
+        #
+        # _on_shot_finished() fires it instead, and that runs from BOTH exits
+        # of start_snap_shooting()'s on_finished - completed and cancelled.
+        self._deferred_on_resolved = on_resolved
         self.stratagem_controller.use(player, self._stratagem, [squad])
-        if on_resolved is not None:
-            on_resolved()
 
     def decline(self):
         if self.state != CHOOSING_UNIT:
@@ -159,6 +176,14 @@ class FireOverwatchController:
             self.game_log.add(f"{player}: Fire Overwatch - {squad.name} shoots using Snap Shooting (rule 15.09).")
         mover = self._mover
         self.shooting_controller.start_snap_shooting(squad, on_finished=lambda: self._on_shot_finished(mover))
+        # ...unless it never began. start_snap_shooting() has an early exit for
+        # a squad with no attack groups, and on that path on_finished is never
+        # set, so nothing would ever fire - the deferred chain would strand and
+        # turn_tracker.active_player would stay on the wrong player, which is a
+        # defect that predates the deferral. "Never started" is "already
+        # finished", so it is settled here.
+        if getattr(self.shooting_controller, "active_squad", None) is not squad:
+            self._on_shot_finished(mover)
 
     def _on_shot_finished(self, mover):
         # Protector of the Paths' better threshold lasts only "while resolving
@@ -168,3 +193,9 @@ class FireOverwatchController:
         if self.turn_tracker is not None and mover is not None:
             self.turn_tracker.set_active(mover)
         self._mover = None
+        # The salvo is over, so whatever was chained behind this Stratagem may
+        # run now. Taken rather than read, so a second call (cancel after a
+        # completed shot, say) cannot fire it twice.
+        callback, self._deferred_on_resolved = self._deferred_on_resolved, None
+        if callback is not None:
+            callback()
