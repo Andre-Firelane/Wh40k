@@ -338,7 +338,7 @@ c.eq("...and TRIARCH is the whole of the Praetorians batch, counted off the same
      sorted(s.name for s in nec.NECRONS.datasheets.values()
             if "TRIARCH" in s.keywords),
      ["Triarch Praetorians", "Triarch Stalker"])
-c.eq("thirty-four datasheets are registered", len(nec.NECRONS.datasheets), 34)
+c.eq("thirty-seven datasheets are registered", len(nec.NECRONS.datasheets), 37)
 c.eq("the faction keyword is NECRONS", nec.NECRONS.keyword, "NECRONS")
 
 # can_attach() returns a list of REASONS - empty means legal
@@ -374,13 +374,15 @@ print("--- 6. sprites ---")
 # so the exception cannot outlive its reason.
 # Nekrosor Ammentar joined the list with the Destroyer Cult batch: the user
 # supplied 27 Necron sprites and his is not among them.
+# The C'tan batch supplied all three files, so the list does NOT grow here -
+# stated because a batch that adds nothing to it is the interesting case.
 WITHOUT_ART = ["Flayed Ones", "Nekrosor Ammentar"]
 missing = sorted(s.name for s in nec.NECRONS.datasheets.values()
                  if not sprites.sprite_for(build(s).models[0]))
 c.eq("every Necron datasheet resolves to a real file, bar the named ones",
      missing, sorted(WITHOUT_ART))
 c.eq("...which is all but the named ones",
-     len(nec.NECRONS.datasheets) - len(missing), 34 - len(WITHOUT_ART))
+     len(nec.NECRONS.datasheets) - len(missing), 37 - len(WITHOUT_ART))
 c.eq("the faction badge is mapped too",
      sprites.FACTION_LOGO_KEYS.get("NECRONS"), "Necron Logo")
 

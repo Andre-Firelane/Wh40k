@@ -18,7 +18,7 @@ these files are the transcription source when they are (see MISSING_BY_FOLDER
 in the script). Detachments are snapshotted in full for every faction, built
 or not, for the same reason.
 
-Last fetched: 2026-09-10
+Last fetched: 2026-09-11
 
 | Faction | Files | Wahapedia version |
 | --- | --- | --- |

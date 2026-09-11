@@ -2295,6 +2295,18 @@ class ActionPanel:
                 self._buttons.append((run_rect, movement_controller.start_run))
                 button_y += run_rect.height + BUTTON_GAP
 
+            if movement_controller.can_transdimensional_displacement():
+                # The Transcendent C'tan's own alternative to the Advance
+                # above, offered beside it because the printed text is a
+                # choice ("you can use this ability") made at the same moment.
+                # Drawn AFTER Advance so the ordinary option stays in the place
+                # players already reach for.
+                disp_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
+                disp_rect = self._draw_button(surface, disp_rect, "Transdimensional Displacement")
+                self._buttons.append(
+                    (disp_rect, movement_controller.start_transdimensional_displacement))
+                button_y += disp_rect.height + BUTTON_GAP
+
             if movement_controller.can_take_to_the_skies():
                 fly_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
                 fly_rect = self._draw_button(surface, fly_rect, "Take to the Skies")

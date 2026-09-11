@@ -361,6 +361,9 @@ class UnitProfile:
     technomancer_repair = False  # Technomancer's own ability: at the end of your Movement phase, one friendly NECRONS model within 6" regains up to D3 lost wounds, once per model per turn - see game/technomancer.py
     matter_absorption = False  # Void Dragon's own ability: at the start of your Shooting phase, one enemy VEHICLE unit within 12" takes D3 mortal wounds on a 2+, and this model regains up to that many lost wounds - see game/mortal_wound_abilities.py
     enslaved_star_god = False  # Void Dragon's own "Enslaved Star God": "this model cannot be your WARLORD". A documented NO-OP - this engine has no Warlord concept at all, the same status as the "ignore vertical distance" abilities
+    drain_life = False  # C'tan Shard of the Nightbringer's own ability: at the end of the Fight phase, roll one D6 for each enemy unit within 6" of this model - on a 4+ that unit suffers D3 mortal wounds - see game/drain_life.py
+    grand_illusion = False  # C'tan Shard of the Deceiver's own ability: if your army includes this model, after both players have deployed, redeploy up to three NECRONS units (any of them may go into Strategic Reserves) - see game/grand_illusion.py
+    transdimensional_displacement = False  # Transcendent C'tan's own ability: an Advance move with no maximum distance that may pass through all models, and must end more than 8" from every enemy unit - see game/transdimensional_displacement.py
     illuminor = False  # Illuminor Szeras's own ability: while within 3" of one or more OTHER friendly NECRONS units, this model has Lone Operative - a CONDITIONAL form of `lone_operative` above, so it is resolved at read time; see game/illuminor.py
     mechanical_augmentation = 0  # Illuminor Szeras's own Aura, in inches (printed 3", grows to a maximum of 12"): a friendly NECRONS BATTLELINE unit within this range improves its attacks' AP by 1 and worsens the AP of attacks targeting it by 1; 0 = no such aura - see game/mechanical_augmentation.py
     mechanical_augmentation_max = 0  # the ceiling the aura can grow to, in inches (printed 12") - paired with the flag above so the growth rule has a bound to read rather than a literal
@@ -4701,14 +4704,23 @@ class DoomsdayArkProfile(UnitProfile):
     deadly_demise_notation = D3()       # "Deadly Demise D3"
 
 
-class CtanShardOfTheVoidDragonProfile(UnitProfile):
-    """The C'tan Shard of the Void Dragon.
+class CtanShardProfile(UnitProfile):
+    """The chassis all four C'tan share, measured rather than assumed.
+
+    Every C'tan datasheet in this faction prints T11, Sv3+, W16, Ld6+, OC4, a
+    4+ invulnerable, Feel No Pain 5+, Deadly Demise D6, Deep Strike,
+    Necrodermis and Enslaved Star God. They differ in Move (10" for the Void
+    Dragon and the Nightbringer, 8" for the other two), in base, in their
+    weapons, and in exactly ONE ability each.
+
+    So the agreement is STRUCTURAL here rather than a line in a test: a
+    subclass that silently drifts off one of these numbers has to say so. Same
+    reason game/factions/tau_empire.py's three Kroot Shapers share a base -
+    "they MATCH" is a claim three separate copies cannot express.
 
     Necrodermis is `damage_reduction`, the same flat -1 the Overlord's
-    Implacable Resilience prints, so both read one module rather than two."""
-    name = "C'tan Shard of the Void Dragon"
-    base_radius_in = 1.575          # 80 mm
-    movement_in = 10
+    Implacable Resilience prints, so both read one module rather than two.
+    """
     weapon_skill = "2+"
     ballistic_skill = "2+"
     toughness = 11
@@ -4720,15 +4732,21 @@ class CtanShardOfTheVoidDragonProfile(UnitProfile):
     feel_no_pain = "5+"
     monster = True
     character = True
-    epic_hero = True
     fly = True
     deep_strike = True
     reanimation_protocols = True
-    matter_absorption = True        # see game/mortal_wound_abilities.py
     damage_reduction = 1            # "Necrodermis", see game/damage_reduction.py
     enslaved_star_god = True        # "cannot be your WARLORD" - a documented no-op, this engine has no Warlord
     deadly_demise = 6               # documentation leftover only, see deadly_demise_notation below
     deadly_demise_notation = D6()   # "Deadly Demise D6"
+
+
+class CtanShardOfTheVoidDragonProfile(CtanShardProfile):
+    name = "C'tan Shard of the Void Dragon"
+    base_radius_in = 1.575          # 80 mm printed base
+    movement_in = 10
+    epic_hero = True
+    matter_absorption = True        # see game/mortal_wound_abilities.py
 
 
 class TriarchPraetorianProfile(UnitProfile):
@@ -4916,6 +4934,53 @@ class GeomancerProfile(UnitProfile):
     tectonic_reverberations = True  # see game/tectonic_reverberations.py
     obelisk_node_control = True     # see game/obelisk_node_control.py
     vanguard_protocols = True       # see game/vanguard_protocols.py
+
+
+class CtanShardOfTheNightbringerProfile(CtanShardProfile):
+    name = "C'tan Shard of the Nightbringer"
+    base_radius_in = 1.772          # 90 mm printed base
+    movement_in = 10
+    epic_hero = True
+    drain_life = True               # see game/drain_life.py
+
+
+class CtanShardOfTheDeceiverProfile(CtanShardProfile):
+    """BASE SIZE IS A TABLE-SIZE DECISION, NOT A TRANSCRIPTION.
+
+    The datasheet prints a 40 mm base for a 16-wound MONSTER, which is smaller
+    than every one of its three siblings (Void Dragon 80 mm, Nightbringer
+    90 mm, Transcendent C'tan 60 mm) and smaller than a Necron Warrior would be
+    if it were round. User decision, asked because the printed number and the
+    printed statline disagree about what this model is: it plays on the Void
+    Dragon's 80 mm - the only C'tan this engine already fields - so the four of
+    them occupy comparable ground.
+
+    Written as the sibling's value rather than as 1.575 so the two cannot
+    drift, the arrangement TriarchStalkerProfile uses for the same kind of
+    decision. The printed 40 mm is recorded here so nobody "corrects" it back.
+    """
+    name = "C'tan Shard of the Deceiver"
+    base_radius_in = CtanShardOfTheVoidDragonProfile.base_radius_in  # printed 40 mm; see above
+    movement_in = 8
+    epic_hero = True
+    stealth = True                  # rule 24.33
+    grand_illusion = True           # see game/grand_illusion.py
+
+
+class TranscendentCtanProfile(CtanShardProfile):
+    """The one C'tan that is NOT an EPIC HERO - it prints MONSTER, CHARACTER
+    and FLY and nothing else, which is also why it is the only one with points
+    tiers (a second one may be taken).
+
+    It additionally prints "This model cannot be given Enhancements." That is a
+    documented NO-OP today: game/enhancements.py's registry holds 47 specs
+    across T'au and Aeldari detachments and not one Necron entry, so there is
+    nothing this could refuse. Transcribed anyway, and pinned from both sides
+    so the gap neither closes nor widens in silence."""
+    name = "Transcendent C'tan"
+    base_radius_in = 1.181          # 60 mm printed flying base
+    movement_in = 8
+    transdimensional_displacement = True  # see game/transdimensional_displacement.py
 
 
 # ---------------------------------------------------------------------------

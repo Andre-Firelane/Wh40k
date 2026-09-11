@@ -236,10 +236,6 @@ MISSING_NECRONS = [
     "Canoptek Scarab Swarms", "Canoptek Spyders", "Canoptek Doomstalker",
     "Canoptek Reanimator", "Canoptek Macrocytes", "Canoptek Tomb Crawlers",
     "Geomancer",
-    # C'tan - measured: all four print T11 Sv3+ W16 Ld6+ OC4 and a 4+
-    # invulnerable, and differ ONLY in Move (8" against the Void Dragon's 10").
-    "C'tan Shard of the Deceiver", "C'tan Shard of the Nightbringer",
-    "Transcendent C'tan",
     # Named characters. Every one of the four Leaders attaches only to units
     # that are already built (Immortals, Lychguard, Necron Warriors).
     "Imotekh The Stormlord", "Trazyn The Infinite", "Royal Warden",

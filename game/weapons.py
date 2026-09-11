@@ -5521,6 +5521,112 @@ class TremorglaiveMeleeProfile(WeaponProfile):
     damage = 2
 
 
+# --- The other three C'tan - Deceiver, Nightbringer, Transcendent ----------
+#
+# COLLISION SWEEP, run over all thirteen remaining Necron datasheets before the
+# first class below was written, and it came back EMPTY for these three: not
+# one of their seven printed weapon names appears anywhere else in the corpus.
+# They are the only batch in this backfill with nothing to share and nothing to
+# fork - the Void Dragon's Spear, Voltaic Storm and Canoptek Tail Blades are
+# its own, and no other datasheet prints a Gaze of Death or Golden Fists.
+#
+# NO PER-WEAPON SKILL OVERRIDE, and that is checked rather than assumed: all
+# four C'tan print 2+ in every WS and BS cell they have, so the model profile
+# answers for every row and nothing here contradicts its wielder. The single
+# override in this faction remains the Triarch Stalker's particle shredder.
+
+class GazeOfDeathProfile(WeaponProfile):
+    name = "Gaze of Death"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 1           # grouping/preview placeholder only - attacks_notation is what is rolled
+    attacks_notation = D3()
+    strength = 12
+    ap = -3
+    damage = 9            # grouping/preview placeholder only - damage_notation is what is rolled
+    damage_notation = D6(3)
+
+
+class ScytheOfTheNightbringerSweepProfile(WeaponProfile):
+    """The Scythe's second MELEE profile. Defined before the strike profile
+    below because that one names it as its alternate mode - the arrangement
+    the Void Dragon's Spear and the Triarch Stalker's heat ray both use."""
+    name = "Scythe of the Nightbringer - Sweep"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 14
+    strength = 8
+    ap = -2
+    damage = 2
+
+
+class ScytheOfTheNightbringerStrikeProfile(WeaponProfile):
+    """One printed datasheet entry with two melee profiles, so they are a
+    firing-mode PAIR (overcharge_profile) rather than two separate weapons -
+    otherwise the Nightbringer would swing both in one activation, which rule
+    04.01 forbids. Only this, the default mode, goes in the loadout."""
+    name = "Scythe of the Nightbringer - Strike"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 6
+    strength = 14
+    ap = -4
+    damage = 8            # grouping/preview placeholder only - damage_notation is what is rolled
+    damage_notation = D6(2)
+    devastating_wounds = True
+    overcharge_profile = ScytheOfTheNightbringerSweepProfile
+
+
+class CosmicInsanityProfile(WeaponProfile):
+    """Three printed keywords at once, and [PRECISION] is the one that changes
+    how it is resolved rather than how hard it hits (rule 24.28: the attacker
+    picks which model in the target unit takes the wound)."""
+    name = "Cosmic Insanity"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 6
+    strength = 6
+    ap = -2
+    damage = 2
+    anti = ("CHARACTER", 4)
+    devastating_wounds = True
+    precision = True
+
+
+class GoldenFistsProfile(WeaponProfile):
+    name = "Golden Fists"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 8
+    strength = 10
+    ap = -3
+    damage = 3
+
+
+class SeismicAssaultProfile(WeaponProfile):
+    name = "Seismic Assault"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 6
+    strength = 8
+    ap = -2
+    damage = 2
+    assault = True
+    sustained_hits = 1
+
+
+class CracklingTendrilsProfile(WeaponProfile):
+    name = "Crackling Tendrils"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 8
+    strength = 10
+    ap = -3
+    damage = 6            # grouping/preview placeholder only - damage_notation is what is rolled
+    damage_notation = D6()
+    sustained_hits = 1
+
+
 # ---------------------------------------------------------------------------
 # Death Guard - see game/factions/death_guard.py
 #

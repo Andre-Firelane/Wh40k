@@ -803,26 +803,39 @@ class Squad:
                 errors.append(f'Your unit cannot be engaged with "{enemy_squad.name}", which is not the surge target.')
         return errors
 
-    def check_scout_move_clearance(self, all_tokens):
-        """Rule 24.32 (SCOUT MOVE) AFTER MOVING: "Your unit must be more than
-        8" horizontally from all enemy units."
+    def check_min_enemy_distance(self, all_tokens, distance_in, what, rule):
+        """"Your unit must be more than N inches horizontally from all enemy
+        units."
 
         "Horizontally" is plain 2D board distance here - this engine models no
         vertical axis - and measured edge to edge, like every other distance in
-        this file."""
+        this file.
+
+        PARAMETERISED AT THE SECOND CONSUMER. Rule 24.32's Scout move was the
+        first; the Transcendent C'tan's Transdimensional Displacement prints
+        the identical sentence with the identical 8", so `what` and `rule` name
+        which one is speaking rather than the message hardcoding "Scout move".
+        The distance is a parameter too - nothing says a third carrier will
+        also say eight."""
         errors = []
         for token in all_tokens:
             if token.squad is None or token.squad.owner == self.owner:
                 continue
             for model in self.models:
-                if edge_distance(model, token) <= SCOUT_MOVE_MIN_ENEMY_DISTANCE_IN:
+                if edge_distance(model, token) <= distance_in:
                     errors.append(
-                        f'Your unit must end a Scout move more than '
-                        f'{SCOUT_MOVE_MIN_ENEMY_DISTANCE_IN:g}" from all enemy units '
-                        f'(rule 24.32) - "{token.squad.name}" is closer.'
+                        f'Your unit must end {what} more than '
+                        f'{distance_in:g}" from all enemy units '
+                        f'({rule}) - "{token.squad.name}" is closer.'
                     )
                     return errors
         return errors
+
+    def check_scout_move_clearance(self, all_tokens):
+        """Rule 24.32 (SCOUT MOVE) AFTER MOVING. Kept under its own name so
+        every existing reader and pin stays put."""
+        return self.check_min_enemy_distance(
+            all_tokens, SCOUT_MOVE_MIN_ENEMY_DISTANCE_IN, "a Scout move", "rule 24.32")
 
     def allocation_groups(self):
         """Rule 05.03, groups formed and ordered automatically instead of

@@ -26,6 +26,14 @@ from game.factions.points import PointsTier, UnitPoints, flat_points
 NECRONS_POINTS = {
     # --- Characters -------------------------------------------------------
     "C'tan Shard of the Void Dragon": flat_points({1: 345}),        # the list says 330
+    "C'tan Shard of the Nightbringer": flat_points({1: 360}),
+    "C'tan Shard of the Deceiver": flat_points({1: 330}),
+    # The only C'tan a list may take twice, and the only one that is not an
+    # EPIC HERO - so it is also the only one with per-unit tiers.
+    "Transcendent C'tan": UnitPoints([
+        PointsTier({1: 340}, to_unit=1),
+        PointsTier({1: 360}, from_unit=2),
+    ]),
     "Illuminor Szeras": flat_points({1: 175}),                      # the list says 165
     "Overlord": UnitPoints(
         [PointsTier({1: 90})],                                      # the list says 85

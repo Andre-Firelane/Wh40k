@@ -373,6 +373,19 @@ SQUAD_SPRITE_KEYS = {
     "Canoptek Macrocytes": "Canoptek Macrocytes",
     "Canoptek Tomb Crawlers": "Canoptek Tomb Crawlers",
     "Geomancer": "Geomancer",
+    # The other three C'tan. DER ORDNER GEWINNT again, and in a new way: all
+    # three files drop the APOSTROPHE the datasheet prints ("Ctan"), so none
+    # of them would resolve on its own.
+    #
+    # SHADOWING, checked rather than hoped: _key_for_name() returns the FIRST
+    # key that is a substring of the squad name. "C'tan Shard of the Void
+    # Dragon" is already a key, and the two new "C'tan Shard of the ..." names
+    # neither contain it nor are contained by it - they diverge at the word
+    # after "the". "Transcendent C'tan" contains no key at all. Measured in the
+    # suite, in both directions, not asserted here.
+    "C'tan Shard of the Nightbringer": "Ctan Shard of the Nightbringer",
+    "C'tan Shard of the Deceiver": "Ctan Shard of the Deceiver",
+    "Transcendent C'tan": "Transcendent Ctan",
 
     # --- Death Guard ---
     # EIGHT of these eleven files disagree with the datasheet name, and the

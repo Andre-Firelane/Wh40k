@@ -967,14 +967,21 @@ _MC = next(n for n in _MOVE_TREE.body
            if isinstance(n, ast.ClassDef) and n.name == "MovementController")
 
 # The three extension doors, and the Movement phase's own starters. Both listed
-# so that a TWELFTH start_* method cannot be added without landing in one or
-# the other - the guard on the guard. Without it a new door would simply not be
+# so that the NEXT start_* method cannot be added without landing in one or the
+# other - the guard on the guard. Without it a new door would simply not be
 # swept, and every difference below would stay empty by measuring less.
+#
+# start_transdimensional_displacement is a PHASE starter, not a door: the
+# Transcendent C'tan's ability is an Advance ("when this unit is selected to
+# make an advance move"), so it happens inside the Movement phase and leaves
+# move_mode None, exactly as start_run does. A door is a move granted OUTSIDE
+# the phase, which is what the OUT_OF_PHASE_MOVE_MODES sweep below is for.
 _DOOR_NAMES = ("start_post_shooting_move", "start_battle_focus_move",
                "start_retro_thruster_move")
 _PHASE_STARTERS = ("start_move", "start_fall_back_move", "start_charge_move",
                    "start_surge_move", "start_scout_move", "start_pile_in_move",
-                   "start_consolidate_move", "start_run")
+                   "start_consolidate_move", "start_run",
+                   "start_transdimensional_displacement")
 
 _STARTERS = {n.name for n in _MC.body
              if isinstance(n, ast.FunctionDef) and n.name.startswith("start_")}

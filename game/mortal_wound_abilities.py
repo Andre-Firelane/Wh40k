@@ -76,12 +76,18 @@ CRIMSON_HARVEST_DICE_SIDES = 3       # "D3 mortal wounds"
 CRIMSON_HARVEST_BIG_BONUS = 3        # "D3+3 mortal wounds"
 
 
-def _bearers(squad, attribute):
+# THE THREE HELPERS BELOW ARE PUBLIC, for the same reason
+# MortalWoundOfferController lost its underscore: game/mortal_wound_sweep.py
+# subclasses that base and needs exactly these three questions answered the
+# same way. A private name reached into from another module is the shape this
+# repo renames rather than works around (game/psychic_guidance.py's _is_aeldari
+# had thirteen outside readers before it became aeldari_detachments.is_aeldari_unit).
+def bearers(squad, attribute):
     return [m for m in getattr(squad, "models", ()) or ()
             if getattr(m.profile, attribute, False) and not m.is_dead()]
 
 
-def _enemy_squads(squad, all_tokens):
+def enemy_squads(squad, all_tokens):
     seen = {}
     for token in all_tokens or ():
         other = getattr(token, "squad", None)
@@ -91,7 +97,7 @@ def _enemy_squads(squad, all_tokens):
     return list(seen.values())
 
 
-def _gap(model, other_squad):
+def gap_to(model, other_squad):
     """Edge-to-edge distance from one MODEL to the nearest model of a unit.
 
     Squad.min_distance_to() measures unit to unit; both abilities here measure
@@ -107,7 +113,7 @@ def _gap(model, other_squad):
 # --- Living Lightning -------------------------------------------------------
 
 def has_living_lightning(squad):
-    return bool(_bearers(squad, "living_lightning"))
+    return bool(bearers(squad, "living_lightning"))
 
 
 def living_lightning_targets(squad, all_tokens, visible=None):
@@ -118,11 +124,11 @@ def living_lightning_targets(squad, all_tokens, visible=None):
     visibility. None means "do not filter", which is what a headless test
     wants."""
     out = []
-    for bearer in _bearers(squad, "living_lightning"):
-        for enemy in _enemy_squads(squad, all_tokens):
+    for bearer in bearers(squad, "living_lightning"):
+        for enemy in enemy_squads(squad, all_tokens):
             if enemy in out:
                 continue
-            gap = _gap(bearer, enemy)
+            gap = gap_to(bearer, enemy)
             if gap > LIVING_LIGHTNING_RANGE_IN:
                 continue
             if visible is not None and not visible(bearer, enemy):
@@ -138,19 +144,19 @@ def living_lightning_targets(squad, all_tokens, visible=None):
 # --- Matter Absorption ------------------------------------------------------
 
 def has_matter_absorption(squad):
-    return bool(_bearers(squad, "matter_absorption"))
+    return bool(bearers(squad, "matter_absorption"))
 
 
 def matter_absorption_targets(squad, all_tokens):
     """"one enemy VEHICLE unit within 12" of this model"."""
     out = []
-    for bearer in _bearers(squad, "matter_absorption"):
-        for enemy in _enemy_squads(squad, all_tokens):
+    for bearer in bearers(squad, "matter_absorption"):
+        for enemy in enemy_squads(squad, all_tokens):
             if enemy in out:
                 continue
             if not any(getattr(m.profile, "vehicle", False) for m in enemy.models if not m.is_dead()):
                 continue
-            if _gap(bearer, enemy) <= MATTER_ABSORPTION_RANGE_IN:
+            if gap_to(bearer, enemy) <= MATTER_ABSORPTION_RANGE_IN:
                 out.append(enemy)
     return out
 
@@ -158,22 +164,22 @@ def matter_absorption_targets(squad, all_tokens):
 # --- Crimson Harvest --------------------------------------------------------
 
 def has_crimson_harvest(squad):
-    return bool(_bearers(squad, "crimson_harvest"))
+    return bool(bearers(squad, "crimson_harvest"))
 
 
 def crimson_harvest_targets(squad, all_tokens):
     """"one enemy unit within Engagement Range of this model".
 
-    Measured from the BEARER, not the unit (_gap, same as the other two): the
+    Measured from the BEARER, not the unit (gap_to, same as the other two): the
     Skorpekh Lord is merged into his bodyguards under 19.01, so "within
     Engagement Range of this unit" would be a materially bigger circle than the
     printed text allows."""
     out = []
-    for bearer in _bearers(squad, "crimson_harvest"):
-        for enemy in _enemy_squads(squad, all_tokens):
+    for bearer in bearers(squad, "crimson_harvest"):
+        for enemy in enemy_squads(squad, all_tokens):
             if enemy in out:
                 continue
-            if _gap(bearer, enemy) <= ENGAGEMENT_RANGE_IN:
+            if gap_to(bearer, enemy) <= ENGAGEMENT_RANGE_IN:
                 out.append(enemy)
     return out
 
@@ -447,7 +453,7 @@ class MatterAbsorptionController(MortalWoundOfferController):
         # "this model regains UP TO that many lost wounds" - a cap, not a grant:
         # a Void Dragon one wound short regains one from a roll of 3.
         healed = 0
-        for bearer in _bearers(squad, "matter_absorption"):
+        for bearer in bearers(squad, "matter_absorption"):
             missing = bearer.profile.wounds - bearer.current_wounds
             healed = max(0, min(wounds, missing))
             bearer.current_wounds += healed
@@ -592,7 +598,7 @@ EATER_PLAGUE_BIG_BONUS = 3
 
 
 def has_eater_plague(squad):
-    return bool(_bearers(squad, "eater_plague"))
+    return bool(bearers(squad, "eater_plague"))
 
 
 def eater_plague_targets(squad, all_tokens, visible=None):
@@ -604,11 +610,11 @@ def eater_plague_targets(squad, all_tokens, visible=None):
     Deathshroud or Poxwalker unit, so "within 18" of this unit" would be a
     materially bigger circle than the printed text allows."""
     out = []
-    for bearer in _bearers(squad, "eater_plague"):
-        for enemy in _enemy_squads(squad, all_tokens):
+    for bearer in bearers(squad, "eater_plague"):
+        for enemy in enemy_squads(squad, all_tokens):
             if enemy in out:
                 continue
-            if _gap(bearer, enemy) > EATER_PLAGUE_RANGE_IN:
+            if gap_to(bearer, enemy) > EATER_PLAGUE_RANGE_IN:
                 continue
             if visible is not None and not visible(bearer, enemy):
                 continue
@@ -772,7 +778,7 @@ KROOT_LINEBREAKERS_DICE_SIDES = 3    # each success is D3 mortal wounds
 
 
 def has_kroot_linebreakers(squad):
-    return bool(_bearers(squad, "kroot_linebreakers"))
+    return bool(bearers(squad, "kroot_linebreakers"))
 
 
 def linebreaker_targets(squad, all_tokens):
@@ -781,9 +787,9 @@ def linebreaker_targets(squad, all_tokens):
     the ability. That is the difference from crimson_harvest_targets() above,
     whose bearer is one merged-in character."""
     out = []
-    for bearer in _bearers(squad, "kroot_linebreakers"):
-        for enemy in _enemy_squads(squad, all_tokens):
-            if enemy not in out and _gap(bearer, enemy) <= ENGAGEMENT_RANGE_IN:
+    for bearer in bearers(squad, "kroot_linebreakers"):
+        for enemy in enemy_squads(squad, all_tokens):
+            if enemy not in out and gap_to(bearer, enemy) <= ENGAGEMENT_RANGE_IN:
                 out.append(enemy)
     return out
 
@@ -796,8 +802,8 @@ def linebreaker_dice(squad, target):
     models rolls half the dice, which is the whole point of the clause."""
     if squad is None or target is None:
         return 0
-    return sum(1 for m in _bearers(squad, "kroot_linebreakers")
-               if _gap(m, target) <= ENGAGEMENT_RANGE_IN)
+    return sum(1 for m in bearers(squad, "kroot_linebreakers")
+               if gap_to(m, target) <= ENGAGEMENT_RANGE_IN)
 
 
 class KrootLinebreakersController(MortalWoundOfferController):

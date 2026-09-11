@@ -4,6 +4,7 @@ from game import base_contact
 from game import battle_stats
 from game import config, geometry
 from game import scuttling_walker
+from game import transdimensional_displacement
 from game.coherency import coherency_report
 from game import whirling_death
 from game import whole_unit_drag
@@ -188,6 +189,7 @@ class MovementController:
         self.consolidate_targets = []      # squads the current consolidation move must end engaged with (rule 12.08)
         self.consolidate_mode = None       # "ongoing" | "engaging" while move_mode == "consolidate"
         self.flying_this_move = False      # rule 21.03: "Take to the Skies" declared for the current move
+        self.displacing_this_move = False   # Transdimensional Displacement declared for the current Advance - see game/transdimensional_displacement.py
         self.desperate_escape_this_move = False  # rule 09.07: Desperate Escape mode of a Fall Back move - models may be moved across other models (not terrain) during this drag
         self.surge_target = None           # rule 21.02: the enemy squad a surge move must end unengaged-with-others-except
         self.on_remain_stationary = None   # optional callable(squad) - e.g. Strike Team's DS8 Support Turret ability (game/support_turret.py), wired in main.py
@@ -316,6 +318,7 @@ class MovementController:
         self.consolidate_targets = []
         self.consolidate_mode = None
         self.flying_this_move = False
+        self.displacing_this_move = False
         self.desperate_escape_this_move = False
         self.surge_target = None
         # The move has now BEGUN, and every field it depends on is set - so a
@@ -782,6 +785,43 @@ class MovementController:
         if self.game_log is not None:
             self.game_log.add(f"{self._active_player_name()} has {self.selected_squad.name} take to the skies (rule 21.03).")
 
+    def can_transdimensional_displacement(self):
+        """The Transcendent C'tan's own alternative to an ordinary Advance.
+
+        Gated on can_advance() itself rather than on a copy of its four terms:
+        the printed trigger is "when this unit is selected to make an advance
+        move", so whatever makes an Advance legal makes this legal, and rule
+        09.06 keeps exactly one definition."""
+        return (self.can_advance()
+                and transdimensional_displacement.has_ability(self.selected_squad))
+
+    def start_transdimensional_displacement(self):
+        """"That advance move has no maximum distance." No die is thrown - see
+        game/transdimensional_displacement.py for why that is a decision rather
+        than a transcription.
+
+        Marks the Advance as taken (run_used, advance_bonus_by_squad) through
+        the same two fields the three no-roll carriers in start_run() set, so
+        every reader of "has this unit advanced" - rule 09.06's shoot/charge
+        bans, [ASSAULT], the save file - sees an ordinary Advance."""
+        if not self.can_transdimensional_displacement():
+            return False
+        # The board diagonal, not infinity: remaining_range feeds arithmetic in
+        # clamp_move(), and an inf there turns a zero-length segment into NaN.
+        # Unreachable by construction on any board this engine builds.
+        budget = (config.BOARD_WIDTH_IN ** 2 + config.BOARD_HEIGHT_IN ** 2) ** 0.5
+        for model in self.selected_squad.models:
+            self.remaining_range[model.id] = self.remaining_range.get(model.id, 0.0) + budget
+        self.run_used = True
+        self.displacing_this_move = True
+        self.advance_bonus_by_squad[self.selected_squad] = budget
+        if self.game_log is not None:
+            self.game_log.add(
+                f"{self._active_player_name()} has {self.selected_squad.name} advance "
+                f"({transdimensional_displacement.TRANSDIMENSIONAL_DISPLACEMENT_NAME}: "
+                f"no roll, no maximum distance).")
+        return True
+
     @property
     def group_move_enabled(self):
         """QoL feature (not a rule): drag the whole squad at once, in its
@@ -1004,6 +1044,18 @@ class MovementController:
         errors = self.selected_squad.check_coherency()
         errors += self.selected_squad.check_terrain(self.obstacles)
         errors += self.selected_squad.check_model_overlap(self.all_tokens)
+        if self.displacing_this_move:
+            # Transdimensional Displacement's third printed clause: "after
+            # moving, this unit must be more than 8\" horizontally from all
+            # enemy units". Checked ALONGSIDE the chain below rather than as
+            # one of its branches: this is an ADVANCE, so move_mode is None
+            # and it would otherwise fall through to the plain "must end
+            # unengaged" test - which 8" implies but does not equal.
+            errors += self.selected_squad.check_min_enemy_distance(
+                self.all_tokens,
+                transdimensional_displacement.TRANSDIMENSIONAL_MIN_ENEMY_DISTANCE_IN,
+                "a Transdimensional Displacement",
+                transdimensional_displacement.TRANSDIMENSIONAL_DISPLACEMENT_NAME)
         if self.move_mode == "charge":
             errors += self.selected_squad.check_charge_engagement(self.charge_targets, self.all_tokens)
         elif self.move_mode == "pile_in":
@@ -1181,6 +1233,7 @@ class MovementController:
         self.consolidate_targets = []
         self.consolidate_mode = None
         self.flying_this_move = False
+        self.displacing_this_move = False
         self.desperate_escape_this_move = False
         self.surge_target = None
 
@@ -1217,6 +1270,7 @@ class MovementController:
         self.consolidate_targets = []
         self.consolidate_mode = None
         self.flying_this_move = False
+        self.displacing_this_move = False
         self.desperate_escape_this_move = False
         self.surge_target = None
         if _finished_scout is not None and self.on_scout_move_finished is not None:
@@ -1310,10 +1364,19 @@ class MovementController:
             obstacle_fraction = geometry.max_unblocked_fraction(
                 (ox, oy), (x_in, y_in), blocking_obstacles, inflate_radius=token.radius_in
             )
-            if self.desperate_escape_this_move or scuttling_walker.can_cross_models(token):
+            if (self.desperate_escape_this_move
+                    or scuttling_walker.can_cross_models(token)
+                    or (self.displacing_this_move
+                        and transdimensional_displacement.model_has_ability(token))):
                 # Rule 09.07 (Desperate Escape): models "may be moved across
                 # other models" - unlike Take to the Skies above, this bypass
                 # is models-only, terrain still blocks normally.
+                #
+                # The Transcendent C'tan's Transdimensional Displacement is the
+                # third member of this branch, and it is here rather than in the
+                # FLY branch above for the reason that separates the two: its
+                # printed text says "can move through all types of MODEL" and
+                # says nothing at all about terrain, so a wall still stops it.
                 #
                 # The Defiler's Scuttling Walker joins it here rather than in
                 # the FLY branch above, and the difference matters: it moves

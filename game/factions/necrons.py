@@ -26,6 +26,9 @@ from game.factions.necrons_points import NECRONS_POINTS
 from game.units import (
     CanoptekWraithProfile,
     CtanShardOfTheVoidDragonProfile,
+    CtanShardOfTheNightbringerProfile,
+    CtanShardOfTheDeceiverProfile,
+    TranscendentCtanProfile,
     DoomsdayArkProfile,
     IlluminorSzerasProfile,
     ImmortalProfile,
@@ -112,6 +115,13 @@ from game.weapons import (
     PlasmicLanceRangedProfile,
     SkorpekhHyperphaseWeaponsProfile,
     SpearOfTheVoidDragonAntiVehicleProfile,
+    GazeOfDeathProfile,
+    ScytheOfTheNightbringerStrikeProfile,
+    ScytheOfTheNightbringerSweepProfile,
+    CosmicInsanityProfile,
+    GoldenFistsProfile,
+    SeismicAssaultProfile,
+    CracklingTendrilsProfile,
     SpearOfTheVoidDragonStrikeProfile,
     TachyonArrowProfile,
     TeslaCarbineProfile,
@@ -953,6 +963,117 @@ CTAN_SHARD_OF_THE_VOID_DRAGON = NECRONS.add_datasheet(Datasheet(
         "rule 04.01 would let him swing both in one activation.",
     ],
 ))
+
+
+# --- The other three C'tan -------------------------------------------------
+#
+# ONE CHASSIS, THREE DATASHEETS. Measured before any of them was written: all
+# four C'tan in this faction print T11, Sv3+, W16, Ld6+, OC4, a 4+ invulnerable,
+# Feel No Pain 5+, Deadly Demise D6, Deep Strike, Necrodermis and Enslaved Star
+# God. They differ in Move (10" for the Void Dragon and the Nightbringer, 8" for
+# the other two), in base, in their weapons, and in exactly ONE ability each.
+# game/units.py's CtanShardProfile holds the agreement, so a drift off any of
+# those numbers has to be written down to happen.
+#
+# They sit with the CHARACTERS rather than under the banner below for the same
+# reason the Void Dragon above them does: every one of them prints CHARACTER,
+# and MONSTER is what they are, not where they belong.
+#
+# THE TRANSCENDENT C'TAN IS THE ODD ONE, twice over - it is the only C'tan that
+# is NOT an EPIC HERO, and therefore the only one a list may field more than
+# once, which is why it is also the only one with per-unit points tiers.
+
+_NIGHTBRINGER_LINE = "C'tan Shard of the Nightbringer"
+
+CTAN_SHARD_OF_THE_NIGHTBRINGER = NECRONS.add_datasheet(Datasheet(
+    "C'tan Shard of the Nightbringer",
+    keywords=("MONSTER", "CHARACTER", "EPIC HERO", "FLY",
+              "C'TAN SHARD OF THE NIGHTBRINGER", "NECRONS"),
+    model_lines=[ModelLine(CtanShardOfTheNightbringerProfile, 1,
+                           [GazeOfDeathProfile,
+                            ScytheOfTheNightbringerStrikeProfile],
+                           name=_NIGHTBRINGER_LINE)],
+    points=NECRONS_POINTS["C'tan Shard of the Nightbringer"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Deadly Demise D6, Deep Strike, Feel No Pain 5+ (Core).",
+        "Enslaved Star God: \"This model cannot be your WARLORD.\" A documented NO-OP - "
+        "this engine has no Warlord concept at all, the same status as the "
+        "\"ignore vertical distance\" abilities.",
+        "Drain Life: \"At the end of the Fight phase, roll one D6 for each enemy unit "
+        "within 6\" of this model: on a 4+, that enemy unit suffers D3 mortal wounds.\" - "
+        "see game/drain_life.py.",
+        "Necrodermis: \"Each time an attack is allocated to this model, subtract 1 from "
+        "the Damage characteristic of that attack.\" - the same flat -1 the Void Dragon "
+        "and the Overlord's Implacable Resilience print, so all three read "
+        "game/damage_reduction.py.",
+        "NOTE: the Scythe of the Nightbringer prints TWO melee profiles (strike and "
+        "sweep) as ONE datasheet entry, so they are modelled as a firing-mode pair "
+        "(overcharge_profile); otherwise rule 04.01 would let him swing both in one "
+        "activation. Only the strike mode goes in the loadout.",
+    ],
+))
+
+
+_DECEIVER_LINE = "C'tan Shard of the Deceiver"
+
+CTAN_SHARD_OF_THE_DECEIVER = NECRONS.add_datasheet(Datasheet(
+    "C'tan Shard of the Deceiver",
+    keywords=("MONSTER", "CHARACTER", "EPIC HERO", "FLY",
+              "C'TAN SHARD OF THE DECEIVER", "NECRONS"),
+    model_lines=[ModelLine(CtanShardOfTheDeceiverProfile, 1,
+                           [CosmicInsanityProfile, GoldenFistsProfile],
+                           name=_DECEIVER_LINE)],
+    points=NECRONS_POINTS["C'tan Shard of the Deceiver"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Deadly Demise D6, Deep Strike, Feel No Pain 5+, Stealth (Core).",
+        "Enslaved Star God: \"This model cannot be your WARLORD.\" A documented NO-OP - "
+        "this engine has no Warlord concept at all.",
+        "Grand Illusion: \"If your army includes this model, after both players have "
+        "deployed their armies, select up to three NECRONS units from your army and "
+        "redeploy them. When doing so, any of those units can be placed into Strategic "
+        "Reserves, regardless of how many units are already in Strategic Reserves.\" - "
+        "see game/grand_illusion.py.",
+        "Necrodermis: \"Each time an attack is allocated to this model, subtract 1 from "
+        "the Damage characteristic of that attack.\" - see game/damage_reduction.py.",
+        "NOTE: the printed base is 40 mm, which is smaller than all three of its "
+        "siblings' and smaller than its 16-wound MONSTER statline suggests. It plays on "
+        "the Void Dragon's 80 mm by user decision - a TABLE-SIZE choice, recorded in "
+        "game/units.py so it is not \"corrected\" back.",
+    ],
+))
+
+
+_TRANSCENDENT_CTAN_LINE = "Transcendent C'tan"
+
+TRANSCENDENT_CTAN = NECRONS.add_datasheet(Datasheet(
+    "Transcendent C'tan",
+    keywords=("MONSTER", "CHARACTER", "FLY", "TRANSCENDENT C'TAN", "NECRONS"),
+    model_lines=[ModelLine(TranscendentCtanProfile, 1,
+                           [SeismicAssaultProfile, CracklingTendrilsProfile],
+                           name=_TRANSCENDENT_CTAN_LINE)],
+    points=NECRONS_POINTS["Transcendent C'tan"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Deadly Demise D6, Deep Strike, Feel No Pain 5+ (Core).",
+        "Enslaved Star God: \"This model cannot be your WARLORD.\" A documented NO-OP - "
+        "this engine has no Warlord concept at all.",
+        "C'Tan Shard: \"This model cannot be given Enhancements.\" A documented NO-OP "
+        "today - game/enhancements.py's registry holds 47 specs across T'au and Aeldari "
+        "detachments and not one Necron entry, so there is nothing here to refuse. "
+        "Transcribed so the gap is visible rather than rediscovered.",
+        "Transdimensional Displacement: \"In your Movement phase, when this unit is "
+        "selected to make an advance move, you can use this ability. If you do: that "
+        "advance move has no maximum distance; this unit can move through all types of "
+        "model (including enemy models and MONSTER/VEHICLE models); after moving, this "
+        "unit must be more than 8\" horizontally from all enemy units.\" - "
+        "see game/transdimensional_displacement.py.",
+        "Necrodermis: \"Each time an attack is allocated to this model, subtract 1 from "
+        "the Damage characteristic of that attack.\" - see game/damage_reduction.py.",
+    ],
+))
+
 
 
 # ===========================================================================

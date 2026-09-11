@@ -148,6 +148,8 @@ from game.enh_internal_grenade_racks import InternalGrenadeRacksController
 from game.enh_prototype_weapon_system import PrototypeWeaponSystemController
 from game.enh_puretide_neurochip import PuretideNeurochipController
 from game.enh_solid_image_projection import SolidImageProjectionStep
+from game.grand_illusion import GrandIllusionStep
+from game.drain_life import DrainLifeController
 from game.enh_strike_swiftly import StrikeSwiftlyStep
 from game.enh_student_of_kauyon import StudentOfKauyonStep
 from game.enh_unmasking_suite import UnmaskingSuiteController
@@ -1215,6 +1217,15 @@ def main(map_key=None):
     crimson_harvest_controller = CrimsonHarvestController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
         game_state=state, auto_players=ai_players, target_pick=_best_damage_target,
+    )
+    # The Nightbringer's Drain Life - the same 06.02 plumbing, but a SWEEP:
+    # "one D6 for EACH enemy unit within 6"" rather than "select one enemy
+    # unit", so it subclasses the sweep in game/mortal_wound_sweep.py instead.
+    # No decision_manager and no target_pick on purpose: the printed text has
+    # neither "you can" nor a choice of target, so there is nothing to ask.
+    drain_life_controller = DrainLifeController(
+        dice_manager=dice_manager, game_log=game_log,
+        game_state=state, auto_players=ai_players,
     )
     # Krootox Rampagers' Kroot Linebreakers - Crimson Harvest's sibling in
     # game/mortal_wound_abilities.py, on the same charge hook. It is the
@@ -3775,6 +3786,13 @@ def main(map_key=None):
             phase_before, mover_before)
         if phase_before == PHASE_FIGHT:
             atomic_energy_controller.resolve_end_of_fight_phase({t.squad for t in state.tokens if t.squad is not None})
+            # Drain Life, and it takes the SQUAD SET rather than mover_before
+            # like the four offers below: "at the end of the Fight phase", not
+            # "of YOUR Fight phase". The phase belongs to neither player, so a
+            # Nightbringer drains at the end of its own turn and its
+            # opponent's alike - the same reading Atomic Energy above it has.
+            drain_life_controller.resolve_end_of_fight_phase(
+                {t.squad for t in state.tokens if t.squad is not None})
             # EVERY end-of-Fight-phase offer below takes `mover_before`, NOT
             # turn_tracker.turn_owner. Fight is the last phase, so
             # advance_phase() up at the top of this function has ALREADY
@@ -4597,6 +4615,10 @@ def main(map_key=None):
         # it. See test_event_chain_wiring.py section 17.
         wraith_form_controller, drakolithe_controller,
         harvester_of_souls_controller, monofilament_snare_controller,
+        # Drain Life sweeps EVERY enemy unit within 6" of the Nightbringer, so
+        # it can owe several rule 06.02 allocations one after another - the
+        # same board click each of them, handed to the TARGET's owner.
+        drain_life_controller,
     )
 
     def _any_pending_damage_choice():
@@ -4826,6 +4848,12 @@ def main(map_key=None):
             or harvester_of_souls_controller.pending_damage_choice is not None
             or monofilament_snare_controller.is_busy
             or monofilament_snare_controller.pending_damage_choice is not None
+            # Drain Life's is_busy covers the WHOLE sweep - the gate handful,
+            # every unit still queued behind it, and each one's allocation. A
+            # sweep that reported idle between two units would let the phase
+            # advance out from under the rest of the queue.
+            or drain_life_controller.is_busy
+            or drain_life_controller.pending_damage_choice is not None
             or puretide_neurochip_controller.is_busy
         )
 
@@ -5159,6 +5187,14 @@ def main(map_key=None):
         _solid_image_step = SolidImageProjectionStep(
             game_state=state, decision_manager=decision_manager, game_log=game_log,
             auto_players=ai_players)
+        # The C'tan Shard of the Deceiver's Grand Illusion is the THIRD arm of
+        # the same instant, and prints the same sentence with "NECRONS" for
+        # "T'AU EMPIRE" - so it shares the machine (game/post_deployment_
+        # redeploy.py) as well as the hook, and joining the chain is one more
+        # argument rather than one more mechanism.
+        grand_illusion_step = GrandIllusionStep(
+            game_state=state, decision_manager=decision_manager, game_log=game_log,
+            auto_players=ai_players)
 
         class _RedeployChain:
             """Both redeployment abilities fire at the same instant, and
@@ -5192,7 +5228,7 @@ def main(map_key=None):
                 return self._run(index + 1, pregame_controller, on_done)
 
         pregame_controller.redeploy_step = _RedeployChain(
-            _solid_image_step, prince_of_corsairs_step)
+            _solid_image_step, prince_of_corsairs_step, grand_illusion_step)
         # "Auto-place this unit" on the human's side runs the AI's own placer.
         pregame_controller.on_auto_place = lambda squad: deployment_ai.auto_deploy_squad(
             pregame_controller, setup_controller, squad, board.width_in, board.height_in,
@@ -5881,6 +5917,7 @@ def main(map_key=None):
                         living_lightning_controller.on_dice_acknowledged()
                         matter_absorption_controller.on_dice_acknowledged()
                         crimson_harvest_controller.on_dice_acknowledged()
+                        drain_life_controller.on_dice_acknowledged()
                         kroot_linebreakers_controller.on_dice_acknowledged()
                         kroot_linebreakers_controller.resolve_pending_battle_shock()
                         wraith_form_controller.on_dice_acknowledged()
@@ -5971,6 +6008,16 @@ def main(map_key=None):
                     clicked = input_manager.token_at_event(state.tokens, board, event.pos)
                     if clicked is not None and clicked in internal_grenade_racks_controller.pending_damage_choice:
                         internal_grenade_racks_controller.choose_damage_model(clicked)
+            elif drain_life_controller.pending_damage_choice is not None:
+                # The Nightbringer's Drain Life. One of these per struck unit,
+                # answered in turn - rule 06.02, the DEFENDER allocates.
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in drain_life_controller.pending_damage_choice:
+                        drain_life_controller.choose_damage_model(clicked)
             elif wraith_form_controller.pending_damage_choice is not None:
                 if (
                     event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
@@ -7466,6 +7513,7 @@ def main(map_key=None):
         renderer.draw_damage_choice_highlight(board_surface, board, internal_grenade_racks_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, self_destruction_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, wraith_form_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, drain_life_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, drakolithe_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, harvester_of_souls_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, monofilament_snare_controller.pending_damage_choice)

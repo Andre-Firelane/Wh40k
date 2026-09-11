@@ -7497,7 +7497,7 @@ Spiellänge definieren.
   Stratagems). Punkteliste bewusst NUR für gebaute Einheiten (ein KeyError heißt "noch nicht
   transkribiert", nicht "kostenlos").
 
-- **Necrons — 34 von 64 Datenblättern**, und die Zahl bewegt sich mit dem laufenden
+- **Necrons — 37 von 64 Datenblättern**, und die Zahl bewegt sich mit dem laufenden
   Nachzug (siehe `## Die restlichen Necron-Datenblätter`): Necron Warriors, Immortals,
   Lychguard, Skorpekh Destroyers, Lokhust Destroyers,
   Lokhust Heavy Destroyers, Canoptek Wraiths, Doomsday Ark, Overlord, Plasmancer, Technomancer,
@@ -7507,7 +7507,8 @@ Spiellänge definieren.
   **Hexmark Destroyer, Ophydian Destroyers, Nekrosor Ammentar**, Etappe 4
   **Triarch Praetorians, Triarch Stalker** und Etappe 5 **Canoptek Scarab Swarms,
   Canoptek Spyders, Canoptek Doomstalker, Canoptek Reanimator, Canoptek Macrocytes,
-  Canoptek Tomb Crawlers, Geomancer**. Armeeregel
+  Canoptek Tomb Crawlers, Geomancer** und Etappe 6 **C'tan Shard of the Deceiver,
+  C'tan Shard of the Nightbringer, Transcendent C'tan**. Armeeregel
   **Reanimation Protocols**
   (`game/reanimation_protocols.py`), Detachment **Awakened Dynasty** (Command Protocols + alle
   sechs Stratagems; die vier Enhancements bleiben reine Daten — anders als die T'au, deren
@@ -10184,7 +10185,18 @@ als Negativraum geprüft: kein Name taucht in `ai/agent_driver.py` auf), und au�
 hat keines ein Sprite — alle Abwesenheiten sind am MODELL gepinnt, damit späteres Hinzufügen eine
 sichtbare Änderung ist.
 
-## Die restlichen Necron-Datenblätter (32 Stück, zehn Etappen)
+## Die restlichen Necron-Datenblätter (32 Stück, neun Etappen)
+
+**STAND: Etappen 0-6 gebaut, 22 von 32 Bauzielen.** Die restlichen zehn sind in
+`fetch_datasheet_rules.py`s `MISSING_NECRONS` in drei Gruppen kommentiert, und die
+sind der Schnitt: **E7** die vier anbindbaren Charaktere (Royal Warden, Overlord
+with translocation shroud, Imotekh The Stormlord, Trazyn The Infinite), **E8** die
+vier Fahrzeuge (Catacomb Command Barge, Annihilation Barge, Ghost Ark, Night
+Scythe — die ersten Necron-TRANSPORTE), **E9** Monolith (das erste TITANIC) und
+The Silent King. Der Silent King steht in jener Tabelle bei den Charakteren und
+kommt hier trotzdem zuletzt: er ist als einziger der fünf **kein Leader** (er
+druckt gar keinen `## Leader`-Abschnitt) und mit zwei Profilen, drei tauschbaren
+Auren und einer Damaged-Stufe das größte Einzelstück.
 
 **Die Necrons waren mit 15 von 64 Datenblättern die am schlechtesten abgedeckte gebaute
 Fraktion** (T'au 33/40, Aeldari 54/99). Der User hat 27 Sprite-Dateien nach
@@ -10810,7 +10822,7 @@ in der Paarungstabelle geschlossen.
 ### Etappe 5 — CANOPTEK (7 Datenblätter, drei Extraktionen, ein Altfehler)
 
 Scarab Swarms, Spyders, Doomstalker, Reanimator, Macrocytes, Tomb Crawlers und
-der **Geomancer** — die größte der neun Etappen. **19 von 32 Bauzielen.**
+der **Geomancer** — die größte der Etappen. **19 von 32 Bauzielen.**
 
 **Die Etappe ist von der MESSUNG de-riskt worden, nicht vom Plan.** Vier der
 schwersten Einzelstücke waren gar keine: `pinned` existierte bereits (der Plan
@@ -10956,6 +10968,179 @@ ist armeeweit. **Und der KI-Negativraum-Sweep darf NICHT nach „Canoptek"
 suchen**: zwei VORBESTEHENDE Kommentare in `ai/agent_driver.py` zitieren einen
 gemessenen Canoptek-Wraiths-Zug aus einem echten Log, das Wort steht dort also
 schon.
+
+### Etappe 6 — die drei C'tan (Deceiver, Nightbringer, Transcendent)
+
+**22 von 32 Bauzielen; die Fraktion steht bei 37 von 64.** Der Schwung, dessen
+Inhalt die ÜBEREINSTIMMUNG ist, nicht die Unterschiede: alle vier C'tan drucken
+T11 Sv3+ W16 Ld6+ OC4, 4+ Invulnerable, FNP 5+, Deadly Demise D6, Deep Strike,
+Necrodermis und Enslaved Star God, und unterscheiden sich in Move (10"/10"/8"/8"),
+Base, Waffen und **genau einer** Fähigkeit.
+
+- **`CtanShardProfile` macht die Übereinstimmung STRUKTURELL**, und der **Void
+  Dragon ist mit reparentet** worden: eine Zusicherung „vier Datenblätter
+  tragen dasselbe Chassis" lässt sich mit vier Kopien gar nicht ausdrücken
+  (Kroot-Shaper-Präzedenz). Die Suite pinnt zusätzlich, dass keine Unterklasse
+  einen der geteilten Namen ÜBERSCHREIBT — ein Drift liest sich sonst in jeder
+  einzelnen Zeile korrekt.
+- **Der Kollisions-Sweep kam LEER zurück**, als einziger Schwung des ganzen
+  Nachzugs: keiner der sieben gedruckten Waffennamen steht irgendwo sonst im
+  Korpus. Gepinnt wird deshalb die LEERE, über den Korpus gerechnet, samt der
+  Gegenprobe, dass der Sweep die anderen 300+ Namen wirklich angesehen hat.
+- **Kein Pro-Waffen-Skill-Override**, gemessen: alle vier drucken 2+ in jeder
+  WS- und BS-Zelle. Der einzige Override der Fraktion bleibt der Particle
+  Shredder des Triarch Stalker.
+- **Die Scythe of the Nightbringer ist ein Feuermodus-PAAR** (strike/sweep, EIN
+  gedruckter Eintrag) — sonst schwänge er nach 04.01 beide in einer Aktivierung.
+
+#### `game/mortal_wound_sweep.py` (45. Extraktion) — und wo sie NICHT sitzt
+
+„Ein D6 je Feindeinheit in einer Menge; wer besteht, nimmt Mortal Wounds."
+**Drei gemessene Träger:** Drain Life (hier), Imotekhs *Lord of the Storm* (E7)
+und die *Malevolent Arcing* der Annihilation Barge (E8).
+
+- **Sie SUBKLASST `MortalWoundOfferController` statt es zu kopieren.** Jene
+  Basis ist eine EIN-ZIEL-Maschine (ihre sechs Träger drucken alle „select one
+  enemy unit"); diese drei drucken „for EACH enemy unit". Ersetzt wird also nur
+  die Zielwahl — die 06.02-Klempnerei bleibt EINMAL geschrieben, für jetzt neun
+  Träger. Genau diese Hälfte hat diese Engine zweimal kaputt ausgeliefert.
+- **Eine WARTESCHLANGE, nicht `mortal_wound_sessions.py`s Liste** — die Form
+  von `deadly_demise.py`, aus dessen Grund: der DiceManager hält EINEN Wurf,
+  und jede Einheit braucht ihren Wundwurf ZWISCHEN Gate-Würfel und Zuteilung.
+- **Das Gate ist EINE Handvoll, die Wunden sind ein Wurf JE EINHEIT.** Würfel i
+  gehört Kandidat i, die Kandidatenliste wird beim Wurf also EINGEFROREN; die
+  Wundbeträge können nicht zusammengefasst werden, weil sie an verschiedene
+  Einheiten gehen und Lord of the Storms Betrag von seinem eigenen Gate-Band
+  abhängt.
+- **`active_player` wird NICHT geflippt, und das ist gemessen:** Deadly Demise
+  flippt, weil seine Detonation FREUND UND FEIND fängt; hier ist jeder Kandidat
+  per Definition ein Feind des Trägers, teilt also in einem Zwei-Spieler-Spiel
+  einen Besitzer.
+- **`start_many()` reiht mehrere TRÄGER auf.** Das Ende-der-Fight-Phase-Fenster
+  gehört keinem Spieler, beide Seiten können also im selben Moment eine Sweep
+  schulden — gequeut statt fallengelassen.
+
+#### `game/post_deployment_redeploy.py` (46. Extraktion) — und der dritte Träger, der NICHT mitkommt
+
+Grand Illusion druckt Kauyons *Solid-image Projection Unit* mit zwei geänderten
+Wörtern (NECRONS statt T'AU EMPIRE, Datenblatt statt Enhancement). Also die
+Extraktion am zweiten Träger; `SolidImageProjectionStep` ist jetzt eine
+Unterklasse und **re-exportiert `MAX_UNITS`/`REDEPLOY`/`RESERVES`**, damit kein
+Leser sich bewegt (`test_tau_enhancements.py` 361/361 ohne eine Anpassung).
+
+- **`game/prince_of_corsairs.py` ist ein DRITTER Träger und wird bewusst NICHT
+  umgestellt:** es druckt denselben Satz für AELDARI, implementiert aber nur die
+  Strategic-Reserves-Hälfte und legt nie eine Einheit zurück in die
+  Aufstellungs-Queue, obwohl sein eigenes „and redeploy them" das verlangt. Es
+  einzufalten wäre kein Refactor, sondern eine Verhaltensänderung an einer
+  ausgelieferten Aeldari-Fähigkeit — eine eigene Etappe. Benannt statt später
+  wiederentdeckt.
+- **„If your army INCLUDES this model" ist NICHT „if it is on the
+  battlefield"**, und das ist die eine Klausel, die eine Kopie des T'au-Zwillings
+  verliert: Prince of Corsairs sagt ausdrücklich das Zweite und hält im eigenen
+  Docstring fest, der Reservefall sei der, der still weiterliefe. **Hier ist der
+  Reservefall RICHTIG** — ein deep-struck Deceiver gewährt Grand Illusion
+  weiterhin, also liest `grants()` `GameState.all_squads()` statt der Tokenliste.
+- **„Regardless of how many units are already in Strategic Reserves" ist ein
+  belegter NO-OP** — 20.01s Deckel wird in `finish_formations_for()` erzwungen,
+  das zu diesem Zeitpunkt längst gelaufen ist.
+- `main.py`s `_RedeployChain` nimmt den dritten Konsumenten als **ein weiteres
+  Argument**.
+
+#### Transdimensional Displacement — drei Klauseln, drei vorhandene Nähte
+
+1. *„no maximum distance"* → `start_run()`s Kein-Wurf-Zweig, **vierter Träger**
+   nach Whirling Death, Aggressive Mobility und Time to Strike.
+2. *„through all types of model"* → `clamp_move()`s MODELL-Bypass neben
+   Desperate Escape und Scuttling Walker. **Nicht der FLY-Zweig darüber**: der
+   gedruckte Text nennt Modelle und sagt zu Gelände nichts, eine Wand hält also.
+3. *„more than 8" from all enemy units"* → `Squad.check_min_enemy_distance()`,
+   Regel 24.32s Scout-Clearance mit **parameterisiertem Wortlaut** (47.
+   Extraktion, zweiter Konsument; `check_scout_move_clearance()` bleibt als
+   Name stehen, damit die elf vorhandenen Leser sich nicht bewegen).
+
+- **KEIN Advance-Wurf, und das ist eine ENTSCHEIDUNG statt einer
+  Transkription** — der gedruckte Text sagt nicht „do not make an Advance
+  roll", er entfernt das MAXIMUM. Wörtlich gelesen wäre das ein D6, dessen Wert
+  nichts ändern kann, und diese Engine wirft solche Würfel nicht
+  (`coordinated_leadership.py`s Begründung); Command Re-roll würde obendrein
+  darauf angeboten. Im Modul ausgeschrieben, weil die Gegenlesart vertretbar ist.
+- **Das Budget ist die BRETTDIAGONALE, nicht `float("inf")`** — `remaining_range`
+  füttert Arithmetik (`budget / dist`), und eine Unendlichkeit dort ergibt beim
+  ersten Null-Zoll-Segment NaN.
+- **Ein PANEL-KNOPF neben „Advance"**, weil „you can use this ability" eine Wahl
+  ist — dieselbe Form, in der 21.03s Take to the Skies seine Alternative
+  anbietet. Der §13-Wächter hat den neuen `start_*` sofort gemeldet und ist als
+  PHASEN-Starter klassifiziert (kein Out-of-phase-Modus).
+
+#### Ein gefundener, NICHT behobener Altfehler
+
+**VIER Definitionen von „ist das eine NECRONS-Einheit", in ZWEI Lesarten:**
+`awakened_dynasty.is_necrons_unit()` liest das DATENBLATT-Keyword;
+`multi_threat_eliminator.py`, `reanimation_boost.py` und `spyder_wargear.py`
+tragen je eine byte-identische Kopie, die stattdessen das Pro-Modell-Flag
+`reanimation_protocols` liest. Auf den gebauten Datenblättern stimmen sie
+überein (jedes Necron-Blatt druckt die Armeeregel), heute ist also nichts
+falsch. Grand Illusion importiert die Datenblatt-Lesart, statt eine FÜNFTE
+anzulegen; das Zusammenlegen der drei Kopien berührt Module aus den Etappen 3
+und 5 und ist eine eigene Messung.
+
+Nebenbei PUBLIC geworden: `mortal_wound_abilities.py`s `_bearers`,
+`_enemy_squads` und `_gap` heißen jetzt `bearers`, `enemy_squads` und `gap_to`
+— dieselbe Behandlung, die `MortalWoundOfferController` beim sechsten Träger
+schon bekam.
+
+#### Getestet
+
+Neu `test_necron_ctan.py` (**202/202**, acht Abschnitte) plus
+`ab_necron_ctan.py` (**26 A/B-Sonden, alle beißend, keine stürzt ab**).
+`test_necron_datasheets.py` **166/166** (die zwei Zählpins von 34 auf 37 —
+genau die sichtbare Änderung, für die sie gesetzt sind),
+`test_event_chain_wiring.py` **186/186**.
+
+**SIEBEN Sonden bissen zuerst NICHT**, und sechs davon waren Befunde über den
+TEST — der teuerste Ertrag dieser Etappe:
+
+1. **Der fehlende Allokations-Drain** wurde nicht gesehen, weil die Suite kein
+   EIN-MODELL-Ziel fuhr: bei mehreren Modellen räumt der Klick des Tests die
+   Session ohnehin. Genau der Fall, an dem die Klasse zweimal jahrelang
+   überlebt hat. Jetzt mit einem Ein-Modell-Opfer und **ohne einen einzigen
+   Klick** gemessen.
+2. **Die Träger-Warteschlange** war ungefahren → ein Zwei-Nightbringer-Szenario.
+3. **Der NECRONS-Filter** war auf einem reinen Necron-Brett unmessbar → eine
+   Ork-Einheit desselben Spielers daneben.
+4. **Der Durchquerungs-Bypass** war nur am Quelltext gepinnt → jetzt durch
+   `clamp_move()` gemessen, beide Läufe mit denselben 6".
+5. **Der Panel-Knopf** war ein Quell-Grep, den ein `if False:` überlebt → jetzt
+   ein echter Render mit Spion auf `_draw_button`. Die strukturelle Lücke, die
+   beide Stratagem-Audits gefunden haben.
+6. Eine Sonde zielte auf die T'au-Suite, die `remaining()` gar nicht liest.
+7. **Die siebte war ein Befund über den CODE**, und der ist eingebaut worden:
+   `_pending` überspannte die ganze Sweep, wodurch jeder andere Term von
+   `is_busy` INERT war und nur defensiv AUSSAH. Der Slot wird jetzt freigegeben,
+   sobald das Gate aufgelöst ist — er hält den Gate-Kontext und sonst nichts.
+
+Volle Regression **217 Suiten, ~19392 Prüfungen, 216 grün / 0 rot / 1 bekannt**,
+`run_tests.py --smoke` komplett grün (alle neun schweren Skripte),
+`selfplay.py map2 1500` mit den Default-Armeen UND mit Necrons auf beiden Seiten
+(beide exit 0), `test_weapon_characteristics.py` bei **null**
+Waffenabweichungen, und `git status --porcelain rules/` bis auf das Abrufdatum
+leer (zwei `--offline`-Läufe erzeugen 50 byte-identische Necron-Dateien).
+
+**`verify_rules_vs_engine.py` geht von 66 auf 67 Differenzen, und die eine neue
+Zeile IST die Entscheidung:** `C'tan Shard of the Deceiver base 40mm -> 80.0mm`.
+Nightbringer und Transcendent C'tan erzeugen **null** — Statline, Waffen und
+Punkte stimmen dort auf den Wert. Der Deceiver druckt 40 mm für ein
+16-Wunden-MONSTER (Void Dragon 80, Nightbringer 90, Transcendent 60);
+User-Entscheidung ist die Tischgröße des Void Dragon, gepinnt als Verhältnis
+gegen dessen Feld statt als Zahl, mit der gedruckten 40 im Kommentar.
+
+**Bewusst offen, wie in den Etappen 1-5:** `armies/necrons.json` unangetastet,
+alle drei *dormant by roster*; `auto_players` in beiden neuen Controllern, aber
+KEINE `ai/agent_driver.py`-Urteile. **Und der KI-Negativraum-Sweep darf NICHT
+nach „C'tan" suchen** — das Wort steht dort schon dreimal, in vorbestehenden
+Kommentaren über Charge-Geometrie (`:3771`, `:3774`, `:9893`); der Sweep nimmt
+volle Datenblattnamen, dieselbe Falle wie „Canoptek" in Etappe 5.
 
 ## Die sieben Aeldari-Detachment-REGELN
 
