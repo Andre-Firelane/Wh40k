@@ -5951,7 +5951,7 @@ ihrer teuersten Form — die zweite Stelle beantwortet nicht bloß anders, sie b
   Necron-Warriors-Einheit, die Advanced ist, bekommt `[]` statt `['Assault']`, WÄHREND
   `protocol_sudden_storm.adjusted_weapon()` das Keyword korrekt gewährt.
 - **Behoben für Sudden Storm und Mortarion's Teachings** (beide sind ein Squad-Flag, also je ein
-  Term). **BENANNTE, GEMESSENE LÜCKE: Mont'kas Killing Blow bleibt draußen** — seine Bedingung
+  Term). **Mont'kas Killing Blow blieb zunächst als benannte Lücke draußen** — seine Bedingung
   ist `doctrine_active(..., turn_tracker)`, und diese Funktion bekommt keinen Tracker. Ihn
   nachzureichen heißt, ein Argument durch `_attack_groups()`s elf Aufrufstellen auf dem heißesten
   Schusspfad zu fädeln; **eine HALBE Fädelung wäre schlimmer als der Status quo** (Zeile 578
@@ -5964,6 +5964,15 @@ ihrer teuersten Form — die zweite Stelle beantwortet nicht bloß anders, sie b
     nicht advancen und schießen, obwohl ihre Detachment-Regel genau das kauft. Die Abwägung gegen
     eine halbe Fädelung bleibt unverändert; nur „kostet heute nichts" ist falsch geworden. Der
     Wächter unten nennt sie weiterhin namentlich.
+  - **GESCHLOSSEN am 2026-09-07** (T'au-Stratagem-Audit, Fund F3) — **ohne die Fädelung, gegen die
+    hier zweimal argumentiert wurde**: die Bedingung wird EINMAL je Phasenwechsel ausgewertet und
+    als `Squad.montka_killing_blow` gestempelt (`montka.refresh_killing_blow()`, aus DERSELBEN
+    `is_active()`, die die Adjuster-Kette liest — nie gegen ein Rundenliteral, sonst löschte ein
+    Literal das von *Exemplar of the Mont'ka* geweitete Fenster still und NUR am Advance-Tor).
+    `weapon_has_assault()` endet damit auf `montka.grants_assault(squad)`, und
+    `_ASSAULT_GRANT_GAPS` unten ist **leer**. Der Eintrag steht als vollständige Geschichte da,
+    weil die Lehre nicht der Fix ist: die Rechtfertigung dieser Lücke ist ZWEIMAL abgelaufen,
+    während die Zusicherung grün blieb — was ein BENANNTER Gap tut und eine Mengendifferenz nicht.
 - **Der Wächter ist eine MENGENDIFFERENZ an der QUELLE** (`test_event_chain_wiring.py`
   Abschnitt 7), nicht ein Verhaltenstest: jedes `game/*.py`, das zur Laufzeit `.assault = True`
   vergibt, muss in `weapon_has_assault()`s Rumpf genannt sein. Ein Verhaltenstest kann einen
@@ -9602,16 +9611,18 @@ Prompt-Puffer vor jeder Messung. Alles danach ist echt.
 - `GreaterGoodController.choose_target()` kann bei einer (nie auftretenden) ungültigen Zielwahl in
   `CHOOSING_TARGET` hängen bleiben.
 - `TransportController`s Rapid-Disembark-Pfad prüft 20.04s Zonen-Sperre nicht.
-- **Mont'kas Killing Blow gewährt [ASSAULT], erreicht aber 10.05s Advance-Tor nicht** — gemessen,
-  benannt, bewusst offen: `coldstar.weapon_has_assault()` bekommt keinen `turn_tracker`, und
-  Mont'kas Bedingung ist ein Rundenfenster. Nachzureichen heißt, das Argument durch
-  `_attack_groups()`s elf Aufrufstellen auf dem heißesten Schusspfad zu fädeln, und eine HALBE
-  Fädelung wäre schlechter als der Status quo (die Einheit bekäme Assault Shooting angeboten und
-  danach null berechtigte Waffen). **Sie ist LIVE, nicht dormant** — hier stand bis zum 2026-09-06
-  „kein ausgeliefertes Roster fieldet Mont'ka", was seit dem Tag falsch war, an dem `tau_montka`
-  angelegt wurde: die Liste fieldet Mont'ka, und Killing Blow gewährt in den Runden 1-3 JEDER ihrer
-  Fernkampfwaffen [ASSAULT], das sie nach einem Advance nicht benutzen kann.
-  `test_event_chain_wiring.py` Abschnitt 7 nennt die Lücke namentlich, damit sie nicht verschwindet.
+- ~~**Mont'kas Killing Blow gewährt [ASSAULT], erreicht aber 10.05s Advance-Tor nicht**~~ —
+  **erledigt** im T'au-Stratagem-Audit (2026-09-07, Fund F3), und die Abwägung, die diesen Eintrag
+  trug, ist dabei bestätigt statt umgeworfen worden: der `turn_tracker` wird weiterhin NICHT durch
+  `_attack_groups()`s elf Aufrufstellen gefädelt — die Antwort kommt als SQUAD-FLAG
+  (`Squad.montka_killing_blow`, einmal je Phasenwechsel von `montka.refresh_killing_blow()` aus
+  DERSELBEN `is_active()` gestempelt, die auch die Adjuster-Kette liest).
+  `weapon_has_assault()` endet auf `montka.grants_assault(squad)`, und Abschnitt 7s
+  `_ASSAULT_GRANT_GAPS` ist damit **leer**. Im echten Spiel belegt
+  (`verify_tau_montka_assault.py`): **0 von 151** Fernkampfwaffen am Advance-Tor abgelehnt, gegen
+  **102** unter `--neutralize`. **Die Lehre bleibt und steht dort ausgeschrieben:** dieser Eintrag
+  wurde ZWEIMAL mit einer Begründung gerechtfertigt, die ablief, während die Zusicherung grün
+  blieb — genau die Ausfallart, die ein BENANNTER Gap hat und eine Mengendifferenz nicht.
 - Die UI sagt nicht deutlich, dass eine Platzierung/ein Pile-In des MENSCHEN ansteht (nur Panel-Text,
   kein Hinweis auf dem Brett). Das Zeitfenster für ein menschliches Consolidate im KI-Zug ist eng.
 - Battle-Shock-Würfe werden im Panel pro Würfel gefärbt, obwohl 2W6 kombiniert gewertet wird.
