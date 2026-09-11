@@ -21,6 +21,16 @@ ROW_HEIGHT = 26
 HEADING_GAP = 10
 HINT_TOP_GAP = 18
 
+#: What the click actually does, which since the resume was chained onto the
+#: end of the battle is no longer "put the box away". main.py's dismiss branch
+#: raises the Unit Statistics overlay behind this one (user: "am Ende des
+#: Spiels soll das Statistik Overlay angezeigt werden"), so a hint reading
+#: "click to view the final board" would name the screen you reach SECOND.
+#: A constant rather than an argument of show(): this box has exactly one
+#: caller and that caller always chains, so a parameter would only be a second
+#: place for the two to disagree.
+DISMISS_HINT = "Click for the unit statistics"
+
 BORDER_COLOR = (200, 165, 70)
 HEADING_COLOR = (255, 215, 0)
 TEXT_COLOR = (225, 230, 240)
@@ -114,5 +124,5 @@ class BattleEndOverlay:
             y += self.detail_font.get_height() + 4
 
         y += HINT_TOP_GAP
-        hint = self.hint_font.render("Click to view the final board", True, HINT_COLOR)
+        hint = self.hint_font.render(DISMISS_HINT, True, HINT_COLOR)
         surface.blit(hint, hint.get_rect(centerx=box_rect.centerx, y=y))

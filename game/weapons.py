@@ -5789,6 +5789,149 @@ class CatacombCommandBargeStaffOfLightMeleeProfile(LordStaffOfLightMeleeProfile)
     weapon_skill = "3+"
 
 
+# --- Monolith and The Silent King (stage 9) ---------------------------------
+#
+# COLLISION SWEEP, run over the corpus before the first class below. EIGHT of
+# the nine printed names appear NOWHERE ELSE in the corpus, so there is nothing
+# to share and nothing to fork. The ninth is the one stage 8's block above
+# named in advance:
+#
+#   * "Armoured bulk" already has a class, shared by the Doomsday Ark, the
+#     Ghost Ark and the Annihilation Barge, all printing "Melee 3 4+ 6 0 1".
+#     The Silent King's TRIARCHAL MENHIR prints "Melee 1 4+ 4 0 1" under the
+#     SAME NAME - a real fork, and MenhirArmouredBulkProfile below is it. It
+#     SUBCLASSES the shared one and overrides only the two numbers that
+#     differ, so the suite can pin the pair AGAINST EACH OTHER rather than
+#     against literals: the assurance is that they differ in exactly Attacks
+#     and Strength, which a pair of independent copies cannot express.
+#
+# NO PER-WEAPON SKILL OVERRIDE IN THIS STAGE, AND THAT IS THE WHOLE OF THEM -
+# pinned as a SET, because the Catacomb Command Barge one stage earlier needed
+# two and the reason it did was that its own rows contradicted each other.
+# Here none of the three profiles does:
+#
+#     Monolith   BS3+ on all three ranged rows, WS2+ on its one melee row
+#     Szarekh    BS2+ on both ranged rows,      WS2+ on its one melee row
+#     Menhir     BS2+ on its one ranged row,    WS4+ on its one melee row
+#
+# so every weapon below takes its bearer's printed skill and none carries an
+# override of its own.
+
+class DeathRayProfile(WeaponProfile):
+    """[SUSTAINED HITS D3] in the DICE-NOTATION form, so one die per critical
+    hit is rolled for real rather than a fixed X being applied - the same
+    arrangement the Avatar of Khaine's Empathic Obliterator uses, and the
+    reason `sustained_hits` below is only a grouping placeholder."""
+    name = "Death Ray"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 1
+    strength = 12
+    ap = -4
+    damage = 4                      # grouping/preview placeholder only - see damage_notation
+    damage_notation = D6(1)         # printed "D6+1"
+    sustained_hits = 2              # grouping/preview placeholder only - see sustained_hits_notation
+    sustained_hits_notation = D3()  # printed "[SUSTAINED HITS D3]"
+
+
+class GaussFluxArcProfile(WeaponProfile):
+    """The Monolith's default armament - it prints FOUR of these, which is a
+    COMPOSITION fact and lives in the datasheet's loadout, not here."""
+    name = "Gauss Flux Arc"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 3
+    strength = 6
+    ap = -1
+    damage = 1
+    lethal_hits = True
+    rapid_fire = 3
+
+
+class ParticleWhipProfile(WeaponProfile):
+    """A printed "3D6" Attacks characteristic - D6(dice=3), rolled for real
+    once per attacking model before the Hit roll can start. [BLAST] is X=1,
+    the plain printed form."""
+    name = "Particle Whip"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 10                    # grouping/preview placeholder only - see attacks_notation
+    attacks_notation = D6(dice=3)   # printed "3D6"
+    strength = 8
+    ap = -1
+    damage = 2
+    blast = 1
+    devastating_wounds = True
+
+
+class PortalOfExileProfile(WeaponProfile):
+    name = "Portal of Exile"
+    weapon_type = MELEE
+    range_in = 0
+    attacks = 6
+    strength = 8
+    ap = -2
+    damage = 3
+
+
+class AnnihilatorBeamProfile(WeaponProfile):
+    """The Triarchal Menhirs' gun. A FLAT Damage 6, not a notation - the
+    printed cell is a bare 6."""
+    name = "Annihilator Beam"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 1
+    strength = 14
+    ap = -4
+    damage = 6
+
+
+class SceptreOfEternalGloryProfile(WeaponProfile):
+    name = "Sceptre of Eternal Glory"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 2
+    strength = 10
+    ap = -3
+    damage = 3
+    devastating_wounds = True
+
+
+class StaffOfStarsProfile(WeaponProfile):
+    """[INDIRECT FIRE] (rule 10.07) - the second Necron weapon to print it."""
+    name = "Staff of Stars"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 12
+    strength = 6
+    ap = -1
+    damage = 1
+    indirect_fire = True
+
+
+class WeaponsOfTheFinalTriarchProfile(WeaponProfile):
+    name = "Weapons of the Final Triarch"
+    weapon_type = MELEE
+    range_in = 0
+    attacks = 12
+    strength = 8
+    ap = -3
+    damage = 2
+    lethal_hits = True
+
+
+class MenhirArmouredBulkProfile(ArmouredBulkProfile):
+    """THE FORK stage 8's block predicted by name. Same printed NAME as the
+    three grav skimmers' row and the same WS, AP and Damage - but A1 S4 where
+    theirs is A3 S6. Subclassed and overriding only the two cells that move,
+    so the pair is pinned AGAINST EACH OTHER in the suite: "identical except
+    Attacks and Strength" is the real assurance, and two independent copies
+    with the same numbers would satisfy a literal-by-literal test while
+    quietly ceasing to track the shared row."""
+    attacks = 1
+    strength = 4
+
+
 class EmpathicObliteratorProfile(WeaponProfile):
     """[SUSTAINED HITS D3] - the dice-notation form, so one die per critical
     hit is rolled for real rather than a fixed X being applied."""

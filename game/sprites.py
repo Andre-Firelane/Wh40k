@@ -417,6 +417,13 @@ SQUAD_SPRITE_KEYS = {
     # reverse, and neither Barge name contains the other.
     "Catacomb Command Barge": "Catacomb Command Barge",
     "Annihilation Barge": "Annihilation Barge",
+    # Stage 9. Both files are named exactly as the datasheets are, so no
+    # folder-wins spelling note is needed for either - unusual in this table.
+    # SHADOWING measured in both directions: _key_for_name() is first-hit-wins
+    # over substrings, and neither of these two contains any existing key nor
+    # is contained by one.
+    "Monolith": "Monolith",
+    "The Silent King": "The Silent King",
 
     # --- Death Guard ---
     # EIGHT of these eleven files disagree with the datasheet name, and the
@@ -661,7 +668,7 @@ FACTION_LOGO_KEYS = {
     "T'AU EMPIRE": "Tau Logo",
     "NECRONS": "Necron Logo",
     # Delivered later than the other four. THE FOLDER WINS, as everywhere in
-    # this module: the file is "Deathguard_Logo.jpg" - one word, underscore -
+    # this module: the file is "Deathguard_Logo.png" - one word, underscore -
     # where the other four are "<Faction> Logo" with a space, and the keyword
     # is two words. Transcribed as it is on disk rather than renamed.
     "DEATH GUARD": "Deathguard_Logo",

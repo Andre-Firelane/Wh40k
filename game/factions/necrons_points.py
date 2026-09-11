@@ -200,4 +200,20 @@ NECRONS_POINTS = {
     "Catacomb Command Barge": flat_points({1: 120}),
     "Annihilation Barge": flat_points({1: 95}),
     "Ghost Ark": flat_points({1: 100}),
+
+    # --- Stage 9 ----------------------------------------------------------
+    #
+    # The Monolith prints TWO tiers ("YOUR 1ST UNIT COSTS 420 / YOUR 2ND +
+    # UNIT COSTS 440"), the same shape the Doomsday Ark and the Triarch
+    # Stalker above already use - so a two-tier UnitPoints, not flat_points.
+    "Monolith": UnitPoints([
+        PointsTier({1: 420}, to_unit=1),
+        PointsTier({1: 440}, from_unit=2),
+    ]),
+    # The Silent King prints ONE line for a THREE-model unit (Szarekh plus
+    # two Triarchal Menhirs), so the 420 is the whole unit and not a
+    # per-model price. NO `leads` and NO `supports`: the datasheet prints no
+    # Leader section at all, and it is the only one of the five stage-7/9
+    # characters of which that is true - pinned in both directions.
+    "The Silent King": flat_points({3: 420}),
 }

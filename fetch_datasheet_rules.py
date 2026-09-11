@@ -242,13 +242,11 @@ MISSING_NECRONS = [
     "Canoptek Scarab Swarms", "Canoptek Spyders", "Canoptek Doomstalker",
     "Canoptek Reanimator", "Canoptek Macrocytes", "Canoptek Tomb Crawlers",
     "Geomancer",
-    # The one named character left. It is NOT a Leader - it prints no Leader
-    # section at all, unlike the four that stage 8 removed from this list - and
-    # it is the largest single sheet here, which is why it sits with the
-    # Monolith in the last stage rather than with the characters.
-    "The Silent King",
-    # The one TITANIC entry
-    "Monolith",
+    # STAGE 9 BUILT BOTH REMAINING ENTRIES - The Silent King and the Monolith,
+    # the one TITANIC one - so they have moved to faction.datasheets and the
+    # loader deduplicates against it. This list is now EMPTY of build targets:
+    # all 31 are done, and what is left below is the deliberately-out-of-scope
+    # tail that is snapshotted anyway.
     # -- deliberately out of scope for building, snapshotted anyway ------
     # Same reasoning as the two tails above: free to take from the same fetch,
     # so a later decision to build one needs no new research. AIRCRAFT and

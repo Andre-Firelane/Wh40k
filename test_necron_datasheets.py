@@ -311,8 +311,14 @@ c.eq("...but not the 2nd",
      build(nec.SKORPEKH_DESTROYERS, name="2 Skorpekh Destroyers 2", unit_index=2).points, 85)
 c.eq("Doomsday Ark is dearer from the 3rd",
      build(nec.DOOMSDAY_ARK, name="2 Doomsday Ark 3", unit_index=3).points, 230)
+# WAS the Monolith, which stage 9 built - so the example had to move to a name
+# that is still genuinely unbuilt. Doom Scythe is one of the three the scope
+# record keeps deliberately out of scope (AIRCRAFT), snapshotted in the corpus
+# but never given a datasheet, so it is the honest stand-in.
 c.eq("the points table is transcription-only - an unbuilt unit is a KeyError, "
-     "not a free unit", "Monolith" in NECRONS_POINTS, False)
+     "not a free unit", "Doom Scythe" in NECRONS_POINTS, False)
+c.true("...and the example really is unbuilt",
+       "Doom Scythe" not in nec.NECRONS.datasheets)
 
 
 # --- 5. keywords and the LEADER table (rule 19.01) --------------------------
@@ -334,11 +340,14 @@ c.eq("...and that is the WHOLE cult, counted off the keyword line",
       "Skorpekh Destroyers", "Skorpekh Lord"])
 c.true("every datasheet carries the NECRONS faction keyword",
        all("NECRONS" in s.keywords for s in nec.NECRONS.datasheets.values()))
-c.eq("...and TRIARCH is the whole of the Praetorians batch, counted off the same line",
+# The Silent King joined this list in stage 9 and BELONGS in it: its printed
+# "KEYWORDS - ALL MODELS" bar reads "VEHICLE; EPIC HERO; TRIARCH". The pin is
+# turned round rather than relaxed - the sweep still names every member.
+c.eq("...and TRIARCH is the Praetorians batch plus The Silent King, off the same line",
      sorted(s.name for s in nec.NECRONS.datasheets.values()
             if "TRIARCH" in s.keywords),
-     ["Triarch Praetorians", "Triarch Stalker"])
-c.eq("forty-four datasheets are registered", len(nec.NECRONS.datasheets), 44)
+     ["The Silent King", "Triarch Praetorians", "Triarch Stalker"])
+c.eq("forty-six datasheets are registered", len(nec.NECRONS.datasheets), 46)
 c.eq("the faction keyword is NECRONS", nec.NECRONS.keyword, "NECRONS")
 
 # can_attach() returns a list of REASONS - empty means legal
@@ -390,7 +399,7 @@ missing = sorted(s.name for s in nec.NECRONS.datasheets.values()
 c.eq("every Necron datasheet resolves to a real file, bar the named ones",
      missing, sorted(WITHOUT_ART))
 c.eq("...which is all but the named ones",
-     len(nec.NECRONS.datasheets) - len(missing), 44 - len(WITHOUT_ART))
+     len(nec.NECRONS.datasheets) - len(missing), 46 - len(WITHOUT_ART))
 c.eq("the faction badge is mapped too",
      sprites.FACTION_LOGO_KEYS.get("NECRONS"), "Necron Logo")
 

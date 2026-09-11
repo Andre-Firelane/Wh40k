@@ -45,11 +45,19 @@ def leadership_threshold(squad, all_tokens=None):
     # before the min(), for the same reason they are: the rule changes the
     # characteristic of every model in the unit, so the easiest threshold
     # present moves by 1 either way.
-    from game import enh_admired_leader
+    # The Silent King's own aura ("improve that unit's Leadership
+    # characteristic by 1") is the SECOND improvement in this sum and
+    # subtracts for the same reason Admired Leader does - a better
+    # characteristic is a LOWER N+ threshold. It needs the board, because
+    # its condition is a distance to Szarekh; without all_tokens it
+    # degrades to the printed value, which is the same right degradation
+    # Psychic Guidance above already takes.
+    from game import enh_admired_leader, silent_king_leadership
     return (min(thresholds)
             + plagues.leadership_penalty(squad)
             + icon_of_despair.leadership_penalty(squad, all_tokens or ())
-            + enh_admired_leader.leadership_bonus(squad))
+            + enh_admired_leader.leadership_bonus(squad)
+            - silent_king_leadership.leadership_bonus(squad, all_tokens or ()))
 
 
 def leadership_success(rolls, squad, all_tokens=None, penalty=0):

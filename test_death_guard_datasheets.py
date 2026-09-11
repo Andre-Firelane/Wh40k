@@ -82,14 +82,29 @@ c.eq("...and its survivability is the FNP instead", P.PoxwalkerProfile.feel_no_p
 c.eq("Daemon Prince T12 W10 - the toughest single model here",
      (P.DaemonPrinceOfNurgleProfile.toughness, P.DaemonPrinceOfNurgleProfile.wounds),
      (12, 10))
-c.true("...and no other profile in the engine reaches T12",
-       all(o.toughness <= 12 for o in vars(unit_module).values()
-           if inspect.isclass(o) and issubclass(o, UnitProfile)))
+# WAS "no other profile in the engine reaches T12", and Necron stage 9 made
+# that false: the Monolith is T13. The pin did exactly what it was set for -
+# a cross-faction claim going red on a visible change - so it is turned round
+# rather than relaxed. The SWEEP stays, naming its one exception, so a THIRD
+# profile above T12 still has to come here and say so.
+_above_t12 = sorted(o.name for o in vars(unit_module).values()
+                    if inspect.isclass(o) and issubclass(o, UnitProfile)
+                    and o.toughness > 12)
+c.eq("...and the ONLY profile in the engine above T12 is the Monolith",
+     _above_t12, ["Monolith"])
 c.eq("the Malignant Plaguecaster has NO invulnerable save - unusual for a PSYKER",
      P.MalignantPlaguecasterProfile.invulnerable_save, "-")
 c.eq("Typhus has a 4+ invulnerable", P.TyphusProfile.invulnerable_save, "4+")
-c.eq("Defiler W18 / OC5 - the largest of each in the engine",
+# ALSO a label that stopped being true in Necron stage 9 - the Monolith is
+# W22/OC8. The numbers were always a claim about this FACTION; the "in the
+# engine" half is now pinned separately so it cannot quietly lie again.
+c.eq("Defiler W18 / OC5 - the largest of each in THIS faction",
      (P.DefilerProfile.wounds, P.DefilerProfile.oc), (18, 5))
+_bigger = sorted(o.name for o in vars(unit_module).values()
+                 if inspect.isclass(o) and issubclass(o, UnitProfile)
+                 and (o.wounds > 18 or o.oc > 5))
+c.eq("...and the only two in the engine bigger on either are the stage-9 pair",
+     _bigger, ["Monolith", "Szarekh"])   # Monolith W22/OC8, Szarekh OC6
 
 # The two damaged brackets reuse the existing generic field.
 c.eq("Defiler is Damaged at 1-6 wounds", P.DefilerProfile.damaged_threshold, 6)
@@ -668,7 +683,7 @@ c.true("...and the Marines beside him show the Marines' art",
 
 # The faction badge arrived after the model art, and this pin turned over -
 # which is what it was for. Checked at the FILE, not in the table: the name on
-# disk is "Deathguard_Logo.jpg" (one word, underscore) where the other four
+# disk is "Deathguard_Logo.png" (one word, underscore) where the other four
 # are "<Faction> Logo" with a space, so THE FOLDER WINS here as everywhere in
 # sprites.py, and a mapping entry pointing at nothing would still read fine.
 _dg_badge = sprites.faction_logo_path("DEATH GUARD")

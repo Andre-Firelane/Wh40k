@@ -17,6 +17,7 @@ Two things are worth pinning beyond "it stops":
     would be the drift this codebase keeps consolidating away.
 """
 
+import ast
 import io
 import os
 
@@ -26,10 +27,17 @@ import pygame  # noqa: E402
 
 pygame.init()
 pygame.font.init()
+# A real display mode, not just fonts: section 4 draws the statistics overlay,
+# whose faction badges load art through convert_alpha() - which raises without
+# one. test_unit_stats_overlay.py opens the same dummy window for this reason.
+pygame.display.set_mode((1280, 720))
 
 import testkit as tk  # noqa: E402
+from game import battle_stats  # noqa: E402
+from game.factions import aeldari  # noqa: E402
 from game.missions import BATTLE_ROUNDS, MissionController  # noqa: E402
 from game.turn import PHASES, TurnTracker  # noqa: E402
+from game.ui import battle_end_overlay, unit_stats_overlay as uso  # noqa: E402
 from game.ui.battle_end_overlay import BattleEndOverlay  # noqa: E402
 
 checks = tk.Checks("Battle end")
@@ -170,5 +178,100 @@ checks.true("the tuple really lists the other notices", len(others) >= 4)
 checks.true("...and the result overlay comes first in it",
             all(tuple_src.index("battle_end_overlay") < tuple_src.index(n) for n in others))
 checks.eq("and a click dismisses it", MAIN.count("battle_end_overlay.dismiss()"), 1)
+
+# --- 4. the resume follows the result ---
+print("--- 4. the resume follows the result ---")
+
+# User: "am Ende des Spiels soll das Statistik Overlay angezeigt werden."
+#
+# CHAINED onto the score box rather than raised beside it, and that is forced
+# rather than chosen: the statistics overlay is drawn LAST in main()'s frame
+# (over every notice) and owns every event from its own pre-chain branch, so
+# raising both at once buries the final score under it. Score first, then the
+# analysis of how it was earned.
+#
+# Two halves, and the behaviour half is the one that can go wrong quietly: a
+# source guard shows the call is THERE, not that the two overlays compose.
+
+killer = tk.build(aeldari.DARK_REAPERS, "Player 1", name="1 Dark Reapers 1")
+ledger = battle_stats.BattleStats()
+ledger._record_for(killer).wounds_dealt = 9
+
+resume = uso.UnitStatsOverlay()
+checks.eq("the resume is shut while the battle runs", resume.is_pending, False)
+
+final = BattleEndOverlay()
+final.show(mission)
+checks.true("the battle ending raises the score box", final.is_pending)
+# ...and NOT the resume: it is what the click buys, so if it were already up
+# the check below would pass without the chain existing at all.
+checks.eq("...and not the resume behind it", resume.is_pending, False)
+
+# The click, exactly as main.py's dismiss branch runs it.
+final.dismiss()
+opened = resume.show(ledger, [("Player 1", "AELDARI"), ("Player 2", "NECRONS")], [killer])
+checks.true("dismissing the score box opens the resume", opened)
+checks.true("...and it really is up", resume.is_pending)
+checks.eq("...with the score box gone from underneath it", final.is_pending, False)
+# The numbers are the ones the battle earned, not an empty table: a resume
+# that opens showing nothing is the same failure with a better disguise.
+checks.eq("...showing the battle's own ledger",
+          [r.name for r in resume.stats.top_killers("Player 1")], ["1 Dark Reapers 1"])
+resume.draw(pygame.Surface((1280, 720)))
+resume.dismiss()
+checks.eq("and a click on the resume leaves the final board", resume.is_pending, False)
+
+# The hint on the score box has to name the screen the click actually reaches.
+# Both halves: it names the statistics AND no longer names the board - "names
+# the new thing" passes on a string that promises both.
+checks.true("the score box's hint names the statistics",
+            "statistic" in battle_end_overlay.DISMISS_HINT.lower())
+checks.eq("...and no longer promises the board",
+          "board" in battle_end_overlay.DISMISS_HINT.lower(), False)
+
+# Wiring, by AST rather than substring: `unit_stats_overlay_view.show(` is true
+# of the corner button's own call site further up the file, and of a line
+# parked behind an `if False:`. What is pinned is that the two calls are
+# SIBLING STATEMENTS in one body - the same list, so whatever condition reaches
+# the dismiss reaches the show, and no branch can be slipped between them.
+branches = [n for n in ast.walk(ast.parse(MAIN))
+            if isinstance(n, ast.If) and isinstance(n.test, ast.Attribute)
+            and n.test.attr == "is_pending"
+            and isinstance(n.test.value, ast.Name)
+            and n.test.value.id == "battle_end_overlay"]
+checks.eq("main.py has exactly one battle-end branch", len(branches), 1)
+
+
+def _statement_lists(node):
+    yield node.body
+    for inner in ast.walk(node):
+        for field in ("body", "orelse", "finalbody"):
+            got = getattr(inner, field, None)
+            if isinstance(got, list) and got and isinstance(got[0], ast.stmt):
+                yield got
+
+
+def _calls(statements):
+    return [ast.unparse(s.value) for s in statements
+            if isinstance(s, ast.Expr) and isinstance(s.value, ast.Call)]
+
+
+click_body = []
+for _statements in _statement_lists(branches[0]):
+    names = _calls(_statements)
+    if any(n.startswith("battle_end_overlay.dismiss(") for n in names):
+        click_body = names
+        break
+# Liveness: an extractor that finds nothing satisfies every absence check
+# below by measuring nothing at all.
+checks.true("the click dismisses the score box", len(click_body) >= 1)
+opens = [c for c in click_body if c.startswith("unit_stats_overlay_view.show(")]
+checks.eq("...and opens the resume in the same breath", len(opens), 1)
+# The same three arguments the corner STATS button passes, deliberately not a
+# second derivation of them - two call sites that disagree about which armies
+# or which ledger is on screen is the drift this codebase keeps consolidating.
+checks.true("...with the ledger, both armies and the squads for their art",
+            opens and "battle_stats" in opens[0] and "_stats_players()" in opens[0]
+            and "state.all_squads()" in opens[0])
 
 checks.finish()

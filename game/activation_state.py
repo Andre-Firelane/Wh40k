@@ -99,6 +99,16 @@ SQUAD_FLAGS = (
     "fights_first",
     # bought and paid for - a CP or a Battle Focus token was spent on each of
     # these, and a mid-turn save that drops them charges the player twice
+    #
+    # triarch_ability is the odd one out and the only NON-BOOLEAN entry here:
+    # it is a string key naming which of The Silent King's three Triarch
+    # abilities was chosen this battle round. The capture filters on
+    # truthiness and restores with setattr, so a string round-trips through
+    # JSON unchanged. It belongs with the paid grants rather than with the
+    # derived flags above: nothing re-stamps it, so an F9 that dropped it
+    # would silently change which aura the army is under for the rest of the
+    # round.
+    "triarch_ability",
     "stim_injectors_active",
     "arrokon_protocol_active",
     "ere_we_go_active",
@@ -142,6 +152,7 @@ SQUAD_FLAGS_EXCLUDED = {
     # carries, so saving it would store a cache the next phase change
     # overwrites - and a stale one could only ever disagree with the rule.
     "montka_killing_blow": "re-derived every phase change by montka.refresh_killing_blow()",
+    "triarch_auras_active": "re-derived every frame by triarch_auras.refresh_active_auras() - the CHOICE it comes from, triarch_ability, IS saved",
     "nova_charge_grants": "keyed by model.id and weapon instance id - neither survives a rebuild",
     "attached_ability_grace": "rule 19.04's window, open only inside an attack sequence",
     # A Token, not a scalar, so it is captured by name below rather than

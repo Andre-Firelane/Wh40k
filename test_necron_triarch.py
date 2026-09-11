@@ -280,6 +280,19 @@ c.eq("neither Triarch unit appears on any leads/supports line",
 # --- 4. Relentless Combatants, clause 1: the Charge re-roll -----------------
 print("--- 4. Relentless Combatants: the charge re-roll ---")
 
+class _NoController:
+    """Stand-in for a controller a probe has broken. Every reader below
+    calls maybe_offer_charge_reroll(), so returning False turns the probe
+    into a named RED line instead of an AttributeError that takes the
+    whole suite down and says nothing about which assurance broke."""
+
+    def maybe_offer_charge_reroll(self, squad=None):
+        return False
+
+    def can_offer(self, squad):
+        return False
+
+
 def charge_scene(charger_sheet, gap=9.0, owner="Player 2", auto=()):
     """A real ChargeController mid-roll: the dice are on the table and NOT yet
     acknowledged, which is the only instant this re-roll is legal."""
@@ -295,9 +308,17 @@ def charge_scene(charger_sheet, gap=9.0, owner="Player 2", auto=()):
     log, dice, dec = tk.Log(), tk.RecordingDice(), DecisionManager()
     cc = ChargeController(game_log=log, dice_manager=dice, turn_tracker=tt,
                           all_tokens=state.tokens)
-    rc = RelentlessCombatantsController(
-        dice_manager=dice, decision_manager=dec, charge_controller=cc,
-        game_log=log, auto_players=auto)
+    # DEGRADED, not bare: a probe must make this suite RED, not abort it.
+    # Stage 9 moved the machinery into game/charge_reroll.py, and the probe
+    # that takes this class back off that base leaves a constructor with no
+    # keyword arguments at all - which a bare call turns into a TypeError
+    # before any check reports.
+    try:
+        rc = RelentlessCombatantsController(
+            dice_manager=dice, decision_manager=dec, charge_controller=cc,
+            game_log=log, auto_players=auto)
+    except TypeError:
+        rc = _NoController()
     return dict(state=state, charger=charger, enemy=enemy, charge=cc, relentless=rc,
                 dice=dice, decision=dec, log=log, turn=tt)
 
@@ -604,9 +625,19 @@ c.true("...and the offer is made BEFORE the roll is acknowledged",
 DRIVER = io.open("ai/agent_driver.py", encoding="utf-8").read()
 for name in ("relentless_combatants", "targeting_relay", "Triarch"):
     c.eq("ai/agent_driver.py knows nothing about %s" % name, name in DRIVER, False)
+# Guarded for the same reason charge_scene() is: a probe that takes this
+# class off its shared base leaves a constructor with no keyword arguments,
+# and a bare call here aborts the run instead of reddening this line.
+def _gates_on_auto(cls):
+    try:
+        return "Player 2" in cls(auto_players=("Player 2",)).auto_players
+    except TypeError:
+        return False
+
+
 c.true("both controllers gate on auto_players at the OBJECT",
-       "Player 2" in RelentlessCombatantsController(auto_players=("Player 2",)).auto_players
-       and "Player 2" in TargetingRelayController(auto_players=("Player 2",)).auto_players)
+       _gates_on_auto(RelentlessCombatantsController)
+       and _gates_on_auto(TargetingRelayController))
 
 # DORMANT BY ROSTER, pinned so fielding one is a visible change.
 _roster = io.open("armies/necrons.json", encoding="utf-8").read()

@@ -58,14 +58,16 @@ ability while the component that prints it is still conferring, and a leader
 attached to it does not dilute it.
 """
 
-from game import ai_mode
+from game.charge_reroll import MAX_CHARGE_ROLL_TOTAL, ChargeRerollController
 from game.squad import unit_wide_ability
 
 RELENTLESS_COMBATANTS_LABEL = "Relentless Combatants"
 
-#: A Charge roll is 2D6, so this is the best it can possibly come out - used
-#: only to ask "could a re-roll reach anything AT ALL", never as a result.
-MAX_CHARGE_ROLL_TOTAL = 12
+#: Re-exported from game/charge_reroll.py (the 51st extraction), where the
+#: whole "re-roll Charge rolls made for this unit" machinery now lives - The
+#: Silent King's Phaeron of the Blades is the second carrier. Kept under the
+#: old name so no reader of this module moves.
+MAX_CHARGE_ROLL_TOTAL = MAX_CHARGE_ROLL_TOTAL
 
 
 def squad_has_relentless_combatants(squad):
@@ -79,75 +81,15 @@ def squad_has_relentless_combatants(squad):
     return unit_wide_ability(squad, "relentless_combatants")
 
 
-class RelentlessCombatantsController:
+class RelentlessCombatantsController(ChargeRerollController):
     """Clause 1 only. Clause 2 needs no controller at all - it is a predicate
-    that game/move_exceptions.py asks."""
+    that game/move_exceptions.py asks.
 
-    def __init__(self, dice_manager=None, decision_manager=None,
-                 charge_controller=None, game_log=None, auto_players=()):
-        self.dice_manager = dice_manager
-        self.decision_manager = decision_manager
-        self.charge_controller = charge_controller
-        self.game_log = game_log
-        self.auto_players = ai_mode.players(auto_players)
+    Everything this used to spell out by hand is in ChargeRerollController
+    now; what is left is the two knobs a carrier owns. Behaviour is unchanged
+    by construction - the base class is this class's own body, moved."""
 
-    def _log(self, message, file_only=False):
-        if self.game_log is not None:
-            self.game_log.add(message, file_only=file_only)
+    LABEL = RELENTLESS_COMBATANTS_LABEL
 
-    def charging_squad(self):
-        return getattr(self.charge_controller, "active_squad", None)
-
-    def can_offer(self, squad):
-        """Every gate except "has this offer already been made", which is
-        DiceManager's to answer and must not be asked twice."""
-        if self.dice_manager is None or self.charge_controller is None:
-            return False
-        if not squad_has_relentless_combatants(squad):
-            return False
-        if not self.dice_manager.can_reroll_all():
-            return False
-        return bool(self.dice_manager.pending_values)
-
-    def maybe_offer_charge_reroll(self, squad=None):
-        """Called from main.py the instant a Charge roll is about to be
-        acknowledged - and only there, see this module's docstring.
-
-        `squad` defaults to whoever is charging, which is the only unit whose
-        Charge roll this can be."""
-        squad = self.charging_squad() if squad is None else squad
-        if not self.can_offer(squad):
-            return False
-        rolled = sum(self.dice_manager.pending_values)
-        if self.charge_controller.targets_reachable_with(rolled):
-            if squad.owner in self.auto_players or self.decision_manager is None:
-                return False
-        elif not self.charge_controller.targets_reachable_with(MAX_CHARGE_ROLL_TOTAL):
-            self._log('%s (%s): no unit is within reach even on a %d" charge roll, '
-                      'so the re-roll is not offered.'
-                      % (RELENTLESS_COMBATANTS_LABEL, squad.name, MAX_CHARGE_ROLL_TOTAL),
-                      file_only=True)
-            return False
-        # ONCE per roll. Declining used to leave the dice on the table with
-        # nothing changed, so the next click asked again - see
-        # DiceManager.claim_reroll_offer().
-        if not self.dice_manager.claim_reroll_offer(RELENTLESS_COMBATANTS_LABEL):
-            return False
-        if squad.owner in self.auto_players or self.decision_manager is None:
-            return bool(self._reroll(squad, rolled))
-        self.decision_manager.request(
-            squad.owner,
-            '%s rolled %d" for its charge - re-roll it in full? (%s)'
-            % (squad.name, rolled, RELENTLESS_COMBATANTS_LABEL),
-            [("Re-roll the Charge roll", lambda: self._reroll(squad, rolled)),
-             ("Keep it", None)],
-        )
-        return True
-
-    def _reroll(self, squad, rolled):
-        if not self.dice_manager.reroll_all():
-            return False
-        self._log('%s (%s): charge roll of %d" re-rolled in full -> %d".'
-                  % (RELENTLESS_COMBATANTS_LABEL, squad.name, rolled,
-                     sum(self.dice_manager.pending_values)))
-        return True
+    def applies(self, squad):
+        return squad_has_relentless_combatants(squad)

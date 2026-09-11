@@ -90,6 +90,16 @@ def effective_oc(model, all_tokens=None, objective=None):
     # the adders, because both are worseners with the same printed floor, and
     # the adders come last so a purchased +1 always buys one.
     oc = chittering_swarm.worsen_enemy_oc(model, oc, all_tokens)
+    # The Monolith's "Damaged: 1-7 Wounds Remaining ... subtract 4 from its
+    # Objective Control characteristic" - the THIRD worsener, and the first
+    # that is a fact about the MODEL'S OWN WOUNDS rather than about an aura.
+    # Beside the other two rather than after the adders, for the reason they
+    # give: a purchased +1 should always buy one. Clamped at 0 - a negative
+    # OC would subtract from a friend's contribution to the same objective.
+    damaged_penalty = getattr(model.profile, "damaged_oc_penalty", 0)
+    threshold = getattr(model.profile, "damaged_threshold", None)
+    if damaged_penalty and threshold is not None and model.current_wounds <= threshold:
+        oc = max(0, oc - damaged_penalty)
     oc += enh_strategic_conqueror.oc_bonus(model, objective, all_tokens)
     oc += enh_admired_leader.oc_bonus(model)
     oc += enh_strategic_savant.oc_bonus(model)

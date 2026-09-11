@@ -5972,10 +5972,29 @@ def main(map_key=None):
                     fight_warning_overlay.dismiss()
                     ai_action_paused_this_frame = True
             elif battle_end_overlay.is_pending:
-                # The battle is over; a click only puts the box aside so the
-                # final board can be looked at. Nothing resumes either way.
+                # The battle is over; a click puts the score box aside and
+                # raises the RESUME behind it - user: "am Ende des Spiels soll
+                # das Statistik Overlay angezeigt werden". Nothing resumes
+                # either way; both boxes are there to be read.
+                #
+                # CHAINED rather than raised together, and that is forced
+                # rather than chosen: the statistics overlay is drawn LAST in
+                # the frame (over every notice) and owns every event from its
+                # own pre-chain branch, so raising both at once would bury the
+                # final score under it instead of showing it first. Score, then
+                # the analysis of how it was earned - which is the order a
+                # player wants them in anyway.
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     battle_end_overlay.dismiss()
+                    # The same three arguments the corner STATS button passes,
+                    # deliberately not a second derivation of them. The squads
+                    # are only ever used for the SPRITES; the numbers come from
+                    # the ledger, which keys by name and therefore still lists
+                    # a unit that was wiped out and is no longer in
+                    # all_squads() - it shows up on the table without its art,
+                    # which is right: it earned those numbers.
+                    unit_stats_overlay_view.show(
+                        battle_stats, _stats_players(), state.all_squads())
                     ai_action_paused_this_frame = True
             elif turn_start_overlay.is_pending:
                 # User: the "Player X Turn Y" banner takes priority over

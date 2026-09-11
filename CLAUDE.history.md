@@ -9011,3 +9011,98 @@ Necrons auf beiden Seiten; `verify_rules_vs_engine.py` 67 → 69 (zwei Basisgrö
 drei — die Annihilation Barge druckt „Use model" und erzeugt gar keine);
 `test_weapon_characteristics.py` bei null; Golden Master unbewegt; zwei `--offline`-Läufe ohne
 Diff.
+
+## 2026-09-11 — Necron-Etappe 9: der Nachzug ist fertig
+
+Monolith und The Silent King, die letzten zwei der 31 Bauziele. Der verdichtete Stand steht in
+`CLAUDE.md` unter `### Etappe 9`; hier die Verläufe.
+
+**DIE EINE ENTSCHEIDUNG, DIE NICHT ABLEITBAR WAR, war die Basisgröße des Monolithen** — und sie ist
+per `AskUserQuestion` gestellt worden, weil beide vorhandenen Antworten vertretbar sind und sich
+materiell unterscheiden. Gedruckt ⌀160mm (r 3.150"); der **Defiler druckt DIESELBEN 160 mm und
+spielt auf 2.1"**, was zugleich die Obergrenze des ganzen Repos ist. Der User hat **keine von
+beiden** genommen: „2.5", dazwischen". Beide verworfenen Werte stehen jetzt im Docstring und in der
+Suite neben dem gewählten — eine Entscheidung ohne Präzedenzfall verliert ihre Begründung sonst
+beim nächsten Leser. Alles andere dieser Etappe hatte eine Vorlage oder eine Messung und brauchte
+keine Frage.
+
+**FÜNF VON ACHT FÄHIGKEITEN WAREN ZWILLINGE**, und der Inhalt der Etappe war deshalb wieder, an
+WELCHER NAHT jede landet — nicht der neue Code:
+
+- **Phaeron of the Stars** ist zweimal die vorhandene automatische-1er-Form, einmal auf dem
+  Treffer- und einmal auf dem Wundwurf, in BEIDEN Phasen („makes an attack").
+- **Relentless March** ist ein weiterer `+X"`-Term in `coldstar.effective_movement_in()`, neben
+  Swift as the Wind und Whirling Death.
+- **The Silent King (+1 Ld)** ist die zweite VERBESSERUNG in `leadership_threshold()`s Summe nach
+  Admired Leader — und subtrahiert, weil Ld hier eine N+-Schwelle ist.
+- **Phaeron of the Blades** ist die 51. Extraktion: `game/charge_reroll.py`, am zweiten Träger nach
+  den Triarch Praetorians. Die PRÄDIKATE sind grundverschieden (rule 19.04s `unit_wide_ability()`
+  gegen eine Aura), alles davor ist identisch. `test_necron_triarch.py` blieb dabei **ohne eine
+  einzige Anpassung bei 143/143**, was der Konstruktions-Beleg für Verhaltensneutralität ist.
+
+**DREI DINGE WAREN GENUIN NEU:** die erste verkettete Zerstörung dieser Engine (Szarekh fällt,
+beide Menhirs mit ihm), die vierte Ankunftsart in `game/ingress.py`, und die erste „Damaged:"-Stufe,
+deren zwei Hälften VERSCHIEDENE SUBJEKTE haben.
+
+**DIE SONDEN WAREN WIEDER DER ERGIEBIGSTE TEIL.** Der erste vollständige Lauf meldete **sieben
+Sondenläufe, die nicht bissen**; sechs davon waren echte Lücken im Test, und **drei hatten
+dieselbe Form** — die, die dieses Repo am häufigsten notiert:
+
+> Der Test fuhr den HELFER direkt statt der Naht, die ihn wirklich liest.
+
+Phaeron of the Blades wurde über `blades_adjusted_weapon()` gemessen und nie durch `fight.py`s
+Adjuster-Kette; die unit-weite Damaged-Hälfte über `covers_model()` und nie durch
+`_damaged_modifier()`; und zwei Eternity-Gate-Klauseln über QUELL-STRINGS, die ein `if False:`
+überleben. Alle drei fahren jetzt die echte Naht.
+
+Zwei weitere waren schlicht nie gefahren worden: **die Waffentabelle maß nie, auf welcher SEITE
+eine Waffe kämpft** — den Staff of Stars auf MELEE zu drehen ließ jede Zahl und jedes Keyword
+intakt, die ganze Tabelle bestand also gegen eine Waffe, die nicht schießen kann; und zur
+`any()`/`all()`-Lesart von „NECRONS INFANTRY" gab es **keine gemischte Einheit**, weil kein
+Datenblatt eine baut — sie musste konstruiert werden.
+
+**Der siebte ist ein DEKLARIERTER Nicht-Beißer und ein Befund über die DATEN**, wie die
+Toughness-Sonde in Etappe 8: der `triarchal_menhir`-Filter lässt sich nicht von „nimm alles, was
+noch steht" unterscheiden, weil die Regel erst feuert, wenn Szarekh unten ist — und dann ist jedes
+lebende Modell der Einheit ein Menhir. Der Filter bleibt, weil der gedruckte Satz die Menhirs nennt.
+
+**EINE SONDE LIESS EINE SUITE ABSTÜRZEN STATT SIE ROT ZU MACHEN — vierundzwanzigste Instanz.**
+Nimmt man `relentless_combatants.py` von seiner neuen Basis, bleibt ein Konstruktor ohne
+Schlüsselwortargumente, und ZWEI nackte Aufrufe in `test_necron_triarch.py` brachen den Lauf ab,
+bevor eine Prüfung berichtete. Interessant war, dass der erste Fix den Absturz nur VERSCHOB: nach
+dem Kapseln der Bühne stürzte Abschnitt 8 an einer zweiten nackten Konstruktion ab. Beide sind
+jetzt gekapselt, und die Sonde meldet **neun benannte rote Zeilen**.
+
+**EIGENE FEHLER, alle dokumentierte Formen:**
+- **`Squad` hat gar kein `starting_models`**, nur einen `starting_model_COUNT`. Meine erste Fassung
+  von `triarchal_menhirs.szarekh_is_down()` fiel deshalb auf die Live-Liste zurück — und hätte nach
+  dem Sweep entschieden, das Datenblatt habe nie einen Szarekh gedruckt, und die Menhirs verschont.
+  Genau das Versagen, das die Sweep-Ordnung unmöglich machen soll, und es wäre erst einen Frame
+  später aufgefallen. Beim Lesen des eigenen Docstrings gefunden, nicht von einem Test.
+- **Fehlerklasse 21 zweimal**: ein Heredoc mit dem Aura-Modul und ein zweites mit den zwei
+  Datenblättern brachen beide mit `unexpected EOF`. Über `Write` geschrieben, wie die Regel sagt.
+- **Ein Anker mit `"""` inline** wurde von Python als String plus LEERSTRING gelesen und verlor die
+  drei Zeichen still; die Anker-Vorprüfung hat es gefangen, bevor der teure Lauf startete.
+  `chr(34) * 3` statt eines Inline-Literals.
+- **Der KI-Negativraum-Sweep war zu breit:** `charge_reroll` ist Teilstring von
+  `_charge_reroll_verdict()`, einer VORBESTEHENDEN Funktion in `ai/agent_driver.py` — derselbe
+  Fehltreffer, den die Etappen 5 und 6 mit „Canoptek" und „C'tan" umgehen mussten. Er matcht jetzt
+  einen IMPORT oder einen ATTRIBUTZUGRIFF, nie das nackte Wort.
+- **Die Wargear-Option des Monolithen war erst halb ausgedrückt.** „4 gauss flux arcs can be
+  replaced with 4 death rays" auf einem EIN-Modell-Datenblatt ist die
+  „replace-then-re-add"-Form, nicht vier Anwendungen: die erste Fassung nahm alle vier Arcs und gab
+  EINEN Death Ray zurück. Gemessen statt geraten.
+
+**DREI FREMDE PINS WURDEN ZU RECHT ROT**, und der lehrreichste ist der, der gleich einen zweiten
+Fund nach sich zog: `test_death_guard_datasheets.py` behauptete „no other profile in the engine
+reaches T12" — der Monolith ist T13. Umgedreht statt aufgeweicht, mit dem Sweep als Sweep behalten
+und seiner einen Ausnahme benannt; die Zeile darunter trug zusätzlich ein lügendes Label („Defiler
+W18/OC5 — the largest in the engine"), und der dafür neu gesetzte engine-weite Sweep fand **sofort
+Szarekh mit OC 6**. Dazu ein `if`, das der vierte Ankunftsmodus zu `elif` gemacht hat
+(Formatierung statt Bedeutung), und `test_ai_mode.py`s Meldung, dass `EternityGateController`
+`auto_players` nimmt und nie liest — mir fehlte schlicht das Angebot.
+
+**Verifikation:** volle Regression, `run_tests.py --smoke`, `selfplay.py map2 1500` mit beiden
+Armee-Varianten, `verify_rules_vs_engine.py` (eine neue Zeile, nicht drei — Szarekh und der Menhir
+sind Transkriptionen), `test_weapon_characteristics.py` bei null, Golden Master unbewegt, zwei
+`--offline`-Läufe ohne Diff.

@@ -1677,9 +1677,14 @@ c.true("...which names this Stratagem",
 c.true("...and the enforcement is no longer named after the first source",
        "_relaxed_arrival_extra_check" in _ing_src4
        and "_shortened_blade_extra_check" not in _ing_src4)
-for _seam in ("        if self._uses_relaxed_arrival(squad):\n"
+# MATCHED ON THE CALL PLUS ITS BODY, not on the "if". Necron stage 9 added a
+# FOURTH arrival mode (the Monolith's Eternity Gate) ahead of this one in
+# position_valid(), which turned the second branch into an "elif" - the
+# assurance here is that BOTH halves ask the shared question, and pinning
+# the statement keyword made it fail on formatting instead of on meaning.
+for _seam in ("self._uses_relaxed_arrival(squad):\n"
               "            return self._relaxed_arrival_extra_check(squad)",
-              "        if self._uses_relaxed_arrival(squad):\n"
+              "self._uses_relaxed_arrival(squad):\n"
               "            pass  #"):
     c.true("...and both halves of the arrival read it", _seam in _ing_src4)
 c.true("...including the relaxed DISTANCE, not just the board-edge band",

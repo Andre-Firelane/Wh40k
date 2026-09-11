@@ -2,7 +2,7 @@ from game.homing_beacon import HOMING_BEACON_MIN_ENEMY_DISTANCE_IN, HOMING_BEACO
 from game import tunnelling_horrors
 from game import obelisk_node_control, unshrouded_truth
 from game.squad import edge_distance
-from game import ride_the_wind
+from game import eternity_gate, ride_the_wind
 
 INGRESS_SET_UP_DISTANCE_IN = 6.0
 INGRESS_MIN_ENEMY_DISTANCE_IN = 8.0
@@ -99,6 +99,14 @@ class IngressController:
         # Cloudstrider (see game/cloudstrider.py) - which is why it is named
         # after what it DOES rather than after either of them.
         self.relaxed_arrival_squad = None
+        # The Monolith's Eternity Gate (game/eternity_gate.py) - the FOURTH
+        # arrival mode. Its own pair rather than folded into
+        # relaxed_arrival_squad above, because it is the only one that names
+        # a BEARER to measure from AND waives rule 20.04's zone ban: the
+        # Homing Beacon names a bearer but keeps the ban, and the relaxed
+        # pair waives the board edge but names no bearer.
+        self.eternity_gate_squad = None
+        self.eternity_gate_bearer = None
         # Optional callable(squad) - fired once `squad`'s Set Up workflow
         # actually concludes (confirm_ingress() succeeds, or
         # cancel_ingress() abandons it) - wired in main.py to
@@ -213,6 +221,11 @@ class IngressController:
         that is more than 6\"..."), and is strictly the more permissive of the
         two on distance - a player who has just spent 2 CP on it should not
         then be held to the beacon's own 9"."""
+        if self.eternity_gate_squad is squad:
+            # "unengaged (instead of more than 8 inches horizontally from all
+            # enemy units)" - a STATE rather than a band, so rule 03.04's
+            # constant and not a fourth literal.
+            return eternity_gate.ETERNITY_GATE_MIN_ENEMY_DISTANCE_IN
         if self.relaxed_arrival_squad is squad:
             return SHORTENED_BLADE_MIN_ENEMY_DISTANCE_IN
         if self.homing_beacon_bearer is not None:
@@ -260,6 +273,13 @@ class IngressController:
             return False
         if self._has_deep_strike(squad):
             return False
+        if self.eternity_gate_squad is squad:
+            # "even if that is within your opponent's deployment zone" -
+            # PRINTED on the gate, not inherited from the arriving unit. The
+            # Monolith has [DEEP STRIKE]; a Necron Warriors unit coming
+            # through it does not, so reading the waiver off the PASSENGER
+            # would make the ability work only for units that never needed it.
+            return False
         for zone in getattr(self.game_state, "deployment_zones", ()):
             if zone.owner != squad.owner and zone.contains_point(x_in, y_in):
                 return True
@@ -284,6 +304,8 @@ class IngressController:
                 or windrider_daring_riders.is_active(squad))
 
     def _extra_check(self, squad):
+        if self.eternity_gate_squad is squad:
+            return self._eternity_gate_extra_check(squad)
         if self._uses_relaxed_arrival(squad):
             return self._relaxed_arrival_extra_check(squad)
         if self.homing_beacon_bearer is not None:
@@ -373,6 +395,43 @@ class IngressController:
             )
         return errors
 
+    def _eternity_gate_extra_check(self, squad):
+        """The Monolith's Eternity Gate: "must be set up wholly within 6" of
+        this unit and unengaged (instead of more than 8" horizontally from all
+        enemy units), even if that is within your opponent's deployment zone".
+
+        REPLACES the normal placement rule rather than adding to it, the same
+        way the Homing Beacon's does - so there is no board-edge term here and
+        [DEEP STRIKE] is irrelevant, since the rule it would waive does not
+        apply to this arrival at all."""
+        gate = self.eternity_gate_bearer
+        errors = []
+        gate_models = [m for m in gate.models if not m.is_dead()] if gate is not None else []
+        near_gate = bool(gate_models) and all(
+            any(edge_distance(m, b) <= eternity_gate.ETERNITY_GATE_RANGE_IN
+                for b in gate_models)
+            for m in squad.models
+        )
+        if not near_gate:
+            errors.append(
+                'Every model must be set up wholly within %.0f" of "%s" (%s).'
+                % (eternity_gate.ETERNITY_GATE_RANGE_IN,
+                   gate.name if gate is not None else "the Monolith",
+                   eternity_gate.ETERNITY_GATE_LABEL))
+
+        engaged = any(
+            edge_distance(model, enemy) <= eternity_gate.ETERNITY_GATE_MIN_ENEMY_DISTANCE_IN
+            for model in squad.models
+            for enemy in self._enemy_models_of(squad)
+        )
+        if engaged:
+            errors.append(
+                "Every model must be set up unengaged - no model within %.0f\" of an "
+                "enemy model (%s)."
+                % (eternity_gate.ETERNITY_GATE_MIN_ENEMY_DISTANCE_IN,
+                   eternity_gate.ETERNITY_GATE_LABEL))
+        return errors
+
     def _within_setup_distance_of_point(self, x_in, y_in, radius_in):
         if self.board_width_in is None or self.board_height_in is None:
             return True
@@ -417,7 +476,15 @@ class IngressController:
         bearer = self.homing_beacon_bearer
         min_enemy_distance = self._min_enemy_distance(squad)
 
-        if self._uses_relaxed_arrival(squad):
+        if self.eternity_gate_squad is squad:
+            gate = self.eternity_gate_bearer
+            if gate is not None and not any(
+                ((x_in - b.x_in) ** 2 + (y_in - b.y_in) ** 2) ** 0.5
+                    - token.radius_in - b.radius_in <= eternity_gate.ETERNITY_GATE_RANGE_IN
+                for b in gate.models if not b.is_dead()
+            ):
+                return False
+        elif self._uses_relaxed_arrival(squad):
             pass  # "anywhere on the battlefield" - only the distance below applies
         elif bearer is not None:
             if not any(
@@ -466,6 +533,8 @@ class IngressController:
             self._ingressing_squad = None
             self.homing_beacon_bearer = None
             self.relaxed_arrival_squad = None
+            self.eternity_gate_squad = None
+            self.eternity_gate_bearer = None
             for listener in (self.on_ingress_resolved or ()):
                 listener(squad)
 
@@ -477,6 +546,8 @@ class IngressController:
         self._ingressing_squad = None
         self.homing_beacon_bearer = None
         self.relaxed_arrival_squad = None
+        self.eternity_gate_squad = None
+        self.eternity_gate_bearer = None
         for listener in (self.on_ingress_resolved or ()):
             listener(squad)
 

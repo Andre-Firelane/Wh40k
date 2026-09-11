@@ -97,6 +97,15 @@ def effective_movement_in(model):
     # other add/subtract terms - which is the same place Swift as the Wind's
     # note above describes. Applied to `base` instead they would be silently
     # discarded, since `total` is already computed from it.
+    # The Silent King's Relentless March ("add 2 inches to the Move
+    # characteristic of models in that unit") is an AURA and adds on top of
+    # whatever the characteristic has become, exactly like Swift as the Wind
+    # and Whirling Death above. Read off the per-frame squad flag rather
+    # than from the board, because this function gets a MODEL and no tokens
+    # - see game/triarch_auras.py's refresh_active_auras().
+    from game import triarch_auras
+    if triarch_auras.is_active(squad, triarch_auras.RELENTLESS_MARCH):
+        total += triarch_auras.RELENTLESS_MARCH_BONUS_IN
     total += montka_aggressive_mobility.move_bonus_for(squad)
     # Guardian Battlehost's Time to Strike prints Aggressive Mobility's two
     # sentences word for word, so it reads the same two seams - its own flag

@@ -19,9 +19,9 @@ TOP_LEVEL = {"Blood.png", "Dice.png", "Map3.png"}
 # three Storm Guardian weapon variants and the T'au Pathfinder one. Assigned by
 # hand, and listed here so the assignment is visible rather than inferred.
 BY_HAND = {
-    "Aeldari Logo.jpg": "Aeldari",
-    "Ork Logo.jpg": "Orks",
-    "Tau Logo.jpg": "Tau Empire",
+    "Aeldari Logo.png": "Aeldari",
+    "Ork Logo.png": "Orks",
+    "Tau Logo.png": "Tau Empire",
     "Necron Logo.png": "Necrons",
     "Assault Guardian - Flamer.png": "Aeldari",
     "Assault Guardian - Fusion Gun.png": "Aeldari",

@@ -24,6 +24,7 @@ from game.factions.faction import Faction, register_faction
 from game.factions.detachment import Detachment, Enhancement
 from game.factions.necrons_points import NECRONS_POINTS
 from game.units import (
+    MonolithProfile, SzarekhProfile, TriarchalMenhirProfile,
     AnnihilationBargeProfile,
     CanoptekWraithProfile,
     CatacombCommandBargeProfile,
@@ -70,6 +71,10 @@ from game.units import (
     GeomancerProfile,
 )
 from game.weapons import (
+    AnnihilatorBeamProfile, DeathRayProfile, GaussFluxArcProfile,
+    MenhirArmouredBulkProfile, ParticleWhipProfile, PortalOfExileProfile,
+    SceptreOfEternalGloryProfile, StaffOfStarsProfile,
+    WeaponsOfTheFinalTriarchProfile,
     ArmouredBulkProfile,
     CatacombCommandBargeStaffOfLightMeleeProfile,
     CatacombCommandBargeStaffOfLightRangedProfile,
@@ -1922,6 +1927,117 @@ GEOMANCER = NECRONS.add_datasheet(Datasheet(
         "you control, enemy units that are set up on the battlefield from Reserves cannot "
         "be set up within 12\" of this model.\" - the FIRST rule in this engine that "
         "restricts where the OPPONENT may arrive; see game/obelisk_node_control.py.",
+    ],
+))
+
+
+_MONOLITH_LINE = "Monolith"
+MONOLITH_ARCS_TO_DEATH_RAYS = "4x Gauss Flux Arc -> 4x Death Ray"
+
+MONOLITH = NECRONS.add_datasheet(Datasheet(
+    "Monolith",
+    keywords=("VEHICLE", "TITANIC", "FLY", "FRAME", "TOWERING", "MONOLITH",
+              "NECRONS"),
+    model_lines=[ModelLine(MonolithProfile, 1,
+                           # "equipped with: 4 gauss flux arcs; particle whip;
+                           # portal of exile" - the arc is printed four times
+                           # and so is listed four times.
+                           [GaussFluxArcProfile, GaussFluxArcProfile,
+                            GaussFluxArcProfile, GaussFluxArcProfile,
+                            ParticleWhipProfile, PortalOfExileProfile],
+                           name=_MONOLITH_LINE)],
+    wargear_options=[
+        # "This model's 4 gauss flux arcs can be replaced with 4 death rays."
+        # ALL FOUR or none - there is no "up to" in the printed line, which is
+        # why no max_models cap appears here.
+        WargearOption(_MONOLITH_LINE,
+                      replaces=(GaussFluxArcProfile,) * 4,
+                      with_weapons=[DeathRayProfile] * 4,
+                      name=MONOLITH_ARCS_TO_DEATH_RAYS),
+    ],
+    points=NECRONS_POINTS["Monolith"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Deadly Demise D6, Deep Strike (Core).",
+        "Eternity Gate: \"In your Movement phase (excluding the first battle round), you "
+        "can select one friendly NECRONS INFANTRY unit that is either in strategic "
+        "reserves or on the battlefield (if you select a unit on the battlefield, remove "
+        "that unit from the battlefield and place it into strategic reserves). That unit "
+        "can make an ingress move, and while making that ingress move, that unit must be "
+        "set up wholly within 6\" of this unit and unengaged (instead of more than 8\" "
+        "horizontally from all enemy units), even if that is within your opponent's "
+        "deployment zone. That unit cannot make a charge move this turn.\" - the FOURTH "
+        "arrival mode; see game/eternity_gate.py.",
+        "Damaged: 1-7 Wounds Remaining: \"While this model has 1-7 wounds remaining, "
+        "subtract 4 from its Objective Control characteristic and each time this model "
+        "makes an attack, subtract 1 from the Hit roll.\" - the Hit half is the generic "
+        "UnitProfile.damaged_threshold; the OC half is UnitProfile.damaged_oc_penalty, "
+        "read in game/objective_control.py.",
+        "NOTE: TITANIC is read off this keyword bar by game/titanic.py, never off a "
+        "profile flag - four modules used to read a `titanic` attribute UnitProfile "
+        "never declared.",
+        "NOT ENGINE-WIRED: TOWERING. It is a visibility rule (\"can be seen over other "
+        "models\") and this engine models no verticality at all - the same documented "
+        "simplification that leaves Plunging Fire (22.05) out.",
+        "NOT ENGINE-WIRED: FRAME. A base-shape note with no rule attached to it.",
+    ],
+))
+
+_SZAREKH_LINE = "Szarekh"
+_TRIARCHAL_MENHIR_LINE = "Triarchal Menhir"
+
+THE_SILENT_KING = NECRONS.add_datasheet(Datasheet(
+    "The Silent King",
+    # "KEYWORDS - ALL MODELS: VEHICLE; EPIC HERO; TRIARCH" then "SZAREKH MODEL:
+    # CHARACTER; THE SILENT KING". The datasheet-level bar is the ALL MODELS
+    # half; CHARACTER is Szarekh's alone and lives on his profile, so a
+    # Triarchal Menhir does not inherit rule 05.03's allocation protection or
+    # [PRECISION] from a bar it is not on.
+    keywords=("VEHICLE", "EPIC HERO", "TRIARCH", "NECRONS"),
+    model_lines=[
+        ModelLine(SzarekhProfile, 1,
+                  [SceptreOfEternalGloryProfile, StaffOfStarsProfile,
+                   WeaponsOfTheFinalTriarchProfile],
+                  name=_SZAREKH_LINE),
+        ModelLine(TriarchalMenhirProfile, 2,
+                  [AnnihilatorBeamProfile, MenhirArmouredBulkProfile],
+                  name=_TRIARCHAL_MENHIR_LINE),
+    ],
+    # NO wargear_options - the datasheet prints no Wargear Options section.
+    points=NECRONS_POINTS["The Silent King"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Deadly Demise D6+3 (Szarekh model only) (Core).",
+        "Voice of the Triarch: \"At the start of the battle round, select one Triarch "
+        "ability (see left). Until the start of the next battle round, this unit has "
+        "that ability.\" - see game/triarch_auras.py.",
+        "Phaeron of the Stars (Aura): \"While a friendly NECRONS unit (excluding MONSTER "
+        "units) is within 6\" of this unit's Szarekh model, each time a model in that "
+        "unit makes an attack, re-roll a Hit roll of 1 and re-roll a Wound roll of 1.\" "
+        "- see game/triarch_auras.py.",
+        "Phaeron of the Blades (Aura): \"While a friendly NECRONS unit (excluding MONSTER "
+        "units) is within 6\" of this unit's Szarekh model, you can re-roll Charge rolls "
+        "made for that unit and each time a model in that unit makes a melee attack, add "
+        "1 to the Strength characteristic of that attack.\" - the charge half is "
+        "game/charge_reroll.py's second carrier; see game/triarch_auras.py.",
+        "Relentless March (Aura): \"While a friendly NECRONS unit (excluding MONSTER "
+        "units) is within 6\" of this unit's Szarekh model, add 2\" to the Move "
+        "characteristic of models in that unit.\" - see game/triarch_auras.py.",
+        "The Silent King: \"While a friendly NECRONS unit is within 6\" of this unit's "
+        "Szarekh model, improve that unit's Leadership characteristic by 1.\" - NOT one "
+        "of the three swappable Triarch abilities, so it is always on, and it prints NO "
+        "MONSTER exclusion; see game/silent_king_leadership.py.",
+        "Triarchal Menhirs: \"If this unit's Szarekh model is destroyed, all of this "
+        "unit's remaining Triarchal Menhir models are also destroyed.\" - see "
+        "game/triarchal_menhirs.py.",
+        "Damaged: 1-6 Wounds Remaining: \"While this unit's Szarekh model has 1-6 wounds "
+        "remaining, halve the Attacks characteristic of that model's weapons, and each "
+        "time this unit makes an attack, subtract 1 from the Hit roll.\" - TWO different "
+        "subjects in one sentence; see game/damaged_attacks.py.",
+        "NOT ENGINE-WIRED: Supreme Commander (\"If this unit is in your army, it must be "
+        "your Warlord.\"). A demonstrated no-op - nothing in this engine reads a Warlord, "
+        "the same finding recorded for Commander Farsight and for Shadowsun's own "
+        "Supreme Commander line.",
     ],
 ))
 

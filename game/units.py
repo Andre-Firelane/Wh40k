@@ -192,6 +192,8 @@ class UnitProfile:
     starscythe = False  # Crisis Starscythe Battlesuits' "Starscythe" ability (user-supplied, not a core rule): improves the AP of this model's ranged attacks (excluding MONSTER/VEHICLE targets) - see game/starscythe.py
     battlesuit_support_system = False  # Crisis Starscythe Battlesuits' "Battlesuit Support System" ability (user-supplied, not a core rule): this unit remains eligible to shoot after Falling Back - see squad_has_battlesuit_support_system()
     damaged_threshold = None  # Ghostkeel Battlesuit's own "Damaged: 1-4 Wounds Remaining" ability (user-supplied, not a core rule): while this model's own current_wounds is at or below this value, -1 to its own Hit rolls - None = no such tier, see game/shooting.py's _damaged_modifier()
+    damaged_oc_penalty = 0  # the SECOND half of a "Damaged:" tier, printed only by the Monolith so far: "subtract 4 from its Objective Control characteristic" while at or below damaged_threshold. 0 = the tier (if any) touches only the Hit roll, true of every other damaged datasheet here - see game/objective_control.py's effective_oc(), where it is a WORSENER beside Scabrous Soulrot and clamped at 0
+    damaged_halves_attacks = False  # the SECOND half of The Silent King's "Damaged:" tier: "halve the Attacks characteristic of that model's weapons" while at or below damaged_threshold. Rounds UP, the core-rules convention for halving - see game/damaged_attacks.py, which both attack steps read
     stealth_drones = 0  # Ghostkeel Battlesuit's own "Stealth Drones" ability (user-supplied, not a core rule): max uses per BATTLE of "change an allocated attack's Damage to 0" - 0 = no ability, see game/stealth_drones.py
     burning_lance = False  # Fuegan's own ability: while he is LEADING a unit, Melta weapons in that unit add 6" to their Range characteristic - see game/burning_lance.py / game/weapon_range.py
     unquenchable_resolve = False  # Fuegan's own ability: the first time this model is destroyed it rolls a D6 at the end of the phase and returns on a 2+ - see game/unquenchable_resolve.py
@@ -4814,6 +4816,125 @@ class GhostArkProfile(UnitProfile):
     transport_capacity = 11
     transport_pools = ((10, ("NECRON WARRIORS",)),
                        (1, ("NECRONS", "INFANTRY", "CHARACTER")))
+
+
+class MonolithProfile(UnitProfile):
+    """The first TITANIC model in this engine, and the first TOWERING one.
+
+    BOTH KEYWORDS ARE READ OFF THE DATASHEET, not off a profile flag, and that
+    is not an omission: stage 0 of this backfill found FOUR places reading a
+    `titanic` attribute UnitProfile never declared - unconditionally False, and
+    looking wired from the inside. game/titanic.py is the one definition now
+    and it asks the keyword bar, so this profile deliberately carries no flag
+    for it.
+
+    TOWERING AND FRAME ARE NOT MODELLED, and are named in the datasheet's
+    abilities_text rather than silently dropped. TOWERING is a visibility rule
+    ("can be seen over other models"), and this engine has no verticality at
+    all - the same documented simplification that makes Plunging Fire 22.05
+    absent. FRAME is a base-shape note with no rule attached.
+
+    THE BASE IS A TABLE-SIZE DECISION WITH NO PRECEDENT, and a user one:
+    "2.5\", dazwischen". The printed 160 mm is r=3.150" and the Defiler -
+    which prints the SAME 160 mm - plays at 2.1", the value every large hull
+    in this repo shares (Falcon, Battlewagon, Kill Rig, Doomsday Ark, the
+    three stage-8 skimmers). Neither answer was taken: 2.1" would make the
+    biggest model in the game exactly as wide as a Falcon, and 3.150" would
+    make it half again wider than anything else on the board. 2.5" is a new
+    decision rather than a transcription or a precedent, which is why it is
+    written down here with both rejected values beside it."""
+    name = "Monolith"
+    base_radius_in = 2.5            # printed 160 mm (r=3.150"); a NEW table-size decision, see the docstring - neither the printed value nor the Defiler's 2.1"
+    movement_in = 8
+    weapon_skill = "2+"             # portal of exile
+    ballistic_skill = "3+"          # all three ranged rows agree, so no weapon carries an override
+    toughness = 13
+    wounds = 22
+    leadership = "7+"
+    armor_save = "2+"
+    oc = 8
+    vehicle = True
+    fly = True
+    deep_strike = True
+    reanimation_protocols = True
+    deadly_demise = 6                   # documentation leftover only, see deadly_demise_notation below
+    deadly_demise_notation = D6()       # "Deadly Demise D6"
+    eternity_gate = True                # see game/eternity_gate.py
+    # "Damaged: 1-7 Wounds Remaining ... subtract 4 from its Objective Control
+    # characteristic and ... subtract 1 from the Hit roll." TWO effects, and
+    # the OC half is the one no earlier damaged datasheet printed - hence
+    # damaged_oc_penalty, read in game/objective_control.py.
+    damaged_threshold = 7
+    damaged_oc_penalty = 4
+
+
+class SzarekhProfile(UnitProfile):
+    """The Silent King's own model. Rule 19.01 never reaches this datasheet -
+    it prints no Leader line at all - so Szarekh and his two Menhirs are one
+    unit by COMPOSITION, the way Cryptothralls are not.
+
+    DEADLY DEMISE IS SZAREKH'S ALONE ("Deadly Demise D6+3 (Szarekh model
+    only)"), so the Menhir profile below carries none. A flat reading that put
+    it on the unit would detonate three times."""
+    name = "Szarekh"
+    base_radius_in = 1.969          # printed 100 mm
+    movement_in = 8
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 10
+    wounds = 16
+    leadership = "6+"
+    armor_save = "2+"
+    oc = 6
+    invulnerable_save = "4+"
+    vehicle = True
+    character = True
+    epic_hero = True
+    reanimation_protocols = True
+    deadly_demise = 9                   # documentation leftover only, see deadly_demise_notation below
+    deadly_demise_notation = D6(3)      # "Deadly Demise D6+3 (Szarekh model only)"
+    voice_of_the_triarch = True         # see game/triarch_auras.py
+    silent_king_leadership = True       # see game/silent_king_leadership.py
+    # "Damaged: 1-6 Wounds Remaining ... halve the Attacks characteristic of
+    # that model's weapons, and each time this unit makes an attack, subtract 1
+    # from the Hit roll." The Hit half is the generic field; the Attacks half
+    # is this datasheet's own, see game/damaged_attacks.py.
+    #
+    # THE TWO HALVES HAVE DIFFERENT SUBJECTS and the printed words say so:
+    # halving is "that MODEL's weapons" (Szarekh's), the Hit penalty is "this
+    # UNIT" (Szarekh AND both Menhirs). damaged_threshold is per model, so the
+    # Menhirs would never take the Hit penalty from their own wounds - that is
+    # why game/damaged_attacks.py answers the unit-wide half instead.
+    damaged_threshold = 6
+    damaged_halves_attacks = True
+
+
+class TriarchalMenhirProfile(UnitProfile):
+    """The two floating obelisks that come with Szarekh. Same T/Sv/Ld and the
+    same 4+ invulnerable, a fifth of his wounds, OC 1, and NO deadly demise
+    (his line says "Szarekh model only").
+
+    NOT A CHARACTER and not an EPIC HERO in its own right: the printed keyword
+    bar splits them ("KEYWORDS - ALL MODELS: VEHICLE; EPIC HERO; TRIARCH" then
+    "SZAREKH MODEL: CHARACTER; THE SILENT KING"), so EPIC HERO is shared and
+    CHARACTER is Szarekh's alone. Reading CHARACTER onto the Menhirs would hand
+    rule 05.03's allocation protection and [PRECISION] to two bodyguard
+    obelisks the datasheet never gives it to."""
+    name = "Triarchal Menhir"
+    base_radius_in = 0.984          # printed 50 mm
+    movement_in = 8
+    weapon_skill = "4+"             # armoured bulk - the A1 S4 fork, see MenhirArmouredBulkProfile
+    ballistic_skill = "2+"          # annihilator beam
+    toughness = 10
+    wounds = 5
+    leadership = "6+"
+    armor_save = "2+"
+    oc = 1
+    invulnerable_save = "4+"
+    vehicle = True
+    epic_hero = True
+    reanimation_protocols = True
+    triarchal_menhir = True             # see game/triarchal_menhirs.py - "if Szarekh is destroyed, all remaining Menhirs are destroyed too"
 
 
 class CtanShardProfile(UnitProfile):
