@@ -2379,6 +2379,63 @@ hatten wir mal überarbeitet ua. mit logos der fraktionen").
   Spion meldete erst ein wahrheitsgetreu aussehendes 0 für eine Partie, die nie stattfand — `runpy`
   mit `run_name="__main__"`.
 
+#### Und die Kacheln sind groesser: LOGO_BOX 58 -> 72 (2026-09-11)
+
+**Gemeldet:** *"mach die faction logos ingame in der rechten spalte etwas groesser."*
+
+- **Den Platz hatte der RUNDENZAEHLER hinterlassen.** Die zwei Kacheln hugen die Kanten des
+  Inhaltsbereichs, und der Balken dazwischen fuellte frueher die Mitte; seit er in den
+  Fortschrittsbalken am oberen Brettrand gewandert ist, standen dort **84 px tote Flaeche**. 72
+  laesst 56 davon stehen — weiter klar zwei Kacheln statt eines Paars — und vergroessert die KUNST
+  von einem 50-px- auf ein 64-px-Quadrat (`LOGO_BOX - 2 * LOGO_PADDING`).
+- **Die DECKE ist das Zug-Banner, nicht diese Spalte.** `turn_start_overlay.BADGE_BOX` (76) ist
+  bewusst das groessere der beiden — Schaukasten in der Bildschirmmitte mit 460 px gegen eine
+  Referenzkachel in einer 200-px-Spalte — und `test_turn_start_overlay.py` pinnt die Ordnung. Die
+  zwei liegen jetzt enger beieinander; die ORDNUNG ist die Design-Aussage, nicht die Marge, und
+  wer die Panel-Kachel weiter wachsen laesst, muss das Banner mitziehen. Steht an BEIDEN
+  Konstanten.
+- **Alles Uebrige ist GEMESSEN und hat Luft:** die zwei „see rules"-Links werden WEITER (sie sind
+  unter ihrer eigenen Kachel zentriert, ein breiterer Tile schiebt ihre Mitte von der Panelkante
+  weg — 29 → 36 px Halbbreite), das lange Label passt weiterhin nicht (83 > 72), also aendert sich
+  die Beschriftung nicht; und die 14 px, die die Gruppe waechst, kosten den Log-Streifen auf einem
+  1080er Schirm **nichts** (er bleibt bei vollen 480) und lassen ihm auf einem 720er noch 212 px.
+- **Der MONOGRAMM-Rueckfall musste mitwachsen, sonst waere die Zusicherung des Moduls still falsch
+  geworden.** `faction_badge.py`s Docstring sagt „only the FONT is searched to fit, so a bigger
+  tile costs nothing here" — das gilt nur, solange die Suche Kopfraum hat.
+  `MONOGRAM_FONT_SIZES` endete bei 44 und war **schon bei der alten 50-px-Innenbox die Antwort**,
+  also bekamen beide Kacheln 48x30 Lettern, egal wie viel Platz sie hatten. 56/52/48 davor; beide
+  lebenden Boxen (Panel 64, Banner 68) waehlen jetzt 56.
+  **NICHT als inert behauptet, sondern gemessen:** bei einer 50-px-Box wuerde „TE" von 44 auf 48pt
+  gehen (46x30 → 50x33, weiter in der Kachel). Kein Aufrufer hat mehr eine 50-px-Box, es rendert
+  also nichts davon — aufgeschrieben, weil „diese Eintraege aendern unterhalb X nichts" genau die
+  Sorte Satz ist, die angenommen statt geprueft wird.
+- **ZWEI Pins in `test_faction_badges.py` waren PROXYS, die den Kopfraum verbraucht hatten, und
+  sind auf die BEHAUPTUNG umgestellt.** „Die Spalten ERSETZEN die zwei beschrifteten Gruppen,
+  statt sie zu ergaenzen" wurde an der Position des Buttons gemessen — dreimal nachkalibriert
+  (Army-Rules-Link dazu, Rundenzaehler weg) und jetzt endgueltig gekippt: die Badge-Form ist
+  4 px TALLER als die Lang-Form (288 gegen 284), waehrend sie strikt WENIGER Gruppen zeichnet.
+  **Das ist der Stellvertreter, der faellt, nicht die Aussage.** Gezaehlt werden jetzt die
+  GRUPPEN-Kaesten (jeder `rect.width - 12` breit, was sie von den Kacheln und ihren Glow-Ringen
+  trennt, die durch dasselbe `draw_box()` gehen) — keine kuenftige Kachel- oder Zeilenhoehe kann
+  das mehr falsch antworten lassen. A/B belegt (die drei `not score_columns`-Tore entschaerft →
+  beide Zeilen rot).
+- **Ein VORBESTEHENDER roter Pin derselben Datei ist mitgefixt**, und er ist die Lehre wert: „the
+  Ork badge art is drawn in the right tile" nannte die GRUENE Farbe von `Ork Logo.jpg`
+  (94, 166, 93). Eine Parallelsitzung hat die Datei durch ein schwarz-braunes `.png` ersetzt
+  (`8c13d29`), und die Zeile wurde rot gegen ein Panel, das die Kunst einwandfrei zeichnete — sie
+  pinnte EIN BILD, nicht das Verhalten. **Die naheliegende Reparatur ist schlechter:** die
+  dominante Farbe des neuen Bildes ist (16, 0, 0), also innerhalb von 40 zur Kachel-Hintergrundfarbe
+  — sie koennte Kunst nicht von einem leeren Rahmen unterscheiden, und genau das hat die eigene
+  Liveness-Zeile gemeldet. Gemessen wird jetzt die DECKUNG gegen dieselbe Kachel ohne Kunst
+  (Kunst 2801 von 3844 px, Monogramm 1134): ein Logo fuellt seine Kachel, zwei Buchstaben nicht,
+  und der Monogramm-Wert ist der BODEN statt einer Konstante, also haelt die Aussage bei jeder
+  Kachelgroesse. A/B belegt (Kunst-Blit entfernt → rot).
+- **Getestet:** `test_faction_badges.py` 64 → **65/65**, `test_turn_start_overlay.py` **36/36**,
+  `test_army_rules_overlay.py` **122/122**, `test_game_menu.py` **208/208**. Volle Regression
+  **224 Suiten, ~20503 Pruefungen, 223 gruen / 0 rot / 1 bekannt** — der eine vorbestehende
+  Fehlschlag ist damit ebenfalls weg. Dazu `selfplay.py map2 1200` (exit 0), weil
+  `game/ui/game_status_panel.py` pro Frame in der Renderkette laeuft.
+
 ## Der Rundenbalken am oberen Brettrand (game/ui/round_progress_bar.py)
 
 **Die Rundenzahl im rechten Panel ist durch einen Fortschrittsbalken ersetzt**
@@ -2580,6 +2637,69 @@ zusätzlich MOUSEBUTTONDOWN 4/5, ohne die Prüfung schließt Scrollen das Fenste
   `section_font.get_height()` (13), das Zeichnen die gerenderte Fläche (15) — 6 px über drei
   Abschnitte. `_heading_height()` ist jetzt die eine Antwort. Dieselbe Prüfung hat bei den
   Missionskarten schon einmal einen doppelt gezählten Abstand gefunden.
+
+### Am ENDE der Schlacht geht es von selbst auf (2026-09-11)
+
+**Gemeldet:** *"Am ende des spiels soll das Statistik Overlay angezeigt werden."* Reproduziert an
+der Quelle: `unit_stats_overlay_view.show()` hatte GENAU EINE Aufrufstelle, den Knopf in der
+Brett-Ecke. Die Schlacht endete auf dem Punktekasten, ein Klick legte ihn weg, und das Resümee —
+also die Analyse genau des Punktestands, den man gerade gelesen hat — wurde nie angeboten.
+
+- **GEKETTET statt gleichzeitig erhoben, und das ist erzwungen statt gewählt:** die
+  Statistik-Overlay wird als LETZTES im Frame gezeichnet (über jeder Notice) und besitzt jedes
+  Event aus ihrem eigenen Pre-Chain-Zweig — beide zugleich zu erheben würde den Endstand unter ihr
+  begraben. Also Punktestand, dann die Analyse, wie er zustande kam; das ist ohnehin die
+  Reihenfolge, in der man sie lesen will. Eine Zeile in `main.py`s Dismiss-Zweig, falls es
+  andersherum sein soll.
+- **Die drei Argumente sind DIE des Knopfes**, nicht eine zweite Herleitung: zwei Aufrufstellen,
+  die sich darüber uneinig werden, welche Armeen oder welches Ledger auf dem Schirm sind, sind
+  genau die Drift, die dieses Repo laufend konsolidiert. Eine im Kampf AUSGELÖSCHTE Einheit steht
+  weiter auf der Tabelle (das Ledger keyt nach NAMEN und filtert nicht auf Lebende), nur ohne ihre
+  Kunst — `state.all_squads()` führt sie nicht mehr, und das ist richtig: sie hat die Zahlen
+  verdient.
+- **Die HINWEISZEILE des Punktekastens musste mit**, sonst verspricht sie den Schirm, den man ZWEITENS
+  erreicht: `battle_end_overlay.DISMISS_HINT` steht jetzt auf "Click for the unit statistics".
+  Als KONSTANTE und nicht als `show()`-Argument — der Kasten hat genau einen Aufrufer und der
+  kettet immer, ein Parameter wäre nur ein zweiter Ort zum Widersprechen.
+- **Der Wächter pinnt SIBLING STATEMENTS, nicht einen Teilstring** (`test_battle_end.py` §4): die
+  zwei Aufrufe müssen in DERSELBEN Anweisungsliste stehen, also erreicht jede Bedingung, die den
+  Dismiss erreicht, auch die Show — und kein Zweig lässt sich dazwischenschieben. Ein Teilstring
+  `unit_stats_overlay_view.show(` ist schon durch die Aufrufstelle des Knopfes wahr, und ein
+  AST-Pin, der bloß den Zweig durchläuft, überlebt ein `if False:` eine Ebene tiefer (eigene
+  A/B-Sonde dafür).
+- **Die Hinweis-Prüfung misst das GEZEICHNETE, nicht die Konstante** — und das ist ein Befund der
+  eigenen Sonde: die Fassung, die die Konstante ausliefert und in `draw()` ihr altes Literal
+  behält, erfüllte jede Prüfung gegen `DISMISS_HINT` und zeigte weiter den alten Text. Gemessen
+  wird jetzt über einen Spion auf `hint_font.render`. **Beide Hälften bleiben** (nennt die
+  Statistik UND nennt das Brett nicht mehr): die erste besteht auf einem Hinweis, der beides
+  verspricht.
+- **Getestet:** `test_battle_end.py` 34 → **50/50** (neuer Abschnitt 4) plus neu
+  `ab_battle_end_resume.py` (**8 A/B-Sonden, alle beißend**; die ganze Vor-Fix-Welt kippt 4).
+  Volle Regression **224 Suiten, ~20503 Prüfungen, 223 grün / 0 rot / 1 bekannt**, `--smoke`
+  komplett grün.
+- **Im ECHTEN Spiel belegt** (`verify_battle_end_resume.py`, `runpy` auf `selfplay.py`s echte
+  `main()`-Schleife):
+
+  | | gefixt | `--neutralize` |
+  |---|---|---|
+  | Punktekasten erhoben (durch `_check_battle_end()`) | Frame 501 | Frame 501 |
+  | Resümee schon dahinter offen? | **False** | False |
+  | **Resümee nach dem ECHTEN Klick geöffnet** | **Frame 501, 5 Zeilen** | **NIE** |
+  | Frames, in denen es gezeichnet wurde | **1008** | **0** |
+
+  **EINE Tatsache wird gestellt** — `turn_tracker.battle_over`, das Flag, das `advance_phase()` im
+  letzten Zug der letzten Runde setzt. Eine Schlacht sind ~50 Phasenwechsel und ein MockAgent-Lauf
+  schafft gemessen ~7 je 3000 Frames (die dokumentierte Harness-Grenze), das letzte Zugende ist
+  passiv also unerreichbar, und ein passiver Zähler hätte 0 gemeldet und wie ein Bestehen
+  ausgesehen. Alles danach ist echt: `_check_battle_end()` samt seinem Entscheidungs-Tor, die
+  echte Event-Kette, die echten Overlays, das von `main()` veröffentlichte Ledger.
+  **`--neutralize` blendet NUR die Aufrufstelle des Battle-End-Zweigs aus** (per Zeilennummer aus
+  dem AST), der Ecken-Knopf funktioniert weiter — das ist die Vor-Fix-Welt und nicht eine Welt mit
+  abgeschaltetem Feature.
+  **Zwei eigene Sondenfehler, beide gemessen:** ein stehender Prompt hält `_check_battle_end()` per
+  Design auf, wird also über den Pump beantwortet statt umgangen; und selfplay klickt pro Frame
+  aufs Brett, sodass die Resümee-Overlay sich in ZWEI Frames wieder schloss — die Sonde hält
+  deshalb kurz die Maustasten zurück, sonst misst "es wurde gezeichnet" nichts.
 
 ### Speichern
 

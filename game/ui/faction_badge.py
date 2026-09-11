@@ -9,9 +9,10 @@ delegates its own method here, so its pixel tests are unchanged BY
 CONSTRUCTION rather than by being re-run and hoped over.
 
 THE TILE RECT IS THE CALLER'S, and that is the whole reason this takes one
-instead of a size. The panel's LOGO_BOX (58 px) is sized for a 200 px column;
+instead of a size. The panel's LOGO_BOX (72 px) is sized for a 200 px column;
 a screen-centre banner has no such constraint and picks its own. Only the FONT
-is searched to fit, so a bigger tile costs nothing here.
+is searched to fit, so a bigger tile costs nothing here - which is what let the
+panel's tile grow on request without this module being touched at all.
 
 WHAT "active" MEANS is also the caller's: the panel lights up
 turn_tracker.active_player (the transient "who is the game waiting on"), while
@@ -36,7 +37,23 @@ MONOGRAM_COLOR = (135, 175, 205)
 #: Font sizes tried largest-first when fitting a monogram into its tile. Only
 #: the SIZE is searched - the box comes from the caller's rect, so this list
 #: does not have to be maintained alongside any one of them.
-MONOGRAM_FONT_SIZES = (44, 40, 36, 32, 28, 24, 20, 16, 12)
+#:
+#: IT HAS TO HAVE HEADROOM ABOVE EVERY CALLER, or the docstring's "a bigger tile
+#: costs nothing here" quietly stops being true: font_for() returns the largest
+#: entry that FITS, so a list whose top is already the answer at the smallest
+#: tile renders the same lettering in every roomier box. Measured when the
+#: panel's tile grew to 72px (inner 64): the old list topped out at 44 and was
+#: ALREADY the answer at the old 50px inner box, so both live tiles were
+#: getting 48x30 of lettering no matter how much room they had. 56/52/48 give
+#: the search somewhere to go; both live boxes (panel 64, banner 68) now pick
+#: 56 and fill ~90% of their width.
+#:
+#: Not claimed to be inert at the sizes that came before - measured, the old
+#: 50px box would move "TE" from 44 to 48pt (46x30 -> 50x33, still inside its
+#: tile). No caller has a 50px box any more, so nothing shipped renders that;
+#: it is written down because "these entries change nothing below X" is the
+#: kind of thing that is assumed rather than checked.
+MONOGRAM_FONT_SIZES = (56, 52, 48, 44, 40, 36, 32, 28, 24, 20, 16, 12)
 
 _FONTS = {}   # (text, box px) -> font, see font_for()
 

@@ -222,12 +222,32 @@ resume.dismiss()
 checks.eq("and a click on the resume leaves the final board", resume.is_pending, False)
 
 # The hint on the score box has to name the screen the click actually reaches.
-# Both halves: it names the statistics AND no longer names the board - "names
-# the new thing" passes on a string that promises both.
+# Measured at what is DRAWN, not at the constant: a version that ships the
+# constant and keeps its own literal in draw() satisfies every check made
+# against DISMISS_HINT while showing the old text on screen, and the probe for
+# exactly that was the one that came back SILENT.
+drawn_hint = []
+hinted = BattleEndOverlay()
+hinted.show(mission)
+_real_render = hinted.hint_font.render
+hinted.hint_font = type("Spy", (), {
+    "render": lambda _self, text, *a, **k: (drawn_hint.append(text),
+                                            _real_render(text, *a, **k))[1],
+    "get_height": lambda _self: _real_render("x", True, (0, 0, 0)).get_height(),
+})()
+hinted.draw(pygame.Surface((1280, 720)))
+# Liveness: no rendered hint at all satisfies both absence checks below by
+# measuring nothing.
+checks.eq("the score box draws exactly one hint line", len(drawn_hint), 1)
+# Both halves. "names the statistics" passes on a string that promises both
+# screens, so the second half is what stops the hint from hedging forever.
 checks.true("the score box's hint names the statistics",
-            "statistic" in battle_end_overlay.DISMISS_HINT.lower())
+            any("statistic" in t.lower() for t in drawn_hint))
 checks.eq("...and no longer promises the board",
-          "board" in battle_end_overlay.DISMISS_HINT.lower(), False)
+          any("board" in t.lower() for t in drawn_hint), False)
+# ...and it is the module constant that decides it, so the text has one home.
+checks.eq("...read from the module's own constant",
+          drawn_hint, [battle_end_overlay.DISMISS_HINT])
 
 # Wiring, by AST rather than substring: `unit_stats_overlay_view.show(` is true
 # of the corner button's own call site further up the file, and of a line

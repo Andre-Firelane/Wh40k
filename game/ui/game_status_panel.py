@@ -15,7 +15,25 @@ SECTION_GAP = 14         # vertical gap between the bordered content groups
 BOX_INNER_PADDING = 8    # padding between a group's border and its own text
 
 # --- faction badge row (top group) ---
-LOGO_BOX = 58            # px, the square tile one faction badge is drawn in
+#: px, the square tile one faction badge is drawn in.
+#:
+#: 58 -> 72 on user request ("mach die faction logos ingame in der rechten
+#: spalte etwas groesser"). What made the room was the ROUND COUNTER leaving:
+#: the two tiles hug the content edges and the bar between them used to fill
+#: the middle, so after it moved to the top progress bar there were 84px of
+#: dead space there. 72 leaves 56 of them, which still reads as two tiles
+#: rather than one pair, and grows the artwork inside from a 50px square to a
+#: 64px one (LOGO_BOX - 2 * LOGO_PADDING).
+#:
+#: THE CEILING IS THE TURN BANNER, not this column: turn_start_overlay's
+#: BADGE_BOX (76) is deliberately the bigger of the two - it is a screen-centre
+#: showcase with 460px to spend, where this is a reference tile in a 200px
+#: column - and test_turn_start_overlay.py pins that ordering. Everything else
+#: this touches was measured and has room: the two "see rules" links get
+#: WIDER (they are centred under their own tile, see ARMY_RULES_LINK_SHORT_TEXT
+#: below), and the 14px the group grows costs the log strip nothing on a 1080
+#: screen and leaves it 212px on a 720 one.
+LOGO_BOX = 72
 LOGO_GAP = 6             # px between a tile and the Round bar sitting between the two
 NAME_ROW_HEIGHT = 20     # px reserved for the "P1: AELDARI" line under the tiles
 LABEL_MIN_GAP = 10       # px the two labels must keep between them, or the "P1: " prefixes are dropped (see _badge_labels)
@@ -46,12 +64,17 @@ ARMY_RULES_LINK_TEXT = "see rules"
 #:
 #: MEASURED, and the binding constraint is the CENTRING, not the total width:
 #: each link is centred under a LOGO_BOX tile whose centre sits LOGO_BOX/2 =
-#: 29px from the panel's content edge, so a link may be at most 58px wide
+#: 36px from the panel's content edge, so a link may be at most 72px wide
 #: including its click padding. The old "see army rules" is 75px + 8px of pad
-#: = 83px, which hangs 12px off each side of the panel. "see rules" is 47 + 8
-#: = 55px and fits with 3px to spare. Two of the old label WOULD have packed
+#: = 83px, which hangs 6px off each side of the panel. "see rules" is 47 + 8
+#: = 55px and fits with 17px to spare. Two of the old label WOULD have packed
 #: side by side (166px inside a 200px column) - it is where they have to SIT
 #: that rules them out.
+#:
+#: The numbers moved when LOGO_BOX grew from 58 to 72 and the room went UP,
+#: not down - a wider tile pushes its own link's centre further from the panel
+#: edge. The long label still does not fit (83 > 72), so the wording this
+#: constant exists for is unchanged; only the margin it wins by is.
 ARMY_RULES_LINK_SHORT_TEXT = "rules"
 ARMY_RULES_LINK_COLOR = (130, 190, 235)
 ARMY_RULES_LINK_HOVER_COLOR = (190, 230, 255)

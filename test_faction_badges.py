@@ -248,10 +248,44 @@ checks.true("...and the right one is not", p1_right < p1_left / 4)
 checks.true("Player 2 active: the right badge is framed instead", p2_right > 100)
 checks.true("...and the left one is not", p2_left < p2_right / 4)
 
-# Ork green inside the right tile: proof the artwork itself is blitted, not
-# just an empty framed square.
+# The artwork itself is blitted, not just an empty framed square - measured as
+# how much of the tile's inside is INKED, against the same tile drawn with no
+# art at all.
+#
+# This used to name a colour: the green of "Ork Logo.jpg" (94, 166, 93). That
+# file was replaced with a black-and-brown .png and the check went red against
+# a panel that was drawing the art perfectly well - it was pinning one image
+# rather than the behaviour. Sampling the new file's dominant colour instead
+# was the obvious repair and is worse: measured, that colour is (16, 0, 0),
+# within 40 of the tile's own background, so it could not tell art from an
+# empty box.
+#
+# Coverage separates them by construction and cannot go stale when a logo is
+# redrawn: a logo fills most of its tile, two letters do not. Measured at
+# LOGO_BOX 72: art 2801 of 3844 px, monogram 1134. The monogram render is the
+# floor rather than a constant, so the claim stays "art covers more than
+# lettering does" at any tile size.
+def tile_ink(surf, rect):
+    """Pixels inside `rect` that are not the box background."""
+    background = gsp.button_style.BOX_BG_COLOR
+    hits = 0
+    for x in range(rect.left, rect.right):
+        for y in range(rect.top, rect.bottom):
+            pixel = surf.get_at((x, y))
+            if max(abs(a - b) for a, b in zip(pixel[:3], background)) > 30:
+                hits += 1
+    return hits
+
+
+art_inside = right_tile.inflate(-2 * gsp.ACTIVE_BORDER_WIDTH - 4,
+                                -2 * gsp.ACTIVE_BORDER_WIDTH - 4)
+with no_logo_art():
+    lettering_ink = tile_ink(render(BOTH, "Player 1"), art_inside)
+art_ink = tile_ink(p1_active, art_inside)
 checks.true("the Ork badge art is drawn in the right tile",
-            count_color(p1_active, right_tile, (94, 166, 93), tolerance=45) > 200)
+            art_ink > 2 * lettering_ink)
+checks.true("...and the lettering it beats was really drawn too",
+            lettering_ink > 200)
 
 checks.true("the highlight is what makes the two sides differ",
             abs(p1_left - p1_right) > 100 and abs(p2_left - p2_right) > 100)
@@ -343,28 +377,49 @@ checks.true("CP and VP keep the colors they had in the long form",
             [color for _, rows in panel._score_columns(badges, cp, mission) for _, color in rows]
             == [gsp.CP_TEXT_COLOR, gsp.MISSION_TEXT_COLOR] * 2)
 
-# The compact columns REPLACE the two long groups rather than adding a third,
-# which is measurable: the button below everything moves up.
-tall = pygame.Surface((W, H))
-panel.draw(tall, RECT, tracker, cp, mission, player_factions=None)
+# The compact columns REPLACE the two long groups rather than adding a third.
+#
+# COUNTED, not inferred from where the button ends up. The button's position
+# was the original stand-in and it has now been re-calibrated three times -
+# once when the army-rules link joined the badge group, once when the round
+# number left the panel for the top progress bar (which shortened the LONG
+# form, the very thing being compared against), and it finally ran out of
+# headroom when the badge tile grew to 72px: the badge form is now 4px TALLER
+# than the long one (288 vs 284) while still drawing strictly fewer groups.
+# That is the proxy failing, not the claim - so the claim is measured on its
+# own terms instead, and no future change to a tile size or a row height can
+# make this say the wrong thing.
+#
+# What is counted is GROUP boxes: every one is drawn at rect.width - 12 wide,
+# which is what tells them apart from the badge tiles (LOGO_BOX) and their
+# glow rings, all of which go through the same draw_box().
+def group_boxes(**kwargs):
+    """How many bordered content groups one draw() lays down."""
+    widths = []
+    real = gsp.button_style.draw_box
+
+    def spy(surface, rect, *args, **kw):
+        widths.append(rect.width)
+        return real(surface, rect, *args, **kw)
+
+    gsp.button_style.draw_box = spy
+    try:
+        panel.draw(pygame.Surface((W, H)), RECT, tracker, cp, mission, **kwargs)
+    finally:
+        gsp.button_style.draw_box = real
+    return sum(1 for width in widths if width == RECT.width - 12)
+
+
+long_form_groups = group_boxes(player_factions=None)
+panel.draw(pygame.Surface((W, H)), RECT, tracker, cp, mission, player_factions=None)
 long_form_button = panel.button_rect.copy()
-short = pygame.Surface((W, H))
-panel.draw(short, RECT, tracker, cp, mission, player_factions=BOTH)
+badge_form_groups = group_boxes(player_factions=BOTH)
+panel.draw(pygame.Surface((W, H)), RECT, tracker, cp, mission, player_factions=BOTH)
 short_form_button = panel.button_rect.copy()
-# The saving is real but small, and it got smaller: the badge group also
-# carries the "see army rules" link (ARMY_RULES_LINK_HEIGHT = 18), which the
-# long form does not draw - and the round number left this panel entirely for
-# the progress bar at the top of the board, which took a full SUBHEADER_HEIGHT
-# row off the LONG form, the very thing this compares against. Measured after
-# that change: long 284, badges 274. So the margin is stated as the claim
-# itself (the badge form is shorter, even while paying for a row the long form
-# has not got) rather than against a constant it no longer clears - the old
-# form was calibrated to a layout that has one row fewer now.
+checks.true("the long form draws a group per labelled section", long_form_groups >= 3)
 checks.true("the columns replace the two labelled groups, not add to them",
-            short_form_button.top < long_form_button.top)
-checks.true("...and it is shorter DESPITE also drawing the army-rules link",
-            short_form_button.top + gsp.ARMY_RULES_LINK_HEIGHT > long_form_button.top)
-checks.true("...and the links are what the badge form spends its saving on",
+            badge_form_groups == long_form_groups - 1)
+checks.true("...and the links are what the badge form spends the saving on",
             len(panel.army_rules_rects) == 2)
 
 # ---------------------------------------------------------------------------
@@ -400,18 +455,18 @@ checks.eq("A/B: with no pool at all the column is CP/VP as before",
           ["CP: 1", "VP: 24"])
 
 # ...and the separate full-width "Battle Focus:" group is not ALSO drawn -
-# saying it twice is exactly what moving it into the column avoids. Measured
-# the same way the CP/VP move was: the button below everything sits higher.
-with_group = pygame.Surface((W, H))
-panel.draw(with_group, RECT, tracker, cp, mission, battle_focus_pool=pool, player_factions=None)
-long_form = panel.button_rect.copy()
-in_column = pygame.Surface((W, H))
-panel.draw(in_column, RECT, tracker, cp, mission, battle_focus_pool=pool, player_factions=BOTH)
-column_form = panel.button_rect.copy()
+# saying it twice is exactly what moving it into the column avoids. COUNTED
+# the same way the CP/VP move above is, and for the same reason: the button's
+# position answered this until the badge tile grew, and a group count cannot
+# be knocked over by a row getting taller somewhere else.
+long_form_groups = group_boxes(battle_focus_pool=pool, player_factions=None)
+column_form_groups = group_boxes(battle_focus_pool=pool, player_factions=BOTH)
 checks.true("the tokens move into the column rather than adding a group",
-            column_form.top < long_form.top - 40)
-# Without badges there are no columns to put it in, so the long form stays.
+            column_form_groups == long_form_groups - 2)
+# Without badges there are no columns to put it in, so the long form stays -
+# and it is the one that has the extra "Battle Focus:" group, which is the
+# whole of the difference the line above measures.
 checks.true("a game with no badges keeps the labelled Battle Focus group",
-            long_form.top > column_form.top)
+            long_form_groups > group_boxes(player_factions=None))
 
 checks.finish()

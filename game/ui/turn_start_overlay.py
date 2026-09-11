@@ -27,11 +27,17 @@ HEADER_BLOCK_HEIGHT = button_style.HEADER_MARGIN + button_style.HEADER_BAR_HEIGH
 
 # --- the faction badge (user: "baue dort bitte auch das fraktions Logo ein") ---
 #
-# Its OWN size, not the Game Status panel's LOGO_BOX. That 58 px is sized for a
+# Its OWN size, not the Game Status panel's LOGO_BOX. That 72 px is sized for a
 # 200 px column; this banner sits at the centre of the screen with 460 px to
 # spend and is on screen for one click, so it can afford to be read at a
 # glance. game/ui/faction_badge.py takes the tile RECT rather than a size for
 # exactly this reason.
+#
+# The two are CLOSER than they were - the panel's tile grew from 58 to 72 when
+# the round counter freed the middle of that column - but the ordering is the
+# design statement (showcase vs. reference tile), not the margin, and
+# test_turn_start_overlay.py pins it. This is the ceiling the panel's constant
+# is measured against, so growing that one further means growing this one too.
 BADGE_BOX = 76
 BADGE_TOP_GAP = 4        # px between the box's top padding and the tile
 BADGE_BOTTOM_GAP = 10    # px between the tile and the heading bar under it
