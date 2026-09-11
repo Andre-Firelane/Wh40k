@@ -120,3 +120,53 @@ def front_rank_models(squad):
     leaders = attached_units.leader_models(squad, alive_only=False)
     fighters = [m for m in leaders if is_melee_focused(m)]
     return sorted(fighters, key=lambda m: -model_output(m, melee=True))
+
+
+def drag_priority_tiers(squad, models=None):
+    """The player's priority list for the LINE DRAG gesture, as TIERS:
+    (characters, sergeants, special weapons). Everything else follows.
+
+    Asked for after a playtest: "ich haette gerne eine prioliste. ganz vorne
+    soll es losgehen mit Charactere, dann squadleader, dann spezialwaffen" -
+    and, on how a partial fit should work, "wenn sie nicht alle in den
+    frontrank passen, dann fuelle den 2ten rank damit auf ... diese
+    nummerierung soll einfach mit prioritaet aufgefuellt werden". So it is a
+    flat ordering that fills rank 1, then rank 2, then rank 3.
+
+    NOT front_rank_models(), and the difference is deliberate. That one is the
+    MELEE measurement for AI PLACEMENT, and this module's docstring argues at
+    length for keeping a shooty character out of the front rank ("a relative
+    test would shove the squad's shooting buff into the front rank to die").
+    That argument is about a packer choosing for the player. Here a HUMAN
+    draws the line and asked for this order in as many words, so tier 0 is
+    every CHARACTER - the datasheet keyword, the same test rule 05.03's
+    allocation uses. Measured consequence, worth knowing before changing it
+    back: for `Guardian Defenders + Farseer + Warlock Conclave` that is 3
+    models (a Farseer and two Warlocks) in rank 1, where front_rank_models()
+    returns none at all. If melee-only is ever wanted here instead, THIS is
+    the line to change.
+
+    Tiers are disjoint - a model appears in the first one it qualifies for -
+    because line_positions() sorts by tier index and a model listed twice
+    would be pulled to its first mention.
+
+    `models` restricts the answer to the models actually being placed, which
+    is what a rule 01.02.03 return does (SetupController.placing_models)."""
+    pool = list(models) if models is not None else list(getattr(squad, "models", []))
+    characters, sergeants, specials = [], [], []
+    # "Special weapon" has no keyword in this engine; the nearest existing
+    # notion is a loadout that differs from the squad's majority, which the
+    # renderer already tints lighter - so the choice is already visible on the
+    # board. Asked of the whole squad, not of `pool`: a returning model's
+    # loadout is unusual relative to its UNIT, not to the two models coming
+    # back with it.
+    unusual = squad.unusual_loadout_models() if hasattr(squad, "unusual_loadout_models") else set()
+    for model in pool:
+        profile = getattr(model, "profile", None)
+        if profile is not None and getattr(profile, "character", False):
+            characters.append(model)
+        elif profile is not None and getattr(profile, "squad_leader", False):
+            sergeants.append(model)
+        elif model in unusual:
+            specials.append(model)
+    return (characters, sergeants, specials)

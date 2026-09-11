@@ -23,6 +23,7 @@ from game import (
     technomancer as tm, wraith_form,
 )
 from game import attached_units, feel_no_pain
+from game import strength_over_toughness as sot
 from game.decision import DecisionManager
 from game.dice import DiceManager
 from game.factions import necrons as nec
@@ -72,15 +73,25 @@ sc, target = scene["shooting"], scene["target"]
 sc.active_squad = scene["attacker"]
 before = [m.amount for m in sc._wound_modifiers(target, 14)]
 c.eq("an unled Lychguard unit collects no wound penalty", sum(before), 0)
-_applies = guardian_protocols.applies
+
+# THE ABILITY IS SWITCHED ON AT THE CARRIER, not at this module's re-exported
+# applies(). Since the 48th extraction the arithmetic lives in
+# game/strength_over_toughness.py and both controllers read its shared SHIELDS
+# tuple; patching the wrapper here would leave them untouched and these lines
+# would quietly stop measuring anything. Patching the carrier is the STRONGER
+# pin - it proves the controller really does consult that tuple, in both phases.
+c.true("Guardian Protocols is one of the shared S>T carriers",
+       sot.GUARDIAN_PROTOCOLS in sot.SHIELDS)
+c.true("...and it is NOT ranged-only, unlike the Wave Serpent Shield beside it",
+       not sot.GUARDIAN_PROTOCOLS.ranged_only and sot.WAVE_SERPENT_SHIELD.ranged_only)
 try:
-    guardian_protocols.applies = lambda squad, strength: squad is target and strength > 5
+    sot.GUARDIAN_PROTOCOLS.applies = lambda squad, strength: squad is target and strength > 5
     after = sum(m.amount for m in sc._wound_modifiers(target, 14))
     c.eq("with the ability live, the wound threshold is raised by 1", after, 1)
     c.eq("...and a weak attack is still untouched",
          sum(m.amount for m in sc._wound_modifiers(target, 4)), 0)
 finally:
-    guardian_protocols.applies = _applies
+    del sot.GUARDIAN_PROTOCOLS.applies      # back to the class's own method
 c.eq("A/B: restored, the penalty is gone again",
      sum(m.amount for m in sc._wound_modifiers(target, 14)), 0)
 
@@ -88,12 +99,12 @@ fight = tk.fight_scene(nec.SKORPEKH_DESTROYERS, nec.LYCHGUARD)
 fc = fight["fight"]
 fc.fighting_squad = fight["attacker"]
 try:
-    guardian_protocols.applies = lambda squad, strength: strength > 5
+    sot.GUARDIAN_PROTOCOLS.applies = lambda squad, strength: strength > 5
     c.eq("Guardian Protocols reaches the FIGHT phase too - its text says "
          "'an attack', not 'a ranged attack'",
          sum(m.amount for m in fc._wound_modifiers(w.SkorpekhHyperphaseWeaponsProfile(), fight["target"])), 1)
 finally:
-    guardian_protocols.applies = _applies
+    del sot.GUARDIAN_PROTOCOLS.applies
 
 
 # --- 2. Dispersion Shield ----------------------------------------------------

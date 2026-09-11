@@ -66,6 +66,8 @@ def has_orb(squad):
 class ResurrectionOrbController:
     """Offered at every phase boundary - "at the end of any phase"."""
 
+    prompt = "Use the Resurrection Orb? (reanimates D6 instead of D3)"
+
     def __init__(self, dice_manager=None, decision_manager=None, game_log=None,
                  game_state=None, position_valid=None, auto_players=(),
                  placer=None):
@@ -104,12 +106,31 @@ class ResurrectionOrbController:
         """"You cannot resurrect more than one unit per turn"."""
         self._used_this_turn.clear()
 
-    def can_use(self, squad):
+    def bearer_ready(self, squad):
+        """Whether this unit's orb is available at all - the three limits that
+        are about the BEARER rather than about who it would resurrect."""
         if self._pending is not None or squad is None or not has_orb(squad):
             return False
-        if id(squad) in self._used_squads or squad.owner in self._used_this_turn:
-            return False
-        return reanimation_protocols.recoverable_wounds(squad) > 0
+        return (id(squad) not in self._used_squads
+                and squad.owner not in self._used_this_turn)
+
+    def targets_for(self, squad):
+        """Which units THIS bearer's orb can resurrect.
+
+        "If you do, THIS UNIT resurrects" - so for the Overlord, the Lokhust
+        Lord and the shroud Overlord the bearer is its own and only target.
+        The Catacomb Command Barge prints a different sentence and overrides
+        this; see RangedResurrectionOrbController below. Splitting the two
+        apart is what lets one machine serve both printings, and for the three
+        original carriers it is the same answer they always gave."""
+        if squad is None or reanimation_protocols.recoverable_wounds(squad) <= 0:
+            return []
+        return [squad]
+
+    def can_use(self, squad):
+        """Whether `squad` can use its orb right now - bearer limits AND at
+        least one unit worth resurrecting."""
+        return self.bearer_ready(squad) and bool(self.targets_for(squad))
 
     def declined_unchanged(self, squad):
         """Has the player already said no to THIS unit on THIS board?
@@ -143,24 +164,33 @@ class ResurrectionOrbController:
         return True
 
     def is_worth_using(self, squad):
-        """The AI's deterministic gate - see this module's docstring."""
-        return (self.can_use(squad)
-                and reanimation_protocols.recoverable_wounds(squad) >= RESURRECTION_ORB_MIN_RECOVERABLE)
+        """The AI's deterministic gate - see this module's docstring. Asked of
+        the BEARER, answered off its best available target (which for the three
+        original carriers is the bearer itself)."""
+        return any(reanimation_protocols.recoverable_wounds(t) >= RESURRECTION_ORB_MIN_RECOVERABLE
+                   for t in self.targets_for(squad)) and self.can_use(squad)
 
     def offer_at_end_of_phase(self, squads, player):
         """Returns True if anything was used or prompted. One unit at a time:
-        the per-turn limit means a second offer could never be taken anyway."""
-        candidates = sorted((s for s in squads if s.owner == player and self.can_use(s)
-                             and not self.declined_unchanged(s)),
+        the per-turn limit means a second offer could never be taken anyway.
+
+        The options are (BEARER, TARGET) pairs, because the two are no longer
+        always the same unit - see targets_for(). For the three original
+        carriers every pair is (s, s) and this reads exactly as it always did."""
+        candidates = sorted((s for s in squads if s.owner == player and self.can_use(s)),
                             key=lambda s: s.name)
-        if not candidates:
+        pairs = [(bearer, target) for bearer in candidates
+                 for target in self.targets_for(bearer)
+                 if not self.declined_unchanged(target)]
+        if not pairs:
             return False
         if player in self.auto_players or self.decision_manager is None:
-            worth = [s for s in candidates if self.is_worth_using(s)]
+            worth = [(b, t) for b, t in pairs
+                     if reanimation_protocols.recoverable_wounds(t) >= RESURRECTION_ORB_MIN_RECOVERABLE]
             if not worth:
                 return False
-            best = max(worth, key=lambda s: (reanimation_protocols.recoverable_wounds(s), s.name))
-            return self._use(best)
+            best = max(worth, key=lambda bt: (reanimation_protocols.recoverable_wounds(bt[1]), bt[1].name))
+            return self._use(best[0], best[1])
         # EVERY candidate, one option each - not candidates[0] as a bare
         # yes/no. The AI ranks by recoverable_wounds a few lines up and takes
         # the best unit; the human used to be shown the ALPHABETICALLY FIRST
@@ -170,28 +200,36 @@ class ResurrectionOrbController:
         # because it is the number the choice turns on and a squad name does
         # not carry it.
         options = [
-            (f"{s.name} ({reanimation_protocols.recoverable_wounds(s)} wound(s) to recover)",
-             (lambda target=s: self._use(target)), s)
-            for s in candidates
+            (f"{t.name} ({reanimation_protocols.recoverable_wounds(t)} wound(s) to recover)",
+             (lambda b=bearer, t=t: self._use(b, t)), t)
+            for bearer, t in pairs
         ]
         # The decline is RECORDED, not dropped - see declined_unchanged().
-        # `candidates` is captured so refusing the prompt refuses it for every
+        # The TARGETS are captured so refusing the prompt refuses it for every
         # unit it offered, which is what the player just said.
-        options.append(("Decline", (lambda group=tuple(candidates): [
+        options.append(("Decline", (lambda group=tuple(t for _b, t in pairs): [
             self._decline(s) for s in group] and True)))
         self.decision_manager.request(
             player,
-            "Use the Resurrection Orb? (reanimates D6 instead of D3)",
+            self.prompt,
             options,
         )
         return True
 
-    def _use(self, squad):
-        if not self.can_use(squad):
+    def _use(self, squad, target=None):
+        """`squad` is the BEARER; `target` the unit that resurrects. They are
+        the same for the three carriers that print "this unit resurrects"."""
+        target = squad if target is None else target
+        if not self.bearer_ready(squad) or target not in self.targets_for(squad):
             return False
+        # KEYED ON THE BEARER. "(Once per battle, PER UNIT)" heads a WARGEAR
+        # ability, so the unit it is once per is the one carrying the orb.
+        # Behaviour-neutral for the three original carriers, where bearer and
+        # target are the same unit - pinned in the suite in both directions.
         self._used_squads.add(id(squad))
         self._used_this_turn.add(squad.owner)
-        self._pending = squad
+        self._pending = target
+        squad = target
         if self.dice_manager is None:
             self._resolve(RESURRECTION_ORB_DICE_SIDES)
             return True
@@ -220,3 +258,83 @@ class ResurrectionOrbController:
         if revived:
             detail += f", {len(revived)} model(s) back on the battlefield"
         self._log(f"Resurrection Orb ({squad.name}): rolled a {rolled} - reanimated {detail}.")
+
+
+class RangedResurrectionOrbController(ResurrectionOrbController):
+    """The Catacomb Command Barge's orb, which is a DIFFERENT printed sentence.
+
+    RULE (verbatim, rules/necrons/Catacomb Command Barge.md):
+      "Resurrection Orb: (Once per battle, per unit) At the end of any phase,
+       you can use this ability. If you do, select up to one friendly NECRONS
+       INFANTRY/NECRONS MOUNTED unit within 6" of this unit. That unit
+       resurrects."
+
+    THE BEARER AND THE TARGET ARE DIFFERENT UNITS, which is the whole reason
+    this class exists. Every other carrier prints "this unit resurrects", so
+    for them the distinction is invisible - and that is exactly why it went
+    unnoticed that the base's once-per-battle ledger was keyed on the
+    RESURRECTING unit. On this datasheet that would be the wrong object: one
+    Barge could orb a different unit every phase for the whole battle, and a
+    unit that had been orbed once could never be orbed again by anyone. The
+    ledger now keys the BEARER, which is behaviour-neutral for the three units
+    where the two coincide.
+
+    ONLY THE TARGETING HALF IS NEW. The die (D6), the three limits, the decline
+    memory, the deterministic AI answer and reanimate() itself are all
+    inherited - and so is the GEAR half: the Barge's printed "can be equipped
+    with 1 resurrection orb" is the Lokhust Lord's line, so it reuses
+    game/factions/necrons.py's existing unconditional equip and _carries_orb()
+    above answers it without a new flag.
+
+    "UP TO ONE" is the printed permission to decline, which the base already
+    offers and remembers.
+    """
+
+    prompt = ("Use the Resurrection Orb? "
+              "(a NECRONS INFANTRY/MOUNTED unit within 6\" reanimates D6)")
+    range_in = 6.0
+    #: "NECRONS INFANTRY/NECRONS MOUNTED" - datasheet keywords, so read through
+    #: attached_units rather than off a UnitProfile flag. Either keyword
+    #: qualifies; NECRONS is required on top of whichever one it is.
+    target_keywords = ("INFANTRY", "MOUNTED")
+
+    def target_ok(self, squad):
+        from game.attached_units import unit_has_datasheet_keyword
+        if not unit_has_datasheet_keyword(squad, "NECRONS"):
+            return False
+        return any(unit_has_datasheet_keyword(squad, kw) for kw in self.target_keywords)
+
+    def targets_for(self, squad):
+        """"select up to one friendly NECRONS INFANTRY/NECRONS MOUNTED unit
+        within 6" of this unit".
+
+        Measured unit to unit, model edge to model edge - the house idiom for a
+        "within N of this unit" clause. The BEARER'S OWN UNIT is not excluded
+        by the printed text, but it can never qualify anyway: a Catacomb
+        Command Barge is a VEHICLE, so it is neither INFANTRY nor MOUNTED.
+        That is measured rather than assumed, and pinned."""
+        from game.squad import edge_distance
+        if squad is None or not self.bearer_ready(squad):
+            return []
+        mine = [m for m in squad.models if not m.is_dead()]
+        out = []
+        for other in self._squads():
+            if other is squad or other.owner != squad.owner:
+                continue
+            if not self.target_ok(other):
+                continue
+            if reanimation_protocols.recoverable_wounds(other) <= 0:
+                continue    # never offer what buys nothing
+            theirs = [m for m in other.models if not m.is_dead()]
+            if any(edge_distance(a, b) <= self.range_in for a in mine for b in theirs):
+                out.append(other)
+        return sorted(out, key=lambda s: s.name)
+
+    def _squads(self):
+        seen, out = set(), []
+        for token in (list(self.game_state.tokens) if self.game_state is not None else []):
+            other = getattr(token, "squad", None)
+            if other is not None and id(other) not in seen:
+                seen.add(id(other))
+                out.append(other)
+        return out

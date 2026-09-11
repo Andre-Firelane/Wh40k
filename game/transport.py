@@ -51,6 +51,50 @@ def _model_capacity_cost(model):
     return 1
 
 
+def fits_pools(squad, pools, already_embarked=()):
+    """Rule 18.02 for a capacity line printed as SEVERAL SUB-POOLS.
+
+    The Ghost Ark prints "a transport capacity of 10 NECRON WARRIOR models and
+    1 NECRONS INFANTRY CHARACTER model" - two pools with different keyword
+    rules and different limits. transport_requires cannot express that: its
+    contract is "EVERY model has EVERY keyword", which is one pool by
+    definition, and pointing it at ("necron_warrior",) would reject the
+    realistic passenger outright, because rule 19.01 MERGES the character into
+    the Warriors unit and that one model carries no warrior keyword.
+
+    THE THIRD CONSUMER of attached_units.model_has_datasheet_keyword() (the
+    39th extraction). The pools are named by DATASHEET keyword rather than by
+    UnitProfile flag for two reasons: "NECRON WARRIORS" is a datasheet's own
+    name and has no flag, and after a 19.01 merge matching a model against its
+    component's starting_models is the only granularity at which a per-MODEL
+    keyword question can be answered at all.
+
+    ALREADY-EMBARKED LOADS COUNT, and each is asked about ITS OWN squad - a
+    passenger's datasheet keywords belong to the squad it came in with, not to
+    the one now trying to board.
+
+    FIRST-FITTING POOL WINS, so pool ORDER would matter if two pools ever
+    overlapped. The Ghost Ark's two are DISJOINT (no NECRON WARRIORS model is
+    a CHARACTER), which is measured and pinned in the suite rather than left to
+    luck - the same treatment game/objective_control.py gives its setters. A
+    future overlapping pair would need a real assignment search here, and this
+    comment is where that discovery should start.
+
+    ALL OR NOTHING, like every other clause of 18.02: one model that fits no
+    pool refuses the whole unit."""
+    from game.attached_units import model_has_datasheet_keyword
+    counts = [0] * len(pools)
+    for load in list(already_embarked) + [squad]:
+        for model in load.models:
+            for i, (_limit, keywords) in enumerate(pools):
+                if all(model_has_datasheet_keyword(load, model, kw) for kw in keywords):
+                    counts[i] += _model_capacity_cost(model)
+                    break
+            else:
+                return False          # this model fits no pool at all
+    return all(count <= limit for count, (limit, _kw) in zip(counts, pools))
+
+
 class TransportController:
     """Rules 18.01-18.05 (Transports): embarking, capacity, and the three
     Disembark Move variants plus Emergency Disembark - all reuse
@@ -218,6 +262,9 @@ class TransportController:
         excluded_keywords = transport_token.profile.transport_excludes
         if excluded_keywords and any(getattr(m.profile, kw, False) for m in squad.models for kw in excluded_keywords):
             return False  # e.g. Devilfish: "cannot transport BATTLESUIT, KROOT or VESPID STINGWINGS models"
+        pools = getattr(transport_token.profile, "transport_pools", ())
+        if pools and not fits_pools(squad, pools, self.embarked_squads_in(transport_token)):
+            return False  # e.g. Ghost Ark: "10 NECRON WARRIOR models and 1 NECRONS INFANTRY CHARACTER model" - see fits_pools()
         reach = EMBARK_RANGE_IN if range_in is None else range_in
         if not all(edge_distance(m, transport_token) <= reach for m in squad.models):
             return False

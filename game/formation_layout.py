@@ -331,7 +331,7 @@ def line_shape(models, length_in, gap_in=LINE_GAP_IN):
 
 
 def line_positions(squad, start_in, end_in, depth_toward=None, origins=None,
-                   frontage=None, front=(), gap_in=LINE_GAP_IN):
+                   frontage=None, priority=(), gap_in=LINE_GAP_IN, models=None):
     """One (x, y) per model of `squad`, IN SQUAD ORDER, laid out in ranks along
     the segment start_in -> end_in. Rank 1's centres sit on that segment; the
     remaining ranks grow toward `depth_toward`.
@@ -392,12 +392,31 @@ def line_positions(squad, start_in, end_in, depth_toward=None, origins=None,
     stopped at a wall ratchet along it frame by frame. MovementController
     passes last_waypoint, SetupController its gesture-start snapshot.
 
-    `front` are models that must land in rank 1 (game/front_rank.py's melee
-    characters). Passed in rather than derived, following this module's own
-    convention for base_angle: the pure part lives here, the judgement stays
-    with the caller - and in the Movement phase that judgement has to be gated
-    on whether the unit can afford it."""
-    models = squad.models
+    `priority` is a sequence of TIERS, each a sequence of models: tier 0 fills
+    rank 1 first, then tier 1, and so on, with everything unlisted following.
+    Asked for after a playtest ("ganz vorne soll es losgehen mit Charactere,
+    dann squadleader, dann spezialwaffen ... wenn sie nicht alle in den
+    frontrank passen, dann fuelle den 2ten rank damit auf"), and derived by
+    game/front_rank.py's drag_priority_tiers() - passed in rather than derived
+    here, following this module's own convention for base_angle: the pure part
+    lives here, the judgement stays with the caller, and in the Movement phase
+    that judgement has to be gated on whether the unit can afford it.
+
+    TIERS RATHER THAN A FLAT LIST, because geometry then stays the tiebreak
+    WITHIN a tier - three equally-ranked special weapons keep the left-to-right
+    order they already stand in, so their paths still do not cross. A flat list
+    would replace that with squad order, which is arbitrary here.
+
+    It REPLACES the old `front` argument (game/front_rank.py's melee
+    characters), which it subsumes: every character is tier 0 anyway. Two
+    mechanisms for one question is the drift this repo keeps consolidating.
+
+    `models` is which models this layout is FOR, defaulting to the whole
+    squad. SetupController passes its placing_models, which during a rule
+    01.02.03 return is a genuine SUBSET - and reading squad.models there while
+    indexing origins by the subset raised IndexError, i.e. a right-drag during
+    a Reanimation placement crashed the game."""
+    models = list(models) if models is not None else squad.models
     n = len(models)
     if n == 0:
         return []
@@ -442,15 +461,22 @@ def line_positions(squad, start_in, end_in, depth_toward=None, origins=None,
     def lateral_proj(i):
         return (origins[i][0] - ax) * ux + (origins[i][1] - ay) * uy
 
-    # "Dress the ranks": nearest the line becomes rank 1, then each rank is
-    # sorted along the line. Order-preserving, so no two models' paths cross -
-    # which in this engine is not only tidier but cheaper, since crossing means
-    # two models contending for the same ground at commit time.
-    order = sorted(range(n), key=lambda i: (depth_proj(i), lateral_proj(i)))
-    if front:
-        head = [i for i, m in enumerate(models) if m in front]
-        head_set = set(head)
-        order = head + [i for i in order if i not in head_set]
+    # "Dress the ranks": within a priority tier, nearest the line becomes rank
+    # 1, then each rank is sorted along the line. Order-preserving inside a
+    # tier, so no two same-ranked models' paths cross - which in this engine
+    # is not only tidier but cheaper, since crossing means two models
+    # contending for the same ground at commit time.
+    #
+    # Coordinates are computed AFTER this assignment, from the radii of each
+    # row's members, which is what makes reordering safe here where a post-hoc
+    # swap of coordinates would not be (see the pitch note above).
+    tier_of = {}
+    for tier, tier_models in enumerate(priority or ()):
+        for model in tier_models:
+            tier_of.setdefault(id(model), tier)
+    unranked = len(priority or ())
+    order = sorted(range(n), key=lambda i: (tier_of.get(id(models[i]), unranked),
+                                            depth_proj(i), lateral_proj(i)))
 
     rows = [order[r:r + frontage] for r in range(0, n, frontage)]
     rows = [sorted(row, key=lateral_proj) for row in rows]

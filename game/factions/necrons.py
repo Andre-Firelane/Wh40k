@@ -24,7 +24,9 @@ from game.factions.faction import Faction, register_faction
 from game.factions.detachment import Detachment, Enhancement
 from game.factions.necrons_points import NECRONS_POINTS
 from game.units import (
+    AnnihilationBargeProfile,
     CanoptekWraithProfile,
+    CatacombCommandBargeProfile,
     CtanShardOfTheVoidDragonProfile,
     CtanShardOfTheNightbringerProfile,
     CtanShardOfTheDeceiverProfile,
@@ -34,6 +36,7 @@ from game.units import (
     ImotekhTheStormlordProfile,
     TrazynTheInfiniteProfile,
     DoomsdayArkProfile,
+    GhostArkProfile,
     IlluminorSzerasProfile,
     ImmortalProfile,
     LokhustDestroyerProfile,
@@ -68,6 +71,8 @@ from game.units import (
 )
 from game.weapons import (
     ArmouredBulkProfile,
+    CatacombCommandBargeStaffOfLightMeleeProfile,
+    CatacombCommandBargeStaffOfLightRangedProfile,
     CanoptekTailBladesProfile,
     DoomsdayCannonProfile,
     EldritchLanceMeleeProfile,
@@ -78,6 +83,8 @@ from game.weapons import (
     GaussCannonProfile,
     GaussDestructorProfile,
     GaussFlayerArrayProfile,
+    TeslaCannonProfile,
+    TwinTeslaDestructorProfile,
     GaussFlayerProfile,
     FlensingClawProfile,
     GaussReaperProfile,
@@ -1355,6 +1362,163 @@ DOOMSDAY_ARK = NECRONS.add_datasheet(Datasheet(
         "Overwhelming Obliteration: \"In your Movement phase, if this model Remains "
         "Stationary, until the end of the turn, its doomsday cannon has the "
         "[DEVASTATING WOUNDS] ability.\" - see game/overwhelming_obliteration.py.",
+    ],
+))
+
+
+# ---------------------------------------------------------------------------
+# The three grav skimmers - Catacomb Command Barge, Annihilation Barge,
+# Ghost Ark (stage 8)
+#
+# THE GHOST ARK IS THE FIRST NECRON TRANSPORT, and the first TRANSPORT in this
+# engine whose printed capacity line is two SUB-POOLS rather than one number -
+# see UnitProfile.transport_pools and game/transport.py's fits_pools().
+#
+# NONE OF THE THREE ATTACHES TO ANYTHING. The Catacomb Command Barge prints
+# CHARACTER and no Leader section at all, which is the Avatar of Khaine's
+# standing reached from the other side; and no LED BY block on this faction's
+# page names any of the three. Measured, not inferred from an absent pairing
+# in necrons_points.py.
+#
+# NOT BUILT WITH THEM: the Night Scythe, which shares the Annihilation Barge's
+# twin tesla destructor and would otherwise be the fourth of this batch. It is
+# out of scope by decision (user, stage 8: "night scythe bitte komplett
+# weglassen (weil aircraft)") - see fetch_datasheet_rules.py's note, which
+# keeps the measurement that its keyword bar does NOT print AIRCRAFT.
+# ---------------------------------------------------------------------------
+
+_CATACOMB_COMMAND_BARGE_LINE = "Catacomb Command Barge"
+CATACOMB_BARGE_GAUSS_TO_TESLA = "Tesla Cannon"
+CATACOMB_BARGE_STAFF_TO_BLADE = "Overlord's Blade"
+CATACOMB_BARGE_RESURRECTION_ORB = "Resurrection Orb"
+
+CATACOMB_COMMAND_BARGE = NECRONS.add_datasheet(Datasheet(
+    "Catacomb Command Barge",
+    keywords=("VEHICLE", "CHARACTER", "FLY", "FRAME", "CATACOMB COMMAND BARGE", "NECRONS"),
+    model_lines=[ModelLine(CatacombCommandBargeProfile, 1,
+                           # "equipped with: gauss cannon; staff of light" -
+                           # the staff is ONE printed weapon with a ranged and
+                           # a melee row, so both rows are listed.
+                           [GaussCannonProfile,
+                            CatacombCommandBargeStaffOfLightRangedProfile,
+                            CatacombCommandBargeStaffOfLightMeleeProfile],
+                           name=_CATACOMB_COMMAND_BARGE_LINE)],
+    wargear_options=[
+        # "This model's gauss cannon can be replaced with 1 tesla cannon."
+        WargearOption(_CATACOMB_COMMAND_BARGE_LINE, replaces=GaussCannonProfile,
+                      with_weapons=[TeslaCannonProfile],
+                      max_models=1, name=CATACOMB_BARGE_GAUSS_TO_TESLA),
+        # "This model's staff of light can be replaced with 1 Overlord's
+        # blade." Gives up BOTH staff rows, the Lokhust Lord's shape - and
+        # this build then has no ranged weapon but the gauss/tesla cannon.
+        WargearOption(_CATACOMB_COMMAND_BARGE_LINE,
+                      replaces=(CatacombCommandBargeStaffOfLightRangedProfile,
+                                CatacombCommandBargeStaffOfLightMeleeProfile),
+                      with_weapons=[OverlordsBladeProfile],
+                      max_models=1, name=CATACOMB_BARGE_STAFF_TO_BLADE),
+    ],
+    gear_options=[
+        # "This model can be equipped with 1 resurrection orb" - the Lokhust
+        # Lord's unconditional line, so it reuses that equip rather than the
+        # Overlord's conditional one.
+        Gear(_CATACOMB_COMMAND_BARGE_LINE, CATACOMB_BARGE_RESURRECTION_ORB,
+             _equip_resurrection_orb_unconditional),
+    ],
+    gear_slots={_CATACOMB_COMMAND_BARGE_LINE: 1},
+    points=NECRONS_POINTS["Catacomb Command Barge"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Deadly Demise 1 (Core).",
+        "Carrier Wave (Aura): \"While a friendly NECRONS unit is within 6\" of this "
+        "model, add 1 to the Objective Control characteristic of models in that unit.\" "
+        "- an ADDER in game/objective_control.py's effective_oc(), and the first one "
+        "that is a datasheet aura rather than an Enhancement; see game/carrier_wave.py.",
+        "Advanced Quantum Shielding: \"Each time an attack targets this model, if the "
+        "Strength characteristic of that attack is greater than this model's Toughness "
+        "characteristic, subtract 1 from the Wound roll.\" - Guardian Protocols' rule "
+        "with no gate at all, and the THIRD carrier of the S>T shield; see "
+        "game/strength_over_toughness.py.",
+        "Resurrection Orb (wargear, once per battle per unit): \"At the end of any "
+        "phase, you can use this ability. If you do, select up to one friendly NECRONS "
+        "INFANTRY/NECRONS MOUNTED unit within 6\" of this unit. That unit resurrects\" "
+        "- a DIFFERENT printed sentence from the Overlord's \"this unit resurrects\", so "
+        "the bearer and the target are different units; see "
+        "game/resurrection_orb.py's RangedResurrectionOrbController.",
+        "NOTE: it prints CHARACTER and NO Leader section at all, so it leads nothing - "
+        "the Avatar of Khaine's standing, reached from the other direction. Its own "
+        "weapon rows CONTRADICT each other (BS3+ cannons beside a BS2+ staff, a WS2+ "
+        "blade beside a WS3+ staff), which is why the two staff rows carry per-WEAPON "
+        "skill overrides; see game/weapons.py's stage-8 collision sweep.",
+    ],
+))
+
+
+_ANNIHILATION_BARGE_LINE = "Annihilation Barge"
+ANNIHILATION_BARGE_GAUSS_TO_TESLA = "Tesla Cannon"
+
+ANNIHILATION_BARGE = NECRONS.add_datasheet(Datasheet(
+    "Annihilation Barge",
+    keywords=("VEHICLE", "FLY", "FRAME", "ANNIHILATION BARGE", "NECRONS"),
+    model_lines=[ModelLine(AnnihilationBargeProfile, 1,
+                           [GaussCannonProfile, TwinTeslaDestructorProfile,
+                            ArmouredBulkProfile],
+                           name=_ANNIHILATION_BARGE_LINE)],
+    wargear_options=[
+        WargearOption(_ANNIHILATION_BARGE_LINE, replaces=GaussCannonProfile,
+                      with_weapons=[TeslaCannonProfile],
+                      max_models=1, name=ANNIHILATION_BARGE_GAUSS_TO_TESLA),
+    ],
+    points=NECRONS_POINTS["Annihilation Barge"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Deadly Demise 1 (Core).",
+        "Malevolent Arcing: \"In your Shooting phase, each time you select a target for "
+        "this model's twin tesla destructor, roll one D6 for the target unit and one D6 "
+        "for every other enemy unit within 3\" of the target unit. On a 5+, the unit "
+        "being rolled for is struck by arcing energies; after resolving all of this "
+        "model's attacks against the target unit, each unit struck by arcing energies "
+        "suffers D3 mortal wounds.\" - the THIRD carrier of game/mortal_wound_sweep.py, "
+        "and the first caller of the `candidates=` parameter that sweep grew for it; "
+        "see game/malevolent_arcing.py.",
+        "NOTE: its base is a TABLE SIZE - the datasheet prints \"Use model\" (FRAME) and "
+        "no base at all. See AnnihilationBargeProfile.",
+    ],
+))
+
+
+_GHOST_ARK_LINE = "Ghost Ark"
+
+GHOST_ARK = NECRONS.add_datasheet(Datasheet(
+    "Ghost Ark",
+    keywords=("VEHICLE", "FLY", "FRAME", "TRANSPORT", "DEDICATED TRANSPORT",
+              "GHOST ARK", "NECRONS"),
+    model_lines=[ModelLine(GhostArkProfile, 1,
+                           # "equipped with: 2 gauss flayer arrays; armoured
+                           # bulk" - the array is printed twice and so is
+                           # listed twice, the Doomsday Ark's own line.
+                           [GaussFlayerArrayProfile, GaussFlayerArrayProfile,
+                            ArmouredBulkProfile],
+                           name=_GHOST_ARK_LINE)],
+    # NO wargear_options AT ALL - the datasheet prints no Wargear Options
+    # section. Asserted in the suite rather than left implicit.
+    points=NECRONS_POINTS["Ghost Ark"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Deadly Demise D3 (Core).",
+        "Repair Barge: \"Once per turn, just after an enemy unit finishes making its "
+        "attacks, if one or more friendly NECRON WARRIORS units within 3\" of this model "
+        "lost one or more wounds as a result of those attacks, this model can use this "
+        "ability. If it does, select one of those NECRON WARRIORS units; that unit's "
+        "Reanimation Protocols activate. The same NECRON WARRIORS unit cannot be "
+        "selected for this ability more than once per turn.\" - the FOURTH door into "
+        "reanimate(); see game/repair_barge.py.",
+        "Transport: \"This model has a transport capacity of 10 NECRON WARRIOR models "
+        "and 1 NECRONS INFANTRY CHARACTER model.\" - TWO SUB-POOLS, which the single "
+        "transport_capacity int and the flat transport_requires tuple cannot express; "
+        "see UnitProfile.transport_pools and game/transport.py's fits_pools().",
+        "NOTE: DEDICATED TRANSPORT is descriptive here. game/scouts.py records that no "
+        "dedicated_transport flag exists in this engine and that its branch is a "
+        "documented no-op, so the keyword is printed and read by nothing.",
     ],
 ))
 

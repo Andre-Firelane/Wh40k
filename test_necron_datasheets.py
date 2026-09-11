@@ -338,7 +338,7 @@ c.eq("...and TRIARCH is the whole of the Praetorians batch, counted off the same
      sorted(s.name for s in nec.NECRONS.datasheets.values()
             if "TRIARCH" in s.keywords),
      ["Triarch Praetorians", "Triarch Stalker"])
-c.eq("forty-one datasheets are registered", len(nec.NECRONS.datasheets), 41)
+c.eq("forty-four datasheets are registered", len(nec.NECRONS.datasheets), 44)
 c.eq("the faction keyword is NECRONS", nec.NECRONS.keyword, "NECRONS")
 
 # can_attach() returns a list of REASONS - empty means legal
@@ -384,13 +384,13 @@ print("--- 6. sprites ---")
 # than an absence, which is why he is not on this list - and why
 # test_necron_leaders.py asserts what he resolves to instead of copying the
 # shadowing boilerplate.
-WITHOUT_ART = ["Flayed Ones", "Nekrosor Ammentar"]
+WITHOUT_ART = ["Flayed Ones", "Ghost Ark", "Nekrosor Ammentar"]
 missing = sorted(s.name for s in nec.NECRONS.datasheets.values()
                  if not sprites.sprite_for(build(s).models[0]))
 c.eq("every Necron datasheet resolves to a real file, bar the named ones",
      missing, sorted(WITHOUT_ART))
 c.eq("...which is all but the named ones",
-     len(nec.NECRONS.datasheets) - len(missing), 41 - len(WITHOUT_ART))
+     len(nec.NECRONS.datasheets) - len(missing), 44 - len(WITHOUT_ART))
 c.eq("the faction badge is mapped too",
      sprites.FACTION_LOGO_KEYS.get("NECRONS"), "Necron Logo")
 

@@ -449,9 +449,18 @@ class SetupController:
         frontage, ranks, _ = formation_layout.line_shape(placing, length)
         depth_toward = (sum(o[0] for o in origins) / len(origins),
                         sum(o[1] for o in origins) / len(origins))
+        # `models=placing` matters: during a rule 01.02.03 return that is a
+        # genuine SUBSET, and line_positions() used to read squad.models while
+        # indexing origins by the subset - an IndexError, i.e. a right-drag in
+        # the middle of a Reanimation placement crashed the game.
+        #
+        # No ladder here, unlike the Movement-phase sibling: Set Up has no
+        # movement budget to strand anyone with, so the priority always
+        # applies.
         targets = formation_layout.line_positions(
             squad, start_in, end_in, depth_toward=depth_toward, origins=origins,
-            frontage=frontage, front=front_rank.front_rank_models(squad),
+            frontage=frontage, models=placing,
+            priority=front_rank.drag_priority_tiers(squad, placing),
         )
         for model, target in zip(placing, targets):
             model.x_in, model.y_in = self.clamp_drag(model, target[0], target[1])

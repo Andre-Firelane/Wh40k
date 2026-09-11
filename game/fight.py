@@ -5,6 +5,7 @@ from game import attached_units
 from game import battle_stats
 from game import aux_experimental_modifications, awakened_dynasty, nekrosor_ammentar, swift_demise, montka_pinpoint_counter_offensive, destroyer_cult, destroyer_hive, dlc_grim_reapers, gift_of_contagion, guardian_protocols, protocol_hungry_void, implacable_eradication, mechanical_augmentation, monster_hunters, plagues, plasmacyte, reroll_scope
 from game import way_of_the_short_blade
+from game import strength_over_toughness
 from game.ard_as_nails import ARD_AS_NAILS_WOUND_PENALTY, ard_as_nails_wound_modifier_applies
 from game.damage_resolution import DamageAllocationSession, DevastatingWoundAllocationSession, MortalWoundAllocationSession, displayed_save_threshold, save_is_impossible, AUTO_FAILED_SAVE
 from game.dice import ATTACKS_ROLL, HIT_ROLL, SAVE_ROLL, WOUND_ROLL
@@ -2607,16 +2608,19 @@ class FightController:
         # attack", not "makes a ranged attack" - see
         # game/way_of_the_short_blade.py.
         modifiers.extend(way_of_the_short_blade.wound_modifiers(self.fighting_squad, target_squad))
-        # Lychguard's Guardian Protocols. Wired HERE as well as in shooting.py
-        # because its printed text says "each time an attack targets this
-        # unit", not "a ranged attack" - the Wave Serpent Shield, which is
-        # otherwise the same rule, does say ranged and is shooting-only.
+        # The S > T shields (game/strength_over_toughness.py). Wired HERE as
+        # well as in shooting.py for the carriers whose printed text says
+        # "each time an attack targets this unit" rather than "a ranged
+        # attack": Lychguard's Guardian Protocols and the Catacomb Command
+        # Barge's Advanced Quantum Shielding. `melee=True` drops the
+        # ranged-only ones, which today is exactly the Wave Serpent Shield -
+        # so which carriers reach this file is now a property of the printed
+        # text rather than of which module imports what.
+        #
         # `weapon` is already the adjusted profile at this point, so a melee
         # Strength raised by something else is compared at its real value.
-        if guardian_protocols.applies(target_squad, weapon.strength):
-            modifiers.append(Modifier(
-                guardian_protocols.GUARDIAN_PROTOCOLS_PENALTY,
-                guardian_protocols.GUARDIAN_PROTOCOLS_LABEL))
+        modifiers.extend(strength_over_toughness.wound_modifiers(
+            target_squad, weapon.strength, melee=True))
         return modifiers
 
     def _report_group_statistics(self):

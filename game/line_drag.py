@@ -24,6 +24,7 @@ a green readout over a formation Confirm will reject - this repo's error class
 """
 
 from game import formation_layout
+from game import front_rank
 from game.coherency import connected_groups
 from game.squad import spread_headroom
 
@@ -91,10 +92,16 @@ def legal_frontage_window(squad, start_in, end_in, origins=None,
     saved = [(m.x_in, m.y_in) for m in squad.models]
     legal = []
     try:
+        # Swept with the SAME priority the gesture will apply. The pitch is
+        # per pair, so who stands next to whom changes the spread - measuring
+        # a differently-ordered block would tell the player a frontage is
+        # legal that the drag then refuses.
+        priority = front_rank.drag_priority_tiers(squad)
         for frontage in range(1, n + 1):
             targets = formation_layout.line_positions(
                 squad, start_in, end_in, depth_toward=_centroid(origins),
                 origins=origins, frontage=frontage, gap_in=gap_in,
+                priority=priority,
             )
             for model, target in zip(squad.models, targets):
                 model.x_in, model.y_in = target

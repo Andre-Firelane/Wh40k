@@ -2002,4 +2002,177 @@ ck.eq("...and nothing else in game/ offers the stratagem",
           and "insane_bravery" in io.open(os.path.join("game", f), encoding="utf-8").read()
           and f not in ("insane_bravery.py",)), 0)
 
+
+print("--- 22. Explosives asks the real 'eligible to shoot' question ---")
+# Rule 15.05's printed TARGET is "One friendly unengaged EXPLOSIVES/GRENADES
+# unit that is eligible to shoot and did not make an advance move this turn"
+# (rules/.cache/orks.html - the core Stratagems are not in rules/*/*.md).
+# can_use() used to stop at available_shooting_types(), which knows nothing
+# about having already shot, so a unit could Explosives after shooting.
+#
+# Guarded at the SOURCE and by AST, not by counting names: main.py mentions
+# shooting_controller ~200 times, and explosives.py's own docstring discusses
+# every term below - a substring sweep would be green forever.
+_EXPL_PATH = os.path.join("game", "explosives.py")
+_EXPL_SRC = io.open(_EXPL_PATH, encoding="utf-8").read()
+_EXPL_TREE = ast.parse(_EXPL_SRC)
+
+
+def _method_node(tree, cls_name, fn_name):
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name == cls_name:
+            for sub in node.body:
+                if isinstance(sub, ast.FunctionDef) and sub.name == fn_name:
+                    return sub
+    return None
+
+
+_CAN_USE_NODE = _method_node(_EXPL_TREE, "ExplosivesController", "can_use")
+ck.true("ExplosivesController.can_use() was found", _CAN_USE_NODE is not None)
+# Attribute names the body really TOUCHES. Read by AST rather than as a
+# substring sweep because this function's own comments name every term below -
+# including active_player, to explain why it is not used. A string check would
+# be caught by its own explanation, which is the trap this repo has paid for
+# five times (see section 24's note in CLAUDE.md).
+_CAN_USE_ATTRS = {n.attr for n in ast.walk(_CAN_USE_NODE) if isinstance(n, ast.Attribute)} \
+    if _CAN_USE_NODE is not None else set()
+_CAN_USE = ast.get_source_segment(_EXPL_SRC, _CAN_USE_NODE) or "" if _CAN_USE_NODE else ""
+
+# 1. main.py hands over the collaborator BY KEYWORD. Without it the default
+# None makes can_use() refuse outright - a silent no-op that no behaviour test
+# can see, which is exactly what this line is for.
+_EXPL_CALL = next(
+    (n for n in ast.walk(MAIN)
+     if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+     and n.func.id == "ExplosivesController"),
+    None,
+)
+ck.true("main() constructs an ExplosivesController", _EXPL_CALL is not None)
+ck.true("...and passes shooting_controller BY KEYWORD",
+        "shooting_controller" in {k.arg for k in (_EXPL_CALL.keywords if _EXPL_CALL else [])})
+
+# 2. the gate really asks it, and 3. the mid-activation term is there.
+ck.true("can_use() asks ShootingController.can_shoot()", "can_shoot" in _CAN_USE_ATTRS)
+ck.true("...and catches the unit that is mid-activation",
+        "active_squad" in _CAN_USE_ATTRS)
+
+# 4. ownership comes from turn_owner. active_player is the transient "whose
+# decision is this" flag a defender's save flips, and can_shoot() itself reads
+# turn_owner - two gates in one function must not disagree about the word.
+ck.true("can_use() reads turn_owner", "turn_owner" in _CAN_USE_ATTRS)
+ck.true("...and never touches active_player", "active_player" not in _CAN_USE_ATTRS)
+
+# 5. the three printed clauses are still THREE. None implies another: 10.06
+# lets an engaged MONSTER/VEHICLE shoot, and 09.06 costs an Advancing unit its
+# charge and action but never its shooting. This is the guard against a future
+# cleanup collapsing them into can_shoot().
+for _clause in ("is_engaged", "advanced_squad_ids", "can_shoot"):
+    ck.true("the TARGET clause %r still has its own line" % _clause,
+            _clause in _CAN_USE_ATTRS)
+
+# 6. the AI's explosives loop still precedes its shoot loop. That ordering was
+# incidental before the gate existed; now it is load-bearing, because a unit
+# that has fired is no longer a legal target.
+_AI_SRC = io.open(os.path.join("ai", "agent_driver.py"), encoding="utf-8").read()
+_EXPL_LOOP = _AI_SRC.find("_handle_explosives_for_squad(agent,")
+_SHOOT_LOOP = _AI_SRC.find("def _handle_shooting(")
+ck.true("both AI anchors were found", _EXPL_LOOP != -1 and _SHOOT_LOOP != -1)
+ck.true("...and the explosives offer is made before the shoot loop runs",
+        -1 < _EXPL_LOOP < _SHOOT_LOOP)
+
+
+print("--- 23. a two-armed state branch where only ONE arm answered ---")
+# Reported: "battle focus +2 Movement wurde beim unteren guardian trupp nicht
+# angeboten, obwohl ich noch tokens hatte." The RULE was right all along;
+# _draw_movement_ui()'s `state == MOVING` branch simply had no manoeuvre
+# buttons in it, so pressing "Move" made all three vanish - and Star Engines,
+# whose TRIGGER can only be satisfied mid-move, was never offered at all.
+#
+# Section 20's family, one step further out: that one starts at "who does
+# main.py ask", and main.py asks correctly here. It is the PANEL's own
+# two-armed `if` that answers in only one arm, which nothing could see.
+_PANEL_PATH = os.path.join("game", "ui", "action_panel.py")
+_PANEL_TREE = ast.parse(io.open(_PANEL_PATH, encoding="utf-8").read())
+_MOVE_UI = next((n for n in ast.walk(_PANEL_TREE)
+                 if isinstance(n, ast.FunctionDef) and n.name == "_draw_movement_ui"), None)
+ck.true("_draw_movement_ui() was found", _MOVE_UI is not None)
+
+
+def _calls_named(nodes, name):
+    for node in nodes:
+        for sub in ast.walk(node):
+            if (isinstance(sub, ast.Call) and isinstance(sub.func, ast.Attribute)
+                    and sub.func.attr == name):
+                return True
+    return False
+
+
+# The MOVING branch, found by its test rather than by line number.
+_MOVING_IF = None
+for _node in ast.walk(_MOVE_UI) if _MOVE_UI is not None else []:
+    if not isinstance(_node, ast.If):
+        continue
+    test = _node.test
+    if (isinstance(test, ast.Compare) and isinstance(test.left, ast.Attribute)
+            and test.left.attr == "state"
+            and any(isinstance(c, ast.Attribute) and c.attr == "MOVING"
+                    for c in test.comparators)):
+        _MOVING_IF = _node
+        break
+ck.true("the `state == MOVING` branch was found", _MOVING_IF is not None)
+ck.true("the MOVING arm draws the Agile Manoeuvres",
+        _MOVING_IF is not None and _calls_named(_MOVING_IF.body, "_draw_agile_manoeuvres"))
+ck.true("...and so does the other arm - this is the structure that regressed",
+        _MOVING_IF is not None and _calls_named(_MOVING_IF.orelse, "_draw_agile_manoeuvres"))
+
+# Exactly two call sites: a third copy is the drift coming back under a new
+# name, and two copies is what produced the bug in the first place.
+_AM_CALLS = sum(1 for n in ast.walk(_PANEL_TREE)
+                if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                and n.func.attr == "_draw_agile_manoeuvres")
+ck.eq("the manoeuvres are drawn from exactly two places", _AM_CALLS, 2)
+
+# battle_focus_pool stays a KEYWORD parameter at all three stages - the chain
+# is positional up to it (Fehlerklasse 22), so this is a regression fence.
+for _stage in ("draw", "_draw_dispatch", "_draw_movement_ui"):
+    _fn = next((n for n in ast.walk(_PANEL_TREE)
+                if isinstance(n, ast.FunctionDef) and n.name == _stage), None)
+    _kwonly = {a.arg for a in _fn.args.args} | {a.arg for a in _fn.args.kwonlyargs} if _fn else set()
+    ck.true("%s() still takes battle_focus_pool" % _stage, "battle_focus_pool" in _kwonly)
+
+# ONE answer to "which three move types", read off the controller rather than
+# written out twice - without it a future start_surge_move() would be offered
+# a manoeuvre on a trigger the printed rule does not list.
+_MOVE_SRC = io.open(os.path.join("game", "movement.py"), encoding="utf-8").read()
+ck.true("movement.py defines the shared set",
+        "NORMAL_ADVANCE_FALL_BACK_MODES = frozenset" in _MOVE_SRC)
+_CONFIRM = _method_node(ast.parse(_MOVE_SRC), "MovementController", "confirm_move")
+_CONFIRM_ATTRS = {n.attr for n in ast.walk(_CONFIRM) if isinstance(n, ast.Attribute)} \
+    if _CONFIRM is not None else set()
+ck.true("confirm_move() reads it", "NORMAL_ADVANCE_FALL_BACK_MODES" in _CONFIRM_ATTRS)
+_AM_NODE = next((n for n in ast.walk(_PANEL_TREE)
+                 if isinstance(n, ast.FunctionDef) and n.name == "_draw_agile_manoeuvres"), None)
+_AM_ATTRS = {n.attr for n in ast.walk(_AM_NODE) if isinstance(n, ast.Attribute)} \
+    if _AM_NODE is not None else set()
+ck.true("...and so does the panel", "NORMAL_ADVANCE_FALL_BACK_MODES" in _AM_ATTRS)
+
+# The three can_*() are DERIVED from why_not(), so one rule cannot have two
+# disagreeing readers - a live button must never carry a refusal reason too.
+_BF_SRC = io.open(os.path.join("game", "battle_focus.py"), encoding="utf-8").read()
+_BF_TREE = ast.parse(_BF_SRC)
+for _name in ("can_swift_as_the_wind", "can_flitting_shadows", "can_star_engines"):
+    _fn = _method_node(_BF_TREE, "BattleFocusPool", _name)
+    _body = [s for s in (_fn.body if _fn else []) if not isinstance(s, ast.Expr)]
+    ck.true("%s() is a single derived return" % _name,
+            len(_body) == 1 and isinstance(_body[0], ast.Return)
+            and isinstance(_body[0].value, ast.Subscript))
+
+# NAMED GAP, so it cannot be closed by accident: Sudden Strike is deliberately
+# NOT drawn in the MOVING arm. _before_consolidating() refuses a consolidation
+# already under way and says why - both of its windows are SELECTED states.
+ck.true("Sudden Strike is still drawn from its own site, not the manoeuvre block",
+        "can_sudden_strike" not in _AM_ATTRS)
+ck.true("...and its own predicate still explains why",
+        "_before_consolidating" in _BF_SRC)
+
 ck.finish()

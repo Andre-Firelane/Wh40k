@@ -21,7 +21,7 @@ is imported rather than reimplemented so MEGA ARMOUR's cost-2 rule has
 exactly one implementation."""
 
 from game import attached_units
-from game.transport import _model_capacity_cost
+from game.transport import _model_capacity_cost, fits_pools
 
 
 def transport_name(transport_token):
@@ -88,6 +88,23 @@ def embark_errors(squad, transport_token, already_assigned=(), joining=()):
         errors.append(f"{name} can only transport INFANTRY models.")
     excluded = transport_token.profile.transport_excludes
     if excluded and any(getattr(m.profile, kw, False) for m in squad.models for kw in excluded):
+        errors.append(f"{name} cannot transport {squad.name}.")
+    # THE INCLUSIVE HALF, which 18.01 never asked. transport_requires had
+    # exactly ONE reader in the whole repo - TransportController.can_embark() -
+    # so the Kill Rig's printed "11 BEAST SNAGGA INFANTRY models" was enforced
+    # mid-battle and not at declaration: a plain Boyz mob could be declared
+    # into it before the game and only 18.02 would ever have objected. The same
+    # "one rule, two readers, and only one of them answering" shape the
+    # cannot_embark comment above records, on the shipped Ork roster.
+    required = getattr(transport_token.profile, "transport_requires", ())
+    if required and not all(getattr(m.profile, kw, False)
+                            for m in squad.models for kw in required):
+        errors.append(f"{name} cannot transport {squad.name}.")
+    # The SUB-POOL form of a capacity line (Ghost Ark) - see
+    # UnitProfile.transport_pools and transport.fits_pools(). Behind `if pools`
+    # like its mid-battle twin, so no existing TRANSPORT is touched.
+    pools = getattr(transport_token.profile, "transport_pools", ())
+    if pools and not fits_pools(squad, pools, already_assigned):
         errors.append(f"{name} cannot transport {squad.name}.")
 
     capacity = transport_token.profile.transport_capacity

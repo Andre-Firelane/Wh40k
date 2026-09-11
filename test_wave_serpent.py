@@ -12,7 +12,7 @@ failure a predicate-only test cannot see.
 """
 
 import testkit as tk
-from game import sprites, wave_serpent_shield
+from game import sprites, strength_over_toughness, wave_serpent_shield
 from game.factions import aeldari as ae
 from game.factions.aeldari_points import AELDARI_POINTS
 from game.weapons import (
@@ -255,28 +255,70 @@ checks.eq("nothing is added below the line",
 # at its source and the SAME call must go back to the unmodified threshold. A
 # predicate-only probe would leave open whether the modifier ever reached the
 # roll, which is the failure this section exists to rule out.
-_applies = wave_serpent_shield.applies
+#
+# THE SOURCE IS THE CARRIER, not this module's re-exported applies(). Since the
+# 48th extraction the arithmetic lives in game/strength_over_toughness.py and
+# the controller reads the shared SHIELDS tuple; neutralising the wrapper here
+# would leave the controller untouched and this A/B would quietly stop
+# measuring anything. Patching the carrier is therefore the STRONGER pin - it
+# proves the shooting controller really does consult that tuple.
+checks.true("the shield is one of the shared S>T carriers",
+            strength_over_toughness.WAVE_SERPENT_SHIELD in strength_over_toughness.SHIELDS)
+checks.true("...and this module's applies() is that carrier's, not a second copy",
+            wave_serpent_shield.applies(one, 12)
+            is strength_over_toughness.WAVE_SERPENT_SHIELD.applies(one, 12))
+shield = strength_over_toughness.WAVE_SERPENT_SHIELD
 try:
-    wave_serpent_shield.applies = lambda squad, strength: False
+    shield.applies = lambda squad, strength: False
     checks.eq("A/B: with the ability neutralised, S12 is back to a plain 3+",
               threshold(12), 3)
     checks.eq("...and no modifier is named", sc._wound_modifiers(target, 12), [])
 finally:
-    wave_serpent_shield.applies = _applies
+    del shield.applies          # back to the class's own method
 checks.eq("...restored", threshold(12), 4)
 
-# RANGED only - the printed text says so, and the melee controller is not wired
-# to it at all. Checked at the source rather than by contriving a melee scene.
-import inspect  # noqa: E402
-from game import fight  # noqa: E402
+# RANGED only - the printed text says so. MEASURED THROUGH THE MELEE
+# CONTROLLER, not at the source: this used to assert that game/fight.py never
+# mentions "wave_serpent_shield", which stopped meaning anything the day the
+# S>T arithmetic was extracted - fight.py reads game/strength_over_toughness.py
+# now, so the old pin passed while saying nothing about the shield. An A/B
+# probe that dropped the ranged-only filter altogether found it.
+from game.factions import necrons as _nec  # noqa: E402
+from game.weapons import GaussDestructorProfile  # noqa: E402
 
-checks.true("game/fight.py does not read the shield - it is a ranged-only rule",
-            "wave_serpent_shield" not in inspect.getsource(fight))
+_melee = tk.fight_scene(_nec.SKORPEKH_DESTROYERS, ae.WAVE_SERPENT)
+_fc = _melee["fight"]
+_fc.fighting_squad = _melee["attacker"]
+_big = GaussDestructorProfile()          # S14, comfortably over the hull's T9
+checks.true("staging: that Strength really is over the Wave Serpent's Toughness",
+            _big.strength > p.toughness)
+checks.true("staging: the target really carries the shield",
+            wave_serpent_shield.unit_has_shield(_melee["target"]))
+checks.eq("the shield does NOT reach the Fight phase - its text says 'a RANGED attack'",
+          _fc._wound_modifiers(_big, _melee["target"]), [])
+checks.eq("...while the SAME attack in the Shooting phase is penalised",
+          [m.source for m in sc._wound_modifiers(target, 14)], ["Wave Serpent Shield"])
 
 # 19.02: the Toughness is read through attached_unit_toughness(), the same
-# source the threshold it modifies uses, so the two can never disagree.
+# source the threshold it modifies uses, so the two can never disagree. Asked
+# of the CARRIER since the extraction - this module now delegates, so grepping
+# its own source for the name stopped meaning anything.
+import inspect  # noqa: E402
+
 checks.true("the toughness comes from attached_unit_toughness(), not the profile",
-            "attached_unit_toughness" in inspect.getsource(wave_serpent_shield))
+            "attached_unit_toughness" in inspect.getsource(strength_over_toughness))
+# ...and on every unit this engine can build the two give the SAME answer, so
+# no behaviour test can tell them apart. Pinned as the MEASUREMENT it is, so
+# the day a mixed-Toughness merge exists this line moves rather than a silent
+# assumption going stale.
+from game.squad import attached_unit_toughness as _aut  # noqa: E402
+
+_differ = [sh.name for sh in ae.AELDARI.datasheets.values()
+           if tk.build(sh, "Player 1", name="t").models
+           and tk.build(sh, "Player 1", name="t").models[0].profile.toughness
+           != _aut(tk.build(sh, "Player 1", name="t"))]
+checks.eq("measured: no Aeldari unit's first model disagrees with 19.02 today",
+          _differ, [])
 
 
 # --- 7. sprite --------------------------------------------------------------

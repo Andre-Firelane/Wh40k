@@ -497,6 +497,18 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
     Sweep wäre also genau an diesem Fehler vorbeigelaufen. Gemessen: die permissive Fassung
     verzieh in `main.py` 441 zusätzliche Namen. A/B belegt (Meldung wiederhergestellt → beide
     Zeilen namentlich rot).
+    **DRITTE Form, und die stillste: ein ZWEIARMIGER Zustands-Zweig, bei dem nur EIN Arm
+    antwortet.** `action_panel.py`s `_draw_movement_ui()` teilt sich in `state == MOVING` und
+    `else`, und die Agile-Manoeuvre-Knöpfe standen nur im `else` — also verschwanden sie in dem
+    Moment, in dem der Spieler „Move" drückte, und Star Engines, dessen Trigger NUR mitten in
+    einer Bewegung erfüllbar ist, wurde nie angeboten. Kein Zweig ist hier tot und keiner
+    schluckt etwas; es fehlt schlicht eine Antwort im zweiten Arm, und die Symmetrie sieht kein
+    Verhaltenstest — der Panel-Test rendert, was er stagt, und §8 stagte 400 Zeilen lang nur
+    `SELECTED`. Der Wächter ist deshalb eine SYMMETRIE-Prüfung per AST
+    (`test_event_chain_wiring.py` §23: derselbe Aufruf muss in `body` UND `orelse` stehen, und
+    genau zweimal in der Datei). **Vor der nächsten Meldung dieser Familie also drei Fragen:
+    schluckt ein Zweig (15), altert ein unerreichter (15s Kehrseite), oder antwortet ein
+    zweiarmiger nur halb?**
 
 **Prozess / Test**
 
@@ -3363,6 +3375,52 @@ Bewegung. Setzt die erstklassige Auswahl darüber voraus — sie ist der GEGENST
   Rechtsdruck den ersten anstehenden, dessen Rumpf `button == 1` will, und ist weg — Fehlerklasse
   15 zum sechsten Mal. (2) Der Pitch muss PRO PAAR gerechnet werden. (3) Daraus folgt, dass
   `match_models_to_slots()` hier unbrauchbar ist.
+- **Die REIHENFOLGE ist eine PRIORITÄTENLISTE: Charaktere, dann Squadleader, dann Spezialwaffen,
+  dann der Rest** (User: "ich hätte gerne eine prioliste. ganz vorne soll es losgehen mit
+  Charactere, dann squadleader, dann spezialwaffen" — und zur Teilfüllung: "wenn sie nicht alle
+  in den frontrank passen, dann fülle den 2ten rank damit auf ... diese nummerierung soll einfach
+  mit priorität aufgefüllt werden"). **Vorher gab es GAR KEINE Reihenfolge:** rein geometrisch,
+  wer schon am nächsten an der Linie stand, wurde Rang 1. Empirisch belegt an
+  `1 Pathfinder Team 1 + Darkstrider` (11 Modelle, Frontbreite 4, Charakter hinten aufgestellt):
+  `rank 1: SGT|spec|spec|spec` — `rank 3: ----|----|CHAR`. Der Charakter landete in der LETZTEN
+  Reihe, weil `attach()` Leader-Modelle ans Ende von `squad.models` hängt.
+  - **`priority` ist eine Sequenz von STUFEN, keine flache Liste**, und das ist der Grund:
+    Geometrie bleibt so der Tiebreak INNERHALB einer Stufe, drei gleichrangige Spezialwaffen
+    behalten also ihre Ordnung und ihre Laufwege kreuzen sich nicht — die Eigenschaft, die
+    `line_positions()`' Docstring ausdrücklich als Wert benennt. Sicher ist die Umordnung, weil
+    die Koordinaten DANACH aus den Radien der jeweiligen Reihe gerechnet werden; ein
+    nachträglicher Koordinatentausch wäre es nicht (gemessen: 69 von 133 Basenüberlappungen).
+    `front=` ist ERSETZT statt ergänzt — jeder Charakter ist ohnehin Stufe 0.
+  - **Stufe 0 ist JEDER `profile.character`, nicht `front_rank_models()`s Nahkampf-Filter**, und
+    das ist eine bewusste Abweichung: jenes ist die Messung für die KI-PLATZIERUNG, und sein
+    Docstring argumentiert ausführlich dagegen, einen Fernkampf-Charakter nach vorn zu schieben.
+    Hier zieht ein MENSCH die Linie und hat genau diese Ordnung verlangt. **Gemessene Folge:** bei
+    `Guardian Defenders + Farseer + Warlock Conclave` stehen 3 Modelle (Farseer + 2 Warlocks) in
+    Reihe 1, wo `front_rank_models()` **0** liefert. `drag_priority_tiers()` ist die eine Zeile,
+    die auf Nahkampf-only umzustellen wäre.
+  - **„Spezialwaffe" gibt es als Begriff nicht** — `Squad.unusual_loadout_models()` (Loadout
+    weicht von der Mehrheit ab) ist die nächste vorhandene Idee, und der Renderer färbt genau
+    diese Modelle schon heller, die Auswahl ist also auf dem Brett sichtbar. **Benannter
+    Randfall:** die Mehrheit wird per `Counter.most_common(1)` bestimmt, bei Gleichstand also
+    einfügungsabhängig — gemessen **2 von 61** mehrmodelligen Einheiten, beide `The Twin Lance`
+    mit genau 2 Modellen, wo die Rangzuteilung ohnehin trivial ist.
+  - **Eine LEITER in der Bewegungsphase** (volle Priorität → nur Charaktere → rein geometrisch,
+    je nachdem was nicht mehr Modelle stranden lässt), damit eine bloß teure Priorität teilweise
+    geliefert statt ganz verworfen wird. Die Aufstellung hat kein Budget und nimmt immer die
+    volle. Und `legal_frontage_window()` sweept jetzt MIT derselben Priorität — der Pitch ist pro
+    Paar, ein anders geordneter Block hat eine andere Spannweite, und der Sweep hätte dem Spieler
+    eine Frontbreite als legal gemeldet, die der Drag dann ablehnt.
+  - **NEBENBEFUND, gemessen und mitbehoben: ein Rechts-Drag während einer Reanimations-Platzierung
+    stürzte ab.** `line_positions()` las `squad.models` und indizierte `origins` nach der
+    TEILMENGE, die `setup.py` übergibt (`placing_models`, bei einer 01.02.03-Rückkehr eine echte
+    Teilmenge) → `IndexError`. Der neue `models=`-Parameter behebt es, und die Prioritätsstufen
+    hätten sonst exakt dasselbe Problem gehabt.
+  - **Getestet:** `test_line_drag.py` 150 → **169/169** (Abschnitt 6, mit einer LIVENESS-Zeile —
+    geometrische und Prioritätsordnung müssen wirklich auseinandergehen, sonst besteht alles
+    vakuum — plus dem Überlauf bei Frontbreite 2, der Leiter an ihren Sprossen gemessen, und der
+    Gegenprobe, dass eine homogene Einheit BYTE-GLEICH wie vorher liegt) und
+    `ab_line_drag_priority.py` (**8 A/B-Sonden, alle beißend**; die Teilmengen-Sonde meldet
+    `raised IndexError` als rote ZEILE statt den Lauf abzubrechen).
 - **Pitch pro Paar (`r_i + r_j + LINE_GAP_IN`), gemessen an 21 Necron Warriors + Technomancer:**
 
   | Frontbreite | 3 | 4 | 5 | 6 | 7 | 8 |
@@ -5757,6 +5815,54 @@ für die KI.
     QUELLE, alle beißend** (Fenster 2 ganz entfernt → 165/168 und die Meldung wörtlich zurück;
     Relevanz-Tor auf 3" → 166; Lauf-Absage weg → 167; Fenster 1 entfernt → 166; `determine_mode`
     ignoriert den Reach → 166).
+- **Die drei Movement-Manöver werden an EINER Stelle gezeichnet, gelesen von BEIDEN
+  Bewegungszuständen.** Gemeldet: *"battle focus +2 Movement wurde beim unteren guardian trupp
+  nicht angeboten, obwohl ich noch tokens hatte. diese fähigkeit kann mehrmals angewendet werden
+  pro phase."*
+  - **Die REGEL war richtig, und das ist der Kern.** `REPEATABLE_PER_PHASE` setzt
+    `army_rules.md:23` („more than once per phase, provided a different unit performs it each
+    time") korrekt um, `test_battle_focus.py:128-133` pinnt es seit Langem. **Im Log der
+    gemeldeten Partie reproduziert** (`logs/game_20260911_100813.log:303`): der Avatar gibt einen
+    Token aus, danach ziehen in DERSELBEN Phase sieben weitere Einheiten — beide
+    Guardian-Trupps darunter, einer mit Advance — und kein zweites Swift as the Wind, bei 3
+    Token in der Hand.
+  - **Das PANEL war der Fehler:** der Manöver-Block lag nur im `else`-Arm von
+    `_draw_movement_ui()`, also verschwanden alle drei Knöpfe beim Druck auf „Move", und nach
+    dem Confirm schloss `moved_squad_ids` Swift as the Wind endgültig. Der Docstring des
+    Controllers versprach seit jeher das Gegenteil (*"Offered until the unit's move is
+    CONFIRMED"*), und `use_swift_as_the_wind()` legt die +2" wirklich mitten im Zug nach — es
+    fehlte nur der Knopf. Der Test pinnte das **auf Pool-Ebene**; der Panel-Test rief nur
+    `select()`. Das ist das strukturelle Loch.
+  - **Star Engines war schlechter dran als das gemeldete Manöver:** sein Gate verlangt
+    `advance_bonus_by_squad`, gesetzt erst von `start_run()` — und `start_run()` ist nur aus dem
+    MOVING-Arm erreichbar. Sein gedruckter Trigger-Moment war also GAR NIE anbietbar.
+    **Sudden Strike gehört ausdrücklich NICHT dazu** und bleibt, wo es ist:
+    `_before_consolidating()` lehnt eine laufende Consolidation selbst ab und sagt warum.
+  - **Der Explainer musste BEIDE Hälften decken.** `refusal_reason()` ist NICHT die Negation von
+    `can_*()` — die TRIGGER-Prüfungen (Phase, Zugbesitzer, `moved_squad_ids`, VEHICLE) stehen in
+    den `can_*` und fehlen dort. Ein direkter Insane-Bravery-Port druckte eine Battle-Focus-Zeile
+    auf JEDER Einheit JEDER Nicht-Aeldari-Armee, jeden Frame. `why_not()` gibt deshalb
+    `(False, None)` für „hatte die Regel nie" und „der Trigger ist gar nicht offen"; die drei
+    `can_*` sind seither ABLEITUNGEN daraus, also kann eine Regel keine zwei uneinigen Leser
+    haben. Der Move-Typ wird über `MovementController.NORMAL_ADVANCE_FALL_BACK_MODES` gelesen
+    (Extraktion am zweiten Konsumenten — dieselbe Prosa stand in `confirm_move()`), sonst böte
+    ein künftiger `start_surge_move()` das Manöver auf einem Trigger an, den die Regel nicht nennt.
+  - **Getestet:** `test_battle_focus.py` 195 → **231/231** (§14 rendert bei `state == MOVING`,
+    mit einem Spion als Liveness — ein Render, der in einen anderen Dispatch-Arm fällt, zeichnet
+    null Knöpfe und erfüllt jede Abwesenheitsprüfung), `test_event_chain_wiring.py` §23 (die
+    SYMMETRIE per AST), plus `ab_battle_focus_mid_move.py` (**9 A/B-Sonden, alle beißend**).
+    **Zwei eigene Testfehler dabei, beide gemessen:** §14 benutzte zuerst §8s GETEILTEN
+    ShootingController, der seit einem früheren Abschnitt in `choosing_target` steckt — der
+    Render fiel damit auf den Schuss-Screen und maß gar nichts; und der Fall-Back-Fall ohne
+    Feind lässt `start_fall_back_move()` still ablehnen (09.07 verlangt Engagement), sodass der
+    `else`-Arm zeichnete und die Prüfung aus dem falschen Grund bestand.
+  - **Im ECHTEN Spiel belegt** (`verify_battle_focus_mid_move.py`): **2 Manöver-Knöpfe während
+    eines laufenden Zuges** (`Swift as the Wind - +2" Move this phase (4 token(s))`) gegen
+    `--neutralize`s **0**, bei identischem Staging. **Zwei gestellte Tatsachen, beide benannt:**
+    der laufende Zug (`ai/agent_driver.py` fährt `start_move()`, Sweep und `confirm_move()`
+    synchron in EINEM `take_one_action()`, also wird kein MockAgent-Frame je mit `MOVING`
+    gerendert), und Aeldari auf BEIDEN Seiten — gemessen verbringt der Lauf sonst alle 2813
+    gerenderten Frames in PLAYER 2s Bewegungsphase, weil selfplay nur Player 2 auto-spielt.
 - **Eine ausgelöschte Einheit ist nicht kampfberechtigt** (die klebrigen Marker `engaged_at_start`/
   `fights_first` wussten nichts von ihrem Tod) — sonst hängt der Fight-Step dauerhaft.
 - **"End Turn" warnt, wenn 12.04 dem Menschen noch Angriffe schuldet** (User: "gib mal bitte ine
@@ -5871,6 +5977,47 @@ ihrer teuersten Form — die zweite Stelle beantwortet nicht bloß anders, sie b
   (einmal pro Phase/Ziel, optional `max_per_battle`, optional `allow_battle_shocked_target`).
   `_cost_for()` ist die EINE Definition des Preises, gelesen von `can_use()` UND `use()`; Rabatte
   hängen als Liste `cost_discounts` dran (Puretide, Strands of Fate).
+- **Explosives (15.05): „eligible to shoot" heißt „hat diese Phase noch nicht geschossen" —
+  und der gedruckte Text, der das entscheidet, lag zwei Jahre ungelesen im HTML-Cache.**
+  Gemeldet: *"explosives geht nur vor dem schießen, weil man eligible to shoot sein muss. ich
+  konnte es aber nach dem schießen machen."* `can_use()` endete bei `available_shooting_types()`
+  (10.02 Schritt 2, das von geschossen-haben nichts weiß) und fragte `ShootingController` NIE —
+  es bekam nicht einmal einen. Das war KEINE Nachlässigkeit, sondern eine ausdrücklich
+  dokumentierte Annahme: `CLAUDE.history.md:150` hält fest, sie sei **„mangels weiterer
+  Regeltexte"** getroffen worden.
+  - **Der fehlende Text steht in `rules/.cache/<fraktion>.html`**, im Core-Stratagem-Block jeder
+    Fraktionsseite: *"TARGET: One friendly unengaged EXPLOSIVES / GRENADES unit that is eligible
+    to shoot and did not make an advance move this turn."* Der Korpus (`rules/*/*.md`) hält NUR
+    Datenblätter, Armeeregeln und Detachments — die Kernregeln überleben als Tooltips im Cache,
+    und das steht jetzt in `rules/README.md`, weil dort der nächste Leser sucht.
+  - **Die TARGET-Zeile trägt DREI unabhängige Klauseln**, und keine impliziert eine andere:
+    10.06 lässt ein engagiertes MONSTER/VEHICLE herausschießen (`can_shoot()` sagt also JA, wo
+    das Stratagem nein sagt), und 09.06 kostet einen Advance die Charge und die Aktion, nie das
+    Schießen — deshalb druckt die Karte die Advance-Klausel separat. Im Test wird jede an einem
+    Fall belegt, in dem `can_shoot()` WEITER True sagt ([ASSAULT] nach einem Advance, ein
+    engagierter Deffkopta); ohne die zwei sähe „wir haben eine redundante Zeile gelöscht"
+    richtig aus.
+  - **`can_shoot()` statt einer Handnachbildung** aus `shot_squad_ids` + `available_shooting_types()`:
+    der gedruckte Text nennt einen BEGRIFF, den diese Engine an genau einer Stelle beantwortet —
+    derselben, die der Shoot-Knopf benutzt. Die Nachbildung wäre ein FALSCHES Subset (ihr fehlt
+    16.01s Aktionsschloss, dessen eigener gedruckter Satz *"it is not eligible to shoot"* lautet).
+    ~15 Geschwistermodule machen es schon so; `greater_good.py:297-302` hatte genau die
+    Kombination, die Explosives zur Hälfte fehlte. Dazu der `active_squad is squad`-Wächter:
+    `shot_squad_ids` bucht den ABSCHLUSS, eine Einheit mitten in ihrer Aktivierung wurde aber
+    schon ausgewählt.
+  - **`active_player` → `turn_owner` gehört zum Fix**, nicht daneben: `can_shoot()` liest
+    `turn_owner`, zwei Tore in EINER Funktion dürfen „ist das meine Phase" nicht mit zwei
+    Feldern beantworten. Praktisch flackerte der Knopf bei jedem Verteidiger-Save weg — und über
+    `ai/agent_driver.py:9070`, das ein False als DAUERHAFTE Absage für die Phase cacht, wäre
+    daraus ein Korrektheitsfehler geworden.
+  - **Zu `can_use()` gab es GAR KEINEN Test**, und das ist der Grund, warum es überlebt hat.
+    Neu `test_explosives.py` (**28/28**, die gemeldete Folge durch eine ECHTE Aktivierung) plus
+    `ab_explosives_eligible_to_shoot.py` (**6 A/B-Sonden, alle beißend**) und der Quell-Wächter
+    `test_event_chain_wiring.py` §22 (per AST — die Funktion nennt in ihren eigenen Kommentaren
+    jeden geprüften Begriff, `active_player` eingeschlossen, ein String-Sweep fiele auf seine
+    eigene Erklärung herein). **Kein `verify_*.py`:** Einheit, Ziel in 8" mit Sichtlinie, CP und
+    eine abgeschlossene Aktivierung müssten alle gestellt werden, dann bliebe keine echte
+    Tatsache übrig; die eine Frage, die nur `main()` beantwortet, hält §22 in Millisekunden.
 - **Heroic Intervention (15.11) hatte GAR KEINEN Test — der gemeldete CP-Fehler existiert aber
   nicht.** Gemeldet als "ich habe heroic intervention benutzt mit dem avatar, aber die cp scheinen
   nicht abgezogen geworden zu sein". Dieselbe Ausgangslage wie 15.12 (das ohne Test ein 2-CP-No-op
@@ -11159,8 +11306,8 @@ davon war vorgezogen: der zweite Träger kam in dieser Etappe an.
 | Fähigkeit | landet bei | die eine Abweichung |
 |---|---|---|
 | Adaptive Strategy | `game/move_exceptions.py` (2 Tore) | Relentless Combatants (E4) lifted NUR die Charge-Hälfte |
-| Engrammatic Logic | **`game/end_battle_shock.py` (45. Extraktion)** | ein Wort: NECRONS statt KROOT |
-| Grand Strategist | **`game/command_phase_cp.py` (46. Extraktion)** | keine — Eldrads Diviner of Futures Wort für Wort |
+| Engrammatic Logic | **`game/end_battle_shock.py` (48. Extraktion)** | ein Wort: NECRONS statt KROOT |
+| Grand Strategist | **`game/command_phase_cp.py` (49. Extraktion)** | keine — Eldrads Diviner of Futures Wort für Wort |
 | Lord of the Storm | `game/mortal_wound_sweep.py` (E6) | ZWEI Bänder statt einem, plus einmal pro Schlacht |
 | Ancient Collector | `game/fieldcraft.py`s Sweep, Regel 14.03 | „while this model is LEADING a unit" |
 | My Will Be Done / Resurrection Orb | unverändert wiederverwendet | — |
@@ -11213,7 +11360,7 @@ Combatants bestünde also die Charge-Zeile und fiele an der ersten. Deshalb
 misst die Suite BEIDE Einheiten durch dieselben zwei Aufrufe, und die zwei
 A/B-Sonden nehmen je eine Hälfte weg.
 
-#### `game/end_battle_shock.py` — 45. Extraktion, und ihre Sonde fand eine Testlücke
+#### `game/end_battle_shock.py` — 48. Extraktion, und ihre Sonde fand eine Testlücke
 
 Root of Honour (Kroot War Shaper) und Engrammatic Logic sind derselbe Satz mit
 einem getauschten Keyword. Geteilt sind die vier Bedingungen, jede eine eigene
@@ -11237,7 +11384,7 @@ eigenes x liegt also nirgends an der Vorderkante der Einheit — der Grund, waru
 die alten 40\" so großzügig sein mussten. Die neuen Zeilen messen vom
 BEARER-MODELL.
 
-#### `game/command_phase_cp.py` — 46. Extraktion
+#### `game/command_phase_cp.py` — 49. Extraktion
 
 Grand Strategist ist Eldrads Diviner of Futures Wort für Wort. Der CP läuft über
 `command_points.gain_cp()`, also greift die Ein-Bonus-CP-pro-Runde-Hausregel —

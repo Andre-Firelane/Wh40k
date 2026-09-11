@@ -7,49 +7,65 @@ RULE (printed, word for word):
 
 THIS IS THE WAVE SERPENT SHIELD WITH A LEADER CLAUSE. The S > T comparison,
 the -1, the defender side, even the sign convention are identical to
-game/wave_serpent_shield.py, so this reads the SAME hook: shooting.py's
-_wound_modifiers(target_squad, strength). Writing a second S>T comparison
-would be exactly the "two places, same question, two answers" drift this repo
-keeps consolidating away, so the shared arithmetic stays shared and only the
-condition differs.
+game/wave_serpent_shield.py.
+
+AND THE ARITHMETIC IS NOW GENUINELY SHARED, which for two stages it was not.
+This docstring used to claim it already was:
+
+    "Writing a second S>T comparison would be exactly the 'two places, same
+     question, two answers' drift this repo keeps consolidating away, so the
+     shared arithmetic stays shared and only the condition differs."
+
+Only the HOOK was shared. Both files carried their own
+`toughness is not None and strength > toughness`, and the sentence above was a
+comment promising a behaviour no code delivered - the class this repo keeps
+catching (see game/scouts.py's missing human branch). The Catacomb Command
+Barge's Advanced Quantum Shielding is the third carrier, and it paid for
+game/strength_over_toughness.py (the 50th extraction). This module keeps its
+name and RE-EXPORTS what it always exported, so no caller moves.
 
 TWO DIFFERENCES FROM THE SHIELD, both straight out of the printed text:
 
   * "each time an ATTACK targets this unit", not "each time a RANGED attack".
     So this is wired into game/fight.py as well as game/shooting.py - the
-    Wave Serpent's own line says ranged and is therefore shooting-only.
+    Wave Serpent's own line says ranged and is therefore shooting-only. That
+    is now `ranged_only` on the carrier rather than a fact about which file
+    imports what.
   * "While a NOBLE model is LEADING this unit" - rule 24.22's real attached
     unit (19.01), not merely a squad containing an Overlord. That is
     attached_units.leader_ability()'s exact job, and using it also brings
     19.04's grace window along, so a Noble killed mid-sequence does not
     silently drop the protection for the rest of the attacking unit's attacks.
+    It is the ONLY one of the three carriers with an extra clause at all.
 
 WHY THE TOUGHNESS COMES FROM attached_unit_toughness(): rule 19.02, and the
-same reason the wound threshold itself reads it. Here it genuinely matters, as
-opposed to the Wave Serpent's documented "cannot matter today" - a Lychguard
-unit with an Overlord attached IS a mixed-Toughness unit (T5 both, as it
-happens, but nothing about the rule guarantees that for a future Noble).
+same reason the wound threshold itself reads it. THIS CANNOT MATTER TODAY, and
+that is measured rather than assumed: across every unit these five armies can
+build, merged and unmerged, models[0].profile.toughness and
+attached_unit_toughness() give the SAME answer - a Lychguard unit with an
+Overlord attached is T5 either way. An earlier version of this paragraph
+claimed the opposite ("here it genuinely matters"); it was wrong, and the
+probe that tried to redden it reported NO BITE, which is how it was found.
+It is written this way because nothing in rule 19.02 guarantees a future Noble
+shares its bodyguard's Toughness, not because a board today can tell the two
+readings apart.
 """
 
-from game.attached_units import leader_ability
-from game.squad import attached_unit_toughness
+from game.strength_over_toughness import GUARDIAN_PROTOCOLS
 
-GUARDIAN_PROTOCOLS_PENALTY = 1     # positive: it raises the threshold, see game/modifiers.py
-GUARDIAN_PROTOCOLS_LABEL = "Guardian Protocols"
+GUARDIAN_PROTOCOLS_PENALTY = GUARDIAN_PROTOCOLS.penalty   # positive: it raises the threshold, see game/modifiers.py
+GUARDIAN_PROTOCOLS_LABEL = GUARDIAN_PROTOCOLS.label
 
 
 def unit_has_guardian_protocols(squad):
     """Whether this unit prints the ability at all - read live off the models,
     so per 19.03 a merged unit has it if any component brought it."""
-    if squad is None:
-        return False
-    return any(getattr(m.profile, "guardian_protocols", False)
-               for m in squad.models if not m.is_dead())
+    return GUARDIAN_PROTOCOLS.unit_has(squad)
 
 
 def is_led_by_noble(squad):
     """"While a NOBLE model is leading this unit"."""
-    return leader_ability(squad, "noble")
+    return GUARDIAN_PROTOCOLS.extra_condition(squad)
 
 
 def applies(target_squad, strength):
@@ -58,9 +74,4 @@ def applies(target_squad, strength):
     `strength` is the attack's Strength as the wound step computes it - the
     already-adjusted value, not the printed one, so a weapon pushed past the
     unit's Toughness by something else is caught too."""
-    if strength is None or not unit_has_guardian_protocols(target_squad):
-        return False
-    if not is_led_by_noble(target_squad):
-        return False
-    toughness = attached_unit_toughness(target_squad)
-    return toughness is not None and strength > toughness
+    return GUARDIAN_PROTOCOLS.applies(target_squad, strength)

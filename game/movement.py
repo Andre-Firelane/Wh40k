@@ -473,6 +473,23 @@ class MovementController:
     REACTIVE_MOVE_MODES = frozenset({"battle_focus", "path_of_the_outcast",
                                      "raid_and_run", "overflight", "higher_duty"})
 
+    #: "a Normal, Advance or Fall Back move" - exactly those three, the phrase
+    #: several printed rules use (rule 09.07's shooting/charge bans, Aeldari
+    #: Battle Focus' Swift as the Wind and Flitting Shadows triggers).
+    #:
+    #: There is no "normal"/"advance" move_mode: a plain Normal move leaves it
+    #: None and an Advance is a Normal move plus the D6 (tracked in
+    #: advanced_squad_ids), so the qualifying set is None + fall_back. Every
+    #: named mode - charge, pile_in, consolidate, surge, scout, battle_focus,
+    #: retro_thrusters, torchstar - is deliberately excluded.
+    #:
+    #: Extracted at the second consumer: confirm_move() below and the panel's
+    #: Agile Manoeuvre buttons. Without it a future start_surge_move() (live
+    #: infrastructure with no caller yet) would be offered a manoeuvre on a
+    #: trigger the rule does not list, since surge passes can_move() and is a
+    #: Movement-phase mode.
+    NORMAL_ADVANCE_FALL_BACK_MODES = frozenset({None, "fall_back"})
+
     #: Every move_mode that can be open while it is NOT the moving unit's own
     #: Movement phase - i.e. every move an ABILITY or a STRATAGEM grants,
     #: through the three doors that are deliberately not gated on can_move().
@@ -928,25 +945,31 @@ class MovementController:
         depth_toward = (sum(o[0] for o in origins) / len(origins),
                         sum(o[1] for o in origins) / len(origins))
 
-        def lay_out(front):
+        def lay_out(priority):
             return formation_layout.line_positions(
                 squad, start_in, end_in, depth_toward=depth_toward,
-                origins=origins, frontage=frontage, front=front,
+                origins=origins, frontage=frontage, priority=priority,
             )
 
+        # A LADDER: the full priority order, then characters alone, then plain
+        # geometry - keeping the best rung the unit can AFFORD. Measured,
+        # forcing models forward costs a mean +1.14" (worst +4.66") of longest
+        # walk: free during a Set Up, potentially decisive here, where a walk
+        # longer than a model's remaining movement simply does not happen.
+        # Same "never trade a working placement for a better-looking one"
+        # guard pack_positions() states for its own front-rank pass - but
+        # rung by rung, so a priority that is merely expensive still gets
+        # delivered in part instead of being thrown away whole.
         targets = lay_out(())
-        fighters = front_rank.front_rank_models(squad)
-        if fighters:
-            # Melee characters to the front - but only if the unit can AFFORD
-            # it. Measured, forcing them forward costs a mean +1.14" (worst
-            # +4.66") of longest walk: free during a Set Up, potentially
-            # decisive here, where a walk longer than a model's remaining
-            # movement simply does not happen. Same "never trade a working
-            # placement for a better-looking one" guard pack_positions() states
-            # for its own front-rank pass.
-            led = lay_out(fighters)
-            if self._cannot_reach(models, origins, led) <= self._cannot_reach(models, origins, targets):
-                targets = led
+        plain_cost = self._cannot_reach(models, origins, targets)
+        tiers = front_rank.drag_priority_tiers(squad)
+        for rung in (tiers, tiers[:1]):
+            if not any(rung):
+                continue
+            candidate = lay_out(rung)
+            if self._cannot_reach(models, origins, candidate) <= plain_cost:
+                targets = candidate
+                break
 
         for model, target in zip(models, targets):
             model.x_in, model.y_in = self.clamp_move(model, target[0], target[1])
@@ -1159,13 +1182,10 @@ class MovementController:
             self.moved_squad_ids.add(self.selected_squad)
             if self.run_used:
                 self.advanced_squad_ids.add(self.selected_squad)
-            # "ends a Normal, Advance or Fall Back move" - exactly those three.
-            # There is no "normal"/"advance" move_mode: a plain Normal move
-            # leaves it None and an Advance is a Normal move plus the D6 (tracked
-            # in advanced_squad_ids), so the qualifying set is None + fall_back.
-            # Every named mode - charge, pile_in, consolidate, surge, scout,
-            # battle_focus, retro_thrusters, torchstar - is deliberately excluded.
-            if self.move_mode in (None, "fall_back"):
+            # "ends a Normal, Advance or Fall Back move" - see
+            # NORMAL_ADVANCE_FALL_BACK_MODES, which the panel's Agile
+            # Manoeuvre buttons read too.
+            if self.move_mode in self.NORMAL_ADVANCE_FALL_BACK_MODES:
                 if self.move_mode == "fall_back":
                     kind = "fall_back"
                 else:

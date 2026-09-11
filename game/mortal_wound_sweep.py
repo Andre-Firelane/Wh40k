@@ -162,8 +162,24 @@ class MortalWoundSweepController(MortalWoundOfferController):
         eligible = [s for s in sorted(squads, key=lambda s: s.name) if self.can_use(s)]
         if not eligible:
             return False
-        self._bearer_queue = eligible[1:]
+        self._bearer_queue = [(s, None) for s in eligible[1:]]
         return self.start(eligible[0])
+
+    def start_all(self, owed):
+        """Run several sweeps for ONE bearer, one after another.
+
+        `owed` is [(squad, candidates), ...]. The queue used to hold bare
+        squads because both of the first two carriers sweep once per BEARER;
+        Malevolent Arcing sweeps once per TARGET SELECTION, and split fire can
+        leave a single Annihilation Barge owing two. Same queue, one element
+        wider - and start_many() above pushes `None` for its candidates, so
+        neither existing carrier changes behaviour."""
+        owed = list(owed)
+        if not owed:
+            return False
+        squad, candidates = owed[0]
+        self._bearer_queue = owed[1:]
+        return self.start(squad, candidates)
 
     def on_dice_acknowledged(self):
         if self._stage == "gate":
@@ -230,10 +246,20 @@ class MortalWoundSweepController(MortalWoundOfferController):
         self._start_next_bearer()
 
     def _start_next_bearer(self):
-        """This bearer is finished; the next one's whole sweep starts here."""
+        """This sweep is finished; the next queued one starts here.
+
+        `candidates is None` means "derive them now", which is what a
+        once-per-bearer carrier wants and why can_use() still gates it: the
+        board has moved since the queue was built. A carrier that HANDED IN its
+        candidates is not re-gated - its set was frozen at the printed instant
+        and can_use() would be asking about the wrong moment. start() still
+        drops any of them that died in the meantime."""
         while self._bearer_queue:
-            nxt = self._bearer_queue.pop(0)
-            if self.can_use(nxt) and self.start(nxt):
+            nxt, candidates = self._bearer_queue.pop(0)
+            if candidates is None:
+                if self.can_use(nxt) and self.start(nxt):
+                    return True
+            elif self.start(nxt, candidates):
                 return True
         return False
 

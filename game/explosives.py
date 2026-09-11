@@ -1,6 +1,5 @@
 from game import line_of_sight
 from game.damage_resolution import MortalWoundAllocationSession
-from game.shooting import available_shooting_types
 from game.squad import edge_distance
 from game.stratagems import Stratagem
 from game.turn import PHASE_SHOOTING
@@ -16,23 +15,61 @@ EXPLOSIVES_SUCCESS_THRESHOLD = 4
 
 
 class ExplosivesController:
-    """Rule 15.05 (Explosives, Core Stratagem, 1CP): during your Shooting
-    phase, an eligible friendly EXPLOSIVES/GRENADES unit picks one such
-    model, then one unengaged enemy unit within 8" of and visible to it,
-    then rolls 6D6 - each 4+ inflicts 1 mortal wound (06.02) on that enemy
-    unit. "Eligible to shoot" is read as available_shooting_types() being
-    non-empty (the same check the Shoot button itself uses) rather than
-    "hasn't shot yet this phase" - the stratagem doesn't consume the unit's
-    own shooting action, so a unit can still Explosives after (or instead
-    of) shooting normally this phase."""
+    """Rule 15.05 (Explosives, Core Stratagem, 1CP). The printed card:
+
+        WHEN: Your Shooting phase.
+        TARGET: One friendly unengaged EXPLOSIVES / GRENADES unit that is
+          eligible to shoot and did not make an advance move this turn.
+        EFFECT: Select one EXPLOSIVES / GRENADES model in your unit, then one
+          unengaged enemy unit within 8" of and visible to it, then roll 6D6 -
+          each 4+ inflicts 1 mortal wound (06.02) on that enemy unit.
+
+    WHERE THAT TEXT COMES FROM, because this docstring is the only copy of it
+    in the repo: rules/.cache/orks.html, in the Core Stratagems block that
+    every faction page carries. rules/*/*.md holds datasheets, army rules and
+    detachments ONLY - the core rules and the core Stratagems are not in the
+    corpus at all, and survive only as tooltips inside those cached pages.
+
+    THE TARGET LINE IS THREE INDEPENDENT CLAUSES, and each keeps its own line
+    in can_use() on purpose - none of them implies another:
+      * unengaged. NOT covered by "eligible to shoot": rule 10.06 lets an
+        engaged MONSTER/VEHICLE shoot out of the fight, so can_shoot() says
+        yes exactly where this Stratagem says no.
+      * did not make an advance move this turn. Also NOT covered: rule 09.06
+        costs an Advancing unit its charge and its action, never its shooting.
+        That is precisely why the card prints this clause separately, and why
+        the advanced_squad_ids line below must not be deleted as redundant.
+      * eligible to shoot -> ShootingController.can_shoot(), the same question
+        the Shoot button asks. Naming the concept rather than rebuilding a
+        subset of it by hand: the hand-built version would miss rule 16.01's
+        action lock, whose own printed sentence is "it is not eligible to
+        shoot".
+
+    SUPERSEDED READING, recorded so the reversal is visible rather than
+    silently overwritten. This module used to read "eligible to shoot" as
+    available_shooting_types() being non-empty, on the stated grounds that the
+    Stratagem does not consume the unit's own shooting action - so a unit
+    could still Explosives AFTER shooting. CLAUDE.history.md:150 records that
+    as a guess made "mangels weiterer Regeltexte". The printed text above
+    decides against it, and the same page settles the wording: eight other
+    Stratagems there spell out "that has not been selected to shoot this
+    phase" longhand, so both phrasings coexist in one document and mean the
+    same thing about this clause. Reported: "explosives geht nur vor dem
+    schiessen, weil man eligible to shoot sein muss. ich konnte es aber nach
+    dem schiessen machen."
+    """
 
     def __init__(
         self, stratagem_controller, dice_manager, movement_controller=None,
         all_tokens=None, obstacles=None, terrain_areas=None, turn_tracker=None, game_log=None,
+        shooting_controller=None,
     ):
         self.stratagem_controller = stratagem_controller
         self.dice_manager = dice_manager
         self.movement_controller = movement_controller
+        # Appended rather than inserted: main.py passes the first two
+        # positionally. Without it can_use() refuses outright - see there.
+        self.shooting_controller = shooting_controller
         self.all_tokens = all_tokens if all_tokens is not None else []
         self.obstacles = obstacles if obstacles is not None else []
         self.terrain_areas = terrain_areas if terrain_areas is not None else []
@@ -88,12 +125,17 @@ class ExplosivesController:
         return False
 
     def can_use(self, squad):
-        if squad is None or self.state != IDLE:
+        if squad is None or self.state != IDLE or self.shooting_controller is None:
             return False
         if self.turn_tracker is not None:
             if self.turn_tracker.phase != PHASE_SHOOTING:
                 return False
-            if squad.owner != self.turn_tracker.active_player:
+            # turn_owner, not active_player: the latter is a transient "whose
+            # decision is this right now" flag that a defender's save roll
+            # flips mid-activation (game/turn.py), and can_shoot() below reads
+            # turn_owner - two gates in one function must not answer "is this
+            # my phase" with two different fields.
+            if squad.owner != self.turn_tracker.turn_owner:
                 return False
         if squad.is_engaged(self.all_tokens):
             return False
@@ -106,7 +148,13 @@ class ExplosivesController:
             return False
         if not self._qualifying_models(squad):
             return False
-        if not available_shooting_types(squad, self.all_tokens, self.movement_controller):
+        # "...that is eligible to shoot". shot_squad_ids books COMPLETION, so
+        # a unit in the middle of its own activation has been selected to
+        # shoot but is not in the set yet - same guard, same reason, as
+        # game/arrokon_protocol.py.
+        if self.shooting_controller.active_squad is squad:
+            return False
+        if not self.shooting_controller.can_shoot(squad):
             return False
         if not self._has_reachable_target(squad):
             return False

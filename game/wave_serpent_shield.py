@@ -17,28 +17,30 @@ That comparison is the whole ability, and it means the shield does nothing
 against the small-arms fire it is already shrugging off and everything against
 the anti-tank weapon that would otherwise wound on a 3+.
 
-RANGED ONLY, which is why it is wired into game/shooting.py alone and not
-game/fight.py - "each time a RANGED attack targets this model".
+RANGED ONLY - "each time a RANGED attack targets this model". That one printed
+word is now expressed as `ranged_only = True` on the carrier rather than by
+which file wires it up, and it is what keeps the shield out of game/fight.py
+where its two siblings do appear.
 
-THE TOUGHNESS IS READ THROUGH attached_unit_toughness() rather than off the
-profile, for the same reason the wound threshold itself is: rule 19.02. It
-cannot matter today (a VEHICLE is not joinable), but reading the same source as
-the roll it modifies means the two can never disagree.
+THE ARITHMETIC MOVED TO game/strength_over_toughness.py (the 50th extraction),
+at the third carrier. This module keeps its name and RE-EXPORTS everything it
+ever exported, so no caller moves - the treatment game/root_of_honour.py and
+game/monofilament_web.py got. The Toughness is still read through
+attached_unit_toughness() (rule 19.02): it cannot matter today, since a VEHICLE
+is not joinable, but reading the same source as the roll it modifies means the
+two can never disagree.
 """
 
-from game.squad import attached_unit_toughness
+from game.strength_over_toughness import WAVE_SERPENT_SHIELD
 
-WAVE_SERPENT_SHIELD_PENALTY = 1
-WAVE_SERPENT_SHIELD_LABEL = "Wave Serpent Shield"
+WAVE_SERPENT_SHIELD_PENALTY = WAVE_SERPENT_SHIELD.penalty
+WAVE_SERPENT_SHIELD_LABEL = WAVE_SERPENT_SHIELD.label
 
 
 def unit_has_shield(squad):
     """Per 19.03 a merged unit counts as having it if any component brought it -
     which reading it off the models gives for free."""
-    if squad is None:
-        return False
-    return any(getattr(m.profile, "wave_serpent_shield", False)
-               for m in squad.models if not m.is_dead())
+    return WAVE_SERPENT_SHIELD.unit_has(squad)
 
 
 def applies(target_squad, strength):
@@ -47,7 +49,4 @@ def applies(target_squad, strength):
     `strength` is the attack's Strength characteristic as the wound step
     computes it - the already-adjusted one, not the printed value, so a weapon
     boosted past the hull's Toughness by something else is caught too."""
-    if not unit_has_shield(target_squad) or strength is None:
-        return False
-    toughness = attached_unit_toughness(target_squad)
-    return toughness is not None and strength > toughness
+    return WAVE_SERPENT_SHIELD.applies(target_squad, strength)

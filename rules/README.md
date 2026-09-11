@@ -18,6 +18,18 @@ these files are the transcription source when they are (see MISSING_BY_FOLDER
 in the script). Detachments are snapshotted in full for every faction, built
 or not, for the same reason.
 
+**The CORE rules and the CORE Stratagems are NOT in this folder** - only
+datasheets, army rules and detachments are. They do exist, as tooltips inside
+the cached faction pages under `.cache/` (gitignored), and that is where to
+look before assuming a core rule's wording is unavailable. Worked example:
+Explosives 15.05's WHEN/TARGET/EFFECT sits in the Core Stratagems block of
+every `<faction>.html`, and its absence here once cost a shipped rules bug -
+"eligible to shoot" was guessed at as "has a usable shooting type" rather than
+"has not been selected to shoot this phase", and the guess is recorded in
+`CLAUDE.history.md:150` as having been made for lack of the text. The printed
+wording now lives in `game/explosives.py`'s docstring, which is its only copy
+in the repo.
+
 Last fetched: 2026-09-11
 
 | Faction | Files | Wahapedia version |

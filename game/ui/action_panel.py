@@ -5,6 +5,7 @@ from game import enh_higher_duty
 from game import windrider_overflight
 from game import aura_ruler
 from game import base_contact
+from game import battle_focus
 from game import charge, config, consolidate, crushing_impact, epic_challenge, explosives, fall_back, fight, chronometron, evasion_engrams, fire_and_fade, firing_deck, formations, greater_good, loadout, movement, overwatch, path_of_the_outcast, pregame, setup, shooting, sprites
 from game.ingress import SHORTENED_BLADE_MIN_ENEMY_DISTANCE_IN
 from game.squad import is_at_half_strength
@@ -2084,6 +2085,78 @@ class ActionPanel:
         cancel_rect = self._draw_button(surface, cancel_rect, "Cancel", accent="danger")
         self._buttons.append((cancel_rect, shooting_controller.cancel))
 
+    def _draw_agile_manoeuvres(self, surface, rect, button_width, button_y,
+                               squad, battle_focus_pool, movement_controller):
+        """The three Movement-phase Agile Manoeuvres (Aeldari Battle Focus).
+        Returns the new button_y.
+
+        ONE draw site, called from BOTH arms of _draw_movement_ui()'s
+        `state == MOVING` branch. Reported: "battle focus +2 Movement wurde
+        beim unteren guardian trupp nicht angeboten, obwohl ich noch tokens
+        hatte". The rule was never broken - REPEATABLE_PER_PHASE already
+        allows Swift as the Wind once per unit per phase, exactly as printed.
+        This block only existed in the `else` arm, so the moment the player
+        pressed "Move" every manoeuvre button vanished, and after Confirm
+        moved_squad_ids shut Swift as the Wind for good. Star Engines was
+        worse off still: its TRIGGER requires the Advance to have HAPPENED
+        (advance_bonus_by_squad), which only start_run() sets, and start_run()
+        is only reachable FROM the MOVING arm - so its printed trigger moment
+        was the one state with no buttons at all.
+
+        Two copies of this block is what produced that, so it is a method now
+        rather than a paste, and test_event_chain_wiring.py section 23 pins
+        that both arms call it and that nothing else does.
+
+        NOT Sudden Strike: _before_consolidating() refuses a consolidation
+        already under way and says why ("The panel cannot reach this state
+        anyway; it draws the move-in-progress buttons instead"). Both of its
+        windows are SELECTED states, so it stays where it is.
+
+        The colour is turquoise rather than the stratagem purple, because an
+        Agile Manoeuvre spends a Battle Focus TOKEN and not CP (user: "colorcode
+        fuer agile manouvers ... soll aber tuerkis sein"). The token count is
+        in the label because the pool is a shared, per-round resource and the
+        decision is "is this worth one of my four"."""
+        if battle_focus_pool is None or squad is None:
+            return button_y
+        # Gated on the move TYPE, not merely the phase: the printed triggers
+        # say "a Normal, Advance or Fall Back move". Read off the controller's
+        # own set so there is one answer to which three those are.
+        if movement_controller is not None and movement_controller.state == movement.MOVING:
+            if movement_controller.move_mode not in movement.MovementController.NORMAL_ADVANCE_FALL_BACK_MODES:
+                return button_y
+
+        tokens_left = battle_focus_pool.tokens.get(squad.owner, 0)
+        manoeuvres = (
+            (battle_focus.SWIFT_AS_THE_WIND, battle_focus_pool.use_swift_as_the_wind,
+             "Swift as the Wind - +2\" Move this phase"),
+            (battle_focus.FLITTING_SHADOWS, battle_focus_pool.use_flitting_shadows,
+             "Flitting Shadows - no Fire Overwatch at this unit"),
+            (battle_focus.STAR_ENGINES, battle_focus_pool.use_star_engines,
+             "Star Engines - [ASSAULT] this turn"),
+        )
+        # Collect refusals rather than printing one line each: three identical
+        # "no tokens left" lines in a 220px column is worse than silence. A
+        # reason produced by exactly one manoeuvre is labelled with its name;
+        # one produced by several is labelled for the group.
+        refusals = {}
+        for manoeuvre, use, label in manoeuvres:
+            ok, why = battle_focus_pool.why_not(manoeuvre, squad)
+            if ok:
+                bf_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
+                bf_rect = self._draw_button(
+                    surface, bf_rect, f"{label}  ({tokens_left} token(s))", accent="battle_focus",
+                )
+                self._buttons.append((bf_rect, (lambda u=use: u(squad))))
+                button_y += bf_rect.height + BUTTON_GAP
+            elif why:
+                refusals.setdefault(why, []).append(manoeuvre)
+        for why, names in refusals.items():
+            who = names[0] if len(names) == 1 else "Agile Manoeuvres"
+            button_y = self._draw_text(
+                surface, rect, f"{who}: {why}", button_y, color=HINT_COLOR, gap=BUTTON_GAP)
+        return button_y
+
     def _draw_movement_ui(
         self, surface, rect, button_width, movement_controller, shooting_controller,
         charge_controller=None, pile_in_controller=None, fight_controller=None, consolidate_controller=None,
@@ -2312,6 +2385,14 @@ class ActionPanel:
                 fly_rect = self._draw_button(surface, fly_rect, "Take to the Skies")
                 self._buttons.append((fly_rect, movement_controller.take_to_the_skies))
                 button_y += fly_rect.height + BUTTON_GAP
+
+            # The same three manoeuvres the `else` arm below draws. A move in
+            # progress IS the printed trigger ("selected to make a Normal,
+            # Advance or Fall Back move"), and for Star Engines it is the only
+            # state its trigger can be satisfied in at all.
+            button_y = self._draw_agile_manoeuvres(
+                surface, rect, button_width, button_y, squad, battle_focus_pool,
+                movement_controller)
 
             if is_charge:
                 # Real user report: a single "Cancel" used to always finish
@@ -2556,28 +2637,9 @@ class ActionPanel:
             # other two sit above it. The token count is in the label because
             # the pool is a shared, per-round resource and the decision is
             # "is this worth one of my four".
-            if battle_focus_pool is not None and squad is not None:
-                tokens_left = battle_focus_pool.tokens.get(squad.owner, 0)
-                manoeuvres = (
-                    (battle_focus_pool.can_swift_as_the_wind,
-                     battle_focus_pool.use_swift_as_the_wind,
-                     "Swift as the Wind - +2\" Move this phase"),
-                    (battle_focus_pool.can_flitting_shadows,
-                     battle_focus_pool.use_flitting_shadows,
-                     "Flitting Shadows - no Fire Overwatch at this unit"),
-                    (battle_focus_pool.can_star_engines,
-                     battle_focus_pool.use_star_engines,
-                     "Star Engines - [ASSAULT] this turn"),
-                )
-                for available, use, label in manoeuvres:
-                    if not available(squad):
-                        continue
-                    bf_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
-                    bf_rect = self._draw_button(
-                        surface, bf_rect, f"{label}  ({tokens_left} token(s))", accent="battle_focus",
-                    )
-                    self._buttons.append((bf_rect, (lambda u=use: u(squad))))
-                    button_y += bf_rect.height + BUTTON_GAP
+            button_y = self._draw_agile_manoeuvres(
+                surface, rect, button_width, button_y, squad, battle_focus_pool,
+                movement_controller)
 
             if can_normal_move:
                 move_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)

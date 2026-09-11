@@ -441,11 +441,82 @@ class BattleFocusPool:
             return "the unit has already performed an Agile Manoeuvre this phase"
         if (not free and manoeuvre not in REPEATABLE_PER_PHASE
                 and (player, manoeuvre) in self._manoeuvres_this_phase):
-            return f"{manoeuvre} has already been triggered this phase"
+            # Not "{manoeuvre} has already been..." - the only logging caller
+            # below already prefixes the name, so that read doubled, and the
+            # panel's hint line labels its own line too.
+            return "this Agile Manoeuvre has already been triggered this phase"
         return None
 
     def can_use(self, player, manoeuvre, squad):
         return self.refusal_reason(player, manoeuvre, squad) is None
+
+    def _trigger_open(self, manoeuvre, squad):
+        """Has this manoeuvre's printed TRIGGER happened for this unit?
+
+        Split out of the three can_*() methods so why_not() can tell "the
+        trigger has not fired" (say nothing) apart from "the trigger fired and
+        something took the manoeuvre away" (say what). refusal_reason() covers
+        only the second kind - it knows about tokens and the two once-per
+        axes, and nothing about phases, movement state or keywords."""
+        if manoeuvre == SWIFT_AS_THE_WIND:
+            # TRIGGER: selected to make a Normal, Advance or Fall Back move.
+            # Open until the move is CONFIRMED rather than only before it
+            # starts: the budget is handed out when the move begins, and this
+            # engine's Advance button only exists once a unit is already
+            # moving, so a strictly-before rule would make the manoeuvre
+            # unusable on the very trigger the rule lists first.
+            # use_swift_as_the_wind() tops up the remaining range accordingly.
+            if not self._own_movement_phase(squad):
+                return False
+            mover = self.movement_controller
+            return not (mover is not None and squad in mover.moved_squad_ids)
+        if manoeuvre == FLITTING_SHADOWS:
+            # TRIGGER: same three moves. Not gated on the move being
+            # unfinished, unlike Swift as the Wind: the effect is not about
+            # the move at all, it denies Fire Overwatch, which this engine
+            # only offers once the whole Movement phase has ended. So the
+            # honest window is that phase.
+            #
+            # The rule's other two triggers (being set up on the battlefield,
+            # declaring a charge) are deliberately not offered - see the
+            # module docstring: this engine has no Fire Overwatch window at
+            # either moment, so a token spent there would buy a guaranteed
+            # nothing.
+            return self._own_movement_phase(squad)
+        if manoeuvre == STAR_ENGINES:
+            # TRIGGER: an eligible VEHICLE unit selected to make an Advance
+            # move. Requires the Advance to have actually HAPPENED (the unit
+            # is in MovementController.advance_bonus_by_squad), not merely to
+            # be possible. Otherwise a player could buy [ASSAULT] for the
+            # whole turn and then make an ordinary move instead - the effect
+            # lasts until the end of the turn and pays off in the Shooting
+            # phase, so nothing later would ever catch it.
+            if not self._own_movement_phase(squad):
+                return False
+            if not any(getattr(m.profile, "vehicle", False) for m in squad.models):
+                return False
+            mover = self.movement_controller
+            return mover is not None and squad in mover.advance_bonus_by_squad
+        raise ValueError("no TRIGGER defined for %r" % (manoeuvre,))
+
+    def why_not(self, manoeuvre, squad):
+        """(True, None) when the button belongs on screen; (False, reason)
+        when the unit HAD the manoeuvre and something took it away; and
+        (False, None) when there is no question to answer at all.
+
+        The third case is what stops a naive port of the Insane Bravery hint
+        line from printing a Battle Focus line on every unit of every
+        non-Aeldari army, every frame: refusal_reason()'s first branch
+        ("this army does not have the Battle Focus ability") is reachable
+        whenever the trigger is shut, so it is NOT the negation of can_*()."""
+        if squad is None:
+            return False, None
+        if squad.owner not in self.tokens or not has_battle_focus(squad):
+            return False, None      # never had the rule - say nothing
+        if not self._trigger_open(manoeuvre, squad):
+            return False, None      # the TRIGGER has not happened - not a refusal
+        reason = self.refusal_reason(squad.owner, manoeuvre, squad)
+        return reason is None, reason
 
     # Each manoeuvre's own TRIGGER, so the UI and the tests ask one question
     # instead of two that can drift apart. All three triggers named in this
@@ -460,55 +531,21 @@ class BattleFocusPool:
             and squad.owner == self.turn_tracker.turn_owner
         )
 
-    def can_swift_as_the_wind(self, squad):
-        """TRIGGER: selected to make a Normal, Advance or Fall Back move.
+    # The three Movement-phase manoeuvres. Each is DERIVED from why_not() so
+    # one rule cannot have two disagreeing readers - the panel draws a button
+    # when the boolean is True and a hint line when the reason is not None,
+    # and those two must never both be true at once. The TRIGGER halves live
+    # in _trigger_open(); drawn from ActionPanel._draw_agile_manoeuvres(), in
+    # BOTH movement states.
 
-        Offered until the unit's move is CONFIRMED rather than only before it
-        starts: the budget is handed out when the move begins, and this
-        engine's Advance button only exists once a unit is already moving, so
-        a strictly-before rule would make the manoeuvre unusable on the very
-        trigger the rule lists first. use_swift_as_the_wind() tops up the
-        remaining range accordingly."""
-        if not self._own_movement_phase(squad):
-            return False
-        mover = self.movement_controller
-        if mover is not None and squad in mover.moved_squad_ids:
-            return False
-        return self.can_use(squad.owner, SWIFT_AS_THE_WIND, squad)
+    def can_swift_as_the_wind(self, squad):
+        return self.why_not(SWIFT_AS_THE_WIND, squad)[0]
 
     def can_flitting_shadows(self, squad):
-        """TRIGGER: selected to make a Normal, Advance or Fall Back move.
-
-        Not gated on the move being unfinished, unlike Swift as the Wind: the
-        effect is not about the move at all, it denies Fire Overwatch, which
-        this engine only offers once the whole Movement phase has ended. So
-        the honest window is that phase.
-
-        The rule's other two triggers (being set up on the battlefield,
-        declaring a charge) are deliberately not offered - see the module
-        docstring: this engine has no Fire Overwatch window at either moment,
-        so a token spent there would buy a guaranteed nothing."""
-        if not self._own_movement_phase(squad):
-            return False
-        return self.can_use(squad.owner, FLITTING_SHADOWS, squad)
+        return self.why_not(FLITTING_SHADOWS, squad)[0]
 
     def can_star_engines(self, squad):
-        """TRIGGER: an eligible VEHICLE unit selected to make an Advance move.
-
-        Requires the Advance to have actually HAPPENED (the unit is in
-        MovementController.advance_bonus_by_squad), not merely to be possible.
-        Otherwise a player could buy [ASSAULT] for the whole turn and then
-        make an ordinary move instead - the effect lasts until the end of the
-        turn and pays off in the Shooting phase, so nothing later would ever
-        catch it."""
-        if not self._own_movement_phase(squad):
-            return False
-        if not any(getattr(m.profile, "vehicle", False) for m in squad.models):
-            return False
-        mover = self.movement_controller
-        if mover is None or squad not in mover.advance_bonus_by_squad:
-            return False
-        return self.can_use(squad.owner, STAR_ENGINES, squad)
+        return self.why_not(STAR_ENGINES, squad)[0]
 
     def can_sudden_strike(self, squad):
         """TRIGGER: an eligible unit is selected to fight.
@@ -791,7 +828,7 @@ class BattleFocusPool:
         return True
 
     # Set by main.py - the Autarch Wayleaper's token refund, read in
-    # _spend(). A class attribute so every existing BattleFocusController
+    # _spend(). A class attribute so every existing BattleFocusPool
     # (tests, harnesses) keeps working without a constructor change.
     indomitable = None
 

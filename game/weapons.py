@@ -5704,6 +5704,91 @@ class StaffOfTheDestroyerMeleeProfile(WeaponProfile):
     devastating_wounds = True
 
 
+# --- The three Necron VEHICLEs (stage 8) -----------------------------------
+#
+# COLLISION SWEEP, run over the corpus before the first class below. FOUR of
+# the seven printed names are SHARED rather than forked, which is the inverse
+# of stage 3's mistake and the same call stage 7 made for the Royal Warden:
+#
+#   * "Gauss cannon" (both Barges) is BYTE-IDENTICAL to the Lokhust
+#     Destroyers' row, so GaussCannonProfile is reused.
+#   * "Armoured bulk" (Annihilation Barge, Ghost Ark) is BYTE-IDENTICAL to the
+#     Doomsday Ark's, so ArmouredBulkProfile is reused. Note the Silent King's
+#     Triarchal Menhir prints an A1 S4 row under the same name - that one IS a
+#     fork, and stage 9 has to make it.
+#   * "Gauss flayer array" (Ghost Ark) is BYTE-IDENTICAL to the Doomsday Ark's,
+#     so GaussFlayerArrayProfile is reused.
+#   * "Overlord's blade" (Catacomb Command Barge) is BYTE-IDENTICAL to the
+#     Overlord's, so OverlordsBladeProfile is reused - the share the stage-7
+#     block above predicted BY NAME.
+#
+# All four are safe to share because BS/WS live on the WIELDER'S PROFILE, not
+# on the weapon: one class hands each bearer its own printed skill for free.
+# The suite pins that, not just the class identity - a clone with the same
+# numbers passes an identity-free read and fails the skill one.
+#
+# TWO PER-WEAPON SKILL OVERRIDES, AND THEY ARE THE WHOLE OF THEM in this
+# stage. The Catacomb Command Barge's own rows CONTRADICT EACH OTHER, which is
+# exactly what WeaponProfile.ballistic_skill/.weapon_skill exist for (the
+# Voidscythe above is the Necron melee precedent):
+#
+#     BS rows: gauss cannon 3+, tesla cannon 3+, staff of light 2+
+#     WS rows: Overlord's blade 2+, staff of light 3+
+#
+# So the PROFILE is BS3+/WS2+ and the two STAFF rows carry the overrides. The
+# other reading (profile BS2+/WS3+, overriding the cannons and the blade) costs
+# the same two overrides and was rejected for two measured reasons: it would
+# FORK OverlordsBladeProfile - the class stage 7 wrote down as the one this
+# stage would share - and it would split the staff of light's two rows across a
+# shared class and a forked one, when the staff is ONE printed weapon whose two
+# rows are replaced together by the wargear option.
+
+class TeslaCannonProfile(WeaponProfile):
+    """Both Barges print this row identically, so one class serves them."""
+    name = "Tesla Cannon"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 4
+    strength = 6
+    ap = 0
+    damage = 1
+    sustained_hits = 2
+
+
+class TwinTeslaDestructorProfile(WeaponProfile):
+    """ONE CARRIER TODAY, and that is worth writing down rather than letting
+    the class read like a shared one: the Annihilation Barge is the only sheet
+    IN SCOPE that prints this row. The Night Scythe and the Doom Scythe print
+    it identically and are both out of scope (see fetch_datasheet_rules.py's
+    MISSING_NECRONS), so the day either is built this is a SHARE and not a
+    fourth fork - the same forward note that made the Royal Warden's close
+    combat weapon a share in stage 7."""
+    name = "Twin Tesla Destructor"
+    weapon_type = RANGED
+    range_in = 36
+    attacks = 6
+    strength = 8
+    ap = 0
+    damage = 2
+    sustained_hits = 2
+    twin_linked = True
+
+
+class CatacombCommandBargeStaffOfLightRangedProfile(LordStaffOfLightRangedProfile):
+    """The Lord's staff with ONE characteristic changed: the Barge prints BS2+
+    for it while printing BS3+ for both of its cannons, so the skill cannot
+    live on the profile. Inherit-and-override-one-field is the
+    LordsBladeProfile(OverlordsBladeProfile) shape, and the suite pins this
+    against its base rather than against literals."""
+    ballistic_skill = "2+"
+
+
+class CatacombCommandBargeStaffOfLightMeleeProfile(LordStaffOfLightMeleeProfile):
+    """The melee half of the pair above, same arrangement: WS3+ where the
+    Barge's Overlord's blade prints WS2+."""
+    weapon_skill = "3+"
+
+
 class EmpathicObliteratorProfile(WeaponProfile):
     """[SUSTAINED HITS D3] - the dice-notation form, so one die per critical
     hit is rolled for real rather than a fixed X being applied."""

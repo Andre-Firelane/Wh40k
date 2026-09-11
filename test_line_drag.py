@@ -184,12 +184,15 @@ for depth, xs in rows.items():
     c.true(f"the rank at depth {depth:.2f} is centred on the drag ({(min(xs) + max(xs)) / 2:.3f})",
            abs((min(xs) + max(xs)) / 2 - 15.0) < 1e-6)
 
-# Front-rank models land in rank 1.
+# Priority models land in rank 1. `front=` became `priority=` - a sequence of
+# TIERS rather than one set - when the drag grew the full
+# characters/sergeants/special-weapons order; a single tier is the old
+# behaviour, so this keeps measuring what it always did.
 mixed2 = mk([0.63, 0.63, 0.63, 0.98])
 lead = mixed2.models[3]
 pos2 = fl.line_positions(mixed2, (10.0, 10.0), (14.0, 10.0), depth_toward=(12.0, 25.0),
-                         frontage=2, front=[lead])
-c.true("a front-rank model is put in rank 1", abs(pos2[3][1] - 10.0) < 1e-6)
+                         frontage=2, priority=[[lead]])
+c.true("a priority model is put in rank 1", abs(pos2[3][1] - 10.0) < 1e-6)
 
 # A degenerate drag (press, no travel) must not throw or spin.
 dot = fl.line_positions(sq, (10.0, 10.0), (10.0, 10.0), depth_toward=(10.0, 25.0))
@@ -828,5 +831,215 @@ c.true("the drawing has its own colour, not the ruler's white",
        and "LINE_DRAG_COLOR = MEASURE_LINE_COLOR" not in RENDERER_SRC)
 c.true("...and its width goes through _ring_width()",
        "self._ring_width(LINE_DRAG_WIDTH_PX)" in RENDERER_SRC)
+
+
+# --- 6. the priority ordering ----------------------------------------------
+
+print()
+print("6) the priority ordering: characters, then sergeants, then specials")
+
+# Asked for after a playtest: "ich haette gerne eine prioliste. ganz vorne soll
+# es losgehen mit Charactere, dann squadleader, dann spezialwaffen" - and, on a
+# partial fit, "wenn sie nicht alle in den frontrank passen, dann fuelle den
+# 2ten rank damit auf ... diese nummerierung soll einfach mit prioritaet
+# aufgefuellt werden".
+#
+# Before this the order was PURELY geometric - whoever already stood nearest
+# the drawn line became rank 1 - so a character landed wherever it happened to
+# be. Measured on the real `Pathfinder Team + Darkstrider`, with the character
+# at the back: rank 3 of 3, because attach() appends leader models to the END
+# of squad.models and geometry did the rest.
+
+from game import front_rank as fr  # noqa: E402
+
+
+class _Char(P):
+    name = "Character"
+    character = True
+
+
+class _Sgt(P):
+    name = "Sergeant"
+    squad_leader = True
+
+
+class _Gun:
+    name = "Gun"
+
+
+class _Melta:
+    name = "Melta"
+
+
+def tiered(reversed_geometry=True):
+    """A unit carrying all three tiers plus four plain models.
+
+    The priority models are placed FURTHEST from the line, so the geometric
+    order and the priority order genuinely disagree - without that every check
+    below would pass vacuously.
+    """
+    models = []
+    for i, (profile, weapon) in enumerate((
+            (_Char, _Gun), (_Sgt, _Gun), (P, _Melta),
+            (P, _Gun), (P, _Gun), (P, _Gun), (P, _Gun))):
+        far = i < 3 and reversed_geometry
+        token = Token(x_in=10.0 + i * 1.4, y_in=30.0 if far else 11.0,
+                      radius_in=0.63, color=(1, 2, 3), profile=profile())
+        token.weapons = [weapon()]
+        models.append(token)
+    return Squad("1 Tiered 1", models, owner="Player 1")
+
+
+tier_squad = tiered()
+tiers = fr.drag_priority_tiers(tier_squad)
+c.eq("tier 0 is the characters", [m.profile.name for m in tiers[0]], ["Character"])
+c.eq("tier 1 is the sergeants", [m.profile.name for m in tiers[1]], ["Sergeant"])
+c.eq("tier 2 is the odd loadout", [id(m) for m in tiers[2]], [id(tier_squad.models[2])])
+
+# LIVENESS: the two orderings really disagree here.
+origins6 = [(m.x_in, m.y_in) for m in tier_squad.models]
+plain6 = fl.line_positions(tier_squad, (8.0, 10.0), (16.0, 10.0),
+                           depth_toward=(12.0, 30.0), origins=origins6, frontage=3)
+prio6 = fl.line_positions(tier_squad, (8.0, 10.0), (16.0, 10.0),
+                          depth_toward=(12.0, 30.0), origins=origins6, frontage=3,
+                          priority=tiers)
+c.true("LIVENESS: priority really changes the layout", plain6 != prio6)
+c.true("...and without it the character was NOT in rank 1",
+       abs(plain6[0][1] - 10.0) > 1e-6)
+
+
+def rank_of(positions, index, front_y=10.0):
+    """Which rank a model landed in, counted from the drawn line."""
+    depth = abs(positions[index][1] - front_y)
+    return round(depth / 1.36)          # rank pitch for uniform 0.63" bases
+
+
+# Frontage 3: all three priority models fit in rank 1.
+c.eq("the character is in rank 1", rank_of(prio6, 0), 0)
+c.eq("the sergeant is in rank 1", rank_of(prio6, 1), 0)
+c.eq("the special weapon is in rank 1", rank_of(prio6, 2), 0)
+c.true("...and a plain model is not", rank_of(prio6, 3) > 0)
+
+# Frontage 2: the third priority model SPILLS into rank 2, ahead of every
+# plain model - the case the report described in so many words.
+prio2 = fl.line_positions(tier_squad, (8.0, 10.0), (16.0, 10.0),
+                          depth_toward=(12.0, 30.0), origins=origins6, frontage=2,
+                          priority=tiers)
+c.eq("character and sergeant hold rank 1", (rank_of(prio2, 0), rank_of(prio2, 1)), (0, 0))
+c.eq("the special weapon spills into rank 2", rank_of(prio2, 2), 1)
+c.true("...ahead of every plain model",
+       all(rank_of(prio2, i) >= 1 for i in range(3, 7)))
+
+# Geometry stays the tiebreak INSIDE a tier, so same-ranked models keep the
+# left-to-right order they already stand in and their paths do not cross.
+three_specials = tiered(reversed_geometry=False)
+# Models 2, 3 and 4 carry the Melta; 0, 1, 5 and 6 keep the Gun. The MAJORITY
+# has to stay the Gun - give the Melta a fourth carrier and the majority flips,
+# which would quietly make the Gun the "special weapon" instead.
+for model in three_specials.models[3:5]:
+    model.weapons = [_Melta()]
+sp_tiers = fr.drag_priority_tiers(three_specials)
+c.eq("three special weapons are one tier", len(sp_tiers[2]), 3)
+sp_origins = [(20.0 - i, 11.0) for i in range(7)]     # right-to-left on the board
+sp_pos = fl.line_positions(three_specials, (8.0, 10.0), (16.0, 10.0),
+                           depth_toward=(12.0, 30.0), origins=sp_origins,
+                           frontage=7, priority=sp_tiers)
+specials_x = [sp_pos[i][0] for i in (2, 3, 4)]
+c.eq("...and inside it geometry still decides, so no paths cross",
+     specials_x, sorted(specials_x, reverse=True))
+
+# THE LADDER: full priority, then characters only, then plain geometry -
+# keeping the best rung the unit can afford. Measured at the rungs themselves,
+# by recording which priority each lay_out() was asked for: a scene where the
+# full order is affordable and one where it is not would take a very finely
+# tuned board to tell apart, while the ladder's SHAPE is the thing the fix
+# added and the thing a probe removes.
+ladder_squad = tiered()
+for i, model in enumerate(ladder_squad.models):
+    model.x_in, model.y_in = 10.0 + i * 1.4, 11.0
+lm = mover(ladder_squad, move_in=6.0)
+seen_rungs = []
+_real_lp = fl.line_positions
+
+
+def _spy_lp(*a, **kw):
+    seen_rungs.append(tuple(len(t) for t in (kw.get("priority") or ())))
+    return _real_lp(*a, **kw)
+
+
+_costs = {"n": 0}
+
+
+def _expensive_first_rung(models, origins, targets):
+    """plain = 0, full priority = unaffordable, characters-only = 0."""
+    _costs["n"] += 1
+    return 99 if _costs["n"] == 2 else 0
+
+
+fl.line_positions = _spy_lp
+lm._cannot_reach = _expensive_first_rung
+try:
+    lm.apply_line_drag((8.0, 10.0), (16.0, 10.0))
+finally:
+    fl.line_positions = _real_lp
+c.eq("the ladder tries plain, then the full order, then characters only",
+     seen_rungs, [(), (1, 1, 1), (1,)])
+
+# And when the full order IS affordable it stops at that rung.
+ladder2 = tiered()
+for i, model in enumerate(ladder2.models):
+    model.x_in, model.y_in = 10.0 + i * 1.4, 11.0
+lm2 = mover(ladder2, move_in=6.0)
+seen2 = []
+
+
+def _spy2(*a, **kw):
+    seen2.append(tuple(len(t) for t in (kw.get("priority") or ())))
+    return _real_lp(*a, **kw)
+
+
+fl.line_positions = _spy2
+lm2._cannot_reach = lambda *a: 0
+try:
+    lm2.apply_line_drag((8.0, 10.0), (16.0, 10.0))
+finally:
+    fl.line_positions = _real_lp
+c.eq("...and stops at the full order when it is affordable",
+     seen2, [(), (1, 1, 1)])
+
+# A homogeneous unit with no tiers at all lays out EXACTLY as before.
+plainest = mk([0.63] * 6, at=[(10.0 + i, 12.0) for i in range(6)])
+before6 = fl.line_positions(plainest, (8.0, 10.0), (16.0, 10.0),
+                            depth_toward=(12.0, 20.0), frontage=3)
+after6 = fl.line_positions(plainest, (8.0, 10.0), (16.0, 10.0),
+                           depth_toward=(12.0, 20.0), frontage=3,
+                           priority=fr.drag_priority_tiers(plainest))
+c.eq("a unit with no priority models is laid out identically", before6, after6)
+
+# The legality sweep measures the block that will actually be applied: the
+# pitch is per pair, so a differently-ordered block has a different spread.
+with open(os.path.join("game", "line_drag.py"), encoding="utf-8") as _fh:
+    sweep_src = _fh.read()
+c.true("legal_frontage_window() sweeps WITH the priority",
+       "priority=priority" in sweep_src and "drag_priority_tiers" in sweep_src)
+
+# THE SUBSET CRASH. SetupController passes placing_models, which during a rule
+# 01.02.03 return is a genuine subset; line_positions() used to read
+# squad.models while indexing origins by the subset.
+subset_squad = mk([0.63] * 5, at=[(10.0 + i, 12.0) for i in range(5)])
+placing = subset_squad.models[:2]
+try:
+    # Caught rather than allowed to propagate: the pre-fix world raises
+    # IndexError here, and a probe has to make this check RED, not abort the
+    # whole run - the lesson this repo has paid for a dozen times.
+    subset_pos = fl.line_positions(subset_squad, (8.0, 10.0), (14.0, 10.0),
+                                   depth_toward=(11.0, 20.0),
+                                   origins=[(m.x_in, m.y_in) for m in placing],
+                                   frontage=2, models=placing)
+except Exception as _exc:  # noqa: BLE001 - a crash IS the finding
+    subset_pos = "raised %s" % type(_exc).__name__
+c.eq("a partial placement lays out only the models being placed",
+     subset_pos if isinstance(subset_pos, str) else len(subset_pos), 2)
+
 
 c.finish()

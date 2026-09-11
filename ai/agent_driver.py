@@ -9057,11 +9057,17 @@ def _handle_explosives_for_squad(agent, memory, player, all_tokens, squad, explo
     fixed for Greater Good (see _handle_greater_good_for_squad's docstring):
     a squad with nothing in range would otherwise get that scan re-run on
     EVERY take_one_action() call for the rest of the phase. Fixed the same
-    way - a False can_use() is cached like an explicit decline, since
-    nothing it checks (engaged/advanced/ability/shooting-eligibility/
-    visible targets) changes mid-Shooting-phase. controller.state != IDLE
-    (someone else's flow currently open) is the one genuinely transient
-    case, so it's checked separately and left uncached."""
+    way - a False can_use() is cached like an explicit decline.
+
+    That cache USED to be justified by "nothing it checks changes
+    mid-Shooting-phase", which stopped being true when can_use() started
+    asking ShootingController.can_shoot() (rule 15.05's printed "eligible to
+    shoot" clause - see game/explosives.py). The caching is still sound, but
+    for a different and narrower reason: a unit never un-shoots, so that
+    clause can only ever go True -> False within a phase. Caching a False is
+    therefore safe; caching a True would not be, and nothing does.
+    controller.state != IDLE (someone else's flow currently open) is the one
+    genuinely transient case, so it's checked separately and left uncached."""
     if squad.name in memory.declined_explosives:
         return False
     if explosives_controller.state != explosives_module.IDLE:
@@ -9663,6 +9669,11 @@ def _handle_shooting(agent, memory, player, all_tokens, shooting_controller, exp
             if _handle_greater_good_for_squad(agent, memory, player, all_tokens, squad, greater_good_controller, shooting_controller, on_thinking):
                 return True
 
+    # Before the shoot loop below, not after - and that ordering is now
+    # LOAD-BEARING rather than incidental: rule 15.05's TARGET clause is "a
+    # unit that is eligible to shoot", so once the unit has fired the offer
+    # is illegal and can_use() refuses it. Run this loop after the shoot loop
+    # and the AI would simply never be offered Explosives.
     if explosives_controller is not None:
         for squad in sorted(_all_squads(all_tokens), key=lambda s: s.name):
             if squad.owner != player:

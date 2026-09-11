@@ -8851,3 +8851,79 @@ Etappe-6-Extraktion `mortal_wound_sweep`, der sie überhaupt rechtfertigt.
 `run_tests.py --smoke` komplett grün, `selfplay.py map2 1500` mit den Default-Armeen und mit
 Necrons auf beiden Seiten, `verify_rules_vs_engine.py` unverändert bei 67 Differenzen (keine
 nennt eine Einheit dieser Etappe), Korpus ohne Diff, Golden Master unbewegt.
+
+## 2026-09-11 — drei Playtest-Meldungen, und zweimal war die naheliegende Diagnose falsch
+
+Gemeldet nach einer Aeldari-Partie (map2, Biom Arena): Swift as the Wind wurde einem zweiten
+Guardian-Trupp nicht angeboten, obwohl Token übrig waren; Explosives ließ sich NACH dem Schießen
+benutzen, obwohl man "eligible to shoot" sein muss; und die Frage, nach welcher Reihenfolge sich
+die Modelle beim Linien-Drag aufreihen, mit der Bitte um eine Prioritätenliste.
+
+**REPRODUKTION ZUERST, und sie hat zwei der drei Diagnosen umgedreht.**
+
+`logs/game_20260911_100813.log:303` zeigt den gemeldeten Battle-Focus-Fall wörtlich: der Avatar
+gibt einen Token für Swift as the Wind aus, danach ziehen in DERSELBEN Bewegungsphase sieben
+weitere Einheiten — beide Guardian-Defenders-Trupps darunter, einer mit Advance (`D6: 6`) — und
+kein zweites Swift as the Wind, bei 3 Token in der Hand. Die naheliegende Diagnose wäre "die
+Engine erlaubt die Wiederholung nicht". Sie erlaubt sie: `REPEATABLE_PER_PHASE` setzt
+`army_rules.md:23` korrekt um und `test_battle_focus.py:128-133` pinnt es seit Langem. Der
+Fehler saß im PANEL — die Manöver-Knöpfe standen nur im `else`-Arm von `_draw_movement_ui()`,
+verschwanden also beim Druck auf "Move", und nach dem Confirm schloss `moved_squad_ids` das
+Manöver endgültig. Der Docstring des Controllers versprach seit jeher das Gegenteil ("Offered
+until the unit's move is CONFIRMED"), und der Test pinnte genau das — auf POOL-Ebene; der
+Panel-Test rief nur `select()`. Das ist das strukturelle Loch, und es hat einen zweiten,
+schlimmeren Fall verdeckt: **Star Engines' Trigger verlangt `advance_bonus_by_squad`, gesetzt
+erst von `start_run()`, und `start_run()` ist NUR aus dem MOVING-Arm erreichbar — sein gedruckter
+Trigger-Moment war also nie anbietbar.**
+
+Bei Explosives war das Verhalten keine Nachlässigkeit, sondern eine ausdrücklich dokumentierte
+Annahme: der Eintrag oben (Zeile 150 dieser Datei) hält fest, "eligible to shoot" sei
+**"mangels weiterer Regeltexte"** als `available_shooting_types()` gelesen worden. **Der fehlende
+Text war da, nur ungelesen:** `rules/.cache/orks.html` trägt im Core-Stratagem-Block jeder
+Fraktionsseite die vollständige Karte, und sie sagt "One friendly unengaged EXPLOSIVES / GRENADES
+unit that is eligible to shoot and did not make an advance move this turn". Damit ist die Annahme
+von Zeile 150 ABGELÖST — sie bleibt dort stehen, weil die Vermutung der Punkt ist. Zwei weitere
+Belege von derselben Seite: acht andere Ork-Stratagems schreiben "that has not been selected to
+shoot this phase" aus, beide Formulierungen koexistieren also in EINEM Dokument; und die
+TARGET-Zeile trägt drei unabhängige Klauseln, weil 09.06 einem Advance die Charge und die Aktion
+kostet, nie das Schießen.
+
+Die dritte Meldung war eine Frage, und die ehrliche Antwort lautete: es gibt gar keine
+Reihenfolge. Empirisch an `1 Pathfinder Team 1 + Darkstrider` gezeigt — mit dem Charakter hinten
+aufgestellt landete er in der LETZTEN Reihe, weil `attach()` Leader ans Ende von `squad.models`
+hängt und die Sortierung rein geometrisch war.
+
+**EIN UNGEMELDETER ABSTURZ, beim Prüfen der Aufrufstellen gefunden.** `line_positions()` las
+`squad.models` und indizierte `origins` nach der TEILMENGE, die `setup.py` übergibt — bei einer
+01.02.03-Rückkehr (Reanimation) ist das eine echte Teilmenge, also `IndexError`. Ein Rechts-Drag
+mitten in einer Reanimations-Platzierung stürzte das Spiel ab. Gemessen (`squad models 5 |
+placing 2` → `IndexError`), mitbehoben, weil die neuen Prioritätsstufen exakt dasselbe Problem
+gehabt hätten.
+
+**EIGENE FEHLER, alle vom Werkzeug gefangen, und alle vier sind dokumentierte Formen:**
+- Der neue Wächter §22 fiel auf seinen EIGENEN Kommentar herein — er suchte `active_player` als
+  String, und die Funktion nennt das Wort, um zu erklären, warum sie es nicht benutzt. Per AST
+  gelöst (Attributzugriffe statt Text). Fehlerklasse 24, sechste Instanz.
+- Die Heredoc-Falle (Fehlerklasse 21): ein `\n` in einem `print()` wurde beim Schreiben über Bash
+  zu einem echten Zeilenumbruch und zerlegte die Testdatei syntaktisch.
+- `test_battle_focus.py` §14 benutzte zuerst §8s GETEILTEN ShootingController, der seit einem
+  früheren Abschnitt in `choosing_target` steckt — der Render fiel damit auf den Schuss-Screen
+  und maß gar nichts. Erst ein Spion, der den gerenderten ARM aufzeichnet, hat es gezeigt.
+- Der Fall-Back-Fall ohne Feind lässt `start_fall_back_move()` still ablehnen (09.07 verlangt
+  Engagement), sodass der `else`-Arm zeichnete und die Prüfung aus dem falschen Grund bestand.
+  Die zugehörige A/B-Sonde meldete NO BITE und hat es aufgedeckt.
+
+**EIN FEHLSCHLAG, DER KEINER WAR.** Die volle Regression meldete einmal `test_ere_we_go.py` rot,
+und drei Einzelläufe direkt danach bestätigten es scheinbar (1 von 3). Ein A/B gegen HEAD sah nach
+einer eigenen Regression aus — bis 12 saubere Läufe auf demselben Stand 12/12 grün ergaben. Es war
+der `__pycache__`-Rennfall (Fehlerklasse 19), ausgelöst durch die vielen frischen Edits, und die
+Regel "erst WIEDERHOLEN, dann suchen" hat sich wieder bezahlt gemacht. Nebenbei sichtbar
+geworden: eine PARALLELE Sitzung arbeitete am selben Repo (Fehlerklasse 20) — `git status` zeigte
+`fetch_datasheet_rules.py`, `game/factions/necrons.py`, `shooting.py`, `fight.py` und ein Dutzend
+weitere Dateien, die zu dieser Arbeit nicht gehören.
+
+Ergebnis: `test_explosives.py` neu (28/28 — zu `can_use()` gab es vorher KEINEN Test),
+`test_battle_focus.py` 195 → 231, `test_line_drag.py` 150 → 169, `test_event_chain_wiring.py`
+187 → 216 (zwei neue Wächter: §22 für die Eignungsfrage, §23 für die Zweig-SYMMETRIE), drei neue
+A/B-Sondendateien mit zusammen 23 Sonden, und `verify_battle_focus_mid_move.py` als
+Laufzeit-Beleg durch `main()`s echte Schleife (2 Knöpfe gegen `--neutralize`s 0).

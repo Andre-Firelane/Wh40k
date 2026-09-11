@@ -1196,4 +1196,303 @@ checks.true("and a plain core decision keeps this overlay's own gold",
             (255, 215, 0) in plain_painted13)
 
 
+# ------------------------------- 14. the buttons DURING a move in progress
+
+print("--- 14. the manoeuvre buttons while the move is running ---")
+
+# REPORTED: "battle focus +2 Movement wurde beim unteren guardian trupp nicht
+# angeboten, obwohl ich noch tokens hatte. diese faehigkeit kann mehrmals
+# angewendet werden pro phase."
+#
+# The rule was right and section 3 already pinned it. The PANEL was the bug:
+# the manoeuvre block lived only in _draw_movement_ui()'s `else` arm, so the
+# moment "Move" was pressed every button vanished, and after Confirm
+# moved_squad_ids shut Swift as the Wind for good.
+#
+# Section 8 above renders with state == SELECTED and could not see it. This
+# section renders with state == MOVING - the hole the report fell through.
+# Own scene per check, because a fresh pool is needed (a spent one offers
+# nothing and the section would pass by measuring nothing) and because
+# clicking Confirm ends the move for every later click in the same render.
+
+from game import movement as movement_mod  # noqa: E402
+from game.turn import PHASE_CHARGE  # noqa: E402
+from game.factions.aeldari import FALCON  # noqa: E402
+from game.ui.action_panel import HINT_COLOR  # noqa: E402
+
+
+_SC14 = [None]
+
+
+def moving_scene(sheet=STRIKE_TEAM, give_battle_focus=True, engaged=False):
+    st14 = GameState()
+    tr14 = movement_tracker("Player 1")
+    mv14 = MovementController(turn_tracker=tr14, all_tokens=st14.tokens,
+                              player_name="Player 1", dice_manager=DiceManager())
+    sq14 = build(sheet, "Player 1", name="Mid-move unit")
+    # Trimmed: line_up() spaces models 1.4" apart, so a full 10-model squad
+    # spans 12.6" and confirm_move() would refuse it on rule 09.02's 9" limit
+    # - a refusal that has nothing to do with what this section measures.
+    sq14.models = sq14.models[:5]
+    if give_battle_focus:
+        sq14 = aeldari(sq14)
+    line_up(sq14, x=10.0, y=10.0)
+    for model in sq14.models:
+        st14.add_token(model)
+    if engaged:
+        # Rule 09.07: Fall Back is only available to an ENGAGED unit, so
+        # without this start_fall_back_move() silently refuses, the state
+        # stays SELECTED, and the `else` arm draws the buttons - i.e. the
+        # check would pass while measuring the wrong arm entirely.
+        foe = build(sheet, "Player 2", name="Foe")
+        foe.models = foe.models[:2]
+        line_up(foe, x=10.0, y=11.0)
+        for model in foe.models:
+            st14.add_token(model)
+    mv14.select(sq14.models[0])
+    p14 = pool(movement_controller=mv14, turn_tracker=tr14)
+    p14.sync_battle_round(1)
+    # Its OWN ShootingController. Section 8's is left mid-activation, which
+    # sends _draw_dispatch to the shooting screen and past the movement UI
+    # entirely - the section would then measure nothing and say so only here.
+    sc14 = ShootingController(all_tokens=st14.tokens, dice_manager=DiceManager(),
+                              turn_tracker=tr14, player_name="Player 1")
+    _SC14[0] = sc14
+    return st14, tr14, mv14, sq14, p14
+
+
+class _FallBackStub:
+    """Just enough for the panel's Fall Back arm to name its Confirm/Cancel.
+    This section measures the manoeuvre buttons, not Fall Back itself."""
+
+    state = None      # never CHOOSING_MODE, so _draw_dispatch keeps going
+
+    def confirm(self):
+        return None
+
+    def cancel(self):
+        return None
+
+    def decline(self):
+        return None
+
+
+def render14(mover, p):
+    surf = pygame.Surface((game_config.LEFT_PANEL_WIDTH, 900))
+    surf.fill((0, 0, 0))
+    panel.draw(surf, panel_rect, mover, _SC14[0], None, battle_focus_pool=p,
+               fall_back_controller=_FallBackStub())
+    return surf, list(panel._buttons)
+
+
+def token_spenders(setup_move, sheet=STRIKE_TEAM, give_battle_focus=True, engaged=False):
+    """How many of the drawn buttons spend a Battle Focus token. A fresh
+    scene per button, so an earlier Confirm cannot poison a later click -
+    identify by CLICKING, the way sections 8 and 13 do, so the check cannot
+    drift away from the rule."""
+    _st, _tr, mover, _sq, p = moving_scene(sheet, give_battle_focus, engaged)
+    setup_move(mover, _sq)
+    _surf, buttons = render14(mover, p)
+    spenders = 0
+    for index in range(len(buttons)):
+        _st2, _tr2, mover2, sq2, p2 = moving_scene(sheet, give_battle_focus, engaged)
+        setup_move(mover2, sq2)
+        _surf2, buttons2 = render14(mover2, p2)
+        if index >= len(buttons2):
+            continue
+        before = p2.tokens["Player 1"]
+        buttons2[index][1]()
+        if p2.tokens["Player 1"] < before:
+            spenders += 1
+    return spenders, buttons
+
+
+def plain_move(mover, _squad):
+    mover.start_move()
+
+
+# 14.1 LIVENESS. A render that fell into another _draw_dispatch arm draws zero
+# buttons and satisfies every absence check below, so prove we are really in
+# the MOVING arm first - by finding the Confirm button, which only it draws.
+_st, _tr, mover14, squad14, p14 = moving_scene()
+mover14.start_move()
+checks.eq("the scene really is mid-move", mover14.state, movement_mod.MOVING)
+_surf14, buttons14 = render14(mover14, p14)
+checks.true("buttons were drawn at all", bool(buttons14))
+# Which ARM drew them, recorded by a spy: a render that fell into another
+# _draw_dispatch branch draws zero buttons and satisfies every absence check
+# below, so this has to be proven rather than assumed.
+_arms = []
+_orig_draw_am = ActionPanel._draw_agile_manoeuvres
+
+
+def _spy_draw_am(self, surface, rect, button_width, button_y, squad, pool_, mover):
+    _arms.append(getattr(mover, "state", None))
+    return _orig_draw_am(self, surface, rect, button_width, button_y, squad, pool_, mover)
+
+
+ActionPanel._draw_agile_manoeuvres = _spy_draw_am
+render14(mover14, p14)
+ActionPanel._draw_agile_manoeuvres = _orig_draw_am
+checks.eq("...and the manoeuvre block really ran from the MOVING arm",
+          _arms, [movement_mod.MOVING])
+
+# 14.2 THE REPORTED CASE.
+spent14, _b = token_spenders(plain_move)
+checks.eq("two manoeuvres are offered to foot infantry mid-move "
+          "(Swift as the Wind + Flitting Shadows)", spent14, 2)
+
+# 14.3 STAR ENGINES at its printed trigger - the state its gate can ONLY be
+# satisfied in, since advance_bonus_by_squad is written by start_run() and
+# start_run() is reachable only from this arm.
+def advance_move(mover, _squad):
+    mover.start_move()
+    mover.start_run()
+
+
+script(6)
+spent_vehicle, _b = token_spenders(advance_move, sheet=FALCON, give_battle_focus=False)
+checks.eq("a VEHICLE that has Advanced is offered three, Star Engines included",
+          spent_vehicle, 3)
+
+# 14.4 FALL BACK is one of the three printed triggers.
+def fall_back_move(mover, _squad):
+    mover.start_fall_back_move("ordered_retreat")
+
+
+_stfb, _trfb, moverfb, squadfb, pfb = moving_scene(engaged=True)
+moverfb.start_fall_back_move("ordered_retreat")
+checks.eq("the scene really is mid-Fall-Back", moverfb.move_mode, "fall_back")
+checks.eq("...and in the MOVING arm", moverfb.state, movement_mod.MOVING)
+checks.true("a unit mid-Fall-Back is still offered Swift as the Wind",
+            pfb.can_swift_as_the_wind(squadfb))
+spent_fb, _b = token_spenders(fall_back_move, engaged=True)
+checks.true("and the panel really draws it there", spent_fb >= 1)
+
+# 14.5 NEGATIVE: a charge move is NOT one of the printed triggers. Asked of
+# the rule rather than rendered - the panel's charge arm needs a
+# ChargeController for its own Confirm, and the phase check already refuses
+# here anyway, which is exactly why 14.6 below has to exist as well.
+_stc, trc, moverc, squadc, pc = moving_scene()
+trc.phase_index = PHASES.index(PHASE_CHARGE)
+moverc.start_charge_move(7, [squadc])
+checks.eq("the scene really is mid-charge", moverc.move_mode, "charge")
+checks.true("a charge move offers no manoeuvre", not pc.can_swift_as_the_wind(squadc))
+checks.true("...nor Flitting Shadows", not pc.can_flitting_shadows(squadc))
+
+# 14.6 NEGATIVE: a surge move is a MOVEMENT-phase mode that passes can_move(),
+# so only the move-TYPE gate keeps it out. Without this check that gate could
+# be deleted and 14.5 would still pass (the phase check covers charge).
+_sts, _trs, movers, squads, ps = moving_scene()
+movers.start_surge_move(squads, 6.0, (12.0, 12.0))
+_surfs, buttonss = render14(movers, ps)
+spent_surge = 0
+for index in range(len(buttonss)):
+    before = ps.tokens["Player 1"]
+    buttonss[index][1]()
+    if ps.tokens["Player 1"] < before:
+        spent_surge += 1
+checks.eq("a surge move offers no manoeuvre either", spent_surge, 0)
+
+# 14.7 AFTER Confirm: the fix must not have WIDENED the rule.
+_st7, _tr7, mover7, squad7, p7 = moving_scene()
+mover7.start_move()
+mover7.confirm_move()
+checks.true("the unit is booked as having moved", squad7 in mover7.moved_squad_ids)
+checks.true("Swift as the Wind is correctly gone", not p7.can_swift_as_the_wind(squad7))
+checks.true("...but Flitting Shadows, whose window is the phase, is still there",
+            p7.can_flitting_shadows(squad7))
+
+# 14.8 THE USER'S SENTENCE, through the real panel: a SECOND unit, also
+# mid-move, is still offered it after the first one spent a token.
+st8b = GameState()
+tr8b = movement_tracker("Player 1")
+mv8b = MovementController(turn_tracker=tr8b, all_tokens=st8b.tokens,
+                          player_name="Player 1", dice_manager=DiceManager())
+unit_a = aeldari(build(STRIKE_TEAM, "Player 1", name="Unit A"))
+unit_b = aeldari(build(STRIKE_TEAM, "Player 1", name="Unit B"))
+line_up(unit_a, x=10.0, y=10.0)
+line_up(unit_b, x=10.0, y=30.0)
+for _sq in (unit_a, unit_b):
+    for model in _sq.models:
+        st8b.add_token(model)
+p8b = pool(movement_controller=mv8b, turn_tracker=tr8b)
+p8b.sync_battle_round(1)
+mv8b.select(unit_a.models[0])
+mv8b.start_move()
+tokens_before = p8b.tokens["Player 1"]
+p8b.use_swift_as_the_wind(unit_a)
+checks.eq("unit A spent exactly one token", p8b.tokens["Player 1"], tokens_before - 1)
+mv8b.select(unit_b.models[0])
+mv8b.start_move()
+checks.true("...and unit B, also mid-move, is STILL offered Swift as the Wind",
+            p8b.can_swift_as_the_wind(unit_b))
+_surf8b, buttons8b = render14(mv8b, p8b)
+spent8b = 0
+for index in range(len(buttons8b)):
+    before = p8b.tokens["Player 1"]
+    buttons8b[index][1]()
+    if p8b.tokens["Player 1"] < before:
+        spent8b += 1
+    mv8b.select(unit_b.models[0])
+checks.true("and the panel really draws it for unit B", spent8b >= 1)
+
+# 14.9 THE TOP-UP IS REAL - the click has to DO something, not just draw.
+_st9, _tr9, mover9, squad9, p9 = moving_scene()
+mover9.start_move()
+model9 = squad9.models[0]
+before9 = mover9.remaining_range[model9.id]
+p9.use_swift_as_the_wind(squad9)
+checks.eq("the running move is topped up by 2 inches",
+          round(mover9.remaining_range[model9.id] - before9, 3), 2.0)
+
+# 14.10 THE HINT LINE, on pixels - plus the counter-check that keeps the panel
+# from growing a Battle Focus line on every unit of every other army.
+_st10, _tr10, mover10, squad10, p10 = moving_scene()
+mover10.start_move()
+p10.tokens["Player 1"] = 0
+surf10, buttons10 = render14(mover10, p10)
+painted10 = {surf10.get_at((x, y))[:3]
+             for x in range(0, panel_rect.width, 2) for y in range(0, 900, 2)}
+checks.true("with no tokens left, the panel SAYS so", HINT_COLOR in painted10)
+
+_st10b, _tr10b, mover10b, squad10b, p10b = moving_scene(give_battle_focus=False)
+mover10b.start_move()
+surf10b, _b10b = render14(mover10b, p10b)
+painted10b = {surf10b.get_at((x, y))[:3]
+              for x in range(0, panel_rect.width, 2) for y in range(0, 900, 2)}
+checks.true("...but a unit that never had the rule is told nothing",
+            HINT_COLOR not in painted10b)
+
+# The reason must not repeat the manoeuvre's name: the panel labels its own
+# hint line, and the only logging caller prefixes the name too, so the old
+# wording read "Flitting Shadows - Flitting Shadows has already been...".
+# A SECOND unit asks after the first one spent it: Flitting Shadows is not in
+# REPEATABLE_PER_PHASE, so the per-manoeuvre axis is what refuses here.
+# (reset_phase() would clear both axes, so it cannot stage this.)
+_st10c, _tr10c, mover10c, squad10c, p10c = moving_scene()
+other10c = aeldari(build(STRIKE_TEAM, "Player 1", name="Other unit"))
+other10c.models = other10c.models[:5]
+line_up(other10c, x=10.0, y=30.0)
+for _m in other10c.models:
+    _st10c.add_token(_m)
+mover10c.start_move()
+p10c.use_flitting_shadows(squad10c)
+_why10c = p10c.refusal_reason("Player 1", battle_focus.FLITTING_SHADOWS, other10c)
+checks.true("the per-manoeuvre refusal really fired", bool(_why10c))
+checks.true("...and does not repeat the manoeuvre's own name",
+            battle_focus.FLITTING_SHADOWS not in (_why10c or ""))
+
+# 14.11 the boolean and the reason cannot disagree.
+_st11, _tr11, mover11, squad11, p11 = moving_scene()
+for _setup in (lambda: None, lambda: mover11.start_move()):
+    _setup()
+    for _man, _can in ((battle_focus.SWIFT_AS_THE_WIND, p11.can_swift_as_the_wind),
+                       (battle_focus.FLITTING_SHADOWS, p11.can_flitting_shadows),
+                       (battle_focus.STAR_ENGINES, p11.can_star_engines)):
+        ok, why = p11.why_not(_man, squad11)
+        checks.eq("why_not agrees with can_%s" % _man, ok, _can(squad11))
+        checks.true("a live button never carries a reason too", not (ok and why))
+
+
 checks.finish()

@@ -101,7 +101,7 @@ from game.grot_orderly import GrotOrderlyController, unit_has_grot_orderly
 from game.reanimation_protocols import ReanimationProtocolsController
 from game.return_placement import ReturnPlacementController
 from game.technomancer import TechnomancerController
-from game.resurrection_orb import ResurrectionOrbController
+from game.resurrection_orb import RangedResurrectionOrbController, ResurrectionOrbController
 from game.mortal_wound_abilities import (
     CrimsonHarvestController, KrootLinebreakersController, LivingLightningController, MatterAbsorptionController,
 )
@@ -150,6 +150,8 @@ from game.enh_puretide_neurochip import PuretideNeurochipController
 from game.enh_solid_image_projection import SolidImageProjectionStep
 from game.grand_illusion import GrandIllusionStep
 from game.drain_life import DrainLifeController
+from game.malevolent_arcing import MalevolentArcingController
+from game.repair_barge import RepairBargeController
 from game.enh_strike_swiftly import StrikeSwiftlyStep
 from game.enh_student_of_kauyon import StudentOfKauyonStep
 from game.enh_unmasking_suite import UnmaskingSuiteController
@@ -1178,6 +1180,19 @@ def main(map_key=None):
         game_state=state, auto_players=ai_players,
         position_valid=_necron_position_valid,
     )
+    # The Catacomb Command Barge's orb, which prints a DIFFERENT sentence:
+    # "select up to one friendly NECRONS INFANTRY/NECRONS MOUNTED unit within
+    # 6" of this unit. That unit resurrects" - so the bearer and the target are
+    # different units. Its own instance rather than a flag on the one above,
+    # because the two carry independent once-per-battle ledgers; they share the
+    # per-TURN one only in the sense that both write to their own, which is
+    # what the printed "you cannot resurrect more than one unit per turn"
+    # means per orb. See game/resurrection_orb.py.
+    catacomb_orb_controller = RangedResurrectionOrbController(
+        dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
+        game_state=state, auto_players=ai_players,
+        position_valid=_necron_position_valid,
+    )
     # The Kroot War Shaper's Root of Honour. Offered at the start of EVERY
     # phase (see the call in advance_turn_phase), so no dice and no CP - it
     # only ever flips Squad.battle_shocked off. `all_squads` is passed as a
@@ -1237,6 +1252,26 @@ def main(map_key=None):
     drain_life_controller = DrainLifeController(
         dice_manager=dice_manager, game_log=game_log,
         game_state=state, auto_players=ai_players,
+    )
+    # The Annihilation Barge's Malevolent Arcing - the THIRD carrier of that
+    # same sweep. No decision_manager and no target_pick: the printed text has
+    # neither a "you can" nor a target choice, so it is an event, not an offer
+    # (Drain Life's reading, for the same two absent words). It is ARMED from
+    # shooting_controller.on_target_selected and PAID from
+    # on_squad_finished_shooting, both appended once that controller exists.
+    malevolent_arcing_controller = MalevolentArcingController(
+        dice_manager=dice_manager, game_log=game_log,
+        game_state=state, auto_players=ai_players,
+    )
+    # The Ghost Ark's Repair Barge. Built HERE, before the two target_reactions
+    # tuples below, because it joins BOTH of them - "just after an enemy unit
+    # finishes making its attacks" is a sentence about both phases, so it arms
+    # in both and pays from on_squad_finished_shooting and
+    # on_unit_finished_fighting alike.
+    repair_barge_controller = RepairBargeController(
+        dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
+        game_state=state, auto_players=ai_players,
+        position_valid=_necron_position_valid,
     )
     # Krootox Rampagers' Kroot Linebreakers - Crimson Harvest's sibling in
     # game/mortal_wound_abilities.py, on the same charge hook. It is the
@@ -1355,12 +1390,22 @@ def main(map_key=None):
         decision_manager=decision_manager, game_state=state, turn_tracker=turn_tracker,
         game_log=game_log, auto_players=ai_players,
     )
+    # The Ghost Ark's Repair Barge is in BOTH tuples, and it is the one member
+    # that never offers anything at this instant: it uses maybe_offer() as a
+    # RECORDER, snapshotting the wound totals of nearby NECRON WARRIORS units
+    # so that "lost one or more wounds AS A RESULT OF THOSE ATTACKS" can be
+    # answered as a delta when the attacks finish. _offer_target_reactions()'s
+    # own docstring licenses that - "each controller decides for itself whether
+    # it wants to act at all" - and game/repair_barge.py says so out loud, so
+    # it does not read like a half-built reactor.
     shooting_target_reactions = (
         stim_injectors_controller, ard_as_nails_controller, psychic_shield_controller,
         kroot_packmates_controller, multi_threat_eliminator_controller,
+        repair_barge_controller,
     )
     fight_target_reactions = (
         stim_injectors_controller, ard_as_nails_controller, forewarned_controller,
+        repair_barge_controller,
     )
     # The Falcon's Fire Support - constructed before the shooting controller
     # because that one reads its mark when deciding whether a Wound roll may
@@ -1845,6 +1890,10 @@ def main(map_key=None):
     explosives_controller = ExplosivesController(
         stratagem_controller, dice_manager, movement_controller=movement_controller, all_tokens=state.tokens,
         obstacles=state.obstacles, terrain_areas=state.terrain_areas, turn_tracker=turn_tracker, game_log=game_log,
+        # Rule 15.05's "eligible to shoot" clause is ShootingController's
+        # question, so it has to be asked of the real one - without this the
+        # gate refuses outright rather than silently passing everyone.
+        shooting_controller=shooting_controller,
     )
     # Retaliation Cadre's other stratagem, The Arro'kon Protocol - proactive
     # (your own Shooting phase, chosen by the active player), so unlike Stim
@@ -1912,6 +1961,13 @@ def main(map_key=None):
     # Undying Legions is the third and is built AFTER this line, so it takes its
     # placer as a constructor argument instead.
     resurrection_orb_controller.placer = return_placement_controller
+    # The Catacomb Command Barge's orb is its own controller (it resurrects a
+    # unit OTHER than its bearer), so it needs its own placer: section 7 of
+    # test_return_placement.py resolves the BASE class name and cannot see a
+    # subclass's instance, which is why this line is pinned by name there.
+    catacomb_orb_controller.placer = return_placement_controller
+    # The Ghost Ark's Repair Barge - the FOURTH door into reanimate().
+    repair_barge_controller.placer = return_placement_controller
     # The Canoptek Spyders' Canoptek Swarm - the seventh model-return
     # ability, and it goes through the same placer for the same reason:
     # rule 01.02.03 says a returning model is SET UP, and setting up is
@@ -2664,6 +2720,27 @@ def main(map_key=None):
     )
     shooting_controller.on_squad_finished_shooting.append(
         pulse_onslaught_controller.offer_after_shooting)
+    # The Annihilation Barge's Malevolent Arcing, both halves. ARM at rule
+    # 10.02's select-targets step - on_target_selected rather than
+    # target_reactions, because every member of that tuple is a DEFENDER
+    # reacting to an enemy's choice and this is the attacker's own ability.
+    # PAY at the end of the activation, which is "after resolving all of this
+    # model's attacks against the target unit": _finish_group() would be EARLY
+    # in the common case (one target, several weapons) and would also try to
+    # put a second roll on a DiceManager that holds one. The controller is
+    # handed the shooting controller so it can ask which weapons actually
+    # resolved against which target - the printed clause "for this model's
+    # twin tesla destructor". See game/malevolent_arcing.py.
+    shooting_controller.on_target_selected.append(
+        malevolent_arcing_controller.on_target_selected)
+    shooting_controller.on_squad_finished_shooting.append(
+        lambda squad, hit_squads, _c=malevolent_arcing_controller: _c.on_squad_finished_shooting(
+            squad, hit_squads, shooting=shooting_controller))
+    # The Ghost Ark's Repair Barge, shooting half of "just after an enemy unit
+    # finishes making its attacks". Its fight half rides
+    # fight_controller.on_unit_finished_fighting further down.
+    shooting_controller.on_squad_finished_shooting.append(
+        repair_barge_controller.on_squad_finished_shooting)
     counterfire_defence_controller = CounterfireDefenceController(
         stratagem_controller, turn_tracker=turn_tracker,
         decision_manager=decision_manager, game_log=game_log,
@@ -2968,6 +3045,12 @@ def main(map_key=None):
             to_their_final_breath_controller.resolve_after_attacks(_fighter)
             malevolent_souls_controller.resolve_after_attacks(_fighter)
             systematic_vigour_controller.resolve_after_attacks(_fighter)
+            # The Ghost Ark's Repair Barge, FIGHT half. Its printed "just
+            # after an enemy unit finishes making its attacks" is a sentence
+            # about both phases, so it is here as well as on
+            # shooting_controller.on_squad_finished_shooting - the same pair
+            # Undying Legions above uses for the same phrase.
+            repair_barge_controller.on_unit_finished_fighting(_fighter)
             # Vaul's Vengeance: "after that enemy unit has finished making its
             # attacks" - the melee half of the same instant.
             vauls_vengeance_controller.on_attacker_finished(_fighter)
@@ -3799,6 +3882,10 @@ def main(map_key=None):
         # is why it is offered here rather than in one phase's own branch.
         if mover_before is not None:
             resurrection_orb_controller.offer_at_end_of_phase({t.squad for t in state.tokens if t.squad is not None}, mover_before)
+            # The Catacomb Command Barge's orb prints the same "at the end of
+            # any phase", so it is offered at the same boundary and with the
+            # same side - only its TARGETS differ.
+            catacomb_orb_controller.offer_at_end_of_phase({t.squad for t in state.tokens if t.squad is not None}, mover_before)
         # Overflight: "End of your Shooting phase or the end of the Fight
         # phase". One offer covering both, and the controller now owns which
         # side of the table each half belongs to - so it is handed the two
@@ -3912,6 +3999,11 @@ def main(map_key=None):
             # turn" (Resurrection Orb) - both per-TURN ledgers, cleared here.
             technomancer_controller.reset_turn()
             resurrection_orb_controller.reset_turn()
+            catacomb_orb_controller.reset_turn()
+            # The Ghost Ark's Repair Barge carries TWO per-turn ledgers -
+            # "once per turn ... this model" and "the same NECRON WARRIORS
+            # unit ... not more than once per turn" - and both clear here.
+            repair_barge_controller.reset_turn()
             # The Psychomancer's Harbinger of Despair is "once per TURN",
             # per bearer unit - the same shape as the two above it.
             harbinger_of_despair_controller.reset_turn()
@@ -4662,6 +4754,11 @@ def main(map_key=None):
         # same board click each of them, handed to the TARGET's owner. Lord of
         # the Storm is the same sweep at 12" with two bands.
         drain_life_controller, lord_of_the_storm_controller,
+        # The Annihilation Barge's Malevolent Arcing - the same sweep again,
+        # one allocation per unit struck by arcing energies.
+        malevolent_arcing_controller,
+        # The Ghost Ark's Repair Barge does NOT belong here: it never
+        # inflicts anything, it HEALS, so it owes no rule 06.02 allocation.
     )
 
     def _any_pending_damage_choice():
@@ -4899,6 +4996,15 @@ def main(map_key=None):
             or drain_life_controller.pending_damage_choice is not None
             or lord_of_the_storm_controller.is_busy
             or lord_of_the_storm_controller.pending_damage_choice is not None
+            # Malevolent Arcing owes a gate handful, then a wound roll and a
+            # 06.02 allocation per struck unit - and possibly several sweeps
+            # in a row after split fire. It is ANSWERABLE at the click branch
+            # below, which is what keeps this a guard and not a deadlock.
+            or malevolent_arcing_controller.is_busy
+            or malevolent_arcing_controller.pending_damage_choice is not None
+            # The Ghost Ark's Repair Barge holds a D3 between the offer and
+            # the reanimation, so the phase must not turn over on it.
+            or repair_barge_controller.is_busy
             or puretide_neurochip_controller.is_busy
         )
 
@@ -5959,10 +6065,13 @@ def main(map_key=None):
                         undying_legions_controller.on_dice_acknowledged()
                         technomancer_controller.on_dice_acknowledged()
                         resurrection_orb_controller.on_dice_acknowledged()
+                        catacomb_orb_controller.on_dice_acknowledged()
+                        repair_barge_controller.on_dice_acknowledged()
                         living_lightning_controller.on_dice_acknowledged()
                         matter_absorption_controller.on_dice_acknowledged()
                         crimson_harvest_controller.on_dice_acknowledged()
                         drain_life_controller.on_dice_acknowledged()
+                        malevolent_arcing_controller.on_dice_acknowledged()
                         lord_of_the_storm_controller.on_dice_acknowledged()
                         kroot_linebreakers_controller.on_dice_acknowledged()
                         kroot_linebreakers_controller.resolve_pending_battle_shock()
@@ -6054,6 +6163,17 @@ def main(map_key=None):
                     clicked = input_manager.token_at_event(state.tokens, board, event.pos)
                     if clicked is not None and clicked in internal_grenade_racks_controller.pending_damage_choice:
                         internal_grenade_racks_controller.choose_damage_model(clicked)
+            elif malevolent_arcing_controller.pending_damage_choice is not None:
+                # The Annihilation Barge's Malevolent Arcing - Drain Life's
+                # sweep again, one of these per unit struck by arcing
+                # energies. Rule 06.02: the DEFENDER allocates.
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in malevolent_arcing_controller.pending_damage_choice:
+                        malevolent_arcing_controller.choose_damage_model(clicked)
             elif lord_of_the_storm_controller.pending_damage_choice is not None:
                 # Imotekh's Lord of the Storm - Drain Life's sweep at 12", so
                 # the same branch, one per struck unit.
@@ -7571,6 +7691,7 @@ def main(map_key=None):
         renderer.draw_damage_choice_highlight(board_surface, board, wraith_form_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, drain_life_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, lord_of_the_storm_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, malevolent_arcing_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, drakolithe_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, harvester_of_souls_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, monofilament_snare_controller.pending_damage_choice)

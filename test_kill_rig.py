@@ -159,6 +159,32 @@ c.eq("A/B: without the BEAST SNAGGA requirement, Boyz would fit",
 type(rig.profile).transport_requires = _saved
 c.eq("...and the requirement is back on", can_carry(BOYZ, "Boyz 3"), False)
 
+# ...AND 18.01 ASKS THE SAME QUESTION. Until stage 8 it did not:
+# transport_requires had exactly ONE reader in the whole repo,
+# TransportController.can_embark(), so at Declare Battle Formations a plain
+# Boyz mob could be DECLARED into the Kill Rig and only the mid-battle rule
+# would ever have objected. One rule, two readers, and only one answering -
+# the shape game/formations.py's own cannot_embark comment already records.
+from game import formations as _formations  # noqa: E402
+
+
+def declarable(sheet, name):
+    """Rule 18.01's answer for the same pairing can_carry() asks 18.02."""
+    rig_sq = build(KILL_RIG, name="Kill Rig D")
+    pax = build(sheet, name=name)
+    return _formations.embark_errors(pax, rig_sq.models[0]) == []
+
+
+c.eq("18.01 lets Beast Snagga Boyz be declared into the Kill Rig",
+     declarable(BEAST_SNAGGA_BOYZ, "BSB 18.01"), True)
+c.eq("...and REFUSES plain Boyz, exactly as 18.02 does",
+     declarable(BOYZ, "Boyz 18.01"), False)
+_saved = type(rig.profile).transport_requires
+type(rig.profile).transport_requires = ()
+c.eq("A/B: without the requirement, 18.01 would let them in too",
+     declarable(BOYZ, "Boyz 18.01 b"), True)
+type(rig.profile).transport_requires = _saved
+
 
 # ---------------------------------------------------------------------------
 # 3. Spirit of Gork: targeting and the strongest-unit rule

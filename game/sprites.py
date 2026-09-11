@@ -408,6 +408,15 @@ SQUAD_SPRITE_KEYS = {
     "Royal Warden": "Royal Warden",
     "Imotekh The Stormlord": "Imotekh the Stormlord",
     "Trazyn The Infinite": "Trazyn the Infinite",
+    # The grav skimmers. Both files match their datasheet name exactly, which
+    # is rare enough in this table to be worth saying. THE GHOST ARK HAS NO
+    # ART and deliberately gets no entry: its absence is pinned AT THE MODEL
+    # in test_necron_datasheets.py's WITHOUT_ART, the practice the Flayed Ones
+    # and Nekrosor Ammentar already follow. The substring sweep is clean in
+    # both directions - "Doomsday Ark" does not contain "Ghost Ark" nor the
+    # reverse, and neither Barge name contains the other.
+    "Catacomb Command Barge": "Catacomb Command Barge",
+    "Annihilation Barge": "Annihilation Barge",
 
     # --- Death Guard ---
     # EIGHT of these eleven files disagree with the datasheet name, and the

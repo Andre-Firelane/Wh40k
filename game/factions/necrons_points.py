@@ -188,4 +188,16 @@ NECRONS_POINTS = {
         PointsTier({1: 210}, to_unit=2),                            # the list says 200
         PointsTier({1: 230}, from_unit=3),
     ]),
+    # The three grav skimmers of stage 8. Each prints a SINGLE tier - no
+    # "YOUR 2ND + UNIT COSTS" line at all, unlike the two above - so they are
+    # flat_points and not a two-tier UnitPoints.
+    #
+    # NO `leads` AND NO `supports` ON ANY OF THEM, and that is measured rather
+    # than inferred from an absent entry: the Catacomb Command Barge prints the
+    # CHARACTER keyword but no Leader section whatsoever, and no LED BY block
+    # anywhere on the Necron page names any of the three. So can_attach()
+    # refuses every pairing, which the suite pins in both directions.
+    "Catacomb Command Barge": flat_points({1: 120}),
+    "Annihilation Barge": flat_points({1: 95}),
+    "Ghost Ark": flat_points({1: 100}),
 }

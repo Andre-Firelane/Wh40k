@@ -52,11 +52,20 @@ def effective_oc(model, all_tokens=None, objective=None):
       1. the SETTERS replace the characteristic - Hunting Hounds (to 1) and
          Guardian Battlehost's Craftworld's Champion (to 5),
       2. Scabrous Soulrot WORSENS it by 1, to a minimum of 1,
-      3. the ADDERS add to the result - four Enhancements now.
+      3. the ADDERS add to the result - four Enhancements and, since stage 8,
+         one DATASHEET AURA (the Catacomb Command Barge's Carrier Wave).
     The set-then-worsen order is the printed one and was decided when Hunting
     Hounds arrived; the additions come last so that paying points for a +1
     always buys one, rather than being clamped away by Soulrot's floor or
     overwritten by a setter. See game/enh_strategic_conqueror.py.
+
+    AN ADDER CAN NOW MEET A SETTER, which until Carrier Wave none could: the
+    four Enhancements are bought by T'au and Aeldari lists and the setters are
+    KROOT, ASURYANI and CANOPTEK, so no model was ever eligible for both.
+    Carrier Wave raises any friendly NECRONS unit, and a Canoptek Scarab Swarm
+    is one - so a Scarab in a Cryptek's range AND in a Barge's 6" is SET by
+    Chittering Swarm and then RAISED by one. That is what step 3 coming last
+    is for, and the suite pins the resulting number rather than the intent.
 
     THE TWO SETTERS CANNOT MEET, and that is measured rather than assumed:
     Hunting Hounds sets 1 on a KROOT model, Craftworld's Champion sets 5 on an
@@ -65,7 +74,7 @@ def effective_oc(model, all_tokens=None, objective=None):
     answer - which is why the test pins the current disjointness rather than
     leaving it to luck.
     """
-    from game import (chittering_swarm, enh_admired_leader,
+    from game import (carrier_wave, chittering_swarm, enh_admired_leader,
                       enh_craftworlds_champion, enh_light_of_clarity,
                       enh_strategic_conqueror, enh_strategic_savant)
     oc = hunting_hounds.objective_control(model, all_tokens)
@@ -85,4 +94,10 @@ def effective_oc(model, all_tokens=None, objective=None):
     oc += enh_admired_leader.oc_bonus(model)
     oc += enh_strategic_savant.oc_bonus(model)
     oc += enh_light_of_clarity.oc_bonus(model)
+    # The Catacomb Command Barge's Carrier Wave - the first adder that is a
+    # DATASHEET AURA rather than an Enhancement, and the first source of any
+    # kind that CAN meet a setter: a Canoptek Scarab Swarm is NECRONS, so a
+    # Scarab inside a friendly Cryptek's range and inside a Barge's 6" is set
+    # by Chittering Swarm and then raised by one. See game/carrier_wave.py.
+    oc += carrier_wave.oc_bonus(model, all_tokens)
     return oc

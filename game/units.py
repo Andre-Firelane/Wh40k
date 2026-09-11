@@ -176,6 +176,7 @@ class UnitProfile:
     transport_requires_infantry = False  # rule 18.02 "eligible to embark... as described on that TRANSPORT's datasheet": this TRANSPORT only accepts INFANTRY units - e.g. Devilfish's "T'AU EMPIRE INFANTRY models" (the "T'au Empire" half of that isn't modeled - no per-model faction tracking exists in this engine, see TransportController.can_embark()'s own note)
     transport_requires = ()  # rule 18.02, the INCLUSIVE counterpart of transport_excludes below: tuple of UnitProfile boolean-attribute names EVERY model must have to embark - e.g. ("beast_snagga",) for Kill Rig's "11 BEAST SNAGGA INFANTRY models" (the INFANTRY half is transport_requires_infantry, so the two compose). Empty means no such restriction
     transport_excludes = ()  # rule 18.02: tuple of UnitProfile boolean-attribute names this TRANSPORT refuses to carry (e.g. ("battlesuit", "kroot", "vespid_stingwings") for Devilfish) - empty means no restriction, i.e. the old "any non-TRANSPORT unit is eligible" default
+    transport_pools = ()  # rule 18.02, the SUB-POOL form of a printed capacity line: a tuple of (max_models, (DATASHEET keyword, ...)) pairs. Every model must fit at least one pool and no pool may be overfilled. Ghost Ark: "a transport capacity of 10 NECRON WARRIOR models AND 1 NECRONS INFANTRY CHARACTER model" - two pools with different keyword rules, which transport_requires above cannot express because its contract is "EVERY model has EVERY keyword", i.e. one pool by definition. () = no sub-pools, which is every other TRANSPORT in this engine, so both readers sit behind `if pools:` and nothing moves. The keywords are DATASHEET keywords read via attached_units.model_has_datasheet_keyword() (rule 19.01's merge means the realistic passenger is ONE squad holding models from two different datasheets), NOT UnitProfile flags - "NECRON WARRIORS" is a datasheet's own name and has no flag. Read by TransportController.can_embark() and formations.embark_errors(). MERGE CANDIDATE: transport_requires is this field with one pool and a different keyword vocabulary; they are deliberately NOT merged in the stage that added this, because doing so would rewrite the Kill Rig and the Devilfish in the middle of a datasheet stage
     firing_deck = 0  # Firing Deck X value (rule 24.14) - max embarked models that can lend the TRANSPORT a weapon each time it shoots, 0 = no ability
     rapid_deployment = False  # Devilfish's "Rapid Deployment" ability (user-supplied, not a core rule): units may Disembark from this TRANSPORT even after it Advanced (normally forbidden) - see TransportController.can_disembark()/determine_mode()
     leader = False  # the Leader core ability (24.22) - forms an attached unit with a bodyguard unit (rule 19.01)
@@ -4709,6 +4710,110 @@ class DoomsdayArkProfile(UnitProfile):
     damaged_threshold = 5               # "Damaged: 1-5 Wounds Remaining" -> -1 to its own Hit rolls, see game/shooting.py's _damaged_modifier()
     deadly_demise = 3                   # documentation leftover only, see deadly_demise_notation below
     deadly_demise_notation = D3()       # "Deadly Demise D3"
+
+
+# --- The three Necron VEHICLEs (stage 8) -----------------------------------
+#
+# NO SHARED CHASSIS, unlike the four C'tan below - and that is measured rather
+# than skipped. The Ghost Ark IS the Doomsday Ark's hull (M10" T9 Sv3+ W14
+# Ld7+, invuln 4+) and the two Barges are a lighter one (T8 W9); they agree on
+# M10", Sv3+, a 4+ invulnerable, VEHICLE, FLY and Reanimation Protocols and on
+# nothing else. Three honest copies say more than a base class two of the three
+# would have to override. The suite pins the agreement as a SET instead.
+#
+# ALL THREE ARE 2.1", WHICH IS A TABLE SIZE AND NOT A TRANSCRIPTION (user,
+# stage 8): "alle drei auf 2.1"". The standing instruction it follows is the
+# Doomsday Ark's - "doomsday Ark so gross wie die anderen panzer: falcon und
+# devilfish" - now read as covering every Necron grav skimmer rather than that
+# one sheet. Two of the three print a 60 mm base and the Annihilation Barge
+# prints none at all ("Use model", the FRAME keyword), so for that one it is a
+# table size twice over, the same standing the Triarch Stalker's has. Pinned in
+# the suite as an IDENTITY against DoomsdayArkProfile, so the pin carries the
+# reason; each printed size is written beside its line so nobody "corrects" it.
+
+class CatacombCommandBargeProfile(UnitProfile):
+    """An Overlord riding a skimmer: a CHARACTER that leads nothing.
+
+    Its datasheet prints the CHARACTER keyword and NO Leader section at all,
+    so can_attach() refuses every pairing - the Avatar of Khaine's standing,
+    reached from the other direction. Pinned, so it does not read like a
+    forgotten LEADER entry in necrons_points.py.
+
+    ITS OWN WEAPON ROWS CONTRADICT EACH OTHER, which is why the skills here
+    look arbitrary: BS3+ is the two cannons and WS2+ is the Overlord's blade,
+    while both staff of light rows disagree and carry per-WEAPON overrides -
+    see CatacombCommandBargeStaffOfLightRangedProfile in game/weapons.py.
+    """
+    name = "Catacomb Command Barge"
+    base_radius_in = 2.1            # printed 60 mm flying base; matched to DoomsdayArkProfile - see the note above
+    movement_in = 10
+    weapon_skill = "2+"             # the Overlord's blade row; the staff of light's WS3+ is a per-weapon override
+    ballistic_skill = "3+"          # the gauss and tesla cannon rows; the staff of light's BS2+ is a per-weapon override
+    toughness = 8
+    wounds = 9
+    leadership = "6+"
+    armor_save = "3+"
+    oc = 3
+    invulnerable_save = "4+"
+    vehicle = True
+    fly = True
+    character = True
+    reanimation_protocols = True
+    deadly_demise = 1                   # "Deadly Demise 1", rule 24.08 - a flat 1, so no notation
+    carrier_wave = True                 # see game/carrier_wave.py
+    advanced_quantum_shielding = True   # see game/strength_over_toughness.py
+    # NO damaged_threshold and NO leader: it prints neither bracket nor Leader section.
+
+
+class AnnihilationBargeProfile(UnitProfile):
+    name = "Annihilation Barge"
+    base_radius_in = 2.1            # its datasheet prints NO base ("Use model", FRAME), so this is a table size twice over - see the note above
+    movement_in = 10
+    weapon_skill = "4+"             # armoured bulk, the row it shares with the Doomsday Ark and the Ghost Ark
+    ballistic_skill = "3+"
+    toughness = 8
+    wounds = 9
+    leadership = "7+"
+    armor_save = "3+"
+    oc = 3
+    invulnerable_save = "4+"
+    vehicle = True
+    fly = True
+    reanimation_protocols = True
+    deadly_demise = 1                   # "Deadly Demise 1", rule 24.08 - a flat 1, so no notation
+    malevolent_arcing = True            # see game/malevolent_arcing.py
+
+
+class GhostArkProfile(UnitProfile):
+    """The first Necron TRANSPORT, and the first transport in this engine whose
+    printed capacity line is TWO SUB-POOLS rather than one number - see
+    UnitProfile.transport_pools and TransportController.can_embark()."""
+    name = "Ghost Ark"
+    base_radius_in = 2.1            # printed 60 mm; the SAME hull as the Doomsday Ark, which carries this size already
+    movement_in = 10
+    weapon_skill = "4+"             # armoured bulk, shared with the Doomsday Ark and the Annihilation Barge
+    ballistic_skill = "3+"
+    toughness = 9
+    wounds = 14
+    leadership = "7+"
+    armor_save = "3+"
+    oc = 3
+    invulnerable_save = "4+"
+    vehicle = True
+    fly = True
+    reanimation_protocols = True
+    deadly_demise = 3                   # documentation leftover only, see deadly_demise_notation below
+    deadly_demise_notation = D3()       # "Deadly Demise D3"
+    repair_barge = True                 # see game/repair_barge.py
+    transport = True
+    # "a transport capacity of 10 NECRON WARRIOR models and 1 NECRONS INFANTRY
+    # CHARACTER model". transport_capacity stays the authoritative TOTAL (the
+    # last line of can_embark() and both UI readers use it); the pools below
+    # say how it splits, and the suite pins that their limits sum to it so the
+    # two can never drift.
+    transport_capacity = 11
+    transport_pools = ((10, ("NECRON WARRIORS",)),
+                       (1, ("NECRONS", "INFANTRY", "CHARACTER")))
 
 
 class CtanShardProfile(UnitProfile):

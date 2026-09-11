@@ -28,6 +28,7 @@ from game import weapon_sentinels
 from game import target_acquisition
 from game import crystalline_targeting
 from game import wave_serpent_shield
+from game import strength_over_toughness
 from game.fire_support import FIRE_SUPPORT_LABEL
 from game.hand_of_asuryan import hand_of_asuryan_adjusted_weapon
 from game.notation_reroll import DamageRerollOffer
@@ -765,6 +766,15 @@ class ShootingController:
         # names the weapon that way too and the deciding is left to
         # game/target_acquisition.py rather than done here.
         self._hit_weapon_names_this_activation = {}  # id(squad) -> {weapon name}
+        # id(squad) -> {weapon name} for every weapon group that RESOLVED
+        # attacks against that target this activation, hit or miss. The
+        # twin of the register above, and deliberately not the same one:
+        # that one is about HITS, and a volley that missed entirely still
+        # resolved its attacks. Malevolent Arcing's "for this model's twin
+        # tesla destructor" is the reader - in this engine a unit picks
+        # its target BEFORE its weapon, so at target-selection time nothing
+        # yet knows which guns will fire at it. See game/malevolent_arcing.py.
+        self._resolved_weapon_names_this_activation = {}
         self._living_when_first_hit = {}  # id(squad) -> living models when first hit this activation; see _handle_hit_results() and models_lost_this_activation()
         self._hit_target_squads_this_activation = set()  # Suppression Volley: enemy squads hit by 1+ attacks this activation, see _handle_hit_results()/on_squad_finished_shooting
         # Maugan Ra's Harvester of Souls needs "every attack targets the SAME
@@ -786,6 +796,21 @@ class ShootingController:
         # already tracks. Same generalisation target_reactions and
         # StratagemController.cost_discounts got for the same reason.
         self.on_squad_finished_shooting = []
+        # Callables (attacking_squad, target_squad, reactive=bool), fired at
+        # rule 10.02's select-targets step from both places that constitute it.
+        #
+        # DELIBERATELY NOT target_reactions, whose five members are every one a
+        # DEFENDER-side reaction to "just after an ENEMY unit has selected its
+        # targets". This list is for the ATTACKER's own abilities at the same
+        # instant - Malevolent Arcing, which has to freeze the set of units
+        # around its target before anything moves or dies. Putting an attacker
+        # into that list would make its name and its docstring wrong, which is
+        # the lying-name shape this repo renames rather than stretches.
+        #
+        # `reactive` is passed because printed texts distinguish the two: "In
+        # YOUR Shooting phase" is not a 15.08/15.09 Overwatch activation, and a
+        # listener that could not tell them apart would arm on one.
+        self.on_target_selected = []
         self.target_acquisition = None  # game/target_acquisition.py, set in main.py
         self.crystalline_targeting = None  # game/crystalline_targeting.py, set in main.py
 
@@ -955,6 +980,7 @@ class ShootingController:
         self._living_when_first_hit = {}
         self._targeted_squads_this_activation = set()
         self._hit_weapon_names_this_activation = {}
+        self._resolved_weapon_names_this_activation = {}
         self._fired_this_activation = False
         # An activation started HERE is by definition the unit's own, not a
         # reactive one - leaving a stale True behind (start_snap_shooting()
@@ -1057,6 +1083,7 @@ class ShootingController:
         self._living_when_first_hit = {}
         self._targeted_squads_this_activation = set()
         self._hit_weapon_names_this_activation = {}
+        self._resolved_weapon_names_this_activation = {}
         self._fired_this_activation = False
         self._reactive = True
         self._restrict_targets_to = list(restrict_to) if restrict_to else None
@@ -1101,6 +1128,7 @@ class ShootingController:
         self._living_when_first_hit = {}
         self._targeted_squads_this_activation = set()
         self._hit_weapon_names_this_activation = {}
+        self._resolved_weapon_names_this_activation = {}
         self._fired_this_activation = False
         self.shooting_type = SNAP_SHOOTING
         self._reactive = True
@@ -1446,6 +1474,10 @@ class ShootingController:
             return
         for reaction in self.target_reactions:
             reaction.maybe_offer(self.active_squad, target_squad, melee=False)
+        # The ATTACKER's own abilities at the same instant - see
+        # self.on_target_selected's own note for why they are a separate list.
+        for listener in self.on_target_selected:
+            listener(self.active_squad, target_squad, reactive=self._reactive)
 
     def _snapshot_target_state(self, target_squad):
         """Rule 10.02: a unit's shooting activation selects its target(s)
@@ -2127,6 +2159,14 @@ class ShootingController:
         self._rolled_strength = None  # a dice-notation Strength is rolled once per weapon group - see _effective_strength()
         if target_squad is not None:
             self._targeted_squads_this_activation.add(target_squad)
+            # "this weapon resolved attacks against this target" - recorded
+            # HERE for the same reason Sonic Destruction is, three lines down:
+            # this is where target and weapon are first both known. Rule
+            # 13.08's cover split calls this method twice for one selection
+            # with the same pair, which a set folds away by itself.
+            for _model, _weapon in (pairs or ()):
+                self._resolved_weapon_names_this_activation.setdefault(
+                    id(target_squad), set()).add(_weapon.name)
         # Sonic Destruction's ledger, the 'also targeted that enemy unit this
         # phase' half. Noted HERE, the same seam Spore-laced Shock Waves uses,
         # because this is where target and weapon are first both known - and
@@ -2666,30 +2706,27 @@ class ShootingController:
         # attack", not "makes a ranged attack" - see
         # game/way_of_the_short_blade.py.
         modifiers.extend(way_of_the_short_blade.wound_modifiers(self.active_squad, target_squad))
-        # The Wave Serpent Shield, the only defender-side modifier here whose
-        # condition is about the ATTACK: "if the Strength characteristic of
-        # that attack is greater than the Toughness characteristic of this
-        # model, subtract 1 from the Wound roll" - so a positive threshold
-        # adjustment, per this file's sign convention.
-        if wave_serpent_shield.applies(target_squad, strength):
-            modifiers.append(Modifier(
-                wave_serpent_shield.WAVE_SERPENT_SHIELD_PENALTY,
-                wave_serpent_shield.WAVE_SERPENT_SHIELD_LABEL))
-        # Aspect Host's Shimmerstone. DEFENDER-side like the shield above, and
+        # The S > T shields - the Wave Serpent's, Lychguard's Guardian
+        # Protocols and the Catacomb Command Barge's Advanced Quantum
+        # Shielding. The only defender-side modifiers here whose condition is
+        # about the ATTACK: "if the Strength characteristic of that attack is
+        # greater than the Toughness characteristic of this model, subtract 1
+        # from the Wound roll" - so a positive threshold adjustment, per this
+        # file's sign convention.
+        #
+        # ONE READER FOR ALL THREE (game/strength_over_toughness.py, the 48th
+        # extraction). Three `if`s here is how the two older carriers ended up
+        # with two copies of the comparison while a docstring claimed they
+        # shared one; a fourth carrier is now a name in that module's SHIELDS
+        # tuple and reaches this file and fight.py together or not at all.
+        modifiers.extend(strength_over_toughness.wound_modifiers(
+            target_squad, strength))
+        # Aspect Host's Shimmerstone. DEFENDER-side like the shields above, and
         # RANGED-only: the one printed word that keeps it out of game/fight.py,
         # where its Etappe-3 sibling Mirage Field does appear.
         if enh_shimmerstone.applies(target_squad):
             modifiers.append(Modifier(enh_shimmerstone.SHIMMERSTONE_PENALTY,
                                       enh_shimmerstone.SHIMMERSTONE_LABEL))
-        # Lychguard's Guardian Protocols - the same S > T comparison and the
-        # same positive sign as the shield above, differing only in its
-        # "while a NOBLE model is leading this unit" clause. See
-        # game/guardian_protocols.py for why it shares this hook rather than
-        # restating the arithmetic.
-        if guardian_protocols.applies(target_squad, strength):
-            modifiers.append(Modifier(
-                guardian_protocols.GUARDIAN_PROTOCOLS_PENALTY,
-                guardian_protocols.GUARDIAN_PROTOCOLS_LABEL))
         # Kauyon's A Tempting Trap: "add 1 to the Wound roll" against an enemy
         # within range of the player's Trap objective - an ATTACKER-side entry
         # in a mostly defender-side list, like Structural Analyser, so it reads
@@ -3673,6 +3710,19 @@ class ShootingController:
         plain "which units were hit" the listener hook already carries."""
         return [s for s in self._hit_target_squads_this_activation
                 if weapon_name in self._hit_weapon_names_this_activation.get(id(s), ())]
+
+    def resolved_weapon_against(self, weapon_name, target_squad):
+        """Whether a weapon of that printed name RESOLVED attacks against this
+        target during this activation - hit or miss.
+
+        The twin of squads_hit_by_weapon() above and deliberately a different
+        question: that one is about hits, and a volley that missed entirely
+        still resolved its attacks against the unit. Malevolent Arcing's "for
+        this model's twin tesla destructor" is what needs this one."""
+        if target_squad is None:
+            return False
+        return weapon_name in self._resolved_weapon_names_this_activation.get(
+            id(target_squad), ())
 
     def models_lost_this_activation(self, target_squad):
         """How many models `target_squad` has lost since this activation first

@@ -201,8 +201,8 @@ MISSING_AELDARI = [
 # Aeldari caught up (15 of 64 built). Measured off rules/.cache/necrons.html
 # with the same subtraction the Aeldari list documents above: 64 blocks, minus
 # 15 built, minus 12 Legends (`sLegendary`), minus 5 TITANIC
-# (`tooltip_contentTitanic` in the KEYWORD BAR), minus the two below that are
-# out of scope for building = 32 build targets.
+# (`tooltip_contentTitanic` in the KEYWORD BAR), minus the three below that are
+# out of scope for building = 31 build targets.
 #
 # Forge World removes nothing extra here, and that is worth writing down rather
 # than leaving as a gap in the arithmetic: `FW_logo2` in the index marks the
@@ -215,10 +215,16 @@ MISSING_AELDARI = [
 # clauses this repo has written out as documented no-ops into live rules - see
 # CLAUDE.md. The other five TITANIC sheets stay out entirely, Legends and all.
 #
-# NIGHT SCYTHE IS NOT AN AIRCRAFT, measured rather than assumed: it reads like
-# one and its 11th-edition keyword bar says "VEHICLE; FLY; TRANSPORT" with no
-# AIRCRAFT at all, so it is an ordinary transport and it is built. Only the
-# Doom Scythe carries the keyword.
+# THE NIGHT SCYTHE IS OUT OF SCOPE, and the measurement that used to argue the
+# opposite is kept rather than deleted, because it is still true and the next
+# reader will otherwise make it again: its 11th-edition keyword bar really does
+# say "VEHICLE; FLY; TRANSPORT" with no AIRCRAFT at all - only the Doom Scythe
+# carries the keyword - so on the keyword bar alone it would be an ordinary
+# transport. THE DECISION OVERRIDES THE KEYWORD BAR (user, stage 8: "night
+# scythe bitte komplett weglassen (weil aircraft)"): the model is a flyer, and
+# the standing "no aircraft" instruction is about the model, not about whether
+# GW printed the keyword on this particular sheet. It is snapshotted with the
+# Doom Scythe below and not built.
 MISSING_NECRONS = [
     # -- build targets --------------------------------------------------
     # Crypteks - the SUPPORT-character chassis the Plasmancer/Technomancer
@@ -236,19 +242,20 @@ MISSING_NECRONS = [
     "Canoptek Scarab Swarms", "Canoptek Spyders", "Canoptek Doomstalker",
     "Canoptek Reanimator", "Canoptek Macrocytes", "Canoptek Tomb Crawlers",
     "Geomancer",
-    # Named characters. Every one of the four Leaders attaches only to units
-    # that are already built (Immortals, Lychguard, Necron Warriors).
+    # The one named character left. It is NOT a Leader - it prints no Leader
+    # section at all, unlike the four that stage 8 removed from this list - and
+    # it is the largest single sheet here, which is why it sits with the
+    # Monolith in the last stage rather than with the characters.
     "The Silent King",
-    # Vehicles
-    "Catacomb Command Barge", "Annihilation Barge", "Ghost Ark", "Night Scythe",
     # The one TITANIC entry
     "Monolith",
     # -- deliberately out of scope for building, snapshotted anyway ------
     # Same reasoning as the two tails above: free to take from the same fetch,
     # so a later decision to build one needs no new research. AIRCRAFT and
     # FORTIFICATION are both documented no-op keywords in game/actions.py, and
-    # there is no verticality here.
-    "Doom Scythe", "Convergence Of Dominion",
+    # there is no verticality here. The Night Scythe joins them by decision
+    # rather than by keyword - see the note above the list.
+    "Doom Scythe", "Night Scythe", "Convergence Of Dominion",
 ]
 
 # folder -> the not-yet-built names that folder snapshots anyway. Keyed on the
