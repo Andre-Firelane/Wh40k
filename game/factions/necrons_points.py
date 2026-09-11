@@ -35,6 +35,24 @@ NECRONS_POINTS = {
         PointsTier({1: 360}, from_unit=2),
     ]),
     "Illuminor Szeras": flat_points({1: 175}),                      # the list says 165
+    # The four characters that LEAD. Their `leads` tuples are cross-checked
+    # against the LED BY blocks of Immortals, Lychguard and Necron Warriors,
+    # which is how this table is kept honest - and the Royal Warden is the one
+    # that differs: his printed Leader section names IMMORTALS and NECRON
+    # WARRIORS and NOT Lychguard.
+    #
+    # Those LED BY blocks also name LORD, ANRAKYR THE TRAVELLER, NEMESOR
+    # ZAHNDREKH and VARGARD OBYRON, none of which is in this backfill's scope.
+    # That is a `leads`-side absence - nothing here has to change for it - but
+    # it is written down rather than left to look like an oversight.
+    "Royal Warden": flat_points(
+        {1: 50}, leads=("Immortals", "Necron Warriors")),
+    "Overlord with translocation shroud": flat_points(
+        {1: 90}, leads=("Immortals", "Lychguard", "Necron Warriors")),
+    "Imotekh The Stormlord": flat_points(
+        {1: 100}, leads=("Immortals", "Lychguard", "Necron Warriors")),
+    "Trazyn The Infinite": flat_points(
+        {1: 65}, leads=("Immortals", "Lychguard", "Necron Warriors")),
     "Overlord": UnitPoints(
         [PointsTier({1: 90})],                                      # the list says 85
         # "This model can be equipped with 1 resurrection orb" carries no

@@ -36,11 +36,27 @@ RESURRECTION_ORB_DICE_SIDES = 6
 RESURRECTION_ORB_MIN_RECOVERABLE = 4
 
 
+def _carries_orb(model):
+    """TWO sources, and the second arrived with the Overlord with translocation
+    shroud. For the Overlord, the Lokhust Lord and the Catacomb Command Barge
+    the orb is a printed OPTION, so a Gear item in game/factions/necrons.py
+    sets a TOKEN flag. The shroud Overlord's line reads "This model is equipped
+    with: Overlord's blade; resurrection orb" - it is not a choice, so it is a
+    PROFILE flag, the arrangement the Ghostkeel's unconditional Battlesuit
+    Support System already uses.
+
+    Asked in one place so the two can never disagree about what carrying an orb
+    means."""
+    if getattr(model, "resurrection_orb", False):
+        return True
+    return bool(getattr(getattr(model, "profile", None), "resurrection_orb", False))
+
+
 def bearers(squad):
-    """The models carrying an orb. Set by the Gear item in
-    game/factions/necrons.py, so it is a token flag, not a profile one."""
+    """The models carrying an orb - bought as wargear or printed as part of the
+    model. See _carries_orb()."""
     return [m for m in getattr(squad, "models", ()) or ()
-            if getattr(m, "resurrection_orb", False) and not m.is_dead()]
+            if _carries_orb(m) and not m.is_dead()]
 
 
 def has_orb(squad):

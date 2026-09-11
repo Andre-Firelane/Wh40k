@@ -190,6 +190,9 @@ from game.fire_support import FireSupportController
 from game.guide import GuideController
 from game.doom import DoomController
 from game.diviner_of_futures import DivinerOfFuturesController
+from game.grand_strategist import GrandStrategistController
+from game.engrammatic_logic import EngrammaticLogicController
+from game.lord_of_the_storm import LordOfTheStormController
 from game.whispering_web import WhisperingWebController
 from game import fate_inescapable as fate_inescapable_mod
 from game import forewarned as forewarned_mod
@@ -1193,6 +1196,14 @@ def main(map_key=None):
         all_squads=lambda: [t.squad for t in state.tokens if t.squad is not None],
         auto_players=ai_players,
     )
+    # The Royal Warden's Engrammatic Logic - Root of Honour above with one
+    # printed word changed (NECRONS for KROOT), so it shares that machine
+    # (game/end_battle_shock.py) and is offered at the same instant.
+    engrammatic_logic_controller = EngrammaticLogicController(
+        decision_manager=decision_manager, game_log=game_log,
+        all_squads=lambda: [t.squad for t in state.tokens if t.squad is not None],
+        auto_players=ai_players,
+    )
     # The real line-of-sight test, so "visible to this model" means what it
     # means everywhere else rather than a second approximation of it. Named
     # rather than inlined because Typhus' Eater Plague asks the identical
@@ -1409,6 +1420,20 @@ def main(map_key=None):
     diviner_controller = DivinerOfFuturesController(
         command_points=command_points, all_tokens=state.tokens,
         turn_tracker=turn_tracker, game_log=game_log,
+    )
+    # Imotekh the Stormlord's Grand Strategist - Diviner of Futures word for
+    # word, so it shares game/command_phase_cp.py and, with it, the one
+    # bonus-CP-per-battle-round cap.
+    grand_strategist_controller = GrandStrategistController(
+        command_points=command_points, all_tokens=state.tokens,
+        turn_tracker=turn_tracker, game_log=game_log,
+    )
+    # Imotekh's Lord of the Storm - the second carrier of the mortal-wound
+    # sweep Drain Life brought in. Once per battle and a real choice, so it
+    # takes a decision_manager where Drain Life does not.
+    lord_of_the_storm_controller = LordOfTheStormController(
+        dice_manager=dice_manager, decision_manager=decision_manager,
+        game_log=game_log, game_state=state, auto_players=ai_players,
     )
     # Lhykhis' Whispering Web - the same after-shooting trigger and end-of-turn
     # life as the Falcon's Fire Support, but army-wide, so the mark is held per
@@ -4118,6 +4143,10 @@ def main(map_key=None):
             # 1CP" - this IS that instant. Grants 0 without complaint if he
             # is not on the board, or if this round's bonus-CP cap is spent.
             diviner_controller.start_of_command_phase(turn_tracker.turn_owner)
+            # Imotekh's Grand Strategist: the identical sentence, the identical
+            # instant, and the SAME bonus-CP cap - an army with both gains one
+            # bonus CP per battle round between them, not two.
+            grand_strategist_controller.start_of_command_phase(turn_tracker.turn_owner)
             # Painboy's Grot Orderly (user-supplied): "once per battle, in
             # your Command phase". Offered to the phase's own turn owner
             # only, like every other start-of-phase effect here.
@@ -4240,6 +4269,10 @@ def main(map_key=None):
         # KROOT unit in range, so the unconditional call costs nothing.
         root_of_honour_controller.offer_at_start_of_phase(
             {t.squad for t in state.tokens if t.squad is not None})
+        # ...and its Necron twin, at the same instant and for the same reason:
+        # "at the start of ANY phase" means the opponent's too.
+        engrammatic_logic_controller.offer_at_start_of_phase(
+            {t.squad for t in state.tokens if t.squad is not None})
         # The Psychomancer's Harbinger of Despair: "once per turn, at the
         # start of your Command, Movement, Shooting, Charge or Fight phase".
         # All five of the bearer's own phases, so it sits beside Root of
@@ -4323,6 +4356,15 @@ def main(map_key=None):
                 if _sq.owner == mover_before and word_of_the_phoenix_controller.can_use(_sq):
                     if word_of_the_phoenix_controller.start(_sq):
                         break
+            # Imotekh's Lord of the Storm: "once per battle, at the end of
+            # YOUR Command phase" - so it takes mover_before, unlike Drain
+            # Life at the end of the Fight phase, which belongs to neither
+            # player. Behind the three above for the same reason they are
+            # ordered among themselves: each holds the dice window until it is
+            # answered, and this one owes a handful plus one roll per unit it
+            # strikes.
+            lord_of_the_storm_controller.offer_at_end_of_command_phase(
+                {t.squad for t in state.tokens if t.squad is not None}, mover_before)
         if turn_tracker.phase == PHASE_SHOOTING:
             # The Void Dragon's Matter Absorption is "at the START of your
             # Shooting phase"; the Plasmancer's Living Lightning is "in your
@@ -4617,8 +4659,9 @@ def main(map_key=None):
         harvester_of_souls_controller, monofilament_snare_controller,
         # Drain Life sweeps EVERY enemy unit within 6" of the Nightbringer, so
         # it can owe several rule 06.02 allocations one after another - the
-        # same board click each of them, handed to the TARGET's owner.
-        drain_life_controller,
+        # same board click each of them, handed to the TARGET's owner. Lord of
+        # the Storm is the same sweep at 12" with two bands.
+        drain_life_controller, lord_of_the_storm_controller,
     )
 
     def _any_pending_damage_choice():
@@ -4854,6 +4897,8 @@ def main(map_key=None):
             # advance out from under the rest of the queue.
             or drain_life_controller.is_busy
             or drain_life_controller.pending_damage_choice is not None
+            or lord_of_the_storm_controller.is_busy
+            or lord_of_the_storm_controller.pending_damage_choice is not None
             or puretide_neurochip_controller.is_busy
         )
 
@@ -5918,6 +5963,7 @@ def main(map_key=None):
                         matter_absorption_controller.on_dice_acknowledged()
                         crimson_harvest_controller.on_dice_acknowledged()
                         drain_life_controller.on_dice_acknowledged()
+                        lord_of_the_storm_controller.on_dice_acknowledged()
                         kroot_linebreakers_controller.on_dice_acknowledged()
                         kroot_linebreakers_controller.resolve_pending_battle_shock()
                         wraith_form_controller.on_dice_acknowledged()
@@ -6008,6 +6054,16 @@ def main(map_key=None):
                     clicked = input_manager.token_at_event(state.tokens, board, event.pos)
                     if clicked is not None and clicked in internal_grenade_racks_controller.pending_damage_choice:
                         internal_grenade_racks_controller.choose_damage_model(clicked)
+            elif lord_of_the_storm_controller.pending_damage_choice is not None:
+                # Imotekh's Lord of the Storm - Drain Life's sweep at 12", so
+                # the same branch, one per struck unit.
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in lord_of_the_storm_controller.pending_damage_choice:
+                        lord_of_the_storm_controller.choose_damage_model(clicked)
             elif drain_life_controller.pending_damage_choice is not None:
                 # The Nightbringer's Drain Life. One of these per struck unit,
                 # answered in turn - rule 06.02, the DEFENDER allocates.
@@ -7514,6 +7570,7 @@ def main(map_key=None):
         renderer.draw_damage_choice_highlight(board_surface, board, self_destruction_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, wraith_form_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, drain_life_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, lord_of_the_storm_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, drakolithe_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, harvester_of_souls_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, monofilament_snare_controller.pending_damage_choice)

@@ -8763,3 +8763,91 @@ per `.get()`. Zwei fremde Suiten pinnten den alten Retry und sind ehrlich umgesc
 `test_plan_churn.py` (die Vor-Fix-Zahl 5 wird im Test nachgerechnet, weil der Kanal die Regel
 nicht mehr hat: 5 Probleme vorher, 0 jetzt) und `test_empty_turn_plan.py` (bekommt ein
 LONE-OPERATIVE-Problem als Kanal-Last, weil seine Reichweiten-Probleme weg sind).
+
+# Sitzung 2026-09-11 — Necron-Nachzug, Etappe 7: die vier anbindbaren Charaktere
+
+Fortsetzung einer Sitzung, die zu lang für Compaction geworden war (User: "kannst du in die
+letzten 20% dieser session reinschauen und dort weitermachen, wo die andere session
+stehengeblieben ist? Restliche necrons anlegen"). Der Umfang stand seit Etappe 0 gemessen in
+`MISSING_NECRONS`; vor dem Bauen wurde geplant (User: "make an plan first for the rest of the
+datasheets") und der Plan in vier Etappen geschnitten.
+
+## Die vier bindenden Entscheidungen des Users (per AskUserQuestion)
+
+| Frage | Antwort |
+|---|---|
+| Schnitt der restlichen 13 | **4 Etappen** — E6 C'tan / E7 die vier Leader / E8 die vier Fahrzeuge / E9 Monolith + Silent King, je ein Commit |
+| Voice of the Triarch (E9) | **bauen** |
+| Trazyns Surrogate Hosts | **NOT ENGINE-WIRED markieren** und im Test assertieren |
+| Deceivers gedruckte 40mm (E6) | **angleichen** — Tischgrößen-ENTSCHEIDUNG, nicht Transkription |
+| `armies/necrons.json` | **unangetastet**, alle 13 dormant by roster |
+
+## Etappe 7, gebaut
+
+Royal Warden, Overlord with translocation shroud, Imotekh The Stormlord, Trazyn The Infinite —
+26 von 32 Bauzielen, die Fraktion bei 41 von 64. Der verdichtete Stand steht in CLAUDE.md unter
+`### Etappe 7 — die vier anbindbaren Charaktere`; hier nur der Verlauf.
+
+Zwei neue geteilte Module (`game/end_battle_shock.py`, `game/command_phase_cp.py`), beide am
+ZWEITEN Träger und beide mit Re-Export, sodass sich kein bestehender Leser bewegt. Dazu vier
+neue Regelmodule (`adaptive_strategy`, `engrammatic_logic`, `translocation_shroud`,
+`ancient_collector`, `grand_strategist`, `lord_of_the_storm`) und der ZWEITE Konsument der
+Etappe-6-Extraktion `mortal_wound_sweep`, der sie überhaupt rechtfertigt.
+
+## Was unterwegs schiefging (und was daraus wurde)
+
+1. **`str(notation)` gibt den repr, nicht "D6"** — acht rote Zeilen. `dice_notation.describe()`
+   ist die Antwort, die es schon gab.
+2. **`MovementController(state.tokens, [], ...)`** → TypeError; seine Signatur ist rein
+   keyword-basiert. Mit Keywords gebaut.
+3. **`pygame.error: font not initialized`** beim Rendern des ActionPanel in einem Test — der
+   Kopf jeder Suite dieser Art braucht `SDL_VIDEODRIVER=dummy` plus `pygame.init()` und ein
+   `set_mode()`.
+4. **Deadlock-Risiko im Sweep:** `can_use()` war auf `is_busy` gegated, und ich hatte `is_busy`
+   um `_bearer_queue` erweitert — die Bearer-Kette hätte ihren nächsten Sweep nie starten
+   können. `_sweep_running` (ein Sweep in der Luft) ist seither von `is_busy` (alle geschuldete
+   Arbeit) getrennt.
+5. **§13 fing `start_transdimensional_displacement`** als unklassifizierten
+   `MovementController.start_*` — richtig, es ist ein Phasen-Starter und keine
+   Ausserhalb-der-Phase-Tür; als solcher eingetragen.
+6. **`test_kroot_shapers.py` wurde rot** nach der `end_battle_shock`-Extraktion: ein Quell-Grep
+   auf `game/root_of_honour.py`. Erster Reparaturversuch über `inspect.getmodule()` scheiterte
+   ebenfalls (er liefert das Modul der UNTERKLASSE); `inspect.getsource(RootOfHonourController._use)`
+   ist die Fassung, die hält.
+7. **`test_necron_ctan.py` STÜRZTE AB** (statt rot zu werden), nachdem der Shroud die
+   `clamp_move`-Bedingung verbreitert hatte: `src.index("if self.flying_this_move ...")` →
+   ValueError. Jetzt ein `between()`-Helfer mit `find()` plus einer Liveness-Zeile — genau die
+   Lehre, die das Repo für diese Form führt.
+8. **Die Terrain-Hälfte des Shrouds ist ein No-op** — und das ist gemessen worden, statt sie
+   als wirksam zu behaupten. Erster Messversuch lief auf Player 2s Brett und maß dort die
+   WAND-HAUSREGEL statt der Fähigkeit; auf Player 1 gemessen erreichen plain und Shroud-Overlord
+   denselben Punkt, weil 13.06 INFANTERIE ohnehin durchlässt.
+9. **Eine Testbühne maß die Bühne statt des Gegenstands:** der Feind stand zunächst 3" entfernt,
+   also in Engagement Range — `can_move()` lehnte ab, `start_move()` initialisierte nichts, und
+   `clamp_move()` gab die angefragte Koordinate unverändert zurück. Beide Läufe meldeten 25.0
+   und die Prüfung war wertlos. Mit dem Feind auf 4" (Kantenabstand 2.58") misst sie wirklich.
+
+## Die Sonden: 29 Sonden, 30 Läufe, alle beißend — nach drei Befunden über den TEST
+
+* **`test_kroot_shapers.py` maß die 12" nicht.** Die Sonde „Reichweite 6 statt 12" biss gegen
+  die Necron-Suite und nicht gegen die Kroot-Suite: die prüfte 40" gegen 4", was eine
+  Halbierung überlebt. Seit die Zahl GETEILT ist, ist das die Drift, gegen die die Extraktion
+  gebaut ist. Die Kroot-Suite läuft jetzt die Grenze ab und pinnt die 12" gegen die GEDRUCKTE
+  Seite (nicht gegen die Modulkonstante — die bewegte eine Sonde auf beiden Seiten). 108 → 111.
+  Dabei aufgefallen: 19.01 hängt den Leader ans ENDE der Modellliste, die neuen Zeilen messen
+  deshalb vom Bearer-Modell und nicht von der Unit-Vorderkante.
+* **Der `main.py`-Verdrahtungs-Pin überlebte `False and <call>`.** Er zählte AST-Call-Knoten,
+  und ein Call in einem BoolOp ist weiter ein Call. Er verlangt jetzt eine ganze ANWEISUNG
+  (`ast.Expr` mit `Call` als Wert) für alles, was wirklich laufen muss, und behält den
+  Call-Zähler für die drei Konstruktoren (das sind Zuweisungen).
+* **Eine Sonde ließ die Suite ABSTÜRZEN statt sie rot zu machen** — `list.index()` und
+  `dict[...]` auf einen entfernten Sprite-Eintrag. Degradiert jetzt und nennt beide gebrochenen
+  Zeilen.
+
+## Verifikation
+
+`test_necron_leaders.py` 239/239, `test_kroot_shapers.py` 111/111, `test_eldrad_ulthran.py`
+96/96, volle Regression 218 Suiten / ~19635 Prüfungen / 217 grün / 0 rot / 1 bekannt,
+`run_tests.py --smoke` komplett grün, `selfplay.py map2 1500` mit den Default-Armeen und mit
+Necrons auf beiden Seiten, `verify_rules_vs_engine.py` unverändert bei 67 Differenzen (keine
+nennt eine Einheit dieser Etappe), Korpus ohne Diff, Golden Master unbewegt.

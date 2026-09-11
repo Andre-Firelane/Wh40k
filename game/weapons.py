@@ -5627,6 +5627,98 @@ class CracklingTendrilsProfile(WeaponProfile):
     sustained_hits = 1
 
 
+# --- The four Necron characters that lead ----------------------------------
+#
+# COLLISION SWEEP, run over the corpus before the first class below:
+#   * "Close combat weapon" (Royal Warden, A4 WS3+ S5) is the THIRD printing of
+#     that name in this faction and is BYTE-IDENTICAL to the Hexmark
+#     Destroyer's, so NecronCloseCombatWeaponA4S5Profile is REUSED rather than
+#     cloned - the fork this repo had to make three times in stage 3 has an
+#     inverse, and cloning here would be it. Its own docstring named the Royal
+#     Warden as the sharer that would arrive; both wielders resolve WS3+ off
+#     their own profile, which is why one class can serve them.
+#   * "Overlord's blade" is likewise identical to the Overlord's, so
+#     OverlordsBladeProfile is reused. (The Catacomb Command Barge in stage 8
+#     prints the same row again.)
+#   * The other four names collide with NOTHING anywhere in the corpus.
+#
+# NO PER-WEAPON SKILL OVERRIDE: every row below agrees with its wielder's own
+# profile. The Gauntlet of Fire prints BS "N/A", which is [TORRENT] (rule
+# 24.37 - no Hit roll is made at all) and not a skill that disagrees.
+
+class RelicGaussBlasterProfile(WeaponProfile):
+    name = "Relic Gauss Blaster"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 2
+    strength = 5
+    ap = -1
+    damage = 2
+    lethal_hits = True
+    rapid_fire = 2
+
+
+class GauntletOfFireProfile(WeaponProfile):
+    """BS "N/A" on the printed row is [TORRENT]: rule 24.37 makes the attacks
+    hit automatically, so there is no skill to disagree with."""
+    name = "Gauntlet of Fire"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 1           # grouping/preview placeholder only - attacks_notation is what is rolled
+    attacks_notation = D6()
+    strength = 5
+    ap = -1
+    damage = 1
+    ignores_cover = True
+    torrent = True
+
+
+class StaffOfTheDestroyerRangedProfile(WeaponProfile):
+    """One printed NAME, two rows - and unlike the Nightbringer's Scythe these
+    are NOT a firing-mode pair. One is ranged and one is melee, so Imotekh
+    carries both at once and rule 04.01 never has to choose between them; an
+    overcharge_profile here would silently take one of his two weapons away.
+    The Void Dragon's Spear and the Aeldari Star Lance are the same
+    arrangement."""
+    name = "Staff of the Destroyer"
+    weapon_type = RANGED
+    range_in = 18
+    attacks = 3
+    strength = 6
+    ap = -3
+    damage = 2
+
+
+class StaffOfTheDestroyerMeleeProfile(WeaponProfile):
+    """The melee half of the pair above. Same name, same S/AP/D, one more
+    Attack and [DEVASTATING WOUNDS] - pinned against its ranged twin in the
+    suite rather than against literals, since a copy would pass either read on
+    its own."""
+    name = "Staff of the Destroyer"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    strength = 6
+    ap = -3
+    damage = 2
+    devastating_wounds = True
+
+
+class EmpathicObliteratorProfile(WeaponProfile):
+    """[SUSTAINED HITS D3] - the dice-notation form, so one die per critical
+    hit is rolled for real rather than a fixed X being applied."""
+    name = "Empathic Obliterator"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    strength = 7
+    ap = 0
+    damage = 3            # grouping/preview placeholder only - damage_notation is what is rolled
+    damage_notation = D3()
+    sustained_hits = 1    # grouping/preview placeholder only - sustained_hits_notation is what is rolled
+    sustained_hits_notation = D3()
+
+
 # ---------------------------------------------------------------------------
 # Death Guard - see game/factions/death_guard.py
 #

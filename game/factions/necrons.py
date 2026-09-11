@@ -29,6 +29,10 @@ from game.units import (
     CtanShardOfTheNightbringerProfile,
     CtanShardOfTheDeceiverProfile,
     TranscendentCtanProfile,
+    RoyalWardenProfile,
+    OverlordWithTranslocationShroudProfile,
+    ImotekhTheStormlordProfile,
+    TrazynTheInfiniteProfile,
     DoomsdayArkProfile,
     IlluminorSzerasProfile,
     ImmortalProfile,
@@ -122,6 +126,11 @@ from game.weapons import (
     GoldenFistsProfile,
     SeismicAssaultProfile,
     CracklingTendrilsProfile,
+    RelicGaussBlasterProfile,
+    GauntletOfFireProfile,
+    StaffOfTheDestroyerRangedProfile,
+    StaffOfTheDestroyerMeleeProfile,
+    EmpathicObliteratorProfile,
     SpearOfTheVoidDragonStrikeProfile,
     TachyonArrowProfile,
     TeslaCarbineProfile,
@@ -1074,6 +1083,160 @@ TRANSCENDENT_CTAN = NECRONS.add_datasheet(Datasheet(
     ],
 ))
 
+
+
+
+# --- The four characters that LEAD -----------------------------------------
+#
+# ONE BATCH BECAUSE OF WHAT THEY DO, not what they are: these are the four
+# Necron characters that attach to Immortals, Lychguard and Necron Warriors,
+# and every one of their pairings is cross-checked against those three
+# datasheets' own LED BY blocks rather than taken from the table here.
+#
+# THE ROYAL WARDEN IS THE ONE THAT DIFFERS, and it is a single word: his
+# printed Leader section names IMMORTALS and NECRON WARRIORS and NOT Lychguard.
+# He is also the only one of the four without a 4+ invulnerable, and the only
+# one who is not NOBLE - which is why there is no shared profile here, unlike
+# the C'tan above. Three of the four agree and the fourth does not; a base
+# class that one member overrode three times would say less than four honest
+# copies.
+#
+# SIX OF THE EIGHT PRINTED ABILITIES ARE TWINS of something already built, and
+# each is a fold rather than a new mechanism - see the four datasheets below.
+
+_ROYAL_WARDEN_LINE = "Royal Warden"
+
+ROYAL_WARDEN = NECRONS.add_datasheet(Datasheet(
+    "Royal Warden",
+    keywords=("INFANTRY", "CHARACTER", "ROYAL WARDEN", "NECRONS"),
+    model_lines=[ModelLine(RoyalWardenProfile, 1,
+                           [RelicGaussBlasterProfile,
+                            NecronCloseCombatWeaponA4S5Profile],
+                           name=_ROYAL_WARDEN_LINE)],
+    points=NECRONS_POINTS["Royal Warden"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Leader (Core).",
+        "Adaptive Strategy: \"This model's unit is eligible to shoot and declare a "
+        "charge in a turn in which it Fell Back.\" - BOTH of rule 09.07's bans, which "
+        "is what separates it from the Triarch Praetorians' Relentless Combatants "
+        "(charge only); see game/adaptive_strategy.py.",
+        "Engrammatic Logic: \"Once per battle, at the start of any phase, you can "
+        "select one friendly NECRONS unit that is Battle-shocked and within 12\" of "
+        "this model. That unit is no longer Battle-shocked.\" - the Kroot War Shaper's "
+        "Root of Honour with one word changed, so both read "
+        "game/end_battle_shock.py; see game/engrammatic_logic.py.",
+        "NOTE: his Close Combat Weapon is the THIRD printing of that name in this "
+        "faction and is byte-identical to the Hexmark Destroyer's, so the two SHARE "
+        "NecronCloseCombatWeaponA4S5Profile - whose own docstring named him as the "
+        "sharer that would arrive.",
+    ],
+))
+
+
+_SHROUD_OVERLORD_LINE = "Overlord with Translocation Shroud"
+
+OVERLORD_WITH_TRANSLOCATION_SHROUD = NECRONS.add_datasheet(Datasheet(
+    "Overlord with translocation shroud",
+    keywords=("INFANTRY", "CHARACTER", "NOBLE", "OVERLORD",
+              "OVERLORD WITH TRANSLOCATION SHROUD", "NECRONS"),
+    model_lines=[ModelLine(OverlordWithTranslocationShroudProfile, 1,
+                           [OverlordsBladeProfile],
+                           name=_SHROUD_OVERLORD_LINE)],
+    points=NECRONS_POINTS["Overlord with translocation shroud"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Leader (Core).",
+        "My Will Be Done: \"Once per battle round, one unit from your army with this "
+        "ability can use it when its unit is targeted with a Stratagem. If it does, "
+        "reduce the CP cost of that use of that Stratagem by 1CP.\" - the same "
+        "StratagemController.cost_discounts collaborator the Overlord prints, see "
+        "game/my_will_be_done.py.",
+        "Translocation Shroud: \"Each time this model's unit Advances, do not make an "
+        "Advance roll for it. Instead, until the end of the phase, add 6\" to the Move "
+        "characteristic of models in that unit. In addition, each time a model in that "
+        "unit makes a Normal, Advance or Fall Back move, until that move is finished, "
+        "it can move horizontally through models and terrain features (it cannot "
+        "finish a move on top of another model or its base).\" - "
+        "see game/translocation_shroud.py.",
+        "Resurrection Orb (Wargear): \"Once per battle, per unit. At the end of any "
+        "phase, you can use this ability. If you do, this unit resurrects: when a unit "
+        "resurrects, that unit's Reanimation Protocols activate, but that unit heals D6 "
+        "wounds (instead of D3 wounds). You cannot resurrect more than one unit per "
+        "turn.\" - see game/resurrection_orb.py. PRINTED EQUIPMENT here, not an option: "
+        "his line reads \"This model is equipped with: Overlord's blade; resurrection "
+        "orb\", so it is a profile flag where the Overlord's, the Lokhust Lord's and "
+        "the Catacomb Command Barge's are Gear items that set a token flag.",
+    ],
+))
+
+
+_IMOTEKH_LINE = "Imotekh the Stormlord"
+
+IMOTEKH_THE_STORMLORD = NECRONS.add_datasheet(Datasheet(
+    "Imotekh The Stormlord",
+    keywords=("INFANTRY", "CHARACTER", "EPIC HERO", "NOBLE",
+              "IMOTEKH THE STORMLORD", "NECRONS"),
+    model_lines=[ModelLine(ImotekhTheStormlordProfile, 1,
+                           [GauntletOfFireProfile,
+                            StaffOfTheDestroyerRangedProfile,
+                            StaffOfTheDestroyerMeleeProfile],
+                           name=_IMOTEKH_LINE)],
+    points=NECRONS_POINTS["Imotekh The Stormlord"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Leader (Core).",
+        "Grand Strategist: \"At the start of your Command phase, if this model is on "
+        "the battlefield, you gain 1CP.\" - Eldrad Ulthran's Diviner of Futures word "
+        "for word, so both read game/command_phase_cp.py; the CP goes through "
+        "gain_cp(), which means the user's one-bonus-CP-per-battle-round cap applies. "
+        "See game/grand_strategist.py.",
+        "Lord of the Storm: \"Once per battle, at the end of your Command phase, this "
+        "model can use this ability. If it does, roll one D6 for each enemy unit within "
+        "12\" of this model: on a 2-5, that enemy unit suffers D3 mortal wounds; on a "
+        "6, that enemy unit suffers D3+3 mortal wounds.\" - the second carrier of "
+        "game/mortal_wound_sweep.py and the one that justifies it; "
+        "see game/lord_of_the_storm.py.",
+        "NOTE: the Staff of the Destroyer prints TWO rows under ONE name, and they are "
+        "NOT a firing-mode pair - one is ranged and one is melee, so he carries both at "
+        "once and rule 04.01 never has to choose. An overcharge_profile here would "
+        "silently take one of his two weapons away. The Gauntlet of Fire prints BS "
+        "\"N/A\", which is [TORRENT] (rule 24.37).",
+    ],
+))
+
+
+_TRAZYN_LINE = "Trazyn the Infinite"
+
+TRAZYN_THE_INFINITE = NECRONS.add_datasheet(Datasheet(
+    "Trazyn The Infinite",
+    keywords=("INFANTRY", "CHARACTER", "EPIC HERO", "NOBLE",
+              "TRAZYN THE INFINITE", "NECRONS"),
+    model_lines=[ModelLine(TrazynTheInfiniteProfile, 1,
+                           [EmpathicObliteratorProfile],
+                           name=_TRAZYN_LINE)],
+    points=NECRONS_POINTS["Trazyn The Infinite"],
+    abilities_text=[
+        _REANIMATION_PROTOCOLS_TEXT,
+        "Leader (Core).",
+        "Ancient Collector: \"While this model is leading a unit, at the end of your "
+        "Command phase, if that unit is within range of an objective marker you "
+        "control, it remains under your control, even if you have no models within "
+        "range of it, until your opponent controls it at start or end of any turn.\" - "
+        "rule 14.03's Secured, the same sweep Fieldcraft uses, plus the one clause "
+        "Fieldcraft does not print; see game/ancient_collector.py.",
+        "Surrogate Hosts: \"At the start of your Command phase, if this model is on the "
+        "battlefield, you can select one other friendly NECRONS INFANTRY CHARACTER "
+        "model on the battlefield (excluding SKORPEKH LORD or EPIC HERO models). The "
+        "selected model is destroyed (ignoring any rules that are triggered when a "
+        "model is destroyed) and this model is put in its place, with all of its wounds "
+        "remaining (if the selected model was leading a unit, this model now attaches "
+        "to that unit as its Leader).\" - NOT ENGINE-WIRED. It needs a runtime model "
+        "swap plus a fresh rule 19.01 attachment, and this engine has neither; "
+        "asserted as missing in test_necron_leaders.py so adding it is a visible "
+        "change, the practice Trail Finding and the Jammer Array already follow.",
+    ],
+))
 
 
 # ===========================================================================

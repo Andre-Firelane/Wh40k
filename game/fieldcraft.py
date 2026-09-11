@@ -22,6 +22,7 @@ at the end of every phase, released once the opponent's raw score is
 strictly higher" to reuse directly rather than build a second, subtly
 different tracking mechanism for one datasheet's wording."""
 
+from game import ancient_collector
 from game.objectives import is_within_range_of_objective
 from game.squad import squad_has_fieldcraft
 
@@ -41,9 +42,13 @@ def apply_fieldcraft(objectives, all_tokens, player):
     controlled = [o for o in objectives if o.controlled_by == player]
     if not controlled:
         return
+    # Trazyn the Infinite's Ancient Collector prints this same sentence with
+    # one clause added ("while this model is LEADING a unit"), so it is a
+    # second predicate on the same sweep rather than a second sticky-objective
+    # scheme - see game/ancient_collector.py.
     fieldcraft_squads = [
         squad for squad in {t.squad for t in all_tokens if t.squad is not None and t.squad.owner == player}
-        if squad_has_fieldcraft(squad)
+        if squad_has_fieldcraft(squad) or ancient_collector.applies(squad)
     ]
     if not fieldcraft_squads:
         return

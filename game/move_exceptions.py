@@ -43,6 +43,7 @@ folds below only ask.
 
 from game import aux_alien_expertise, hovering_death, loping_pounce
 from game.relentless_combatants import squad_has_relentless_combatants
+from game.adaptive_strategy import squad_has_adaptive_strategy
 from game.squad import (squad_has_agile_combatant, squad_has_battlesuit_support_system,
                         squad_has_full_throttle, squad_has_war_construct)
 from game.waaagh import squad_waaagh_active
@@ -101,6 +102,7 @@ def may_shoot_after_falling_back(squad):
             or hovering_death.squad_ignores_fall_back(squad)
             or squad_has_war_construct(squad)
             or squad_has_agile_combatant(squad)
+            or squad_has_adaptive_strategy(squad)
             or any(_flag(squad, name) for name in SHOOT_AFTER_FALL_BACK_FLAGS))
 
 
@@ -110,12 +112,16 @@ def may_charge_after_falling_back(squad):
     say "shoot", Hovering Death and Full Throttle say both, and the Triarch
     Praetorians' Relentless Combatants says only "declare a charge" (its other
     clause is a Charge-roll re-roll, which is a different question entirely -
-    see game/relentless_combatants.py)."""
+    see game/relentless_combatants.py). The Royal Warden's Adaptive Strategy is
+    the one Necron source that says BOTH, so it is the only name below that
+    also appears in may_shoot_after_falling_back() above - which is exactly the
+    half a copy of its Triarch neighbour would lose."""
     if squad is None:
         return False
     return (squad_has_full_throttle(squad)
             or hovering_death.squad_ignores_fall_back(squad)
             or squad_has_relentless_combatants(squad)
+            or squad_has_adaptive_strategy(squad)
             or any(_flag(squad, name) for name in CHARGE_AFTER_FALL_BACK_FLAGS))
 
 

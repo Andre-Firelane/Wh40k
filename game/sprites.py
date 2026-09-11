@@ -304,6 +304,21 @@ SQUAD_SPRITE_KEYS = {
     "Necron Warriors": "Necron Warrior",
     "Immortals": "Necron Immortal",
     "Lychguard": "Necron Lychguard",
+    # THE SHROUD OVERLORD HAS NO ART OF HIS OWN, and unlike every other
+    # artless datasheet in this faction that is NOT an absence: "Overlord"
+    # is already a key and IS a substring of "Overlord with translocation
+    # shroud", so _key_for_name() would hand him the plain Overlord's
+    # picture whatever this table said. Written out as a DECISION rather
+    # than left to that accident - he is an Overlord, so the fallback is the
+    # right one - and placed ABOVE the shorter key so it is the winning
+    # entry the day he gets a file of his own. The "Farseer Skyrunner" ->
+    # "Farseer" mapping is the same arrangement.
+    #
+    # This is also the one name in the backfill that the stage-4/5 shadowing
+    # pin cannot be copied for: its "no existing key swallows this name"
+    # line returns ["Overlord"] here, so test_necron_leaders.py states the
+    # exception and asserts what he really resolves to instead.
+    "Overlord with translocation shroud": "Necron Overlord",
     "Overlord": "Necron Overlord",
     "Plasmancer": "Necron Plasmancer",
     "Technomancer": "Necron Technomancer",
@@ -386,6 +401,13 @@ SQUAD_SPRITE_KEYS = {
     "C'tan Shard of the Nightbringer": "Ctan Shard of the Nightbringer",
     "C'tan Shard of the Deceiver": "Ctan Shard of the Deceiver",
     "Transcendent C'tan": "Transcendent Ctan",
+    # The four characters that lead. Two of the three files with art spell
+    # "the" in lower case where the datasheet spells it "The" - the Orikan
+    # case again, and written out rather than left to os.path.isfile, which
+    # is case-insensitive on Windows and would APPEAR to work here.
+    "Royal Warden": "Royal Warden",
+    "Imotekh The Stormlord": "Imotekh the Stormlord",
+    "Trazyn The Infinite": "Trazyn the Infinite",
 
     # --- Death Guard ---
     # EIGHT of these eleven files disagree with the datasheet name, and the

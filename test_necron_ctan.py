@@ -603,9 +603,29 @@ c.true("...and the displacement walks straight through it", through >= 25.9)
 # But TERRAIN is not models: the printed text says "all types of MODEL" and
 # says nothing about terrain features, so this is not the FLY branch.
 src = io.open(os.path.join("game", "movement.py"), encoding="utf-8").read()
-fly = src[src.index("if self.flying_this_move and token.profile.fly:"):]
-c.true("...and it is NOT the FLY branch, which also ignores terrain",
-       "transdimensional_displacement" not in fly[:fly.index("else:")])
+
+
+def between(text, first, second):
+    """The slice between two anchors, or "" if either is gone.
+
+    find() and not index(): a pin that CRASHES when its anchor moves takes the
+    whole suite down instead of going red, and then says nothing about which
+    assurance broke. This repo has paid for that one often enough to have a
+    name for it."""
+    a = text.find(first)
+    if a < 0:
+        return ""
+    b = text.find(second, a + len(first))
+    return text[a:b] if b > a else ""
+
+
+# The branch that ignores terrain AND models. Translocation Shroud belongs in
+# it (its text names both); Transdimensional Displacement must NOT, because its
+# text names models and says nothing about terrain.
+_fly_branch = between(src, "if ((self.flying_this_move and token.profile.fly)", "else:")
+c.true("the crosses-everything branch is still there", bool(_fly_branch))
+c.true("...and it is NOT where the displacement bypass lives",
+       "transdimensional_displacement" not in _fly_branch)
 
 # CLAUSE 3: more than 8" from every enemy unit, at CONFIRM.
 mc, squad, enemy, _s = move_scene(enemy_at=(20.0, 24.0))

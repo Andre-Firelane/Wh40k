@@ -238,8 +238,7 @@ MISSING_NECRONS = [
     "Geomancer",
     # Named characters. Every one of the four Leaders attaches only to units
     # that are already built (Immortals, Lychguard, Necron Warriors).
-    "Imotekh The Stormlord", "Trazyn The Infinite", "Royal Warden",
-    "Overlord with translocation shroud", "The Silent King",
+    "The Silent King",
     # Vehicles
     "Catacomb Command Barge", "Annihilation Barge", "Ghost Ark", "Night Scythe",
     # The one TITANIC entry

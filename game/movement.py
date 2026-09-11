@@ -5,6 +5,7 @@ from game import battle_stats
 from game import config, geometry
 from game import scuttling_walker
 from game import transdimensional_displacement
+from game import translocation_shroud
 from game.coherency import coherency_report
 from game import whirling_death
 from game import whole_unit_drag
@@ -673,6 +674,12 @@ class MovementController:
         elif guardian_time_to_strike.skips_advance_roll(self.selected_squad):
             no_roll_bonus = (guardian_time_to_strike.TIME_TO_STRIKE_BONUS_IN,
                              guardian_time_to_strike.TIME_TO_STRIKE_NAME)
+        elif translocation_shroud.skips_advance_roll(self.selected_squad):
+            # The Overlord with translocation shroud prints Aggressive
+            # Mobility's sentence word for word, so it takes the same branch
+            # rather than a fourth one beside it.
+            no_roll_bonus = (translocation_shroud.TRANSLOCATION_SHROUD_BONUS_IN,
+                             translocation_shroud.TRANSLOCATION_SHROUD_NAME)
         if no_roll_bonus is not None:
             bonus, _label = no_roll_bonus
             for model in self.selected_squad.models:
@@ -1342,11 +1349,20 @@ class MovementController:
             scale = budget / dist
             x_in, y_in = ox + dx * scale, oy + dy * scale
 
-        if self.flying_this_move and token.profile.fly:
+        if ((self.flying_this_move and token.profile.fly)
+                or translocation_shroud.crosses_everything(self.move_mode, token)):
             # Rule 21.03: while taking to the skies, a FLYING model can move
             # horizontally through all terrain features and through any
             # model (friendly or enemy, including MONSTER/VEHICLE) - only
             # remaining range and the board edges still constrain it.
+            #
+            # The Overlord's Translocation Shroud reaches the same conclusion
+            # by a different route and joins here rather than the models-only
+            # branch below: its printed text says "through models AND terrain
+            # features". It is gated on the MOVE (Normal, Advance or Fall Back
+            # only) instead of on a declaration, which is why the test lives in
+            # game/translocation_shroud.py and not in blocks_movement_for() -
+            # that seam takes a model and cannot know which move this is.
             fraction = 1.0
         else:
             # Rule 13.05/13.06: only Dense terrain blocks movement, and even
@@ -1466,6 +1482,11 @@ class MovementController:
         if profile is None or profile.can_move_through_dense_terrain:
             return 0.0, False
         if self.flying_this_move and profile.fly:
+            return 0.0, False
+        if translocation_shroud.crosses_everything(self.move_mode, token):
+            # Inert while config.WALL_CROSSING_COST_IN is 0.0, but the toll is
+            # a regulated house rule and this model does not pay it: it crosses
+            # by its own printed rule, not by the crossing permission.
             return 0.0, False
         walls = [o for o in self.obstacles if o.category == DENSE]
         if not walls:

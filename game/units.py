@@ -364,6 +364,13 @@ class UnitProfile:
     drain_life = False  # C'tan Shard of the Nightbringer's own ability: at the end of the Fight phase, roll one D6 for each enemy unit within 6" of this model - on a 4+ that unit suffers D3 mortal wounds - see game/drain_life.py
     grand_illusion = False  # C'tan Shard of the Deceiver's own ability: if your army includes this model, after both players have deployed, redeploy up to three NECRONS units (any of them may go into Strategic Reserves) - see game/grand_illusion.py
     transdimensional_displacement = False  # Transcendent C'tan's own ability: an Advance move with no maximum distance that may pass through all models, and must end more than 8" from every enemy unit - see game/transdimensional_displacement.py
+    resurrection_orb = False  # the Resurrection Orb as PRINTED equipment rather than a bought option (Overlord with translocation shroud). The three models that BUY one set a token flag from a Gear item instead; game/resurrection_orb.py's _carries_orb() reads both
+    adaptive_strategy = False  # Royal Warden's own ability: this model's unit is eligible to shoot AND to declare a charge in a turn in which it Fell Back - two of rule 09.07's bans lifted at once, see game/move_exceptions.py
+    engrammatic_logic = False  # Royal Warden's own ability: once per battle, at the start of ANY phase, one friendly Battle-shocked NECRONS unit within 12" stops being Battle-shocked - Root of Honour's twin, see game/engrammatic_logic.py
+    translocation_shroud = False  # Overlord with translocation shroud's own ability: its unit Advances without a roll for a flat +6", and its models move horizontally through models AND terrain during any Normal, Advance or Fall Back move - see game/translocation_shroud.py
+    grand_strategist = False  # Imotekh the Stormlord's own ability: +1 CP at the start of your Command phase while this model is on the battlefield - Eldrad's Diviner of Futures under another name, see game/diviner_of_futures.py
+    lord_of_the_storm = False  # Imotekh the Stormlord's own ability: once per battle, at the end of your Command phase, one D6 per enemy unit within 12" - on a 2-5 D3 mortal wounds, on a 6 D3+3 - see game/lord_of_the_storm.py
+    ancient_collector = False  # Trazyn the Infinite's own ability: while he leads a unit, an objective that unit is within range of at the end of your Command phase stays yours with no models on it - rule 14.03's Secured, see game/ancient_collector.py
     illuminor = False  # Illuminor Szeras's own ability: while within 3" of one or more OTHER friendly NECRONS units, this model has Lone Operative - a CONDITIONAL form of `lone_operative` above, so it is resolved at read time; see game/illuminor.py
     mechanical_augmentation = 0  # Illuminor Szeras's own Aura, in inches (printed 3", grows to a maximum of 12"): a friendly NECRONS BATTLELINE unit within this range improves its attacks' AP by 1 and worsens the AP of attacks targeting it by 1; 0 = no such aura - see game/mechanical_augmentation.py
     mechanical_augmentation_max = 0  # the ceiling the aura can grow to, in inches (printed 12") - paired with the flag above so the growth rule has a bound to read rather than a literal
@@ -4981,6 +4988,107 @@ class TranscendentCtanProfile(CtanShardProfile):
     base_radius_in = 1.181          # 60 mm printed flying base
     movement_in = 8
     transdimensional_displacement = True  # see game/transdimensional_displacement.py
+
+
+# --- The four Necron characters that lead ----------------------------------
+#
+# THREE OF THEM SHARE A STATLINE and the fourth does not, which is why there is
+# no base class here: Imotekh, Trazyn and the shroud Overlord all print
+# M5" T5 Sv2+ W6 Ld6+ OC1 with a 4+ invulnerable, but the Royal Warden prints
+# Sv3+, W4 and NO invulnerable at all. A shared chassis would have to be
+# overridden three times by the one member that differs, which says less than
+# four honest copies - the opposite of the C'tan case above, where all four
+# agree and the base carries the claim.
+
+class RoyalWardenProfile(UnitProfile):
+    name = "Royal Warden"
+    base_radius_in = 0.630          # 32 mm printed base
+    movement_in = 5
+    weapon_skill = "3+"
+    ballistic_skill = "3+"
+    toughness = 5
+    wounds = 4
+    leadership = "6+"
+    armor_save = "3+"
+    oc = 1
+    infantry = True
+    character = True
+    leader = True                   # rule 24.22 - the pairing itself is UnitPoints.leads
+    reanimation_protocols = True
+    adaptive_strategy = True        # see game/move_exceptions.py
+    engrammatic_logic = True        # see game/engrammatic_logic.py
+
+
+class OverlordWithTranslocationShroudProfile(UnitProfile):
+    """The one model whose Resurrection Orb is PRINTED rather than bought - see
+    the resurrection_orb flag on UnitProfile."""
+    name = "Overlord with Translocation Shroud"
+    base_radius_in = 0.787          # 40 mm printed base
+    movement_in = 5
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 5
+    wounds = 6
+    leadership = "6+"
+    armor_save = "2+"
+    oc = 1
+    invulnerable_save = "4+"
+    infantry = True
+    character = True
+    noble = True                    # the printed NOBLE keyword - read by game/guardian_protocols.py
+    leader = True                   # rule 24.22
+    reanimation_protocols = True
+    my_will_be_done = True          # see game/my_will_be_done.py
+    resurrection_orb = True         # printed equipment, not an option - see game/resurrection_orb.py
+    translocation_shroud = True     # see game/translocation_shroud.py
+
+
+class ImotekhTheStormlordProfile(UnitProfile):
+    name = "Imotekh the Stormlord"
+    base_radius_in = 0.787          # 40 mm printed base
+    movement_in = 5
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 5
+    wounds = 6
+    leadership = "6+"
+    armor_save = "2+"
+    oc = 1
+    invulnerable_save = "4+"
+    infantry = True
+    character = True
+    epic_hero = True
+    noble = True
+    leader = True                   # rule 24.22
+    reanimation_protocols = True
+    grand_strategist = True         # see game/diviner_of_futures.py
+    lord_of_the_storm = True        # see game/lord_of_the_storm.py
+
+
+class TrazynTheInfiniteProfile(UnitProfile):
+    """Surrogate Hosts is deliberately NOT a flag here: nothing reads it. It
+    needs a runtime model swap plus a fresh rule 19.01 attachment, neither of
+    which exists in this engine, so it is recorded as NOT ENGINE-WIRED in the
+    datasheet's abilities_text and asserted in the suite - the practice Trail
+    Finding, Kroot Ambush and the Jammer Array already follow."""
+    name = "Trazyn the Infinite"
+    base_radius_in = 0.492          # 25 mm printed base
+    movement_in = 5
+    weapon_skill = "2+"
+    ballistic_skill = "2+"
+    toughness = 5
+    wounds = 6
+    leadership = "6+"
+    armor_save = "2+"
+    oc = 1
+    invulnerable_save = "4+"
+    infantry = True
+    character = True
+    epic_hero = True
+    noble = True
+    leader = True                   # rule 24.22
+    reanimation_protocols = True
+    ancient_collector = True        # see game/ancient_collector.py
 
 
 # ---------------------------------------------------------------------------

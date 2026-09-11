@@ -19,6 +19,8 @@ protects, and each was run and confirmed to break the suite.
 """
 
 import copy
+import io
+import os
 
 import testkit as tk
 from game import ritual_butchery, rites_of_feasting
@@ -367,6 +369,30 @@ ck.true("a shocked unit beyond 12\" is not eligible", not _roh2.can_use(_roh_sha
 tk.line_up(_victim, x=24.0, y=20.0)
 ck.true("back in range, eligible again", _roh2.can_use(_roh_shaper))
 
+# THE BOUNDARY ITSELF, at 11.5" and 12.5" edge to edge. 40" against 4" says
+# only that SOME range is measured - it survives the range being halved, which
+# is not a hypothetical: game/end_battle_shock.py is shared with the Royal
+# Warden's Engrammatic Logic now, so a change to that one number moves a rule
+# on two datasheets at once, and an A/B probe on it went NO BITE here until
+# this pair existed. The 12" is pinned against the PRINTED page rather than
+# against the module's own constant, which a probe would move on both sides.
+_ROH_PRINTED_RANGE_IN = 12.0
+_ROH_PRINTED = io.open(os.path.join("rules", "tau_empire", "Kroot War Shaper.md"),
+                       encoding="utf-8").read()
+ck.true("the printed text really says 12\"",
+        "within 12\" of this model" in _ROH_PRINTED)
+# Measured from the BEARER MODEL, not from the unit: rule 19.01 appends the
+# leader to the END of the bodyguard's model list, so his own x is nowhere near
+# the unit's leading edge - which is why the 40" above had to be so generous.
+_bearer = _roh2.bearer_models(_roh_shaper)[0]
+_gap = _bearer.radius_in + _victim.models[0].radius_in   # edge to edge
+for _inches, _want in ((_ROH_PRINTED_RANGE_IN - 0.5, True),
+                       (_ROH_PRINTED_RANGE_IN + 0.5, False)):
+    tk.line_up(_victim, x=_bearer.x_in + _inches + _gap, y=_bearer.y_in)
+    ck.eq("a shocked KROOT unit %.1f\" away is eligible: %s" % (_inches, _want),
+          _roh2.can_use(_roh_shaper), _want)
+tk.line_up(_victim, x=24.0, y=20.0)
+
 from game.factions.tau_empire import STRIKE_TEAM  # noqa: E402
 _not_kroot = tk.build(STRIKE_TEAM, "Player 1", name="1 Strike Team 1")
 tk.line_up(_not_kroot, x=24.0, y=22.0)
@@ -405,7 +431,13 @@ ck.true("...and it worked", not _ai_victim.battle_shocked)
 _shock_tt = TurnTracker(first_player="Player 1")
 _shock_ctrl = BattleShockController(turn_tracker=_shock_tt)
 _shock_src = open("game/battle_shock.py", encoding="utf-8").read()
-_roh_src = open("game/root_of_honour.py", encoding="utf-8").read()
+# Read off the CLASS rather than off a named file. The machine moved to
+# game/end_battle_shock.py when the Royal Warden's Engrammatic Logic became its
+# second carrier, and a pin that names a path goes red for a move rather than
+# for a defect - what it is really about is that ONE attribute name is written
+# at both ends.
+import inspect as _inspect
+_roh_src = _inspect.getsource(RootOfHonourController._use)
 ck.true("Root of Honour clears the same Squad.battle_shocked flag "
         "BattleShockController sets",
         "battle_shocked = False" in _shock_src

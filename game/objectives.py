@@ -60,10 +60,13 @@ class Objective:
     objective. Level of Control (14.02) is recomputed at the end of every
     phase/turn (see main.py's advance_turn_phase(), which calls
     update_control() for every objective right after advancing the phase).
-    Secured (14.03) is a data hook for future unit abilities ("Hold At All
-    Costs") to grant - no such ability exists yet (no abilities system at
-    all), so nothing sets secured_by in the current demo; secure_for() is
-    there for whenever that lands."""
+
+    Secured (14.03) HAS CARRIERS NOW. This used to say "no such ability exists
+    yet (no abilities system at all), so nothing sets secured_by in the current
+    demo" - true when it was written, and false since the first of them.
+    They are game/fieldcraft.py (shared by every datasheet printing that
+    sentence, and by Trazyn's Ancient Collector), game/aac_marker_beacon.py
+    and game/conclave_spirit_token.py."""
 
     def __init__(self, terrain_area, name="Objective"):
         self.terrain_area = terrain_area
@@ -101,8 +104,13 @@ class Objective:
         return totals
 
     def secure_for(self, player):
-        """Grant Secured status (rule 14.03) - not called by anything yet,
-        since we have no unit-ability system; here for when one exists."""
+        """Grant Secured status (rule 14.03).
+
+        FOUR CALLERS now, and this docstring used to say "not called by
+        anything yet, since we have no unit-ability system; here for when one
+        exists" - which stopped being true with the first of them. They are
+        game/fieldcraft.py (and, through it, Trazyn's Ancient Collector),
+        game/aac_marker_beacon.py and game/conclave_spirit_token.py."""
         self.secured_by = player
 
     def update_control(self, all_tokens):
