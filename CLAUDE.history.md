@@ -8927,3 +8927,87 @@ Ergebnis: `test_explosives.py` neu (28/28 — zu `can_use()` gab es vorher KEINE
 187 → 216 (zwei neue Wächter: §22 für die Eignungsfrage, §23 für die Zweig-SYMMETRIE), drei neue
 A/B-Sondendateien mit zusammen 23 Sonden, und `verify_battle_focus_mid_move.py` als
 Laufzeit-Beleg durch `main()`s echte Schleife (2 Knöpfe gegen `--neutralize`s 0).
+
+## 2026-09-11 — Necron-Etappe 8, und was eine Sonde findet, die NICHT beißt
+
+Die drei Grav-Skimmer (Catacomb Command Barge, Annihilation Barge, Ghost Ark). Der verdichtete
+Stand steht in `CLAUDE.md` unter `### Etappe 8`; hier die Verläufe, die dort nicht hingehören.
+
+**DER UMFANG HAT SICH MITTEN IN DER PLANUNG GEÄNDERT.** Geplant waren vier Fahrzeuge. Der User hat
+die Night Scythe gestrichen („nightsythe bitte komplett weglassen (weil aircraft)") und für die
+Ghost Ark das Modellieren bestellt („ghost ark modellieren") statt der benannten Lücke, die der
+Plan vorsah. Beides kam als EINE Nachricht, während der Plan noch offen war — und die Streichung
+war nicht die billigere Hälfte: `fetch_datasheet_rules.py` argumentierte an dieser Stelle mit
+einer MESSUNG das Gegenteil, und die musste umgeschrieben statt gelöscht werden. Drei weitere
+Entscheidungen kamen per `AskUserQuestion`: Basisgrößen „Alle drei auf 2.1"", der Kill-Rig-Bug
+„In diesem Commit mitfixen", und die Destructor-Klausel „Exakt: neues Aktivierungs-Feld" —
+letztere gegen die billigere Variante, die Klausel als gemessenen No-op zu behandeln.
+
+**DIE SONDEN WAREN DER TEUERSTE UND ERGIEBIGSTE TEIL.** Der erste vollständige Lauf meldete
+**14 Sondenläufe, die nicht bissen**; nach deren Reparatur ein fünfzehnter, dazu zwei, die die
+Suite ABSTÜRZEN ließen statt sie rot zu machen. Die Liste steht in `CLAUDE.md`; drei Verläufe
+lohnen die Erzählung:
+
+- **Der Malevolent-Arcing-Abschnitt fuhr einen STUB.** Er sah vollständig aus — Kandidaten,
+  Schwelle, Reichweite, Zahlmoment —, und die ganze neue `on_target_selected`-Naht war dabei
+  ungemessen, weil kein echter `ShootingController` lief. Die Sonde „die Listener-Liste wird nie
+  gerufen" meldete NO BITE und hat es aufgedeckt. Neu geschrieben mit echtem Controller und echten
+  Würfeln; danach beißt sie, und zwar mit drei roten Zeilen.
+- **Die Already-embarked-Sonde hat einen Fall gefunden, den die Suite nie gefahren hatte.**
+  Abschnitt 8 rief `fits_pools()` DIREKT mit einer Ladung an Bord — das beweist die ARITHMETIK,
+  sagt aber nichts darüber, ob `can_embark()` die Ladung überhaupt weiterreicht. Der Fix war nicht
+  „noch ein Fall", sondern ein GEWÄHLTER Fall: zehn Krieger an Bord lassen genau einen Platz frei,
+  ein zweiter Krieger-Trupp wird also wegen seiner GRÖSSE abgelehnt und die Pools werden nie
+  gefragt — die Sonde bliebe still. Ein einzelner Overlord an Bord ist die unterscheidende Ladung
+  (zehn Plätze frei, CHARACTER-Pool voll). **Der Fall muss die zwei Welten trennen, nicht bloß
+  existieren.**
+- **Eine Sonde, die gar nicht beißen KANN, war ein Befund über die DATEN und hat einen zwei
+  Etappen alten Docstring widerlegt.** `guardian_protocols.py` behauptete, die
+  19.02-Toughness-Lesart „matters genuinely, as opposed to the Wave Serpent's documented 'cannot
+  matter today'". Gemessen über jede baubare Einheit aller fünf Armeen, gemergt und ungemergt:
+  `models[0].profile.toughness` und `attached_unit_toughness()` geben IMMER dieselbe Antwort. Die
+  Sonde ist als **deklarierter Nicht-Beißer** mit ihrer Messung stehengeblieben (der
+  T'au-Audit-Präzedenzfall), und der Docstring sagt jetzt, was gilt und dass die frühere Fassung
+  falsch war.
+
+**EIGENE FEHLER, alle dokumentierte Formen:**
+- **Fehlerklasse 18, achtzehnte Instanz, und sie hat mich eine Fehlmeldung gekostet:** der erste
+  Sondenlauf lief durch `| tail -120`. Der Exit-Code war der von `tail`, also stand „exit 0" neben
+  „14 probe run(s) did not bite", und ich habe zuerst „jede Sonde hat gebissen" berichtet. Korrigiert,
+  und der Lauf wird seither in eine Datei umgeleitet statt gepipet.
+- **Fehlerklasse 21**, wieder: ein Heredoc mit dem deutschen Abschnittstext für `CLAUDE.md` brach
+  mit `unexpected EOF`. Über `Edit` geschrieben, wie die Regel es seit Langem sagt.
+- **Fehlerklasse 24 mehrfach**, darunter ein `isinstance()`, das einen Fork durchließ (der Pin
+  „die Waffe ist die GETEILTE Klasse" bestand auch gegen eine Unterklasse — jetzt `type(w) is`),
+  eine vakuöse Assertion (`... or True`), und drei Ledger, die nur am FELD statt am VERHALTEN
+  geprüft waren.
+- **Zwei STALE Quell-Pins** in `test_wave_serpent.py` hörten durch die Extraktion auf, etwas zu
+  bedeuten, blieben aber grün. Beide durch echte Messungen ersetzt.
+
+**DIE PARALLELE SITZUNG (Fehlerklasse 20) IN ZWEI NEUEN FORMEN, beide in dieser Sitzung real
+geworden:**
+1. **Mein Werkzeug hat IHRE Arbeit gelöscht.** `rules/README.md` wird von
+   `fetch_datasheet_rules.py` erzeugt; Commit `c72db33` hat dort von Hand einen Absatz über die
+   Core-Stratagem-Tooltips eingefügt, und mein routinemäßiger `--offline`-Rundlauf hat ihn wortlos
+   entfernt. Der Diff sah mit einer einzigen `M rules/README.md`-Zeile harmlos aus — ich habe nur
+   hineingesehen, weil die Etappe-7-Notiz „`git status --porcelain rules/` leer" versprach und es
+   nicht war. Behoben, indem der Absatz in den GENERATOR gewandert ist, samt Kommentar, warum er
+   dort und nicht in der generierten Datei steht.
+2. **Ihr `git add -A` hat MEINE Arbeit eingefangen.** `c72db33` enthält die komplette,
+   uncommittete Etappe-8-Arbeit — 47 Dateien, darunter `game/strength_over_toughness.py`,
+   `game/malevolent_arcing.py`, `game/repair_barge.py` und `test_necron_vehicles.py` — unter einer
+   Commit-Message über Playtest-Berichte. Nichts ging verloren (`git show --stat` geprüft), und
+   HEAD ist frei von Sonden-Rückständen (`git grep` über die sechs Neutralisierungs-Marker) —
+   aber die Etappe steht dadurch in zwei Commits statt in einem, und das ist der Grund, warum
+   dieser Commit vor allem Dokumentation enthält.
+
+**Die Extraktions-Nummerierung war doppelt vergeben** und ist beim Eintragen aufgefallen: Etappe 6
+hatte 45, 46 und 47 benutzt, Etappe 7 hat 45 und 46 ein zweites Mal vergeben. Etappe 7 heißt jetzt
+48/49, diese Etappe ist die 50.
+
+**Verifikation:** volle Regression 220 Suiten / ~19995 Prüfungen / 219 grün / 0 rot / 1 bekannt;
+`run_tests.py --smoke` komplett grün; `selfplay.py map2 1500` mit den Default-Armeen und mit
+Necrons auf beiden Seiten; `verify_rules_vs_engine.py` 67 → 69 (zwei Basisgrößen-Zeilen, nicht
+drei — die Annihilation Barge druckt „Use model" und erzeugt gar keine);
+`test_weapon_characteristics.py` bei null; Golden Master unbewegt; zwei `--offline`-Läufe ohne
+Diff.

@@ -1591,8 +1591,8 @@
  "turn": {
   "battle_round": 1,
   "phase": "Command",
-  "turn_owner": "Player 1",
-  "active_player": "Player 1"
+  "turn_owner": "Player 2",
+  "active_player": "Player 2"
  },
  "command_points": {
   "Player 1": 1,
@@ -1615,23 +1615,23 @@
   },
   "secondary": {
    "deck": [
-    "engage_on_all_fronts",
-    "plunder",
     "forward_position",
-    "no_prisoners",
-    "cleanse",
-    "behind_enemy_lines",
-    "assassination",
-    "outflank",
-    "beacon",
     "defend_stronghold",
-    "bring_it_down",
-    "a_tempting_target",
-    "overwhelming_force",
+    "plunder",
+    "a_grievous_blow",
+    "engage_on_all_fronts",
+    "beacon",
     "centre_ground",
     "display_of_might",
+    "behind_enemy_lines",
+    "overwhelming_force",
+    "outflank",
     "secure_no_mans_land",
-    "a_grievous_blow"
+    "cleanse",
+    "no_prisoners",
+    "assassination",
+    "bring_it_down",
+    "a_tempting_target"
    ],
    "hand": [],
    "discarded": [],
