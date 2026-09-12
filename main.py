@@ -60,6 +60,7 @@ from game.heroic_intervention import HeroicInterventionController
 from game.homing_beacon import HomingBeaconController
 from game.movement import MovementController
 from game import neocapacitor_shields, render_resolution, rites_of_feasting, scene_io
+from game import autosave
 from game import ynnari_abilities
 from game.ynnari_abilities import HeraldOfYnneadController
 from game.enh_echoes_of_ulthanesh import EchoesOfUlthaneshController
@@ -4797,16 +4798,16 @@ def main(map_key=None):
 
         ONE writer, because there are now three callers with three reasons -
         F9 (turn a reported failure into a fixture), the menu's Save Game
-        entry, and the per-round autosave - and every one of them has to pass
+        entry, and the per-phase autosave - and every one of them has to pass
         the same five things to capture(). Three copies of that argument list
         is three chances for one of them to quietly stop recording the armies,
         which is the line that makes a snapshot restorable at all.
 
         `path` names the file; the default is a timestamped one, so a manual
         save is never overwritten by the next autosave. `quiet` keeps the line
-        out of the on-screen log - the autosave fires every battle round and
-        would otherwise push five notices of its own past whatever the player
-        was reading."""
+        out of the on-screen log - the autosave fires on every phase change and
+        would otherwise push ten notices a battle round past whatever the
+        player was reading."""
         if path is None:
             path = os.path.join(scene_io.SCENES_DIR,
                                 f"scene_{time.strftime('%Y%m%d_%H%M%S')}.json")
@@ -5335,11 +5336,14 @@ def main(map_key=None):
     # below) should greet the very start of the game too, not just every
     # turn after it.
     previous_turn_owner = None
-    # The AUTOSAVE's edge (user: "Auto save pro Schlachtrunde"). Seeded with
-    # the round the battle actually starts on, NOT None: a loaded scene resumes
-    # mid-battle, and a None here would write a fresh autosave over the very
-    # file that was just opened before a single frame had been played.
-    previous_battle_round = turn_tracker.battle_round
+    # The AUTOSAVE's edge - every PHASE change (user: "bitte mach einen
+    # autosave bei jedem phasenwechsel"), see game/autosave.py. It starts
+    # EMPTY, so a fresh battle writes its first phase; a loaded battle is
+    # seeded below, AFTER the snapshot has been restored. The round-edge
+    # version seeded right here, before the restore, and so rewrote the
+    # autosave on the very first frame after every --load - the one thing
+    # its own comment promised it would not do.
+    autosave_edge = autosave.AutosaveEdge()
 
     if config.LOAD_SCENE:
         # A saved board position replaces the opening sequence outright: it
@@ -5385,6 +5389,9 @@ def main(map_key=None):
                 f"  [scene] {len(complaints)} mismatch(es) between the snapshot and this "
                 "scene's roster - see the log file.", file_only=True,
             )
+        # The phase this snapshot resumed on counts as already written:
+        # opening a save must not immediately write the autosave over it.
+        autosave_edge.seed(turn_tracker)
     elif config.PREGAME_DEPLOYMENT:
         # Rule 03.01. Nothing is on the battlefield yet - scene_units holds the
         # whole of both armies, and PregameController runs the real opening
@@ -7205,30 +7212,48 @@ def main(map_key=None):
                 camera.pan_y = 0.0
             previous_turn_owner = turn_tracker.turn_owner
 
-        # THE AUTOSAVE (user: "Auto save pro Schlachtrunde"), so the menu's
-        # Resume entry has something to offer without anyone having learned
-        # about F9.
+        # THE AUTOSAVE - on every PHASE change (user: "Auto save pro
+        # Schlachtrunde", then "der autosave scheint nicht zu funktionieren.
+        # bitte mach einen autosave bei jedem phasenwechsel"). Why the edge is
+        # a phase, and what a snapshot taken inside a turn cannot bring back,
+        # is written up in game/autosave.py.
         #
-        # A ROUND boundary, and that is not just what was asked for - it is the
-        # only instant at which the snapshot is complete BY CONSTRUCTION rather
-        # than by serialising a dozen more things. Everything the mission
-        # controllers keep that cannot go into JSON at all - live squad
-        # references, id()-keyed sets, an open board pick's callbacks - is
-        # turn-scoped and therefore empty here.
+        # Outside the event loop, so no branch can swallow it, and BEFORE the
+        # AI's tick below: a phase the AI ended on the previous frame is
+        # written here before the AI takes its first action in the new one.
         #
-        # Outside the event loop for the same reason the block above is: it
-        # must not be reachable only when no branch happened to claim the
-        # frame. Held back while anything is pending, so the file is written
-        # from a settled board rather than from the middle of a dice roll.
-        if turn_tracker.started and turn_tracker.battle_round != previous_battle_round:
-            if (not decision_manager.is_pending and not dice_manager.is_pending
-                    and _front_notice() is None
-                    and coherency_enforcer.pending_squad is None
-                    and not _any_pending_damage_choice()):
-                previous_battle_round = turn_tracker.battle_round
-                _save_scene(f"autosaved at the start of battle round {turn_tracker.battle_round}",
-                            path=os.path.join(scene_io.SCENES_DIR, scene_io.AUTOSAVE_NAME),
-                            quiet=True)
+        # SETTLED is the round-edge save's gate plus two things a PHASE change
+        # adds: the phase gate's own "something is still open" check, because
+        # a phase boundary is exactly where end-of-phase reactions (a Rapid
+        # Ingress placement, a reactive move) are opened; and no move or
+        # shooting activation in progress, because the snapshot restores a
+        # settled board and never a half-finished activation
+        # (game/activation_state.py). A held-back save is not lost: take()
+        # leaves the phase unrecorded, so the first settled frame writes it.
+        #
+        # config.AUTOSAVE is off in every harness that drives main() - they
+        # all wrote the very file the menu's Resume entry offers.
+        if config.AUTOSAVE:
+            _autosave_key = autosave_edge.take(
+                turn_tracker,
+                settled=(not decision_manager.is_pending and not dice_manager.is_pending
+                         and _front_notice() is None
+                         and coherency_enforcer.pending_squad is None
+                         and not _any_pending_damage_choice()
+                         and not _has_unresolved_declaration()
+                         and movement_controller.state != movement.MOVING
+                         and shooting_controller.state == shooting.IDLE),
+            )
+            if _autosave_key is not None:
+                try:
+                    _save_scene(f"autosaved at {autosave.describe(_autosave_key)}",
+                                path=os.path.join(scene_io.SCENES_DIR, scene_io.AUTOSAVE_NAME),
+                                quiet=True)
+                except OSError as exc:
+                    # A locked or full disk must not end the battle the save is
+                    # there to protect. Logged; the next phase tries again.
+                    game_log.add(f"Autosave to {scene_io.AUTOSAVE_NAME} failed: {exc}",
+                                 file_only=True)
 
         if (
             ai_mode.enabled() and not dice_panel.is_busy and not stratagem_notice_overlay.is_pending and not mission_draw_overlay.is_pending

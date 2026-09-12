@@ -264,6 +264,11 @@ config.MAP_SELECT = False
 # off above. test_secondary_missions.py has a source guard requiring this of
 # every harness.
 config.SECONDARY_MISSION_CARD_PLAYERS = ()
+# The autosave writes scenes/autosave.json - the file the menu's Resume entry
+# offers - on every phase change. A harness that leaves it on replaces the
+# battle a person played with a board of its own (game/config.py, AUTOSAVE;
+# test_autosave.py holds the source guard).
+config.AUTOSAVE = False
 
 import main  # noqa: E402
 

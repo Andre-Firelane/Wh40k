@@ -27,6 +27,11 @@ SCREEN_W, SCREEN_H = 1920, 1200  # the user's actual desktop, measured
 pygame.init()
 
 from game import config                      # noqa: E402
+# The autosave writes scenes/autosave.json - the file the menu's Resume entry
+# offers - on every phase change. A harness that leaves it on replaces the
+# battle a person played with a board of its own (game/config.py, AUTOSAVE;
+# test_autosave.py holds the source guard).
+config.AUTOSAVE = False
 from game.board import Board                 # noqa: E402
 from game.camera import Camera, MAX_ZOOM     # noqa: E402
 from game.renderer import Renderer           # noqa: E402

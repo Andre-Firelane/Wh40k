@@ -2029,10 +2029,14 @@ class SecondaryMissionController:
     # -- saving and restoring (game/scene_io.py) ---------------------------
     #
     # WHAT IS AND IS NOT SAVED, and the rule that decides it: anything scoped
-    # to ONE TURN is left out. That is not a shortcut - the autosave fires at
-    # the start of a battle round, and at that instant every turn-scoped field
-    # here is empty by construction. It is also the only way this can be
-    # written at all: an open board pick holds CALLBACKS and `_on_objective_at_
+    # to ONE TURN is left out. At the start of a battle round every
+    # turn-scoped field here is empty by construction, so a snapshot taken
+    # there is complete. The autosave now also fires at every PHASE change
+    # inside a turn (game/autosave.py), and a snapshot taken there - exactly
+    # like F9 or the menu's Save Game at the same instant - loses this turn's
+    # kills and the start-of-turn objective snapshot; game/autosave.py names
+    # that loss rather than hiding it. Part of it could not be written as it
+    # stands anyway: an open board pick holds CALLBACKS and `_on_objective_at_
     # turn_start` is keyed by id(squad), and neither survives a round trip
     # through JSON.
     #

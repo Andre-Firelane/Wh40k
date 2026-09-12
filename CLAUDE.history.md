@@ -9106,3 +9106,38 @@ Szarekh mit OC 6**. Dazu ein `if`, das der vierte Ankunftsmodus zu `elif` gemach
 Armee-Varianten, `verify_rules_vs_engine.py` (eine neue Zeile, nicht drei — Szarekh und der Menhir
 sind Transkriptionen), `test_weapon_characteristics.py` bei null, Golden Master unbewegt, zwei
 `--offline`-Läufe ohne Diff.
+
+## 2026-09-12 — „der Autosave scheint nicht zu funktionieren": Harnesses überschrieben ihn, und die Kante war die Runde
+
+**Gemeldet:** *"der autosave scheint nicht zu funktionieren. bitte mach einen autosave bei jedem
+phasenwechsel."*
+
+**Die erste Messung hat getäuscht.** `scenes/autosave.json` war aktuell, jeder Mock-Plan-Lauf
+trug eine `autosaved`-Zeile — die jüngste map4-Partie ohne Mock-Plan scheinbar nicht. Beim
+zweiten Lesen stand die Zeile doch da: die Partie LIEF während des ersten grep noch (Log-mtime =
+Autosave-mtime, ein python.exe mit 323 MB aktiv). Kein Gate, das im echten Spiel dauerhaft
+blockiert, sondern ein laufendes Spiel. Die Hypothese „etwas hängt im Gate" wäre eine teure
+falsche Fährte gewesen.
+
+**Was die Messung dann wirklich zeigte:**
+- 26 Läufe am 2026-09-12 schrieben einen Autosave, mindestens 17 davon mit Mock-Plan —
+  Harnesses, jeder mit seiner eigenen Runde-1-Partie über dieselbe Datei. Die Datei ist außerdem
+  getrackt und steht in 35 Commits; das ist unverändert gelassen (das Repo ist ein Backup).
+- Die Kante war die Runde: Resume öffnete bis zu zwei Züge vor dem Brett, das der Spieler kannte.
+- Der Seed stand VOR dem Restore — `previous_battle_round` wurde bei Runde 0 (Deferred-Start)
+  gesetzt, also schrieb jeder `--load` im ersten Frame neu, gegen den eigenen Kommentar.
+
+**Bau:** `game/autosave.py` (Schlüssel, `AutosaveEdge.take()`/`seed()`), `config.AUTOSAVE` plus
+Opt-out in 15 Treibern (per Skript mit Anker-Suche statt 15 Handedits), atomares
+`scene_io.write()`, vier nachgezogene Kommentare, die sonst eine Rundengrenze behauptet hätten.
+Die `main.py`-Stellen per geschriebenem Patch-Skript mit Anker-Zählung, nicht per Heredoc
+(Fehlerklasse 21).
+
+**Ein Befund über den TEST, vor dem Sondenlauf gefunden:** die Sonde „nicht-atomares write"
+hätte `test_autosave.py` §3 per `scene_io.read()` auf einer abgeschnittenen Datei ABSTÜRZEN
+lassen statt sie rot zu machen. `_map_of()` degradiert jetzt, die Sonde biss danach sauber (62/64).
+
+**Verifikation:** `test_autosave.py` 64/64, 13/13 A/B-Sonden beißend, `test_game_menu.py`
+206/206, `test_scene_io.py` 75/75, volle Regression 227 Suiten / 226 grün / 0 rot / 1 bekannt,
+`verify_phase_autosave.py` gefixt 8 Phasen / 8 Autosaves gegen `--neutralize` 7 / 1 plus
+Überschreiben beim Load.

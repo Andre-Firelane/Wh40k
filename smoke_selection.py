@@ -318,6 +318,11 @@ config.MAP_SELECT = False
 # - the same reason every other smoke turns the deck off, and there is a source
 # guard in test_secondary_missions.py requiring it.
 config.SECONDARY_MISSION_CARD_PLAYERS = ()
+# The autosave writes scenes/autosave.json - the file the menu's Resume entry
+# offers - on every phase change. A harness that leaves it on replaces the
+# battle a person played with a board of its own (game/config.py, AUTOSAVE;
+# test_autosave.py holds the source guard).
+config.AUTOSAVE = False
 
 import main  # noqa: E402
 from ai.mock_agent import MockAgent  # noqa: E402

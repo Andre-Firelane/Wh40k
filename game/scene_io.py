@@ -56,7 +56,7 @@ from game import activation_state
 FORMAT_VERSION = 1
 
 # Where snapshots live. Named here rather than spelled out at each call site
-# because three things now agree on it: F9's manual save, the per-round
+# because three things now agree on it: F9's manual save, the per-phase
 # autosave, and newest(), which is what the menu's Resume entry offers.
 SCENES_DIR = "scenes"
 AUTOSAVE_NAME = "autosave.json"
@@ -327,11 +327,32 @@ def restore_activation(data, squads, controllers=None):
 
 
 def write(data, path):
+    """Write a snapshot, ATOMICALLY: to a sibling temp file, then renamed over
+    the target in one step.
+
+    The autosave writes on every phase change, so it is the file most likely
+    to be mid-write when the game is closed or crashes. A half-written
+    autosave.json is not a snapshot: newest() skips it as unreadable and the
+    menu's Resume then offers an OLDER save instead - the newest battle lost
+    precisely because it was being saved. os.replace() either leaves the old
+    file or the complete new one. The temp name ends in ".tmp", not ".json",
+    so newest() can never pick it up either."""
     directory = os.path.dirname(os.path.abspath(path))
     if directory:
         os.makedirs(directory, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as handle:
-        json.dump(data, handle, indent=1)
+    temp = f"{path}.tmp"
+    try:
+        with open(temp, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, indent=1)
+        os.replace(temp, path)
+    except BaseException:
+        # The target is untouched either way; this only keeps a failed write
+        # from leaving its half-file lying next to it.
+        try:
+            os.remove(temp)
+        except OSError:
+            pass
+        raise
     return path
 
 

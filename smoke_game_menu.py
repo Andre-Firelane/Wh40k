@@ -56,6 +56,11 @@ config.START_MENU = not NEUTRALIZE
 # The Tactical Secondary deck asks the human a question at the end of every one
 # of their turns and this harness answers no prompt it was not written for.
 config.SECONDARY_MISSION_CARD_PLAYERS = ()
+# The autosave writes scenes/autosave.json - the file the menu's Resume entry
+# offers - on every phase change. A harness that leaves it on replaces the
+# battle a person played with a board of its own (game/config.py, AUTOSAVE;
+# test_autosave.py holds the source guard).
+config.AUTOSAVE = False
 
 from game.ui.game_menu import GameMenu  # noqa: E402
 from game.ui.map_select import MapSelectScreen  # noqa: E402

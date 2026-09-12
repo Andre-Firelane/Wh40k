@@ -90,6 +90,19 @@ ARMY_SELECT = True
 # answer to the question the menu asks.
 START_MENU = True
 
+# THE AUTOSAVE: main() writes scenes/autosave.json - the file the menu's Resume
+# entry offers - on every phase change of a battle (user: "bitte mach einen
+# autosave bei jedem phasenwechsel"; see game/autosave.py).
+#
+# UNLIKE START_MENU above, every headless harness that drives main() DOES have
+# to turn this off, and the reason is not a hang but the player's own save.
+# Before this flag all of them wrote the very same file: of the 26 runs that
+# wrote an autosave on 2026-09-12, at least 17 were harnesses, and each one
+# replaced the battle a person had played with a board of its own - which is
+# what "der autosave scheint nicht zu funktionieren" looked like from the menu.
+# test_autosave.py holds a source guard requiring the opt-out.
+AUTOSAVE = True
+
 # WHICH PLAYERS THE ENGINE ANSWERS FOR ITSELF - the one definition of "this
 # side is played by the AI", read once by main() and handed to every rule that
 # has a decision to make.

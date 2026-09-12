@@ -381,6 +381,11 @@ from game import config  # noqa: E402
 config.ARMY_SELECT = False
 config.MAP_SELECT = False
 config.SECONDARY_MISSION_CARD_PLAYERS = ()
+# The autosave writes scenes/autosave.json - the file the menu's Resume entry
+# offers - on every phase change. A harness that leaves it on replaces the
+# battle a person played with a board of its own (game/config.py, AUTOSAVE;
+# test_autosave.py holds the source guard).
+config.AUTOSAVE = False
 
 import main  # noqa: E402
 from ai.mock_agent import MockAgent  # noqa: E402

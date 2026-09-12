@@ -56,6 +56,13 @@ def flip():
 pygame.display.flip = flip
 pygame.event.get = lambda *a, **k: []
 
+from game import config  # noqa: E402
+# The autosave writes scenes/autosave.json - the file the menu's Resume entry
+# offers - on every phase change. A harness that leaves it on replaces the
+# battle a person played with a board of its own (game/config.py, AUTOSAVE;
+# test_autosave.py holds the source guard).
+config.AUTOSAVE = False
+
 import main  # noqa: E402
 
 try:

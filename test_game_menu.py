@@ -573,24 +573,18 @@ c.true("config carries the flag", "START_MENU = True" in _read("game/config.py")
 c.true("main() reuses the window run() opened",
        "screen = pygame.display.get_surface()" in main_src)
 
-# THE AUTOSAVE (user: "Auto save pro Schlachtrunde"), which is what gives the
-# menu's Resume entry anything to offer. Its edge is the battle ROUND, and the
-# check runs outside the event loop so no branch can swallow it.
-c.true("main() tracks the battle round for the autosave",
-       "previous_battle_round" in main_src)
-c.true("...and writes on the round's edge",
-       "turn_tracker.battle_round != previous_battle_round" in main_src)
+# THE AUTOSAVE, which is what gives the menu's Resume entry anything to offer.
+# Its edge moved from the battle round to every PHASE change (user: "bitte mach
+# einen autosave bei jedem phasenwechsel"); the edge, the settled-board gate,
+# the wiring and the harness opt-outs are tested in test_autosave.py. What
+# stays here is the half that belongs to the menu: there is one file, and it
+# is written through the one scene writer.
+c.true("main() keeps an autosave edge",
+       "autosave_edge = autosave.AutosaveEdge()" in main_src)
 c.true("...to a fixed file, so it does not grow without bound",
        "scene_io.AUTOSAVE_NAME" in main_src)
-# Held back until nothing is pending: a round boundary is the one instant at
-# which every turn-scoped piece of mission state is empty, and half of it
-# cannot be written to JSON at all.
-c.true("...only from a settled board",
-       re.search(r"turn_tracker\.battle_round != previous_battle_round:\s*\n"
-                 r"\s*if \(not decision_manager\.is_pending", main_src) is not None)
-c.true("...and it is not in the event loop, where a branch could swallow it",
-       main_src.index("previous_battle_round = turn_tracker.battle_round\n                _save_scene")
-       > main_src.index("input_manager.update_measuring"))
+c.true("...through the one scene writer",
+       '_save_scene(f"autosaved at {autosave.describe(_autosave_key)}"' in main_src)
 c.true("the snapshot carries the mission state",
        "missions=_mission_slots()" in main_src)
 c.true("...and the load path puts it back", "scene_io.restore_missions(" in main_src)

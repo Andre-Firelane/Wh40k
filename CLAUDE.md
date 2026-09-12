@@ -755,6 +755,11 @@ schickt die nächste Untersuchung zurück aufs Brett.**
   gewählte Einheit, ein diese Phase nutzbares Stratagem, und ein Dwell ohne offenen Prompt — die
   KI öffnet alle paar Frames einen, was den Tooltip zu Recht unterdrückt); alles danach ist echt.
   Meldet `'Sudden Storm' (NECRONS) -> 6 printed blocks, drawn=True`, `--neutralize` `never opened`.
+  **`verify_phase_autosave.py [map] [frames] [--neutralize]`** — der Autosave durch zwei echte
+  `main()`-Läufe: erreichte Phasen gegen geschriebene Autosaves (jede Datei zurückgelesen), dann
+  Resume aus dem letzten und ob der Load ihn sofort überschreibt. Lenkt `scene_io.SCENES_DIR` in
+  einen Wegwerf-Ordner und schaltet `selfplay.py`s Opt-out beim Bau der Kante wieder ein;
+  gefixt 8 Phasen / 8 Autosaves, `--neutralize` 7 / 1 plus Überschreiben beim Load.
 - **`fetch_datasheet_rules.py` / `rules/*.md`** — der GEDRUCKTE Regeltext jedes Datenblatts als
   markdown, damit ein GW-Update per `git diff` sichtbar wird statt durch erneutes Lesen bei
   Wahapedia. Ausführlich unter `## Regeltext-Korpus` weiter unten;
@@ -815,6 +820,13 @@ beide Deployment-Modi) nur, wenn eine Änderung wirklich Geometrie/Terrain/Aufst
   der Pump wird dann von der Kartenauswahl leergesaugt und `main()` nie erreicht, während der
   Harness wahrheitsgetreu aussehende „6000 Frames" und ein leeres `_main_locals()` meldet.
   Ebenso `main.ClaudeAgent = lambda *a, **k: MockAgent()` — sonst kostet der Lauf Geld.
+- **Und `config.AUTOSAVE = False`, VOR `import main`** — sonst überschreibt der Lauf
+  `scenes/autosave.json`, also genau die Datei, die „Resume Game" des Users anbietet. Am
+  2026-09-12 waren mindestens 17 der 26 Läufe, die einen Autosave schrieben, Harnesses.
+  `test_autosave.py` §5 prüft das an jedem Skript, das `main.main()`/`main.run()` ruft
+  (`verify_*.py` erben es über `selfplay.py`). Wer den Autosave MESSEN will, schaltet ihn im
+  Harness wieder ein und lenkt `scene_io.SCENES_DIR` in einen Wegwerf-Ordner — Vorlage
+  `verify_phase_autosave.py`.
 - Der Turn-Plan-Grund `(test plan)` bzw. `(mock plan)` unterscheidet einen Selbstspiel-Lauf von einer
   echten Partie des Users im selben `logs/`-Ordner.
 
@@ -1613,11 +1625,13 @@ sein"* und *"main-manu-background.jpg als hintergrund im hauptmenü setzen"*.
 
 CLAUDE.md führte „`scene_io` sichert keine VP" als offenen Punkt. Er ist zu.
 
-- **Autosave zu Beginn jeder Schlachtrunde** (User: "Auto save pro Schlachtrunde") nach
-  `scenes/autosave.json` (fester Name, kein Zuwachs auf der Platte), plus ein **Save-Knopf im
-  Menü** (zeitgestempelt, damit der nächste Autosave keinen Handstand überschreibt). F9 unverändert.
-  - **Eine RUNDENgrenze ist der einzige Zeitpunkt, an dem der Snapshot per KONSTRUKTION vollständig
-    ist.** Alles Zug-gebundene der drei Missions-Controller (`_destroyed_this_turn`, die vier
+- **Autosave bei JEDEM PHASENWECHSEL** (User zuerst "Auto save pro Schlachtrunde", dann "der
+  autosave scheint nicht zu funktionieren. bitte mach einen autosave bei jedem phasenwechsel")
+  nach `scenes/autosave.json` (fester Name, kein Zuwachs auf der Platte), plus ein **Save-Knopf
+  im Menü** (zeitgestempelt, damit der nächste Autosave keinen Handstand überschreibt). F9
+  unverändert. Kante, Gate und Grenze stehen in `### Autosave bei jedem Phasenwechsel` darunter.
+  - **Eine RUNDENgrenze ist weiterhin der einzige Zeitpunkt, an dem der Snapshot per KONSTRUKTION
+    vollständig ist, und ein Phasen-Autosave innerhalb eines Zuges ist es deshalb nicht.** Alles Zug-gebundene der drei Missions-Controller (`_destroyed_this_turn`, die vier
     `*_at_turn_start`-Schnappschüsse, `guards`, `*_this_turn`, `ActionController.states`,
     ein offener Brett-Pick) ist dort leer — und die Hälfte davon ließe sich gar nicht schreiben, weil sie
     lebende Squad-Referenzen, `id()`-Schlüssel oder CALLBACKS hält. **Die Regel, die entscheidet:
@@ -1666,6 +1680,67 @@ ESC-Leiter-Pins in `test_line_drag.py` / `test_unit_selection.py`. Der erste dav
 FESTES 2200-Zeichen-Fenster um den ESC-Zweig und enthielt die geprüfte Zeile nicht mehr — er
 schneidet jetzt am nächsten Zweig ab.
 
+### Autosave bei jedem Phasenwechsel (game/autosave.py, 2026-09-12)
+
+**Gemeldet:** *"der autosave scheint nicht zu funktionieren. bitte mach einen autosave bei jedem
+phasenwechsel."* Der Autosave SCHRIEB — zwei Dinge ließen ihn von außen tot aussehen, und nur
+eines davon war die Kante.
+
+- **Harnesses haben die Datei des Users überschrieben.** Jedes Skript, das `main()` fährt,
+  schrieb dieselbe `scenes/autosave.json`: von den 26 Läufen, die am 2026-09-12 einen Autosave
+  schrieben, hatten mindestens 17 einen Mock-Plan, und jeder ersetzte eine gespielte Partie
+  durch sein eigenes Runde-1-Brett — vom Menü aus nicht von „speichert nicht" zu unterscheiden.
+  **`config.AUTOSAVE`** ist neu und in allen 15 Skripten, die `main.main()`/`main.run()` direkt
+  rufen, VOR `import main` aus (`verify_*.py` erben es über `selfplay.py`). Quellwächter
+  `test_autosave.py` §5 findet die Treiber selbst, mit Liveness-Zeile.
+- **Die Kante war die Runde** — zehn Phasen, zwei ganze Züge. Jetzt `(Runde, Zugbesitzer,
+  Phase)`: der Phasenname allein wiederholt sich jeden Zug, die Runde allein war der Fehler, und
+  `active_player` ist bewusst NICHT Teil des Schlüssels — er flippt bei jedem Rettungswurf.
+- **`AutosaveEdge.take()` ist EIN Aufruf, kein Fragen/Merken-Paar** (die Form von
+  `DiceManager.claim_reroll_offer()`). Ein unruhiger Frame schreibt nichts UND merkt nichts,
+  also schreibt der erste ruhige Frame die Phase; zwei Phasen während einer offenen Frage fallen
+  zu der letzten zusammen. Die Datei hält ohnehin nur das neueste Brett.
+- **„Ruhig" ist das alte Gate plus `_has_unresolved_declaration()`, kein offener Zug und keine
+  laufende Schussaktivierung** — ein Phasenwechsel ist genau der Moment, an dem
+  Ende-der-Phase-Reaktionen (Rapid-Ingress-Platzierung, reaktive Züge) aufgehen, und ein
+  Snapshot stellt nie eine halbe Aktivierung her. Der Block steht außerhalb der Event-Schleife
+  und VOR dem KI-Tick: eine Phase, die die KI im vorigen Frame beendet hat, wird geschrieben,
+  bevor sie in der neuen handelt.
+- **Ein geladener Kampf wird GESEEDET, nicht gespeichert.** Die Rundenkante wurde VOR dem
+  Restore initialisiert (Runde 0 im Deferred-Start) und schrieb deshalb im ersten Frame nach
+  jedem `--load` den Autosave neu — genau das, was ihr eigener Kommentar ausschloss.
+  `autosave_edge.seed()` steht jetzt NACH `restore_turn()`.
+- **`scene_io.write()` ist atomar** (Temp-Datei plus `os.replace()`, die Temp-Datei endet auf
+  `.tmp` und ist damit für `newest()` unsichtbar, bei einem Fehler wird sie entfernt). Der
+  Autosave ist jetzt die Datei, die am ehesten mitten im Schreiben steht, und eine halbe Datei
+  ließe Resume auf einen ÄLTEREN Stand zurückfallen. Ein `OSError` beim Autosave wird geloggt
+  und beendet die Partie nicht.
+- **BENANNTE GRENZE: ein Autosave INNERHALB eines Zuges ist genau so vollständig wie F9 zum
+  selben Zeitpunkt.** Positionen, Wunden, CP, VP, Deck/Hand, Statistiken und wer schon
+  gehandelt hat kommen zurück; die zug-gebundene Missionsbuchführung (Kills DIESES Zuges für
+  Ende-des-Zuges-Karten, die Zugbeginn-Schnappschüsse, angefangene Objective Actions) und die
+  Einmal-pro-Zug-Ledger der Fähigkeits-Controller nicht. Die Kommentare in
+  `secondary_missions.py`, `primary_missions.py`, `activation_state.py` und `scene_io.py`, die
+  „der Autosave läuft an der Rundengrenze, also ist das leer" behaupteten, sind nachgezogen.
+- **Getestet:** neu `test_autosave.py` (**64/64**, fünf Abschnitte — Schlüssel, Kante,
+  atomares Schreiben, `main.py`-Verdrahtung per AST, Harness-Opt-outs) plus
+  `ab_phase_autosave.py` (**13 A/B-Sonden, alle beißend, keine stürzt ab**).
+  `test_game_menu.py` **206/206** (die drei Rundenkanten-Pins sind ersetzt), `test_scene_io.py`
+  **75/75**. Volle Regression **227 Suiten, ~20866 Prüfungen, 226 grün / 0 rot / 1 bekannt**.
+- **Im ECHTEN Spiel belegt** (`verify_phase_autosave.py`, zwei `main()`-Läufe über
+  `selfplay.py`, Autosave in einen Wegwerf-Ordner umgelenkt, jede geschriebene Datei zurückgelesen):
+
+  | | gefixt | `--neutralize` (Rundenkante, kein Seed) |
+  |---|---|---|
+  | erreichte Phasen / geschriebene Autosaves | **8 / 8** | 7 / **1** |
+  | Datei hält die Phase, bei der sie geschrieben wurde | 8 von 8 | 1 von 1 |
+  | Resume startet auf der gespeicherten Phase | ja | ja |
+  | Autosave beim Laden sofort überschrieben | **nein** | **ja** |
+  | `selfplay.py`s Opt-out beim Bau der Kante | `AUTOSAVE = False` | dasselbe |
+
+  Schreibzeit 4–16 ms, einmal 67 ms — einmal pro Phase, nicht pro Frame. Nichts wird gestellt:
+  Phasenwechsel passieren von selbst, das ist eine der passiv messbaren Fragen.
+
 ### Ein Save trägt jetzt WELCHES Modell — und wer schon gehandelt hat
 
 **Gemeldet:** *"schaden auf einheiten wurde nicht gespeichert"* und *"es wurde nicht gespeichert,
@@ -1700,9 +1775,9 @@ Ende der Modellliste (wo 19.01 ihn hinstellt) nie seine Wunden zurück, und gel�
   Gefahrlos, weil eine Shield Drone `profile.wounds` MITerhöht.
 
 **2. „Wer hat schon gehandelt" stand nirgends in der Datei.** Neu: `game/activation_state.py`.
-- **Der AUTOSAVE hat es nie gezeigt, und das ist kein Zufall:** er läuft an der Rundengrenze, dem
-  einen Moment, in dem per Konstruktion jedes dieser Register leer ist. F9 und „Save Game" laufen
-  mitten im Zug — und genau die drückt ein Spieler.
+- **Der AUTOSAVE hat es damals nicht gezeigt, und das war kein Zufall:** er lief an der
+  Rundengrenze, dem einen Moment, in dem per Konstruktion jedes dieser Register leer ist. F9 und
+  „Save Game" laufen mitten im Zug — und seit 2026-09-12 auch der Autosave, bei jedem Phasenwechsel.
 - **EIN Modul statt acht `save_state()`-Methoden**, und das weicht bewusst von der Missions-Regel
   ab: dort trägt jeder Controller eine ANDERE Art Zustand, hier ist es EINE Frage mit acht
   identischen Antworten (Menge von Einheiten bzw. Dict nach Einheit). Was wirklich schiefgeht, ist
@@ -7929,8 +8004,8 @@ Spiellänge definieren.
   keine der zwei Karten braucht eine — `SecondaryMissionCard.requires_action` ist der benannte Haken,
   mehr nicht (kein spekulatives System). Kein KI-Pfad: die KI behält ihre Standard-Missionen.
   (`scene_io` sicherte lange weder VP noch Hand noch Stapel — das ist seit dem Game Menu erledigt,
-  siehe dort; die Grenze ist jetzt nur noch der Zeitpunkt: ein F9 MITTEN im Zug verliert eine
-  angefangene Action, ein Rundengrenzen-Autosave nichts.)
+  siehe dort; die Grenze ist jetzt nur noch der Zeitpunkt: ein Snapshot MITTEN im Zug — F9, Save
+  Game oder ein Phasen-Autosave — verliert eine angefangene Action, einer an der Rundengrenze nichts.)
 - **Getestet:** neu `test_secondary_missions.py` (**543/543**), `test_mission_cards_ui.py`
   (**54/54**, gegen eine echte Surface gemessen statt gegen Konstanten) und
   `test_one_modal_at_a_time.py` (**44/44**, Quell-Wächter). Neu `test_actions.py` (**79/79**) und `test_mission_unit_pick.py` (**60/60**). Volle

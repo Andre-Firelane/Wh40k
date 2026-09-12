@@ -9,10 +9,12 @@ of the turn" was simply gone. Reported as "es wurde nicht gespeichert, wer
 schon welche Aktion ausgefuehrt hat. zb wer schon geschossen hat und wer
 nicht".
 
-The per-round AUTOSAVE never showed it, and that is not luck: it is written at
-a battle-round boundary, which is by construction the one moment every ledger
-below is empty. F9 and the menu's Save Game are not, and those are the two a
-player actually presses mid-turn.
+The AUTOSAVE did not show it while it was written at a battle-round boundary,
+and that was not luck: that is by construction the one moment every ledger
+below is empty. F9 and the menu's Save Game are not - and since the autosave
+moved to every PHASE change (game/autosave.py), neither is it: four of the five
+phase edges of a turn fall inside the turn, which is exactly the case this
+module exists for.
 
 WHY ONE MODULE RATHER THAN A save_state() ON EACH CONTROLLER. That is the
 shape the MISSION controllers use, and it is right for them: each carries a

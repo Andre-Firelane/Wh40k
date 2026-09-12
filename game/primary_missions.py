@@ -1103,8 +1103,9 @@ class PrimaryMissionController:
     # -- saving and restoring (game/scene_io.py) ---------------------------
     #
     # Same rule as the Secondary deck next door: a card_state key ending in
-    # _this_turn is turn-scoped and is left out, because the autosave is taken
-    # at a battle-round boundary where all of them are empty. What outlives a
+    # _this_turn is turn-scoped and is left out. At a battle-round boundary all
+    # of them are empty; a snapshot taken at a phase change INSIDE a turn (the
+    # autosave, see game/autosave.py) loses them. What outlives a
     # turn is the running VP, the two once-per-battle latches, and Death Trap's
     # `trapped` set - whose UNITS line says "not yet trapped", so it has to
     # survive or the same ground could be trapped again every round.
