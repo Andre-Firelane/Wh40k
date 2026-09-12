@@ -11,7 +11,9 @@ row at the top of the window. What these restore, one at a time:
   * the current phase is distinguishable from the played ones;
   * the track tiles the space instead of drifting off its right edge;
   * the badge follows whoever is playing;
-  * the round number does not come back to the panel as well.
+  * the round number does not come back to the panel as well;
+  * the labels ON the bar are the ROUND numbers 1..5, one per battle round,
+    and not the player (the most recent report).
 
 Each probe has to make test_round_progress_bar.py red.
 """
@@ -84,7 +86,7 @@ SPACE_OLD = "RESERVES_PANEL_HEIGHT = 102"
 
 # 5. One colour for the whole track. The bar still fills and still animates -
 #    it just stops saying whose turn each segment was, which is half of "das
-#    Volk Logo/Farbe muss drin sein".
+#    Volk Logo/Farbe muss drin sein" - and now the ONLY player indicator.
 COLOR_NEW = "    base = TOKEN_TEAM_COLORS.get(owner, EMPTY_COLOR)"
 COLOR_OLD = '    base = TOKEN_TEAM_COLORS.get("Player 1", EMPTY_COLOR)'
 
@@ -95,58 +97,81 @@ CURRENT_NEW = """    if turn == playing and phase == phase_now:
 CURRENT_OLD = """    if turn == playing and phase == phase_now:
         return _dim(base, PLAYED_DIM)"""
 
-# ---- the turn labels ON the bar, and the colours from the first turn on ----
-# Reported: "momentan sind ganz kleine labels unter den zugabschnitten. die
-# koennen weg. stattdessen koennen P1 bzw P2 labels direkt auf der leiste sein
-# ... auch von anfang an in den richtigen farben".
+# ---- the labels ON the bar ----
+# Reported twice: "momentan sind ganz kleine labels unter den zugabschnitten.
+# die koennen weg ... direkt auf der leiste", then "die farbe reicht als player
+# indikator. ich haette aber gerne den Turncounter als Label ueber der Leiste
+# nicht den Spieler, also 1 2 3 4 5".
 
-# 10. THE REPORTED LAYOUT, restored: the label drawn under the cells again.
-LABEL_UNDER_NEW = "    rect = ink.get_rect(center=middle.center)"
-LABEL_UNDER_OLD = "    rect = ink.get_rect(midtop=(middle.centerx, segment.bottom))"
+# 10. The label drawn under the cells again.
+LABEL_UNDER_NEW = "    rect = ink.get_rect(center=span.center)"
+LABEL_UNDER_OLD = "    rect = ink.get_rect(midtop=(span.centerx, span.bottom))"
 
-# 10b. ...and small again: the font the reported labels were set in.
+# 10b. ...and small again: the font the first labels were set in.
 LABEL_SIZE_NEW = "LABEL_FONT_SIZE = 18"
 LABEL_SIZE_OLD = "LABEL_FONT_SIZE = 11"
 
-# 11. ...and its other half: the cells give up a row for a label again.
+# 11. The cells give up a row for a label again.
 ROW_RESERVED_NEW = "    for index, segment in enumerate(turn_segments(track, len(owners))):"
 ROW_RESERVED_OLD = ("    for index, segment in enumerate(turn_segments(pygame.Rect(track.x, "
-                    "track.y, track.width, track.height - font.get_height()), len(owners))):")
+                    "track.y, track.width, track.height - 12), len(owners))):")
 
-# 12. THE OTHER REPORTED HALF: a turn nobody has played yet is grey again, so
-#     the bar cannot say whose turn is where until it has been played.
+# 12. A turn nobody has played yet is grey again, so the bar cannot say whose
+#     turn is where until it has been played.
 UPCOMING_NEW = "    return _dim(base, UPCOMING_DIM)"
 UPCOMING_OLD = "    return EMPTY_COLOR"
 
-# 13. The labels in one neutral colour, not the owners'.
-LABEL_COLOUR_NEW = "    ink = font.render(text, True, label_color(owner))"
-LABEL_COLOUR_OLD = "    ink = font.render(text, True, (150, 165, 180))"
+# 13. THE MOST RECENT REPORT, restored as far as a one-line swap can: the label
+#     names the PLAYER again. Right place, right colour - wrong TEXT, which a
+#     pixel-colour check alone would pass.
+LABEL_TEXT_NEW = "    text = str(number)"
+LABEL_TEXT_OLD = '    text = "P%d" % (1 + (number + 1) % 2)'
 
-# 14. Every segment named the same, whoever owns it. Right place, right colour,
-#     wrong TEXT - which a pixel-colour check alone would pass.
-LABEL_TEXT_NEW = """    text = owner_label(owner)
-    ink = """
-LABEL_TEXT_OLD = """    text = "P1"
-    ink = """
+# 14. One label per TURN instead of per round - ten spans, numbered 1..10.
+PER_TURN_NEW = """    segments = turn_segments(track, turn_count)
+    return [segments[i].union(segments[i + 1]) if i + 1 < len(segments) else segments[i]
+            for i in range(0, len(segments), 2)]"""
+PER_TURN_OLD = """    segments = turn_segments(track, turn_count)
+    return segments"""
 
-# 15. No outline: the label vanishes into its own full-colour current cell.
+# 15. The label in a player's colour: colour says the player twice again.
+LABEL_COLOUR_NEW = "    ink = font.render(text, True, color)"
+LABEL_COLOUR_OLD = '    ink = font.render(text, True, TOKEN_TEAM_COLORS["Player 1"])'
+
+# 16. No round highlighted: every label in the neutral colour.
+HIGHLIGHT_NEW = """    if current_round is not None and round_number == current_round:
+        return CURRENT_ROUND_LABEL_COLOR"""
+HIGHLIGHT_OLD = """    if False:
+        return CURRENT_ROUND_LABEL_COLOR"""
+
+# 17. The gold on the wrong round: off by one.
+OFF_BY_ONE_NEW = "    return None if playing is None else playing // 2 + 1"
+OFF_BY_ONE_OLD = "    return None if playing is None else playing // 2"
+
+# 18. The one-past-the-end clamp bypassed: the gold points at a sixth round.
+CLAMP_NEW = """    playing = current_turn_index(turn_tracker)
+    return None if playing is None else playing // 2 + 1"""
+CLAMP_OLD = """    playing = current_turn_index(turn_tracker)
+    return None if playing is None else turn_tracker.battle_round"""
+
+# 19. No outline: the label vanishes into the full-colour current cell.
 OUTLINE_NEW = "        surface.blit(outline, rect.move(dx, dy))"
 OUTLINE_OLD = "        pass"
 
-# 16. Labels squeezed into any segment, however narrow.
-SQUEEZE_NEW = """    if rect.width + 2 * (LABEL_MARGIN + 1) > segment.width:
+# 20. Labels squeezed into any width.
+SQUEEZE_NEW = """    if rect.width + 2 * (LABEL_MARGIN + 1) > span.width:
         return None"""
 SQUEEZE_OLD = """    if False:
         return None"""
 
-# 17. Labels during deployment, in the PLACEHOLDER order TurnTracker carries
-#     before the first-turn roll-off - an order that can flip a moment later.
-DEPLOY_LABELS_NEW = """        if playing is not None:
-            drawn = _draw_owner_label("""
-DEPLOY_LABELS_OLD = """        if True:
-            drawn = _draw_owner_label("""
+# 21. The labels held back during deployment, the way the P1/P2 labels had to
+#     be. A round number does not depend on who goes first, so there is nothing
+#     to wait for.
+DEPLOY_LABELS_NEW = "    rounds = round_spans(track, len(owners))"
+DEPLOY_LABELS_OLD = "    rounds = round_spans(track, len(owners)) if playing is not None else []"
 
-# 18. ...and the same for the colours: the placeholder order painted in.
+# 22. The cells coloured during deployment, in the PLACEHOLDER order TurnTracker
+#     carries before the first-turn roll-off - an order that can flip.
 DEPLOY_COLOURS_NEW = """    if playing is None:
         return EMPTY_COLOR
 """
@@ -192,19 +217,21 @@ PROBES = [
     ("integer-division layout (the track drifts)", [(BAR, DRIFT_NEW, DRIFT_OLD)], SUITE),
     ("the badge shows a fixed side, not the turn owner", [(BAR, BADGE_NEW, BADGE_OLD)], SUITE),
     ("the round number comes back to the panel", [(PANEL, PANEL_NEW, PANEL_OLD)], SUITE),
-    ("the turn label is drawn under the cells again (reported)",
-     [(BAR, LABEL_UNDER_NEW, LABEL_UNDER_OLD)], SUITE),
-    ("the turn label is as small as the reported one",
-     [(BAR, LABEL_SIZE_NEW, LABEL_SIZE_OLD)], SUITE),
+    ("the label is drawn under the cells again", [(BAR, LABEL_UNDER_NEW, LABEL_UNDER_OLD)], SUITE),
+    ("the label is as small as the first one", [(BAR, LABEL_SIZE_NEW, LABEL_SIZE_OLD)], SUITE),
     ("the cells give up a row for the label again",
      [(BAR, ROW_RESERVED_NEW, ROW_RESERVED_OLD)], SUITE),
-    ("upcoming turns are grey until played (reported)",
-     [(BAR, UPCOMING_NEW, UPCOMING_OLD)], SUITE),
-    ("the labels are one neutral colour", [(BAR, LABEL_COLOUR_NEW, LABEL_COLOUR_OLD)], SUITE),
-    ("every segment is labelled P1", [(BAR, LABEL_TEXT_NEW, LABEL_TEXT_OLD)], SUITE),
+    ("upcoming turns are grey until played", [(BAR, UPCOMING_NEW, UPCOMING_OLD)], SUITE),
+    ("the label names the PLAYER again (the reported change)",
+     [(BAR, LABEL_TEXT_NEW, LABEL_TEXT_OLD)], SUITE),
+    ("one label per TURN instead of per round", [(BAR, PER_TURN_NEW, PER_TURN_OLD)], SUITE),
+    ("the label in a player's colour", [(BAR, LABEL_COLOUR_NEW, LABEL_COLOUR_OLD)], SUITE),
+    ("no round highlighted as current", [(BAR, HIGHLIGHT_NEW, HIGHLIGHT_OLD)], SUITE),
+    ("the gold on the wrong round (off by one)", [(BAR, OFF_BY_ONE_NEW, OFF_BY_ONE_OLD)], SUITE),
+    ("the gold ignores the one-past-the-end clamp", [(BAR, CLAMP_NEW, CLAMP_OLD)], SUITE),
     ("the label has no outline", [(BAR, OUTLINE_NEW, OUTLINE_OLD)], SUITE),
     ("labels squeezed into any width", [(BAR, SQUEEZE_NEW, SQUEEZE_OLD)], SUITE),
-    ("labels during deployment, in the placeholder order",
+    ("the round numbers held back during deployment",
      [(BAR, DEPLOY_LABELS_NEW, DEPLOY_LABELS_OLD)], SUITE),
     ("colours during deployment, in the placeholder order",
      [(BAR, DEPLOY_COLOURS_NEW, DEPLOY_COLOURS_OLD)], SUITE),
@@ -239,7 +266,8 @@ for label, edits, suite in PROBES:
             continue
         got, total, text = run(suite)
         if got is None:
-            verdict, detail = "BITES", "(crashed - counts as red)"
+            verdict, detail = "CRASHED", "(the suite died instead of going red)"
+            bad += 1
         elif got < baselines[suite]:
             verdict, detail = "BITES", "%d/%d" % (got, total)
         else:
@@ -248,9 +276,11 @@ for label, edits, suite in PROBES:
         print("  %-8s %s: %s" % (verdict, label, detail))
         if got is not None and got < baselines[suite]:
             for line in text.splitlines():
-                if line.strip().startswith("FAIL:"):
+                if line.strip().startswith("FAIL"):
                     print("             " + line.strip()[:110])
                     break
+        elif got is None:
+            print("             " + text.strip().splitlines()[-1][:110] if text.strip() else "")
     finally:
         for path, original in originals.items():
             write(path, original)

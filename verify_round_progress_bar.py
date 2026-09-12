@@ -61,12 +61,13 @@ stats = {
     "player_2_colour_px": 0,
     "empty_cell_px": 0,
     "badge_drawn_frames": 0,
-    # The turn labels ON the bar ("P1"/"P2"), counted per frame and read back
-    # off the live surface in their owner's colour - a label recorded but not
+    # The round numbers ON the bar ("1".."5"), counted per frame and read back
+    # off the live surface in the label colours - a label recorded but not
     # visible would satisfy the first count and fail the second.
-    "frames_with_turn_labels": 0,
-    "label_ink_px_in_owner_colour": 0,
+    "frames_with_round_labels": 0,
+    "label_ink_px_in_label_colours": 0,
     "label_ink_px_under_the_track": 0,
+    "frames_whose_gold_label_is_the_current_round": 0,
     "bar_overlaps_the_board": 0,
     "bar_clear_of_the_board": 0,
     "columns_share_the_bars_bottom_edge": 0,
@@ -75,6 +76,10 @@ stats = {
 #: The three column rects main() built, captured from the widgets it hands them
 #: to - the layout lives in main(), which no test runs.
 seen = {"board": None, "left": None, "right": None}
+#: Every label text drawn in the run - has to be exactly "1".."5", never a
+#: player name (the most recent report: "den Turncounter als Label ... nicht den
+#: Spieler, also 1 2 3 4 5").
+label_texts = set()
 
 _real_draw = rp.draw
 _P1 = tuple(TOKEN_TEAM_COLORS["Player 1"][:3])
@@ -122,16 +127,26 @@ def draw(surface, window_width, turn_tracker, player_factions=None):
             if key:
                 stats[key] += 1
     if rp.last_label_rects:
-        stats["frames_with_turn_labels"] += 1
-        if stats["frames_with_turn_labels"] % 50 == 1:   # sampled: get_at is slow
-            for owner, _text, label in rp.last_label_rects:
-                colour = rp.label_color(owner)
+        stats["frames_with_round_labels"] += 1
+        label_texts.update(text for _n, text, _r in rp.last_label_rects)
+        if stats["frames_with_round_labels"] % 50 == 1:   # sampled: get_at is slow
+            now = rp.current_round(turn_tracker)
+            gold_rounds = []
+            for number, _text, label in rp.last_label_rects:
+                colour = rp.round_label_color(number, now)
                 box = label.inflate(2, 2).clip(surface.get_rect())
                 for ly in range(box.top, box.bottom):
                     for lx in range(box.left, box.right):
-                        if surface.get_at((lx, ly))[:3] == colour:
-                            stats["label_ink_px_in_owner_colour" if ly < track.bottom
+                        px = surface.get_at((lx, ly))[:3]
+                        if px == colour:
+                            stats["label_ink_px_in_label_colours" if ly < track.bottom
                                   else "label_ink_px_under_the_track"] += 1
+                if rp.CURRENT_ROUND_LABEL_COLOR in [surface.get_at((lx, ly))[:3]
+                                                    for ly in range(label.top, label.bottom)
+                                                    for lx in range(label.left, label.right)]:
+                    gold_rounds.append(number)
+            if now is not None and gold_rounds == [now]:
+                stats["frames_whose_gold_label_is_the_current_round"] += 1
     return rect
 
 
@@ -180,6 +195,7 @@ titles = sorted(stats.pop("titles_seen"))
 for key, value in stats.items():
     print(f"  {key:34} {value}")
 print(f"  {'distinct turns named':34} {len(titles)}")
+print(f"  {'label texts drawn':34} {sorted(label_texts)}")
 for title in titles[:6]:
     print(f"      {title}")
 if not stats["frames_drawn"]:

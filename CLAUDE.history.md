@@ -9184,3 +9184,28 @@ von Hand (Charge ×2, Advance, Damage ×2, Deadly Demise, Sweep). `CommandReroll
 `test_unmodified_six_ui.py`, `test_tau_vehicles.py`, `test_heroic_intervention.py`,
 `test_insane_bravery.py`, `test_event_chain_wiring.py` grün. Volle Regression 228 Suiten, ~20938
 Prüfungen, 227 grün / 0 rot / 1 bekannt.
+
+# Sitzung 2026-09-12 — Rundenbalken: Rundenzahlen statt P1/P2
+
+**Gemeldet:** "die farbe reicht als player indikator. ich hätte aber gerne den Turncounter als
+Label über der Leiste nicht den Spieler, also 1 2 3 4 5".
+
+**Bau:** eine Zahl je Schlachtrunde statt eines "P1"/"P2" je Zug-Segment, zentriert über den zwei
+Segmenten der Runde (`round_spans()`), neutrales Hellgrau, laufende Runde in Titel-Gold
+(`current_round()` aus `current_turn_index()`, also mit dessen One-past-the-end-Klammer), schon im
+Deployment gezeichnet. "über der Leiste" als AUF gelesen — eine eigene Zeile darüber hätte die
+schon zweimal verhandelte Höhe gekostet. `owner_label()`/`label_color()` entfernt.
+
+**Vorsorglich umgebaut, nicht gemessen:** die Prüfung "die aktuelle Zelle trägt ihren Goldrahmen"
+suchte Gold in der oberen Spurhälfte, wo jetzt auch die goldene Rundenzahl liegt; sie liest
+außerhalb der Label-Boxen.
+
+**Parallele Sitzung (Fehlerklasse 20):** deren Commit `c8010fe` hat das neue
+`game/ui/round_progress_bar.py` per `-A` mitgenommen. Geprüft: der committete Stand ist identisch
+mit dem fertigen Arbeitsstand (kein Diff, kein `if False:` aus einer Sonde) — der Commit lag also
+nicht in einem Sondenfenster.
+
+**Verifikation:** `test_round_progress_bar.py` 111/111, `ab_round_progress_bar.py` 23/23 Sonden
+beißend, `verify_round_progress_bar.py map2 1500`: 1499/1499 Frames mit Zahlen, Texte genau 1..5,
+0 Label-Pixel unter der Spur, in 29/29 gesampelten Schlacht-Frames ist genau die laufende Runde
+gold; Layout unverändert.

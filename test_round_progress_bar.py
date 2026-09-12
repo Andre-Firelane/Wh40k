@@ -40,6 +40,7 @@ c = Checks("round progress bar")
 WINDOW = 1280
 FACTIONS = {"Player 1": "AELDARI", "Player 2": "NECRONS"}
 TURNS = missions.BATTLE_ROUNDS * 2
+ROUNDS = missions.BATTLE_ROUNDS
 
 
 def tracker_at(battle_round, turn_index_in_round, phase_index, first="Player 1"):
@@ -72,16 +73,20 @@ def track_of():
     return rp.last_track_rect
 
 
-def track_row(surf, offset=1):
-    """One scanline across the cells, SKIPPING the turn labels.
+def label_boxes():
+    return [r.inflate(2, 2) for _n, _t, r in rp.last_label_rects]
 
-    The labels are drawn on top of the cells now, so a scanline through them
-    would count their ink and their outline as cell colours. Skipped by the
-    rects draw() reported, not by picking a row that happens to miss them
-    today - a bigger font would move the glyphs onto that row silently."""
+
+def track_row(surf, offset=1):
+    """One scanline across the cells, SKIPPING the round labels.
+
+    The labels are drawn on top of the cells, so a scanline through them would
+    count their ink and their outline as cell colours. Skipped by the rects
+    draw() reported, not by picking a row that happens to miss them today - a
+    bigger font would move the glyphs onto that row silently."""
     track = track_of()
     y = track.y + offset
-    covered = [r.inflate(2, 2) for _o, _t, r in rp.last_label_rects]
+    covered = label_boxes()
     return [surf.get_at((x, y))[:3] for x in range(track.x, track.right)
             if not any(r.collidepoint(x, y) for r in covered)]
 
@@ -134,12 +139,18 @@ for width in (300, 700, 840, 1480):
     overlaps = [i for i in range(len(segments) - 1)
                 if segments[i].right > segments[i + 1].x]
     c.eq(f"{width}px: no two turn segments overlap", overlaps, [])
-    # The wider gap is the ONLY thing grouping the pairs, since the phases
-    # inside a turn are drawn as an unbroken run.
+    # The wider gap groups the pairs, together with the round number.
     within_round = segments[1].x - segments[0].right
     between_rounds = segments[2].x - segments[1].right
     c.true(f"{width}px: the gap between ROUNDS is wider than within one",
            between_rounds > within_round)
+    # round_spans() is built off the SAME segments, so a label centred on a span
+    # is centred on the cells that were drawn.
+    spans = rp.round_spans(track, TURNS)
+    c.eq(f"{width}px: one span per battle round", len(spans), ROUNDS)
+    c.eq(f"{width}px: each span runs from its round's first turn to its second",
+         [(s.left, s.right) for s in spans],
+         [(segments[2 * i].left, segments[2 * i + 1].right) for i in range(ROUNDS)])
 
 segment = rp.turn_segments(pygame.Rect(0, 0, 840, 20), TURNS)[0]
 cells = [rp.phase_cell(segment, i, len(PHASES)) for i in range(len(PHASES))]
@@ -167,6 +178,13 @@ c.eq("the last turn of the battle is the last segment",
 c.eq("a round past the end clamps to the last segment",
      rp.current_turn_index(tracker_at(missions.BATTLE_ROUNDS + 1, 0, 0)), TURNS - 1)
 
+c.eq("before the battle no round is current", rp.current_round(tracker_at(0, 0, 0)), None)
+c.eq("round 1 is round 1, whichever player is playing",
+     (rp.current_round(tracker_at(1, 0, 3)), rp.current_round(tracker_at(1, 1, 0))), (1, 1))
+c.eq("round 3 is round 3", rp.current_round(tracker_at(3, 1, 2)), 3)
+c.eq("...and the one-past-the-end frame still names the LAST round, not a sixth",
+     rp.current_round(tracker_at(missions.BATTLE_ROUNDS + 1, 0, 0)), ROUNDS)
+
 owners = rp.turn_owners(tracker_at(1, 0, 0, first="Player 2"))
 c.eq("the owner sequence covers the whole battle", len(owners), TURNS)
 c.eq("whoever goes first goes first in EVERY round",
@@ -175,7 +193,7 @@ c.eq("...and the other player takes every second turn",
      [owners[i] for i in range(1, TURNS, 2)], ["Player 1"] * missions.BATTLE_ROUNDS)
 
 # ---------------------------------------------------------------------------
-print("--- 4. the turn is LABELLED, the phases are not ---")
+print("--- 4. the ROUND is labelled - 1 2 3 4 5 - not the player ---")
 # ---------------------------------------------------------------------------
 c.eq("before the battle the bar says so",
      rp.title_text(tracker_at(0, 0, 0)), "DEPLOYMENT")
@@ -184,33 +202,31 @@ c.true("the current turn is named in full - round and player", "3" in title and 
 c.true("...and no phase name is printed there",
        not any(phase.upper() in title for phase in PHASES))
 
-# Every turn segment carries its OWNER, on the bar itself. The first version put
-# a tiny grey "3.2" in a row UNDER nine-pixel cells, and reported: "momentan
-# sind ganz kleine labels unter den zugabschnitten. die koennen weg.
-# stattdessen koennen P1 bzw P2 labels direkt auf der leiste sein ... auch von
-# anfang an in den richtigen farben". Read back off last_label_rects (what was
-# blitted, where) AND a spy on the font (what text in which colour) - a label
-# with the wrong TEXT still has the right place and the right colour.
-c.eq("'Player 1' is labelled P1", rp.owner_label("Player 1"), "P1")
-c.eq("'Player 2' is labelled P2", rp.owner_label("Player 2"), "P2")
-
+# Three generations of label, each reported. A tiny grey "3.2" UNDER the cells
+# ("momentan sind ganz kleine labels unter den zugabschnitten. die koennen
+# weg"), then "P1"/"P2" ON every turn segment, and now: "die farbe reicht als
+# player indikator. ich haette aber gerne den Turncounter als Label ueber der
+# Leiste nicht den Spieler, also 1 2 3 4 5". Read back off last_label_rects
+# (what was blitted, where) AND a spy on the font (what text in which colour) -
+# a label with the wrong TEXT still has the right place and the right colour.
 rendered = []
 _real_font = rp._font
 
 
 class _SpyFont:
-    def __init__(self, font):
+    def __init__(self, font, size):
         self._font = font
+        self._size = size
 
     def render(self, text, antialias, color, *rest):
-        rendered.append((text, tuple(color[:3])))
+        rendered.append((self._size, text, tuple(color[:3])))
         return self._font.render(text, antialias, color, *rest)
 
     def __getattr__(self, name):
         return getattr(self._font, name)
 
 
-rp._font = lambda size, bold=True: _SpyFont(_real_font(size, bold))
+rp._font = lambda size, bold=True: _SpyFont(_real_font(size, bold), size)
 try:
     surf, rect = frame(tracker_at(3, 1, 2))
 finally:
@@ -218,98 +234,129 @@ finally:
 
 labels = list(rp.last_label_rects)
 track = track_of()
+segments = rp.turn_segments(track, TURNS)
+spans = rp.round_spans(track, TURNS)
+paired = len(labels) == ROUNDS
+
 # The colour checks below read ONE scanline and skip label pixels on it. That
-# skip must not be doing the work: the first run of this file read row +3,
+# skip must not be doing the work: an earlier run of this file read row +3,
 # which the 18 pt label covers, and it skipped the current cell's own interior
 # and reported the full colour missing. So the row they read is pinned clear.
 c.true("the scanline the colour checks read crosses no label",
        bool(labels) and all(not r.inflate(2, 2).collidepoint(r.centerx, track.y + 1)
-                            for _o, _t, r in labels))
-segments = rp.turn_segments(track, TURNS)
-owners = rp.turn_owners(tracker_at(3, 1, 2))
-c.eq("every turn segment carries a label at 1280 px", len(labels), TURNS)
-c.eq("...in track order, each naming its own segment's owner",
-     [(owner, text) for owner, text, _r in labels],
-     [(owner, rp.owner_label(owner)) for owner in owners])
-c.true("the font really rendered P1 in Player 1's colour and P2 in Player 2's",
-       ("P1", rp.label_color("Player 1")) in rendered
-       and ("P2", rp.label_color("Player 2")) in rendered)
-c.true("...and never one player's name in the other's colour",
-       ("P1", rp.label_color("Player 2")) not in rendered
-       and ("P2", rp.label_color("Player 1")) not in rendered)
+                            for _n, _t, r in labels))
 
-# "in den richtigen farben", anchored to the two SPOKEN words rather than to
-# the table the colours come from - otherwise a probe moves both sides.
-green, red = rp.label_color("Player 1"), rp.label_color("Player 2")
-c.true(f"P1's label is green {green}", green[1] > green[0] and green[1] > green[2])
-c.true(f"P2's label is red {red}", red[0] > red[1] and red[0] > red[2])
+c.eq("ONE label per BATTLE ROUND at 1280 px - not one per turn",
+     len(labels), ROUNDS)
+c.eq("...reading 1 to 5 in track order",
+     [(number, text) for number, text, _r in labels],
+     [(n, str(n)) for n in range(1, ROUNDS + 1)])
 
-paired = len(labels) == len(segments)
-c.eq("each label is centred over ITS OWN segment",
-     [i for i, (_o, _t, r) in enumerate(labels)
-      if not segments[i].left <= r.centerx <= segments[i].right] if paired else ["count"],
-     [])
-# ON the bar: every pixel of either label colour lies inside the track's rows.
-# The old label row was BELOW the track, so that is exactly the version this
-# refuses - and the count guards against passing on a bar with no labels.
+label_renders = [(text, colour) for size, text, colour in rendered
+                 if size == rp.LABEL_FONT_SIZE]
+title_colours = {colour for size, _text, colour in rendered if size == rp.TITLE_FONT_SIZE}
+c.eq("the label font really rendered exactly 1..5 and nothing else",
+     sorted({text for text, _col in label_renders}),
+     [str(n) for n in range(1, ROUNDS + 1)])
+c.true("no player name is drawn on the bar any more (the reported change)",
+       bool(label_renders) and not any(text.upper().startswith("P")
+                                       for text, _col in label_renders))
+
+ink_colour = lambda wanted: ({col for text, col in label_renders if text == wanted}
+                             - {rp.LABEL_OUTLINE_COLOR})
+current_colours = ink_colour("3")
+other_colours = set().union(*(ink_colour(str(n)) for n in range(1, ROUNDS + 1) if n != 3))
+c.true(f"round 3 - the round being played - is in the TITLE's gold {current_colours}",
+       len(current_colours) == 1 and current_colours <= title_colours)
+c.eq("...and every other round in ONE other colour", len(other_colours), 1)
+neutral = next(iter(other_colours)) if len(other_colours) == 1 else (0, 255, 0)
+# "die farbe reicht als player indikator": the label colour is NOT a player
+# colour. Anchored to what was rendered, not to LABEL_COLOR - otherwise a probe
+# moves both sides of the comparison.
+c.true(f"that colour is neutral, not a team colour {neutral}",
+       max(neutral) - min(neutral) <= 30
+       and neutral not in {tuple(v[:3]) for v in TOKEN_TEAM_COLORS.values()})
+c.true("...and it is light, so it reads on the dark upcoming cells", min(neutral) >= 180)
+
+c.eq("each label is centred over ITS OWN round",
+     [i for i, (_n, _t, r) in enumerate(labels)
+      if abs(r.centerx - spans[i].centerx) > 1] if paired else ["count"], [])
+# Per ROUND, not per turn: the label straddles the gap between the round's two
+# turns - the one place on the track that belongs to neither player.
+c.eq("...straddling the gap between that round's first and second turn",
+     [i for i, (_n, _t, r) in enumerate(labels)
+      if not (r.left < segments[2 * i].right and r.right > segments[2 * i + 1].left)]
+     if paired else ["count"], [])
+c.eq("each label, outline included, stays inside its round's span",
+     [i for i, (_n, _t, r) in enumerate(labels)
+      if not spans[i].contains(pygame.Rect(r.x - 1, r.y, r.width + 2, r.height))]
+     if paired else ["count"], [])
+
+# ON the bar: every pixel of the neutral label colour inside the track's columns
+# lies inside the track's rows. The very first label row was BELOW the track, so
+# that is exactly the version this refuses - and the count guards against
+# passing on a bar with no labels.
 ink_rows = [y for y in range(rect.top, rect.bottom)
-            for x in range(rect.x, rect.right)
-            if surf.get_at((x, y))[:3] in (green, red)]
+            for x in range(track.left, track.right)
+            if surf.get_at((x, y))[:3] == neutral]
 c.true("label ink is really on the screen", len(ink_rows) > 0)
 c.true("...and all of it sits ON the cells, none under them",
        bool(ink_rows) and min(ink_rows) >= track.top and max(ink_rows) < track.bottom)
-# "ganz kleine labels" was half the report, so the size is pinned against the
-# font those labels were set in (11), not against LABEL_FONT_SIZE - a probe
-# would otherwise move both sides of the comparison.
+gold_label = next((r for n, _t, r in labels if n == 3), None)
+c.true("the gold of round 3's label is really on the screen, in its own box",
+       gold_label is not None and rp.CURRENT_ROUND_LABEL_COLOR in pixels_in(surf, gold_label))
+c.true("...and round 1's box carries no gold - only the current round is highlighted",
+       paired and rp.CURRENT_ROUND_LABEL_COLOR not in pixels_in(surf, labels[0][2]))
+# "ganz kleine labels" was reported once, so the size is pinned against the font
+# those labels were set in (11), not against LABEL_FONT_SIZE - a probe would
+# otherwise move both sides of the comparison.
 reported_font = pygame.font.SysFont(config.FONT_NAME, 11, bold=True)
-c.true("every label is bigger than the tiny ones it replaced",
-       bool(labels) and all(r.height > reported_font.size(text)[1]
-                            and r.width > reported_font.size(text)[0]
-                            for _o, text, r in labels))
-# At the reference width each label, outline ring included, sits inside ONE
-# phase cell - the middle one - so it crosses no hairline between cells.
-middles = [rp.phase_cell(s, len(PHASES) // 2, len(PHASES)) for s in segments]
-c.eq("at 1280 px every label, outline included, sits inside its middle cell",
-     [i for i, (_o, _t, r) in enumerate(labels)
-      if not middles[i].contains(pygame.Rect(r.x - 1, r.y, r.width + 2, r.height))]
-     if paired else ["count"], [])
+c.true("every label is taller than the tiny ones the bar started with",
+       bool(labels) and all(r.height > reported_font.size(text)[1] for _n, text, r in labels))
 c.eq("the cells fill the whole track height - no label row reserved under them",
      surf.get_at((segments[0].x + 1, track.bottom - 2))[:3],
      rp.cell_color("Player 1", 0, 0, 5, 2))
-
-wrong_colour = []
-for owner, _text, r in labels:
-    px = pixels_in(surf, r.inflate(2, 2))
-    other = "Player 2" if owner == "Player 1" else "Player 1"
-    if rp.label_color(owner) not in px or rp.label_color(other) in px:
-        wrong_colour.append(owner)
-c.eq("each label is drawn in its owner's colour on the screen, never the other's",
-     wrong_colour, [])
-# Segment 5 is the turn being played and its middle cell IS the current phase,
-# so one label here sits on the full team colour - the case the outline is for.
-c.eq("every label carries its dark outline, so it reads on its own full colour",
-     [owner for owner, _t, r in labels
+# Segment 5 is the turn being played and its label sits on cells of every
+# brightness - the case the outline is for.
+c.eq("every label carries its dark outline",
+     [n for n, _t, r in labels
       if rp.LABEL_OUTLINE_COLOR not in pixels_in(surf, r.inflate(2, 2))], [])
 
-# The narrow end: a segment that cannot hold the label gets none rather than
-# text smeared across its hairlines.
-frame(tracker_at(3, 1, 2), window=360)
-c.true("a window too narrow for the labels draws none instead of squeezing them",
-       rp.last_track_rect is not None and rp.last_label_rects == [])
+# The gold follows the round: at round 1 it is "1" that is gold.
+surf, rect = frame(tracker_at(1, 1, 0))
+first_labels = list(rp.last_label_rects)
+c.true("in round 1 the gold label is round 1's",
+       len(first_labels) == ROUNDS
+       and rp.CURRENT_ROUND_LABEL_COLOR in pixels_in(surf, first_labels[0][2])
+       and rp.CURRENT_ROUND_LABEL_COLOR not in pixels_in(surf, first_labels[2][2]))
+
+# The narrow end: a round span that cannot hold its number gets none rather than
+# a digit smeared across two-pixel turns. Measured against a wide track in the
+# same call, so the drop is shown to be about WIDTH.
+narrow = pygame.Surface((400, 40))
+rp.draw_track(narrow, pygame.Rect(0, 0, 60, 22), tracker_at(3, 1, 2))
+c.eq("a track too narrow for the numbers draws none instead of squeezing them",
+     rp.last_label_rects, [])
+rp.draw_track(narrow, pygame.Rect(0, 0, 380, 22), tracker_at(3, 1, 2))
+c.eq("...while a wide enough one draws all of them", len(rp.last_label_rects), ROUNDS)
 
 # BEFORE THE FIRST-TURN ROLL-OFF the order is a placeholder (TurnTracker's
-# deferred start), so neither labels nor colours may claim one.
+# deferred start), so no COLOUR may claim one. The round numbers do not depend
+# on who goes first, so they are there from the start - but none is current.
 surf, rect = frame(tracker_at(0, 0, 0))
-c.eq("before the battle starts there are no turn labels", rp.last_label_rects, [])
-c.true("...and the track is neutral, not coloured in a placeholder order",
+c.eq("before the battle starts the round numbers are already on the bar",
+     [text for _n, text, _r in rp.last_label_rects], [str(n) for n in range(1, ROUNDS + 1)])
+c.true("...none of them in gold - no round is being played yet",
+       rp.CURRENT_ROUND_LABEL_COLOR not in pixels_in(surf, track_of().inflate(4, 4)))
+c.true("...and the cells are neutral, not coloured in a placeholder order",
        set(track_row(surf)) <= {rp.EMPTY_COLOR, rp.BG_COLOR})
 
-# FROM THE FIRST TURN ON, every turn says whose it is - "von anfang an".
+# FROM THE FIRST TURN ON, every turn says whose it is - "von anfang an" - by its
+# colour alone.
 surf, rect = frame(tracker_at(1, 0, 0))
 band = track_row(surf)
-c.eq("from the first turn of the battle every turn is labelled",
-     len(rp.last_label_rects), TURNS)
-c.true("...and no cell is left neutral grey", rp.EMPTY_COLOR not in band)
+c.true("from the first turn of the battle no cell is left neutral grey",
+       rp.EMPTY_COLOR not in band)
 c.true("...every turn nobody has played yet already shows its owner's colour",
        rp._dim(TOKEN_TEAM_COLORS["Player 1"], rp.UPCOMING_DIM) in band
        and rp._dim(TOKEN_TEAM_COLORS["Player 2"], rp.UPCOMING_DIM) in band)
@@ -319,7 +366,8 @@ print("--- 5. the faction colour, and that it is PER TURN ---")
 # ---------------------------------------------------------------------------
 # Turn 5 (round 3, Player 2) is being played, so turns 0..4 are done. Turn 0
 # belongs to Player 1 and turn 1 to Player 2; their played cells must carry
-# their OWN colours, which is the "Volk Farbe" half of the request.
+# their OWN colours, which is the "Volk Farbe" half of the request - and, now
+# that the labels say the round, the ONLY thing saying whose turn is where.
 p1 = rp._dim(TOKEN_TEAM_COLORS["Player 1"], rp.PLAYED_DIM)
 p2 = rp._dim(TOKEN_TEAM_COLORS["Player 2"], rp.PLAYED_DIM)
 c.true("the two players' played colours are distinguishable", p1 != p2)
@@ -336,11 +384,15 @@ c.true("upcoming, played and current are three steps of one hue, darkest first",
            < sum(base[:3]) for base in TOKEN_TEAM_COLORS.values()))
 c.true("the current phase is drawn in FULL colour, not the dimmed one",
        TOKEN_TEAM_COLORS["Player 2"] in band)
+# The current round's label is gold too, so the outline is looked for OUTSIDE
+# the label boxes - otherwise the label alone would pass this.
+covered = label_boxes()
 c.true("...and the current cell is outlined so it can be found",
        rp.CURRENT_OUTLINE_COLOR in
        [surf.get_at((x, y))[:3]
         for y in range(track_of().y, track_of().centery)
-        for x in range(track_of().x, track_of().right)])
+        for x in range(track_of().x, track_of().right)
+        if not any(r.collidepoint(x, y) for r in covered)])
 
 # The order matters as much as the presence: Player 1's first turn is left of
 # Player 2's first turn. Both lookups are guarded rather than indexed, because
@@ -415,8 +467,8 @@ c.true("...and both are really drawn, not both empty",
 surf, rect = frame(tracker_at(2, 0, 1), None)
 c.true("without factions the track is still drawn in the team colours",
        p1 in track_row(surf))
-c.eq("...still labelled - the labels come from the owners, not the factions",
-     len(rp.last_label_rects), TURNS)
+c.eq("...still labelled - the round numbers do not come from the factions",
+     len(rp.last_label_rects), ROUNDS)
 c.true("...and no tile is reported at all", rp.last_badge_rect is None)
 
 # ---------------------------------------------------------------------------
@@ -456,6 +508,9 @@ c.true("the reserves row moves down with them, so the rows still tile",
 c.true("no separate chrome rect exists any more", "board_chrome_rect" not in main_src)
 c.true("...and chrome_rect() is gone from the module too",
        not hasattr(rp, "chrome_rect"))
+# The player-label API is gone with the labels, rather than left behind unused.
+c.true("...and so are the P1/P2 label helpers",
+       not hasattr(rp, "owner_label") and not hasattr(rp, "label_color"))
 
 # The map fills its column exactly as before: the board rect is what every
 # click-to-board translation goes through, and it is the full column now.

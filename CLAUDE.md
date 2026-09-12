@@ -2542,31 +2542,49 @@ beschriftet sein. und das Volk Logo/Farbe muss drin sein").
   plus Goldrahmen — „wessen" und „wie weit" sind gleichzeitig lesbar. Kommende
   Züge waren zuerst GRAU, der Balken konnte also vor dem Spielen nicht sagen,
   wem welcher Zug gehört (User: "auch von anfang an in den richtigen farben").
-  - **Vor dem Erster-Zug-Roll-off bleibt die Spur NEUTRAL (grau, ohne Labels),
-    und das ist eine Tatsache über `TurnTracker`, keine Stilwahl:** ein
-    Deferred-Start-Tracker trägt bis `start_battle()` einen PLATZHALTER-
-    `first_player`. Die Reihenfolge schon im Deployment zu färben hieße, eine
-    Ordnung zu zeichnen, die der Roll-off einen Moment später umdrehen kann.
-- **Der Zug ist beschriftet, die Phase nicht — und das Label steht AUF dem
-  Balken** (User: "momentan sind ganz kleine labels unter den zugabschnitten.
-  die können weg. stattdessen können P1 bzw P2 labels direkt auf der leiste
-  sein"). Vorher ein graues 11-pt-"3.2" in einer eigenen Zeile UNTER 9 px hohen
-  Zellen; jetzt "P1"/"P2" zentriert auf der mittleren Phasenzelle jedes
-  Segments, und die Zellen haben die volle Spurhöhe. Der laufende Zug steht
-  weiter ausgeschrieben neben dem Badge ("ROUND 3 - PLAYER 2"), vor dem
-  Schlachtbeginn "DEPLOYMENT". **Die Rundenzahl steht damit nur noch dort** —
-  die Runden gruppiert weiter die breitere Lücke.
-  - **Die Größe ist GEMESSEN:** pygames Default-Font ist klein für seine
-    Punktzahl — bei 12 ist "P2" 10×8 px mit 6 px Glyphen, also nicht größer als
-    die gemeldeten. `LABEL_FONT_SIZE = 18` gibt 17×12 px mit 9 px Glyphen und
-    ist die größte Größe, deren Label samt Rand bei 1280 px noch in EINE
-    Phasenzelle (21 px) passt; 20 zeichnet dieselben 9 px, nur breiter. Ein zu
-    schmales Segment bekommt kein Label statt über Haarlinien geschmierten Text.
-  - **Label-Farbe = Teamfarbe 55 % Richtung Weiß plus dunkler 1-px-Ring**, damit
-    es auch auf der eigenen voll gefärbten laufenden Zelle lesbar bleibt.
-  - **Zentrieren an den Glyphen-Metriken war gebaut und ist wieder raus:** bei
-    12 bis 20 pt gemessen landet es auf derselben Zeile wie das Zentrieren der
-    Textfläche — Code ohne Wirkung.
+  - **Vor dem Erster-Zug-Roll-off bleiben die ZELLEN NEUTRAL (grau), und das ist
+    eine Tatsache über `TurnTracker`, keine Stilwahl:** ein Deferred-Start-Tracker
+    trägt bis `start_battle()` einen PLATZHALTER-`first_player`. Die Reihenfolge
+    schon im Deployment zu färben hieße, eine Ordnung zu zeichnen, die der
+    Roll-off einen Moment später umdrehen kann. (Die Rundenzahlen stehen dort
+    trotzdem — siehe unten.)
+- **Die RUNDE ist beschriftet, nicht der Spieler: "1 2 3 4 5" AUF dem Balken**
+  (User, zuletzt: "die farbe reicht als player indikator. ich hätte aber gerne
+  den Turncounter als Label über der Leiste nicht den Spieler, also 1 2 3 4 5").
+  **Dritte Fassung:** zuerst ein graues 11-pt-"3.2" in einer Zeile UNTER 9 px
+  hohen Zellen ("ganz kleine labels unter den zugabschnitten"), dann "P1"/"P2" AUF
+  jedem der zehn Zug-Segmente — was zweimal sagte, was die Zellfarbe schon sagt,
+  und nie das, was sie nicht sagen kann: welche Runde wo liegt. Die Zellen haben
+  weiter die volle Spurhöhe; der laufende Zug steht weiter ausgeschrieben neben
+  dem Badge ("ROUND 3 - PLAYER 2", vor Schlachtbeginn "DEPLOYMENT").
+  - **EINE Zahl je Schlachtrunde, zentriert über deren ZWEI Zug-Segmenten**
+    (`round_spans()`, aus `turn_segments()` gebaut statt ein zweites Mal gelegt).
+    Sie steht damit auf der Lücke zwischen erstem und zweitem Zug — der einen
+    Stelle der Spur, die keinem Spieler gehört. „Turn" heißt in dieser UI die
+    Schlachtrunde (das Zug-Banner liest "Player 2, Turn 1"), daher 1-5 und nicht
+    1-10.
+  - **Neutrales Hellgrau (`LABEL_COLOR`), nie eine Teamfarbe** — die Farbe der
+    ZELLEN ist der Spieler-Indikator. **Die laufende Runde in Header-Gold**,
+    demselben Gold wie der Titel, damit "3" und "ROUND 3" als eine Aussage lesen.
+    `current_round()` leitet aus `current_turn_index()` ab und erbt dessen
+    Klammer: im Frame nach dem letzten Zug bleibt "5" gold, nie eine sechste
+    Runde. Dunkler 1-px-Ring bleibt (die Zahl liegt auf Zellen jeder Helligkeit).
+  - **Schon im DEPLOYMENT gezeichnet** (alle neutral, keine gold): der Grund, aus
+    dem P1/P2 bis zum Roll-off warten mussten, gilt für eine Rundenzahl nicht.
+  - **"über der Leiste" ist als AUF gelesen, nicht als eigene Zeile darüber** —
+    eine Entscheidung, keine Transkription: eine Zeile über der Spur kostete
+    genau die Höhe, die schon zweimal verhandelt ist (Zellen wieder winzig, oder
+    `BAR_HEIGHT` aus Brett und Reserves-Panel mit 4 px Rest). Wenn darüber
+    gemeint war, ist das die Stelle.
+  - **Größe gemessen:** `LABEL_FONT_SIZE = 18` gibt Ziffern von 8×12 px mit 9 px
+    Glyphen (bei 12 pt sind es 6 px, nicht größer als die gemeldeten). Eine
+    Runden-Spanne ist bei 1280 px 231 px breit; eine zu schmale Spanne bekommt
+    keine Zahl statt einer über Zwei-Pixel-Züge geschmierten.
+  - `owner_label()`/`label_color()` sind **entfernt**, nicht liegen gelassen
+    (Testzeile).
+  - **Zentrieren an den Glyphen-Metriken war für P1/P2 gebaut und ist wieder
+    raus:** bei 12 bis 20 pt gemessen landet es auf derselben Zeile wie das
+    Zentrieren der Textfläche — Code ohne Wirkung.
 - **Er hat eine EIGENE ZEILE über die volle Fensterbreite, und Brett wie beide
   Panels beginnen darunter.** Das ist die ZWEITE Antwort auf diese Frage, und
   die erste gehört hierher, weil ihr Fehler nicht offensichtlich ist: der
@@ -2658,28 +2676,33 @@ beschriftet sein. und das Volk Logo/Farbe muss drin sein").
   Scanline statt der ganzen Spur (14k `get_at()` je Frame wären eine eigene
   Messverfälschung).
 
-- **Labels auf dem Balken, getestet (2026-09-12):** `test_round_progress_bar.py`
-  76 → **94/94** (Abschnitt 4 neu: Text UND Farbe per Font-Spion — ein Label mit
-  falschem TEXT hat den richtigen Platz und die richtige Farbe —, jedes Label
-  über SEINEM Segment, alle Label-Tinte innerhalb der Spurzeilen, Zellen in
-  voller Höhe, Größe gegen die gemeldete 11-pt-Schrift statt gegen die
-  Konstante, Rand vorhanden, weder Label noch Farbe vor dem Roll-off, alle Züge
-  gefärbt ab dem ersten). `ab_round_progress_bar.py` 8 → **19 A/B-Sonden, alle
-  beißend**, darunter beide gemeldeten Hälften einzeln zurückgestellt (Label
-  unter den Zellen, kommende Züge grau).
-  - **Ein Befund über den TEST:** die Farbprüfungen lasen Zeile +3 der Spur, die
-    das 18-pt-Label jetzt abdeckt — sie übersprangen das Innere der laufenden
-    Zelle und meldeten die volle Farbe als fehlend. Sie lesen Zeile +1, und dass
-    diese Zeile kein Label kreuzt, ist eigens gepinnt (sonst trägt das
-    Überspringen die Prüfung).
-  - **Im ECHTEN Spiel:** `verify_round_progress_bar.py` zählt jetzt auch die
-    Labels auf der LEBENDEN Fläche — **1461 von 1499 Frames mit Labels** (die
-    übrigen 38 sind Deployment-Frames, neutral wie beabsichtigt), **19 050
-    Label-Pixel in der Besitzerfarbe, 0 unter der Spur**, Layout unverändert
-    (0 Überlappungen mit dem Brett, 0 Spalten aus der Flucht).
-  - Volle Regression **226 Suiten, ~20804 Prüfungen, 225 grün / 0 rot /
-    1 bekannt**; `test_game_menu.py` (der andere Leser von `BAR_HEIGHT`)
-    **208/208**.
+- **Beschriftung getestet (2026-09-12, Rundenzahlen):** `test_round_progress_bar.py`
+  **111/111**. Abschnitt 4 prüft Text UND Farbe per Font-Spion (ein Label mit
+  falschem TEXT hat den richtigen Platz und die richtige Farbe): genau eine Zahl
+  je RUNDE, 1..5 in Spurreihenfolge, kein "P…" je gerendert, jede Zahl über der
+  Lücke ihrer zwei Züge und samt Ring innerhalb ihrer Spanne, Gold NUR auf der
+  laufenden Runde und identisch zur gerenderten Titelfarbe, das Neutralgrau am
+  GERENDERTEN Wert gegen die Teamfarben geprüft (nicht gegen `LABEL_COLOR` — eine
+  Sonde bewegte sonst beide Seiten), Zahlen schon im Deployment, und eine zu
+  schmale Spur ohne Zahl gegen eine breite mit allen fünf im selben Aufruf.
+  `ab_round_progress_bar.py` **23 A/B-Sonden, alle beißend** — darunter P1/P2
+  zurück, eine Zahl je Zug, Label in Teamfarbe, keine Hervorhebung, Gold um eins
+  verschoben, Klammer umgangen, Zahlen im Deployment unterdrückt. Eine Sonde, die
+  ihre Suite ABSTÜRZEN lässt, zählt dort jetzt als Fehlschlag statt als Biss.
+  - **Vorsorglich umgebaut:** die Prüfung auf den Goldrahmen der laufenden Zelle
+    liest außerhalb der Label-Boxen — die goldene Rundenzahl liegt in derselben
+    oberen Spurhälfte und hätte sie sonst allein erfüllen können.
+  - **Ein älterer Befund über den TEST, weiter gültig:** die Farbprüfungen lesen
+    Zeile +1 der Spur, weil das 18-pt-Label Zeile +3 abdeckt; dass Zeile +1 kein
+    Label kreuzt, ist eigens gepinnt.
+  - **Im ECHTEN Spiel** (`verify_round_progress_bar.py map2 1500`): **1499 von
+    1499 Frames mit Rundenzahlen** (Deployment eingeschlossen), gezeichnete Texte
+    genau `['1'..'5']`, Label-Tinte 3630 px in den Label-Farben / **0 unter der
+    Spur**, in **29 von 29** gesampelten Schlacht-Frames ist genau die laufende
+    Runde gold; Layout unverändert (0 Überlappungen mit dem Brett, 0 Spalten aus
+    der Flucht).
+  - Volle Regression **228 Suiten, ~20955 Prüfungen, 227 grün / 0 rot /
+    1 bekannt**.
 
 ## Unit Statistics — das Resümee der Partie (game/battle_stats.py, game/ui/unit_stats_overlay.py)
 
