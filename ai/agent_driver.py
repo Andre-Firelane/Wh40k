@@ -6206,7 +6206,7 @@ def _maybe_command_reroll(agent, memory, command_reroll_controller, turn_tracker
     that and why it belongs in the engine."""
     if command_reroll_controller is None or not command_reroll_controller.can_use():
         return False
-    if turn_tracker.active_player != player:
+    if command_reroll_controller.roll_owner() != player:
         return False  # this roll isn't player's to reroll - leave it to the human's own UI
     dice_manager = command_reroll_controller.dice_manager
     roll_id = id(dice_manager.pending_values)

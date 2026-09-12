@@ -547,6 +547,15 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
     unter einer Commit-Message über Playtest-Berichte abgelegt. Kein Verlust
     (per `git show --stat` geprüft, und HEAD ist frei von Sonden-Rückständen),
     aber die Etappe steht dadurch in zwei Commits statt in einem.
+    **VIERTE Form, zwei Lehren an einem Sondenlauf (2026-09-12):** (a) die Prozessprüfung vor
+    einem Sondenlauf sieht Python, aber kein `git commit` — `512b649` der Parallelsitzung fing
+    `ai/agent_driver.py` mitten in Sonde 9 ein (die Sondenzeile stand in HEAD, der Folgecommit
+    repariert sie). Nach jedem Sondenlauf daher `git grep` der ERSATZTEXTE über HEAD, nicht nur
+    `if False:`. (b) Ein Restore per RÜCKWÄRTS-Ersetzung — gebaut, damit parallele Edits am
+    selben File überleben — ersetzt JEDES Vorkommen des Ersatztexts. Stand der schon in der
+    Datei, schreibt der Restore fremden Code um: `roll_choice.take()`s `return True` wurde zu
+    einer `NameError`-Zeile. Ein Sondentreiber muss einen bereits vorhandenen Ersatztext
+    ABLEHNEN (`ab_command_reroll_owner.py` tut es).
 21. **Bash-Heredocs zerlegen Prompt-/Codetexte** (Apostrophe, `\n`, `\"`) — mehrfach passiert.
     Solche Texte über Write/Edit schreiben.
 22. **Positionelle Aufrufe**: `action_panel.draw()` und `game_status_panel.draw()` werden positionell
@@ -6452,6 +6461,47 @@ ihrer teuersten Form — die zweite Stelle beantwortet nicht bloß anders, sie b
     5" ist Mitte-zu-Mitte, also 2.8" Kantenabstand — außerhalb 03.04s Engagement Range (eine
     gebundene Einheit ist nicht berechtigt) und innerhalb 15.11s 6". Die erste Fassung stand bei
     4.0" und war ENGAGED, also scheiterte alles aus dem falschen Grund.
+- **Command Re-roll (15.02) zahlt und zielt über die WÜRFELNDE EINHEIT, nicht über
+  `active_player`** (User: "ich konnte gerade command reroll in der selben aktiverung 2 mal
+  einsetzen. einmal bei wound, einmal bei damage", mit den zwei Regeln: jedes Stratagem einmal pro
+  Phase; eine Einheit pro Phase nur von einem Stratagem gezielt).
+  - **Im Log reproduziert** (`logs/game_20260912_225758.log` Z. 217-221): „Player 1 uses Command
+    Re-roll" auf den Wound Roll, dann „**Player 2** spends 1 CP / uses Command Re-roll" auf Player 1s
+    Bright-Lance-**Damage**-Roll. Die KI hat den zweiten Re-roll des Menschen BEZAHLT.
+  - **EINE Ursache für beide Regeln.** Der Controller las `turn_tracker.active_player` und reichte
+    `targets=[]`. Der Save-Schritt gibt `active_player` an den Verteidiger, und beim Damage-Wurf des
+    Angreifers steht es noch dort — 15.01s `(player, name)`-Schlüssel war also der des GEGNERS und
+    fand nichts. Ohne Ziel konnte „eine Einheit, ein Stratagem" nie ablehnen
+    (`allow_repeat_target=True` stammte aus der Zeit, als es ohnehin kein Ziel gab).
+  - **`DiceManager.rolled_for` ist ein REGEL-Feld**, anders als `attacker_squad`/`target_squad`
+    (Darstellung, und bei Save/Charge jeweils die andere Seite). Alle **23** Stellen in `game/`, die
+    einen re-rollbaren Wurf werfen, nennen ihre Einheit: Hit/Wound/Attacks/Damage → Angreifer,
+    Save → Ziel, Charge/Advance → Beweger; `DiceNotationRoll` reicht es durch. Command Re-roll zahlt
+    `rolled_for.owner`, zielt `[rolled_for]` und ist ohne Einheit **fail-closed** statt geraten.
+  - **Zwei ENTSCHEIDUNGEN, keine Transkription:** der X-Wurf von Deadly Demise gehört der
+    DETONIERENDEN Einheit (vorher dem getroffenen Besitzer, der so seine eigenen Mortal Wounds
+    re-rollen konnte), der Sweep-Wundwurf (Drain Life, Lord of the Storm, Malevolent Arcing) dem
+    Träger (`_sweep_bearer` — `_pending` ist nach dem Gate schon freigegeben).
+  - **Folgen, die mitkommen:** 01.07 greift jetzt (der Wurf einer battle-shocked Einheit ist nicht
+    mehr re-rollbar), und Insane Braverys Docstring-Satz „Command Re-roll zählt mit" stimmt erst jetzt.
+  - **Zweiter, nicht gemeldeter Befund: das Würfelpanel bot die drei Knöpfe auch auf KI-Würfen an.**
+    `roll_choice.ability_actions()` fragte weder bei Command Re-roll noch bei Targeting Array /
+    Crystal Matrix noch bei den Unmodified-Six-Fähigkeiten, wem der Wurf gehört — ein Klick gab CP,
+    Token oder Nutzung der KI aus. `human_players=` (main.pys lebende Sicht) filtert jetzt über
+    `roll_owner()` bzw. den Squad der Quelle; `None` lässt die Stub-Suiten unberührt. **Die
+    Owner-Frage geht per LAMBDA**: schon der Attributzugriff auf einem Stub ohne `roll_owner`
+    krachte (eigener Fehler, von `test_roll_choice.py` gefangen).
+  - **KI-Pfad:** `_maybe_command_reroll()` vergleicht `roll_owner()` — vorher wurde die KI zu ihren
+    EIGENEN Damage-Würfen nie gefragt.
+  - **Getestet:** neu `test_command_reroll.py` (**58/58**, neun Abschnitte — die gemeldete Folge
+    end-to-end durch den echten `ShootingController` mit Liveness „der Verteidiger ist beim
+    Damage-Wurf aktiv", Zahler je Wurfart, beide 15.01-Hälften auf echtem `StratagemController`,
+    01.07, fail-closed, Panel-Gate, KI-Pfad, und ein AST-Wächter: jeder re-rollbare Wurf nennt seine
+    Einheit, ein Literal `None` zählt nicht, und wo der Aufruf beide Seiten zeigt, die RICHTIGE).
+    `ab_command_reroll_owner.py`: **10 A/B-Sonden, alle beißend**. `test_reroll_once.py`s
+    handgestagte Würfe nennen jetzt ihre Einheit; `test_tau_vehicles.py`s Pin auf die schließende
+    Klammer liest jetzt die Argumente. Volle Regression **228 Suiten, ~20938 Prüfungen, 227 grün /
+    0 rot / 1 bekannt**.
 - **Ein Würfel wird NIE zweimal neu geworfen.** `DiceManager.already_rerolled` ist das Gedächtnis
   dafür (überlebt `acknowledge()` absichtlich); Command Re-roll, [TWIN-LINKED], Forward Observers,
   Breach and Clear und jede Ability-Quelle lesen es. Vier illegale Paarungen waren vorher möglich.

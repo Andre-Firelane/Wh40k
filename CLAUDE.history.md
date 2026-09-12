@@ -9141,3 +9141,46 @@ lassen statt sie rot zu machen. `_map_of()` degradiert jetzt, die Sonde biss dan
 206/206, `test_scene_io.py` 75/75, volle Regression 227 Suiten / 226 grün / 0 rot / 1 bekannt,
 `verify_phase_autosave.py` gefixt 8 Phasen / 8 Autosaves gegen `--neutralize` 7 / 1 plus
 Überschreiben beim Load.
+
+
+## 2026-09-12 — Command Re-roll zweimal in einer Aktivierung (Wound, dann Damage)
+
+**Gemeldet:** "ich konnte gerade command reroll in der selben aktiverung 2 mal einsetzen. einmal bei
+wound, einmal bei damage" — mit den zwei verletzten Regeln: jedes Stratagem einmal pro Phase; eine
+Einheit pro Phase nur von einem Stratagem gezielt.
+
+**Reproduziert, bevor irgendetwas angefasst wurde** (`logs/game_20260912_225758.log` Z. 217-221):
+„Player 1 spends 1 CP / uses Command Re-roll" auf den Bright-Lance-Wound-Roll, direkt danach
+„Player 2 spends 1 CP / Player 2 uses Command Re-roll" auf Player 1s eigenen Damage-Roll. Die
+15.01-Prüfung selbst war korrekt; der Schlüssel war falsch. `CommandRerollController` las
+`turn_tracker.active_player`, und `shooting.py` setzt im Save-Schritt `set_active(target_squad.owner)`
+— beim Damage-Wurf stand der Fokus noch beim Verteidiger. Dazu `targets=[]` mit
+`allow_repeat_target=True`, also konnte die Ein-Einheit-Regel gar nie greifen.
+
+**Beim Nachverfolgen gefunden, nicht gemeldet:** `roll_choice.ability_actions()` (die Knopfreihe des
+Würfelpanels) prüfte bei keinem der drei Knöpfe, wem der Wurf gehört. Genau darüber hat der Klick des
+Menschen die CP der KI ausgegeben.
+
+**Bau:** `DiceManager.rolled_for` (Regel-Feld), per AST-gestütztem Skript mit Trockenlauf in 16 Stellen
+von `shooting.py`/`fight.py` eingesetzt (Save → `target_squad`, sonst → `attacker_squad`), sieben Stellen
+von Hand (Charge ×2, Advance, Damage ×2, Deadly Demise, Sweep). `CommandRerollController` zahlt/zielt
+über `rolled_for`, fail-closed. `ActivationRerollController.roll_owner()` neu. KI-Pfad auf
+`roll_owner()`. `main.py` reicht `human_players` an `ability_actions()`.
+
+**Eigene Fehler, alle gefangen:**
+1. `offered(command_reroll.roll_owner)` wertete den Attributzugriff sofort aus — die Stubs in
+   `test_roll_choice.py` haben kein `roll_owner` und krachten. Jetzt Lambdas.
+2. **Der Sondentreiber hat Code beschädigt.** Restore per Rückwärts-Ersetzung (damit parallele Edits
+   überleben) ersetzte JEDES Vorkommen des Ersatztexts; Sonde 8 setzte `return True` ein, das in
+   `take()` schon stand — `take()` endete danach auf einer `NameError`-Zeile. Per Zählung aller zehn
+   Restore-Texte vermessen (nur diese eine Stelle), repariert, und der Treiber lehnt einen vorhandenen
+   Ersatztext jetzt ab.
+3. **Die Parallelsitzung committete mitten im zweiten Sondenlauf** (`512b649`, 23:34) und fing
+   `ai/agent_driver.py` mit Sonde 9s Zeile ein. Die Prozessprüfung vor dem Lauf sah nur Python. Per
+   `git grep` aller Ersatztexte über HEAD gefunden; der Folgecommit repariert es.
+
+**Verifikation:** `test_command_reroll.py` 58/58, `ab_command_reroll_owner.py` 10/10 beißend,
+`test_roll_choice.py` 169/169, `test_reroll_once.py`, `test_charge_reroll.py`, `test_ere_we_go.py`,
+`test_unmodified_six_ui.py`, `test_tau_vehicles.py`, `test_heroic_intervention.py`,
+`test_insane_bravery.py`, `test_event_chain_wiring.py` grün. Volle Regression 228 Suiten, ~20938
+Prüfungen, 227 grün / 0 rot / 1 bekannt.

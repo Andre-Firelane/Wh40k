@@ -7,38 +7,54 @@ asked for, each of which decides something here:
 
   * the PHASES may be separated but need no labels - so they are the track's
     finest division and carry no text of their own;
-  * the TURN must be labelled - so every turn segment carries its owner
-    ("P1"/"P2") ON the cells, and the one being played is named again in full
+  * the TURN must be labelled - so every battle round carries its number ON
+    the bar ("1" to "5"), and the turn being played is named again in full
     beside the badge;
   * the FACTION logo/colour must be in it - so each turn segment is filled in
     its owner's constant team colour and the current owner's badge sits at the
     left end.
 
+THE LABEL IS THE ROUND NUMBER, NOT THE PLAYER (user: "die farbe reicht als
+player indikator. ich haette aber gerne den Turncounter als Label ueber der
+Leiste nicht den Spieler, also 1 2 3 4 5"). The version before this one drew
+"P1"/"P2" on every one of the ten turn segments - which said twice what the
+cell colour already says, and never said the one thing the colour cannot: how
+many rounds in the battle is. So:
+
+  * ONE label per BATTLE ROUND, centred over that round's two turn segments -
+    which puts it on the gap between the round's first and second turn, the
+    one place that belongs to the round rather than to either player. "Turn"
+    in this UI means the battle round (the turn banner reads "Player 2, Turn
+    1"), and there are missions.BATTLE_ROUNDS of them, hence 1 to 5;
+  * a NEUTRAL light colour, never a team colour - the colour of the cells is
+    the player indicator, and a round belongs to both players;
+  * the CURRENT round's number in the header gold, the same gold as the title
+    beside the badge ("ROUND 3 - PLAYER 2"), so the two read as one statement;
+  * a dark outline, because the label sits on cells of every brightness,
+    including the full-colour current phase;
+  * drawn during DEPLOYMENT too. The P1/P2 labels had to wait for the
+    first-turn roll-off (see below); a round number does not depend on who
+    goes first, so there is nothing to wait for.
+
 THE LABELS SIT ON THE BAR, NOT UNDER IT, and every turn is in its owner's colour
 from the first turn on (user: "momentan sind ganz kleine labels unter den
 zugabschnitten. die koennen weg. stattdessen koennen P1 bzw P2 labels direkt auf
 der leiste sein ... auch von anfang an in den richtigen farben"). The first
-version reserved a row of 11 px text under nine-pixel cells, named each turn
-"3.2" in grey, and left every turn nobody had played yet EMPTY_COLOR grey - so
-at the start of a battle the bar could not say whose turn was where. Now:
+version reserved a row of 11 px text under nine-pixel cells and left every turn
+nobody had played yet EMPTY_COLOR grey. That half still stands:
 
-  * the cells get the whole track height, and the label is drawn centred on
-    its segment's middle phase cell (the segment's centre - five cells are
-    symmetric); at 1280 px and wider it sits inside that one cell and crosses
-    no hairline;
-  * it is bigger than the text it replaced, which was the other half of "ganz
-    kleine labels": 17x12 px with 9 px glyphs, against 6 px glyphs before;
+  * the cells get the whole track height, and the label is drawn on top;
+  * it is bigger than the text it replaced - 9 px glyphs, against 6 px before;
   * an UPCOMING turn is its owner's colour, dark; a PLAYED phase the same
     colour, brighter; the current phase full plus the outline - three steps of
-    one hue, so "whose" and "how far" are both readable at once;
-  * the label is a light tint of the owner's colour with a dark outline, so it
-    is "in the right colour" and still reads on its own full-colour cell.
+    one hue, so "whose" and "how far" are both readable at once.
 
-BEFORE THE FIRST-TURN ROLL-OFF THE TRACK STAYS NEUTRAL, and that is a fact about
+BEFORE THE FIRST-TURN ROLL-OFF THE CELLS STAY NEUTRAL, and that is a fact about
 TurnTracker rather than a style choice: a deferred-start tracker is built with a
 PLACEHOLDER first_player and told the real one by start_battle(). Colouring the
 upcoming turns during deployment would draw an order that can flip the moment
-the roll-off is decided, so neither colours nor labels appear until it is.
+the roll-off is decided, so no colour appears until it is. (The round numbers
+do - see above.)
 
 WHAT COUNTS AS "FULL": the whole battle. missions.BATTLE_ROUNDS rounds, two
 turns each, five phases per turn - 50 cells, full when the battle is over. The
@@ -89,8 +105,8 @@ BADGE_TEXT_GAP = 7       # between the faction tile and the text beside it
 TEXT_TRACK_GAP = 12      # between that text and the left end of the track
 
 #: Gap between the two turns of the SAME round, and between rounds. The round
-#: gap is wider on purpose: it is the only thing that groups the pairs, since
-#: the phases inside a turn are drawn as an unbroken run of cells.
+#: gap is wider on purpose: together with the round number it groups the pairs,
+#: since the phases inside a turn are drawn as an unbroken run of cells.
 TURN_GAP = 2
 ROUND_GAP = 7
 PHASE_GAP = 1            # hairline between phase cells inside one turn
@@ -116,23 +132,22 @@ CURRENT_OUTLINE_COLOR = config.PANEL_HEADER_COLOR
 #: "this is the subject" everywhere else in this UI.
 CURRENT_LABEL_COLOR = config.PANEL_HEADER_COLOR
 
-#: The "P1"/"P2" label drawn ON every turn segment. Its colour is the owner's
-#: team colour pulled this far toward white - the owner's colour, but light
-#: enough to read on the owner's own dark and mid cells - and the dark outline
-#: carries it over the one cell where it would not: the current phase, which is
-#: the full colour itself.
+#: The round number ("1".."5") drawn ON the bar over each battle round.
 #:
 #: 18 is measured, not picked: pygame's default font is small for its size
-#: (at 12 "P2" is 10x8 px with 6 px glyphs - no bigger than the labels the user
-#: called "ganz klein"), 18 gives 17x12 px with 9 px glyphs in the 22 px track,
-#: and it is the largest size whose label plus outline still fits inside one
-#: phase cell at 1280 px (21 px). 20 draws the same 9 px glyphs, only wider.
+#: (at 12 a digit is 6 px tall - no bigger than the labels the user called
+#: "ganz klein"), 18 gives 9 px glyphs in the 22 px track, and 20 draws the same
+#: 9 px glyphs, only wider.
 LABEL_FONT_SIZE = 18
-LABEL_LIGHTEN = 0.55
+#: Neutral, not a team colour: the CELLS say whose turn is where, and a round
+#: belongs to both players.
+LABEL_COLOR = (226, 229, 236)
+#: The round being played, in the same gold as the title beside the badge.
+CURRENT_ROUND_LABEL_COLOR = config.PANEL_HEADER_COLOR
 LABEL_OUTLINE_COLOR = (8, 9, 12)
-#: Free pixels either side of a label inside its segment. A segment too narrow
-#: for that gets no label - the colour still says whose it is, and text
-#: squeezed across the hairlines of its cells reads as dirt rather than as text.
+#: Free pixels either side of a label inside its round's span. A span too
+#: narrow for that gets no label - the gaps still group the rounds, and text
+#: squeezed across the cells of a two-pixel turn reads as dirt rather than text.
 LABEL_MARGIN = 2
 TITLE_FONT_SIZE = 13
 
@@ -144,8 +159,8 @@ _FONTS = {}
 #: deriving it from different inputs. Same idiom as DicePanel.last_backdrop_rect.
 last_track_rect = None
 last_badge_rect = None
-#: (owner, text, rect) of every turn label the last draw() blitted, in track
-#: order - the blit rect of the text, not the glyphs.
+#: (round_number, text, rect) of every round label the last draw() blitted, in
+#: track order - the blit rect of the text, not the glyphs.
 last_label_rects = []
 
 
@@ -160,22 +175,14 @@ def _dim(color, factor):
     return tuple(max(0, min(255, int(channel * factor))) for channel in color[:3])
 
 
-def _lighten(color, amount):
-    return tuple(max(0, min(255, int(round(channel + (255 - channel) * amount))))
-                 for channel in color[:3])
+def round_label_color(round_number, current_round):
+    """Gold for the round being played, the neutral label colour otherwise.
 
-
-def owner_label(owner):
-    """"Player 2" -> "P2": the short name that fits on a turn segment."""
-    text = str(owner)
-    if text.startswith("Player "):
-        return "P" + text[len("Player "):]
-    return text[:2].upper()
-
-
-def label_color(owner):
-    """The owner's team colour, lightened so it reads on the owner's cells."""
-    return _lighten(TOKEN_TEAM_COLORS.get(owner, EMPTY_COLOR), LABEL_LIGHTEN)
+    `current_round` is None before the battle has started - no round is being
+    played yet, so none is highlighted."""
+    if current_round is not None and round_number == current_round:
+        return CURRENT_ROUND_LABEL_COLOR
+    return LABEL_COLOR
 
 
 def cell_color(owner, turn, phase, playing, phase_now):
@@ -234,6 +241,16 @@ def current_turn_index(turn_tracker):
         return None
     index = (turn_tracker.battle_round - 1) * 2 + turn_tracker.turn_index_in_round
     return min(index, missions.BATTLE_ROUNDS * 2 - 1)
+
+
+def current_round(turn_tracker):
+    """The battle round being played (1-based), or None before the battle.
+
+    Derived from current_turn_index() rather than read off battle_round, so it
+    inherits the one-past-the-end clamp: the gold label can never point at a
+    sixth round that is not on the track."""
+    playing = current_turn_index(turn_tracker)
+    return None if playing is None else playing // 2 + 1
 
 
 def title_text(turn_tracker):
@@ -309,6 +326,17 @@ def turn_segments(track, turn_count):
     return out
 
 
+def round_spans(track, turn_count):
+    """One rect per battle round: from its first turn segment's left edge to
+    its second's right edge, the TURN_GAP between them included.
+
+    Built off turn_segments() rather than laid out a second time, so a label
+    centred on a span is centred on exactly the cells that were drawn."""
+    segments = turn_segments(track, turn_count)
+    return [segments[i].union(segments[i + 1]) if i + 1 < len(segments) else segments[i]
+            for i in range(0, len(segments), 2)]
+
+
 def phase_cell(segment, phase_index, phase_count):
     """One phase inside a turn segment. Same running-float rounding as
     turn_segments(), for the same reason one level down."""
@@ -326,11 +354,8 @@ def draw_track(surface, track, turn_tracker):
     playing = current_turn_index(turn_tracker)
     phase_count = len(PHASES)
     phase_now = turn_tracker.phase_index if playing is not None else 0
-    font = _font(LABEL_FONT_SIZE)
-    labels = []
 
-    # The cells take the WHOLE track height - there is no label row under them
-    # any more; the label is drawn on top of its segment below.
+    # The cells take the WHOLE track height - there is no label row under them.
     for index, segment in enumerate(turn_segments(track, len(owners))):
         owner = owners[index]
         for phase_index in range(phase_count):
@@ -339,35 +364,42 @@ def draw_track(surface, track, turn_tracker):
                                                  playing, phase_now), cell)
             if index == playing and phase_index == phase_now:
                 pygame.draw.rect(surface, CURRENT_OUTLINE_COLOR, cell, 1)
-        if playing is not None:
-            drawn = _draw_owner_label(surface, segment, owner, font)
-            if drawn is not None:
-                labels.append(drawn)
+
+    # The labels AFTER every cell: a round's label spans two turn segments, so
+    # drawn inside the loop above its right half would be painted over by the
+    # round's second turn.
+    font = _font(LABEL_FONT_SIZE)
+    now = current_round(turn_tracker)
+    labels = []
+    rounds = round_spans(track, len(owners))
+    for number, span in enumerate(rounds, start=1):
+        drawn = _draw_round_label(surface, span, number,
+                                  round_label_color(number, now), font)
+        if drawn is not None:
+            labels.append(drawn)
     last_label_rects = labels
 
 
-#: A one-pixel ring, diagonals included: at 12 px a plain drop shadow leaves the
-#: glyphs' left and top edges touching a cell of their own colour.
+#: A one-pixel ring, diagonals included: at 9 px glyphs a plain drop shadow
+#: leaves the digit's left and top edges touching a cell of similar brightness.
 _OUTLINE_OFFSETS = ((-1, -1), (0, -1), (1, -1), (-1, 0),
                     (1, 0), (-1, 1), (0, 1), (1, 1))
 
 
-def _draw_owner_label(surface, segment, owner, font):
-    """Blit "P1"/"P2" centred on the segment's middle phase cell; return
-    (owner, text, rect), or None when the segment is too narrow for it.
+def _draw_round_label(surface, span, number, color, font):
+    """Blit the round number centred on its round's span; return
+    (number, text, rect), or None when the span is too narrow for it.
 
     Centred on the text SURFACE. Centring on the glyph extents from
-    font.metrics() was the first version, on the theory that the surface's
-    descender room would sit "P1" high - measured at sizes 12 to 20 it lands on
-    the same row every time, so it was code that bought nothing."""
-    text = owner_label(owner)
-    ink = font.render(text, True, label_color(owner))
-    middle = phase_cell(segment, len(PHASES) // 2, len(PHASES))
-    rect = ink.get_rect(center=middle.center)
-    if rect.width + 2 * (LABEL_MARGIN + 1) > segment.width:
+    font.metrics() was tried for the P1/P2 labels this replaced - measured at
+    sizes 12 to 20 it lands on the same row every time."""
+    text = str(number)
+    ink = font.render(text, True, color)
+    rect = ink.get_rect(center=span.center)
+    if rect.width + 2 * (LABEL_MARGIN + 1) > span.width:
         return None
     outline = font.render(text, True, LABEL_OUTLINE_COLOR)
     for dx, dy in _OUTLINE_OFFSETS:
         surface.blit(outline, rect.move(dx, dy))
     surface.blit(ink, rect)
-    return owner, text, rect
+    return number, text, rect
