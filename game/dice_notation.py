@@ -68,7 +68,7 @@ class DiceNotationRoll:
 
     def __init__(self, notation, count, dice_manager, label, roll_kind=None, log=None, is_reroll=False,
                  target_name=None, attacker_squad=None, target_squad=None,
-                 title=None, subtitle=None, shown_modifiers=()):
+                 title=None, subtitle=None, shown_modifiers=(), rolled_for=None):
         """`is_reroll` marks this as itself the re-roll of an earlier
         dice-notation roll (Crisis Sunforge Battlesuits' Sunforge ability
         re-rolling a Damage roll) - forwarded to DiceManager.roll() so its
@@ -95,6 +95,9 @@ class DiceNotationRoll:
                 is_reroll=is_reroll, target_name=target_name,
                 attacker_squad=attacker_squad, target_squad=target_squad,
                 title=title, subtitle=subtitle, shown_modifiers=shown_modifiers,
+                # A RULE field, unlike the two above - who Command Re-roll
+                # bills and targets (see DiceManager.rolled_for).
+                rolled_for=rolled_for,
             )
         else:
             rolls = [random.randint(1, notation.sides) for _ in range(count * notation.dice)]

@@ -149,7 +149,7 @@ def take(dice_manager, keyed_options):
     return False
 
 
-def ability_actions(command_reroll=None, activation_reroll=None, unmodified_six=None):
+def ability_actions(command_reroll=None, activation_reroll=None, unmodified_six=None, human_players=None):
     """(hint, [RollOption, ...]): what a Stratagem or an ability can still do
     to the roll on the table, as buttons on the dice panel - Command Re-roll
     (15.02), the free single-die re-roll of Targeting Array / Crystal Matrix
@@ -168,7 +168,17 @@ def ability_actions(command_reroll=None, activation_reroll=None, unmodified_six=
     `hint` names what the pick does; otherwise `hint` is None.
 
     ONE definition read by main.py's event branch and by its draw call, so the
-    button that is drawn and the button that is clicked cannot be two lists."""
+    button that is drawn and the button that is clicked cannot be two lists.
+
+    `human_players` (main.py's live view) keeps a button to the side it
+    belongs to: each of the three is spent from the account of the unit the
+    roll was made for, and without this check the dice panel drew them on the
+    AI's rolls too - a click then spent the AI's CP, token or use. None skips
+    the check (the suites that build their own stubs pass nothing)."""
+
+    def offered(owner_of):
+        return human_players is None or owner_of() in human_players
+
     for controller, hint in ((command_reroll, REROLL_PICK_HINT),
                              (activation_reroll, REROLL_PICK_HINT),
                              (unmodified_six, UNMODIFIED_SIX_PICK_HINT)):
@@ -176,20 +186,26 @@ def ability_actions(command_reroll=None, activation_reroll=None, unmodified_six=
             return hint, [RollOption(CANCEL, label="Cancel", acknowledges=False,
                                      apply=controller.cancel_selection, accent="danger")]
     actions = []
-    if command_reroll is not None and command_reroll.can_use():
+    # A LAMBDA, not the bound method: even looking the attribute up must wait
+    # until a human view was actually passed - the stub controllers of the
+    # suites that pass none have no roll_owner at all.
+    if command_reroll is not None and command_reroll.can_use() and offered(lambda: command_reroll.roll_owner()):
         actions.append(RollOption(COMMAND_REROLL, label="Command Re-roll (1 CP)", acknowledges=False,
                                   apply=command_reroll.start, accent="stratagem"))
     # The LABEL comes from the controller because two datasheet abilities share
     # this button - the gunships' Targeting Array and the Fire Prism's Crystal
     # Matrix - and the panel should not have to know which.
-    if activation_reroll is not None and activation_reroll.can_use():
+    if (activation_reroll is not None and activation_reroll.can_use()
+            and offered(lambda: activation_reroll.roll_owner())):
         actions.append(RollOption(ACTIVATION_REROLL, acknowledges=False, apply=activation_reroll.start,
                                   label=activation_reroll.panel_label() or "Targeting Array",))
     # One button per ability that could change a die of THIS roll; the
     # controller decides which those are, so a third such ability needs no
     # change here.
     if unmodified_six is not None:
-        for source, _squad, _model in unmodified_six.available_sources():
+        for source, squad, _model in unmodified_six.available_sources():
+            if not offered(lambda s=squad: getattr(s, "owner", None)):
+                continue
             actions.append(RollOption(UNMODIFIED_SIX, acknowledges=False,
                                       label=unmodified_six.label_for(source),
                                       apply=lambda s=source: unmodified_six.start(s)))

@@ -181,7 +181,7 @@ class ChargeController:
             # will ich auch ein sprite haben."
             self.dice_manager.roll(
                 count=2, sides=6, label="Charge Roll", target_name=squad.name,
-                roll_kind=CHARGE_ROLL, target_squad=squad, subject_label="Charging",
+                roll_kind=CHARGE_ROLL, target_squad=squad, rolled_for=squad, subject_label="Charging",
                 title="Charge Roll", shown_modifiers=self._shown_charge_modifiers(),
             )
             self._pending_roll = True
@@ -231,7 +231,7 @@ class ChargeController:
         if self.dice_manager is not None:
             self.dice_manager.roll(
                 count=2, sides=6, label="Charge Roll (Heroic Intervention)", target_name=squad.name,
-                roll_kind=CHARGE_ROLL, target_squad=squad, subject_label="Charging",
+                roll_kind=CHARGE_ROLL, target_squad=squad, rolled_for=squad, subject_label="Charging",
                 title="Charge Roll", subtitle="Heroic Intervention",
                 shown_modifiers=self._shown_charge_modifiers(),
             )

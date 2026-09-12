@@ -10,9 +10,9 @@
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 32.23209171921339,
-     "y_in": 26.69893932969453,
-     "wounds": 14,
+     "x_in": 34.15117973409265,
+     "y_in": 22.546879871277362,
+     "wounds": 4,
      "model": "Avatar of Khaine",
      "weapons": [
       "The Wailing Doom",
@@ -30,9 +30,9 @@
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 28.000487935176746,
-     "y_in": 5.828719973472834,
-     "wounds": 14,
+     "x_in": 16.2,
+     "y_in": 5.1,
+     "wounds": 13,
      "model": "Defiler",
      "weapons": [
       "Excruciator Cannon",
@@ -53,8 +53,8 @@
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 12.847417278761704,
-     "y_in": 20.291438833600967,
+     "x_in": 13.436064791025192,
+     "y_in": 15.370437334970404,
      "wounds": 3,
      "model": "Wraithguard",
      "weapons": [
@@ -63,8 +63,8 @@
      ]
     },
     {
-     "x_in": 9.953911829158187,
-     "y_in": 19.434103885570295,
+     "x_in": 10.542559341421676,
+     "y_in": 14.513102386939732,
      "wounds": 3,
      "model": "Wraithguard",
      "weapons": [
@@ -73,8 +73,8 @@
      ]
     },
     {
-     "x_in": 10.704079908685024,
-     "y_in": 17.719433989508953,
+     "x_in": 11.292727420948513,
+     "y_in": 12.79843249087839,
      "wounds": 3,
      "model": "Wraithguard",
      "weapons": [
@@ -83,8 +83,8 @@
      ]
     },
     {
-     "x_in": 11.025580514196527,
-     "y_in": 20.720106307616305,
+     "x_in": 11.614228026460015,
+     "y_in": 15.799104808985742,
      "wounds": 3,
      "model": "Wraithguard",
      "weapons": [
@@ -93,101 +93,13 @@
      ]
     },
     {
-     "x_in": 11.775748593723364,
-     "y_in": 19.00543641155496,
+     "x_in": 12.364396105986852,
+     "y_in": 14.084434912924397,
      "wounds": 3,
      "model": "Wraithguard",
      "weapons": [
       "Close Combat Weapon",
       "D-scythe"
-     ]
-    }
-   ]
-  },
-  {
-   "name": "2 Daemon Prince of Nurgle 1",
-   "owner": "Player 2",
-   "placement": "board",
-   "embarked_in": null,
-   "battle_shocked": false,
-   "models": [
-    {
-     "x_in": 28.870615810699057,
-     "y_in": 9.301367015750387,
-     "wounds": 10,
-     "model": "Daemon Prince of Nurgle",
-     "weapons": [
-      "Hellforged Weapons - strike",
-      "Infernal Cannon"
-     ]
-    }
-   ]
-  },
-  {
-   "name": "1 Howling Banshees 1 + Jain Zar",
-   "owner": "Player 1",
-   "placement": "board",
-   "embarked_in": null,
-   "battle_shocked": false,
-   "models": [
-    {
-     "x_in": 20.5249215484477,
-     "y_in": 38.209182243293185,
-     "wounds": 2,
-     "model": "Howling Banshee Exarch",
-     "weapons": [
-      "Executioner",
-      "Shuriken Pistol"
-     ]
-    },
-    {
-     "x_in": 19.27203967153212,
-     "y_in": 38.94386585036257,
-     "wounds": 1,
-     "model": "Howling Banshee",
-     "weapons": [
-      "Banshee Blade",
-      "Shuriken Pistol"
-     ]
-    },
-    {
-     "x_in": 18.737790183733598,
-     "y_in": 37.84483833260561,
-     "wounds": 1,
-     "model": "Howling Banshee",
-     "weapons": [
-      "Banshee Blade",
-      "Shuriken Pistol"
-     ]
-    },
-    {
-     "x_in": 19.806289159330642,
-     "y_in": 40.04289336811953,
-     "wounds": 1,
-     "model": "Howling Banshee",
-     "weapons": [
-      "Banshee Blade",
-      "Shuriken Pistol"
-     ]
-    },
-    {
-     "x_in": 19.990672060649178,
-     "y_in": 37.110154725536226,
-     "wounds": 1,
-     "model": "Howling Banshee",
-     "weapons": [
-      "Banshee Blade",
-      "Shuriken Pistol"
-     ]
-    },
-    {
-     "x_in": 21.157976587999467,
-     "y_in": 39.51146689608539,
-     "wounds": 5,
-     "model": "Jain Zar",
-     "weapons": [
-      "Blade of Destruction",
-      "Silent Death"
      ]
     }
    ]
@@ -200,9 +112,9 @@
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 38.0,
-     "y_in": 21.8,
-     "wounds": 11,
+     "x_in": 37.85704850391188,
+     "y_in": 21.82774034317553,
+     "wounds": 8,
      "model": "Plagueburst Crawler",
      "weapons": [
       "Armoured Tracks",
@@ -222,8 +134,8 @@
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 16.757897050783427,
-     "y_in": 33.72627308061263,
+     "x_in": 6.048637866411075,
+     "y_in": 39.38663171840911,
      "wounds": 2,
      "model": "Warp Spider Exarch",
      "weapons": [
@@ -232,8 +144,8 @@
      ]
     },
     {
-     "x_in": 17.20214596825103,
-     "y_in": 34.86466093162337,
+     "x_in": 5.838094978837252,
+     "y_in": 40.88474920764842,
      "wounds": 1,
      "model": "Warp Spider",
      "weapons": [
@@ -242,8 +154,8 @@
      ]
     },
     {
-     "x_in": 19.036399579611764,
-     "y_in": 35.5819075344108,
+     "x_in": 8.11161553327717,
+     "y_in": 38.56541812250352,
      "wounds": 1,
      "model": "Warp Spider",
      "weapons": [
@@ -252,8 +164,8 @@
      ]
     },
     {
-     "x_in": 18.14790174467655,
-     "y_in": 33.30513183238932,
+     "x_in": 8.956010542782762,
+     "y_in": 39.77654640036558,
      "wounds": 1,
      "model": "Warp Spider",
      "weapons": [
@@ -262,18 +174,8 @@
      ]
     },
     {
-     "x_in": 18.592150662144157,
-     "y_in": 34.44351968340006,
-     "wounds": 1,
-     "model": "Warp Spider",
-     "weapons": [
-      "Close Combat Weapon",
-      "Death Spinner"
-     ]
-    },
-    {
-     "x_in": 17.72855548747615,
-     "y_in": 36.213585324637734,
+     "x_in": 7.510384688786779,
+     "y_in": 40.14635882471524,
      "wounds": 5,
      "model": "Lhykhis",
      "weapons": [
@@ -292,8 +194,8 @@
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 31.731155200658108,
-     "y_in": 5.4003345072370275,
+     "x_in": 23.76494302931095,
+     "y_in": 6.134816393385615,
      "wounds": 10,
      "model": "Foetid Bloat-drone",
      "weapons": [
@@ -380,8 +282,8 @@
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 34.41339608359561,
-     "y_in": 2.624513215096869,
+     "x_in": 26.607731370300264,
+     "y_in": 4.377110825393055,
      "wounds": 10,
      "model": "Foetid Bloat-drone",
      "weapons": [
@@ -399,8 +301,8 @@
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 9.188887003620179,
-     "y_in": 12.913984561556543,
+     "x_in": 8.432054487852835,
+     "y_in": 9.04447910964191,
      "wounds": 2,
      "model": "Striking Scorpion Exarch",
      "weapons": [
@@ -409,8 +311,8 @@
      ]
     },
     {
-     "x_in": 8.148800112957968,
-     "y_in": 13.679550045282534,
+     "x_in": 7.391967597190623,
+     "y_in": 9.810044593367902,
      "wounds": 1,
      "model": "Striking Scorpion",
      "weapons": [
@@ -419,8 +321,8 @@
      ]
     },
     {
-     "x_in": 8.846640917536657,
-     "y_in": 14.6826962018644,
+     "x_in": 8.089808401769313,
+     "y_in": 10.813190749949769,
      "wounds": 1,
      "model": "Striking Scorpion",
      "weapons": [
@@ -429,8 +331,8 @@
      ]
     },
     {
-     "x_in": 8.192415163244135,
-     "y_in": 15.882110084734022,
+     "x_in": 7.4355826474767905,
+     "y_in": 12.01260463281939,
      "wounds": 1,
      "model": "Striking Scorpion",
      "weapons": [
@@ -439,8 +341,8 @@
      ]
     },
     {
-     "x_in": 9.886727808198868,
-     "y_in": 13.917130718138408,
+     "x_in": 9.129895292431524,
+     "y_in": 10.047625266223775,
      "wounds": 1,
      "model": "Striking Scorpion",
      "weapons": [
@@ -449,8 +351,8 @@
      ]
     },
     {
-     "x_in": 9.544481722115346,
-     "y_in": 15.685842358446266,
+     "x_in": 8.787649206348002,
+     "y_in": 11.816336906531633,
      "wounds": 1,
      "model": "Striking Scorpion",
      "weapons": [
@@ -459,8 +361,8 @@
      ]
     },
     {
-     "x_in": 6.796733554086757,
-     "y_in": 13.875817771570292,
+     "x_in": 6.039901038319412,
+     "y_in": 10.00631231965566,
      "wounds": 1,
      "model": "Striking Scorpion",
      "weapons": [
@@ -469,8 +371,8 @@
      ]
     },
     {
-     "x_in": 7.494574358665446,
-     "y_in": 14.878963928152157,
+     "x_in": 6.737741842898101,
+     "y_in": 11.009458476237524,
      "wounds": 1,
      "model": "Striking Scorpion",
      "weapons": [
@@ -479,8 +381,8 @@
      ]
     },
     {
-     "x_in": 7.450959308379279,
-     "y_in": 12.67640388870067,
+     "x_in": 6.694126792611934,
+     "y_in": 8.806898436786037,
      "wounds": 1,
      "model": "Striking Scorpion",
      "weapons": [
@@ -489,8 +391,8 @@
      ]
     },
     {
-     "x_in": 8.49104619904149,
-     "y_in": 11.910838404974678,
+     "x_in": 7.734213683274145,
+     "y_in": 8.041332953060046,
      "wounds": 1,
      "model": "Striking Scorpion",
      "weapons": [
@@ -499,8 +401,8 @@
      ]
     },
     {
-     "x_in": 10.62397206246326,
-     "y_in": 14.97691933364347,
+     "x_in": 9.867139546695915,
+     "y_in": 11.107413881728839,
      "wounds": 4,
      "model": "Autarch",
      "weapons": [
@@ -527,37 +429,6 @@
       "Gnashing Maw",
       "Missile Launcher - krak",
       "Multi-melta"
-     ]
-    }
-   ]
-  },
-  {
-   "name": "1 War Walkers 1",
-   "owner": "Player 1",
-   "placement": "board",
-   "embarked_in": null,
-   "battle_shocked": false,
-   "models": [
-    {
-     "x_in": 9.060353154778019,
-     "y_in": 9.890831442861979,
-     "wounds": 6,
-     "model": "War Walker",
-     "weapons": [
-      "Bright Lance",
-      "Bright Lance",
-      "War Walker Feet"
-     ]
-    },
-    {
-     "x_in": 7.509136797683203,
-     "y_in": 7.769883765654377,
-     "wounds": 6,
-     "model": "War Walker",
-     "weapons": [
-      "Bright Lance",
-      "Bright Lance",
-      "War Walker Feet"
      ]
     }
    ]
@@ -591,8 +462,8 @@
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 12.87635077713384,
-     "y_in": 27.942439747579716,
+     "x_in": 17.0809758647302,
+     "y_in": 19.782830425064088,
      "wounds": 2,
      "model": "Heavy Weapon Platform",
      "weapons": [
@@ -601,8 +472,8 @@
      ]
     },
     {
-     "x_in": 10.954093170446502,
-     "y_in": 27.681076602640225,
+     "x_in": 15.158718258042859,
+     "y_in": 19.521467280124597,
      "wounds": 1,
      "model": "Guardian Defender",
      "weapons": [
@@ -611,8 +482,8 @@
      ]
     },
     {
-     "x_in": 9.940729595930106,
-     "y_in": 28.363995533292577,
+     "x_in": 16.079482223820786,
+     "y_in": 23.527113718399292,
      "wounds": 1,
      "model": "Guardian Defender",
      "weapons": [
@@ -621,8 +492,8 @@
      ]
     },
     {
-     "x_in": 9.257810665277752,
-     "y_in": 27.350631958776184,
+     "x_in": 17.41478333521468,
+     "y_in": 24.112024134891115,
      "wounds": 1,
      "model": "Guardian Defender",
      "weapons": [
@@ -631,8 +502,8 @@
      ]
     },
     {
-     "x_in": 10.623648526582459,
-     "y_in": 29.377359107808974,
+     "x_in": 14.828273614178816,
+     "y_in": 21.217749785293346,
      "wounds": 1,
      "model": "Guardian Defender",
      "weapons": [
@@ -641,8 +512,8 @@
      ]
     },
     {
-     "x_in": 9.588255309141795,
-     "y_in": 25.654349453607434,
+     "x_in": 13.792880396738152,
+     "y_in": 17.494740131091806,
      "wounds": 1,
      "model": "Guardian Defender",
      "weapons": [
@@ -651,8 +522,8 @@
      ]
     },
     {
-     "x_in": 11.306567457234813,
-     "y_in": 30.390722682325368,
+     "x_in": 15.51119254483117,
+     "y_in": 22.23111335980974,
      "wounds": 1,
      "model": "Guardian Defender",
      "weapons": [
@@ -661,8 +532,8 @@
      ]
     },
     {
-     "x_in": 12.319931031751208,
-     "y_in": 29.707803751673016,
+     "x_in": 16.524556119347565,
+     "y_in": 21.548194429157387,
      "wounds": 1,
      "model": "Guardian Defender",
      "weapons": [
@@ -671,8 +542,8 @@
      ]
     },
     {
-     "x_in": 13.00284996240356,
-     "y_in": 30.721167326189413,
+     "x_in": 17.207475049999918,
+     "y_in": 22.561558003673785,
      "wounds": 1,
      "model": "Guardian Defender",
      "weapons": [
@@ -681,8 +552,8 @@
      ]
     },
     {
-     "x_in": 10.271174239794147,
-     "y_in": 26.66771302812383,
+     "x_in": 14.475799327390504,
+     "y_in": 18.508103705608203,
      "wounds": 1,
      "model": "Guardian Defender",
      "weapons": [
@@ -691,8 +562,8 @@
      ]
     },
     {
-     "x_in": 11.637012101098854,
-     "y_in": 28.694440177156622,
+     "x_in": 15.841637188695211,
+     "y_in": 20.534830854640994,
      "wounds": 1,
      "model": "Guardian Defender",
      "weapons": [
@@ -701,8 +572,8 @@
      ]
     },
     {
-     "x_in": 12.028570075170158,
-     "y_in": 26.684442576923928,
+     "x_in": 16.233195162766513,
+     "y_in": 18.5248332544083,
      "wounds": 4,
      "model": "Farseer",
      "weapons": [
@@ -713,8 +584,8 @@
      ]
     },
     {
-     "x_in": 10.508488658333498,
-     "y_in": 24.42883789387598,
+     "x_in": 14.713113745929855,
+     "y_in": 16.26922857136035,
      "wounds": 2,
      "model": "Warlock",
      "weapons": [
@@ -725,8 +596,8 @@
      ]
     },
     {
-     "x_in": 13.724131479097522,
-     "y_in": 29.200436918235503,
+     "x_in": 17.928756566693878,
+     "y_in": 21.040827595719875,
      "wounds": 2,
      "model": "Warlock",
      "weapons": [
@@ -737,8 +608,8 @@
      ]
     },
     {
-     "x_in": 11.268529366751828,
-     "y_in": 25.556640235399954,
+     "x_in": 15.473154454348185,
+     "y_in": 17.397030912884325,
      "wounds": 2,
      "model": "Warlock",
      "weapons": [
@@ -749,8 +620,8 @@
      ]
     },
     {
-     "x_in": 14.484172187515853,
-     "y_in": 30.328239259759478,
+     "x_in": 18.688797275112208,
+     "y_in": 22.16862993724385,
      "wounds": 2,
      "model": "Warlock",
      "weapons": [
@@ -770,8 +641,8 @@
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 33.529286195352455,
-     "y_in": 8.15618914844039,
+     "x_in": 25.729286195352454,
+     "y_in": 8.45618914844039,
      "wounds": 4,
      "model": "Chaos Spawn",
      "weapons": [
@@ -779,8 +650,8 @@
      ]
     },
     {
-     "x_in": 35.470713804647545,
-     "y_in": 7.4438108515596095,
+     "x_in": 29.150633717525455,
+     "y_in": 7.061590740473109,
      "wounds": 4,
      "model": "Chaos Spawn",
      "weapons": [
@@ -797,8 +668,8 @@
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 5.777027027027026,
-     "y_in": 24.405405405405403,
+     "x_in": 6.197489535786662,
+     "y_in": 15.572838612991578,
      "wounds": 12,
      "model": "Falcon",
      "weapons": [
@@ -811,24 +682,6 @@
    ]
   },
   {
-   "name": "2 Chaos Spawn 2",
-   "owner": "Player 2",
-   "placement": "board",
-   "embarked_in": null,
-   "battle_shocked": false,
-   "models": [
-    {
-     "x_in": 41.70439133980492,
-     "y_in": 28.610990337096062,
-     "wounds": 3,
-     "model": "Chaos Spawn",
-     "weapons": [
-      "Hideous Mutations"
-     ]
-    }
-   ]
-  },
-  {
    "name": "2 Plague Marines 1 + Malignant Plaguecaster",
    "owner": "Player 2",
    "placement": "board",
@@ -836,8 +689,8 @@
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 43.56866788593639,
-     "y_in": 12.192117407053262,
+     "x_in": 39.67289894879654,
+     "y_in": 14.93988274876882,
      "wounds": 2,
      "model": "Plague Champion",
      "weapons": [
@@ -846,8 +699,8 @@
      ]
     },
     {
-     "x_in": 43.31206046153304,
-     "y_in": 13.670005301902217,
+     "x_in": 39.41629152439319,
+     "y_in": 16.417770643617775,
      "wounds": 2,
      "model": "Plague Marine",
      "weapons": [
@@ -856,8 +709,8 @@
      ]
     },
     {
-     "x_in": 42.41708313725337,
-     "y_in": 11.230944911295783,
+     "x_in": 38.52131420011352,
+     "y_in": 13.978710253011341,
      "wounds": 2,
      "model": "Plague Marine",
      "weapons": [
@@ -866,8 +719,8 @@
      ]
     },
     {
-     "x_in": 47.14551482248711,
-     "y_in": 13.376734341482234,
+     "x_in": 43.24974588534726,
+     "y_in": 16.12449968319779,
      "wounds": 2,
      "model": "Plague Marine",
      "weapons": [
@@ -876,8 +729,8 @@
      ]
     },
     {
-     "x_in": 45.116251502547925,
-     "y_in": 13.222047654951451,
+     "x_in": 41.220482565408076,
+     "y_in": 15.96981299666701,
      "wounds": 2,
      "model": "Plague Marine",
      "weapons": [
@@ -886,8 +739,8 @@
      ]
     },
     {
-     "x_in": 43.9150491920637,
-     "y_in": 10.125175864687062,
+     "x_in": 40.01928025492385,
+     "y_in": 12.87294120640262,
      "wounds": 2,
      "model": "Plague Marine",
      "weapons": [
@@ -896,8 +749,8 @@
      ]
     },
     {
-     "x_in": 42.67369056165673,
-     "y_in": 9.753057016446828,
+     "x_in": 38.77792162451688,
+     "y_in": 12.500822358162386,
      "wounds": 2,
      "model": "Plague Marine",
      "weapons": [
@@ -906,8 +759,8 @@
      ]
     },
     {
-     "x_in": 47.83022502150177,
-     "y_in": 10.113115364383946,
+     "x_in": 43.93445608436192,
+     "y_in": 12.860880706099504,
      "wounds": 2,
      "model": "Plague Marine",
      "weapons": [
@@ -916,8 +769,8 @@
      ]
     },
     {
-     "x_in": 46.81434214133266,
-     "y_in": 10.87526897596199,
+     "x_in": 42.91857320419281,
+     "y_in": 13.623034317677549,
      "wounds": 2,
      "model": "Plague Marine",
      "weapons": [
@@ -926,8 +779,8 @@
      ]
     },
     {
-     "x_in": 45.6000978693757,
-     "y_in": 9.807281596819355,
+     "x_in": 41.70432893223585,
+     "y_in": 12.555046938534913,
      "wounds": 2,
      "model": "Plague Marine",
      "weapons": [
@@ -936,8 +789,8 @@
      ]
     },
     {
-     "x_in": 42.160475712850015,
-     "y_in": 12.708832806144738,
+     "x_in": 38.26470677571017,
+     "y_in": 15.456598147860296,
      "wounds": 4,
      "model": "Malignant Plaguecaster",
      "weapons": [
@@ -951,44 +804,14 @@
   {
    "name": "2 Deathshroud Terminators 1 + Typhus",
    "owner": "Player 2",
-   "placement": "reserves",
+   "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 0.0,
-     "y_in": 0.0,
-     "wounds": 4,
-     "model": "Deathshroud Champion",
-     "weapons": [
-      "Manreaper - strike",
-      "Plaguespurt Gauntlet"
-     ]
-    },
-    {
-     "x_in": 0.0,
-     "y_in": 0.0,
-     "wounds": 4,
-     "model": "Deathshroud Terminator",
-     "weapons": [
-      "Manreaper - strike",
-      "Plaguespurt Gauntlet"
-     ]
-    },
-    {
-     "x_in": 0.0,
-     "y_in": 0.0,
-     "wounds": 4,
-     "model": "Deathshroud Terminator",
-     "weapons": [
-      "Manreaper - strike",
-      "Plaguespurt Gauntlet"
-     ]
-    },
-    {
-     "x_in": 0.0,
-     "y_in": 0.0,
-     "wounds": 6,
+     "x_in": 9.174968176753476,
+     "y_in": 41.406909106798096,
+     "wounds": 5,
      "model": "Typhus",
      "weapons": [
       "Lakrimae - strike"
@@ -999,13 +822,13 @@
   {
    "name": "2 Deathshroud Terminators 2",
    "owner": "Player 2",
-   "placement": "reserves",
+   "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 0.0,
-     "y_in": 0.0,
+     "x_in": 33.0,
+     "y_in": 38.1,
      "wounds": 4,
      "model": "Deathshroud Champion",
      "weapons": [
@@ -1014,8 +837,8 @@
      ]
     },
     {
-     "x_in": 0.0,
-     "y_in": 0.0,
+     "x_in": 34.672727959142385,
+     "y_in": 38.03475297168958,
      "wounds": 4,
      "model": "Deathshroud Terminator",
      "weapons": [
@@ -1024,8 +847,8 @@
      ]
     },
     {
-     "x_in": 0.0,
-     "y_in": 0.0,
+     "x_in": 33.89286956360946,
+     "y_in": 39.5160013920826,
      "wounds": 4,
      "model": "Deathshroud Terminator",
      "weapons": [
@@ -1038,13 +861,13 @@
   {
    "name": "1 Dire Avengers 1 + Asurmen",
    "owner": "Player 1",
-   "placement": "embarked",
-   "embarked_in": "1 Falcon 1",
+   "placement": "board",
+   "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 0.0,
-     "y_in": 0.0,
+     "x_in": 8.469935455997675,
+     "y_in": 20.534277416464086,
      "wounds": 2,
      "model": "Dire Avenger Exarch",
      "weapons": [
@@ -1054,8 +877,8 @@
      ]
     },
     {
-     "x_in": 0.0,
-     "y_in": 0.0,
+     "x_in": 4.630782363676488,
+     "y_in": 20.24295006775672,
      "wounds": 1,
      "model": "Dire Avenger",
      "weapons": [
@@ -1064,8 +887,8 @@
      ]
     },
     {
-     "x_in": 0.0,
-     "y_in": 0.0,
+     "x_in": 5.98872296867189,
+     "y_in": 19.95516166746534,
      "wounds": 1,
      "model": "Dire Avenger",
      "weapons": [
@@ -1074,8 +897,8 @@
      ]
     },
     {
-     "x_in": 0.0,
-     "y_in": 0.0,
+     "x_in": 7.304779305236163,
+     "y_in": 19.804936070533973,
      "wounds": 1,
      "model": "Dire Avenger",
      "weapons": [
@@ -1084,8 +907,8 @@
      ]
     },
     {
-     "x_in": 0.0,
-     "y_in": 0.0,
+     "x_in": 7.099209778674075,
+     "y_in": 21.4908135941428,
      "wounds": 1,
      "model": "Dire Avenger",
      "weapons": [
@@ -1094,8 +917,8 @@
      ]
     },
     {
-     "x_in": 0.0,
-     "y_in": 0.0,
+     "x_in": 9.295310368991238,
+     "y_in": 21.659572831320066,
      "wounds": 5,
      "model": "Asurmen",
      "weapons": [
@@ -1111,34 +934,32 @@
   "Player 2": "death_guard"
  },
  "turn": {
-  "battle_round": 2,
+  "battle_round": 3,
   "phase": "Command",
   "turn_owner": "Player 2",
   "active_player": "Player 2"
  },
  "command_points": {
   "Player 1": 1,
-  "Player 2": 2
+  "Player 2": 1
  },
  "missions": {
   "ledger": {
    "primary_points": {
-    "Player 1": 2,
-    "Player 2": 12
+    "Player 1": 6,
+    "Player 2": 24
    },
    "secondary_points": {
-    "Player 1": 4,
-    "Player 2": 0
+    "Player 1": 9,
+    "Player 2": 3
    },
    "unscored_kills": {
     "Player 1": 0,
-    "Player 2": 0
+    "Player 2": 1
    }
   },
   "secondary": {
    "deck": [
-    "forward_position",
-    "beacon",
     "defend_stronghold",
     "secure_no_mans_land",
     "display_of_might",
@@ -1154,83 +975,114 @@
     "cleanse"
    ],
    "hand": [
-    "assassination"
+    "forward_position",
+    "beacon"
    ],
    "discarded": [
-    "no_prisoners"
+    "no_prisoners",
+    "assassination"
    ],
-   "drawn_round": 1,
-   "scored_round": 2,
-   "scored_vp_this_round": 4,
-   "destroyed_characters": [],
-   "picks": {}
+   "drawn_round": 2,
+   "scored_round": 3,
+   "scored_vp_this_round": 5,
+   "destroyed_characters": [
+    "Daemon Prince of Nurgle"
+   ],
+   "picks": {
+    "beacon": "1 Windriders 1"
+   }
   },
   "primary": {
-   "points": 2,
+   "points": 6,
    "battle_scored": false,
    "announced": true,
    "trapped": []
   }
  },
  "activation": {
+  "squads": {
+   "1 Dire Avengers 1 + Asurmen": {
+    "disembarked_from": "1 Falcon 1"
+   }
+  },
   "controllers": {
    "movement": {
     "moved_squad_ids": [
      "1 Avatar of Khaine 1",
+     "1 Falcon 1",
      "1 Guardian Defenders 1 + Farseer + Warlock Conclave",
+     "1 Howling Banshees 1 + Jain Zar",
      "1 Striking Scorpions 1 + Autarch",
-     "1 War Walkers 1",
      "1 Warp Spiders 1 + Lhykhis",
-     "1 Windriders 1",
      "1 Wraithguard 1"
     ],
     "moved_distance_this_turn": {
-     "1 War Walkers 1": 5.670832139060344,
-     "1 Windriders 1": 2.9966847063440154,
-     "1 Avatar of Khaine 1": 2.8886071362836496,
-     "1 Striking Scorpions 1 + Autarch": 6.222507926467492,
-     "1 Wraithguard 1": 2.6033597918286566,
-     "1 Guardian Defenders 1 + Farseer + Warlock Conclave": 0.9221964753939269,
-     "1 Warp Spiders 1 + Lhykhis": 2.2030330227987265
+     "1 Guardian Defenders 1 + Farseer + Warlock Conclave": 9.179220905029393,
+     "1 Striking Scorpions 1 + Autarch": 3.9428248628768423,
+     "1 Wraithguard 1": 4.956083296638409,
+     "1 Falcon 1": 8.842568906359956,
+     "1 Howling Banshees 1 + Jain Zar": 6.792928135536302,
+     "1 Warp Spiders 1 + Lhykhis": 7.677078705414695,
+     "1 Avatar of Khaine 1": 2.1279740553150077
     }
    },
    "shooting": {
     "shot_squad_ids": [
      "1 Avatar of Khaine 1",
      "1 Guardian Defenders 1 + Farseer + Warlock Conclave",
-     "1 War Walkers 1",
+     "1 Howling Banshees 1 + Jain Zar",
+     "1 Striking Scorpions 1 + Autarch",
      "1 Warp Spiders 1 + Lhykhis",
-     "1 Windriders 1"
+     "1 Windriders 1",
+     "1 Wraithguard 1"
     ],
     "last_ranged_attack_turn": {
-     "2 Daemon Prince of Nurgle 1": 1,
-     "2 Myphitic Blight-hauler 1": 1,
+     "2 Daemon Prince of Nurgle 1": 2,
+     "2 Myphitic Blight-hauler 1": 2,
      "1 War Walkers 1": 1,
-     "1 Windriders 1": 1,
-     "1 Warp Spiders 1 + Lhykhis": 1,
-     "1 Guardian Defenders 1 + Farseer + Warlock Conclave": 1,
-     "1 Avatar of Khaine 1": 1
+     "1 Windriders 1": 2,
+     "1 Warp Spiders 1 + Lhykhis": 2,
+     "1 Guardian Defenders 1 + Farseer + Warlock Conclave": 2,
+     "1 Avatar of Khaine 1": 2,
+     "2 Deathshroud Terminators 1 + Typhus": 2,
+     "2 Deathshroud Terminators 2": 2,
+     "2 Defiler 1": 2,
+     "2 Plague Marines 1 + Malignant Plaguecaster": 2,
+     "2 Plagueburst Crawler 1": 2,
+     "1 Howling Banshees 1 + Jain Zar": 2,
+     "1 Wraithguard 1": 2,
+     "1 Striking Scorpions 1 + Autarch": 2
     }
    },
    "charge": {
     "charged_squad_ids": [
-     "1 Avatar of Khaine 1"
+     "1 Avatar of Khaine 1",
+     "1 Howling Banshees 1 + Jain Zar",
+     "1 Warp Spiders 1 + Lhykhis"
     ]
    },
    "fight": {
     "fought_squad_ids": [
-     "1 Avatar of Khaine 1"
+     "1 Avatar of Khaine 1",
+     "1 Howling Banshees 1 + Jain Zar",
+     "1 Warp Spiders 1 + Lhykhis",
+     "2 Deathshroud Terminators 1 + Typhus",
+     "2 Plagueburst Crawler 1"
     ]
    },
    "pile_in": {
     "piled_in_squad_ids": [
      "1 Avatar of Khaine 1",
-     "2 Poxwalkers 1"
+     "1 Howling Banshees 1 + Jain Zar",
+     "1 Warp Spiders 1 + Lhykhis",
+     "2 Deathshroud Terminators 1 + Typhus",
+     "2 Plagueburst Crawler 1"
     ]
    },
    "consolidate": {
     "consolidated_squad_ids": [
-     "1 Avatar of Khaine 1"
+     "2 Deathshroud Terminators 1 + Typhus",
+     "2 Plagueburst Crawler 1"
     ]
    }
   }
@@ -1239,99 +1091,127 @@
   "units": {
    "1 Avatar of Khaine 1": {
     "owner": "Player 1",
-    "wounds_dealt": 4,
-    "points_dealt": 29.5,
-    "prevented": 6.0,
-    "distance_in": 17.842
+    "wounds_dealt": 10,
+    "points_dealt": 102.0,
+    "prevented": 81.0,
+    "distance_in": 22.081
+   },
+   "1 Falcon 1": {
+    "owner": "Player 1",
+    "wounds_dealt": 0,
+    "points_dealt": 0.0,
+    "prevented": 0.0,
+    "distance_in": 8.843
    },
    "1 Guardian Defenders 1 + Farseer + Warlock Conclave": {
     "owner": "Player 1",
-    "wounds_dealt": 3,
-    "points_dealt": 30.0,
+    "wounds_dealt": 14,
+    "points_dealt": 244.5,
     "prevented": 0.0,
-    "distance_in": 0.922
+    "distance_in": 10.101
+   },
+   "1 Howling Banshees 1 + Jain Zar": {
+    "owner": "Player 1",
+    "wounds_dealt": 4,
+    "points_dealt": 57.778,
+    "prevented": 13.0,
+    "distance_in": 10.366
    },
    "1 Striking Scorpions 1 + Autarch": {
     "owner": "Player 1",
     "wounds_dealt": 0,
     "points_dealt": 0.0,
     "prevented": 0.0,
-    "distance_in": 6.223
+    "distance_in": 10.165
    },
    "1 War Walkers 1": {
     "owner": "Player 1",
     "wounds_dealt": 4,
     "points_dealt": 70.0,
-    "prevented": 0.0,
+    "prevented": 50.0,
     "distance_in": 5.671
    },
    "1 Warp Spiders 1 + Lhykhis": {
     "owner": "Player 1",
-    "wounds_dealt": 8,
-    "points_dealt": 52.0,
-    "prevented": 0.0,
-    "distance_in": 4.405
+    "wounds_dealt": 14,
+    "points_dealt": 138.667,
+    "prevented": 4.0,
+    "distance_in": 18.001
    },
    "1 Windriders 1": {
     "owner": "Player 1",
-    "wounds_dealt": 10,
-    "points_dealt": 65.0,
+    "wounds_dealt": 13,
+    "points_dealt": 108.333,
     "prevented": 6.0,
     "distance_in": 2.997
    },
    "1 Wraithguard 1": {
     "owner": "Player 1",
-    "wounds_dealt": 0,
-    "points_dealt": 0.0,
+    "wounds_dealt": 1,
+    "points_dealt": 17.5,
     "prevented": 0.0,
-    "distance_in": 2.603
+    "distance_in": 7.559
    },
    "2 Chaos Spawn 1": {
     "owner": "Player 2",
     "wounds_dealt": 0,
     "points_dealt": 0.0,
     "prevented": 0.0,
-    "distance_in": 9.468
+    "distance_in": 17.274
    },
    "2 Chaos Spawn 2": {
     "owner": "Player 2",
     "wounds_dealt": 0,
     "points_dealt": 0.0,
-    "prevented": 7.0,
-    "distance_in": 14.0
+    "prevented": 47.0,
+    "distance_in": 24.016
    },
    "2 Daemon Prince of Nurgle 1": {
     "owner": "Player 2",
-    "wounds_dealt": 0,
-    "points_dealt": 0.0,
+    "wounds_dealt": 2,
+    "points_dealt": 43.636,
+    "prevented": 13.0,
+    "distance_in": 15.802
+   },
+   "2 Deathshroud Terminators 1 + Typhus": {
+    "owner": "Player 2",
+    "wounds_dealt": 9,
+    "points_dealt": 155.455,
+    "prevented": 104.0,
+    "distance_in": 3.394
+   },
+   "2 Deathshroud Terminators 2": {
+    "owner": "Player 2",
+    "wounds_dealt": 5,
+    "points_dealt": 86.364,
     "prevented": 0.0,
-    "distance_in": 8.0
+    "distance_in": 0.0
    },
    "2 Defiler 1": {
     "owner": "Player 2",
-    "wounds_dealt": 0,
-    "points_dealt": 0.0,
-    "prevented": 24.0,
-    "distance_in": 9.244
+    "wounds_dealt": 13,
+    "points_dealt": 173.333,
+    "prevented": 41.0,
+    "distance_in": 21.067
    },
    "2 Foetid Bloat-drone 1": {
     "owner": "Player 2",
     "wounds_dealt": 0,
     "points_dealt": 0.0,
     "prevented": 0.0,
-    "distance_in": 7.692
+    "distance_in": 15.692
    },
    "2 Foetid Bloat-drone 2": {
     "owner": "Player 2",
     "wounds_dealt": 0,
     "points_dealt": 0.0,
     "prevented": 0.0,
-    "distance_in": 2.279
+    "distance_in": 10.279
    },
    "2 Myphitic Blight-hauler 1": {
     "owner": "Player 2",
-    "wounds_dealt": 0,
-    "points_dealt": 0.0,
+    "wounds_dealt": 5,
+    "points_dealt": 89.286,
     "prevented": 0.0,
     "distance_in": 10.0
    },
@@ -1347,14 +1227,14 @@
     "wounds_dealt": 0,
     "points_dealt": 0.0,
     "prevented": 0.0,
-    "distance_in": 5.0
+    "distance_in": 9.767
    },
    "2 Plagueburst Crawler 1": {
     "owner": "Player 2",
-    "wounds_dealt": 0,
-    "points_dealt": 0.0,
-    "prevented": 0.0,
-    "distance_in": 9.821
+    "wounds_dealt": 3,
+    "points_dealt": 53.571,
+    "prevented": 48.0,
+    "distance_in": 9.967
    },
    "2 Poxwalkers 1": {
     "owner": "Player 2",
@@ -1371,6 +1251,6 @@
     "distance_in": 4.9
    }
   },
-  "unattributed_wounds": 3
+  "unattributed_wounds": 6
  }
 }

@@ -726,7 +726,7 @@ class MovementController:
             return
 
         values = self.dice_manager.roll(
-            count=1, sides=6, label="Advance", roll_kind=ADVANCE_ROLL,
+            count=1, sides=6, label="Advance", roll_kind=ADVANCE_ROLL, rolled_for=self.selected_squad,
             title="Advance Roll", subtitle=self.selected_squad.name,
             shown_modifiers=tuple(
                 (amount, label) for label, amount in

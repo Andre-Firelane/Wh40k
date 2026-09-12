@@ -208,6 +208,10 @@ class DeadlyDemiseController:
             self._pending_x_roll = DiceNotationRoll(
                 notation, count=1, dice_manager=self.dice_manager,
                 label=f"Deadly Demise: {dead_model.profile.name} vs {squad.name}",
+                # Made for the DETONATING unit - its ability, its roll - not
+                # for the unit it lands on, which only allocates the result.
+                # So a Command Re-roll on it is its owner's to buy.
+                rolled_for=dead_model.squad,
                 roll_kind=DAMAGE_ROLL, log=self._log,
             )
             return

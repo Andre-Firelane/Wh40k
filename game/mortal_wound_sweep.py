@@ -99,6 +99,10 @@ class MortalWoundSweepController(MortalWoundOfferController):
         self._wound_roll = None   # DiceNotationRoll for the unit at the head
         self._wound_squad = None
         self._bearer_queue = []   # bearer squads still owed a whole sweep
+        # The bearer whose sweep is paying out. _pending is released once the
+        # gate resolves, but each struck unit's wound roll is still made FOR
+        # the bearer - which is who Command Re-roll bills (DiceManager.rolled_for).
+        self._sweep_bearer = None
 
     # ------------------------------------------------------------ the knobs
     def wounds_for(self, roll):
@@ -216,6 +220,7 @@ class MortalWoundSweepController(MortalWoundOfferController):
                          describe(notation)))
             struck.append((target, notation))
         self._queue = struck
+        self._sweep_bearer = ctx["squad"]
         if not struck:
             return self._start_next_bearer() or True
         self._begin_next()
@@ -239,7 +244,7 @@ class MortalWoundSweepController(MortalWoundOfferController):
             self._wound_roll = DiceNotationRoll(
                 notation, count=1, dice_manager=self.dice_manager,
                 label="%s - mortal wounds (%s)" % (self.label, target.name),
-                roll_kind=DAMAGE_ROLL, log=self._log,
+                roll_kind=DAMAGE_ROLL, log=self._log, rolled_for=self._sweep_bearer,
             )
             return
         self._stage = None

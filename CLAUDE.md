@@ -13437,6 +13437,41 @@ Tatsache samt Grund.
 geprüft, nicht gegen die Fraktionszugehörigkeit — `test_aeldari_detachment_stratagems.py`s
 Abschnitt 6z tut das jetzt für JEDES gebaute Aeldari-Datenblatt und würde ein siebtes sofort nennen.
 
+## GRENADES fehlte auf 18 Profilklassen — Explosives unerreichbar (2026-09-12)
+
+**Gemeldet:** *"warum kann ich mit meinem autarch+ scorpions keine explosives einsetzen?"*, dann
+*"kann es sein, dass es daran liegt, dass ich 0 cp habe? aber der autarch reduziert es auf 0."*
+
+- **Ursache ist eine TRANSKRIPTIONSLÜCKE, dieselbe Klasse wie CHARACTER und EPIC HERO.** Das
+  Autarch-Datenblatt druckt `GRENADES`, `AutarchProfile` setzte das Flag nie. Striking Scorpions
+  drucken es nicht — also hatte 19.03s Keyword-Pooling nichts zu poolen, `_qualifying_models()` war
+  leer, und Explosives wurde **nie** angeboten, mit oder ohne CP.
+- **Gemessen über alle 161 Datenblätter gegen die GEDRUCKTE Leiste** (`rules_text.keywords_for()`):
+  15 druckten GRENADES ohne ein einziges Flag (14 Aeldari — Asurmen, beide Autarchs, Baharroth,
+  Fuegan, alle drei Corsair-Trupps, Dire Avengers, Fire Dragons, Guardian Defenders, Storm Guardians,
+  Swooping Hawks, Starfangs — plus Plague Marines), eins nur teilweise (die zwei Kroot Hounds in
+  Kroot Farstalkers, 10 von 12). Die ganze Aeldari-Fraktion hatte außer den Starfangs' eigener
+  Fähigkeit **null** `grenades`-Flags.
+- **Das Flag sitzt auf den BLATT-Klassen, nie auf einer geteilten Basis:** `CorsairProfile` trägt
+  auch Kharseth und Prince Yriel (ohne GRENADES), `KrootHoundProfile` die eigenständigen Kroot Hounds
+  (ohne). Exarchen, Felarchs, Specialists und der Plague Champion erben. Die Plattformen der
+  Guardians bekommen es mit, weil die Leiste unit-weit ohne Pro-Modell-Aufteilung gedruckt ist.
+- **Einzige Leser** sind `explosives.py` und `enh_internal_grenade_racks.py` — die Änderung wirkt
+  also nur auf 15.05. **Folge für die KI:** `_handle_explosives_for_squad()` bietet ihr Explosives
+  jetzt auch für diese Einheiten an (regelkonform, über `declined_explosives` einmal je Phase).
+- **Die CP-Frage war ein ZWEITER, legitimer Grund, nicht die Ursache.** Path of Command rechnet
+  korrekt mit (`_cost_for()` faltet `cost_discounts` vor dem Leistbarkeits-Test, 0 CP reichen) —
+  aber einmal pro Schlachtrunde PRO ARMEE. Im Log (`game_20260912_225758.log:686`) war er in Runde 2
+  schon für Blitzing Firepower auf dieselbe Einheit ausgegeben, und in dieser Phase blockierten
+  zusätzlich 15.01 (die Einheit war schon Stratagem-Ziel) und "eligible to shoot".
+- **Getestet:** `test_explosives.py` 30 → **42/42** — §10 der Sweep über alle Fraktionen in BEIDE
+  Richtungen mit Liveness, §11 die gemeldete Einheit durch `attached_units.attach()` (nur das
+  Autarch-Modell wirft; 0 CP ohne Rabatt abgelehnt mit Grund; mit unverbrauchtem Path of Command
+  angeboten; nach Verbrauch abgelehnt; nächste Runde wieder frei). Neu `ab_explosives_grenades.py`
+  (**3 A/B-Sonden, alle beißend** — Autarch-Flag weg, alle 18 weg, Leck auf die geteilte
+  Kroot-Hound-Basis). Volle Regression **228 Suiten, ~20938 Prüfungen, 226 grün / 1 rot / 1 bekannt** —
+  der eine rote ist `test_ere_we_go.py`, die dokumentierte Parallel-Runner-Flake, einzeln 3 von 3 grün.
+
 ## Cleanse bot einen Knopf an, der nicht auszahlen konnte (2026-09-10)
 
 **Gemeldet:** *"Actions wie plunder werden angeboten, obwohl Einheit gar nicht auf einem objective

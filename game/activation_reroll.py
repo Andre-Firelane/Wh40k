@@ -171,6 +171,12 @@ class ActivationRerollController:
         ability = ability_of(self._active_squad())
         return ability.label if ability is not None else ""
 
+    def roll_owner(self):
+        """Whose ability this is - the owner of the unit making the attack.
+        The dice panel asks, so one player's free re-roll is never offered to
+        the other player (see roll_choice.ability_actions())."""
+        return getattr(self._active_squad(), "owner", None)
+
     def can_use(self):
         if self.dice_manager is None or not self.dice_manager.is_pending:
             return False

@@ -418,6 +418,12 @@ class DamageAllocationSession:
             damage_roll = DiceNotationRoll(
                 self.weapon.damage_notation, count=1, dice_manager=self.dice_manager,
                 label=f"Damage: {self.weapon.name}", roll_kind=DAMAGE_ROLL, log=self.log,
+                # The ATTACKER's roll, even though the defender is the active
+                # player by now (the save step handed it over) - so Command
+                # Re-roll bills and targets the attacking unit. Reading
+                # active_player here is how one activation got two Command
+                # Re-rolls, the second on the opponent's account.
+                rolled_for=self.attacker_squad,
                 title="Damage Roll", subtitle=self.weapon.name,
                 # No attacker to name here (the session only knows who is
                 # being shot at), so DicePanel shows the target on its own -
@@ -529,7 +535,7 @@ class DamageAllocationSession:
                 self.weapon.damage_notation, count=1, dice_manager=self.dice_manager,
                 label=f"Damage ({_reroll_label(self.damage_reroll)} re-roll): {self.weapon.name}", roll_kind=DAMAGE_ROLL,
                 title="Re-roll Damage", subtitle=f"{self.weapon.name} - {_reroll_label(self.damage_reroll)}",
-                log=self.log, is_reroll=True,
+                log=self.log, is_reroll=True, rolled_for=self.attacker_squad,
                 target_name=self.target_squad.name if self.target_squad is not None else None,
                 target_squad=self.target_squad,
             )

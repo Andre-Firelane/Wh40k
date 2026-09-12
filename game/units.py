@@ -1665,6 +1665,7 @@ class FarstalkerHoundProfile(KrootHoundProfile):
     would let the two drift."""
     name = "Kroot Hound (Farstalker)"
     leadership = "7+"
+    grenades = True  # the GRENADES keyword - printed on the datasheet's keyword bar; rule 15.05 (Explosives) reads it
     loping_pounce = False
     hunting_hounds = False
 
@@ -2561,6 +2562,7 @@ class GuardianDefenderProfile(UnitProfile):
     armor_save = "4+"
     oc = 2
     infantry = True
+    grenades = True  # the GRENADES keyword - printed on the datasheet's keyword bar; rule 15.05 (Explosives) reads it
     battle_focus = True      # Aeldari army rule - see game/battle_focus.py
     fleet_of_foot = True     # free Fade Back - see game/battle_focus.py's is_free()
     platform_crew = True     # keeps this unit's Heavy Weapon Platform alive - see game/crewed_platform.py
@@ -2583,6 +2585,7 @@ class HeavyWeaponPlatformProfile(UnitProfile):
     armor_save = "4+"
     oc = 0
     infantry = True
+    grenades = True  # the GRENADES keyword - printed on the datasheet's keyword bar; rule 15.05 (Explosives) reads it
     battle_focus = True
     fleet_of_foot = True
     crewed_platform = True   # destroyed with the last Guardian - see game/crewed_platform.py
@@ -2608,6 +2611,7 @@ class StormGuardianProfile(UnitProfile):
     armor_save = "4+"
     oc = 2
     infantry = True
+    grenades = True  # the GRENADES keyword - printed on the datasheet's keyword bar; rule 15.05 (Explosives) reads it
     battle_focus = True
     platform_crew = True     # keeps this unit's Serpent's Scale Platform alive
     fieldcraft = True        # printed here as "Stormblades" - the same sticky-objective rule Kroot Carnivores' Fieldcraft and Boyz' Get Da Good Bitz print under their own names, so it shares the one flag (see game/fieldcraft.py's docstring)
@@ -2627,6 +2631,7 @@ class SerpentsScalePlatformProfile(UnitProfile):
     armor_save = "4+"
     oc = 0
     infantry = True
+    grenades = True  # the GRENADES keyword - printed on the datasheet's keyword bar; rule 15.05 (Explosives) reads it
     battle_focus = True
     crewed_platform = True   # destroyed with the last Storm Guardian
     fieldcraft = True        # "Stormblades" applies to the whole unit, and squad_has_fieldcraft() is an all()-check, so the platform needs it too
@@ -2762,6 +2767,7 @@ class DireAvengerProfile(UnitProfile):
     armor_save = "4+"
     oc = 1
     infantry = True
+    grenades = True  # the GRENADES keyword - printed on the datasheet's keyword bar; rule 15.05 (Explosives) reads it
     battle_focus = True
     aspect_shrine = True    # see game/aspect_shrine.py
     bladestorm = True               # see game/bladestorm.py
@@ -2794,6 +2800,7 @@ class FireDragonProfile(UnitProfile):
     armor_save = "3+"
     oc = 1
     infantry = True
+    grenades = True  # the GRENADES keyword - printed on the datasheet's keyword bar; rule 15.05 (Explosives) reads it
     battle_focus = True             # Aeldari army rule - see game/battle_focus.py
     aspect_shrine = True            # see game/aspect_shrine.py
     assured_destruction = True      # see game/assured_destruction.py
@@ -2915,6 +2922,7 @@ class AsurmenProfile(UnitProfile):
     oc = 1
     invulnerable_save = "4+"
     infantry = True
+    grenades = True  # the GRENADES keyword - printed on the datasheet's keyword bar; rule 15.05 (Explosives) reads it
     leader = True                   # the CHARACTER/LEADER pair, rule 24.22
     battle_focus = True             # Aeldari army rule - see game/battle_focus.py
     tactical_acumen = True          # see game/tactical_acumen.py
@@ -3353,6 +3361,7 @@ class SwoopingHawkProfile(UnitProfile):
     oc = 1
     invulnerable_save = "5+"
     infantry = True
+    grenades = True  # the GRENADES keyword - printed on the datasheet's keyword bar; rule 15.05 (Explosives) reads it
     fly = True                      # the FLY keyword, rule 21.03
     jump_pack = True                # the JUMP PACK keyword
     deep_strike = True              # CORE, rule 24.09
@@ -3394,6 +3403,7 @@ class BaharrothProfile(UnitProfile):
     oc = 1
     invulnerable_save = "4+"
     infantry = True
+    grenades = True  # the GRENADES keyword - printed on the datasheet's keyword bar; rule 15.05 (Explosives) reads it
     fly = True
     jump_pack = True
     deep_strike = True              # CORE, rule 24.09
@@ -3475,6 +3485,7 @@ class FueganProfile(UnitProfile):
     oc = 1
     invulnerable_save = "4+"
     infantry = True
+    grenades = True  # the GRENADES keyword - printed on the datasheet's keyword bar; rule 15.05 (Explosives) reads it
     character = True
     epic_hero = True
     leader = True                   # the CHARACTER/LEADER pair, rule 24.22 - the pairing itself is UnitPoints.leads
@@ -3776,6 +3787,7 @@ class AutarchProfile(UnitProfile):
     oc = 1
     invulnerable_save = "4+"
     infantry = True
+    grenades = True  # the GRENADES keyword - printed on the datasheet's keyword bar; rule 15.05 (Explosives) reads it
     character = True
     leader = True
     battle_focus = True             # Aeldari army rule - see game/battle_focus.py
@@ -3805,6 +3817,7 @@ class AutarchWayleaperProfile(UnitProfile):
     oc = 1
     invulnerable_save = "4+"
     infantry = True
+    grenades = True  # the GRENADES keyword - printed on the datasheet's keyword bar; rule 15.05 (Explosives) reads it
     character = True
     jump_pack = True
     fly = True
@@ -3926,6 +3939,7 @@ class CorsairProfile(UnitProfile):
 
 class CorsairVoidreaverProfile(CorsairProfile):
     name = "Corsair Voidreaver"
+    grenades = True  # the GRENADES keyword - printed on the datasheet's keyword bar; rule 15.05 (Explosives) reads it
     reavers_of_the_void = True      # see game/reavers_of_the_void.py
 
 
@@ -3936,6 +3950,7 @@ class VoidreaverFelarchProfile(CorsairVoidreaverProfile):
 
 class CorsairVoidscarredProfile(CorsairProfile):
     name = "Corsair Voidscarred"
+    grenades = True  # the GRENADES keyword - printed on the datasheet's keyword bar; rule 15.05 (Explosives) reads it
     oc = 1                          # the one characteristic that differs from the chassis
     piratical_raiders = True        # see game/piratical_raiders.py
 
@@ -3962,6 +3977,7 @@ class WaySeekerProfile(CorsairVoidscarredProfile):
 class CorsairSkyreaverProfile(CorsairProfile):
     """The jump-pack Corsairs: faster, lighter armour, and one less OC."""
     name = "Skyreaver"
+    grenades = True  # the GRENADES keyword - printed on the datasheet's keyword bar; rule 15.05 (Explosives) reads it
     movement_in = 12
     armor_save = "5+"
     oc = 1
@@ -4038,6 +4054,7 @@ class StarfangProfile(UnitProfile):
     armor_save = "3+"
     oc = 2
     vehicle = True
+    grenades = True  # the GRENADES keyword - printed on the datasheet's keyword bar; rule 15.05 (Explosives) reads it
     fly = True
     scouts = 7.0                    # its CORE line
     deadly_demise = 1               # "Deadly Demise 1", rule 24.08 - a flat 1, so no notation
@@ -5360,6 +5377,7 @@ class PlagueMarineProfile(UnitProfile):
     armor_save = "3+"
     oc = 2
     infantry = True
+    grenades = True  # the GRENADES keyword - printed on the datasheet's keyword bar; rule 15.05 (Explosives) reads it
     nurgles_gift = True  # the DEATH GUARD army rule - see game/nurgles_gift.py
 
 

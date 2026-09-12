@@ -29,6 +29,18 @@ m = maps.get('map2'); maps.apply_to_config(m)
 checks, failed = 0, []
 
 
+class _Unit:
+    """The unit these hand-made rolls are made for. Command Re-roll bills and
+    targets the roll's own unit (DiceManager.rolled_for) and refuses a roll
+    that names none, so a staged roll has to say whose it is."""
+    owner = "Player 1"
+    name = "1 Shooters 1"
+    battle_shocked = False
+
+
+UNIT = _Unit()
+
+
 def ok(label, cond):
     global checks
     checks += 1
@@ -63,7 +75,7 @@ def script(*values, default=None):
 print("\n1) DiceManager remembers which dice have already been re-rolled")
 dm = DiceManager()
 script(3, 3, 3)
-dm.roll(count=3, sides=6, label="Hit Roll", roll_kind=HIT_ROLL)
+dm.roll(count=3, sides=6, label="Hit Roll", roll_kind=HIT_ROLL, rolled_for=UNIT)
 ok("a fresh roll has no spent dice", dm.already_rerolled == set())
 ok("every die of a fresh roll is re-rollable", dm.rerollable_indices() == [0, 1, 2])
 script(5)
@@ -80,7 +92,7 @@ dm.acknowledge()
 ok("acknowledging keeps the spent-dice memory (abilities read it after)",
    dm.already_rerolled == {1})
 script(2, 2)
-dm.roll(count=2, sides=6, label="Charge Roll", roll_kind=CHARGE_ROLL)
+dm.roll(count=2, sides=6, label="Charge Roll", roll_kind=CHARGE_ROLL, rolled_for=UNIT)
 ok("a brand new roll clears it", dm.already_rerolled == set())
 script(6, 6)
 ok("reroll_all works on an untouched roll", dm.reroll_all() is True)
@@ -88,7 +100,7 @@ ok("it marks every die spent", dm.already_rerolled == {0, 1})
 ok("a second full re-roll is refused", dm.reroll_all() is False)
 
 script(4, 4)
-dm.roll(count=2, sides=6, label="Wound Roll", roll_kind=WOUND_ROLL, is_reroll=True)
+dm.roll(count=2, sides=6, label="Wound Roll", roll_kind=WOUND_ROLL, is_reroll=True, rolled_for=UNIT)
 ok("a roll that IS a re-roll starts fully spent", dm.already_rerolled == {0, 1})
 ok("and offers nothing to re-roll", dm.rerollable_indices() == [])
 
@@ -108,7 +120,7 @@ def fresh_command_reroll(cp=3):
 
 dm, cps, cr = fresh_command_reroll()
 script(1, 1, 1)
-dm.roll(count=3, sides=6, label="Hit Roll", roll_kind=HIT_ROLL)
+dm.roll(count=3, sides=6, label="Hit Roll", roll_kind=HIT_ROLL, rolled_for=UNIT)
 ok("offered on a normal roll", cr.can_use() is True)
 script(1)
 dm.reroll_die(0)
@@ -127,12 +139,12 @@ ok("and spends the CP", cps.cp["Player 1"] == 2)
 
 dm, cps, cr = fresh_command_reroll()
 script(4)
-dm.roll(count=1, sides=6, label="Wound Roll", roll_kind=WOUND_ROLL, is_reroll=True)
+dm.roll(count=1, sides=6, label="Wound Roll", roll_kind=WOUND_ROLL, is_reroll=True, rolled_for=UNIT)
 ok("NOT offered on an ability's own re-roll (the reported pairing)", cr.can_use() is False)
 
 dm, cps, cr = fresh_command_reroll()
 script(2, 2)
-dm.roll(count=2, sides=6, label="Charge Roll", roll_kind=CHARGE_ROLL)
+dm.roll(count=2, sides=6, label="Charge Roll", roll_kind=CHARGE_ROLL, rolled_for=UNIT)
 ok("offered on an untouched Charge roll", cr.can_use() is True)
 script(3)
 dm.reroll_die(0)
@@ -141,7 +153,7 @@ ok("not offered once part of the Charge roll went twice (must re-roll in full)",
 
 dm, cps, cr = fresh_command_reroll()
 script(1, 1, 1)
-dm.roll(count=3, sides=6, label="Hit Roll", roll_kind=HIT_ROLL)
+dm.roll(count=3, sides=6, label="Hit Roll", roll_kind=HIT_ROLL, rolled_for=UNIT)
 script(2)
 dm.reroll_die(0)
 script(2)

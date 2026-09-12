@@ -1125,7 +1125,7 @@ class FightController:
                 weapon.attacks_notation, count=len(pairs), dice_manager=self.dice_manager,
                 label=f"Attacks: {weapon_label} ({len(pairs)} model(s), {describe_dice_notation(weapon.attacks_notation)} each)",
                 title="Attacks Roll", subtitle=weapon_label,
-                roll_kind=ATTACKS_ROLL, log=self._log,
+                rolled_for=self.fighting_squad, roll_kind=ATTACKS_ROLL, log=self._log,
                 target_name=target_squad.name,
                 attacker_squad=self.fighting_squad, target_squad=target_squad,
             )
@@ -1188,7 +1188,7 @@ class FightController:
             label=label,
             title="Roll to Hit", subtitle=weapon_label, shown_modifiers=for_display(hit_modifiers),
             success_threshold=threshold if threshold is not None else 7,
-            target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, roll_kind=HIT_ROLL,
+            target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, rolled_for=self.fighting_squad, roll_kind=HIT_ROLL,
             # `weapon` here is the printed profile; the conditional grants
             # (Get Stuck In, Spirit of Gork) are only applied at resolution
             # time, so the note has to ask for the adjusted one itself.
@@ -1642,7 +1642,7 @@ class FightController:
                 label=label,
                 title="Roll to Wound", subtitle=weapon_label, shown_modifiers=for_display(wound_modifiers),
                 success_threshold=wound_threshold,
-                target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, roll_kind=WOUND_ROLL,
+                target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, rolled_for=self.fighting_squad, roll_kind=WOUND_ROLL,
                 **self._crit_note("wound", weapon, target_squad),
             )
             self.pending_step = "wound"
@@ -1709,7 +1709,7 @@ class FightController:
                 label=f"Save Roll: {weapon_label} ({normal_wounds} wound(s))",
                 **save_heading(allocation_target_model(target_squad), weapon, self.waaagh, weapon_label),
                 success_threshold=save_threshold if save_threshold is not None else 7,
-                target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, roll_kind=SAVE_ROLL,
+                target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, rolled_for=target_squad, roll_kind=SAVE_ROLL,
                 damage_per_failure=damage_preview,
             )
             self.pending_step = "save"
@@ -1895,7 +1895,7 @@ class FightController:
                            f"{self.current_group['weapon_label']} - {split_label}"),
             success_threshold=save_threshold if save_threshold is not None else 7,
             target_name=target_squad.name, attacker_squad=self.fighting_squad,
-            target_squad=target_squad, roll_kind=SAVE_ROLL,
+            target_squad=target_squad, rolled_for=target_squad, roll_kind=SAVE_ROLL,
             damage_per_failure=(None if melta_weapon.damage_notation is not None
                                 else melta_weapon.damage),
         )
@@ -2363,7 +2363,7 @@ class FightController:
             count=count, sides=6, label=f"Hit Roll ({scope}): {weapon_label} {reason}",
             title=f"Re-roll {'all' if full else 'failures'} to Hit",
             subtitle=f"{weapon_label} - {reason}", shown_modifiers=self.dice_manager.shown_modifiers,
-            success_threshold=hit_threshold, target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, roll_kind=HIT_ROLL,
+            success_threshold=hit_threshold, target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, rolled_for=self.fighting_squad, roll_kind=HIT_ROLL,
             is_reroll=True,  # these dice have now used their one re-roll
             **self._crit_note("hit", weapon, target_squad),
         )
@@ -2530,7 +2530,7 @@ class FightController:
             title="Re-roll failures to Wound",
             subtitle=f"{weapon_label} - {reason}", shown_modifiers=self.dice_manager.shown_modifiers,
             success_threshold=wound_threshold,
-            target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, roll_kind=WOUND_ROLL,
+            target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, rolled_for=self.fighting_squad, roll_kind=WOUND_ROLL,
             is_reroll=True,  # these dice have now used their one re-roll
             **self._crit_note("wound", weapon, target_squad),
         )

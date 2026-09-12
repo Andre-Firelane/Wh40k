@@ -5816,7 +5816,8 @@ def main(map_key=None):
         if decision_manager.is_pending or not dice_manager.is_pending:
             return None, []
         return roll_choice.ability_actions(
-            command_reroll_controller, targeting_array_controller, unmodified_six_controller)
+            command_reroll_controller, targeting_array_controller, unmodified_six_controller,
+            human_players=human_players)
 
     def _press_roll_option(option):
         """A dice-panel button (or Space/Enter for Accept). An acknowledging

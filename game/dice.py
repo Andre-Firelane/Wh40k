@@ -98,6 +98,24 @@ class DiceManager:
         # panel then simply omits).
         self.attacker_squad = None
         self.target_squad = None
+        # THE UNIT THIS ROLL IS MADE FOR - and unlike the two fields above,
+        # a RULE field. Rule 15.02's Command Re-roll is "just after you make
+        # a <roll> for a unit from your army ... TARGET: that unit", so this
+        # is both who may pay for it and what it targets under 15.01.
+        #
+        # It cannot be read off the two presentation fields: a save roll is
+        # made for the TARGET, a hit/wound/damage roll for the ATTACKER, and
+        # a charge roll puts its charger in target_squad for the art. Nor off
+        # turn_tracker.active_player, which is what Command Re-roll used to
+        # read - the save step hands that to the defender and it is still
+        # there when the attacker's Damage roll comes up, which is how one
+        # activation got two Command Re-rolls (the second one billed to the
+        # opponent). User: "ich konnte gerade command reroll in der selben
+        # aktiverung 2 mal einsetzen. einmal bei wound, einmal bei damage".
+        #
+        # None means "no unit made this roll" - a Command Re-roll is then not
+        # offered at all, rather than guessed onto somebody's account.
+        self.rolled_for = None
         # Rule 05.02's critical threshold for THIS roll (an unmodified 6
         # normally; [ANTI-X Y+] 24.03 lowers it on a wound roll, Whispering
         # Web / Unbridled Carnage / Mandiblasters on a hit roll), plus what
@@ -163,7 +181,8 @@ class DiceManager:
         return split_label(self.label)[1]
 
     def roll(self, count=1, sides=6, label=None, success_threshold=None, target_name=None, roll_kind=None, damage_per_failure=None, is_reroll=False, attacker_squad=None, target_squad=None,
-             crit_threshold=None, crit_labels=(), subject_label="Target", title=None, subtitle=None, shown_modifiers=()):
+             crit_threshold=None, crit_labels=(), subject_label="Target", title=None, subtitle=None, shown_modifiers=(),
+             rolled_for=None):
         """`is_reroll` marks a roll that IS itself the re-roll of earlier
         dice (an ability throwing the failures again, rather than a fresh
         roll) - every die in it has then already used up its one re-roll and
@@ -182,6 +201,7 @@ class DiceManager:
         self.subject_label = subject_label
         self.attacker_squad = attacker_squad
         self.target_squad = target_squad
+        self.rolled_for = rolled_for
         self.crit_threshold = crit_threshold
         self.crit_labels = tuple(crit_labels)
         self.sides = sides

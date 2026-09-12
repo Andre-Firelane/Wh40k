@@ -6162,15 +6162,16 @@ def _maybe_command_reroll(agent, memory, command_reroll_controller, turn_tracker
     """Rule 15.02 (Command Re-roll, Core Stratagem, 1CP): a real decision to
     make about the CURRENTLY PENDING roll, before it's acknowledged - has to
     run before the generic dice-pending block, not after.
-    CommandRerollController.can_use() checks ownership via
-    turn_tracker.active_player, which the engine itself flips to the
-    DEFENDING player during a save roll - so for rolls that actually belong
-    to `player` (its own attack rolls, or save rolls against its own
-    models), this naturally offers the choice to `player`, with no extra
-    bookkeeping needed here. But can_use() has no idea WHO is asking - it
-    just answers "can whoever active_player currently is use this
-    Stratagem", so without the explicit turn_tracker.active_player ==
-    player check below, take_one_action() (always called with
+    Whose roll it is comes from the ROLL: CommandRerollController.roll_owner()
+    is the owner of the unit it was made for (DiceManager.rolled_for). It used
+    to be turn_tracker.active_player, which the save step hands to the
+    defender and which is STILL the defender on the attacker's own Damage
+    roll - so the AI was never asked about its own Damage rolls, and the
+    human's Damage roll was billed to the AI (user report: "ich konnte gerade
+    command reroll in der selben aktiverung 2 mal einsetzen. einmal bei
+    wound, einmal bei damage"). But can_use() has no idea WHO is asking - it
+    just answers "can the roll's owner use this Stratagem", so without the
+    explicit roll_owner() == player check below, take_one_action() (always called with
     player="Player 2") would ask the AI to decide about a roll that isn't
     even its own - e.g. Player 1's own Advance roll, where active_player
     correctly stays Player 1 the whole time (an Advance only ever involves

@@ -413,7 +413,9 @@ ck.true("...falling back to this ability's own name",
 ck.true("...and its own die-selection mode",
         "(activation_reroll, REROLL_PICK_HINT)" in _choices)
 ck.true("...handed the controller by main.py",
-        "command_reroll_controller, targeting_array_controller, unmodified_six_controller)" in _main)
+        # The three positional arguments, not the closing bracket: main.py now
+        # appends human_players=, and a pin on the ")" failed on formatting.
+        "command_reroll_controller, targeting_array_controller, unmodified_six_controller" in _main)
 ck.true("the panel parameter is keyword-appended, never positional",
         "targeting_array_controller=None," in _panel)
 

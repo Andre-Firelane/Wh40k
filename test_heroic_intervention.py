@@ -18,9 +18,12 @@ THE OTHER HALF is active_player. This Stratagem runs OUTSIDE the reacting
 player's own phase, so offer() flips turn_tracker.active_player to them and
 EVERY exit path has to flip it back - decline, and the charge concluding. A
 path that forgets leaves the reactor active for the rest of the battle, and
-game/command_reroll.py bills CP against whoever is active, so the NEXT
-Command Re-roll would be charged to the wrong player. That is the failure mode
-closest to the report, so it is measured on every exit.
+every "whose decision is this" reader goes to the wrong player. (This used to
+say game/command_reroll.py bills CP against whoever is active. It no longer
+does - it bills the owner of the unit the roll was made for, because exactly
+that reading let an attacker's Damage roll be re-rolled on the defender's
+account - but the flip still matters to every other reader.) It is measured
+on every exit.
 """
 
 import testkit as tk

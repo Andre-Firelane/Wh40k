@@ -42,16 +42,21 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 import testkit as tk
-from game import maps
+from game import attached_units, maps, rules_text
 from game.command_points import CommandPointManager
 from game.decision import DecisionManager
-from game.explosives import ExplosivesController
+from game.explosives import CHOOSING_TARGET, ExplosivesController
 from game.factions import build_squad
+from game.factions import aeldari as ae
+from game.factions import death_guard, necrons, tau_empire  # noqa: F401 - fills FACTIONS for section 10
+from game.factions.faction import FACTIONS
 from game.factions.orks import BOYZ, DEFFKOPTAS, GRETCHIN
 from game.game_state import GameState
+from game.path_of_command import PathOfCommandDiscount
 from game.shooting import ShootingController
 from game.stratagems import StratagemController
 from game.turn import PHASES, PHASE_MOVEMENT, PHASE_SHOOTING, TurnTracker
+from game.units import AutarchProfile
 from game.weapons import WeaponProfile
 
 m = maps.get("map2")
@@ -283,6 +288,103 @@ checks.true("...and the superseded reading is recorded by name",
             "CLAUDE.history.md" in doc)
 checks.true("the Swooping Hawks lock-out still lives in can_use's own body",
             "explosives_locked_until_end_of_turn" in inspect.getsource(ExplosivesController.can_use))
+
+
+# ================================================== 10. who IS a GRENADES unit
+# REPORTED: "warum kann ich mit meinem autarch+ scorpions keine explosives
+# einsetzen?" The Autarch prints GRENADES and AutarchProfile never set the
+# flag, so rule 19.03's pooling had nothing to pool and no model qualified.
+# Measured before the fix: 15 datasheets printed the keyword with no model
+# flagged (14 Aeldari plus Plague Marines) and one only partly (the Kroot
+# Hounds inside Kroot Farstalkers) - the same transcription gap the
+# CHARACTER and EPIC HERO flags had. Pinned against the PRINTED keyword bar,
+# in both directions and across every faction, so an 18th cannot drift open.
+print("\n10) every model of a datasheet that PRINTS GRENADES/EXPLOSIVES carries it")
+_printed = 0
+_missing, _surplus = [], []
+for _fkey, _faction in sorted(FACTIONS.items()):
+    for _name, _ds in sorted(_faction.datasheets.items()):
+        _bar = " ".join("%s %s" % (r.label or "", r.body or "")
+                        for r in rules_text.keywords_for(_ds)).upper()
+        _prints = "GRENADES" in _bar or "EXPLOSIVES" in _bar
+        _sq = tk.build(_ds, "Player 1", name="1 %s 1" % _name)
+        _flags = [bool(mo.profile.grenades or mo.profile.explosives) for mo in _sq.models]
+        if _prints:
+            _printed += 1
+            if not all(_flags):
+                _missing.append("%s (%d of %d models)" % (_name, sum(_flags), len(_flags)))
+        elif any(_flags):
+            _surplus.append(_name)
+checks.true("liveness: the sweep found the printed keyword on %d datasheets" % _printed,
+            _printed >= 20)
+checks.eq("every model of every datasheet printing it carries the flag", _missing, [])
+checks.eq("...and no datasheet carries a flag its keyword bar does not print", _surplus, [])
+
+
+# ================================================== 11. the reported unit
+print("\n11) the reported unit - Striking Scorpions led by an Autarch")
+
+
+def scorpion_scene(cp, led=True, discount=False, battle_round=2):
+    """scene(), with the Boyz swapped for the unit from the report. Striking
+    Scorpions print no GRENADES; the Autarch does, and rule 19.03 pools
+    keywords, so the merged unit is a GRENADES unit whose one thrower is him."""
+    s = scene(cp=cp)
+    st = s["state"]
+    for model in list(s["shooter"].models):
+        st.tokens.remove(model)
+    unit = tk.build(ae.STRIKING_SCORPIONS, "Player 1", name="1 Striking Scorpions 1")
+    if led:
+        unit = attached_units.attach(tk.build(ae.AUTARCH, "Player 1", name="1 Autarch 1"), unit)
+    tk.line_up(unit, y=20.0)
+    for model in unit.models:
+        model.weapons = [PlainGun()]
+        st.add_token(model)
+    s["turn"].battle_round = battle_round
+    if discount:
+        s["discount"] = PathOfCommandDiscount(turn_tracker=s["turn"])
+        s["strat"].cost_discounts.append(s["discount"])
+    s["unit"] = unit
+    return s
+
+
+s11a = scorpion_scene(cp=3, led=False)
+checks.eq("Striking Scorpions ALONE print no GRENADES, so no model can throw",
+          s11a["explosives"]._qualifying_models(s11a["unit"]), [])
+checks.true("...and Explosives is not offered to them",
+            not s11a["explosives"].can_use(s11a["unit"]))
+
+s11 = scorpion_scene(cp=3)
+_unit, _ex = s11["unit"], s11["explosives"]
+_autarchs = [mo for mo in _unit.models if isinstance(mo.profile, AutarchProfile)]
+checks.eq("the scene really merged one Autarch into the unit", len(_autarchs), 1)
+checks.eq("led by the Autarch, exactly HIS model qualifies to throw",
+          _ex._qualifying_models(_unit), _autarchs)
+checks.true("...and Explosives IS offered to the unit - the reported case",
+            _ex.can_use(_unit))
+_ex.start(_unit)
+checks.eq("one qualifying model, so it goes straight to target selection with him",
+          (_ex.state, _ex.acting_model), (CHOOSING_TARGET, _autarchs[0]))
+
+# The follow-up question: "kann es sein, dass es daran liegt, dass ich 0 cp
+# habe? aber der autarch reduziert es auf 0." Path of Command does - once per
+# battle round, per ARMY (game/cp_discount.py).
+s11c = scorpion_scene(cp=0)
+checks.true("at 0 CP WITHOUT Path of Command it is refused",
+            not s11c["explosives"].can_use(s11c["unit"]))
+checks.true("...and the refusal names the CP",
+            "needs 1 CP, you have 0" in (s11c["strat"].refusal(
+                "Player 1", s11c["explosives"]._stratagem, [s11c["unit"]]) or ""))
+
+s11d = scorpion_scene(cp=0, discount=True)
+checks.true("at 0 CP WITH Path of Command unspent, the Autarch makes it free - offered",
+            s11d["explosives"].can_use(s11d["unit"]))
+s11d["discount"].consume("Player 1", s11d["explosives"]._stratagem, [s11d["unit"]])
+checks.true("once Path of Command is spent this round (e.g. on Blitzing Firepower), 0 CP is short",
+            not s11d["explosives"].can_use(s11d["unit"]))
+s11d["turn"].battle_round = 3
+checks.true("...and the next battle round it is free again",
+            s11d["explosives"].can_use(s11d["unit"]))
 
 
 checks.finish()

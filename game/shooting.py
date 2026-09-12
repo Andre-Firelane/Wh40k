@@ -2239,7 +2239,7 @@ class ShootingController:
                 attacks_weapon.attacks_notation, count=len(pairs), dice_manager=self.dice_manager,
                 label=f"Attacks: {weapon_label} ({len(pairs)} model(s), {describe_dice_notation(attacks_weapon.attacks_notation)} each)",
                 title="Attacks Roll", subtitle=weapon_label,
-                roll_kind=ATTACKS_ROLL, log=self._log,
+                rolled_for=self.active_squad, roll_kind=ATTACKS_ROLL, log=self._log,
                 target_name=target_squad.name,
                 attacker_squad=self.active_squad, target_squad=target_squad,
             )
@@ -2316,7 +2316,7 @@ class ShootingController:
                 dice_manager=self.dice_manager,
                 label=f"Attacks ({enh_breath_of_vaul.BREATH_OF_VAUL_LABEL} re-roll): "
                       f"{group['weapon_label']}",
-                roll_kind=ATTACKS_ROLL, log=self._log, is_reroll=True,
+                rolled_for=self.active_squad, roll_kind=ATTACKS_ROLL, log=self._log, is_reroll=True,
                 title="Re-roll Attacks",
                 subtitle=f"{group['weapon_label']} - {enh_breath_of_vaul.BREATH_OF_VAUL_LABEL}",
                 target_name=group["target_squad"].name,
@@ -2385,7 +2385,7 @@ class ShootingController:
             target_name=target_squad.name, attacker_squad=self.active_squad, target_squad=target_squad,
             # Rule 15.09: "you cannot re-roll hit rolls" - a distinct kind so
             # CommandRerollController's REROLLABLE_KINDS never offers this one.
-            roll_kind=SNAP_SHOT_HIT_ROLL if is_snap_shot else HIT_ROLL,
+            rolled_for=self.active_squad, roll_kind=SNAP_SHOT_HIT_ROLL if is_snap_shot else HIT_ROLL,
             # `weapon` above is the printed profile; the conditional grants
             # ([LETHAL HITS] from an Ammo Runt, [SUSTAINED HITS] from
             # Bladestorm/Arro'kon/Mont'ka) are only applied at resolution
@@ -2830,7 +2830,7 @@ class ShootingController:
             label=f"{weapon_label}: {'Hit' if kind == 'hit' else 'Wound'} Roll re-roll of 1s "
                   f"({ctx.get('reason', 'Forward Observers')})",
             success_threshold=threshold, target_name=target_squad.name, attacker_squad=self.active_squad, target_squad=target_squad,
-            roll_kind=HIT_ROLL if kind == "hit" else WOUND_ROLL,
+            rolled_for=self.active_squad, roll_kind=HIT_ROLL if kind == "hit" else WOUND_ROLL,
             title=f"Re-roll 1s to {'Hit' if kind == 'hit' else 'Wound'}",
             subtitle=f"{weapon_label} - {ctx.get('reason', 'Forward Observers')}",
             shown_modifiers=self.dice_manager.shown_modifiers,
@@ -3727,7 +3727,7 @@ class ShootingController:
                 label=label,
                 title="Roll to Wound", subtitle=weapon_label, shown_modifiers=for_display(wound_modifiers),
                 success_threshold=wound_threshold,
-                target_name=target_squad.name, attacker_squad=self.active_squad, target_squad=target_squad, roll_kind=WOUND_ROLL,
+                target_name=target_squad.name, attacker_squad=self.active_squad, target_squad=target_squad, rolled_for=self.active_squad, roll_kind=WOUND_ROLL,
                 **self._crit_note("wound", weapon, target_squad),
             )
             self.pending_step = "wound"
@@ -3800,7 +3800,7 @@ class ShootingController:
                 count=normal_wounds, sides=6,
                 label=f"Save Roll: {weapon_label} ({normal_wounds} wound(s))",
                 success_threshold=save_threshold if save_threshold is not None else 7,
-                target_name=target_squad.name, attacker_squad=self.active_squad, target_squad=target_squad, roll_kind=SAVE_ROLL,
+                target_name=target_squad.name, attacker_squad=self.active_squad, target_squad=target_squad, rolled_for=target_squad, roll_kind=SAVE_ROLL,
                 damage_per_failure=damage_preview,
                 **save_heading(allocation_target_model(target_squad), weapon, self.waaagh, weapon_label),
             )
@@ -4385,7 +4385,7 @@ class ShootingController:
             count=count, sides=6, label=f"Hit Roll ({scope}): {weapon_label} {reason}",
             title=f"Re-roll {'all' if full else 'failures'} to Hit",
             subtitle=f"{weapon_label} - {reason}", shown_modifiers=self.dice_manager.shown_modifiers,
-            success_threshold=hit_threshold, target_name=target_squad.name, attacker_squad=self.active_squad, target_squad=target_squad, roll_kind=HIT_ROLL,
+            success_threshold=hit_threshold, target_name=target_squad.name, attacker_squad=self.active_squad, target_squad=target_squad, rolled_for=self.active_squad, roll_kind=HIT_ROLL,
             is_reroll=True,  # these dice have now used their one re-roll
             **self._crit_note("hit", weapon, target_squad),
         )
@@ -4682,7 +4682,7 @@ class ShootingController:
             title=f"Re-roll {'all' if full else 'failures'} to Wound",
             subtitle=f"{weapon_label} - {reason}", shown_modifiers=self.dice_manager.shown_modifiers,
             success_threshold=wound_threshold,
-            target_name=target_squad.name, attacker_squad=self.active_squad, target_squad=target_squad, roll_kind=WOUND_ROLL,
+            target_name=target_squad.name, attacker_squad=self.active_squad, target_squad=target_squad, rolled_for=self.active_squad, roll_kind=WOUND_ROLL,
             is_reroll=True,  # these dice have now used their one re-roll
             **self._crit_note("wound", weapon, target_squad),
         )
@@ -4967,7 +4967,7 @@ class ShootingController:
             **save_heading(allocation_target_model(target_squad), crit_ap_weapon, self.waaagh,
                            f"{weapon_label} - {crit_source}"),
             success_threshold=save_threshold if save_threshold is not None else 7,
-            target_name=target_squad.name, attacker_squad=self.active_squad, target_squad=target_squad, roll_kind=SAVE_ROLL,
+            target_name=target_squad.name, attacker_squad=self.active_squad, target_squad=target_squad, rolled_for=target_squad, roll_kind=SAVE_ROLL,
             damage_per_failure=damage_preview,
         )
         self.pending_step = "save_crit_ap"
