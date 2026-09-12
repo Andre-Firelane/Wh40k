@@ -2449,15 +2449,40 @@ beschriftet sein. und das Volk Logo/Farbe muss drin sein").
   Die Alternative (nur die fünf Phasen DIESES Zuges, Runde als Zahl daneben)
   wurde vorgelegt und abgelehnt: sie sagt nichts darüber, wie weit die Partie
   ist, und genau dafür gibt es einen Fortschrittsbalken.
-- **Jedes Zug-Segment trägt die Farbe SEINES Besitzers** (`TOKEN_TEAM_COLORS`,
-  also dieselben konstanten Brett-Farben — Player 1 grün, Player 2 rot), und
-  links steht das Logo dessen, der GERADE dran ist. Damit sagt der Balken
-  zugleich, wem welcher vergangene Zug gehörte. Auch das war die Wahl gegen die
-  ruhigere Variante (alles in der Farbe des Zugbesitzers).
-- **Der Zug ist beschriftet, die Phase nicht** — genau wie bestellt. Jedes
-  Segment trägt `<Runde>.<Spielerziffer>` ("3.2" ist Player 2s Zug in Runde 3),
-  und der laufende Zug steht zusätzlich ausgeschrieben neben dem Badge
-  ("ROUND 3 - PLAYER 2"). Vor dem Schlachtbeginn: "DEPLOYMENT".
+- **Jedes Zug-Segment trägt die Farbe SEINES Besitzers, und zwar VON ANFANG AN**
+  (`TOKEN_TEAM_COLORS`, also dieselben konstanten Brett-Farben — Player 1 grün,
+  Player 2 rot), und links steht das Logo dessen, der GERADE dran ist. Auch das
+  war die Wahl gegen die ruhigere Variante (alles in der Farbe des
+  Zugbesitzers). **Drei Stufen EINES Farbtons** (`cell_color()`): kommend dunkel
+  (`UPCOMING_DIM` 0.3), gespielt heller (`PLAYED_DIM` 0.55), laufende Phase voll
+  plus Goldrahmen — „wessen" und „wie weit" sind gleichzeitig lesbar. Kommende
+  Züge waren zuerst GRAU, der Balken konnte also vor dem Spielen nicht sagen,
+  wem welcher Zug gehört (User: "auch von anfang an in den richtigen farben").
+  - **Vor dem Erster-Zug-Roll-off bleibt die Spur NEUTRAL (grau, ohne Labels),
+    und das ist eine Tatsache über `TurnTracker`, keine Stilwahl:** ein
+    Deferred-Start-Tracker trägt bis `start_battle()` einen PLATZHALTER-
+    `first_player`. Die Reihenfolge schon im Deployment zu färben hieße, eine
+    Ordnung zu zeichnen, die der Roll-off einen Moment später umdrehen kann.
+- **Der Zug ist beschriftet, die Phase nicht — und das Label steht AUF dem
+  Balken** (User: "momentan sind ganz kleine labels unter den zugabschnitten.
+  die können weg. stattdessen können P1 bzw P2 labels direkt auf der leiste
+  sein"). Vorher ein graues 11-pt-"3.2" in einer eigenen Zeile UNTER 9 px hohen
+  Zellen; jetzt "P1"/"P2" zentriert auf der mittleren Phasenzelle jedes
+  Segments, und die Zellen haben die volle Spurhöhe. Der laufende Zug steht
+  weiter ausgeschrieben neben dem Badge ("ROUND 3 - PLAYER 2"), vor dem
+  Schlachtbeginn "DEPLOYMENT". **Die Rundenzahl steht damit nur noch dort** —
+  die Runden gruppiert weiter die breitere Lücke.
+  - **Die Größe ist GEMESSEN:** pygames Default-Font ist klein für seine
+    Punktzahl — bei 12 ist "P2" 10×8 px mit 6 px Glyphen, also nicht größer als
+    die gemeldeten. `LABEL_FONT_SIZE = 18` gibt 17×12 px mit 9 px Glyphen und
+    ist die größte Größe, deren Label samt Rand bei 1280 px noch in EINE
+    Phasenzelle (21 px) passt; 20 zeichnet dieselben 9 px, nur breiter. Ein zu
+    schmales Segment bekommt kein Label statt über Haarlinien geschmierten Text.
+  - **Label-Farbe = Teamfarbe 55 % Richtung Weiß plus dunkler 1-px-Ring**, damit
+    es auch auf der eigenen voll gefärbten laufenden Zelle lesbar bleibt.
+  - **Zentrieren an den Glyphen-Metriken war gebaut und ist wieder raus:** bei
+    12 bis 20 pt gemessen landet es auf derselben Zeile wie das Zentrieren der
+    Textfläche — Code ohne Wirkung.
 - **Er hat eine EIGENE ZEILE über die volle Fensterbreite, und Brett wie beide
   Panels beginnen darunter.** Das ist die ZWEITE Antwort auf diese Frage, und
   die erste gehört hierher, weil ihr Fehler nicht offensichtlich ist: der
@@ -2548,6 +2573,29 @@ beschriftet sein. und das Volk Logo/Farbe muss drin sein").
   seine Display-Surface nicht mehr lesbar. Gemessen wird jetzt IM Frame, eine
   Scanline statt der ganzen Spur (14k `get_at()` je Frame wären eine eigene
   Messverfälschung).
+
+- **Labels auf dem Balken, getestet (2026-09-12):** `test_round_progress_bar.py`
+  76 → **94/94** (Abschnitt 4 neu: Text UND Farbe per Font-Spion — ein Label mit
+  falschem TEXT hat den richtigen Platz und die richtige Farbe —, jedes Label
+  über SEINEM Segment, alle Label-Tinte innerhalb der Spurzeilen, Zellen in
+  voller Höhe, Größe gegen die gemeldete 11-pt-Schrift statt gegen die
+  Konstante, Rand vorhanden, weder Label noch Farbe vor dem Roll-off, alle Züge
+  gefärbt ab dem ersten). `ab_round_progress_bar.py` 8 → **19 A/B-Sonden, alle
+  beißend**, darunter beide gemeldeten Hälften einzeln zurückgestellt (Label
+  unter den Zellen, kommende Züge grau).
+  - **Ein Befund über den TEST:** die Farbprüfungen lasen Zeile +3 der Spur, die
+    das 18-pt-Label jetzt abdeckt — sie übersprangen das Innere der laufenden
+    Zelle und meldeten die volle Farbe als fehlend. Sie lesen Zeile +1, und dass
+    diese Zeile kein Label kreuzt, ist eigens gepinnt (sonst trägt das
+    Überspringen die Prüfung).
+  - **Im ECHTEN Spiel:** `verify_round_progress_bar.py` zählt jetzt auch die
+    Labels auf der LEBENDEN Fläche — **1461 von 1499 Frames mit Labels** (die
+    übrigen 38 sind Deployment-Frames, neutral wie beabsichtigt), **19 050
+    Label-Pixel in der Besitzerfarbe, 0 unter der Spur**, Layout unverändert
+    (0 Überlappungen mit dem Brett, 0 Spalten aus der Flucht).
+  - Volle Regression **226 Suiten, ~20804 Prüfungen, 225 grün / 0 rot /
+    1 bekannt**; `test_game_menu.py` (der andere Leser von `BAR_HEIGHT`)
+    **208/208**.
 
 ## Unit Statistics — das Resümee der Partie (game/battle_stats.py, game/ui/unit_stats_overlay.py)
 
@@ -3116,6 +3164,144 @@ großen Salven nicht (die dokumentierte Harness-Grenze). Der gemeldete Fall ruht
 Suite, die dafür das ECHTE Panel auf eine echte Surface mit echten Schriften zeichnet — bei einer
 reinen ANSICHT ohne Engine-Kopplung ist das die richtige Ebene, anders als bei einer
 Verdrahtungsfrage.
+
+### Titel, Modifikatoren und Reroll-KNÖPFE (2026-09-12)
+
+**Gemeldet:** *"Niemand liest lange Sätze mit Zahlen drin im Spielgeschehen. Bei jedem Roll muss groß
+und fett drüber stehen was das für ein Wurf ist ... Unten im Panel Buttons je nach Situation: Wurf
+akzeptieren / 1en wiederholen / alles wiederholen / Fehlschläge wiederholen. Dann poppen nicht so
+viele Overlays hintereinander auf."* User-Entscheidungen: Klick irgendwohin bestätigt NUR ohne
+Reroll-Option (ACCEPT-Knopf plus Space/Enter immer); der Satz verlässt das Panel (bleibt im Log).
+Command Re-roll, Aspect Shrine/Branching Fates und Targeting Array sollten zuerst im linken Panel
+bleiben — **revidiert**, sie stehen jetzt im Würfelpanel (siehe unten).
+
+- **Kopf:** `DiceManager.roll(title=, subtitle=, shown_modifiers=)`, pro Wurf geleert;
+  `display_title()` fällt zurück auf Label-Name (vor `": "`/`" - "`) → `TITLE_BY_KIND` → "Roll".
+  **`label` bleibt unverändert** — ~20 Tests pinnen Teiltexte, `dice_notation.py` loggt es,
+  `action_panel.py` zeigt es; das Panel liest nur die neuen Felder.
+- **`modifiers.for_display()` rechnet in SPIELER-Vorzeichen**: Schwellen-Modifier (positiv =
+  schlechter) werden negiert, additive Würfe (Charge/Advance) nicht. Helfende zuerst (grün ▲),
+  dann schadende (rot ▼), Dreiecke als Polygon statt Glyph. Charge liest dafür
+  `_charge_roll_modifiers()` — dieselbe Liste speist `_capped_roll()`, also können Anzeige und
+  Summe nicht auseinanderlaufen; Advance `movement.advance_roll_modifiers()`, Save
+  `damage_resolution.save_heading()` (AP, außer der Invulnerable zählt).
+
+**Die FRAGE wird vorgezogen, die Arithmetik bleibt — die tragende Entscheidung.** Hit/Wound-Rerolls
+entstehen erst in `on_dice_acknowledged()` (ein neuer `roll(is_reroll=True)` mit eigenem
+`pending_step`, getragene Treffer addiert). Ein Umbau auf In-place-Rerolls hätte diese Arithmetik
+und ~150 gepinnte Prüfungen umgeworfen. Stattdessen:
+
+- **Plan/Execute-Split**: die Rümpfe stehen WÖRTLICH in `_hit_step`/`_wound_step` (shooting und
+  fight) mit `preview=False`; `pending_roll_choice()` ruft DIESELBEN Methoden mit `preview=True`.
+  Vorschau und Angebot können per Konstruktion nicht auseinanderlaufen. Die Re-roll-Schritte fragt
+  die Vorschau gar nicht (siehe den nächsten Abschnitt).
+- **Die Antwort reitet auf dem Wurf**: `choose_reroll()`/`take_chosen_reroll()`, geleert von
+  `roll()` und NICHT von `acknowledge()` (das Angebot liest sie danach). Jede Hit/Wound-Angebotsstelle
+  geht durch `_raise_reroll_offer()` → `roll_choice.take()`; passt kein Key, öffnet der Prompt wie
+  bisher. **Der Overlay-Pfad bleibt Fallback** — kein Deadlock für Harnesses, die `acknowledge()`
+  selbst rufen.
+- **`game/roll_choice.py`**: `RollChoice.accept_allowed` ist False bei einer Pflicht-1er-Quelle mit
+  1en (dort gibt es weder ACCEPT noch Klick-irgendwohin). `RollChoiceView` fragt EINMAL pro Wurf
+  (Fingerabdruck: Listen-Identität, Augen, `already_rerolled`, geclaimte Angebote — ein Command
+  Re-roll ändert die Zählungen) und reicht nur einem MENSCHEN eine Wahl (lebende
+  `human_players`-Sicht); KI-Angebote laufen unverändert über die Queue.
+- **Zwei Formen**: `acknowledges=True` (Hit/Wound/Damage/Attacks/Reanimation: Key setzen,
+  bestätigen) und `acknowledges=False` (Advance/Charge würfeln schon VOR dem Bestätigen in place:
+  `apply()`, Wurf bleibt liegen). ACCEPT claimt `choice.claims`, sonst öffnete das Advance-/Charge-
+  Angebot beim Bestätigen doch noch seinen Prompt.
+- **Damage/Attacks nehmen die Antwort SYNCHRON** (`DamageRerollOffer.panel_answer()` VOR
+  `maybe_offer()`): dessen True heißt "Antwort kommt später" und hält die Session busy — eine schon
+  vorliegende Antwort darf das nicht behaupten.
+- **`main.py`: `_acknowledge_pending_roll()` ist die EINE Tür** (Klick, ACCEPT, Space/Enter) und die
+  einzige `dice_manager.acknowledge()`-Stelle; ein Panel-Knopf wird VOR dem Klick-irgendwohin
+  gefragt; ein Key wird nur gespeichert, wenn die Frame-Wahl ihn wirklich anbietet (sonst könnte ein
+  Accept einen KI-Prompt beantworten), und die Tür verwirft eine ungenutzte Antwort.
+  `selfplay.py` drückt den ersten gezeichneten Knopf.
+
+**Getestet:** neu `test_dice_panel_header.py` (**58**, auf PIXELN) und `test_roll_choice.py`
+(**114** — tragend: Vorschau == Prompt, UNABHÄNGIG gelesen: die Knöpfe aus der `RollChoice`, das
+Angebot aus den Prompt-LABELS), `test_event_chain_wiring.py` §24 (**235**). `ab_dice_panel_buttons.py`:
+**15 A/B-Sonden, alle beißend**. Befunde über den TEST: Damage/Attacks und Reanimation waren
+zunächst ungedeckt (Abschnitt 7 kam dazu), `main.py`s Accept-Claims-Schleife war nur durch NACHBAU
+in der Suite gedeckt (jetzt ein §24-Pin), und zwei Sonden ließen ihre Suite ABSTÜRZEN statt sie rot
+zu machen (Dict-Index, `min()` auf leerer Knopfliste) — beide degradieren jetzt.
+**Im ECHTEN Spiel belegt** (`verify_dice_panel_buttons.py`): gezeichnet `accept / failures 9 /
+whole 24`, ein Klick irgendwohin lässt den Wurf liegen, der Druck auf RE-ROLL FAILURES wirft 9 Würfel
+ohne einen einzigen "Keep result"-Prompt; `--neutralize` → kein Reroll-Knopf, Klick bestätigt,
+Prompt öffnet. GESTELLT: der Schuss (live `_begin_resolution()`), Monster Hunters als Quelle, drei
+Würfel auf 1, ein offener Mensch-Prompt beantwortet (selfplay beantwortet keinen — offen auf 2251
+von 2500 Frames) und eine Notice weggeklickt. **Harness-Falle:** mit einem Ein-Würfel-Schützen sind
+"failures" und "all" derselbe Würfel — die Sonde nimmt den größten Pool.
+
+#### Ein Re-roll trägt nie einen Re-roll-Knopf
+
+**Gemeldet** (Screenshot: "RE-ROLL 1S TO WOUND" mit "RE-ROLL FAILURES (6)" darunter): *"bei rerolls,
+sollte es keine reroll option geben. man darf rerolls nicht rerollen."*
+
+- **Der Knopf meinte nicht den Würfel auf dem Tisch**, sondern die 6 übrigen Fehlschläge des Wurfs
+  DAVOR. `shooting.py` warf die automatischen 1er einer Quelle (Forward Observers u. a.) ZUERST und
+  fragte das optionale Re-roll ([TWIN-LINKED], Monster Hunters …) erst DANACH — also landete die
+  Frage auf dem 1er-Re-roll. Die Engine hat nie einen Würfel zweimal geworfen, aber die Frage stand
+  am falschen Wurf, und mit dem Panel wurde das sichtbar.
+- **Gefragt wird jetzt auf dem Wurf, wie er GEWORFEN wurde.** "Re-roll failures" zählt die 1er mit
+  (so gewürfelt haben sie ihr eines Re-roll gehabt — mehr verlangt die automatische Klausel nicht),
+  und ACCEPT — das Ablehnen — ist genau das, was die 1er ihrem automatischen Wurf übergibt. Das
+  Prompt-Label sagt es: "Keep result (the 1s are still re-rolled)". `fight.py` fragt seit jeher in
+  dieser Reihenfolge.
+- **Die 1er-Re-roll-Schritte laufen DURCH** (`_hit_reroll_ones_step`/`_wound_reroll_ones_step`
+  rufen direkt `_apply_sustained_hits`/`_resolve_wounds`), und `pending_roll_choice()` fragt in
+  BEIDEN Controllern nur noch `("hit", "wound")` — kein Re-roll-Schritt kann Knöpfe tragen, per
+  Konstruktion statt per Zählung (Abschnitt 8 in `test_roll_choice.py` liest das Tupel per AST).
+- **Mitgefunden im Nahkampf, und die Kehrseite derselben Reihenfolge:** `fight.py` fragte zwar
+  zuerst, aber "Keep result" sprang direkt in die Auflösung und **ließ die Pflicht-1er einer
+  anderen Quelle (Path of the Warrior, Whirling Onslaught, Phaeron of the Stars, Prophet …) still
+  fallen.** `_hit_without_optional_reroll()`/`_wound_without_optional_reroll()` sind jetzt der
+  Schwanz BEIDER Wege (kein Angebot / Angebot abgelehnt).
+- `test_reroll_once.py` §4 pinnte die alte Reihenfolge ("[TWIN-LINKED] only gets the failures
+  Forward Observers left alone") und STÜRZTE ab statt rot zu werden; umgeschrieben auf beide Wege,
+  die Kernaussage (kein Würfel zweimal) bleibt. Die erste Fassung von Abschnitt 8 hatte eine falsche
+  Bühne (die Snazzgun verwundet die Strike Team auf 2+, eine 2 ist also kein Fehlschlag) — mit
+  (1,1,1) trennt die Zeile trotzdem, weil die alte Reihenfolge dann gar nichts anbot.
+
+#### Fähigkeits- und Stratagem-Knöpfe im Würfelpanel
+
+**Gemeldet:** *"ich habe es mir anders überlegt. buttons für fähigkeiten und stratagems sollen doch
+mit in das würfel panel rein, statt links in die spalte."*
+
+- **`roll_choice.ability_actions(command_reroll, activation_reroll, unmodified_six)`** ist die EINE
+  Liste, gelesen vom Zeichnen UND vom Klick-Routing in `main.py` (`_frame_dice_actions()`): Command
+  Re-roll (Stratagem-Violett), Targeting Array / Crystal Matrix (Label vom Controller), je ein Knopf
+  pro Unmodified-6-Quelle. Alle `acknowledges=False` — keiner bestätigt den Wurf, sie ändern ihn in
+  place oder öffnen die Würfelwahl. **Die FORM bleibt** (Knopf, dann Würfel wählen); umgezogen ist
+  nur der Ort.
+- **Eine eigene Zeile UNTER den Knöpfen des Wurfs**, eigene Liste `DicePanel._action_rects` mit
+  `action_at()`: `button_at()` beantwortet weiter nur die Optionen des Wurfs, auf die sich
+  Klick-irgendwohin und `selfplay.py` verlassen. `RollOption.accent` ist neu (Stratagem/Cancel).
+- **Während einer Würfelwahl** stehen die Knöpfe des Wurfs beiseite, das Panel zeigt den Hinweis
+  des Modus ("Click a die to make it an unmodified 6.") und ein Cancel. `main.py` fragt
+  `dice_panel.action_at()` ZUERST im Würfelzweig — vor den drei Würfelwahl-Zweigen, sonst gewinnt
+  kein Cancel.
+- **Das Höhenbudget kennt die Zeile** (eine Reihe je zwei Knöpfe), sonst läuft eine große Salve
+  unten aus dem Brett.
+- **Das linke Panel zeichnet keinen dieser Knöpfe mehr** — nur noch Label und "Decide the roll in
+  the dice panel."; die drei Controller bekommt es weiter (positionelle Kette, Fehlerklasse 22).
+  Wächter: §24 zählt `_draw_button(` im Rumpf von `_draw_command_reroll` (0).
+- **Farbwahl, benannt:** die zwei Fähigkeitsknöpfe tragen die Standardfarbe (blau wie die
+  Re-roll-Knöpfe des Wurfs), nicht mehr "confirm" wie links — im Würfelpanel ist Grün ACCEPT.
+
+**Getestet (beide Nachträge):** `test_roll_choice.py` 114 → **169/169** (Abschnitte 8 und 9),
+`test_dice_panel_header.py` 58 → **71/71** (Abschnitt 6 auf PIXELN und Rects, inklusive 40 Würfeln
+mit zwei Knopfreihen im Brett), `test_unmodified_six_ui.py` **65/65** (Abschnitt 2 aufs echte
+DicePanel umgeschrieben, samt echter Presse und Cancel und der Gegenprobe links),
+`test_event_chain_wiring.py` §24 **240/240**, `test_reroll_once.py` **74/74**; zwei Label-Pins in
+`test_tau_vehicles.py`/`test_aeldari_gun_tanks.py` zeigen jetzt auf `roll_choice.py`.
+`ab_dice_panel_buttons.py` → __PROBES__.
+**Im ECHTEN Spiel belegt** (`verify_dice_panel_buttons.py`, jetzt mit Forward Observers GESTELLT):
+gezeichnet `accept / failures 13 / whole 24` (die 13 zählen die drei 1er), der Druck auf FAILURES
+wirft 13 Würfel, **der Re-roll selbst zeigt nur `accept`**, im Würfelpanel stehen
+`Command Re-roll (1 CP)` und `Aspect Shrine (1 token(s) left)`, links **0** solcher Knöpfe.
+`--neutralize` reproduziert weiter die Vor-Fix-Welt.
+Volle Regression __REGRESSION__.
 
 ## Einheiten-Auswahl ist erstklassig (game/selection.py)
 

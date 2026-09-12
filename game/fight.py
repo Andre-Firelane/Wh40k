@@ -8,14 +8,15 @@ from game import aux_experimental_modifications, awakened_dynasty, nekrosor_amme
 from game import way_of_the_short_blade
 from game import strength_over_toughness
 from game.ard_as_nails import ARD_AS_NAILS_WOUND_PENALTY, ard_as_nails_wound_modifier_applies
-from game.damage_resolution import DamageAllocationSession, DevastatingWoundAllocationSession, MortalWoundAllocationSession, displayed_save_threshold, save_is_impossible, AUTO_FAILED_SAVE
+from game.damage_resolution import DamageAllocationSession, DevastatingWoundAllocationSession, MortalWoundAllocationSession, displayed_save_threshold, save_heading, save_is_impossible, AUTO_FAILED_SAVE
 from game.dice import ATTACKS_ROLL, HIT_ROLL, SAVE_ROLL, WOUND_ROLL
 from game.dice_notation import DiceNotationRoll, describe as describe_dice_notation
 from game.ferocious_rage import ferocious_rage_adjusted_weapon
 from game.spirit_of_gork import spirit_of_gork_adjusted_weapon
 from game.hazard import hazard_failures, hazard_mortal_wounds
 from game import hold_still as hold_still_rule
-from game.modifiers import Modifier, apply_modifiers, describe_modifiers
+from game.modifiers import Modifier, apply_modifiers, describe_modifiers, for_display
+from game import roll_choice
 from game.shooting import (
     _damaged_modifier, _group_label, _resolve_roll, _threshold_note, _wound_crit_threshold, _wound_threshold,
     extra_attack_dice, melta_adjusted_weapon,
@@ -1123,6 +1124,7 @@ class FightController:
             self._pending_attacks_roll = DiceNotationRoll(
                 weapon.attacks_notation, count=len(pairs), dice_manager=self.dice_manager,
                 label=f"Attacks: {weapon_label} ({len(pairs)} model(s), {describe_dice_notation(weapon.attacks_notation)} each)",
+                title="Attacks Roll", subtitle=weapon_label,
                 roll_kind=ATTACKS_ROLL, log=self._log,
                 target_name=target_squad.name,
                 attacker_squad=self.fighting_squad, target_squad=target_squad,
@@ -1184,6 +1186,7 @@ class FightController:
         self.dice_manager.roll(
             count=total_attacks, sides=6,
             label=label,
+            title="Roll to Hit", subtitle=weapon_label, shown_modifiers=for_display(hit_modifiers),
             success_threshold=threshold if threshold is not None else 7,
             target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, roll_kind=HIT_ROLL,
             # `weapon` here is the printed profile; the conditional grants
@@ -1317,46 +1320,7 @@ class FightController:
         # between the two doesn't matter here).
         weapon = self._adjusted_weapon(group["pairs"], group["target_squad"])
         if self.pending_step == "hit":
-            threshold = apply_modifiers(
-                _parse_threshold(effective_weapon_skill(group["pairs"][0][0], weapon)),
-                self._hit_modifiers(group["pairs"][0][0], target_squad),
-            )
-            # Unbridled Carnage, Mandiblasters and Whispering Web all say
-            # "an unmodified hit roll of 5+ scores a Critical Hit" - i.e.
-            # purely a change to _resolve_roll's crit threshold, which is
-            # already compared against the RAW die (so "unmodified" is
-            # satisfied by construction, a -1 to hit still misses on a 4).
-            # Default 6 otherwise, per rule 05.02. melee_only=True admits the
-            # two melee-worded sources; see game/crit_hit.py.
-            crit_threshold = crit_hit_threshold(
-                group["pairs"][0][0], target_squad, self.whispering_web, melee_only=True,
-                hit_threshold=threshold,
-            )
-            results = [_resolve_roll(r, threshold, crit_threshold) for r in rolls]
-            hits = sum(1 for r in results if r != "fail")
-            crits = sum(1 for r in results if r == "critical")
-            misses = len(rolls) - hits
-            self._log(
-                f"{weapon_label} hit roll {rolls}"
-                f"{_threshold_note(threshold, _parse_threshold(effective_weapon_skill(group['pairs'][0][0], weapon)), self._hit_modifiers(group['pairs'][0][0], target_squad))}: "
-                f"{hits} hit(s) (of which {crits} critical), {misses} miss(es)."
-            )
-            # Beast Snagga Boyz' Monster Hunters (user-supplied): its text
-            # says "makes an attack", not "makes a ranged attack", so it
-            # applies here as well as in shooting.py - the same both-phases
-            # reasoning as Tank Hunters. A dice can never be re-rolled more
-            # than once, so only the still-free share may be thrown again
-            # (see shooting.py's identical split).
-            spent = self.dice_manager.already_rerolled if self.dice_manager is not None else set()
-            free = [i for i in range(len(rolls)) if i not in spent]
-            rerollable = (
-                sum(1 for i in free if results[i] != "fail"),
-                sum(1 for i in free if results[i] == "critical"),
-                len(free),
-            )
-            ones = sum(1 for i in free if rolls[i] == 1)
-            self._finish_hit_roll(hits, crits, weapon, target_squad, weapon_label, rerollable, threshold,
-                                  ones=ones)
+            self._hit_step(rolls, group, weapon, target_squad, weapon_label)
 
         elif self.pending_step == "hit_reroll_ones":
             ctx = self._pending_ones_reroll
@@ -1422,75 +1386,7 @@ class FightController:
             )
 
         elif self.pending_step == "wound":
-            wound_threshold = _wound_threshold(weapon.strength, attached_unit_toughness(target_squad))
-            wound_threshold = apply_modifiers(wound_threshold, self._wound_modifiers(weapon, target_squad))
-            crit_threshold = self._wound_crit(weapon, target_squad, wound_threshold)
-            results = [_resolve_roll(r, wound_threshold, crit_threshold) for r in rolls]
-            wounds = sum(1 for r in results if r != "fail")
-            crits = sum(1 for r in results if r == "critical")
-            no_effect = len(rolls) - wounds
-            # A dice can never be re-rolled more than once, so a failure a
-            # Command Re-roll (15.02) already threw is not [TWIN-LINKED]'s to
-            # throw again - DiceManager.already_rerolled is where that memory
-            # lives (see shooting.py's identical split).
-            spent = self.dice_manager.already_rerolled if self.dice_manager is not None else set()
-            free_no_effect = sum(1 for i, r in enumerate(results) if r == "fail" and i not in spent)
-            # ...and the rest of the breakdown, needed once a source offers a
-            # WHOLE-roll re-roll rather than only its failures (Storm of
-            # Silence) - the same split shooting.py already makes.
-            free_wounds = sum(1 for i, r in enumerate(results) if r != "fail" and i not in spent)
-            free_crits = sum(1 for i, r in enumerate(results) if r == "critical" and i not in spent)
-            rerollable = (free_wounds, free_crits, free_no_effect)
-            self._log(
-                f"{weapon_label} wound roll {rolls}"
-                f"{_threshold_note(wound_threshold, _wound_threshold(weapon.strength, attached_unit_toughness(target_squad)), self._wound_modifiers(weapon, target_squad))}: "
-                f"{wounds} wound(s) (of which {crits} critical), {no_effect} no effect."
-            )
-            ones = sum(1 for i, r in enumerate(rolls) if r == 1 and i not in spent)
-            if self._twin_linked_choice_needed(weapon, free_no_effect, target_squad):
-                self._offer_twin_linked_choice(
-                    free_no_effect, wounds, crits, weapon, target_squad, target_profile, weapon_label, wound_threshold,
-                    self.fighting_squad.owner, rerollable, ones=ones,
-                )
-            elif (ones and self.path_of_the_warrior is not None
-                    and self.path_of_the_warrior.wound_ones_apply(self.fighting_squad)):
-                # Path of the Warrior's wound-side clause, held in the same
-                # place and for the same reason as its hit-side twin.
-                self._begin_ones_reroll(
-                    "wound", ones, wound_threshold, weapon, target_squad, weapon_label,
-                    wounds=wounds, crits=crits, target_profile=target_profile,
-                    reason=path_of_the_warrior.PATH_OF_THE_WARRIOR_LABEL,
-                )
-            elif ones and implacable_eradication.applies(self.fighting_squad):
-                # The base clause, fired only when its whole-roll alternative
-                # was NOT offered above - "instead" makes the two exclusive.
-                self._begin_ones_reroll(
-                    "wound", ones, wound_threshold, weapon, target_squad, weapon_label,
-                    wounds=wounds, crits=crits, target_profile=target_profile,
-                    reason=implacable_eradication.IMPLACABLE_ERADICATION_LABEL,
-                )
-            elif ones and triarch_auras.is_active(
-                    self.fighting_squad, triarch_auras.PHAERON_OF_THE_STARS):
-                # The wound half of the same printed sentence as the hit
-                # step above - one ability, two rolls, both phases.
-                self._begin_ones_reroll(
-                    "wound", ones, wound_threshold, weapon, target_squad, weapon_label,
-                    wounds=wounds, crits=crits, target_profile=target_profile,
-                    reason=triarch_auras.TRIARCH_ABILITY_NAMES[
-                        triarch_auras.PHAERON_OF_THE_STARS],
-                )
-            elif ones and nekrosor_ammentar.prophet_applies(self.fighting_squad):
-                # Prophet of Destruction. Its text says "makes an attack", so
-                # it reaches this phase as well as the shooting one - and it
-                # is a plain automatic 1s re-roll with no "instead", which is
-                # why it is here rather than in game/reroll_scope.py.
-                self._begin_ones_reroll(
-                    "wound", ones, wound_threshold, weapon, target_squad, weapon_label,
-                    wounds=wounds, crits=crits, target_profile=target_profile,
-                    reason=nekrosor_ammentar.PROPHET_LABEL,
-                )
-            else:
-                self._resolve_wounds(weapon, target_squad, target_profile, weapon_label, wounds, crits)
+            self._wound_step(rolls, weapon, target_squad, target_profile, weapon_label)
 
         elif self.pending_step == "wound_twin_linked_reroll":
             # Rule 24.38 ([TWIN-LINKED]): only the FAILED wound dice get
@@ -1744,6 +1640,7 @@ class FightController:
             self.dice_manager.roll(
                 count=remaining, sides=6,
                 label=label,
+                title="Roll to Wound", subtitle=weapon_label, shown_modifiers=for_display(wound_modifiers),
                 success_threshold=wound_threshold,
                 target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, roll_kind=WOUND_ROLL,
                 **self._crit_note("wound", weapon, target_squad),
@@ -1810,6 +1707,7 @@ class FightController:
             self.dice_manager.roll(
                 count=normal_wounds, sides=6,
                 label=f"Save Roll: {weapon_label} ({normal_wounds} wound(s))",
+                **save_heading(allocation_target_model(target_squad), weapon, self.waaagh, weapon_label),
                 success_threshold=save_threshold if save_threshold is not None else 7,
                 target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, roll_kind=SAVE_ROLL,
                 damage_per_failure=damage_preview,
@@ -1993,6 +1891,8 @@ class FightController:
         self.dice_manager.roll(
             count=crits, sides=6,
             label="Save Roll (%s): %d critical wound(s)" % (split_label, crits),
+            **save_heading(allocation_target_model(target_squad), split_weapon, self.waaagh,
+                           f"{self.current_group['weapon_label']} - {split_label}"),
             success_threshold=save_threshold if save_threshold is not None else 7,
             target_name=target_squad.name, attacker_squad=self.fighting_squad,
             target_squad=target_squad, roll_kind=SAVE_ROLL,
@@ -2066,13 +1966,16 @@ class FightController:
             count=ones, sides=6,
             label=f"{weapon_label}: {'Hit' if kind == 'hit' else 'Wound'} Roll re-roll of 1s "
                   f"({ctx.get('reason', 'ability')})",
+            title=f"Re-roll 1s to {'Hit' if kind == 'hit' else 'Wound'}",
+            subtitle=f"{weapon_label} - {ctx.get('reason', 'ability')}",
+            shown_modifiers=self.dice_manager.shown_modifiers,
             success_threshold=threshold, target_name=target_squad.name,
             attacker_squad=self.fighting_squad, target_squad=target_squad,
             is_reroll=True,
         )
         self.pending_step = f"{kind}_reroll_ones"
 
-    def _finish_hit_roll(self, hits, crits, weapon, target_squad, weapon_label, rerollable, hit_threshold, ones=0):
+    def _finish_hit_roll(self, hits, crits, weapon, target_squad, weapon_label, rerollable, hit_threshold, ones=0, preview=False):
         """Tail of the hit-roll step - offers Monster Hunters' optional
         re-roll of the whole Hit roll BEFORE [SUSTAINED HITS] is applied,
         since the extra hits a critical grants have to be computed from
@@ -2080,11 +1983,31 @@ class FightController:
         and game/monster_hunters.py's own docstring for why this re-rolls
         the whole roll rather than just the misses."""
         if self._hit_reroll_choice_needed(target_squad, rerollable[2]):
+            if preview:
+                return self._hit_reroll_options(
+                    hits, crits, weapon, target_squad, weapon_label, hit_threshold, rerollable, ones=ones)
             self._offer_hit_reroll_choice(
                 hits, crits, weapon, target_squad, weapon_label, hit_threshold, rerollable,
                 self.fighting_squad.owner, ones=ones,
             )
             return
+        if preview:
+            # Everything after the offer is an automatic 1s re-roll (a new
+            # roll) or the resolution - neither is a choice about THIS roll.
+            return None
+        self._hit_without_optional_reroll(hits, crits, weapon, target_squad, weapon_label, rerollable, hit_threshold, ones)
+
+    def _hit_without_optional_reroll(self, hits, crits, weapon, target_squad, weapon_label, rerollable, hit_threshold, ones):
+        """The rest of the hit step once no OPTIONAL re-roll is being taken:
+        a source's MANDATORY 1s are thrown, then [SUSTAINED HITS] applies.
+
+        Reached two ways - no optional re-roll was on offer, or one was and
+        the player kept the result. The second used to go straight to
+        _apply_sustained_hits(), so declining Monster Hunters also silently
+        dropped Path of the Warrior's automatic 1s: a mandatory clause lost to
+        the answer on a different ability. shooting.py asks in the same order
+        now (the user report "man darf rerolls nicht rerollen"), and there the
+        declining answer throws the 1s too."""
         # Whirling Onslaught's base clause. Held back above while its
         # whole-roll alternative is actually on offer, because "instead" makes
         # the two exclusive - the same arrangement shooting.py uses.
@@ -2188,6 +2111,178 @@ class FightController:
             self._log(f"{weapon_label}: [SUSTAINED HITS] adds {sustained} extra hit(s).")
         self._handle_hit_results(hits, crits, weapon, target_squad, weapon_label)
 
+    def _raise_reroll_offer(self, owner, prompt, keyed_options):
+        """See shooting.py's method of the same name."""
+        if roll_choice.take(self.dice_manager, keyed_options):
+            return
+        self.decision_manager.request(owner, prompt, roll_choice.prompt_options(keyed_options))
+
+    def pending_roll_choice(self):
+        """See shooting.py's method of the same name. Only the "hit" and
+        "wound" steps can offer here: this phase's 1s re-rolls resolve straight
+        through, with no offer after them."""
+        dm = self.dice_manager
+        if (dm is None or not dm.is_pending or self.current_group is None or self.fighting_squad is None
+                or self.decision_manager is None or self.pending_step not in ("hit", "wound")):
+            return None
+        group = self.current_group
+        target_squad = group["target_squad"]
+        if not any(not m.is_dead() for m in target_squad.models):
+            return None
+        rolls = dm.pending_values
+        weapon = self._adjusted_weapon(group["pairs"], target_squad)
+        if self.pending_step == "hit":
+            options = self._hit_step(rolls, group, weapon, target_squad, group["weapon_label"], preview=True)
+        else:
+            options = self._wound_step(rolls, weapon, target_squad, allocation_target_profile(target_squad),
+                                       group["weapon_label"], preview=True)
+        if not options:
+            return None
+        return roll_choice.from_offer(self.fighting_squad.owner, options)
+
+    def _hit_step(self, rolls, group, weapon, target_squad, weapon_label, preview=False):
+        """Moved here VERBATIM from on_dice_acknowledged() so the dice panel
+        can ask what acknowledging the roll WILL offer before the player
+        accepts it (pending_roll_choice(), game/roll_choice.py). With
+        `preview` the same arithmetic and routing run with no side effects
+        and the keyed re-roll options are returned - or None when accepting
+        would offer nothing (it resolves, or an automatic re-roll comes
+        first). One method, so the buttons and the offer cannot disagree."""
+        threshold = apply_modifiers(
+            _parse_threshold(effective_weapon_skill(group["pairs"][0][0], weapon)),
+            self._hit_modifiers(group["pairs"][0][0], target_squad),
+        )
+        # Unbridled Carnage, Mandiblasters and Whispering Web all say
+        # "an unmodified hit roll of 5+ scores a Critical Hit" - i.e.
+        # purely a change to _resolve_roll's crit threshold, which is
+        # already compared against the RAW die (so "unmodified" is
+        # satisfied by construction, a -1 to hit still misses on a 4).
+        # Default 6 otherwise, per rule 05.02. melee_only=True admits the
+        # two melee-worded sources; see game/crit_hit.py.
+        crit_threshold = crit_hit_threshold(
+            group["pairs"][0][0], target_squad, self.whispering_web, melee_only=True,
+            hit_threshold=threshold,
+        )
+        results = [_resolve_roll(r, threshold, crit_threshold) for r in rolls]
+        hits = sum(1 for r in results if r != "fail")
+        crits = sum(1 for r in results if r == "critical")
+        misses = len(rolls) - hits
+        if not preview:
+            self._log(
+                f"{weapon_label} hit roll {rolls}"
+                f"{_threshold_note(threshold, _parse_threshold(effective_weapon_skill(group['pairs'][0][0], weapon)), self._hit_modifiers(group['pairs'][0][0], target_squad))}: "
+                f"{hits} hit(s) (of which {crits} critical), {misses} miss(es)."
+            )
+        # Beast Snagga Boyz' Monster Hunters (user-supplied): its text
+        # says "makes an attack", not "makes a ranged attack", so it
+        # applies here as well as in shooting.py - the same both-phases
+        # reasoning as Tank Hunters. A dice can never be re-rolled more
+        # than once, so only the still-free share may be thrown again
+        # (see shooting.py's identical split).
+        spent = self.dice_manager.already_rerolled if self.dice_manager is not None else set()
+        free = [i for i in range(len(rolls)) if i not in spent]
+        rerollable = (
+            sum(1 for i in free if results[i] != "fail"),
+            sum(1 for i in free if results[i] == "critical"),
+            len(free),
+        )
+        ones = sum(1 for i in free if rolls[i] == 1)
+        return self._finish_hit_roll(hits, crits, weapon, target_squad, weapon_label, rerollable, threshold,
+                                     ones=ones, preview=preview)
+
+    def _wound_step(self, rolls, weapon, target_squad, target_profile, weapon_label, preview=False):
+        """Moved here VERBATIM from on_dice_acknowledged() so the dice panel
+        can ask what acknowledging the roll WILL offer before the player
+        accepts it (pending_roll_choice(), game/roll_choice.py). With
+        `preview` the same arithmetic and routing run with no side effects
+        and the keyed re-roll options are returned - or None when accepting
+        would offer nothing (it resolves, or an automatic re-roll comes
+        first). One method, so the buttons and the offer cannot disagree."""
+        wound_threshold = _wound_threshold(weapon.strength, attached_unit_toughness(target_squad))
+        wound_threshold = apply_modifiers(wound_threshold, self._wound_modifiers(weapon, target_squad))
+        crit_threshold = self._wound_crit(weapon, target_squad, wound_threshold)
+        results = [_resolve_roll(r, wound_threshold, crit_threshold) for r in rolls]
+        wounds = sum(1 for r in results if r != "fail")
+        crits = sum(1 for r in results if r == "critical")
+        no_effect = len(rolls) - wounds
+        # A dice can never be re-rolled more than once, so a failure a
+        # Command Re-roll (15.02) already threw is not [TWIN-LINKED]'s to
+        # throw again - DiceManager.already_rerolled is where that memory
+        # lives (see shooting.py's identical split).
+        spent = self.dice_manager.already_rerolled if self.dice_manager is not None else set()
+        free_no_effect = sum(1 for i, r in enumerate(results) if r == "fail" and i not in spent)
+        # ...and the rest of the breakdown, needed once a source offers a
+        # WHOLE-roll re-roll rather than only its failures (Storm of
+        # Silence) - the same split shooting.py already makes.
+        free_wounds = sum(1 for i, r in enumerate(results) if r != "fail" and i not in spent)
+        free_crits = sum(1 for i, r in enumerate(results) if r == "critical" and i not in spent)
+        rerollable = (free_wounds, free_crits, free_no_effect)
+        if not preview:
+            self._log(
+                f"{weapon_label} wound roll {rolls}"
+                f"{_threshold_note(wound_threshold, _wound_threshold(weapon.strength, attached_unit_toughness(target_squad)), self._wound_modifiers(weapon, target_squad))}: "
+                f"{wounds} wound(s) (of which {crits} critical), {no_effect} no effect."
+            )
+        ones = sum(1 for i, r in enumerate(rolls) if r == 1 and i not in spent)
+        if preview:
+            if self._twin_linked_choice_needed(weapon, free_no_effect, target_squad):
+                return self._wound_reroll_options(
+                    free_no_effect, wounds, crits, weapon, target_squad, target_profile, weapon_label,
+                    wound_threshold, rerollable, ones=ones)[0]
+            return None
+        if self._twin_linked_choice_needed(weapon, free_no_effect, target_squad):
+            self._offer_twin_linked_choice(
+                free_no_effect, wounds, crits, weapon, target_squad, target_profile, weapon_label, wound_threshold,
+                self.fighting_squad.owner, rerollable, ones=ones,
+            )
+        else:
+            self._wound_without_optional_reroll(
+                weapon, target_squad, target_profile, weapon_label, wound_threshold, wounds, crits, ones)
+
+    def _wound_without_optional_reroll(self, weapon, target_squad, target_profile, weapon_label, wound_threshold, wounds, crits, ones):
+        """The wound twin of _hit_without_optional_reroll(): a source's
+        MANDATORY 1s, then the resolution. Also what keeping the result of an
+        optional re-roll runs - it used to resolve at once and drop the 1s."""
+        if (ones and self.path_of_the_warrior is not None
+                and self.path_of_the_warrior.wound_ones_apply(self.fighting_squad)):
+            # Path of the Warrior's wound-side clause, held in the same
+            # place and for the same reason as its hit-side twin.
+            self._begin_ones_reroll(
+                "wound", ones, wound_threshold, weapon, target_squad, weapon_label,
+                wounds=wounds, crits=crits, target_profile=target_profile,
+                reason=path_of_the_warrior.PATH_OF_THE_WARRIOR_LABEL,
+            )
+        elif ones and implacable_eradication.applies(self.fighting_squad):
+            # The base clause, fired only when its whole-roll alternative
+            # was NOT offered above - "instead" makes the two exclusive.
+            self._begin_ones_reroll(
+                "wound", ones, wound_threshold, weapon, target_squad, weapon_label,
+                wounds=wounds, crits=crits, target_profile=target_profile,
+                reason=implacable_eradication.IMPLACABLE_ERADICATION_LABEL,
+            )
+        elif ones and triarch_auras.is_active(
+                self.fighting_squad, triarch_auras.PHAERON_OF_THE_STARS):
+            # The wound half of the same printed sentence as the hit
+            # step above - one ability, two rolls, both phases.
+            self._begin_ones_reroll(
+                "wound", ones, wound_threshold, weapon, target_squad, weapon_label,
+                wounds=wounds, crits=crits, target_profile=target_profile,
+                reason=triarch_auras.TRIARCH_ABILITY_NAMES[
+                    triarch_auras.PHAERON_OF_THE_STARS],
+            )
+        elif ones and nekrosor_ammentar.prophet_applies(self.fighting_squad):
+            # Prophet of Destruction. Its text says "makes an attack", so
+            # it reaches this phase as well as the shooting one - and it
+            # is a plain automatic 1s re-roll with no "instead", which is
+            # why it is here rather than in game/reroll_scope.py.
+            self._begin_ones_reroll(
+                "wound", ones, wound_threshold, weapon, target_squad, weapon_label,
+                wounds=wounds, crits=crits, target_profile=target_profile,
+                reason=nekrosor_ammentar.PROPHET_LABEL,
+            )
+        else:
+            self._resolve_wounds(weapon, target_squad, target_profile, weapon_label, wounds, crits)
+
     def _hit_reroll_choice_needed(self, target_squad, free_count):
         """Beast Snagga Boyz' Monster Hunters: see shooting.py's identical
         method. Once per weapon group's attack sequence, and pointless with
@@ -2196,7 +2291,7 @@ class FightController:
             return False
         return free_count > 0 and self._hit_reroll_reason(target_squad) is not None
 
-    def _offer_hit_reroll_choice(self, hits, crits, weapon, target_squad, weapon_label, hit_threshold, rerollable, owner, ones=0):
+    def _hit_reroll_options(self, hits, crits, weapon, target_squad, weapon_label, hit_threshold, rerollable, ones=0):
         """Both scopes are offered as real choices - failures only (never a
         loss) or the whole roll (can lose hits, but can improve a roll whose
         failures are few). See shooting.py's identical method for the full
@@ -2214,13 +2309,13 @@ class FightController:
         options = []
         if free_misses > 0:
             options.append((
-                f"Re-roll failed hit rolls ({free_misses} dice)",
+                roll_choice.FAILURES, free_misses, f"Re-roll failed hit rolls ({free_misses} dice)",
                 lambda: self._reroll_hit(
                     free_misses, hits, crits, weapon, target_squad, weapon_label, hit_threshold, reason,
                 ),
             ))
         options.append((
-            f"Re-roll the whole Hit roll ({free_count} dice)",
+            roll_choice.WHOLE, free_count, f"Re-roll the whole Hit roll ({free_count} dice)",
             lambda: self._reroll_hit(
                 free_count, kept_hits, kept_crits, weapon, target_squad, weapon_label, hit_threshold, reason,
                 full=True,
@@ -2231,7 +2326,7 @@ class FightController:
         # which of the two re-rolls to take.
         if ones_or_whole and ones > 0:
             options.append((
-                f"Re-roll the 1s only ({ones} dice)",
+                roll_choice.ONES, ones, f"Re-roll the 1s only ({ones} dice)",
                 lambda: self._begin_ones_reroll(
                     "hit", ones, hit_threshold, weapon, target_squad, weapon_label,
                     hits=hits, crits=crits, reason=reason,
@@ -2239,11 +2334,21 @@ class FightController:
                 ),
             ))
         else:
-            options.append(
-                ("Keep result", lambda: self._apply_sustained_hits(hits, crits, weapon, target_squad, weapon_label))
-            )
+            options.append((
+                roll_choice.ACCEPT, 0, "Keep result",
+                lambda: self._hit_without_optional_reroll(
+                    hits, crits, weapon, target_squad, weapon_label, rerollable, hit_threshold, ones),
+            ))
+        return options
+
+    def _offer_hit_reroll_choice(self, hits, crits, weapon, target_squad, weapon_label, hit_threshold, rerollable, owner, ones=0):
+        """Offers _hit_reroll_options() - or takes the one the player already
+        picked on the dice panel (game/roll_choice.py). Spent on OFFERING."""
+        options = self._hit_reroll_options(
+            hits, crits, weapon, target_squad, weapon_label, hit_threshold, rerollable, ones=ones)
         self._hit_reroll_used = True
-        self.decision_manager.request(owner, f"{weapon_label}: {reason} - re-roll the Hit roll?", options)
+        self._raise_reroll_offer(
+            owner, f"{weapon_label}: {self._hit_reroll_reason(target_squad)} - re-roll the Hit roll?", options)
 
     def _reroll_hit(self, count, hits, crits, weapon, target_squad, weapon_label, hit_threshold, reason, full=False):
         """See shooting.py's identical method - `hits`/`crits` are only what
@@ -2256,6 +2361,8 @@ class FightController:
         scope = f"re-rolling all {count}" if full else f"re-rolling {count} failed"
         self.dice_manager.roll(
             count=count, sides=6, label=f"Hit Roll ({scope}): {weapon_label} {reason}",
+            title=f"Re-roll {'all' if full else 'failures'} to Hit",
+            subtitle=f"{weapon_label} - {reason}", shown_modifiers=self.dice_manager.shown_modifiers,
             success_threshold=hit_threshold, target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, roll_kind=HIT_ROLL,
             is_reroll=True,  # these dice have now used their one re-roll
             **self._crit_note("hit", weapon, target_squad),
@@ -2332,7 +2439,7 @@ class FightController:
                 and no_effect > 0 and self.decision_manager is not None
                 and not self._twin_linked_used)
 
-    def _offer_twin_linked_choice(self, no_effect, wounds, crits, weapon, target_squad, target_profile, weapon_label, wound_threshold, owner, rerollable=None, ones=0):
+    def _wound_reroll_options(self, no_effect, wounds, crits, weapon, target_squad, target_profile, weapon_label, wound_threshold, rerollable=None, ones=0):
         """`no_effect` is the number of FAILED wound dice that may still be
         re-rolled - see shooting.py's identical method and the user correction
         that scoped [TWIN-LINKED] to failures only ("es sollten nur fails
@@ -2353,16 +2460,16 @@ class FightController:
             options = []
             if free_no_effect > 0:
                 options.append((
-                    f"Re-roll failed wound rolls ({free_no_effect} dice)",
+                    roll_choice.FAILURES, free_no_effect, f"Re-roll failed wound rolls ({free_no_effect} dice)",
                     lambda: self._reroll_wound(free_no_effect, wounds, crits, weapon, target_squad, target_profile, weapon_label, wound_threshold, reason=reason),
                 ))
             options.append((
-                f"Re-roll the whole Wound roll ({free_count} dice)",
+                roll_choice.WHOLE, free_count, f"Re-roll the whole Wound roll ({free_count} dice)",
                 lambda: self._reroll_wound(free_count, kept_wounds, kept_crits, weapon, target_squad, target_profile, weapon_label, wound_threshold, reason=reason),
             ))
             if ones > 0:
                 options.append((
-                    f"Re-roll the 1s only ({ones} dice)",
+                    roll_choice.ONES, ones, f"Re-roll the 1s only ({ones} dice)",
                     lambda: self._begin_ones_reroll(
                         "wound", ones, wound_threshold, weapon, target_squad, weapon_label,
                         wounds=wounds, crits=crits, target_profile=target_profile, reason=reason,
@@ -2370,14 +2477,11 @@ class FightController:
                 ))
             else:
                 options.append(
-                    ("Keep result", lambda: self._resolve_wounds(weapon, target_squad, target_profile, weapon_label, wounds, crits))
+                    (roll_choice.ACCEPT, 0, "Keep result", lambda: self._wound_without_optional_reroll(weapon, target_squad, target_profile, weapon_label, wound_threshold, wounds, crits, ones))
                 )
-            self._twin_linked_used = True
-            self.decision_manager.request(
-                owner, f"{weapon_label}: {reason} - re-roll the Wound roll?", options)
-            return
+            return options, f"{weapon_label}: {reason} - re-roll the Wound roll?", True
         options = [(
-            f"Re-roll failed wound rolls ({no_effect} dice)",
+            roll_choice.FAILURES, no_effect, f"Re-roll failed wound rolls ({no_effect} dice)",
             lambda: self._reroll_wound(no_effect, wounds, crits, weapon, target_squad, target_profile, weapon_label, wound_threshold),
         )]
         if self._wound_reroll_is_full(weapon, target_squad) and rerollable is not None:
@@ -2387,15 +2491,23 @@ class FightController:
             # previous re-roll already spent its one chance on is carried over.
             kept_wounds, kept_crits = wounds - free_wounds, crits - free_crits
             options.append((
-                f"Re-roll the whole Wound roll ({free_count} dice)",
+                roll_choice.WHOLE, free_count, f"Re-roll the whole Wound roll ({free_count} dice)",
                 lambda: self._reroll_wound(free_count, kept_wounds, kept_crits, weapon, target_squad, target_profile, weapon_label, wound_threshold),
             ))
         options.append(
-            ("Keep result", lambda: self._resolve_wounds(weapon, target_squad, target_profile, weapon_label, wounds, crits))
+            (roll_choice.ACCEPT, 0, "Keep result", lambda: self._wound_without_optional_reroll(weapon, target_squad, target_profile, weapon_label, wound_threshold, wounds, crits, ones))
         )
-        self.decision_manager.request(
-            owner, f"{weapon_label}: {reason} - re-roll the Wound roll?", options,
-        )
+        return options, f"{weapon_label}: {reason} - re-roll the Wound roll?", False
+
+    def _offer_twin_linked_choice(self, no_effect, wounds, crits, weapon, target_squad, target_profile, weapon_label, wound_threshold, owner, rerollable=None, ones=0):
+        """Offers _wound_reroll_options() - or takes the one the player
+        already picked on the dice panel (game/roll_choice.py)."""
+        options, prompt, spent_on_offer = self._wound_reroll_options(
+            no_effect, wounds, crits, weapon, target_squad, target_profile, weapon_label,
+            wound_threshold, rerollable, ones=ones)
+        if spent_on_offer:
+            self._twin_linked_used = True
+        self._raise_reroll_offer(owner, prompt, options)
 
     def _reroll_wound(self, no_effect, wounds, crits, weapon, target_squad, target_profile, weapon_label, wound_threshold, reason="[TWIN-LINKED]"):
         """Only the `no_effect` FAILED dice get rolled again - see
@@ -2415,6 +2527,8 @@ class FightController:
         self.dice_manager.roll(
             count=no_effect, sides=6,
             label=f"Wound Roll (re-rolling {no_effect} failed): {weapon_label} {reason}",
+            title="Re-roll failures to Wound",
+            subtitle=f"{weapon_label} - {reason}", shown_modifiers=self.dice_manager.shown_modifiers,
             success_threshold=wound_threshold,
             target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, roll_kind=WOUND_ROLL,
             is_reroll=True,  # these dice have now used their one re-roll

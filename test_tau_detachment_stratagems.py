@@ -770,11 +770,17 @@ c.eq("a dazzled unit subtracts 2 from its Charge roll", photon.charge_penalty_fo
 orks.photon_grenades_penalty = False
 # "Charge rolls made FOR that enemy unit" - the CHARGER's side, so it belongs
 # beside Neocapacitor Shields rather than with the Grav-inhibitor Drone's -2.
+# The charger-side terms moved into _charge_roll_modifiers(), the ONE list both
+# _capped_roll()'s arithmetic and the dice panel's heading read - so the pin
+# follows them there AND checks that _capped_roll() still sums that list.
 capped_src = inspect.getsource(charge_module.ChargeController._capped_roll)
+terms_src = inspect.getsource(charge_module.ChargeController._charge_roll_modifiers)
+c.true("_capped_roll() still adds the charger-side terms",
+       "self._charge_roll_modifiers()" in capped_src)
 c.true("the -2 is applied to the CHARGING unit's roll",
-       "kauyon_photon_grenades.charge_penalty_for(self.active_squad)" in capped_src)
+       "kauyon_photon_grenades.charge_penalty_for(self.active_squad)" in terms_src)
 c.true("...beside Neocapacitor Shields, the other charger-side penalty",
-       "neocapacitor_shields.charge_penalty_for(self.active_squad)" in capped_src)
+       "neocapacitor_shields.charge_penalty_for(self.active_squad)" in terms_src)
 
 
 # NOT while the unit is inside a TRANSPORT. The reaction chain hands every

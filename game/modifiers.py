@@ -25,3 +25,30 @@ def apply_modifiers(base_value, modifiers):
 def describe_modifiers(modifiers):
     """Human-readable summary for logs, e.g. '+1 (Benefit of Cover)'."""
     return ", ".join(f"{m.amount:+d} ({m.source})" for m in modifiers)
+
+
+def for_display(modifiers, lower_is_better=True):
+    """((delta, source), ...) in PLAYER terms, for the dice panel: a positive
+    delta helps whoever is rolling, a negative one hurts.
+
+    THE SIGN IS THE WHOLE POINT. A Modifier here adjusts a THRESHOLD, where
+    lower is better - Benefit of Cover is Modifier(+1, ...) and makes a hit
+    HARDER, Target Uploaded is Modifier(-1, ...) and makes it easier. Printed
+    as-is the panel would put a green up-arrow on cover. User: "Positive
+    Modifikatoren wie +1 (Ability XY) mit grünen Pfeil nach oben / Darunter
+    negative Modifikatoren wie -1 (Cover) mit rotem Pfeil nach unten" - so a
+    threshold list is negated, an additive one (a Charge roll's bonuses) is
+    not.
+
+    Accepts Modifier objects or (delta, source) pairs already in roll terms.
+    Zero deltas say nothing and are dropped. Helpful ones come first, then
+    harmful ones, each group in the order given - the order the user asked for."""
+    shown = []
+    for mod in modifiers or ():
+        if isinstance(mod, Modifier):
+            delta, source = (-mod.amount if lower_is_better else mod.amount), mod.source
+        else:
+            delta, source = mod
+        if delta:
+            shown.append((delta, source))
+    return tuple([m for m in shown if m[0] > 0] + [m for m in shown if m[0] < 0])

@@ -100,6 +100,13 @@ def fake_events():
         # acknowledges the roll for a click somewhere else. Clicking at (10,10)
         # here is what made an earlier version of this harness sit on a pending
         # roll forever, which looks exactly like an engine deadlock.
+        # A roll that offers a re-roll no longer accepts a click anywhere - the
+        # dice panel shows buttons instead (game/roll_choice.py). Press the
+        # first one it drew (Accept whenever keeping the result is legal).
+        panel = loc.get("dice_panel")
+        buttons = getattr(panel, "_button_rects", None) or []
+        if buttons:
+            return _click(buttons[0][1].center)
         surface = pygame.display.get_surface()
         w, h = surface.get_size() if surface else (1200, 800)
         return _click((w - 8, h - 8))

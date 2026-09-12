@@ -798,18 +798,18 @@ class ActionPanel:
     def _draw_command_reroll(self, surface, rect, dice_manager, command_reroll_controller,
                              unmodified_six_controller=None,
                              targeting_array_controller=None):
-        """Everything that can still be done to the roll on the table: rule
-        15.02's Command Re-roll, and the "change a die to an unmodified 6"
-        abilities (Aspect Shrine tokens, the Farseer's Branching Fates).
+        """The left panel while a roll is on the table: what the roll is, and
+        where to answer it. NO BUTTONS any more.
 
-        The latter used to be a DecisionManager prompt raised the instant the
-        roll was acknowledged - user: "momentan werde ich bei aeldari jedes mal
-        gefragt... nach jedem wurf. kann das nicht eine option im linken panel
-        sein, statt eines overlays? command reroll funktioniert ja auch so."
-        So they live here, in exactly that shape: a button, then pick the die.
-
-        Both die-selection modes take over the whole screen while they are
-        open, because in both the only useful click is on the dice display."""
+        Rule 15.02's Command Re-roll, Targeting Array / Crystal Matrix and the
+        "change a die to an unmodified 6" abilities (Aspect Shrine tokens, the
+        Farseer's Branching Fates) used to be buttons here. User: "buttons fuer
+        faehigkeiten und stratagems sollen doch mit in das wuerfel panel rein,
+        statt links in die spalte." They are drawn on the dice panel now, next
+        to the dice they act on - see game/roll_choice.py's ability_actions(),
+        which is the one list both the drawing and the click routing read. The
+        controllers are still handed over (positional chain, error class 22)
+        so this screen can say which mode is open."""
         button_style.draw_panel_header(surface, rect, "Actions", self.header_font)
         button_width = rect.width - 2 * BUTTON_MARGIN
 
@@ -817,78 +817,12 @@ class ActionPanel:
             surface, rect, button_width, rect.y + 40, [dice_manager.label or "Rolling…"],
             config.PANEL_TEXT_COLOR, config.PANEL_BORDER_COLOR,
         )
-
-        if command_reroll_controller is not None and command_reroll_controller.selecting_die:
-            text_y = self._draw_message_box(
-                surface, rect, button_width, text_y,
-                ["Click a highlighted die on the dice display to re-roll it."],
-                config.PANEL_TEXT_COLOR, config.PANEL_BORDER_COLOR,
-            )
-            cancel_rect = pygame.Rect(rect.x + BUTTON_MARGIN, text_y, button_width, BUTTON_HEIGHT)
-            cancel_rect = self._draw_button(surface, cancel_rect, "Cancel Re-roll", accent="danger")
-            self._buttons.append((cancel_rect, command_reroll_controller.cancel_selection))
-            return
-
-        if unmodified_six_controller is not None and unmodified_six_controller.selecting_die:
-            text_y = self._draw_message_box(
-                surface, rect, button_width, text_y,
-                ["Click a die on the dice display to change it to an unmodified 6."],
-                config.PANEL_TEXT_COLOR, UNMODIFIED_SIX_ACCENT_COLOR,
-            )
-            cancel_rect = pygame.Rect(rect.x + BUTTON_MARGIN, text_y, button_width, BUTTON_HEIGHT)
-            cancel_rect = self._draw_button(surface, cancel_rect, "Cancel", accent="danger")
-            self._buttons.append((cancel_rect, unmodified_six_controller.cancel_selection))
-            return
-
-        if targeting_array_controller is not None and targeting_array_controller.selecting_die:
-            text_y = self._draw_message_box(
-                surface, rect, button_width, text_y,
-                ["Click a highlighted die on the dice display to re-roll it."],
-                config.PANEL_TEXT_COLOR, config.PANEL_BORDER_COLOR,
-            )
-            cancel_rect = pygame.Rect(rect.x + BUTTON_MARGIN, text_y, button_width, BUTTON_HEIGHT)
-            cancel_rect = self._draw_button(surface, cancel_rect, "Cancel Re-roll", accent="danger")
-            self._buttons.append((cancel_rect, targeting_array_controller.cancel_selection))
-            return
-
-        if command_reroll_controller is not None and command_reroll_controller.can_use():
-            reroll_rect = pygame.Rect(rect.x + BUTTON_MARGIN, text_y, button_width, BUTTON_HEIGHT)
-            reroll_rect = self._draw_button(
-                surface, reroll_rect, "Command Re-roll (1 CP)", accent="stratagem",
-            )
-            self._buttons.append((reroll_rect, command_reroll_controller.start))
-            text_y = reroll_rect.bottom + BUTTON_GAP
-
-        # A free single-die re-roll for the duration of a shooting
-        # activation: the same shape of button as Command Re-roll above,
-        # without the CP. The LABEL comes from the controller because two
-        # datasheet abilities share this button - the gunships' Targeting
-        # Array and the Fire Prism's Crystal Matrix - and the panel should
-        # not have to know which. See game/activation_reroll.py.
-        if targeting_array_controller is not None and targeting_array_controller.can_use():
-            array_rect = pygame.Rect(rect.x + BUTTON_MARGIN, text_y, button_width, BUTTON_HEIGHT)
-            array_rect = self._draw_button(
-                surface, array_rect,
-                targeting_array_controller.panel_label() or "Targeting Array",
-                accent="confirm",
-            )
-            self._buttons.append((array_rect, targeting_array_controller.start))
-            text_y = array_rect.bottom + BUTTON_GAP
-
-        # One button per ability that could change a die of THIS roll. The
-        # controller decides which those are; the panel just draws them, so a
-        # third such ability needs no change here.
-        if unmodified_six_controller is not None:
-            for source, _squad, _model in unmodified_six_controller.available_sources():
-                source_rect = pygame.Rect(rect.x + BUTTON_MARGIN, text_y, button_width, BUTTON_HEIGHT)
-                source_rect = self._draw_button(
-                    surface, source_rect, unmodified_six_controller.label_for(source), accent="confirm",
-                )
-                self._buttons.append((source_rect, lambda s=source: unmodified_six_controller.start(s)))
-                text_y = source_rect.bottom + BUTTON_GAP
-
+        picking = any(c is not None and c.selecting_die
+                      for c in (command_reroll_controller, unmodified_six_controller, targeting_array_controller))
+        message = ("Click a die in the dice panel." if picking
+                   else "Decide the roll in the dice panel.")
         self._draw_message_box(
-            surface, rect, button_width, text_y, ["Click elsewhere to accept the roll."],
+            surface, rect, button_width, text_y, [message],
             config.PANEL_TEXT_COLOR, config.PANEL_BORDER_COLOR,
         )
 

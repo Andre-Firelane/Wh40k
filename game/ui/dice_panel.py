@@ -3,10 +3,10 @@ import time
 
 import pygame
 
-from game import config, sprites
+from game import config, roll_choice, sprites
 from game.dice import REROLL_ANIMATION_DURATION, HIT_ROLL, SNAP_SHOT_HIT_ROLL, WOUND_ROLL, SAVE_ROLL
 from game.ui import button_style
-from game.ui.text_utils import wrap_text
+from game.ui.text_utils import ellipsised, wrap_text
 
 # User supplied a die-face sprite (Sprites/Dice.png - a blank white/grey
 # cube face, rounded corners, dark outline, no pips) to use instead of the
@@ -119,7 +119,8 @@ CRIT_LABEL_SEPARATION = 16
 #: Deliberately generous - guessing too small makes the panel widen a step
 #: early, guessing too big lets it run off the bottom, and only one of those is
 #: visible.
-CHROME_HEIGHT_BUDGET = 200
+#: Grown from 200 with the heading's box and the button row.
+CHROME_HEIGHT_BUDGET = 260
 HINT_COLOR = (230, 230, 230)
 RESULT_SUMMARY_COLOR = (255, 150, 150)
 REROLL_HIGHLIGHT_COLOR = (255, 210, 0)   # rule 15.02: border of a die currently being re-rolled
@@ -188,6 +189,45 @@ _ROLL_KIND_BAR_COLORS = {
     SAVE_ROLL: SAVE_ROLL_BAR_COLOR,
 }
 
+# The HEADING of a roll. User: "Niemand liest lange Sätze mit zahlen drin im
+# Spielgeschehen. Bei jedem Roll muss groß und Fett drüber stehen was das für
+# ein Wurf ist ... Rechts sollen Modifikationen schnell erkennbar angezeigt
+# werden. Positive Modifikatoren wie +1 (Ability XY) mit grünen Pfeil nach oben
+# / Darunter negative Modifikatoren wie -1 (Cover) mit rotem Pfeil nach unten."
+# The band keeps the roll-kind colour code (Hit orange, Wound red, Save blue);
+# the target number and the modifiers sit in a DARK box on its right, because
+# red text on the Wound band's dark red would not read.
+HEADER_PAD_X = 14
+HEADER_PAD_Y = 8
+HEADER_COLUMN_GAP = 14
+HEADER_SUBTITLE_GAP = 2
+HEADER_BOX_PAD = 8
+HEADER_BOX_BG = (10, 12, 16)
+HEADER_BOX_BORDER = (80, 80, 88)
+#: The right-hand box may take at most this share of the header's width, so a
+#: long ability name is shortened rather than squeezing the title to nothing.
+HEADER_BOX_MAX_SHARE = 0.5
+TITLE_COLOR = (255, 255, 255)
+SUBTITLE_COLOR = (215, 215, 215)
+THRESHOLD_COLOR = (255, 255, 255)
+POSITIVE_MODIFIER_COLOR = (110, 230, 120)
+NEGATIVE_MODIFIER_COLOR = (255, 115, 115)
+MODIFIER_ARROW_W = 12
+MODIFIER_ARROW_H = 10
+MODIFIER_ARROW_GAP = 6
+MODIFIER_ROW_GAP = 3
+
+# The BUTTON ROW that replaced "Click to confirm". User: "Unten im Panel
+# Buttons je nach Situation: Wurf akzeptieren / 1en wiederholen / alles
+# wiederholen / Fehlschläge wiederholen ... Dann poppen nicht so viele Overlays
+# hintereinander auf." What is on offer comes from game/roll_choice.py; with
+# nothing on offer the row is a lone Accept.
+BUTTON_HEIGHT = 34
+BUTTON_MIN_WIDTH = 120
+BUTTON_PAD_X = 18
+BUTTON_GAP = 10
+BUTTON_TOP_GAP = 4
+
 HIDDEN, SLIDING_IN, ROLLING, SHOWN, SLIDING_OUT = "hidden", "in", "rolling", "shown", "out"
 
 
@@ -251,6 +291,19 @@ class DicePanel:
         # widest word ("DEVASTATING") is what decides how far apart the dice
         # in a row have to be.
         self.crit_font = pygame.font.SysFont(config.FONT_NAME, 13, bold=True)
+        # The heading's fonts - the title is the largest text on the panel on
+        # purpose: it is the one thing a player reads first.
+        self.title_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE + 9, bold=True)
+        self.subtitle_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE - 2)
+        self.threshold_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE + 15, bold=True)
+        self.modifier_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE - 1, bold=True)
+        self.button_font = pygame.font.SysFont(config.FONT_NAME, config.FONT_SIZE - 2, bold=True)
+        # [(RollOption, rect), ...] from the last draw() - see button_at().
+        self._button_rects = []
+        # The same, for the Stratagem and ability buttons - see action_at().
+        # A list of its own, so button_at() keeps answering only the roll's
+        # own options (selfplay.py and main.py's click-anywhere gate read it).
+        self._action_rects = []
         self._die_rects = []  # [(original_index, rect), ...] from the last draw() - for click detection
         # The backdrop this panel actually put on screen last frame, or None
         # if it drew nothing (no roll, suppressed, finished sliding out).
@@ -296,7 +349,27 @@ class DicePanel:
         just is_pending."""
         return self._phase != HIDDEN
 
-    def draw(self, surface, dice_manager, selecting_die=False, bounds_rect=None, suppressed=False):
+    def button_at(self, pos):
+        """The RollOption whose button is under `pos` in the last frame drawn,
+        or None. Read by main.py's dice branch BEFORE its click-anywhere
+        acceptance, so a button press is never mistaken for one."""
+        for option, rect in self._button_rects:
+            if rect.collidepoint(pos):
+                return option
+        return None
+
+    def action_at(self, pos):
+        """The Stratagem/ability RollOption under `pos` in the last frame drawn,
+        or None (game/roll_choice.py's ability_actions()). Asked by main.py
+        before anything else in the dice branch: a Cancel has to win over the
+        die-pick routing, and a press must never read as "accept"."""
+        for option, rect in self._action_rects:
+            if rect.collidepoint(pos):
+                return option
+        return None
+
+    def draw(self, surface, dice_manager, selecting_die=False, bounds_rect=None, suppressed=False, choice=None,
+             actions=(), selecting_hint=None):
         """`suppressed` withholds the panel entirely for this frame - used by
         main.py while a modal must-click-away overlay (a "Player 2 uses X"
         Stratagem notice, a WAAAGH! notice, the turn banner, the turn plan)
@@ -313,6 +386,8 @@ class DicePanel:
         once the notice is gone (rather than jumping straight to its result,
         which is what simply skipping the draw call would do)."""
         self._die_rects = []
+        self._button_rects = []
+        self._action_rects = []
         self.last_backdrop_rect = None
         now = time.monotonic()
         if suppressed:
@@ -434,8 +509,13 @@ class DicePanel:
         # FLOOR, because PlayerBanner draws its blocking warnings across the
         # full window width and this panel promised never to sit under them.
         top_y = max(bounds_rect.y, config.PLAYER_BANNER_HEIGHT) + DICE_TOP_MARGIN
+        # The Stratagem/ability row is chrome the budget above did not know
+        # about: one row for every two buttons, which is what a 640px panel
+        # fits side by side.
+        action_rows = (len(actions) + 1) // 2 if actions else 0
         height_budget = (bounds_rect.bottom - top_y
-                         - 2 * BACKDROP_PADDING - CHROME_HEIGHT_BUDGET)
+                         - 2 * BACKDROP_PADDING - CHROME_HEIGHT_BUDGET
+                         - action_rows * (BUTTON_HEIGHT + BUTTON_GAP))
         panel_width = _panel_width(bounds_rect, len(values), row_gap, row_height,
                                    height_budget)
         panel_left = bounds_rect.x + (bounds_rect.width - panel_width) // 2
@@ -488,12 +568,11 @@ class DicePanel:
             )
             y += 4
 
-        if dice_manager.label:
-            y = self._draw_label_bar(
-                ops, movable_rects, surface, dice_manager.label, self.label_font, dice_manager.roll_kind,
-                y, text_max_width, panel_left, panel_width,
-            )
-            y += LABEL_BAR_GAP
+        # The heading replaces the label sentence on screen - see
+        # _draw_header(). Every roll gets one: display_title() always has an
+        # answer, from the site's own title, the label's name, or the kind.
+        y = self._draw_header(ops, movable_rects, surface, dice_manager, y, panel_left, panel_width)
+        y += LABEL_BAR_GAP
 
         # THE GAP AND THE ROW LENGTH ARE ONE DECISION, and splitting them was a
         # reported bug: this counted dice per row at DICE_GAP while
@@ -529,23 +608,38 @@ class DicePanel:
             # shooting.py/fight.py's _resolve_wounds()).
             if dice_manager.roll_kind == SAVE_ROLL and dice_manager.damage_per_failure is not None:
                 failed_count = len(failures)
+                # Short on purpose - "niemand liest lange Sätze mit Zahlen drin
+                # im Spielgeschehen". Two facts, the count and what each costs.
                 if failed_count == 0:
-                    summary = "All saves succeed - no damage gets through."
+                    summary = "ALL SAVED"
                 else:
-                    total_damage = failed_count * dice_manager.damage_per_failure
-                    summary = (
-                        f"{failed_count} attack(s) get through: {dice_manager.damage_per_failure} damage each "
-                        f"({total_damage} total)."
-                    )
+                    summary = f"{failed_count} UNSAVED - {dice_manager.damage_per_failure} DAMAGE EACH"
                 y = self._draw_wrapped(ops, movable_rects, surface, summary, self.label_font, RESULT_SUMMARY_COLOR, y, text_max_width, panel_centerx)
                 y += 8
 
-            hint = "Click a die to re-roll it." if (selecting_die and pending) else "Click to confirm"
-            hint_surf = self.hint_font.render(hint, True, HINT_COLOR)
-            hint_rect = hint_surf.get_rect(centerx=panel_centerx, y=y)
-            movable_rects.append(hint_rect)
-            ops.append(lambda s=hint_surf, r=hint_rect: surface.blit(s, r))
-            y = hint_rect.bottom
+            if selecting_die and pending:
+                hint_text = selecting_hint or "Click a die to re-roll it."
+                hint_surf = self.hint_font.render(hint_text, True, HINT_COLOR)
+                hint_rect = hint_surf.get_rect(centerx=panel_centerx, y=y)
+                movable_rects.append(hint_rect)
+                ops.append(lambda s=hint_surf, r=hint_rect: surface.blit(s, r))
+                y = hint_rect.bottom
+                # The way out of the pick (its Cancel) - the roll's own buttons
+                # stand aside while a die is being picked.
+                if actions:
+                    y = self._draw_buttons(ops, movable_rects, surface, None, y, text_max_width,
+                                           panel_left, panel_width, options=list(actions),
+                                           rects=self._action_rects)
+            elif pending:
+                y = self._draw_buttons(ops, movable_rects, surface, choice, y, text_max_width,
+                                       panel_left, panel_width)
+                # The Stratagem and ability buttons, on their own row under the
+                # roll's: Accept and the roll's re-rolls stay the first thing
+                # the eye finds, and a CP spend is never the button in its place.
+                if actions:
+                    y = self._draw_buttons(ops, movable_rects, surface, None, y + BUTTON_GAP, text_max_width,
+                                           panel_left, panel_width, options=list(actions),
+                                           rects=self._action_rects)
 
         backdrop_rect = pygame.Rect(
             panel_left, top_y - BACKDROP_PADDING,
@@ -579,6 +673,54 @@ class DicePanel:
             if rect.collidepoint(pos):
                 return index
         return None
+
+    def _draw_buttons(self, ops, movable_rects, surface, choice, y, max_width, panel_left, panel_width,
+                      options=None, rects=None):
+        """The row of what the player may do with this roll, centred, wrapping
+        onto a second row when the panel is narrow. `choice` None is a roll
+        with nothing on offer (or somebody else's offer): a lone Accept.
+
+        Accept in the confirm palette, the re-rolls in the default one - the
+        HUD's colour code already says what a press COSTS, and accepting moves
+        the game on. No Accept at all when keeping the result is not legal
+        (see RollChoice.accept_allowed). Hover is polled, like every other view
+        state here."""
+        if options is None:
+            options = (list(choice.options) if choice is not None
+                       else [roll_choice.RollOption(roll_choice.ACCEPT)])
+        if rects is None:
+            rects = self._button_rects
+        if not options:
+            return y
+        widths = [min(max_width, max(BUTTON_MIN_WIDTH,
+                                     self.button_font.size(o.label.upper())[0] + 2 * BUTTON_PAD_X))
+                  for o in options]
+        rows, current, current_w = [], [], 0
+        for index, width in enumerate(widths):
+            needed = width if not current else current_w + BUTTON_GAP + width
+            if current and needed > max_width:
+                rows.append(current)
+                current, current_w = [index], width
+            else:
+                current.append(index)
+                current_w = needed
+        if current:
+            rows.append(current)
+        y += BUTTON_TOP_GAP
+        for row in rows:
+            row_w = sum(widths[k] for k in row) + BUTTON_GAP * (len(row) - 1)
+            x = panel_left + (panel_width - row_w) // 2
+            for k in row:
+                rect = pygame.Rect(x, y, widths[k], BUTTON_HEIGHT)
+                movable_rects.append(rect)
+                rects.append((options[k], rect))
+                accent = options[k].accent or ("confirm" if options[k].key == roll_choice.ACCEPT else None)
+                ops.append(lambda r=rect, label=options[k].label, a=accent: button_style.draw_button(
+                    surface, r, label, self.button_font,
+                    hovered=r.collidepoint(pygame.mouse.get_pos()), accent=a))
+                x += widths[k] + BUTTON_GAP
+            y += BUTTON_HEIGHT + BUTTON_GAP
+        return y - BUTTON_GAP
 
     def _draw_wrapped(self, ops, movable_rects, surface, text, font, color, y, max_width, centerx):
         for line in wrap_text(font, text, max_width):
@@ -697,30 +839,126 @@ class DicePanel:
         ops.append(lambda s=verb_surf, r=verb_rect: surface.blit(s, r))
         return y + height + MATCHUP_BOTTOM_GAP
 
-    def _draw_label_bar(self, ops, movable_rects, surface, text, font, roll_kind, y, max_width, panel_left, panel_width):
-        """The dice panel's own heading (dice_manager.label) gets a colored
-        bar behind it, per the user's color code - keyed off the roll's
-        kind (see _ROLL_KIND_BAR_COLORS above). The bar spans the full
-        panel width (like the Actions panel's own header bars), sized to
-        fit however many lines the (possibly wrapped) label needs."""
-        lines = wrap_text(font, text, max_width) or [text]
-        line_height = font.get_height() + 2
-        bar_height = len(lines) * line_height + 2 * LABEL_BAR_PADDING_Y
-        bar_rect = pygame.Rect(panel_left, y, panel_width, bar_height)
-        movable_rects.append(bar_rect)
-        bar_color = _ROLL_KIND_BAR_COLORS.get(roll_kind, NORMAL_BAR_COLOR)
-        ops.append(lambda r=bar_rect, c=bar_color: pygame.draw.rect(surface, c, r))
+    def _draw_header(self, ops, movable_rects, surface, dice_manager, y, panel_left, panel_width):
+        """The roll's heading: a band in the roll-kind colour, the TITLE big
+        and bold on the left with a quieter subtitle under it, and on the
+        right a dark box with the target number and the modifiers - helpful
+        ones first with a green up-arrow, harmful ones after with a red
+        down-arrow. See HEADER_PAD_X's comment for the user report.
 
-        text_y = y + LABEL_BAR_PADDING_Y
-        centerx = panel_left + panel_width // 2
-        for line in lines:
-            line_surf = font.render(line, True, LABEL_COLOR)
-            line_rect = line_surf.get_rect(centerx=centerx, y=text_y)
-            movable_rects.append(line_rect)
-            ops.append(lambda s=line_surf, r=line_rect: surface.blit(s, r))
-            text_y += line_height
+        Measured before anything is drawn, like every other block here: the
+        title wraps into whatever the box leaves, and the band is as tall as
+        the taller of the two columns. Returns the band's bottom."""
+        inner_left = panel_left + HEADER_PAD_X
+        inner_width = max(1, panel_width - 2 * HEADER_PAD_X)
+        threshold = dice_manager.success_threshold
+        box = self._header_box_layout(
+            f"{threshold}+" if threshold is not None else None,
+            tuple(getattr(dice_manager, "shown_modifiers", ()) or ()),
+            inner_width,
+        )
+        left_w = inner_width - (box["width"] + HEADER_COLUMN_GAP if box else 0)
+        left_w = max(1, left_w)
 
-        return bar_rect.bottom
+        title = dice_manager.display_title().upper()
+        subtitle = dice_manager.display_subtitle()
+        title_lines = wrap_text(self.title_font, title, left_w) or [title]
+        sub_lines = wrap_text(self.subtitle_font, subtitle, left_w) if subtitle else []
+        title_h = self.title_font.get_height()
+        sub_h = self.subtitle_font.get_height()
+        left_h = len(title_lines) * title_h
+        if sub_lines:
+            left_h += HEADER_SUBTITLE_GAP + len(sub_lines) * sub_h
+        content_h = max(left_h, box["height"] if box else 0)
+
+        band = pygame.Rect(panel_left, y, panel_width, content_h + 2 * HEADER_PAD_Y)
+        movable_rects.append(band)
+        band_color = _ROLL_KIND_BAR_COLORS.get(dice_manager.roll_kind, NORMAL_BAR_COLOR)
+        ops.append(lambda r=band, c=band_color: pygame.draw.rect(surface, c, r))
+
+        text_y = y + HEADER_PAD_Y + (content_h - left_h) // 2
+        for font, lines, color, line_h, gap in (
+            (self.title_font, title_lines, TITLE_COLOR, title_h, 0),
+            (self.subtitle_font, sub_lines, SUBTITLE_COLOR, sub_h, HEADER_SUBTITLE_GAP),
+        ):
+            if lines:
+                text_y += gap
+            for line in lines:
+                line_surf = font.render(line, True, color)
+                line_rect = line_surf.get_rect(x=inner_left, y=text_y)
+                movable_rects.append(line_rect)
+                ops.append(lambda s=line_surf, r=line_rect: surface.blit(s, r))
+                text_y += line_h
+
+        if box:
+            box_rect = pygame.Rect(
+                inner_left + inner_width - box["width"],
+                y + HEADER_PAD_Y + (content_h - box["height"]) // 2,
+                box["width"], box["height"],
+            )
+            movable_rects.append(box_rect)
+            ops.append(lambda r=box_rect: button_style.draw_box(
+                surface, r, bg_color=HEADER_BOX_BG, border_color=HEADER_BOX_BORDER))
+            cursor = box_rect.y + HEADER_BOX_PAD
+            if box["threshold"] is not None:
+                thr_rect = box["threshold"].get_rect(centerx=box_rect.centerx, y=cursor)
+                movable_rects.append(thr_rect)
+                ops.append(lambda s=box["threshold"], r=thr_rect: surface.blit(s, r))
+                cursor += box["threshold"].get_height() + (MODIFIER_ROW_GAP if box["rows"] else 0)
+            for delta, text_surf, color, row_h in box["rows"]:
+                arrow = pygame.Rect(box_rect.x + HEADER_BOX_PAD, cursor + (row_h - MODIFIER_ARROW_H) // 2,
+                                    MODIFIER_ARROW_W, MODIFIER_ARROW_H)
+                text_rect = text_surf.get_rect(x=arrow.right + MODIFIER_ARROW_GAP,
+                                               y=cursor + (row_h - text_surf.get_height()) // 2)
+                movable_rects.extend((arrow, text_rect))
+                ops.append(lambda a=arrow, up=delta > 0, c=color: self._draw_modifier_arrow(surface, a, up, c))
+                ops.append(lambda s=text_surf, r=text_rect: surface.blit(s, r))
+                cursor += row_h + MODIFIER_ROW_GAP
+
+        return band.bottom
+
+    def _header_box_layout(self, threshold_text, modifiers, inner_width):
+        """The right-hand box's rendered contents and size, or None when a roll
+        has neither a target number nor a modifier (an Advance with no bonus)
+        - an empty dark box would read as something that failed to load.
+
+        A modifier row is shortened with an ellipsis rather than wrapped: the
+        sign and the arrow carry the meaning, and a two-line "+1 (Protocol of
+        the Conquering Tyrant)" would make the box taller than the title."""
+        if threshold_text is None and not modifiers:
+            return None
+        thr_surf = (self.threshold_font.render(threshold_text, True, THRESHOLD_COLOR)
+                    if threshold_text is not None else None)
+        texts = [(delta, f"{delta:+d} ({source})") for delta, source in modifiers]
+        row_w = max((self.modifier_font.size(t)[0] for _d, t in texts), default=0)
+        content_w = max(
+            thr_surf.get_width() if thr_surf is not None else 0,
+            (MODIFIER_ARROW_W + MODIFIER_ARROW_GAP + row_w) if texts else 0,
+        )
+        cap = max(2 * HEADER_BOX_PAD + 1, int(inner_width * HEADER_BOX_MAX_SHARE))
+        width = min(cap, content_w + 2 * HEADER_BOX_PAD)
+        text_max = max(1, width - 2 * HEADER_BOX_PAD - MODIFIER_ARROW_W - MODIFIER_ARROW_GAP)
+        rows = []
+        for delta, text in texts:
+            color = POSITIVE_MODIFIER_COLOR if delta > 0 else NEGATIVE_MODIFIER_COLOR
+            surf = self.modifier_font.render(ellipsised(self.modifier_font, text, text_max), True, color)
+            rows.append((delta, surf, color, max(surf.get_height(), MODIFIER_ARROW_H)))
+        height = 2 * HEADER_BOX_PAD
+        if thr_surf is not None:
+            height += thr_surf.get_height() + (MODIFIER_ROW_GAP if rows else 0)
+        if rows:
+            height += sum(r[3] for r in rows) + MODIFIER_ROW_GAP * (len(rows) - 1)
+        return {"width": width, "height": height, "threshold": thr_surf, "rows": rows}
+
+    @staticmethod
+    def _draw_modifier_arrow(surface, rect, up, color):
+        """A filled triangle - drawn rather than typed, because the system font
+        is whatever the OS gave us and may not carry an arrow glyph."""
+        if up:
+            points = [(rect.left, rect.bottom), (rect.right, rect.bottom), (rect.centerx, rect.top)]
+        else:
+            points = [(rect.left, rect.top), (rect.right, rect.top), (rect.centerx, rect.bottom)]
+        pygame.draw.polygon(surface, color, points)
 
     def _draw_dice_row(
         self, ops, movable_rects, surface, row, y, dice_manager, selecting_die, panel_left, panel_width,

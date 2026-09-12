@@ -397,16 +397,23 @@ ck.true("Drone Harassment fires at the end of the Movement phase",
         "drone_harassment_controller.offer_at_end_of_movement(" in _main)
 
 _panel = src("game/ui/action_panel.py")
+_choices = src("game/roll_choice.py")
 # The button's LABEL now comes from the controller, because the Fire Prism's
 # Crystal Matrix shares this button (see game/activation_reroll.py) - so the
 # guard checks that the panel ASKS, and that the fallback still names this
 # ability, rather than pinning a string that two datasheets have to share.
-ck.true("the panel draws the free-re-roll button",
-        "targeting_array_controller.panel_label()" in _panel)
+# The button moved from the left panel onto the dice panel (user: "buttons für
+# fähigkeiten und stratagems sollen doch mit in das würfel panel rein, statt
+# links in die spalte"), so the guard reads game/roll_choice.py's
+# ability_actions() - the one list the drawing and the click routing share.
+ck.true("the dice panel draws the free-re-roll button",
+        "activation_reroll.panel_label()" in _choices)
 ck.true("...falling back to this ability's own name",
-        '"Targeting Array",' in _panel)
+        'or "Targeting Array"' in _choices)
 ck.true("...and its own die-selection mode",
-        "targeting_array_controller.selecting_die" in _panel)
+        "(activation_reroll, REROLL_PICK_HINT)" in _choices)
+ck.true("...handed the controller by main.py",
+        "command_reroll_controller, targeting_array_controller, unmodified_six_controller)" in _main)
 ck.true("the panel parameter is keyword-appended, never positional",
         "targeting_array_controller=None," in _panel)
 

@@ -126,7 +126,7 @@ class BattleShockController:
         if squad is None or squad.battle_shocked or self.dice_manager is None or self.rolling_squad is not None:
             return
         label = f"Desperate Escape Battle-Shock Roll (Ld {_ld_label(squad, self.all_tokens)})"
-        self._start_roll_dice(squad, label)
+        self._start_roll_dice(squad, label, source="Desperate Escape")
 
     def start_forced_roll(self, squad, source, penalty=0):
         """A Battle-Shock test some rule imposes out of turn - "that enemy
@@ -149,11 +149,11 @@ class BattleShockController:
         note = f", -{penalty} to the test" if penalty else ""
         self._start_roll_dice(
             squad, f"Battle-Shock Roll - {source} (Ld {_ld_label(squad, self.all_tokens)}{note})",
-            penalty=penalty,
+            penalty=penalty, source=source,
         )
         return True
 
-    def _start_roll_dice(self, squad, label, penalty=0):
+    def _start_roll_dice(self, squad, label, penalty=0, source=None):
         self.rolling_squad = squad
         # Only a forced test carries one (Seer Council's Presentiment of Dread);
         # every other route leaves it at 0.
@@ -166,6 +166,8 @@ class BattleShockController:
             # The unit named here is the one TAKING the test, so the panel
             # shows its art and says so rather than calling it a target.
             target_name=squad.name, target_squad=squad, subject_label="Testing",
+            title="Battle-shock Test", subtitle=source or "",
+            shown_modifiers=((-penalty, source or "penalty"),) if penalty else (),
         )
 
     def on_dice_acknowledged(self):

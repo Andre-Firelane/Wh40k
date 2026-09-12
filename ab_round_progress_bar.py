@@ -85,19 +85,74 @@ SPACE_OLD = "RESERVES_PANEL_HEIGHT = 102"
 # 5. One colour for the whole track. The bar still fills and still animates -
 #    it just stops saying whose turn each segment was, which is half of "das
 #    Volk Logo/Farbe muss drin sein".
-COLOR_NEW = "        base = TOKEN_TEAM_COLORS.get(owner, EMPTY_COLOR)"
-COLOR_OLD = '        base = TOKEN_TEAM_COLORS.get("Player 1", EMPTY_COLOR)'
+COLOR_NEW = "    base = TOKEN_TEAM_COLORS.get(owner, EMPTY_COLOR)"
+COLOR_OLD = '    base = TOKEN_TEAM_COLORS.get("Player 1", EMPTY_COLOR)'
 
 # 6. The played and the current cell drawn the same. The bar still fills
 #    correctly; you just cannot see where you are in the turn.
-CURRENT_NEW = """            elif index < playing or phase_index < phase_now:
-                color = _dim(base, PLAYED_DIM)
-            elif phase_index == phase_now:
-                color = base"""
-CURRENT_OLD = """            elif index < playing or phase_index < phase_now:
-                color = _dim(base, PLAYED_DIM)
-            elif phase_index == phase_now:
-                color = _dim(base, PLAYED_DIM)"""
+CURRENT_NEW = """    if turn == playing and phase == phase_now:
+        return tuple(base[:3])"""
+CURRENT_OLD = """    if turn == playing and phase == phase_now:
+        return _dim(base, PLAYED_DIM)"""
+
+# ---- the turn labels ON the bar, and the colours from the first turn on ----
+# Reported: "momentan sind ganz kleine labels unter den zugabschnitten. die
+# koennen weg. stattdessen koennen P1 bzw P2 labels direkt auf der leiste sein
+# ... auch von anfang an in den richtigen farben".
+
+# 10. THE REPORTED LAYOUT, restored: the label drawn under the cells again.
+LABEL_UNDER_NEW = "    rect = ink.get_rect(center=middle.center)"
+LABEL_UNDER_OLD = "    rect = ink.get_rect(midtop=(middle.centerx, segment.bottom))"
+
+# 10b. ...and small again: the font the reported labels were set in.
+LABEL_SIZE_NEW = "LABEL_FONT_SIZE = 18"
+LABEL_SIZE_OLD = "LABEL_FONT_SIZE = 11"
+
+# 11. ...and its other half: the cells give up a row for a label again.
+ROW_RESERVED_NEW = "    for index, segment in enumerate(turn_segments(track, len(owners))):"
+ROW_RESERVED_OLD = ("    for index, segment in enumerate(turn_segments(pygame.Rect(track.x, "
+                    "track.y, track.width, track.height - font.get_height()), len(owners))):")
+
+# 12. THE OTHER REPORTED HALF: a turn nobody has played yet is grey again, so
+#     the bar cannot say whose turn is where until it has been played.
+UPCOMING_NEW = "    return _dim(base, UPCOMING_DIM)"
+UPCOMING_OLD = "    return EMPTY_COLOR"
+
+# 13. The labels in one neutral colour, not the owners'.
+LABEL_COLOUR_NEW = "    ink = font.render(text, True, label_color(owner))"
+LABEL_COLOUR_OLD = "    ink = font.render(text, True, (150, 165, 180))"
+
+# 14. Every segment named the same, whoever owns it. Right place, right colour,
+#     wrong TEXT - which a pixel-colour check alone would pass.
+LABEL_TEXT_NEW = """    text = owner_label(owner)
+    ink = """
+LABEL_TEXT_OLD = """    text = "P1"
+    ink = """
+
+# 15. No outline: the label vanishes into its own full-colour current cell.
+OUTLINE_NEW = "        surface.blit(outline, rect.move(dx, dy))"
+OUTLINE_OLD = "        pass"
+
+# 16. Labels squeezed into any segment, however narrow.
+SQUEEZE_NEW = """    if rect.width + 2 * (LABEL_MARGIN + 1) > segment.width:
+        return None"""
+SQUEEZE_OLD = """    if False:
+        return None"""
+
+# 17. Labels during deployment, in the PLACEHOLDER order TurnTracker carries
+#     before the first-turn roll-off - an order that can flip a moment later.
+DEPLOY_LABELS_NEW = """        if playing is not None:
+            drawn = _draw_owner_label("""
+DEPLOY_LABELS_OLD = """        if True:
+            drawn = _draw_owner_label("""
+
+# 18. ...and the same for the colours: the placeholder order painted in.
+DEPLOY_COLOURS_NEW = """    if playing is None:
+        return EMPTY_COLOR
+"""
+DEPLOY_COLOURS_OLD = """    if playing is None:
+        playing, phase_now = -1, 0
+"""
 
 # 7. The integer-division layout. Loses up to a pixel per segment, so the
 #    track's right-hand end drifts away from its own border - the reason
@@ -137,6 +192,22 @@ PROBES = [
     ("integer-division layout (the track drifts)", [(BAR, DRIFT_NEW, DRIFT_OLD)], SUITE),
     ("the badge shows a fixed side, not the turn owner", [(BAR, BADGE_NEW, BADGE_OLD)], SUITE),
     ("the round number comes back to the panel", [(PANEL, PANEL_NEW, PANEL_OLD)], SUITE),
+    ("the turn label is drawn under the cells again (reported)",
+     [(BAR, LABEL_UNDER_NEW, LABEL_UNDER_OLD)], SUITE),
+    ("the turn label is as small as the reported one",
+     [(BAR, LABEL_SIZE_NEW, LABEL_SIZE_OLD)], SUITE),
+    ("the cells give up a row for the label again",
+     [(BAR, ROW_RESERVED_NEW, ROW_RESERVED_OLD)], SUITE),
+    ("upcoming turns are grey until played (reported)",
+     [(BAR, UPCOMING_NEW, UPCOMING_OLD)], SUITE),
+    ("the labels are one neutral colour", [(BAR, LABEL_COLOUR_NEW, LABEL_COLOUR_OLD)], SUITE),
+    ("every segment is labelled P1", [(BAR, LABEL_TEXT_NEW, LABEL_TEXT_OLD)], SUITE),
+    ("the label has no outline", [(BAR, OUTLINE_NEW, OUTLINE_OLD)], SUITE),
+    ("labels squeezed into any width", [(BAR, SQUEEZE_NEW, SQUEEZE_OLD)], SUITE),
+    ("labels during deployment, in the placeholder order",
+     [(BAR, DEPLOY_LABELS_NEW, DEPLOY_LABELS_OLD)], SUITE),
+    ("colours during deployment, in the placeholder order",
+     [(BAR, DEPLOY_COLOURS_NEW, DEPLOY_COLOURS_OLD)], SUITE),
 ]
 
 baselines = {}

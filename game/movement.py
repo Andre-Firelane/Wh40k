@@ -14,7 +14,7 @@ from game import guardian_time_to_strike
 from game import montka_aggressive_mobility, montka_pulse_onslaught
 from game import formation_layout, front_rank, line_drag
 from game.dice import ADVANCE_ROLL
-from game.roll_bonus import advance_and_charge_bonus
+from game.roll_bonus import advance_and_charge_bonus, sources as roll_bonus_sources
 from game.selection import Selection
 from game.squad import model_engaged_with, model_terrain_violation, model_overlaps_any
 from game.terrain import DENSE, may_cross_walls
@@ -42,9 +42,24 @@ def advance_total(squad, values, all_tokens=None):
     # on_dice_acknowledged()'s Command Re-roll reconciliation sees the same
     # number - the whole reason this helper exists. Floored at 0: a negative
     # Advance would move the unit backwards.
-    total = (sum(values) + advance_and_charge_bonus(squad, all_tokens)
-             - montka_pulse_onslaught.roll_penalty_for(squad))
+    total = sum(values) + sum(amount for _label, amount in advance_roll_modifiers(squad, all_tokens))
     return max(0, total)
+
+
+def advance_roll_modifiers(squad, all_tokens=None):
+    """(label, signed amount) for every term advance_total() adds to the die -
+    the bonuses from game/roll_bonus.py and Mont'ka's `shaken` penalty.
+
+    ONE list read by the arithmetic above AND by the dice panel's heading, so
+    the panel can never name a modifier the Advance is not taking (or miss one
+    it is). The bonus total is the sum of roll_bonus.sources() by that module's
+    own construction, which is what lets the sum here replace
+    advance_and_charge_bonus()."""
+    terms = list(roll_bonus_sources(squad, all_tokens))
+    shaken = montka_pulse_onslaught.roll_penalty_for(squad)
+    if shaken:
+        terms.append(("shaken", -shaken))
+    return terms
 
 # Pull back slightly from an obstacle boundary when blocked, so the model doesn't
 # land exactly on the edge (which would falsely re-block any further slide along it).
@@ -710,7 +725,14 @@ class MovementController:
                 )
             return
 
-        values = self.dice_manager.roll(count=1, sides=6, label="Advance", roll_kind=ADVANCE_ROLL)
+        values = self.dice_manager.roll(
+            count=1, sides=6, label="Advance", roll_kind=ADVANCE_ROLL,
+            title="Advance Roll", subtitle=self.selected_squad.name,
+            shown_modifiers=tuple(
+                (amount, label) for label, amount in
+                advance_roll_modifiers(self.selected_squad, self.all_tokens)
+            ),
+        )
         bonus = advance_total(self.selected_squad, values, self.all_tokens)
         for model in self.selected_squad.models:
             self.remaining_range[model.id] = self.remaining_range.get(model.id, 0.0) + bonus

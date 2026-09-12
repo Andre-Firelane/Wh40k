@@ -7,11 +7,38 @@ asked for, each of which decides something here:
 
   * the PHASES may be separated but need no labels - so they are the track's
     finest division and carry no text of their own;
-  * the TURN must be labelled - so every turn segment is named, and the one
-    being played is named again in full beside the badge;
+  * the TURN must be labelled - so every turn segment carries its owner
+    ("P1"/"P2") ON the cells, and the one being played is named again in full
+    beside the badge;
   * the FACTION logo/colour must be in it - so each turn segment is filled in
     its owner's constant team colour and the current owner's badge sits at the
     left end.
+
+THE LABELS SIT ON THE BAR, NOT UNDER IT, and every turn is in its owner's colour
+from the first turn on (user: "momentan sind ganz kleine labels unter den
+zugabschnitten. die koennen weg. stattdessen koennen P1 bzw P2 labels direkt auf
+der leiste sein ... auch von anfang an in den richtigen farben"). The first
+version reserved a row of 11 px text under nine-pixel cells, named each turn
+"3.2" in grey, and left every turn nobody had played yet EMPTY_COLOR grey - so
+at the start of a battle the bar could not say whose turn was where. Now:
+
+  * the cells get the whole track height, and the label is drawn centred on
+    its segment's middle phase cell (the segment's centre - five cells are
+    symmetric); at 1280 px and wider it sits inside that one cell and crosses
+    no hairline;
+  * it is bigger than the text it replaced, which was the other half of "ganz
+    kleine labels": 17x12 px with 9 px glyphs, against 6 px glyphs before;
+  * an UPCOMING turn is its owner's colour, dark; a PLAYED phase the same
+    colour, brighter; the current phase full plus the outline - three steps of
+    one hue, so "whose" and "how far" are both readable at once;
+  * the label is a light tint of the owner's colour with a dark outline, so it
+    is "in the right colour" and still reads on its own full-colour cell.
+
+BEFORE THE FIRST-TURN ROLL-OFF THE TRACK STAYS NEUTRAL, and that is a fact about
+TurnTracker rather than a style choice: a deferred-start tracker is built with a
+PLACEHOLDER first_player and told the real one by start_battle(). Colouring the
+upcoming turns during deployment would draw an order that can flip the moment
+the roll-off is decided, so neither colours nor labels appear until it is.
 
 WHAT COUNTS AS "FULL": the whole battle. missions.BATTLE_ROUNDS rounds, two
 turns each, five phases per turn - 50 cells, full when the battle is over. The
@@ -55,7 +82,7 @@ from game.ui import button_style, faction_badge
 #: The strip's height. Everything inside is derived from it, so this is the one
 #: number to change - but it is also a slice off the window that the board and
 #: the reserves panel have to give up between them, so it is deliberately tight
-#: rather than comfortable: PAD twice, one row of cells and one row of labels.
+#: rather than comfortable: PAD twice and one row of cells, the labels on them.
 BAR_HEIGHT = 28
 PAD = 3                  # inside the strip, all round
 BADGE_TEXT_GAP = 7       # between the faction tile and the text beside it
@@ -70,26 +97,44 @@ PHASE_GAP = 1            # hairline between phase cells inside one turn
 
 BG_COLOR = (18, 20, 24)
 BORDER_COLOR = button_style.BOX_BORDER_COLOR
-#: An unplayed cell. Dark enough to read as empty against BG_COLOR without
+#: A cell whose owner is not known: the whole track during deployment (the turn
+#: order is not decided before the first-turn roll-off), and any owner missing
+#: from TOKEN_TEAM_COLORS. Dark enough to read as empty against BG_COLOR without
 #: becoming invisible - the track has to be legible as a track before anything
-#: is filled in, which is exactly what the first frame of a battle looks like.
+#: is coloured in.
 EMPTY_COLOR = (44, 48, 56)
-#: A phase that has been played is its owner's colour, dimmed - see _dim().
+#: Three steps of the OWNER'S colour, darkest first - see cell_color(). A turn
+#: nobody has played yet is already its owner's hue, so the bar says whose turn
+#: is where from the first turn on; a played phase is brighter; the phase being
+#: played is the full colour plus CURRENT_OUTLINE_COLOR.
+UPCOMING_DIM = 0.3
 PLAYED_DIM = 0.55
 #: The phase being played right now: full colour plus this outline, so it is
 #: findable at a glance on a fifty-cell track.
 CURRENT_OUTLINE_COLOR = config.PANEL_HEADER_COLOR
-LABEL_COLOR = (150, 165, 180)
-#: The current turn's label, in the header gold that means "this is the
-#: subject" everywhere else in this UI.
+#: The current turn's title beside the badge, in the header gold that means
+#: "this is the subject" everywhere else in this UI.
 CURRENT_LABEL_COLOR = config.PANEL_HEADER_COLOR
 
-LABEL_FONT_SIZE = 11
+#: The "P1"/"P2" label drawn ON every turn segment. Its colour is the owner's
+#: team colour pulled this far toward white - the owner's colour, but light
+#: enough to read on the owner's own dark and mid cells - and the dark outline
+#: carries it over the one cell where it would not: the current phase, which is
+#: the full colour itself.
+#:
+#: 18 is measured, not picked: pygame's default font is small for its size
+#: (at 12 "P2" is 10x8 px with 6 px glyphs - no bigger than the labels the user
+#: called "ganz klein"), 18 gives 17x12 px with 9 px glyphs in the 22 px track,
+#: and it is the largest size whose label plus outline still fits inside one
+#: phase cell at 1280 px (21 px). 20 draws the same 9 px glyphs, only wider.
+LABEL_FONT_SIZE = 18
+LABEL_LIGHTEN = 0.55
+LABEL_OUTLINE_COLOR = (8, 9, 12)
+#: Free pixels either side of a label inside its segment. A segment too narrow
+#: for that gets no label - the colour still says whose it is, and text
+#: squeezed across the hairlines of its cells reads as dirt rather than as text.
+LABEL_MARGIN = 2
 TITLE_FONT_SIZE = 13
-#: Below this a turn segment gets no label of its own - the round grouping and
-#: the colour still say what it is, and squeezing three characters into eight
-#: pixels reads as dirt rather than as text.
-MIN_SEGMENT_LABEL_WIDTH = 22
 
 _FONTS = {}
 
@@ -99,6 +144,9 @@ _FONTS = {}
 #: deriving it from different inputs. Same idiom as DicePanel.last_backdrop_rect.
 last_track_rect = None
 last_badge_rect = None
+#: (owner, text, rect) of every turn label the last draw() blitted, in track
+#: order - the blit rect of the text, not the glyphs.
+last_label_rects = []
 
 
 def _font(size, bold=True):
@@ -110,6 +158,41 @@ def _font(size, bold=True):
 
 def _dim(color, factor):
     return tuple(max(0, min(255, int(channel * factor))) for channel in color[:3])
+
+
+def _lighten(color, amount):
+    return tuple(max(0, min(255, int(round(channel + (255 - channel) * amount))))
+                 for channel in color[:3])
+
+
+def owner_label(owner):
+    """"Player 2" -> "P2": the short name that fits on a turn segment."""
+    text = str(owner)
+    if text.startswith("Player "):
+        return "P" + text[len("Player "):]
+    return text[:2].upper()
+
+
+def label_color(owner):
+    """The owner's team colour, lightened so it reads on the owner's cells."""
+    return _lighten(TOKEN_TEAM_COLORS.get(owner, EMPTY_COLOR), LABEL_LIGHTEN)
+
+
+def cell_color(owner, turn, phase, playing, phase_now):
+    """The fill of one phase cell.
+
+    `playing` is current_turn_index(): None means the battle has not started,
+    and then the turn order is not decided yet (see the module docstring), so
+    every cell is EMPTY_COLOR. After that every cell carries its owner's hue in
+    one of three steps - upcoming, played, current."""
+    if playing is None:
+        return EMPTY_COLOR
+    base = TOKEN_TEAM_COLORS.get(owner, EMPTY_COLOR)
+    if turn < playing or (turn == playing and phase < phase_now):
+        return _dim(base, PLAYED_DIM)
+    if turn == playing and phase == phase_now:
+        return tuple(base[:3])
+    return _dim(base, UPCOMING_DIM)
 
 
 def bar_rect(window_width):
@@ -168,9 +251,10 @@ def draw(surface, window_width, turn_tracker, player_factions=None):
     `player_factions` is main()'s one derivation of {player: faction keyword};
     None, or a player missing from it, simply means no badge - exactly how the
     Game Status panel and the turn banner already treat a factionless side."""
-    global last_track_rect, last_badge_rect
+    global last_track_rect, last_badge_rect, last_label_rects
     last_track_rect = None
     last_badge_rect = None
+    last_label_rects = []
     rect = bar_rect(window_width)
     if rect.width <= 0 or rect.height <= 0:
         return rect
@@ -237,40 +321,53 @@ def phase_cell(segment, phase_index, phase_count):
 
 
 def draw_track(surface, track, turn_tracker):
+    global last_label_rects
     owners = turn_owners(turn_tracker)
     playing = current_turn_index(turn_tracker)
     phase_count = len(PHASES)
     phase_now = turn_tracker.phase_index if playing is not None else 0
+    font = _font(LABEL_FONT_SIZE)
+    labels = []
 
-    label_font = _font(LABEL_FONT_SIZE)
-    label_height = label_font.get_height()
-    cells = pygame.Rect(track.x, track.y, track.width,
-                        max(1, track.height - label_height))
-
-    for index, segment in enumerate(turn_segments(cells, len(owners))):
+    # The cells take the WHOLE track height - there is no label row under them
+    # any more; the label is drawn on top of its segment below.
+    for index, segment in enumerate(turn_segments(track, len(owners))):
         owner = owners[index]
-        base = TOKEN_TEAM_COLORS.get(owner, EMPTY_COLOR)
         for phase_index in range(phase_count):
             cell = phase_cell(segment, phase_index, phase_count)
-            if playing is None or index > playing:
-                color = EMPTY_COLOR
-            elif index < playing or phase_index < phase_now:
-                color = _dim(base, PLAYED_DIM)
-            elif phase_index == phase_now:
-                color = base
-            else:
-                color = EMPTY_COLOR
-            pygame.draw.rect(surface, color, cell)
+            pygame.draw.rect(surface, cell_color(owner, index, phase_index,
+                                                 playing, phase_now), cell)
             if index == playing and phase_index == phase_now:
                 pygame.draw.rect(surface, CURRENT_OUTLINE_COLOR, cell, 1)
+        if playing is not None:
+            drawn = _draw_owner_label(surface, segment, owner, font)
+            if drawn is not None:
+                labels.append(drawn)
+    last_label_rects = labels
 
-        # The turn's own label, short by necessity: ten segments across a
-        # 1280 px window leave each one about 70 px. The round number and the
-        # owner's digit together name the turn exactly - "3.2" is Player 2's
-        # turn in battle round 3 - and the colour underneath repeats the owner.
-        if segment.width >= MIN_SEGMENT_LABEL_WIDTH:
-            text = "%d.%s" % (index // 2 + 1, str(owner)[-1])
-            color = CURRENT_LABEL_COLOR if index == playing else LABEL_COLOR
-            label = label_font.render(text, True, color)
-            surface.blit(label, label.get_rect(centerx=segment.centerx,
-                                               top=cells.bottom))
+
+#: A one-pixel ring, diagonals included: at 12 px a plain drop shadow leaves the
+#: glyphs' left and top edges touching a cell of their own colour.
+_OUTLINE_OFFSETS = ((-1, -1), (0, -1), (1, -1), (-1, 0),
+                    (1, 0), (-1, 1), (0, 1), (1, 1))
+
+
+def _draw_owner_label(surface, segment, owner, font):
+    """Blit "P1"/"P2" centred on the segment's middle phase cell; return
+    (owner, text, rect), or None when the segment is too narrow for it.
+
+    Centred on the text SURFACE. Centring on the glyph extents from
+    font.metrics() was the first version, on the theory that the surface's
+    descender room would sit "P1" high - measured at sizes 12 to 20 it lands on
+    the same row every time, so it was code that bought nothing."""
+    text = owner_label(owner)
+    ink = font.render(text, True, label_color(owner))
+    middle = phase_cell(segment, len(PHASES) // 2, len(PHASES))
+    rect = ink.get_rect(center=middle.center)
+    if rect.width + 2 * (LABEL_MARGIN + 1) > segment.width:
+        return None
+    outline = font.render(text, True, LABEL_OUTLINE_COLOR)
+    for dx, dy in _OUTLINE_OFFSETS:
+        surface.blit(outline, rect.move(dx, dy))
+    surface.blit(ink, rect)
+    return owner, text, rect

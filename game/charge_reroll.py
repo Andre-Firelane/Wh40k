@@ -121,6 +121,36 @@ class ChargeRerollController:
         )
         return True
 
+    def pending_roll_choice(self):
+        """The dice panel's version of maybe_offer_charge_reroll() for a HUMAN:
+        a "Re-roll charge" button beside Accept while the Charge roll is on the
+        table (game/roll_choice.py). A human is offered it exactly when the
+        prompt would open - the roll reaches something, or a 12 would - and
+        the press re-rolls in full, in place, claiming the offer; Accept
+        claims it on the player's behalf."""
+        from game import roll_choice
+        from game.dice import CHARGE_ROLL
+        squad = self.charging_squad()
+        dm = self.dice_manager
+        if (squad is None or dm is None or dm.roll_kind != CHARGE_ROLL or not self.can_offer(squad)
+                or squad.owner in self.auto_players or self.decision_manager is None
+                or dm.reroll_offer_claimed(self.LABEL)):
+            return None
+        rolled = sum(dm.pending_values)
+        if not (self.charge_controller.targets_reachable_with(rolled)
+                or self.charge_controller.targets_reachable_with(MAX_CHARGE_ROLL_TOTAL)):
+            return None
+        return roll_choice.RollChoice(squad.owner, [
+            roll_choice.RollOption(roll_choice.ACCEPT),
+            roll_choice.RollOption(roll_choice.WHOLE, len(dm.pending_values), label="Re-roll charge",
+                                   acknowledges=False, apply=lambda: self._reroll_from_panel(squad)),
+        ], claims=(self.LABEL,))
+
+    def _reroll_from_panel(self, squad):
+        rolled = sum(self.dice_manager.pending_values or ())
+        if self.dice_manager.claim_reroll_offer(self.LABEL):
+            self._reroll(squad, rolled)
+
     def _reroll(self, squad, rolled):
         if not self.dice_manager.reroll_all():
             return False

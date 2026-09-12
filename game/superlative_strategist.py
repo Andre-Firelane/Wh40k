@@ -67,13 +67,9 @@ class SuperlativeStrategistController:
 
         Returns True when it either threw the die or opened a prompt, so the
         caller knows not to acknowledge a roll that is being replaced."""
-        if self.dice_manager is None or not applies(squad):
+        if not self._offerable(squad):
             return False
-        if not self.dice_manager.rerollable_indices():
-            return False
-        values = self.dice_manager.pending_values or []
-        if not values:
-            return False
+        values = self.dice_manager.pending_values
         # ONCE per roll - see DiceManager.claim_reroll_offer(). Both Advance
         # re-roll offers share that seam, so neither can loop.
         if not self.dice_manager.claim_reroll_offer(SUPERLATIVE_STRATEGIST_LABEL):
@@ -90,6 +86,37 @@ class SuperlativeStrategistController:
              ("Keep it", None)],
         )
         return True
+
+    def _offerable(self, squad):
+        """Every gate of the offer except "has it already been made" - read by
+        the prompt path and by the dice panel's button, so the two cannot
+        disagree about when the Advance may be re-rolled."""
+        dm = self.dice_manager
+        return (dm is not None and squad is not None and applies(squad)
+                and bool(dm.rerollable_indices()) and bool(dm.pending_values))
+
+    def pending_roll_choice(self, squad):
+        """The dice panel's version of maybe_offer_advance_reroll() for a HUMAN
+        - a "Re-roll Advance" button beside Accept while the roll is on the
+        table (game/roll_choice.py). Pressing it claims the offer and throws
+        the die in place; Accept claims it on the player's behalf, so the
+        prompt does not open afterwards either."""
+        from game import roll_choice
+        from game.dice import ADVANCE_ROLL
+        dm = self.dice_manager
+        if (not self._offerable(squad) or dm.roll_kind != ADVANCE_ROLL
+                or squad.owner in self.auto_players or self.decision_manager is None
+                or dm.reroll_offer_claimed(SUPERLATIVE_STRATEGIST_LABEL)):
+            return None
+        return roll_choice.RollChoice(squad.owner, [
+            roll_choice.RollOption(roll_choice.ACCEPT),
+            roll_choice.RollOption(roll_choice.WHOLE, 1, label="Re-roll Advance", acknowledges=False,
+                                   apply=lambda: self._reroll_from_panel(squad)),
+        ], claims=(SUPERLATIVE_STRATEGIST_LABEL,))
+
+    def _reroll_from_panel(self, squad):
+        if self.dice_manager.claim_reroll_offer(SUPERLATIVE_STRATEGIST_LABEL):
+            self._reroll(squad)
 
     def _reroll(self, squad):
         thrown = self.dice_manager.reroll_die(0)

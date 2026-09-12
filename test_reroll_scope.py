@@ -238,10 +238,14 @@ print("--- 6. source guard ---")
 
 import ast  # noqa: E402
 
-GUARDED = [(os.path.join("game", "shooting.py"), "_offer_hit_reroll_choice"),
-           (os.path.join("game", "shooting.py"), "_offer_twin_linked_choice"),
-           (os.path.join("game", "fight.py"), "_offer_hit_reroll_choice"),
-           (os.path.join("game", "fight.py"), "_offer_twin_linked_choice")]
+# The option LISTS are built by the *_reroll_options() builders since the dice
+# panel's buttons read them before the roll is accepted (game/roll_choice.py);
+# the _offer_* methods only raise what the builders return. So the guard reads
+# the builders - pointing it at the thin offers would find no option at all.
+GUARDED = [(os.path.join("game", "shooting.py"), "_hit_reroll_options"),
+           (os.path.join("game", "shooting.py"), "_wound_reroll_options"),
+           (os.path.join("game", "fight.py"), "_hit_reroll_options"),
+           (os.path.join("game", "fight.py"), "_wound_reroll_options")]
 
 
 def failures_guarded_by_scope(path, method):

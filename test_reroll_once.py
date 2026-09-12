@@ -300,29 +300,58 @@ ack(scene)
 ok("Forward Observers does NOT throw that 1 again - the wound roll follows",
    dm.roll_kind == WOUND_ROLL)
 
-print("\n   wound step: [TWIN-LINKED] only gets the failures Forward Observers left alone")
+# The ORDER changed on a user report ("bei rerolls, sollte es keine reroll
+# option geben. man darf rerolls nicht rerollen"): [TWIN-LINKED] used to be
+# offered AFTER Forward Observers had thrown the 1s, which put its question on
+# the 1s re-roll. It is now asked on the Wound roll as thrown. What this
+# section guards is unchanged either way - no die is thrown twice.
+def _wound_roll_with_ones(scene):
+    n = len(scene["shooter"].models)
+    script(default=4)                    # all hit, no 1s -> straight to wounds
+    dm = begin_activation(scene)
+    # n-1 natural 1s plus one plain (non-1) failure: S9 vs Meganobz T5 wounds
+    # on 3+, so a 2 fails without being a 1 Forward Observers could touch.
+    script(*([1] * (n - 1) + [2]))
+    ack(scene)
+    return n, dm
+
+
+print("\n   wound step: [TWIN-LINKED] is asked on the roll as thrown, before any 1 goes")
 scene = shooting_scene(STEALTH_BATTLESUITS, weapon=TwinFusionBlasterProfile,
                        greater_good=_AlwaysObserving())
-n = len(scene["shooter"].models)
-script(default=4)                        # all hit, no 1s -> straight to wounds
-dm = begin_activation(scene)
-# n-1 natural 1s plus one plain (non-1) failure: S9 vs Meganobz T5 wounds on
-# 3+, so a 2 fails without being a 1 Forward Observers could touch.
-script(*([1] * (n - 1) + [2]))
-ack(scene)
-ok("wound roll is on the table", dm.roll_kind == WOUND_ROLL and len(dm.pending_values) == n)
-script(default=2)                        # the re-rolled 1s fail again
-ack(scene)
-ok("Forward Observers re-rolled exactly the 1s", len(dm.pending_values) == n - 1)
-ok("and they are spent", dm.already_rerolled == set(range(n - 1)))
+n, dm = _wound_roll_with_ones(scene)
+ok("wound roll is on the table", dm.roll_kind == WOUND_ROLL and len(dm.pending_values or []) == n)
 ack(scene)
 offer = prompts(scene)
-ok("[TWIN-LINKED] is still offered (an untouched failure remains)", offer is not None)
+ok("[TWIN-LINKED] is offered on the Wound roll itself", offer is not None)
+ok("...and no 1 was thrown before it", not dm.is_pending)
 if offer is not None:
-    script(default=6)
+    script(default=2)
     scene["decision"].choose(0)
-    ok("but it throws only the die that never went, not all n failures",
-       dm.pending_values is not None and len(dm.pending_values) == 1)
+ok("taking it throws every failure once - the 1s included",
+   len(dm.pending_values or []) == n and dm.already_rerolled == set(range(n)))
+ack(scene)
+ok("...and that re-roll is not followed by Forward Observers (its 1s already went)",
+   not dm.is_pending or dm.roll_kind != WOUND_ROLL)
+ok("...nor by another offer", prompts(scene) is None)
+
+print("\n   wound step: declining [TWIN-LINKED] still throws the 1s, and that re-roll asks nothing")
+scene = shooting_scene(STEALTH_BATTLESUITS, weapon=TwinFusionBlasterProfile,
+                       greater_good=_AlwaysObserving())
+n, dm = _wound_roll_with_ones(scene)
+ack(scene)
+options = [opt["label"] for opt in scene["decision"].options] if prompts(scene) else []
+keep = next((i for i, label in enumerate(options) if label.startswith("Keep result")), None)
+ok("the decline option says the 1s are still re-rolled (label: %r)" % (options[keep] if keep is not None else None),
+   keep is not None and "1s" in options[keep])
+if keep is not None:
+    script(default=2)
+    scene["decision"].choose(keep)
+ok("Forward Observers re-rolled exactly the 1s", len(dm.pending_values or []) == n - 1)
+ok("and they are spent", dm.already_rerolled == set(range(n - 1)))
+ack(scene)
+ok("accepting the 1s re-roll offers no further re-roll", prompts(scene) is None)
+ok("...and throws no die a second time", not dm.is_pending or dm.roll_kind != WOUND_ROLL)
 
 
 # ------------------------------- 5. Breach and Clear's full re-roll of a roll

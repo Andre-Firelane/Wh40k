@@ -72,11 +72,25 @@ def track_of():
     return rp.last_track_rect
 
 
-def track_row(surf, offset=3):
-    """One scanline across the cells."""
+def track_row(surf, offset=1):
+    """One scanline across the cells, SKIPPING the turn labels.
+
+    The labels are drawn on top of the cells now, so a scanline through them
+    would count their ink and their outline as cell colours. Skipped by the
+    rects draw() reported, not by picking a row that happens to miss them
+    today - a bigger font would move the glyphs onto that row silently."""
     track = track_of()
     y = track.y + offset
-    return [surf.get_at((x, y))[:3] for x in range(track.x, track.right)]
+    covered = [r.inflate(2, 2) for _o, _t, r in rp.last_label_rects]
+    return [surf.get_at((x, y))[:3] for x in range(track.x, track.right)
+            if not any(r.collidepoint(x, y) for r in covered)]
+
+
+def pixels_in(surf, rect):
+    clipped = rect.clip(surf.get_rect())
+    return [surf.get_at((x, y))[:3]
+            for y in range(clipped.top, clipped.bottom)
+            for x in range(clipped.left, clipped.right)]
 
 
 # ---------------------------------------------------------------------------
@@ -170,20 +184,135 @@ c.true("the current turn is named in full - round and player", "3" in title and 
 c.true("...and no phase name is printed there",
        not any(phase.upper() in title for phase in PHASES))
 
-# Every turn segment carries its own short label, which is the half the user
-# asked for that the colour alone cannot give ("aber der Zug soll beschriftet
-# sein"). Read off the drawn surface: a label the module computes but never
-# blits would satisfy any string test.
-surf, rect = frame(tracker_at(3, 1, 2))
-label_row = None
-for y in range(rect.top, rect.bottom):
-    row = [surf.get_at((x, y))[:3] for x in range(rect.x, rect.right)]
-    if any(px == rp.LABEL_COLOR for px in row):
-        label_row = y
-        break
-c.true("turn labels are really drawn", label_row is not None)
-c.true("...on their own row under the cells, not over them",
-       label_row is not None and label_row > rect.centery)
+# Every turn segment carries its OWNER, on the bar itself. The first version put
+# a tiny grey "3.2" in a row UNDER nine-pixel cells, and reported: "momentan
+# sind ganz kleine labels unter den zugabschnitten. die koennen weg.
+# stattdessen koennen P1 bzw P2 labels direkt auf der leiste sein ... auch von
+# anfang an in den richtigen farben". Read back off last_label_rects (what was
+# blitted, where) AND a spy on the font (what text in which colour) - a label
+# with the wrong TEXT still has the right place and the right colour.
+c.eq("'Player 1' is labelled P1", rp.owner_label("Player 1"), "P1")
+c.eq("'Player 2' is labelled P2", rp.owner_label("Player 2"), "P2")
+
+rendered = []
+_real_font = rp._font
+
+
+class _SpyFont:
+    def __init__(self, font):
+        self._font = font
+
+    def render(self, text, antialias, color, *rest):
+        rendered.append((text, tuple(color[:3])))
+        return self._font.render(text, antialias, color, *rest)
+
+    def __getattr__(self, name):
+        return getattr(self._font, name)
+
+
+rp._font = lambda size, bold=True: _SpyFont(_real_font(size, bold))
+try:
+    surf, rect = frame(tracker_at(3, 1, 2))
+finally:
+    rp._font = _real_font
+
+labels = list(rp.last_label_rects)
+track = track_of()
+# The colour checks below read ONE scanline and skip label pixels on it. That
+# skip must not be doing the work: the first run of this file read row +3,
+# which the 18 pt label covers, and it skipped the current cell's own interior
+# and reported the full colour missing. So the row they read is pinned clear.
+c.true("the scanline the colour checks read crosses no label",
+       bool(labels) and all(not r.inflate(2, 2).collidepoint(r.centerx, track.y + 1)
+                            for _o, _t, r in labels))
+segments = rp.turn_segments(track, TURNS)
+owners = rp.turn_owners(tracker_at(3, 1, 2))
+c.eq("every turn segment carries a label at 1280 px", len(labels), TURNS)
+c.eq("...in track order, each naming its own segment's owner",
+     [(owner, text) for owner, text, _r in labels],
+     [(owner, rp.owner_label(owner)) for owner in owners])
+c.true("the font really rendered P1 in Player 1's colour and P2 in Player 2's",
+       ("P1", rp.label_color("Player 1")) in rendered
+       and ("P2", rp.label_color("Player 2")) in rendered)
+c.true("...and never one player's name in the other's colour",
+       ("P1", rp.label_color("Player 2")) not in rendered
+       and ("P2", rp.label_color("Player 1")) not in rendered)
+
+# "in den richtigen farben", anchored to the two SPOKEN words rather than to
+# the table the colours come from - otherwise a probe moves both sides.
+green, red = rp.label_color("Player 1"), rp.label_color("Player 2")
+c.true(f"P1's label is green {green}", green[1] > green[0] and green[1] > green[2])
+c.true(f"P2's label is red {red}", red[0] > red[1] and red[0] > red[2])
+
+paired = len(labels) == len(segments)
+c.eq("each label is centred over ITS OWN segment",
+     [i for i, (_o, _t, r) in enumerate(labels)
+      if not segments[i].left <= r.centerx <= segments[i].right] if paired else ["count"],
+     [])
+# ON the bar: every pixel of either label colour lies inside the track's rows.
+# The old label row was BELOW the track, so that is exactly the version this
+# refuses - and the count guards against passing on a bar with no labels.
+ink_rows = [y for y in range(rect.top, rect.bottom)
+            for x in range(rect.x, rect.right)
+            if surf.get_at((x, y))[:3] in (green, red)]
+c.true("label ink is really on the screen", len(ink_rows) > 0)
+c.true("...and all of it sits ON the cells, none under them",
+       bool(ink_rows) and min(ink_rows) >= track.top and max(ink_rows) < track.bottom)
+# "ganz kleine labels" was half the report, so the size is pinned against the
+# font those labels were set in (11), not against LABEL_FONT_SIZE - a probe
+# would otherwise move both sides of the comparison.
+reported_font = pygame.font.SysFont(config.FONT_NAME, 11, bold=True)
+c.true("every label is bigger than the tiny ones it replaced",
+       bool(labels) and all(r.height > reported_font.size(text)[1]
+                            and r.width > reported_font.size(text)[0]
+                            for _o, text, r in labels))
+# At the reference width each label, outline ring included, sits inside ONE
+# phase cell - the middle one - so it crosses no hairline between cells.
+middles = [rp.phase_cell(s, len(PHASES) // 2, len(PHASES)) for s in segments]
+c.eq("at 1280 px every label, outline included, sits inside its middle cell",
+     [i for i, (_o, _t, r) in enumerate(labels)
+      if not middles[i].contains(pygame.Rect(r.x - 1, r.y, r.width + 2, r.height))]
+     if paired else ["count"], [])
+c.eq("the cells fill the whole track height - no label row reserved under them",
+     surf.get_at((segments[0].x + 1, track.bottom - 2))[:3],
+     rp.cell_color("Player 1", 0, 0, 5, 2))
+
+wrong_colour = []
+for owner, _text, r in labels:
+    px = pixels_in(surf, r.inflate(2, 2))
+    other = "Player 2" if owner == "Player 1" else "Player 1"
+    if rp.label_color(owner) not in px or rp.label_color(other) in px:
+        wrong_colour.append(owner)
+c.eq("each label is drawn in its owner's colour on the screen, never the other's",
+     wrong_colour, [])
+# Segment 5 is the turn being played and its middle cell IS the current phase,
+# so one label here sits on the full team colour - the case the outline is for.
+c.eq("every label carries its dark outline, so it reads on its own full colour",
+     [owner for owner, _t, r in labels
+      if rp.LABEL_OUTLINE_COLOR not in pixels_in(surf, r.inflate(2, 2))], [])
+
+# The narrow end: a segment that cannot hold the label gets none rather than
+# text smeared across its hairlines.
+frame(tracker_at(3, 1, 2), window=360)
+c.true("a window too narrow for the labels draws none instead of squeezing them",
+       rp.last_track_rect is not None and rp.last_label_rects == [])
+
+# BEFORE THE FIRST-TURN ROLL-OFF the order is a placeholder (TurnTracker's
+# deferred start), so neither labels nor colours may claim one.
+surf, rect = frame(tracker_at(0, 0, 0))
+c.eq("before the battle starts there are no turn labels", rp.last_label_rects, [])
+c.true("...and the track is neutral, not coloured in a placeholder order",
+       set(track_row(surf)) <= {rp.EMPTY_COLOR, rp.BG_COLOR})
+
+# FROM THE FIRST TURN ON, every turn says whose it is - "von anfang an".
+surf, rect = frame(tracker_at(1, 0, 0))
+band = track_row(surf)
+c.eq("from the first turn of the battle every turn is labelled",
+     len(rp.last_label_rects), TURNS)
+c.true("...and no cell is left neutral grey", rp.EMPTY_COLOR not in band)
+c.true("...every turn nobody has played yet already shows its owner's colour",
+       rp._dim(TOKEN_TEAM_COLORS["Player 1"], rp.UPCOMING_DIM) in band
+       and rp._dim(TOKEN_TEAM_COLORS["Player 2"], rp.UPCOMING_DIM) in band)
 
 # ---------------------------------------------------------------------------
 print("--- 5. the faction colour, and that it is PER TURN ---")
@@ -199,7 +328,12 @@ surf, rect = frame(tracker_at(3, 1, 2))
 band = track_row(surf)
 c.true("Player 1's colour appears on the track", p1 in band)
 c.true("...and Player 2's does too", p2 in band)
-c.true("...and so does an unplayed cell", rp.EMPTY_COLOR in band)
+c.true("an UPCOMING turn is its owner's colour too (Player 1)",
+       rp._dim(TOKEN_TEAM_COLORS["Player 1"], rp.UPCOMING_DIM) in band)
+c.true("...(Player 2)", rp._dim(TOKEN_TEAM_COLORS["Player 2"], rp.UPCOMING_DIM) in band)
+c.true("upcoming, played and current are three steps of one hue, darkest first",
+       all(sum(rp._dim(base, rp.UPCOMING_DIM)) < sum(rp._dim(base, rp.PLAYED_DIM))
+           < sum(base[:3]) for base in TOKEN_TEAM_COLORS.values()))
 c.true("the current phase is drawn in FULL colour, not the dimmed one",
        TOKEN_TEAM_COLORS["Player 2"] in band)
 c.true("...and the current cell is outlined so it can be found",
@@ -224,10 +358,15 @@ c.true("the first turn on the track belongs to whoever goes first",
 # ---------------------------------------------------------------------------
 print("--- 6. how full it is tracks the battle ---")
 # ---------------------------------------------------------------------------
+#: Played or being played. Not "anything but grey" any more: every upcoming turn
+#: is coloured now, so that count would read full from the first turn on.
+PLAYED_COLOURS = {p1, p2, tuple(TOKEN_TEAM_COLORS["Player 1"][:3]),
+                  tuple(TOKEN_TEAM_COLORS["Player 2"][:3])}
+
+
 def played_pixels(tracker):
     surf, _rect = frame(tracker)
-    return sum(1 for px in track_row(surf)
-               if px != rp.EMPTY_COLOR and px != rp.BG_COLOR)
+    return sum(1 for px in track_row(surf) if px in PLAYED_COLOURS)
 
 empty = played_pixels(tracker_at(0, 0, 0))
 early = played_pixels(tracker_at(1, 0, 1))
@@ -274,7 +413,10 @@ c.true("...and both are really drawn, not both empty",
 
 # A factionless game still draws a usable bar rather than crashing or blanking.
 surf, rect = frame(tracker_at(2, 0, 1), None)
-c.true("without factions the track is still drawn", rp.EMPTY_COLOR in track_row(surf))
+c.true("without factions the track is still drawn in the team colours",
+       p1 in track_row(surf))
+c.eq("...still labelled - the labels come from the owners, not the factions",
+     len(rp.last_label_rects), TURNS)
 c.true("...and no tile is reported at all", rp.last_badge_rect is None)
 
 # ---------------------------------------------------------------------------

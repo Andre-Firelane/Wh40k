@@ -106,6 +106,39 @@ class DamageRerollOffer:
         face = self.face_of(total)
         return face is not None and face in self.automatic_faces
 
+    def _question_open(self):
+        """Whether the "you can re-roll" question may be put at all: somebody
+        to ask, a source that offers rather than only re-rolls automatically,
+        and the die still unspent. One answer for the prompt and the panel."""
+        return self.decision_manager is not None and self.offerable and self.can_offer()
+
+    def pending_choice(self, total):
+        """The dice panel's buttons for this offer while its roll is still on
+        the table (game/roll_choice.py), or None when accepting would ask
+        nothing - a MANDATORY re-roll (automatic_faces) is not a choice."""
+        from game import roll_choice
+        if total is None or not self._question_open() or self.auto_reroll_for(total):
+            return None
+        return roll_choice.RollChoice(self.owner, [
+            roll_choice.RollOption(roll_choice.ACCEPT),
+            roll_choice.RollOption(roll_choice.WHOLE, 1, label=f"Re-roll {self.roll_name.lower()}"),
+        ])
+
+    def panel_answer(self):
+        """True (re-roll) or False (keep) when the player already answered on
+        the dice panel for this roll, else None. The caller takes it on its
+        SYNCHRONOUS path: maybe_offer()'s True means "the answer comes later",
+        which an answer already in hand must not claim."""
+        from game import roll_choice
+        if self.dice_manager is None or not self._question_open():
+            return None
+        key = self.dice_manager.take_chosen_reroll()
+        if key == roll_choice.WHOLE:
+            return True
+        if key == roll_choice.ACCEPT:
+            return False
+        return None
+
     def maybe_offer(self, total, on_resolved):
         """Called with the Damage roll's acknowledged `total`. Requests the
         choice and returns True when it is worth offering; returns False when
@@ -117,7 +150,7 @@ class DamageRerollOffer:
         DiceNotationRoll), so it does the throwing; this object only asks the
         question. The caller must not continue on its own once this returned
         True (DecisionManager.request() never resolves inline)."""
-        if self.decision_manager is None or not self.offerable or not self.can_offer():
+        if not self._question_open():
             return False
         options = [
             (f"{self.label}: re-roll the {self.roll_name} roll ({total})", lambda: self._chose(on_resolved, True)),

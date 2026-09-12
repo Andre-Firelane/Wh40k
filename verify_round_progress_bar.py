@@ -61,6 +61,12 @@ stats = {
     "player_2_colour_px": 0,
     "empty_cell_px": 0,
     "badge_drawn_frames": 0,
+    # The turn labels ON the bar ("P1"/"P2"), counted per frame and read back
+    # off the live surface in their owner's colour - a label recorded but not
+    # visible would satisfy the first count and fail the second.
+    "frames_with_turn_labels": 0,
+    "label_ink_px_in_owner_colour": 0,
+    "label_ink_px_under_the_track": 0,
     "bar_overlaps_the_board": 0,
     "bar_clear_of_the_board": 0,
     "columns_share_the_bars_bottom_edge": 0,
@@ -75,8 +81,10 @@ _P1 = tuple(TOKEN_TEAM_COLORS["Player 1"][:3])
 _P2 = tuple(TOKEN_TEAM_COLORS["Player 2"][:3])
 _WANTED = {
     rp._dim(_P1, rp.PLAYED_DIM): "player_1_colour_px",
+    rp._dim(_P1, rp.UPCOMING_DIM): "player_1_colour_px",
     _P1: "player_1_colour_px",
     rp._dim(_P2, rp.PLAYED_DIM): "player_2_colour_px",
+    rp._dim(_P2, rp.UPCOMING_DIM): "player_2_colour_px",
     _P2: "player_2_colour_px",
     rp.EMPTY_COLOR: "empty_cell_px",
 }
@@ -108,11 +116,22 @@ def draw(surface, window_width, turn_tracker, player_factions=None):
     # kind of measurement error.
     track = rp.last_track_rect
     if track is not None:
-        y = track.y + 3
+        y = track.y + 1   # above the turn labels, which cover the middle rows
         for x in range(track.x, track.right):
             key = _WANTED.get(surface.get_at((x, y))[:3])
             if key:
                 stats[key] += 1
+    if rp.last_label_rects:
+        stats["frames_with_turn_labels"] += 1
+        if stats["frames_with_turn_labels"] % 50 == 1:   # sampled: get_at is slow
+            for owner, _text, label in rp.last_label_rects:
+                colour = rp.label_color(owner)
+                box = label.inflate(2, 2).clip(surface.get_rect())
+                for ly in range(box.top, box.bottom):
+                    for lx in range(box.left, box.right):
+                        if surface.get_at((lx, ly))[:3] == colour:
+                            stats["label_ink_px_in_owner_colour" if ly < track.bottom
+                                  else "label_ink_px_under_the_track"] += 1
     return rect
 
 

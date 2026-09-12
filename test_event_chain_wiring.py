@@ -2175,4 +2175,98 @@ ck.true("Sudden Strike is still drawn from its own site, not the manoeuvre block
 ck.true("...and its own predicate still explains why",
         "_before_consolidating" in _BF_SRC)
 
+
+# --- 24. a roll is accepted through ONE door, and its re-rolls are buttons ---
+print("--- 24. roll choices ---")
+# User: "Momentan akzeptiert man das Würfelergebnis durch ein Klick irgendwo hin.
+# Besser wäre: Unten im Panel Buttons je nach Situation ... Dann poppen nicht so
+# viele Overlays hintereinander auf." game/roll_choice.py moves the QUESTION in
+# front of the click; these pin the wiring a behaviour test cannot see.
+_MAIN_TREE = ast.parse(SRC)
+_ack_calls = [n for n in ast.walk(_MAIN_TREE)
+              if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+              and n.func.attr == "acknowledge" and isinstance(n.func.value, ast.Name)
+              and n.func.value.id == "dice_manager"]
+_door = next((n for n in ast.walk(_MAIN_TREE)
+              if isinstance(n, ast.FunctionDef) and n.name == "_acknowledge_pending_roll"), None)
+_door_acks = [n for n in ast.walk(_door) if n in _ack_calls] if _door is not None else []
+ck.eq("main.py accepts a roll in exactly one place", len(_ack_calls), 1)
+ck.eq("...and that place is _acknowledge_pending_roll()", len(_door_acks), 1)
+ck.true("the door drops an unused panel answer before returning",
+        _door is not None and "take_chosen_reroll" in ast.dump(_door))
+
+_button_i = SRC.find("dice_panel.button_at(event.pos)")
+_anywhere_i = SRC.find("if _choice is None or not _choice.has_rerolls:")
+ck.true("the panel's buttons are asked before the click-anywhere acceptance",
+        -1 not in (_button_i, _anywhere_i) and _button_i < _anywhere_i)
+ck.true("a click anywhere accepts only when nothing is offered", _anywhere_i != -1)
+ck.true("Space/Enter reach the Accept button",
+        "pygame.K_SPACE, pygame.K_RETURN, pygame.K_KP_ENTER" in SRC
+        and "_choice.accept_allowed" in SRC)
+ck.true("the dice panel is handed the choice to draw", "choice=_frame_roll_choice()," in SRC)
+# Accept on a roll whose re-roll is asked BEFORE acceptance (Advance, Charge)
+# must claim that offer, or the click that accepts opens the very prompt the
+# button replaced. Only main() does this; the suites replicate it.
+_press = next((n for n in ast.walk(_MAIN_TREE)
+               if isinstance(n, ast.FunctionDef) and n.name == "_press_roll_option"), None)
+_press_claims = [n for n in ast.walk(_press) if isinstance(n, ast.Call)
+                 and isinstance(n.func, ast.Attribute) and n.func.attr == "claim_reroll_offer"] if _press else []
+_press_loops = [n for n in ast.walk(_press) if isinstance(n, ast.For)
+                and isinstance(n.iter, ast.Attribute) and n.iter.attr == "claims"] if _press else []
+ck.true("an Accept press claims the choice's pre-acceptance offers",
+        bool(_press_claims) and bool(_press_loops))
+_view_at = SRC.find("roll_choice.RollChoiceView((")
+_view_src = SRC[_view_at:SRC.find("))", _view_at)] if _view_at != -1 else ""
+for _provider in ("shooting_controller", "fight_controller", "reanimation_controller",
+                  "relentless_combatants_controller", "phaeron_blades_controller",
+                  "superlative_strategist_controller.pending_roll_choice",
+                  "sudden_storm_controller.pending_roll_choice"):
+    ck.true(f"the roll-choice view asks {_provider}", _provider in _view_src)
+
+# The Stratagem and ability buttons moved onto the dice panel (user: "buttons
+# für fähigkeiten und stratagems sollen doch mit in das würfel panel rein, statt
+# links in die spalte"). Their press is asked FIRST in the dice branch: before
+# the die-pick routing (a pick's Cancel must win) and so before click-anywhere.
+_action_i = SRC.find("if dice_panel.action_at(event.pos) is not None:")
+_pick_i = SRC.find("elif command_reroll_controller.selecting_die:")
+ck.true("the dice panel's ability buttons are asked before the die-pick branches",
+        -1 not in (_action_i, _pick_i, _button_i) and _action_i < _pick_i < _button_i)
+ck.true("...and the panel is handed them to draw",
+        "actions=_dice_actions," in SRC and "selecting_hint=_dice_hint," in SRC)
+_frame_actions = next((n for n in ast.walk(_MAIN_TREE)
+                       if isinstance(n, ast.FunctionDef) and n.name == "_frame_dice_actions"), None)
+ck.true("...from ONE list the drawing and the click routing share",
+        _frame_actions is not None and "ability_actions" in ast.dump(_frame_actions))
+_ap_src = io.open(os.path.join("game", "ui", "action_panel.py"), encoding="utf-8").read()
+_cr_at = _ap_src.find("    def _draw_command_reroll(")
+_cr_src = _ap_src[_cr_at:_ap_src.find("\n    def ", _cr_at + 10)] if _cr_at != -1 else ""
+ck.true("the left panel's pending-roll screen is still there", bool(_cr_src))
+ck.eq("...and draws no Stratagem or ability button any more", _cr_src.count("_draw_button("), 0)
+
+# SET DIFFERENCE over the attack controllers: a function that builds a "Keep
+# result" option must NOT raise the prompt itself - it hands its options to
+# _raise_reroll_offer(), the one place that asks roll_choice.take() first. A
+# new offer site that calls decision_manager.request() directly would never
+# see the button the player pressed.
+_raw_offer_sites, _keep_builders = [], []
+for _path in (os.path.join("game", "shooting.py"), os.path.join("game", "fight.py")):
+    _tree = ast.parse(io.open(_path, encoding="utf-8").read())
+    for _fn in ast.walk(_tree):
+        if not isinstance(_fn, ast.FunctionDef):
+            continue
+        _consts = {n.value for n in ast.walk(_fn) if isinstance(n, ast.Constant) and isinstance(n.value, str)}
+        if "Keep result" not in _consts:
+            continue
+        _keep_builders.append((_path, _fn.name))
+        _requests = [n for n in ast.walk(_fn) if isinstance(n, ast.Call)
+                     and isinstance(n.func, ast.Attribute) and n.func.attr == "request"]
+        if _requests:
+            _raw_offer_sites.append(f"{_path}:{_fn.name}")
+    _raise = next((n for n in ast.walk(_tree)
+                   if isinstance(n, ast.FunctionDef) and n.name == "_raise_reroll_offer"), None)
+    ck.true(f"{_path}: _raise_reroll_offer() asks roll_choice.take() first",
+            _raise is not None and "take" in {n.attr for n in ast.walk(_raise) if isinstance(n, ast.Attribute)})
+ck.true("the Keep-result sweep found the builders", len(_keep_builders) >= 4)
+ck.eq("no re-roll offer raises its prompt past the dice panel", _raw_offer_sites, [])
+
 ck.finish()

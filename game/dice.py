@@ -26,6 +26,51 @@ THIEVIN_SCAVENGERS_ROLL = "thievin_scavengers"
 
 REROLL_ANIMATION_DURATION = 0.4  # seconds - how long DicePanel flickers a re-rolled die before settling
 
+# What the dice panel's big heading says for a roll whose site did not name one
+# itself AND carries no label to derive a name from. User: "Bei jedem Roll muss
+# groß und Fett drüber stehen was das für ein Wurf ist. Beispiel Roll to Hit".
+# Natural case; the panel sets it in capitals.
+TITLE_BY_KIND = {
+    HIT_ROLL: "Roll to Hit",
+    SNAP_SHOT_HIT_ROLL: "Roll to Hit",
+    WOUND_ROLL: "Roll to Wound",
+    SAVE_ROLL: "Roll to Save",
+    DAMAGE_ROLL: "Damage Roll",
+    ATTACKS_ROLL: "Attacks Roll",
+    ADVANCE_ROLL: "Advance Roll",
+    CHARGE_ROLL: "Charge Roll",
+    HAZARD_ROLL: "Hazard Roll",
+}
+
+
+def split_label(label):
+    """(name, detail) from a roll's LABEL, for the ~45 roll sites that name
+    their roll only through the label.
+
+    The label is a sentence written for the game log ("Feel No Pain: Boy (2
+    wound(s))", "Living Lightning - mortal wounds"), and it keeps that job -
+    tests pin its wording and game/dice_notation.py logs it verbatim. The panel
+    needs a NAME and a quieter detail line instead, and every label in this
+    repo already puts the name first: before the first ": ", else before the
+    first " - ". A parenthetical on the name ("Charge Roll (Heroic
+    Intervention)") and a bracketed modifier list on the detail are both
+    detail, not name; the brackets around a keyword name ("[SUSTAINED HITS
+    1]") are typography, not part of it."""
+    text = (label or "").strip()
+    if not text:
+        return "", ""
+    head, sep, rest = text.partition(": ")
+    if not sep:
+        head, sep, rest = text.partition(" - ")
+    head, rest = head.strip(), rest.strip()
+    if head.endswith(")") and " (" in head:
+        head, _, paren = head.partition(" (")
+        paren = paren[:-1].strip()
+        rest = f"{paren} - {rest}" if rest else paren
+    if rest.endswith("]") and " [" in rest:
+        rest = rest[:rest.rindex(" [")].rstrip()
+    return head.strip("[] ").strip(), rest
+
 
 class DiceManager:
     def __init__(self):
@@ -83,17 +128,51 @@ class DiceManager:
         # back. Same lifetime as already_rerolled: only a new roll() clears it.
         self._reroll_offers = set()
         self.damage_per_failure = None  # SAVE_ROLL only: damage a single failed save inflicts, for DicePanel's summary line
+        # What the dice panel's HEADING says - presentation only, like
+        # target_name. `label` stays the log sentence it always was (tests pin
+        # it, dice_notation.py logs it); these are what the panel reads
+        # instead. User: "Niemand liest lange Sätze mit zahlen drin im
+        # Spielgeschehen." None means "derive it" - see display_title().
+        self.title = None
+        self.subtitle = None
+        # ((delta, source), ...) in PLAYER terms: a positive delta helps
+        # whoever is rolling, a negative one hurts - see
+        # game/modifiers.py's for_display(), which turns an engine threshold
+        # list (where lower is better) into this.
+        self.shown_modifiers = ()
 
     @property
     def is_pending(self):
         return self.pending_values is not None
 
+    def display_title(self):
+        """The heading the panel prints: the site's own title, else the name
+        the label starts with, else the name of the roll's kind."""
+        if self.title:
+            return self.title
+        name, _detail = split_label(self.label)
+        if name:
+            return name
+        return TITLE_BY_KIND.get(self.roll_kind, "Roll")
+
+    def display_subtitle(self):
+        """The quieter line under the heading - the site's own, else whatever
+        of the label followed its name."""
+        if self.title:
+            return self.subtitle or ""
+        return split_label(self.label)[1]
+
     def roll(self, count=1, sides=6, label=None, success_threshold=None, target_name=None, roll_kind=None, damage_per_failure=None, is_reroll=False, attacker_squad=None, target_squad=None,
-             crit_threshold=None, crit_labels=(), subject_label="Target"):
+             crit_threshold=None, crit_labels=(), subject_label="Target", title=None, subtitle=None, shown_modifiers=()):
         """`is_reroll` marks a roll that IS itself the re-roll of earlier
         dice (an ability throwing the failures again, rather than a fresh
         roll) - every die in it has then already used up its one re-roll and
-        none of them may be re-rolled a second time."""
+        none of them may be re-rolled a second time.
+
+        `title`/`subtitle`/`shown_modifiers` are the dice panel's heading, see
+        __init__. A re-roll site passes the modifiers of the roll it is
+        re-rolling, read off this manager BEFORE the call - the arguments are
+        evaluated before this body replaces them."""
         values = [random.randint(1, sides) for _ in range(count)]
         self.pending_values = values
         self.last_values = values
@@ -112,7 +191,31 @@ class DiceManager:
         self.already_rerolled = set(range(count)) if is_reroll else set()
         self._reroll_offers = set()
         self.damage_per_failure = damage_per_failure
+        self.title = title
+        self.subtitle = subtitle
+        self.shown_modifiers = tuple(shown_modifiers or ())
+        self._chosen_reroll = None
         return values
+
+    def choose_reroll(self, key):
+        """Record what the player picked on the dice panel for THIS roll -
+        one of game/roll_choice.py's keys - before the roll is accepted.
+
+        THE ANSWER RIDES ON THE ROLL. A re-roll offer is built inside the
+        controller's on_dice_acknowledged(), i.e. after acceptance, and that
+        is where the arithmetic stays; the panel only moves the QUESTION in
+        front of the click. So the click leaves its answer here and the offer
+        site takes it (take_chosen_reroll()) instead of opening a prompt.
+        Same lifetime as _reroll_offers: roll() clears it, acknowledge() does
+        not - the offer reads it after acknowledge()."""
+        self._chosen_reroll = key
+
+    def take_chosen_reroll(self):
+        """The key choose_reroll() left for this roll, or None - and it is
+        gone after this call, so one answer can never answer two offers."""
+        key = getattr(self, "_chosen_reroll", None)
+        self._chosen_reroll = None
+        return key
 
     def is_critical(self, value):
         """Whether a single die of the CURRENT roll is a critical one, given
@@ -203,6 +306,12 @@ class DiceManager:
             return False
         self._reroll_offers.add(source)
         return True
+
+    def reroll_offer_claimed(self, source):
+        """Whether `source` has already offered on THIS roll - the read-only
+        half of claim_reroll_offer(), for the dice panel, which has to ASK
+        whether a button is still on offer every frame without spending it."""
+        return self.pending_values is not None and source in self._reroll_offers
 
     def reroll_die(self, index):
         """Rule 15.02: re-roll a single die from a multi-die pending roll -

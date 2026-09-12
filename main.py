@@ -12,7 +12,7 @@ from ai.claude_agent import ClaudeAgent
 # from ai.mock_agent import MockAgent  # free/offline alternative - no API key or network needed
 from game import attached_units, battle_focus, biomes, charge, config, consolidate, crushing_impact, enhancements, epic_challenge, explosives, fall_back, fight, firing_deck, greater_good, line_of_sight, maps, movement, overwatch, pregame, setup, shooting, starflare_ignition, status_effects, strands_of_fate
 from game import base_contact
-from game import damage_pick, montka, prompt_rule, unit_pick
+from game import damage_pick, montka, prompt_rule, roll_choice, unit_pick
 from game.arrokon_protocol import ArrokonProtocolController
 from game.shortened_blade import ShortenedBladeController
 from game.torchstar_gambit import TorchstarGambitController
@@ -5637,6 +5637,199 @@ def main(map_key=None):
             or _any_pending_damage_choice()
         )
 
+    # THE ONE DOOR a pending roll is accepted through - a click anywhere, the
+    # dice panel's Accept or re-roll buttons, and Space/Enter all end here.
+    # User: "Momentan akzeptiert man das Würfelergebnis durch ein Klick
+    # irgendwo hin. Besser wäre: Unten im Panel Buttons je nach Situation".
+    # The body is the inline block the dice branch used to carry, verbatim.
+    roll_choice_view = roll_choice.RollChoiceView((
+        shooting_controller, fight_controller,
+        reanimation_controller,
+        relentless_combatants_controller, phaeron_blades_controller,
+        # The Advance offers ask WHICH unit is moving - the same squad the
+        # click-anywhere path hands them.
+        lambda: superlative_strategist_controller.pending_roll_choice(movement_controller.selected_squad),
+        lambda: sudden_storm_controller.pending_roll_choice(movement_controller.selected_squad),
+    ))
+
+    def _acknowledge_pending_roll():
+        """Accepts the roll on the table and tells every controller. Returns
+        False when a pre-acknowledgement offer (an Advance or Charge re-roll)
+        opened a prompt instead - the roll then stays pending."""
+        # An Advance roll can still be RE-ROLLED at this instant,
+        # and only at this instant: acknowledge() clears
+        # pending_values and DiceManager.reroll_die() refuses a
+        # roll with none. Two abilities want it - the Autarch's
+        # Superlative Strategist and Protocol of the Sudden Storm
+        # - and the second had been built, unit-tested and never
+        # called from here at all, so its half of that Stratagem
+        # could not fire in a real game. Both are offered from
+        # this one place. A human prompt means the roll must NOT
+        # be acknowledged yet: its callback re-rolls the die.
+        if dice_manager.roll_kind == ADVANCE_ROLL:
+            _adv_squad = movement_controller.selected_squad
+            superlative_strategist_controller.maybe_offer_advance_reroll(_adv_squad)
+            sudden_storm_controller.maybe_offer_advance_reroll(_adv_squad)
+            if decision_manager.is_pending:
+                return False
+        # A CHARGE roll has exactly the same one-instant
+        # window, for exactly the same reason: acknowledge()
+        # clears pending_values and reroll_all() then refuses.
+        # The Triarch Praetorians' Relentless Combatants is the
+        # only datasheet re-roll of this kind; it asks the
+        # CHARGING unit, which is the only one whose Charge
+        # roll this can be.
+        if dice_manager.roll_kind == CHARGE_ROLL:
+            relentless_combatants_controller.maybe_offer_charge_reroll()
+            # The SECOND carrier of the same sentence - The
+            # Silent King's Phaeron of the Blades. Asked in the
+            # same instant and claimed under its own label, so
+            # each may ask once about one roll; no unit can hold
+            # both today and the suite pins that.
+            if not decision_manager.is_pending:
+                phaeron_blades_controller.maybe_offer_charge_reroll()
+            if decision_manager.is_pending:
+                return False
+        dice_manager.acknowledge()
+        # Before every on_dice_acknowledged(): the roll this
+        # selection belonged to is gone, so an open one would
+        # strand the panel in a mode with nothing to click.
+        unmodified_six_controller.reset()
+        movement_controller.on_dice_acknowledged()
+        shooting_controller.on_dice_acknowledged()
+        charge_controller.on_dice_acknowledged()
+        fight_controller.on_dice_acknowledged()
+        battle_shock_controller.on_dice_acknowledged()
+        # Nightmare Shroud can have queued more than one
+        # test; start_forced_roll() takes one at a time, so
+        # each acknowledged roll releases the next.
+        nightmare_shroud_controller.on_dice_acknowledged()
+        # After battle_shock's: the Grav-Inhibitor Field's own
+        # first step IS a Battle-Shock test, and its second roll
+        # is queued only once that outcome has been applied.
+        grav_inhibitor_controller.on_dice_acknowledged()
+        # Kauyon's Photon Grenades, for the same reason and in
+        # the same place: its one roll IS a Battle-Shock test,
+        # and the charge it interrupted resumes once that
+        # outcome has been applied.
+        photon_grenades_controller.on_dice_acknowledged()
+        flickerjump_controller.on_dice_acknowledged()
+        explosives_controller.on_dice_acknowledged()
+        ishas_fury_controller.on_dice_acknowledged()
+        # Rangers' Path of the Outcast. THIS LINE WAS MISSING,
+        # and it is the whole of the user's report ("die KI
+        # laesst mich mit den Rangern immer noch nicht
+        # bewegen"): the offer appeared, the D6 was rolled and
+        # acknowledged, and nobody told the controller - so
+        # _start_move() was never reached and the unit never
+        # became movable. A controller that is constructed and
+        # never FED is invisible to every test that drives it
+        # directly, which is exactly how test_rangers.py stayed
+        # green (it calls ctrl.on_dice_acknowledged() itself).
+        # Third time this project has hit that class; hence the
+        # source-level wiring guard in test_rangers.py.
+        path_of_the_outcast_controller.on_dice_acknowledged()
+        # Word of the Phoenix is TWO rolls - the 2+ gate and
+        # then the D3+1 count - so it visits this seam twice
+        # and drains the count roll first; see its own
+        # on_dice_acknowledged().
+        word_of_the_phoenix_controller.on_dice_acknowledged()
+        # Nomads of the Hidden Way rolls its D6 for the
+        # move distance, then opens the move on the
+        # acknowledgement - Raid and Run's arrangement.
+        nomads_controller.on_dice_acknowledged()
+        grenade_pack_controller.on_dice_acknowledged()
+        deadly_demise_controller.on_dice_acknowledged()
+        transport_controller.on_dice_acknowledged()
+        crushing_impact_controller.on_dice_acknowledged()
+        fall_back_controller.on_dice_acknowledged()
+        thievin_scavengers_controller.on_dice_acknowledged()
+        spirit_of_gork_controller.on_dice_acknowledged()
+        grot_orderly_controller.on_dice_acknowledged()
+        reanimation_controller.on_dice_acknowledged()
+        coordinated_leadership_controller.on_dice_acknowledged()
+        undying_legions_controller.on_dice_acknowledged()
+        technomancer_controller.on_dice_acknowledged()
+        resurrection_orb_controller.on_dice_acknowledged()
+        catacomb_orb_controller.on_dice_acknowledged()
+        repair_barge_controller.on_dice_acknowledged()
+        living_lightning_controller.on_dice_acknowledged()
+        matter_absorption_controller.on_dice_acknowledged()
+        crimson_harvest_controller.on_dice_acknowledged()
+        drain_life_controller.on_dice_acknowledged()
+        malevolent_arcing_controller.on_dice_acknowledged()
+        lord_of_the_storm_controller.on_dice_acknowledged()
+        kroot_linebreakers_controller.on_dice_acknowledged()
+        kroot_linebreakers_controller.resolve_pending_battle_shock()
+        wraith_form_controller.on_dice_acknowledged()
+        internal_grenade_racks_controller.on_dice_acknowledged()
+        self_destruction_controller.on_dice_acknowledged()
+        # The three list-holding abilities answer only the
+        # Feel No Pain leg - they roll their own dice inline.
+        drakolithe_controller.on_dice_acknowledged()
+        harvester_of_souls_controller.on_dice_acknowledged()
+        monofilament_snare_controller.on_dice_acknowledged()
+        puretide_neurochip_controller.on_dice_acknowledged()
+        deadly_vectors_controller.on_dice_acknowledged()
+        lethal_ichor_controller.on_dice_acknowledged()
+        spore_laced_controller.on_dice_acknowledged()
+        eater_plague_controller.on_dice_acknowledged()
+        sickening_impact_controller.on_dice_acknowledged()
+        # Spirit Conclave's Crushing Strides. THIS LINE WAS
+        # MISSING: the D6s were rolled, nobody told the
+        # controller, so the mortal wounds were never inflicted
+        # AND its own _pending latch turned the Stratagem off
+        # for the rest of the battle.
+        crushing_strides_controller.on_dice_acknowledged()
+        # Aspect Host's Khaine's Vengeance. Also missing, and
+        # worse: its is_busy sits in the phase-advance gate, so
+        # an unresolved hazard step froze the phase for good.
+        khaines_vengeance_controller.on_dice_acknowledged()
+        pregame_controller.on_dice_acknowledged()  # rule 03.01 roll-offs
+        # An answer the player recorded on the panel that no offer took (the
+        # board changed under the preview) must not answer a LATER offer.
+        dice_manager.take_chosen_reroll()
+        return True
+
+    def _frame_roll_choice():
+        """What the player may do with the roll on the table right now, or
+        None - see game/roll_choice.py. Nothing while a prompt is open: the
+        event chain serves the prompt first anyway."""
+        if decision_manager.is_pending or not dice_manager.is_pending:
+            return None
+        return roll_choice_view.pending(dice_manager, human_players)
+
+    def _frame_dice_actions():
+        """(hint, options): the Stratagem and ability buttons the dice panel
+        draws under the roll - Command Re-roll, Targeting Array / Crystal
+        Matrix, an Aspect Shrine token or Branching Fates - or (None, []).
+        User: "buttons fuer faehigkeiten und stratagems sollen doch mit in das
+        wuerfel panel rein, statt links in die spalte." Nothing while a prompt
+        is open: the event chain serves the prompt first anyway."""
+        if decision_manager.is_pending or not dice_manager.is_pending:
+            return None, []
+        return roll_choice.ability_actions(
+            command_reroll_controller, targeting_array_controller, unmodified_six_controller)
+
+    def _press_roll_option(option):
+        """A dice-panel button (or Space/Enter for Accept). An acknowledging
+        option records its key on the roll - only when the panel really
+        offered it, so an Accept on a roll with nothing on offer can never
+        answer somebody else's (the AI's) prompt - and accepts; an in-place
+        option re-rolls and leaves the roll on the table."""
+        choice = _frame_roll_choice()
+        if option.acknowledges:
+            if choice is not None and choice.option(option.key) is not None:
+                dice_manager.choose_reroll(option.key)
+                if option.key == roll_choice.ACCEPT:
+                    for source in choice.claims:
+                        dice_manager.claim_reroll_offer(source)
+            return _acknowledge_pending_roll()
+        if option.apply is not None:
+            option.apply()
+        roll_choice_view.invalidate()
+        return True
+
     # Bound BEFORE the loop so every natural exit (the window's close box, the
     # battle ending) already answers QUIT, and only the menu ever changes it.
     outcome = game_menu_module.QUIT
@@ -6099,7 +6292,14 @@ def main(map_key=None):
                 # panel, and (while picking which die) a click on the dice
                 # display itself.
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    if command_reroll_controller.selecting_die:
+                    if dice_panel.action_at(event.pos) is not None:
+                        # The Stratagem and ability buttons live on the dice
+                        # panel (game/roll_choice.py's ability_actions()) and
+                        # are asked FIRST: a pick's Cancel has to win over the
+                        # die-pick branches below, and a press must never be
+                        # read as the click that accepts the roll.
+                        _press_roll_option(dice_panel.action_at(event.pos))
+                    elif command_reroll_controller.selecting_die:
                         die_index = dice_panel.die_index_at(event.pos)
                         if die_index is not None:
                             command_reroll_controller.choose_die(die_index)
@@ -6121,139 +6321,37 @@ def main(map_key=None):
                         die_index = dice_panel.die_index_at(event.pos)
                         if die_index is not None:
                             unmodified_six_controller.choose_die(die_index)
+                    elif dice_panel.button_at(event.pos) is not None:
+                        # The dice panel's own buttons (game/roll_choice.py) are
+                        # asked BEFORE the click-anywhere acceptance below, so a
+                        # press on "Re-roll failures" can never be read as "accept".
+                        if not _press_roll_option(dice_panel.button_at(event.pos)):
+                            continue
                     elif left_panel_rect.collidepoint(event.pos):
                         action_panel.handle_click(event.pos)
                     else:
-                        # An Advance roll can still be RE-ROLLED at this instant,
-                        # and only at this instant: acknowledge() clears
-                        # pending_values and DiceManager.reroll_die() refuses a
-                        # roll with none. Two abilities want it - the Autarch's
-                        # Superlative Strategist and Protocol of the Sudden Storm
-                        # - and the second had been built, unit-tested and never
-                        # called from here at all, so its half of that Stratagem
-                        # could not fire in a real game. Both are offered from
-                        # this one place. A human prompt means the roll must NOT
-                        # be acknowledged yet: its callback re-rolls the die.
-                        if dice_manager.roll_kind == ADVANCE_ROLL:
-                            _adv_squad = movement_controller.selected_squad
-                            superlative_strategist_controller.maybe_offer_advance_reroll(_adv_squad)
-                            sudden_storm_controller.maybe_offer_advance_reroll(_adv_squad)
-                            if decision_manager.is_pending:
+                        # A click anywhere still accepts the roll - unless it offers
+                        # a re-roll. Then only a button decides, so the offer cannot
+                        # be clicked away by accident (user decision: "Klick
+                        # irgendwohin bestätigt nur ohne Reroll-Option").
+                        _choice = _frame_roll_choice()
+                        if _choice is None or not _choice.has_rerolls:
+                            if not _acknowledge_pending_roll():
                                 continue
-                        # A CHARGE roll has exactly the same one-instant
-                        # window, for exactly the same reason: acknowledge()
-                        # clears pending_values and reroll_all() then refuses.
-                        # The Triarch Praetorians' Relentless Combatants is the
-                        # only datasheet re-roll of this kind; it asks the
-                        # CHARGING unit, which is the only one whose Charge
-                        # roll this can be.
-                        if dice_manager.roll_kind == CHARGE_ROLL:
-                            relentless_combatants_controller.maybe_offer_charge_reroll()
-                            # The SECOND carrier of the same sentence - The
-                            # Silent King's Phaeron of the Blades. Asked in the
-                            # same instant and claimed under its own label, so
-                            # each may ask once about one roll; no unit can hold
-                            # both today and the suite pins that.
-                            if not decision_manager.is_pending:
-                                phaeron_blades_controller.maybe_offer_charge_reroll()
-                            if decision_manager.is_pending:
-                                continue
-                        dice_manager.acknowledge()
-                        # Before every on_dice_acknowledged(): the roll this
-                        # selection belonged to is gone, so an open one would
-                        # strand the panel in a mode with nothing to click.
-                        unmodified_six_controller.reset()
-                        movement_controller.on_dice_acknowledged()
-                        shooting_controller.on_dice_acknowledged()
-                        charge_controller.on_dice_acknowledged()
-                        fight_controller.on_dice_acknowledged()
-                        battle_shock_controller.on_dice_acknowledged()
-                        # Nightmare Shroud can have queued more than one
-                        # test; start_forced_roll() takes one at a time, so
-                        # each acknowledged roll releases the next.
-                        nightmare_shroud_controller.on_dice_acknowledged()
-                        # After battle_shock's: the Grav-Inhibitor Field's own
-                        # first step IS a Battle-Shock test, and its second roll
-                        # is queued only once that outcome has been applied.
-                        grav_inhibitor_controller.on_dice_acknowledged()
-                        # Kauyon's Photon Grenades, for the same reason and in
-                        # the same place: its one roll IS a Battle-Shock test,
-                        # and the charge it interrupted resumes once that
-                        # outcome has been applied.
-                        photon_grenades_controller.on_dice_acknowledged()
-                        flickerjump_controller.on_dice_acknowledged()
-                        explosives_controller.on_dice_acknowledged()
-                        ishas_fury_controller.on_dice_acknowledged()
-                        # Rangers' Path of the Outcast. THIS LINE WAS MISSING,
-                        # and it is the whole of the user's report ("die KI
-                        # laesst mich mit den Rangern immer noch nicht
-                        # bewegen"): the offer appeared, the D6 was rolled and
-                        # acknowledged, and nobody told the controller - so
-                        # _start_move() was never reached and the unit never
-                        # became movable. A controller that is constructed and
-                        # never FED is invisible to every test that drives it
-                        # directly, which is exactly how test_rangers.py stayed
-                        # green (it calls ctrl.on_dice_acknowledged() itself).
-                        # Third time this project has hit that class; hence the
-                        # source-level wiring guard in test_rangers.py.
-                        path_of_the_outcast_controller.on_dice_acknowledged()
-                        # Word of the Phoenix is TWO rolls - the 2+ gate and
-                        # then the D3+1 count - so it visits this seam twice
-                        # and drains the count roll first; see its own
-                        # on_dice_acknowledged().
-                        word_of_the_phoenix_controller.on_dice_acknowledged()
-                        # Nomads of the Hidden Way rolls its D6 for the
-                        # move distance, then opens the move on the
-                        # acknowledgement - Raid and Run's arrangement.
-                        nomads_controller.on_dice_acknowledged()
-                        grenade_pack_controller.on_dice_acknowledged()
-                        deadly_demise_controller.on_dice_acknowledged()
-                        transport_controller.on_dice_acknowledged()
-                        crushing_impact_controller.on_dice_acknowledged()
-                        fall_back_controller.on_dice_acknowledged()
-                        thievin_scavengers_controller.on_dice_acknowledged()
-                        spirit_of_gork_controller.on_dice_acknowledged()
-                        grot_orderly_controller.on_dice_acknowledged()
-                        reanimation_controller.on_dice_acknowledged()
-                        coordinated_leadership_controller.on_dice_acknowledged()
-                        undying_legions_controller.on_dice_acknowledged()
-                        technomancer_controller.on_dice_acknowledged()
-                        resurrection_orb_controller.on_dice_acknowledged()
-                        catacomb_orb_controller.on_dice_acknowledged()
-                        repair_barge_controller.on_dice_acknowledged()
-                        living_lightning_controller.on_dice_acknowledged()
-                        matter_absorption_controller.on_dice_acknowledged()
-                        crimson_harvest_controller.on_dice_acknowledged()
-                        drain_life_controller.on_dice_acknowledged()
-                        malevolent_arcing_controller.on_dice_acknowledged()
-                        lord_of_the_storm_controller.on_dice_acknowledged()
-                        kroot_linebreakers_controller.on_dice_acknowledged()
-                        kroot_linebreakers_controller.resolve_pending_battle_shock()
-                        wraith_form_controller.on_dice_acknowledged()
-                        internal_grenade_racks_controller.on_dice_acknowledged()
-                        self_destruction_controller.on_dice_acknowledged()
-                        # The three list-holding abilities answer only the
-                        # Feel No Pain leg - they roll their own dice inline.
-                        drakolithe_controller.on_dice_acknowledged()
-                        harvester_of_souls_controller.on_dice_acknowledged()
-                        monofilament_snare_controller.on_dice_acknowledged()
-                        puretide_neurochip_controller.on_dice_acknowledged()
-                        deadly_vectors_controller.on_dice_acknowledged()
-                        lethal_ichor_controller.on_dice_acknowledged()
-                        spore_laced_controller.on_dice_acknowledged()
-                        eater_plague_controller.on_dice_acknowledged()
-                        sickening_impact_controller.on_dice_acknowledged()
-                        # Spirit Conclave's Crushing Strides. THIS LINE WAS
-                        # MISSING: the D6s were rolled, nobody told the
-                        # controller, so the mortal wounds were never inflicted
-                        # AND its own _pending latch turned the Stratagem off
-                        # for the rest of the battle.
-                        crushing_strides_controller.on_dice_acknowledged()
-                        # Aspect Host's Khaine's Vengeance. Also missing, and
-                        # worse: its is_busy sits in the phase-advance gate, so
-                        # an unresolved hazard step froze the phase for good.
-                        khaines_vengeance_controller.on_dice_acknowledged()
-                        pregame_controller.on_dice_acknowledged()  # rule 03.01 roll-offs
+                elif (event.type == pygame.KEYDOWN
+                      and event.key in (pygame.K_SPACE, pygame.K_RETURN, pygame.K_KP_ENTER)
+                      and not command_reroll_controller.selecting_die
+                      and not targeting_array_controller.selecting_die
+                      and not unmodified_six_controller.selecting_die):
+                    # Space/Enter is the keyboard half of the Accept button - and
+                    # like the button it does not exist while keeping the result is
+                    # not a legal answer (a mandatory 1s re-roll is on the table).
+                    _choice = _frame_roll_choice()
+                    if _choice is None or _choice.accept_allowed:
+                        _accept = (_choice.option(roll_choice.ACCEPT) if _choice is not None
+                                   else roll_choice.RollOption(roll_choice.ACCEPT))
+                        if not _press_roll_option(_accept):
+                            continue
             # THE LEFT PANEL STAYS USABLE while an allocation is open, and it
             # goes ABOVE the ~27 damage branches below because those are the
             # ones that were swallowing the click.
@@ -8080,6 +8178,7 @@ def main(map_key=None):
         # answer yet. DicePanel.draw() holds its animation clocks for the
         # duration, so the roll still plays its full slide-in/tumble
         # afterwards instead of jumping straight to the result.
+        _dice_hint, _dice_actions = _frame_dice_actions()
         dice_panel.draw(
             screen, dice_manager,
             selecting_die=(command_reroll_controller.selecting_die
@@ -8087,6 +8186,9 @@ def main(map_key=None):
                            or targeting_array_controller.selecting_die),
             bounds_rect=board_rect_screen,
             suppressed=bool(_front_notice()),
+            choice=_frame_roll_choice(),
+            actions=_dice_actions,
+            selecting_hint=_dice_hint,
         )
         # ONE modal at a time. User: "momentan kommt das Overlay, dass ich jetzt
         # am Zug bin, und das Overlay mit den Missionen gleichzeitig. Ich

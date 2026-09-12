@@ -245,9 +245,11 @@ checks.true("Targeting Array's single use covers BOTH kinds",
 checks.eq("...and its button still says Targeting Array", ctrl2.panel_label(),
           "Targeting Array")
 
-panel_src = open("game/ui/action_panel.py", encoding="utf-8").read()
-checks.true("the panel asks the controller for the label instead of hardcoding one",
-            "targeting_array_controller.panel_label()" in panel_src)
+# The button lives on the dice panel now (game/roll_choice.py's
+# ability_actions()), not in the left column.
+panel_src = open("game/roll_choice.py", encoding="utf-8").read()
+checks.true("the button asks the controller for the label instead of hardcoding one",
+            "activation_reroll.panel_label()" in panel_src)
 
 
 # --- 5. Monofilament Web: the `pinned` status -------------------------------

@@ -78,6 +78,39 @@ def save_thresholds(model, weapon, waaagh=None):
     return sv, insv, enforcer_commander_adjusted_ap(ap, model, weapon)
 
 
+def save_display(model, weapon, waaagh=None):
+    """(shown_modifiers, invulnerable) for the dice panel's heading on a Save
+    roll - read off the same save_thresholds() the resolution uses, so the
+    heading cannot name a modifier the save is not actually taking.
+
+    AP is the modifier a player looks for, and it only applies to the ARMOUR
+    save: when the invulnerable save is the better of the two, AP changes
+    nothing about this roll and naming it would be wrong. Its sign is already
+    in player terms - AP-2 is a delta of -2 against the defender.
+
+    The Plague and Autoreactive Camouflage adjustments are folded into `sv`
+    inside save_thresholds() without a name, so they cannot be listed here;
+    they still reach the threshold the panel prints."""
+    if model is None or weapon is None:
+        return (), False
+    sv, insv, ap = save_thresholds(model, weapon, waaagh)
+    armour = (sv - ap) if sv is not None else None
+    if insv is not None and (armour is None or insv <= armour):
+        return (), True
+    return (((ap, "AP"),) if ap else ()), False
+
+
+def save_heading(model, weapon, waaagh=None, subtitle=""):
+    """The dice panel's heading kwargs for a Save roll - title, subtitle and
+    shown modifiers - so the four save-roll sites in shooting.py and fight.py
+    say it one way. An invulnerable save says so on the subtitle, since that
+    is exactly the case where no AP is listed."""
+    shown, invulnerable = save_display(model, weapon, waaagh)
+    if invulnerable:
+        subtitle = f"{subtitle} - invulnerable save" if subtitle else "Invulnerable save"
+    return {"title": "Roll to Save", "subtitle": subtitle, "shown_modifiers": shown}
+
+
 def displayed_save_threshold(model, weapon, waaagh=None):
     """The single number a save die has to REACH to save - the best of the
     AP-modified armour save and the (AP-proof) invulnerable save, which is
@@ -385,6 +418,7 @@ class DamageAllocationSession:
             damage_roll = DiceNotationRoll(
                 self.weapon.damage_notation, count=1, dice_manager=self.dice_manager,
                 label=f"Damage: {self.weapon.name}", roll_kind=DAMAGE_ROLL, log=self.log,
+                title="Damage Roll", subtitle=self.weapon.name,
                 # No attacker to name here (the session only knows who is
                 # being shot at), so DicePanel shows the target on its own -
                 # a softer degradation than dropping the matchup line for
@@ -454,6 +488,16 @@ class DamageAllocationSession:
                          % (self.damage_reroll.label, self.weapon.name))
             self._after_damage_reroll(model, roll, amount, True)
             return
+        # The player may already have answered on the dice panel while the
+        # Damage roll was on the table (game/roll_choice.py). That answer is
+        # taken on the SYNCHRONOUS path - exactly the declined-offer path below
+        # - because maybe_offer()'s True means "the answer arrives later", and
+        # an answer that is already here must not mark the session busy.
+        if self.damage_reroll is not None:
+            answer = self.damage_reroll.panel_answer()
+            if answer is not None:
+                self._after_damage_reroll(model, roll, amount, answer)
+                return
         if self.damage_reroll is not None and self.damage_reroll.maybe_offer(
             amount, lambda again: self._after_damage_reroll(model, roll, amount, again, resumed=True)
         ):
@@ -484,6 +528,7 @@ class DamageAllocationSession:
             reroll = DiceNotationRoll(
                 self.weapon.damage_notation, count=1, dice_manager=self.dice_manager,
                 label=f"Damage ({_reroll_label(self.damage_reroll)} re-roll): {self.weapon.name}", roll_kind=DAMAGE_ROLL,
+                title="Re-roll Damage", subtitle=f"{self.weapon.name} - {_reroll_label(self.damage_reroll)}",
                 log=self.log, is_reroll=True,
                 target_name=self.target_squad.name if self.target_squad is not None else None,
                 target_squad=self.target_squad,

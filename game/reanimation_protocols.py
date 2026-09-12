@@ -391,6 +391,25 @@ class ReanimationProtocolsController:
             target_name=squad.name, target_squad=squad,
             subject_label="Reanimating", is_reroll=is_reroll)
 
+    def pending_roll_choice(self):
+        """The dice panel's version of the Necron Warriors re-roll offer for a
+        HUMAN (game/roll_choice.py): "Re-roll" beside Accept while the
+        reanimation die is on the table, instead of a prompt after it is
+        accepted. The same gates on_dice_acknowledged() asks, on the same die;
+        the answer is taken there."""
+        from game import roll_choice
+        dm = self.dice_manager
+        squad = self._current
+        if (squad is None or dm is None or not dm.is_pending or self._reroll_offered
+                or not (dm.label or "").startswith("Reanimation Protocols")
+                or squad.owner in self.auto_players or self.decision_manager is None
+                or not can_reroll(squad, dm.pending_values[0])):
+            return None
+        return roll_choice.RollChoice(squad.owner, [
+            roll_choice.RollOption(roll_choice.ACCEPT),
+            roll_choice.RollOption(roll_choice.WHOLE, 1, label="Re-roll"),
+        ])
+
     def on_dice_acknowledged(self):
         """Applies the current unit's roll, then moves to the next.
 
@@ -419,11 +438,19 @@ class ReanimationProtocolsController:
                           file_only=True)
                 self._roll(squad, is_reroll=True)
                 return True
+            from game import roll_choice
+            keyed = [
+                (roll_choice.WHOLE, 1, "Re-roll", lambda: self._roll(squad, is_reroll=True)),
+                (roll_choice.ACCEPT, 0, "Keep it", lambda: self._apply_and_advance(squad, rolled)),
+            ]
+            # The player may already have answered on the dice panel - see
+            # pending_roll_choice(). Otherwise the prompt, as it always was.
+            if roll_choice.take(self.dice_manager, keyed):
+                return True
             self.decision_manager.request(
                 squad.owner,
                 f"{squad.name} reanimates {rolled} wound(s). Re-roll that dice?",
-                [("Re-roll", lambda: self._roll(squad, is_reroll=True)),
-                 ("Keep it", lambda: self._apply_and_advance(squad, rolled))],
+                roll_choice.prompt_options(keyed),
             )
             return True
 

@@ -1,5 +1,7 @@
-"""Aspect Shrine / Branching Fates are spent from the LEFT PANEL now, not
-answered in an overlay after every roll.
+"""Aspect Shrine / Branching Fates are spent from a BUTTON, not answered in an
+overlay after every roll - first in the left panel, and now on the dice panel
+itself (user: "buttons für fähigkeiten und stratagems sollen doch mit in das
+würfel panel rein, statt links in die spalte").
 
 User: "momentan werde ich bei aeldari jedes mal gefragt, ob ich aspect shrine
 tokens verwenden will, um wuerfel ergebnisse zu manipulieren. nach jedem wurf.
@@ -15,8 +17,8 @@ pending, in one step), so every roll cost two clicks.
 test_aspect_shrine.py and test_farseer.py cover the abilities themselves. This
 covers what they cannot see:
   1. the CONTROLLER's flow, including the states that must not offer;
-  2. the PANEL, through the real ActionPanel - a button nobody draws is not a
-     button;
+  2. the PANEL, through the real DicePanel - a button nobody draws is not a
+     button - and the left panel that no longer draws it;
   3. the WIRING in main.py, which is where this repo has lost an input five
      times over (error class 15) and shipped an unfed controller three times.
 """
@@ -35,7 +37,7 @@ from game.factions import aeldari as ae
 from game.unmodified_six_controller import ROLL_KINDS, SOURCES, UnmodifiedSixController
 from game.ui.action_panel import ActionPanel
 
-c = tk.Checks("unmodified-6 abilities in the left panel")
+c = tk.Checks("unmodified-6 abilities on the dice panel")
 
 
 def section(title):
@@ -177,74 +179,86 @@ c.true("Branching Fates does", DAMAGE_ROLL in ROLL_KINDS[branching_fates])
 
 # ------------------------------------------------------- 2. the panel
 
-section("2. the real ActionPanel")
+section("2. the real DicePanel")
+# The button moved again: from the left column onto the dice panel, next to the
+# dice it changes. User: "buttons für fähigkeiten und stratagems sollen doch
+# mit in das würfel panel rein, statt links in die spalte."
 
-panel = ActionPanel()
+from game import roll_choice  # noqa: E402
+from game.ui import dice_panel as dp  # noqa: E402
+
 surface = pygame.display.get_surface()
-rect = pygame.Rect(0, 0, config.LEFT_PANEL_WIDTH, 700)
+board = pygame.Rect(220, 40, 840, 740)
 
 
-def panel_buttons(sc, ctrl=None):
-    surface.fill((0, 0, 0))
-    panel.draw(surface, rect, sc["shooting"].movement_controller if hasattr(sc["shooting"], "movement_controller")
-               else sc["move"], sc["shooting"],
-               dice_manager=sc["dice"], unmodified_six_controller=ctrl or sc["ctrl"])
-    return [b[0] for b in panel._buttons]
+def dice_panel_buttons(sc):
+    """Draw a real DicePanel to its revealed state with the buttons main.py
+    would hand it, and return (panel, labels, hint)."""
+    hint, actions = roll_choice.ability_actions(None, None, sc["ctrl"])
+    panel = dp.DicePanel()
+    for _ in range(3):
+        surface.fill((0, 0, 0))
+        panel.draw(surface, sc["dice"], bounds_rect=board, actions=actions,
+                   selecting_die=sc["ctrl"].selecting_die, selecting_hint=hint)
+        if panel._anim_start is not None:
+            panel._anim_start -= 10
+        if panel._flicker_start is not None:
+            panel._flicker_start -= 10
+    return panel, [o.label for o, _r in panel._action_rects], hint
 
 
-# The panel needs a movement controller; shooting_scene does not build one.
+sc = scene()
+dice_panel, labels, hint = dice_panel_buttons(sc)
+c.true("the dice panel draws an Aspect Shrine button",
+       any("Aspect Shrine" in l for l in labels))
+c.true("...and it says how many tokens are left", any("1 token" in l for l in labels))
+
+# A real press on the drawn button opens the pick - the same flow as before,
+# only the button's home changed.
+shrine_rect = next((r for o, r in dice_panel._action_rects if "Aspect Shrine" in o.label), None)
+pressed = dice_panel.action_at(shrine_rect.center) if shrine_rect is not None else None
+if pressed is not None:
+    pressed.apply()
+c.true("pressing it opens die selection", sc["ctrl"].selecting_die)
+dice_panel, labels, hint = dice_panel_buttons(sc)
+c.eq("while selecting, the panel offers only a Cancel", labels, ["Cancel"])
+c.eq("...under the hint for this pick", hint, roll_choice.UNMODIFIED_SIX_PICK_HINT)
+cancel_rect = dice_panel._action_rects[0][1] if dice_panel._action_rects else None
+if cancel_rect is not None:
+    dice_panel.action_at(cancel_rect.center).apply()
+c.eq("...and that Cancel closes the pick", sc["ctrl"].selecting_die, False)
+
+# Nothing to offer -> no button, and specifically no empty one.
+sc["attacker"].aspect_shrine_tokens = 0
+_panel, labels, _hint = dice_panel_buttons(sc)
+c.eq("no token, no button", [l for l in labels if "Aspect Shrine" in l], [])
+
+# The left panel no longer draws it - two homes for one button would be two
+# lists that can disagree.
 from game.movement import MovementController  # noqa: E402
 
-
-def with_panel(sc):
-    sc["move"] = MovementController(turn_tracker=sc["turn"], all_tokens=sc["state"].tokens,
-                                    dice_manager=sc["dice"], obstacles=[])
-    return sc
-
-
+sc = scene()
+sc["move"] = MovementController(turn_tracker=sc["turn"], all_tokens=sc["state"].tokens,
+                                dice_manager=sc["dice"], obstacles=[])
 _labels = []
 _real_button = ActionPanel._draw_button
 
 
-def _spy_button(self, surface, rect_, label, **kwargs):
+def _spy_button(self, surface_, rect_, label, **kwargs):
     _labels.append(label)
-    return _real_button(self, surface, rect_, label, **kwargs)
+    return _real_button(self, surface_, rect_, label, **kwargs)
 
 
 ActionPanel._draw_button = _spy_button
-
-
-def draw_labels(sc):
-    _labels.clear()
-    surface.fill((0, 0, 0))
-    panel.draw(surface, rect, sc["move"], sc["shooting"],
-               dice_manager=sc["dice"], unmodified_six_controller=sc["ctrl"])
-    return list(_labels)
-
-
-sc = with_panel(scene())
-labels = draw_labels(sc)
-c.true("the panel draws an Aspect Shrine button",
-       any("Aspect Shrine" in l for l in labels))
-c.true("...and it says how many tokens are left", any("1 token" in l for l in labels))
-
-# Once selection is open the panel switches to "pick a die", and offers a way
-# out - the same screen Command Re-roll's own selection shows.
-sc["ctrl"].start(aspect_shrine)
-labels = draw_labels(sc)
-# "Only a Cancel" among the SCREEN's own buttons - _draw_global_toolbar()
-# always adds its own toggle rows afterwards, by design (they are global).
-# Those go through _draw_toggle(), not _draw_button(), so they do not show up
-# in `labels` at all any more - see test_toggle_switches.py.
-c.true("while selecting, a Cancel is offered", "Cancel" in labels)
-c.eq("...and the ability button is gone while picking",
-     [l for l in labels if "Aspect Shrine" in l], [])
-sc["ctrl"].cancel_selection()
-
-# Nothing to offer -> no button, and specifically no empty one.
-sc["attacker"].aspect_shrine_tokens = 0
-labels = draw_labels(sc)
-c.eq("no token, no button", [l for l in labels if "Aspect Shrine" in l], [])
+try:
+    ActionPanel().draw(surface, pygame.Rect(0, 0, config.LEFT_PANEL_WIDTH, 700), sc["move"], sc["shooting"],
+                       dice_manager=sc["dice"], unmodified_six_controller=sc["ctrl"])
+finally:
+    ActionPanel._draw_button = _real_button
+c.true("the scene really has a button to offer (else the next line proves nothing)",
+       sc["ctrl"].can_use())
+c.eq("the left panel draws no Aspect Shrine button any more",
+     [l for l in _labels if "Aspect Shrine" in l], [])
 
 # The colour is its own - it must not read as the pile-in warning next to it.
 from game.ui import action_panel as ap  # noqa: E402
@@ -252,8 +266,6 @@ c.true("the accent is distinct from the others",
        ap.UNMODIFIED_SIX_ACCENT_COLOR not in (ap.ERROR_COLOR, ap.PILE_IN_ACCENT_COLOR,
                                               ap.DAMAGE_CHOICE_ACCENT_COLOR,
                                               ap.COHERENCY_ACCENT_COLOR))
-
-ActionPanel._draw_button = _real_button
 
 
 # ------------------------------------------------------- 3. the wiring
@@ -292,7 +304,14 @@ c.true("...inside the same pending-dice branch as Command Re-roll's",
 
 # A selection must not outlive the roll it belonged to.
 reset_i = line_of("unmodified_six_controller.reset()")
-ack_i = line_of("                        dice_manager.acknowledge()")
+# The acceptance moved out of the dice branch into main()'s
+# _acknowledge_pending_roll() - the one door a click, the dice panel's buttons
+# and Space/Enter all go through - so the line is found by what it says, not
+# by the indentation it used to have.
+ack_i = line_of("dice_manager.acknowledge()")
+door_i = line_of("def _acknowledge_pending_roll():")
+c.true("the acknowledge sits inside _acknowledge_pending_roll()",
+       None not in (ack_i, door_i) and door_i < ack_i)
 move_i = line_of("movement_controller.on_dice_acknowledged()")
 c.true("reset() runs on the acknowledge path", reset_i is not None and ack_i is not None)
 # Guarded rather than compared straight: with reset() removed this used to

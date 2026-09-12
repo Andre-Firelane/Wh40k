@@ -182,6 +182,7 @@ class ChargeController:
             self.dice_manager.roll(
                 count=2, sides=6, label="Charge Roll", target_name=squad.name,
                 roll_kind=CHARGE_ROLL, target_squad=squad, subject_label="Charging",
+                title="Charge Roll", shown_modifiers=self._shown_charge_modifiers(),
             )
             self._pending_roll = True
 
@@ -231,8 +232,52 @@ class ChargeController:
             self.dice_manager.roll(
                 count=2, sides=6, label="Charge Roll (Heroic Intervention)", target_name=squad.name,
                 roll_kind=CHARGE_ROLL, target_squad=squad, subject_label="Charging",
+                title="Charge Roll", subtitle="Heroic Intervention",
+                shown_modifiers=self._shown_charge_modifiers(),
             )
             self._pending_roll = True
+
+    def _shown_charge_modifiers(self):
+        """_charge_roll_modifiers() in the dice panel's (delta, source) form."""
+        return tuple((amount, label) for label, amount in self._charge_roll_modifiers())
+
+    def _charge_roll_modifiers(self):
+        """(label, signed amount) for every CHARGER-side term on this unit's
+        Charge roll - the bonuses from game/roll_bonus.py, then the four
+        penalties made FOR the charging unit, in the order the log note has
+        always listed them.
+
+        ONE list read by _capped_roll() (the arithmetic and its log note) AND
+        by the dice panel's heading when the roll is made, so the panel can
+        never show a modifier the roll is not taking. The bonus total is
+        exactly advance_and_charge_bonus() by roll_bonus.sources()' own
+        construction.
+
+        Runes of Fortune is deliberately NOT here: it depends on the DECLARED
+        TARGETS, which do not exist yet when the roll is thrown, and stays a
+        term of the resolution in _capped_roll()."""
+        terms = list(roll_bonus_sources(self.active_squad, self.all_tokens))
+        # The Twin Lance's Neocapacitor Shields: -1 on Charge rolls made FOR
+        # this unit (as opposed to the Grav-inhibitor Drone's -2, which
+        # depends on who is being charged and is applied in
+        # _distance_against()). Both are negative modifiers, and the drone's
+        # own text says its -2 is not cumulative with any other - see
+        # _negative_charge_modifier(), which is where the two are reconciled.
+        # Kauyon's Photon Grenades: "subtract 2 from Charge rolls made FOR that
+        # enemy unit" - the same side as Neocapacitor Shields, so it joins the
+        # charger-side total here. Mont'ka's Pulse Onslaught leaves a unit
+        # `shaken` (-2), and PINNED is -2 on Charge rolls (two sources today;
+        # NOT on Advance rolls - the one clause that makes it a different status
+        # from shaken). They stack.
+        for amount, label in (
+            (neocapacitor_shields.charge_penalty_for(self.active_squad), "Neocapacitor Shields"),
+            (kauyon_photon_grenades.charge_penalty_for(self.active_squad), "Photon Grenades"),
+            (montka_pulse_onslaught.roll_penalty_for(self.active_squad), "shaken"),
+            (pinned_status.charge_penalty_for(self.active_squad), "pinned"),
+        ):
+            if amount:
+                terms.append((label, -amount))
+        return terms
 
     def _capped_roll(self, total):
         """Rule 15.11 (Into the Fray): "if the result is greater than 6
@@ -245,41 +290,12 @@ class ChargeController:
         here, which puts them BEFORE the cap, exactly as Into the Fray's own
         "after modifiers" wording requires. Both callers get them for the same
         reason they both get the cap."""
-        bonus = advance_and_charge_bonus(self.active_squad, self.all_tokens)
-        note = "".join(f" (+{amount} - {label})"
-                       for label, amount in roll_bonus_sources(self.active_squad, self.all_tokens))
-        total += bonus
-        # The Twin Lance's Neocapacitor Shields: -1 on Charge rolls made FOR
-        # this unit (as opposed to the Grav-inhibitor Drone's -2, which
-        # depends on who is being charged and is applied in
-        # _distance_against()). Both are negative modifiers, and the drone's
-        # own text says its -2 is not cumulative with any other - see
-        # _negative_charge_modifier(), which is where the two are reconciled.
-        penalty = neocapacitor_shields.charge_penalty_for(self.active_squad)
-        if penalty:
-            note += f" (-{penalty} - Neocapacitor Shields)"
-            total -= penalty
-        # Kauyon's Photon Grenades: "subtract 2 from Charge rolls made FOR that
-        # enemy unit" - the same side as Neocapacitor Shields above, so it
-        # joins the charger-side total here and the drone's
-        # not-cumulative-with-anything -2 stays reconciled in one place.
-        grenades = kauyon_photon_grenades.charge_penalty_for(self.active_squad)
-        if grenades:
-            note += f" (-{grenades} - Photon Grenades)"
-            total -= grenades
-        # Mont'ka's Pulse Onslaught leaves a unit `shaken`: -2 on Charge rolls
-        # made for it, the third charger-side penalty in this fold.
-        shaken = montka_pulse_onslaught.roll_penalty_for(self.active_squad)
-        if shaken:
-            note += f" (-{shaken} - shaken)"
-            total -= shaken
-        # PINNED: -2 on Charge rolls. Two sources today (the Night Spinner's
-        # Charge rolls, and NOT on Advance rolls - the one clause that makes
-        # it a different status from shaken. They stack.
-        pinned = pinned_status.charge_penalty_for(self.active_squad)
-        if pinned:
-            note += f" (-{pinned} - pinned)"
-            total -= pinned
+        terms = self._charge_roll_modifiers()
+        note = "".join(
+            f" (+{amount} - {label})" if amount > 0 else f" (-{-amount} - {label})"
+            for label, amount in terms
+        )
+        total += sum(amount for _label, amount in terms)
         # The Warlock's Runes of Fortune: -2 if any DECLARED TARGET of this
         # charge carries it. The first defender-side term in this fold - the
         # other three are properties of the charging unit - which is why it

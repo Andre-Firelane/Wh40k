@@ -139,6 +139,32 @@ class SuddenStormController:
         )
         return True
 
+    def pending_roll_choice(self, squad):
+        """The dice panel's version of maybe_offer_advance_reroll() for a HUMAN
+        - a "Re-roll Advance" button beside Accept while the Advance roll is on
+        the table (game/roll_choice.py), instead of a prompt opened by the
+        click that accepts it. Pressing the button claims the offer and throws
+        the die in place; Accept claims it on the player's behalf, so the
+        prompt does not open afterwards either."""
+        from game import roll_choice
+        from game.dice import ADVANCE_ROLL
+        dm = self.dice_manager
+        if (dm is None or squad is None or dm.roll_kind != ADVANCE_ROLL
+                or not advance_reroll_available(squad) or not dm.rerollable_indices()
+                or not dm.pending_values
+                or squad.owner in self.auto_players or self.decision_manager is None
+                or dm.reroll_offer_claimed(SUDDEN_STORM_NAME)):
+            return None
+        return roll_choice.RollChoice(squad.owner, [
+            roll_choice.RollOption(roll_choice.ACCEPT),
+            roll_choice.RollOption(roll_choice.WHOLE, 1, label="Re-roll Advance", acknowledges=False,
+                                   apply=self._reroll_from_panel),
+        ], claims=(SUDDEN_STORM_NAME,))
+
+    def _reroll_from_panel(self):
+        if self.dice_manager.claim_reroll_offer(SUDDEN_STORM_NAME):
+            self.dice_manager.reroll_die(0)
+
     def _grant(self, controller, player, targets):
         squad = targets[0]
         squad.sudden_storm_active = True
