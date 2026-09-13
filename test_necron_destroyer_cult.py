@@ -750,10 +750,14 @@ _mte_h = multi_threat_eliminator.MultiThreatEliminatorController(
 checks.true("a HUMAN Hexmark owner is asked, not answered for",
             _mte_h.maybe_offer(_en, _fr) and _dm.is_pending)
 
-# DORMANT BY ROSTER, pinned so fielding one is a visible change.
-_roster = io.open("armies/necrons.json", encoding="utf-8").read()
-for _n in ("Hexmark Destroyer", "Ophydian Destroyers", "Nekrosor Ammentar"):
-    checks.true("%s is dormant by roster" % _n, _n not in _roster)
+# WHICH SHIPPED LIST FIELDS EACH, pinned so fielding one is a visible change -
+# swept over EVERY list. This used to read armies/necrons.json alone, and so
+# stayed green the day armies/necrons_hypercrypt.json started fielding the
+# Hexmark Destroyer: the one job the pin had, it could not do.
+checks.eq("the Hexmark Destroyer is fielded by the Hypercrypt Legion list alone",
+          tk.lists_fielding("Hexmark Destroyer"), ["necrons_hypercrypt"])
+for _n in ("Ophydian Destroyers", "Nekrosor Ammentar"):
+    checks.eq("%s is dormant by roster" % _n, tk.lists_fielding(_n), [])
 
 WITHOUT_ART = {"Nekrosor Ammentar"}
 for sheet, _p in SHEETS:

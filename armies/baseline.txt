@@ -588,6 +588,90 @@
   Skorpekh Lord x1 (120,90,90) [Enmitic Annihilator, Flensing Claw, Hyperphase Harvester] {}
   enhancements: -
 
+### necrons_hypercrypt / Player 1
+1 C'tan Shard of the Void Dragon 1 | deploy | pts=345 | models=1
+  components: -
+  C'tan Shard of the Void Dragon x1 (90,110,140) [Canoptek Tail Blades, Spear of the Void Dragon, Spear of the Void Dragon - Strike, Voltaic Storm] {}
+  enhancements: -
+1 Hexmark Destroyer 1 | deploy | pts=75 | models=1
+  components: -
+  Hexmark Destroyer x1 (140,100,110) [Close Combat Weapon, Enmitic disintegrator pistols] {}
+  enhancements: -
+1 Immortals 1 + Plasmancer | deploy | pts=195 | models=11
+  components: Immortals/bodyguard, Plasmancer/support
+  Immortal x10 (120,145,175) [Close Combat Weapon, Tesla Carbine] {}
+  Plasmancer x1 (110,170,190) [Plasmic Lance, Plasmic Lance] {}
+  enhancements: -
+1 Necron Warriors 1 + Technomancer | deploy | pts=270 | models=21
+  components: Necron Warriors/bodyguard, Technomancer/support
+  Necron Warrior x20 (90,120,130) [Close Combat Weapon, Gauss Flayer] {}
+  Technomancer x1 (120,160,140) [Staff of Light, Staff of Light] {}
+  enhancements: -
+1 Lokhust Heavy Destroyers 1 | deploy | pts=100 | models=2
+  components: -
+  Lokhust Heavy Destroyer x2 (100,115,95) [Close Combat Weapon, Gauss Destructor] {}
+  enhancements: -
+1 Lychguard 1 + Overlord | deploy | pts=250 | models=11
+  components: Lychguard/bodyguard, Overlord/leader
+  Lychguard x10 (160,140,60) [Hyperphase Sword] {Dispersion Shield}
+  Overlord x1 (170,150,70) [Voidscythe] {Resurrection Orb}
+  enhancements: -
+1 Monolith 1 | deploy | pts=420 | models=1
+  components: -
+  Monolith x1 (70,90,110) [Death Ray, Death Ray, Death Ray, Death Ray, Particle Whip, Portal of Exile] {}
+  enhancements: -
+1 Skorpekh Destroyers 1 + Skorpekh Lord | deploy | pts=175 | models=4
+  components: Skorpekh Destroyers/bodyguard, Skorpekh Lord/leader
+  Skorpekh Destroyer x3 (120,90,90) [Skorpekh Hyperphase Weapons] {}
+  Skorpekh Lord x1 (120,90,90) [Enmitic Annihilator, Flensing Claw, Hyperphase Harvester] {}
+  enhancements: -
+1 Triarch Praetorians 1 | deploy | pts=160 | models=10
+  components: -
+  Triarch Praetorian x10 (180,160,90) [Rod of covenant, Rod of covenant] {}
+  enhancements: -
+
+### necrons_hypercrypt / Player 2
+2 C'tan Shard of the Void Dragon 1 | deploy | pts=345 | models=1
+  components: -
+  C'tan Shard of the Void Dragon x1 (90,110,140) [Canoptek Tail Blades, Spear of the Void Dragon, Spear of the Void Dragon - Strike, Voltaic Storm] {}
+  enhancements: -
+2 Hexmark Destroyer 1 | deploy | pts=75 | models=1
+  components: -
+  Hexmark Destroyer x1 (140,100,110) [Close Combat Weapon, Enmitic disintegrator pistols] {}
+  enhancements: -
+2 Immortals 1 + Plasmancer | deploy | pts=195 | models=11
+  components: Immortals/bodyguard, Plasmancer/support
+  Immortal x10 (120,145,175) [Close Combat Weapon, Tesla Carbine] {}
+  Plasmancer x1 (110,170,190) [Plasmic Lance, Plasmic Lance] {}
+  enhancements: -
+2 Necron Warriors 1 + Technomancer | deploy | pts=270 | models=21
+  components: Necron Warriors/bodyguard, Technomancer/support
+  Necron Warrior x20 (90,120,130) [Close Combat Weapon, Gauss Flayer] {}
+  Technomancer x1 (120,160,140) [Staff of Light, Staff of Light] {}
+  enhancements: -
+2 Lokhust Heavy Destroyers 1 | deploy | pts=100 | models=2
+  components: -
+  Lokhust Heavy Destroyer x2 (100,115,95) [Close Combat Weapon, Gauss Destructor] {}
+  enhancements: -
+2 Lychguard 1 + Overlord | deploy | pts=250 | models=11
+  components: Lychguard/bodyguard, Overlord/leader
+  Lychguard x10 (160,140,60) [Hyperphase Sword] {Dispersion Shield}
+  Overlord x1 (170,150,70) [Voidscythe] {Resurrection Orb}
+  enhancements: -
+2 Monolith 1 | deploy | pts=420 | models=1
+  components: -
+  Monolith x1 (70,90,110) [Death Ray, Death Ray, Death Ray, Death Ray, Particle Whip, Portal of Exile] {}
+  enhancements: -
+2 Skorpekh Destroyers 1 + Skorpekh Lord | deploy | pts=175 | models=4
+  components: Skorpekh Destroyers/bodyguard, Skorpekh Lord/leader
+  Skorpekh Destroyer x3 (120,90,90) [Skorpekh Hyperphase Weapons] {}
+  Skorpekh Lord x1 (120,90,90) [Enmitic Annihilator, Flensing Claw, Hyperphase Harvester] {}
+  enhancements: -
+2 Triarch Praetorians 1 | deploy | pts=160 | models=10
+  components: -
+  Triarch Praetorian x10 (180,160,90) [Rod of covenant, Rod of covenant] {}
+  enhancements: -
+
 ### tau / Player 1
 1 Devilfish 1 | deploy | pts=75 | models=1
   components: -

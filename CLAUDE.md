@@ -4007,8 +4007,8 @@ Bewegungsphasen-Einheit), und in beiden muss die Einheit schon auf dem Brett ste
 
 ## Armeen (armies/*.json) und Listenauswahl
 
-**Die ZEHN Listen sind DATEN: je eine `armies/<key>.json`.** Fünf Fraktionen, und die T'au stellen
-vier davon, die Aeldari drei (siehe die Tabelle unten). Jede Datei ist vollständig — Name, Fraktion, Armeeregel,
+**Die ELF Listen sind DATEN: je eine `armies/<key>.json`.** Fünf Fraktionen, und die T'au stellen
+vier davon, die Aeldari drei, die Necrons zwei (siehe die Tabelle unten). Jede Datei ist vollständig — Name, Fraktion, Armeeregel,
 Detachments, Force Disposition und jeder Eintrag —, und `ARMY_LISTS` entsteht aus einem
 VERZEICHNIS-SCAN. Nichts davon steht ein zweites Mal im Quelltext; eine Liste, die man zweimal
 aufschreibt, driftet.
@@ -4455,6 +4455,38 @@ dazukommen.
   (Gauss / Tesla), Skorpekh Lord in die Skorpekh Destroyers, Lokhust Lord in die Lokhust
   Destroyers. Nur der C'tan Shard steht allein — er hat als einziger Charakter dieser Liste gar
   keine LEADER-Zeile. Vollständig beschrieben im Necron-Abschnitt unter `## Fraktionen`.
+- **Necrons (Hypercrypt Legion) — `necrons_hypercrypt`, 13 Listeneinträge, 9 Einheiten, 62 Modelle,
+  1990 pts** (User-Export newrecruit.eu, 2000 pts, 2026-09-13). **Zweite Necron-Liste**, also die
+  zweite Wahl in Stufe zwei. Hypercrypt Legion allein (2 von 3 DP), Reconnaissance →
+  **Reconnaissance Sweep**. VIER Anbindungen: Plasmancer in die Immortals (10 Tesla Carbines),
+  Technomancer in die 20 Warriors, Overlord (Resurrection Orb, Voidscythe) in 10 Lychguard
+  (Hyperphase Sword + Dispersion Shield), Skorpekh Lord in 3 Skorpekh Destroyers (kein Plasmacyte).
+  Allein: Void Dragon, Hexmark Destroyer (Lone Operative), 2 Lokhust Heavy Destroyers, Monolith
+  (4 Death Rays), 10 Triarch Praetorians.
+  - **Sie macht scharf, was vorher dormant by roster war:** Hyperphasing samt der sechs
+    Hypercrypt-Stratagems, den Hexmark Destroyer, die Triarch Praetorians — und den **Monolith als
+    erstes TITANIC-Modell eines ausgelieferten Rosters** (Eternity Gate, die TITANIC-Leser aus
+    Etappe 0). Die vier Hypercrypt-Enhancements bleiben dormant, die Liste kauft keines.
+  - **ZWEI Punkte-Abweichungen, beide bekannt** (`verify_rules_vs_engine.py`): Plasmancer 55 gegen
+    gedruckte 60, Skorpekh Lord 90 gegen 95. Die gedruckte Seite stimmt mit dem Export überein, die
+    Abweichung liegt also in der Engine-Transkription — die per stehender Entscheidung gewinnt.
+  - **WARLORD (Overlord) ist ein belegter No-op**, die SECONDARY-Zeile des Exports eine
+    App-Auswertung und keine Listendaten; beides steht nur in der `note`.
+  - **Die sieben „dormant by roster"-Pins der Necron-Suiten lasen NUR `armies/necrons.json`** und
+    blieben deshalb grün, als diese Liste Monolith, Hexmark und Praetorians fieldete — genau der
+    Wechsel, für den sie gesetzt waren, war für sie unsichtbar (Fehlerklasse 17 in neuer Form: ein
+    Pin, der nur EINEN Roster liest). Sie gehen jetzt über `testkit.lists_fielding()` (liest die
+    GELADENEN Roster samt Leadern, nicht den JSON-Text) und nennen die fieldende Liste namentlich.
+    Rot wurde zu Recht nur `test_necron_hypercrypt_legion.py` §17, der alle Listen las; umgedreht.
+  - **Getestet:** neu `test_necron_hypercrypt_army.py` (**52/52**) — gegen den EXPORT, nicht gegen
+    sich selbst: der Golden Master wird aus dem Build geschrieben und hätte eine falsche
+    Transkription gesegnet. Neu `ab_necron_hypercrypt_army.py` (**7 A/B-Sonden, alle beißend**,
+    Dateien per Hash zurückgestellt). Golden Master +84 Zeilen, keine bestehende bewegt.
+    Im echten Spiel (`selfplay.py map2 2500`, die Liste auf beiden Seiten, exit 0):
+    `[primary] Player 1 plays Reconnaissance Sweep`, alle vier Anbindungen je Seite, der Monolith
+    aufgestellt bzw. von der KI per Deep Strike in Reserve genommen. **Grenze:** Hyperphasing
+    feuert in diesen 8 Phasen nicht (es läuft erst am Ende eines Gegnerzugs); belegt ist es durch
+    `test_necron_hypercrypt_legion.py` und `verify_necron_hypercrypt_legion.py`.
 - **T'au Empire — FÜNF Listen, und das erste Volk hier mit mehr als einer.** Sie unterscheiden
   sich in Detachment, Enhancements und damit in der Primary Mission:
 
@@ -6713,6 +6745,7 @@ die Evidenz; zwei Läufe erzeugen 56 byte-identische Dateien.
 | Aeldari (`aeldari_guardian_battlehost`) | Armoured Warhost + Guardian Battlehost | Take and Hold | **Battlefield Dominance** |
 | Orks | War Horde | Take and Hold | **Battlefield Dominance** |
 | Necrons | Awakened Dynasty | Take and Hold | **Battlefield Dominance** |
+| Necrons (`necrons_hypercrypt`) | Hypercrypt Legion | Reconnaissance | **Reconnaissance Sweep** |
 | T'au (`tau`) | Kauyon + Adv. Acquisition Cadre | Reconnaissance | **Reconnaissance Sweep** |
 | T'au (`tau_montka`) | Mont'ka | Priority Assets | **Secure Asset** |
 | T'au (`tau_recon`) | Advanced Acquisition + Auxiliary + Experimental Prototype Cadre | Reconnaissance | **Reconnaissance Sweep** |
@@ -12410,7 +12443,8 @@ belegter No-op, wie bei Farsight und Shadowsun.
 Enhancements —, eines pro Etappe: Canoptek Court → Hypercrypt Legion → Cryptek Conclave. Plan:
 `C:\Users\Andre\.claude\plans\necron-detachments-anlegen-detachment-nifty-quill.md`.
 **User-Entscheidungen:** keine Armeeliste ändert sich (dormant by roster, belegt per Suite und
-Laufzeit-Sonde); volle deterministische KI-Nutzung (0 API-Calls); „Your NECRONS WARLORD" ist ein
+Laufzeit-Sonde — für die Hypercrypt Legion seit dem 2026-09-13 überholt: der User hat dafür eine
+Liste geliefert, `armies/necrons_hypercrypt.json`, siehe `## Armeen`); volle deterministische KI-Nutzung (0 API-Calls); „Your NECRONS WARLORD" ist ein
 belegter No-op; Reanimation-Boosts gelten bei JEDER Aktivierung; nach jeder Etappe commit + push +
 Bericht + anhalten.
 

@@ -840,10 +840,12 @@ c.eq("...and The Silent King's likewise",
      [k for k in sprites.SQUAD_SPRITE_KEYS if k in "2 The Silent King 1"],
      ["The Silent King"])
 
-# DORMANT BY ROSTER - armies/necrons.json fields neither.
-ROSTER = io.open(os.path.join("armies", "necrons.json"), encoding="utf-8").read()
-for _sheet in NEW:
-    c.true("%s is dormant by roster" % _sheet.name, _sheet.name not in ROSTER)
+# WHICH SHIPPED LIST FIELDS EACH, swept over EVERY list. This used to read
+# armies/necrons.json alone, so it stayed green when the Hypercrypt Legion list
+# started fielding the Monolith - the first TITANIC model any shipped list takes.
+c.eq("the Monolith is fielded by the Hypercrypt Legion list alone",
+     tk.lists_fielding("Monolith"), ["necrons_hypercrypt"])
+c.eq("The Silent King is dormant by roster", tk.lists_fielding("The Silent King"), [])
 
 # THE SCOPE RECORD IS EMPTY OF BUILD TARGETS - this was the last stage.
 FETCH_SRC = io.open("fetch_datasheet_rules.py", encoding="utf-8").read()

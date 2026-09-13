@@ -874,8 +874,9 @@ for _new in [WARDEN.name, IMOTEKH.name, TRAZYN.name]:
          [k for k in _keys if k != _new and k in _new], [])
     c.eq("...and it swallows none", [k for k in _keys if k != _new and _new in k], [])
 
-_roster = io.open(os.path.join("armies", "necrons.json"), encoding="utf-8").read()
+# Swept over EVERY shipped list, not armies/necrons.json alone
+# (see testkit.lists_fielding).
 for sheet in NEW:
-    c.true("%s is dormant by roster" % sheet.name, sheet.name not in _roster)
+    c.eq("%s is dormant by roster" % sheet.name, tk.lists_fielding(sheet.name), [])
 
 c.finish()

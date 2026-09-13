@@ -22,7 +22,8 @@ WHAT THIS SUITE PINS, and why each part is here:
   9-14. THE STRATAGEMS at their WHEN/TARGET borders.
   15. THE AI's verdicts, at their decision borders, with no agent.
   16. WIRING - AST over reachable code (main.py, the panel, the AI, the seams).
-  17. DORMANT BY ROSTER - no shipped list fields the detachment (user decision).
+  17. WHICH LIST FIELDS IT - exactly armies/necrons_hypercrypt.json (dormant by
+      roster until the user supplied that list on 2026-09-13).
 
 Real controllers, real datasheets, scripted dice (testkit).
 """
@@ -1567,7 +1568,7 @@ c.eq("...and not the shared one", "passenger.charge_locked_until_end_of_turn = T
 
 
 # ==========================================================================
-print("=== 17. dormant by roster ===")
+print("=== 17. which shipped list fields it ===")
 # ==========================================================================
 
 _lists = []
@@ -1577,7 +1578,11 @@ for _fname in sorted(os.listdir("armies")):
         if isinstance(_data, dict) and "detachments" in _data:
             _lists.append((_fname, _data["detachments"]))
 c.true("the sweep read the shipped lists (%d)" % len(_lists), len(_lists) >= 5)
-c.eq("no shipped list fields the Hypercrypt Legion (user decision)",
-     [f for f, d in _lists if "Hypercrypt Legion" in d], [])
+# DORMANT BY ROSTER until the user supplied a Hypercrypt Legion list. This pin
+# was set so that fielding the detachment would be a visible change, and it
+# turned red exactly then; it now names the one list that fields it, so a second
+# one is a visible change too.
+c.eq("exactly one shipped list fields the Hypercrypt Legion",
+     [f for f, d in _lists if "Hypercrypt Legion" in d], ["necrons_hypercrypt.json"])
 
 c.finish()

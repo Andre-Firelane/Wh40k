@@ -1,0 +1,106 @@
+{
+  "format": 1,
+  "key": "necrons_hypercrypt",
+  "name": "Necrons (Hypercrypt Legion)",
+  "faction_keyword": "NECRONS",
+  "army_rule": "Reanimation Protocols",
+  "detachments": ["Hypercrypt Legion"],
+  "force_disposition": "reconnaissance",
+  "sort_order": 31,
+  "note": "App export (newrecruit.eu v35.82), 2000 pts. 13 list entries, 9 units after four attachments. Hypercrypt Legion alone is 2 of the 3 DP, and Reconnaissance is the one Force Disposition it grants, so the Primary Mission is Reconnaissance Sweep. Engine total 1990 against the export's 2000: two known deviations, both already on verify_rules_vs_engine.py's report - Plasmancer 55 (printed 60) and Skorpekh Lord 90 (printed 95) - and the engine's transcribed points win, as for every other list. No Enhancement is bought. The export names the Overlord WARLORD; nothing in this engine reads a Warlord (a documented no-op), so it is recorded here and nowhere else. Its SECONDARY line (Bring It Down, Assassination, Cull The Horde) is an app scoring summary, not list data - this engine deals Secondaries from its own deck.",
+  "roster": [
+    {
+      "datasheet": "C'tan Shard of the Void Dragon",
+      "color": [90, 110, 140]
+    },
+    {
+      "datasheet": "Hexmark Destroyer",
+      "color": [140, 100, 110],
+      "note": "Stands alone: its datasheet prints no LEADER line (Lone Operative)."
+    },
+    {
+      "datasheet": "Immortals",
+      "color": [120, 145, 175],
+      "composition_index": 1,
+      "choices": {
+        "Immortal": {
+          "Gauss Blaster -> Tesla Carbine": 10
+        }
+      },
+      "leaders": [
+        {
+          "datasheet": "Plasmancer",
+          "color": [110, 170, 190]
+        }
+      ]
+    },
+    {
+      "datasheet": "Necron Warriors",
+      "color": [90, 120, 130],
+      "composition_index": 1,
+      "leaders": [
+        {
+          "datasheet": "Technomancer",
+          "color": [120, 160, 140]
+        }
+      ]
+    },
+    {
+      "datasheet": "Lokhust Heavy Destroyers",
+      "color": [100, 115, 95],
+      "composition_index": 1
+    },
+    {
+      "datasheet": "Lychguard",
+      "color": [160, 140, 60],
+      "composition_index": 1,
+      "gear": {
+        "Lychguard": ["Dispersion Shield"]
+      },
+      "choices": {
+        "Lychguard": {
+          "Warscythe -> Hyperphase Sword": 10
+        }
+      },
+      "leaders": [
+        {
+          "datasheet": "Overlord",
+          "color": [170, 150, 70],
+          "gear": {
+            "Overlord": ["Resurrection Orb"]
+          },
+          "choices": {
+            "Overlord": {
+              "Tachyon Arrow + Blade -> Voidscythe": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "datasheet": "Monolith",
+      "color": [70, 90, 110],
+      "choices": {
+        "Monolith": {
+          "4x Gauss Flux Arc -> 4x Death Ray": 1
+        }
+      }
+    },
+    {
+      "datasheet": "Skorpekh Destroyers",
+      "color": [120, 90, 90],
+      "note": "No Plasmacyte: the export buys none.",
+      "leaders": [
+        {
+          "datasheet": "Skorpekh Lord",
+          "color": [120, 90, 90]
+        }
+      ]
+    },
+    {
+      "datasheet": "Triarch Praetorians",
+      "color": [180, 160, 90],
+      "composition_index": 1
+    }
+  ]
+}

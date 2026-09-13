@@ -639,10 +639,11 @@ c.true("both controllers gate on auto_players at the OBJECT",
        _gates_on_auto(RelentlessCombatantsController)
        and _gates_on_auto(TargetingRelayController))
 
-# DORMANT BY ROSTER, pinned so fielding one is a visible change.
-_roster = io.open("armies/necrons.json", encoding="utf-8").read()
-for _n in ("Triarch Praetorians", "Triarch Stalker"):
-    c.true("%s is dormant by roster" % _n, _n not in _roster)
+# WHICH SHIPPED LIST FIELDS EACH, swept over EVERY list (it used to read
+# armies/necrons.json alone and so missed the list that fields the Praetorians).
+c.eq("the Triarch Praetorians are fielded by the Hypercrypt Legion list alone",
+     tk.lists_fielding("Triarch Praetorians"), ["necrons_hypercrypt"])
+c.eq("Triarch Stalker is dormant by roster", tk.lists_fielding("Triarch Stalker"), [])
 
 for sheet in (PRAETORIANS, STALKER):
     c.true("%s draws its own art" % sheet.name,

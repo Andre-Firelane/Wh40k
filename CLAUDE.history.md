@@ -9278,3 +9278,42 @@ Suite-Läufe, `git grep AB-PROBE` leer.
 
 **Volle Regression danach:** `test_corsairs.py` zählte die Ones-or-whole-Menge (8) — die neunte
 Quelle ist genau die sichtbare Änderung, für die der Pin gesetzt war; auf 9 nachgezogen.
+
+## 2026-09-13 — Necron-Liste „Hypercrypt Legion" (`armies/necrons_hypercrypt.json`)
+
+**Auftrag:** eine vom User gelieferte App-Liste (newrecruit.eu v35.82, 2000 pts, 13 Einheiten,
+Hypercrypt Legion / Reconnaissance, Warlord Overlord) als elfte Armeeliste anlegen.
+
+**Gebaut:** die JSON-Datei (Key `necrons_hypercrypt`, `sort_order` 31, direkt hinter der
+Default-Necron-Liste). Alle Optionsnamen gab es schon — keine Datenblattänderung nötig. Am echten
+Builder: `validate: []`, vier Anbindungen, 62 Modelle, **1990 statt 2000 pts**.
+
+**Die 10 Punkte:** zwei 5-pt-Abweichungen, Plasmancer 55 (gedruckt 60) und Skorpekh Lord 90
+(gedruckt 95). Beide stehen seit Langem in `verify_rules_vs_engine.py`; die gedruckten Seiten
+stimmen mit dem Export, also liegt es an der Engine-Transkription, die per stehender Entscheidung
+gewinnt. Benannt in der `note` und in der neuen Suite gepinnt, nicht angeglichen.
+
+**Rot wurden genau die erwarteten Pins:** `test_army_select.py` (Listen- und Faktionszählung),
+`test_army_rosters.py` (neuer Block, `--write`: +84 Zeilen, keine bestehende bewegt) und
+`test_necron_hypercrypt_legion.py` §17 („kein Roster fieldet die Legion" — umgedreht auf „genau
+diese eine Liste").
+
+**Befund über die TESTS:** sieben „dormant by roster"-Pins (canoptek, ctan, leaders, vehicles,
+destroyer_cult, triarch, titans) lasen nur `armies/necrons.json` und blieben grün, obwohl die neue
+Liste Monolith, Hexmark und Praetorians fieldet — ihre Labels waren damit still falsch. Neu
+`testkit.lists_fielding()` (liest geladene Roster samt Leadern); alle sieben gehen hindurch, die
+drei gefieldeten nennen `necrons_hypercrypt`. `test_detachments.py`s „every predefined list is
+legal" war eine handgeschriebene Fünferliste und fegt jetzt `ARMY_LISTS`; `test_force_dispositions.py`
+bekam die Zeile für die neue Liste.
+
+**Neu:** `test_necron_hypercrypt_army.py` (52/52, gegen den Export) und
+`ab_necron_hypercrypt_army.py` (7 Sonden, alle beißend: Helfer liest nur `necrons.json` → drei
+Einheiten-Suiten plus Listen-Suite rot; Helfer ohne Leader → nur die Plasmancer-Zeile der
+Listen-Suite, weil kein Dormanz-Pin einen Leader nennt — deshalb gibt es diese Zeile; 9 Carbines,
+kein Orb, Monolith mit Arcs, falsches Detachment, Overlord allein). Während des exklusiven
+Sondenlaufs meldete der Editor die Datei mit 9 Carbines als geändert — das war Sonde 3; der
+Hash-Vergleich am Ende bestätigte die Rückstellung.
+
+**Laufzeit:** `selfplay.py map2 2500` mit der Liste auf beiden Seiten, exit 0: Reconnaissance Sweep,
+vier Anbindungen je Seite, Monolith aufgestellt (P1) bzw. von der KI in Reserve genommen
+(zusammen mit Hexmark und Praetorians). Hyperphasing feuerte in den 8 erreichten Phasen nicht.

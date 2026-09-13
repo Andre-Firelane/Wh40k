@@ -998,9 +998,10 @@ for sheet in NEW:
     want = sheet.name != "Ghost Ark"
     c.eq("%s resolves a sprite: %s" % (sheet.name, want), bool(got), want)
 
-ROSTER = io.open(os.path.join("armies", "necrons.json"), encoding="utf-8").read()
+# Swept over EVERY shipped list, not armies/necrons.json alone
+# (see testkit.lists_fielding).
 for sheet in NEW:
-    c.true("%s is dormant by roster" % sheet.name, sheet.name not in ROSTER)
+    c.eq("%s is dormant by roster" % sheet.name, tk.lists_fielding(sheet.name), [])
 
 MISSING = io.open("fetch_datasheet_rules.py", encoding="utf-8").read()
 c.true("the three are out of MISSING_NECRONS' build list",

@@ -2149,8 +2149,9 @@ HYPERCRYPT_LEGION = NECRONS.add_detachment(Detachment(
     ),
     enhancements=[
         # ENGINE-WIRED, all four - registered in game/enhancements.py, each rule
-        # in its own game/enh_*.py module. Dormant by roster, like the Canoptek
-        # Court's: no shipped list fields the Hypercrypt Legion (user decision).
+        # in its own game/enh_*.py module. armies/necrons_hypercrypt.json fields
+        # this detachment but buys NONE of the four, so the rule and the six
+        # Stratagems are live while these stay dormant by roster.
         Enhancement("Dimensional Overseer", 25, description=(
             "NECRONS model only. While the bearer is on the battlefield or in Strategic "
             "Reserves, add one to the number of units from your army that you can select "

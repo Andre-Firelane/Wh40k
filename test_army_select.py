@@ -56,10 +56,10 @@ def _read(path):
 print("\n=== 1. the list registry ===")
 
 keys = [entry.key for entry in army_lists.ARMY_LISTS]
-c.eq("ten lists on offer", keys,
+c.eq("eleven lists on offer", keys,
      ["aeldari", "aeldari_warhost", "aeldari_guardian_battlehost", "orks",
-      "necrons", "tau", "tau_montka", "tau_retaliation", "tau_recon",
-      "death_guard"])
+      "necrons", "necrons_hypercrypt", "tau", "tau_montka", "tau_retaliation",
+      "tau_recon", "death_guard"])
 # FIVE FACTIONS, TEN LISTS - two of them with a real choice underneath, which
 # is what the two-step "pick a people, then a list" flow was built for and had
 # only ever been measured against a made-up registry.
@@ -74,7 +74,7 @@ c.eq("...and the T'au have four of them",
 # added, wherever it lands.
 c.eq("...and each faction offers exactly this many",
      {f.key: len(army_lists.lists_for(f.key)) for f in army_lists.factions()},
-     {"AELDARI": 3, "ORKS": 1, "NECRONS": 1, "T'AU EMPIRE": 4, "DEATH GUARD": 1})
+     {"AELDARI": 3, "ORKS": 1, "NECRONS": 2, "T'AU EMPIRE": 4, "DEATH GUARD": 1})
 c.eq("every list is reachable by key", sorted(army_lists.BY_KEY), sorted(keys))
 
 # The tile's own text: name / logo / detachment, per the user's description of

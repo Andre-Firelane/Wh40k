@@ -140,13 +140,17 @@ c.true("ArmyList carries a TUPLE of detachments",
 # shares an exclusion tag, so the tag rule permits both.
 for key, expected in [("tau", ["Kauyon", "Advanced Acquisition Cadre"]),
                       ("necrons", ["Awakened Dynasty"]),
+                      ("necrons_hypercrypt", ["Hypercrypt Legion"]),
                       ("aeldari", ["Seer Council", "Path of the Outcast"]),
                       ("orks", ["War Horde"]),
                       ("death_guard", ["Death Lord's Chosen"])]:
     c.eq("%s fields %s" % (key, expected), detachments.names_for(key), expected)
+# Swept over EVERY shipped list rather than a hand-written five: the hand-written
+# tuple kept reading "every predefined list is legal" while half the lists had
+# never been in it.
 c.eq("every predefined list is legal",
-     {k: detachments.validate(k) for k in ("tau", "necrons", "aeldari", "orks", "death_guard")},
-     {k: [] for k in ("tau", "necrons", "aeldari", "orks", "death_guard")})
+     {e.key: detachments.validate(e.key) for e in army_lists.ARMY_LISTS},
+     {e.key: [] for e in army_lists.ARMY_LISTS})
 
 # `detachment` (singular) survives as a view for callers that want one name.
 c.eq("the singular view is the first one", army_lists.get("tau").detachment,

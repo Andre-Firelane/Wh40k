@@ -300,3 +300,21 @@ def list_key(faction_keyword):
             % (faction_keyword, ", ".join(known))
         )
     return lists[0].key
+
+
+def lists_fielding(datasheet_name):
+    """The keys of every shipped army list that fields `datasheet_name`, as an
+    entry of its own or as a leader, in ARMY_LISTS order.
+
+    For the "dormant by roster" pins. Seven Necron suites used to read ONE file,
+    armies/necrons.json, and so stayed green when a second Necron list started
+    fielding the Monolith, the Hexmark Destroyer and the Triarch Praetorians - a
+    pin set so that fielding a unit would be a visible change, blind to exactly
+    that change. Read off the LOADED rosters rather than grepped out of the JSON
+    text, so a datasheet mentioned inside a note does not count as fielded.
+    """
+    from game import army_lists
+    return [entry.key for entry in army_lists.ARMY_LISTS
+            if any(unit.datasheet.name == datasheet_name
+                   or any(led.datasheet.name == datasheet_name for led in unit.leaders)
+                   for unit in entry.roster or ())]

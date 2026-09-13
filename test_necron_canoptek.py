@@ -1013,10 +1013,10 @@ for name in ("chittering_swarm", "self_destruction", "canoptek_swarm",
              "Doomstalker", "Macrocyte"):
     c.eq("ai/agent_driver.py knows nothing about %s" % name, name in DRIVER, False)
 
-# DORMANT BY ROSTER, pinned so fielding one is a visible change.
-_roster = io.open("armies/necrons.json", encoding="utf-8").read()
+# DORMANT BY ROSTER, pinned so fielding one is a visible change - swept over
+# EVERY shipped list, not armies/necrons.json alone (see testkit.lists_fielding).
 for sheet in SHEETS:
-    c.true("%s is dormant by roster" % sheet.name, sheet.name not in _roster)
+    c.eq("%s is dormant by roster" % sheet.name, tk.lists_fielding(sheet.name), [])
     c.true("%s draws its own art" % sheet.name,
            sprites.sprite_for(build(sheet, n=40).models[0]) is not None)
 

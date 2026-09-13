@@ -107,6 +107,8 @@ EXPECTED = {
     "aeldari": (fd.PRIORITY_ASSETS, "Secure Asset"),
     "orks": (fd.TAKE_AND_HOLD, "Battlefield Dominance"),
     "necrons": (fd.TAKE_AND_HOLD, "Battlefield Dominance"),
+    # Hypercrypt Legion grants exactly Reconnaissance, so this is not a choice.
+    "necrons_hypercrypt": (fd.RECONNAISSANCE, "Reconnaissance Sweep"),
     # User's explicit pick: "fuer die Tau Liste nehme ich reconnaissance
     # (advanced acquisition cadre)". Kauyon permits Reconnaissance too, so the
     # mission is the same either way - but which detachment it comes from is

@@ -24,7 +24,9 @@ STAGED, each named rather than quietly faked:
     question about the human's buttons that does not field them as Player 1
     measures the AI's army and reports a truthful-looking zero.
   * THE DETACHMENT, by wrapping game/detachments.apply_to_config(): it rewrites
-    every detachment setting from scratch. No shipped list fields it.
+    every detachment setting from scratch. Player 1 fields the default necrons
+    list (Awakened Dynasty); the one shipped list that declares Hypercrypt
+    Legion, necrons_hypercrypt, is no player's default.
   * For C only, after A and B are answered, every frame: the phase, rotated
     through all five (a MockAgent run does not visit them reliably) with the
     turn owned by Player 1 and the battle round PINNED to 2 (rule 20.03's
