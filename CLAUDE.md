@@ -12404,6 +12404,123 @@ Vertikalität — dieselbe dokumentierte Vereinfachung, die Plunging Fire (22.05
 ist eine Basisform-Notiz ohne Regel. **Supreme Commander** („must be your Warlord") ist ein
 belegter No-op, wie bei Farsight und Shadowsun.
 
+## Die Necron-Detachments (Etappen 1-3)
+
+**Auftrag:** drei weitere Necron-Detachments vollständig — Regel, alle Stratagems, alle
+Enhancements —, eines pro Etappe: Canoptek Court → Hypercrypt Legion → Cryptek Conclave. Plan:
+`C:\Users\Andre\.claude\plans\necron-detachments-anlegen-detachment-nifty-quill.md`.
+**User-Entscheidungen:** keine Armeeliste ändert sich (dormant by roster, belegt per Suite und
+Laufzeit-Sonde); volle deterministische KI-Nutzung (0 API-Calls); „Your NECRONS WARLORD" ist ein
+belegter No-op; Reanimation-Boosts gelten bei JEDER Aktivierung; nach jeder Etappe commit + push +
+Bericht + anhalten.
+
+### Etappe 1 — Canoptek Court (3 DP, Take and Hold)
+
+Regel Power Matrix, vier Enhancements, sechs Stratagems. Module `game/court_*.py`,
+`game/enh_{dimensional_sanctum,hyperphasic_fulcrum,autodivinator,metalodermal_tesla_weave}.py` und
+`game/necron_detachments.py` (Spiegel von `aeldari_detachments.py`: CRYPTEK/CANOPTEK je EINHEIT per
+19.03 und je MODELL per `model_has_datasheet_keyword()`). **Präfix `court_`, nicht `canoptek_`**
+(`canoptek_swarm.py` existiert); die Conclave-Etappe darf nicht `conclave_` nehmen (Aeldari-Zählsweep).
+
+**Drei Vorarbeiten, jede ein eigener Befund:**
+1. **`movement_controller.on_move_finished` wurde in `main()` NEU ZUGEWIESEN** (`= [...]`), nachdem
+   fünf Listener angehängt waren — Spirit Stone, Spirit Mark, Higher Duty, **Wraith Form** und
+   Internal Grenade Racks haben in einem echten Spiel nie einen Zug gehört. Jetzt `.extend([...])`;
+   Wächter `test_event_chain_wiring.py` §25. Im echten Spiel: 9 von 9 Listenern auf der Live-Liste,
+   `--neutralize` 6 fehlen.
+2. **`reanimation_protocols.activate()` ist die EINE Tür in `reanimate()`** (Boost + gedruckter
+   Bonus + reanimate), gelesen von Armeeregel, Undying Legions, Resurrection Orb, Repair Barge und
+   Suboptimal Facade — beide Canoptek-Boosts drucken „EACH TIME ... activate" (User-Entscheidung;
+   vorher erreichte der Boost nur die Armeeregel). AST-Wächter: kein `reanimate(` außerhalb des Moduls.
+3. **Per-Modell-Term im Angriffsschlüssel** (`necron_detachments.attack_key()`): Cynosure und Curse
+   fragen CRYPTEK/CANOPTEK-MODELLE, und 04.03 löst mit dem ersten Modell der Gruppe auf. Für jeden
+   Spieler ohne das Detachment die Konstante `(False, False)`, keine bestehende Gruppe spaltet sich.
+
+**Power Matrix** (`court_power_matrix.py`): drei Regionen, die Matrix ist eine Vereinigung;
+„wholly within" je Modell über `contains_circle`/`distance_to_point`. Latch je
+`(Runde, Zugbesitzer, Phase)`, gestempelt in `main.py`s Start-of-any-phase-Block; ohne Stempel die
+Live-Antwort. **„Mindestens die Hälfte" von null ist nicht die Hälfte** (auf allen vier Karten
+unerreichbar, gemessen und gepinnt). Reroll: automatische Hit-1er für jede CRYPTEK/CANOPTEK-Einheit,
+der ganze Wurf wholly within → achter Eintrag in `reroll_scope.ONES_OR_WHOLE_LABELS`, beide Phasen.
+
+**Enhancements:** Dimensional Sanctum (Klausel in `squad_has_infiltrators()`), Hyperphasic Fulcrum
+(automatische Wound-1er; „leading" = echte 19.01-Anbindung), **Autodivinator** — dafür bekam
+`CommandPointManager.gain_cp()` ein PFLICHT-`source=` (`SOURCE_ABILITY`/`SOURCE_MISSION`) und
+`on_cp_gained`-Listener, die nur einen GELANDETEN Grant hören; alle sechs Produktionsaufrufer
+nachgezogen, der Secondary-Discard ist MISSION. Sein D6 wird im Modul geworfen (der Auslöser kann
+mitten in einem fremden Wurf liegen — benannte Ausnahme). **Metalodermal Tesla Weave** ist ein
+Reaktor in `charge_declaration_reactions` mit eigener `MortalWoundAllocationSession` und allen fünf
+main.py-Kanten (§6/§11/§12/§17/§20).
+
+**Stratagems:** Curse of the Cryptek (reaktiv: Tod aus dem Sweep, Angebot aus den
+Nach-Aktivierungs-Haken, schlachtlange Marke, −1 auf die Schwellen nur für CANOPTEK-MODELLE),
+**Cynosure of Eradication** und **Solar Pulse** (Registry-Knöpfe; Cynosure druckt „the start of THE
+Fight phase" ohne Besitzer), Reactive Subroutines (`on_move_finished`-Listener, Modus in
+`REACTIVE_MOVE_MODES`, Confirm/Cancel im Panel, KI über injizierte Destination/Mover),
+Countertemporal Shift (`shooting_target_reactions` + `revalidate_target_selection`), Suboptimal
+Facade (Charge-Deklarations-Reaktor, `activate()` mit Placer). KI: Cynosure und Solar Pulse als
+`_handle_*` ohne `agent`, der Rest über `auto_players`; die Beobachtung meldet `power_matrix`.
+
+**Echter Fehler, vom eigenen Test gefunden:** `reactive_subroutines_destination()` gab
+`first_leg_toward()`s `{"x","y"}`-Dict zurück, Controller und `_advance_toward()` indizieren ein
+Paar → `KeyError` beim ersten KI-Einsatz. Jetzt ein Tupel, plus End-to-end-Prüfung mit der echten
+Politik.
+
+**Die Panel-Hälfte:** neu `test_necron_detachment_ui.py` (wächst je Etappe) — Liveness, 2×5-Matrix,
+die Besitzer-Klausel (Cynosure im gegnerischen Fight AM PANEL, weil `can_select()` dort beide
+zulässt), Detachment-Tor am Panel, TARGET- und Start-of-phase-Negative, **beide Resets einzeln**
+(15.01-Ledger allein lässt den Knopf weg, der eigene Phasen-Reset allein auch), der Klick zahlt
+(Solar Pulse erst nach der Objective-Frage; Cancel kostet nichts), Label ↔ Korpus, und per AST:
+genau die zwei Knöpfe definieren `panel_label()` und stehen auf der Registry, die vier reaktiven nicht.
+
+**A/B-Sonden (`ab_necron_canoptek_court.py`): 69 Sonden, 74 Suite-Läufe, alle beißend.** Neun bissen
+zuerst nicht oder ließen die Suite abstürzen, jede ein Befund über den TEST: der automatische
+Shooting-1er-Wurf war nur per Teilstring gepinnt (jetzt der echte `_hit_step`); ein Ein-Modell-Ziel
+der Tesla Weave fehlte (die Klicks des Tests leerten die Session und verdeckten einen Controller,
+der sich nie selbst fertig meldet); der Curse-Tod ohne Täter; die per-MODELL-Lesung des Curse
+brauchte eine gemischte Einheit (Geomancer in Macrocytes); Cynosure in der Fight-Adjuster-Kette;
+zwei Stellen stürzten ab statt rot zu werden; und **`test_event_chain_wiring.py` §11 akzeptierte eine
+Würfelbestätigung unter `if False:`** (Regex über Text) — jetzt AST über erreichbaren Code. Der
+Statement-Pin der Court-Suite ist ebenso gegen `if False:`/`False and` gehärtet. Jede Ersetzung
+trägt den Marker `AB-PROBE`; der Treiber hasht jede sondierte Datei vor und nach dem Lauf, und
+danach muss `git grep "AB-PROBE" -- . ":!ab_*.py"` leer sein.
+
+**Im ECHTEN Spiel belegt** (`verify_necron_canoptek_court.py`; Necrons als Player 1, Detachment per
+Wrapper; `--neutralize` lädt `main.py` per Import-Hook mit den gemessenen Nähten zurückgebaut — die
+Datei auf der Platte bleibt unberührt):
+
+| | gefixt | `--neutralize` |
+|---|---|---|
+| gefütterte Listener auf der Live-Liste | 9 von 9 | 6 fehlen |
+| Power Matrix für die laufende Phase gestempelt | ja | nein |
+| ganzer Hit-Wurf für `1 Immortals 1 + Plasmancer` | `'Power Matrix'` | None |
+| Cynosure / Solar Pulse gezeichnet | Shooting+Fight / Shooting | nie |
+| Knöpfe außerhalb ihres WHEN | 0 | 0 |
+
+**Gemessener Harness-Befund:** die Phasen-Rotation muss beim Eintritt in den Fight
+`reset_fight_phase()` rufen wie `main()` — sonst trägt der Fight-Controller `done` aus einer früheren
+Fight-Phase, und Cynosure wird 631-mal aus einem Grund abgelehnt, den kein Spiel erzeugt.
+**Benannt, kein Fehler:** im Fight der KI beginnt `_handle_fight()` den Fight-Step, sobald auf keiner
+Seite ein Pile In aussteht; das Fenster des Menschen für Cynosure ist also genau so lang, wie eine
+eigene Einheit noch einen Pile In schuldet — genau dann, wenn sie überhaupt kämpfen könnte.
+
+**Mitwandernde Pins:** `test_detachments.py`, `test_force_dispositions.py` (18),
+`test_corsairs.py` (8 Labels), `test_necron_canoptek.py` (5 Boost-Türen),
+`test_necron_datasheets.py`, `test_tau_enhancements.py` (KI-Leck-Wächter auf T'au-Detachments
+verengt), `test_unit_pick.py` (Solar Pulse' Objective-Liste), `test_charge_retry_reactions.py` §6
+(fegt jetzt jeden `charge_declaration_reactions.extend([`-Block).
+
+**Getestet:** `test_necron_canoptek_court.py` **415/415**, `test_necron_detachment_ui.py` **97/97**,
+`test_event_chain_wiring.py` **249/249**, `test_charge_retry_reactions.py` **48/48**. Volle
+Regression **230 Suiten, ~21527 Prüfungen, 229 grün / 0 rot / 1 bekannt**, `run_tests.py --smoke`
+komplett grün (inkl. `selfplay.py map2 1500` mit den Default-Armeen), dazu `selfplay.py map2 1500`
+mit Necrons auf BEIDEN Seiten und beiden im Court (exit 0; das Log zeigt
+`[power matrix] Player 2: your deployment zone + No Man's Land.` — die Matrix wächst live).
+`verify_rules_vs_engine.py` unverändert bei 70 Differenzen, keine nennt den Court;
+`fetch_datasheet_rules.py --offline` ohne Korpus-Diff.
+
+**Offen:** Etappe 2 (Hypercrypt Legion) und Etappe 3 (Cryptek Conclave), erst nach „weiter".
+
 ## Die sieben Aeldari-Detachment-REGELN
 
 **Aeldari geht von einem auf acht modellierte Detachments** (User: "jetzt folgende detachment

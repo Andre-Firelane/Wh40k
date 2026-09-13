@@ -10,6 +10,9 @@ from game import arrokon_protocol as arrokon_module
 from game import base_contact
 from game import coldstar
 from game import combat_focus
+from game import court_cynosure_of_eradication
+from game import court_reactive_subroutines
+from game import court_solar_pulse
 from game import config
 from game import attached_units
 from game.coherency import coherency_report, connected_groups
@@ -6348,6 +6351,13 @@ def _take_one_action(
     # so the Fight-phase branch can say WHY it is not advancing - without it,
     # every state but DONE is a silent frame loop that reads as a hang.
     fight_wait_notice=None,
+    # Canoptek Court. Its two PROACTIVE Stratagems get handlers (the four
+    # reactive ones answer inside their own controllers via auto_players), and
+    # the Metalodermal Tesla Weave is here for deadly_vectors_controller's
+    # reason: its mortal wounds land on the CHARGING unit, so when the AI
+    # charges, that allocation is the AI's own to resolve.
+    cynosure_controller=None, solar_pulse_controller=None,
+    metalodermal_tesla_weave_controller=None,
 ):
     """Resolve exactly ONE pending decision for `player` (Player 2 by
     default) and return - this is the function main.py's "A" key calls. A
@@ -6496,7 +6506,7 @@ def _take_one_action(
         shooting_controller, charge_controller, fight_controller, battle_shock_controller,
         explosives_controller, transport_controller, fall_back_controller,
         crushing_impact_controller, deadly_demise_controller,
-        deadly_vectors_controller,
+        deadly_vectors_controller, metalodermal_tesla_weave_controller,
     ]
     controllers = [c for c in controllers if c is not None]
 
@@ -6606,6 +6616,7 @@ def _take_one_action(
             greater_good_controller=greater_good_controller, plan=_current_unit_plans(memory),
             charge_controller=charge_controller, arrokon_controller=arrokon_controller,
             conquering_tyrant_controller=conquering_tyrant_controller, game_log=game_log,
+            cynosure_controller=cynosure_controller, solar_pulse_controller=solar_pulse_controller,
         )
     elif phase == PHASE_CHARGE:
         acted = _handle_charge(
@@ -6620,6 +6631,7 @@ def _take_one_action(
             unbridled_carnage_controller=unbridled_carnage_controller,
             hungry_void_controller=hungry_void_controller,
             grim_reapers_controller=grim_reapers_controller,
+            cynosure_controller=cynosure_controller,
         )
     else:
         acted = False
@@ -9676,7 +9688,7 @@ def _choose_shooting_target_and_weapon(agent, memory, player, all_tokens, shooti
     return True
 
 
-def _handle_shooting(agent, memory, player, all_tokens, shooting_controller, explosives_controller, on_thinking, greater_good_controller=None, plan=None, charge_controller=None, arrokon_controller=None, conquering_tyrant_controller=None, game_log=None):
+def _handle_shooting(agent, memory, player, all_tokens, shooting_controller, explosives_controller, on_thinking, greater_good_controller=None, plan=None, charge_controller=None, arrokon_controller=None, conquering_tyrant_controller=None, game_log=None, cynosure_controller=None, solar_pulse_controller=None):
     # Real, severe bug found via user report ("die KI verliert die
     # Kontrolle..."): resume an activation someone ELSE already started
     # for `player`'s squad and left sitting at CHOOSING_TARGET with no
@@ -9767,6 +9779,14 @@ def _handle_shooting(agent, memory, player, all_tokens, shooting_controller, exp
     # phase". Deterministic, so a "yes" costs no agent call.
     if _handle_conquering_tyrant(player, all_tokens, shooting_controller,
                                  conquering_tyrant_controller, game_log):
+        return True
+
+    # Canoptek Court's two start-of-Shooting-phase Stratagems, ahead of the
+    # shoot loop for the same reason: "START of your Shooting phase" closes the
+    # moment the first unit is selected to shoot. Deterministic, no agent call.
+    if _handle_solar_pulse(player, all_tokens, solar_pulse_controller, game_log):
+        return True
+    if _handle_cynosure(player, all_tokens, cynosure_controller, melee=False, game_log=game_log):
         return True
 
     for squad in sorted(_all_squads(all_tokens), key=lambda s: s.name):
@@ -10956,6 +10976,172 @@ def _handle_hungry_void(player, all_tokens, fight_controller, hungry_void_contro
     return True
 
 
+def _cynosure_verdict(squad, all_tokens, melee):
+    """Canoptek Court's Cynosure of Eradication (2CP), decided deterministically.
+
+    Returns the extra wounds [DEVASTATING WOUNDS] is expected to push past the
+    best reachable target's saves, or None when that falls short of
+    CYNOSURE_MIN_EXPECTED_GAIN - it is the detachment's most expensive
+    Stratagem. The number is court_cynosure_of_eradication.
+    expected_devastating_gain(), which counts only CRYPTEK/CANOPTEK models'
+    weapons, because the grant reaches nobody else.
+
+    REACHABLE IS THE GATE, and it differs by phase: at range, an enemy within
+    the longest ranged weapon a qualifying model carries; in melee, an enemy
+    within Engagement Range plus a Pile In, since the Stratagem is bought
+    before anything has piled in."""
+    reach = 0.0
+    if not melee:
+        reach = max((w.range_in for m in squad.models
+                     if not m.is_dead() and court_cynosure_of_eradication.model_qualifies(squad, m)
+                     for w in m.weapons if w.weapon_type == RANGED_WEAPON), default=0.0)
+        if reach <= 0:
+            return None
+    best = 0.0
+    for target in _all_squads(all_tokens):
+        if target.owner == squad.owner or not any(not m.is_dead() for m in target.models):
+            continue
+        gap = squad.min_distance_to(target)
+        if melee and gap > ENGAGEMENT_RANGE_IN + PILE_IN_RANGE_IN:
+            continue
+        if not melee and gap > reach:
+            continue
+        best = max(best, court_cynosure_of_eradication.expected_devastating_gain(
+            squad, target, melee=melee))
+    return best if best >= court_cynosure_of_eradication.CYNOSURE_MIN_EXPECTED_GAIN else None
+
+
+def _handle_cynosure(player, all_tokens, cynosure_controller, melee, game_log=None):
+    """Buy Cynosure of Eradication for whichever of `player`'s units gains most.
+
+    Asked ahead of the shoot loop and ahead of the first Pile In: its WHEN is
+    "the start of" each phase, and can_use() closes that window once a unit
+    has been selected. No memo, like _handle_hungry_void(): the verdict is a
+    pure function of the board, and a "yes" cannot repeat because the unit is
+    under the grant afterwards."""
+    if cynosure_controller is None:
+        return False
+    best_squad, best_value = None, 0.0
+    for squad in sorted(_all_squads(all_tokens), key=lambda s: s.name):
+        if squad.owner != player or not cynosure_controller.can_use(squad):
+            continue
+        value = _cynosure_verdict(squad, all_tokens, melee)
+        if value is not None and value > best_value:
+            best_squad, best_value = squad, value
+    if best_squad is None or not cynosure_controller.use(best_squad):
+        return False
+    if game_log is not None:
+        game_log.add(
+            f"[cynosure] {player}: {best_squad.name} - [DEVASTATING WOUNDS] is worth about "
+            f"{best_value:.1f} extra wound(s) past saves {'in melee' if melee else 'at range'}.",
+            file_only=True,
+        )
+    return True
+
+
+def _handle_solar_pulse(player, all_tokens, solar_pulse_controller, game_log=None):
+    """Canoptek Court's Solar Pulse (1CP): the objective with the most enemy
+    units in range standing in terrain - the units [IGNORES COVER] takes cover
+    away from - bought only when there is at least one. The ranking is
+    court_solar_pulse.objective_value(), the module's own, so the controller's
+    auto-pick and this handler cannot disagree about which marker is best."""
+    if solar_pulse_controller is None:
+        return False
+    state = solar_pulse_controller.game_state
+    best = None
+    for squad in sorted(_all_squads(all_tokens), key=lambda s: s.name):
+        if squad.owner != player or not solar_pulse_controller.can_use(squad):
+            continue
+        for objective in sorted(solar_pulse_controller.objectives_for(squad), key=lambda o: o.name):
+            value = court_solar_pulse.objective_value(objective, player, state)
+            if value >= 1 and (best is None or value > best[0]):
+                best = (value, squad, objective)
+    if best is None:
+        return False
+    value, squad, objective = best
+    if not solar_pulse_controller.use(squad, objective=objective):
+        return False
+    if game_log is not None:
+        game_log.add(
+            f"[solar pulse] {player}: {objective.name} - {value} enemy unit(s) in range stand in "
+            "terrain.",
+            file_only=True,
+        )
+    return True
+
+
+def reactive_subroutines_destination(state, squad, mover):
+    """Canoptek Court's Reactive Subroutines, the AI's policy - injected into
+    game/court_reactive_subroutines.py by main.py, because game/ must not
+    import ai/.
+
+    Returns where the reacting unit should head, or None to decline (the CP is
+    only spent on a destination):
+      1. the nearest objective this army does not control that the 6" move can
+         bring the unit into range of (centre within the move plus the
+         objective range);
+      2. otherwise, for a unit whose damage is in its melee
+         (combat_focus.is_assault_unit()), toward the enemy unit that just
+         moved - closing on next turn's charge.
+    A shooting unit with no objective to take declines: a 6" step for nothing
+    gives up its position for no gain.
+
+    The point handed back is observation.first_leg_toward()'s - the one
+    definition of "a legal point on the way there"."""
+    reach = court_reactive_subroutines.REACTIVE_SUBROUTINES_MOVE_IN
+    living = [m for m in squad.models if not m.is_dead()]
+    if not living:
+        return None
+    cx = sum(m.x_in for m in living) / len(living)
+    cy = sum(m.y_in for m in living) / len(living)
+    best = None
+    for objective in getattr(state, "objectives", ()) or ():
+        if getattr(objective, "controlled_by", None) == squad.owner:
+            continue
+        ox, oy = _objective_centre(objective)
+        gap = math.hypot(ox - cx, oy - cy)
+        if gap > reach + OBJECTIVE_CONSOLIDATION_RANGE_IN:
+            continue
+        if best is None or (gap, objective.name) < (best[0], best[1]):
+            best = (gap, objective.name, (ox, oy))
+    goal = best[2] if best is not None else None
+    if goal is None and mover is not None and combat_focus.is_assault_unit(squad):
+        movers = [m for m in mover.models if not m.is_dead()]
+        if movers:
+            goal = (sum(m.x_in for m in movers) / len(movers),
+                    sum(m.y_in for m in movers) / len(movers))
+    if goal is None:
+        return None
+    obstacles = list(getattr(state, "obstacles", ()) or ())
+    # first_leg_toward() speaks the planner's dialect - {"x": .., "y": ..} - and
+    # the controller and _advance_toward() both take an (x, y) pair. Handing
+    # the dict through crashed the controller's own log line on point[0];
+    # test_necron_canoptek_court.py drives the real policy to keep it so.
+    leg = observation.first_leg_toward(squad, goal, reach, obstacles)
+    return (leg["x"], leg["y"]) if leg is not None else goal
+
+
+def reactive_subroutines_move(movement_controller, squad, point):
+    """The injected mover for Reactive Subroutines.
+
+    The controller has already selected the unit and opened the move under its
+    own move_mode, so every retry of _advance_toward()'s sweep has to re-prime
+    THAT move: a Normal move's start_move() would spend the unit's own
+    Movement-phase move instead, in the opponent's turn, and route Confirm
+    nowhere. Returns whether the move landed."""
+    mode = court_reactive_subroutines.REACTIVE_SUBROUTINES_MOVE_MODE
+    distance = court_reactive_subroutines.REACTIVE_SUBROUTINES_MOVE_IN
+
+    def start_fn():
+        movement_controller.start_battle_focus_move(squad, distance, move_mode=mode)
+
+    moved = _advance_toward(
+        movement_controller, squad, point, start_move_fn=start_fn,
+        allow_bulk_fallback=not all(m.profile.vehicle for m in squad.models),
+    )
+    return bool(moved) and not movement_controller.errors
+
+
 def _conquering_tyrant_verdict(squad, all_tokens, shooting_controller):
     """Protocol of the Conquering Tyrant (1CP), decided deterministically.
 
@@ -11235,6 +11421,7 @@ def _handle_fight(
     agent, memory, player, all_tokens, fight_controller, pile_in_controller, movement_controller, on_thinking,
     consolidate_controller=None, game_log=None, unbridled_carnage_controller=None,
     hungry_void_controller=None, grim_reapers_controller=None,
+    cynosure_controller=None,
 ):
     # Rule 12.07/12.08 (Consolidate): checked first, for any of player's own
     # squads that have already fought and haven't consolidated (or declined
@@ -11254,6 +11441,11 @@ def _handle_fight(
                 return True
 
     if fight_controller.state == fight_module.NOT_STARTED:
+        # Canoptek Court's Cynosure of Eradication: "the start of the Fight
+        # phase", bought before anything piles in - a Pile In can carry the
+        # unit out of the Power Matrix its TARGET line asks about.
+        if _handle_cynosure(player, all_tokens, cynosure_controller, melee=True, game_log=game_log):
+            return True
         # Rule 12.03: piling in is optional, but a real (small, geometry-
         # only) pile-in move is made for each of the AI's own eligible
         # squads - see _pile_in_squad() - rather than always skipping it;

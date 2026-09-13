@@ -156,6 +156,12 @@ AI_MODE_SELECT = True
 # also checks that the unit is actually a NECRONS one.
 AWAKENED_DYNASTY_PLAYERS = ("Player 2",)
 
+# The second Necron detachment, CANOPTEK COURT (Power Matrix - see
+# game/court_power_matrix.py). Empty by default: no shipped list fields it, so
+# nobody holds it until army_lists.apply_to_config() writes it from a list that
+# declares it. Same list-building-declaration reasoning as the two around it.
+CANOPTEK_COURT_PLAYERS = ()
+
 # Which players field the Death Guard detachment "Death Lord's Chosen", whose
 # rule is Deadly Vectors (game/deadly_vectors.py) and whose six Stratagems all
 # gate on game/death_lords_chosen.py's stratagem_target_ok().

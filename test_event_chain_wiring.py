@@ -812,7 +812,29 @@ for _node in MAIN.body:
 
 # Documented gaps, named rather than silently subtracted. Empty today.
 _ACK_GAPS = set()
-_ACKED = set(re.findall(r"(\w+_controller)\.on_dice_acknowledged\(\)", SRC))
+# Read by AST over REACHABLE code, not by regex over the text: a call under
+# `if False:` or behind `False and` matches the text and never runs - the
+# Canoptek Court A/B probe caught this guard staying green on exactly that.
+def _reachable_nodes(tree):
+    stack = [tree]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, ast.If) and isinstance(node.test, ast.Constant) and not node.test.value:
+            stack.extend(node.orelse)
+            continue
+        if (isinstance(node, ast.BoolOp) and isinstance(node.op, ast.And)
+                and isinstance(node.values[0], ast.Constant) and not node.values[0].value):
+            continue
+        yield node
+        stack.extend(ast.iter_child_nodes(node))
+
+
+_ACKED = {
+    n.func.value.id for n in _reachable_nodes(ast.parse(SRC))
+    if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+    and n.func.attr == "on_dice_acknowledged" and not n.args
+    and isinstance(n.func.value, ast.Name) and n.func.value.id.endswith("_controller")
+}
 
 ck.true("the guard is live - it resolved %d dice-owning controllers"
         % len(_DICE_OWNERS), len(_DICE_OWNERS) >= 20)
@@ -2268,5 +2290,101 @@ for _path in (os.path.join("game", "shooting.py"), os.path.join("game", "fight.p
             _raise is not None and "take" in {n.attr for n in ast.walk(_raise) if isinstance(n, ast.Attribute)})
 ck.true("the Keep-result sweep found the builders", len(_keep_builders) >= 4)
 ck.eq("no re-roll offer raises its prompt past the dice panel", _raw_offer_sites, [])
+
+
+# --- 25. a list hook fed in main() is never REBOUND, and its listeners fit ---
+print("--- 25. fed list hooks are extended, never reassigned ---")
+# Found while building the Canoptek Court: main.py appended five listeners to
+# movement_controller.on_move_finished (Spirit Stone of Raelyth, Spirit Mark,
+# Higher Duty, Wraith Form, Internal Grenade Racks) and ~1600 lines later wrote
+# `movement_controller.on_move_finished = [...]`, throwing all five away. Every
+# one was built and unit-tested, and the Aeldari suite even pinned the
+# `.append(...)` STRINGS - which stay true while the list they fed is replaced.
+#
+# And the second half, measured when the rebind was fixed: three of the five
+# took ONE argument while the hook fires listener(squad, kind). The moment they
+# were really fed, all three would have raised TypeError on the first move.
+# A listener nothing calls can carry any signature; this pins the call.
+
+
+def _attr_chain(node):
+    parts = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if isinstance(node, ast.Name):
+        parts.append(node.id)
+        return ".".join(reversed(parts))
+    return None
+
+
+_FED, _REBOUND = {}, {}
+for _node in ast.walk(MAIN):
+    if (isinstance(_node, ast.Call) and isinstance(_node.func, ast.Attribute)
+            and _node.func.attr in ("append", "extend", "insert")):
+        _chain = _attr_chain(_node.func.value)
+        if _chain and "." in _chain:
+            _FED.setdefault(_chain, []).append(_node.lineno)
+    elif isinstance(_node, ast.Assign):
+        for _target in _node.targets:
+            _chain = _attr_chain(_target)
+            if _chain and "." in _chain:
+                _REBOUND.setdefault(_chain, []).append(_node.lineno)
+ck.true("the sweep is live - it found the fed list hooks in main()", len(_FED) >= 10)
+_late_rebinds = sorted(
+    "%s fed at line %d, reassigned at line %d" % (_c, min(_FED[_c]), _line)
+    for _c in _FED for _line in _REBOUND.get(_c, ()) if _line > min(_FED[_c]))
+ck.eq("no list hook is reassigned after main() has fed it", _late_rebinds, [])
+
+# The payloads, read off MovementController rather than written out: a hook
+# whose payload grows makes this red instead of every listener silently lagging.
+_MOVEMENT_SRC = io.open(os.path.join("game", "movement.py"), encoding="utf-8").read()
+ck.true("on_move_finished fires listener(*moved) with a (squad, kind) pair",
+        "self._move_finished_pending = (self.selected_squad, kind)" in _MOVEMENT_SRC
+        and "listener(*moved)" in _MOVEMENT_SRC)
+ck.true("on_move_started fires listener(squad)",
+        "listener(self.selected_squad)" in _MOVEMENT_SRC)
+
+import inspect as _inspect
+
+
+def _fed_listeners(hook):
+    """(variable, method) for every `hook.append/extend(var.method)` in main()."""
+    out = []
+    for node in ast.walk(MAIN):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr in ("append", "extend")
+                and _attr_chain(node.func.value) == hook):
+            continue
+        args = []
+        for arg in node.args:
+            args.extend(arg.elts if isinstance(arg, (ast.List, ast.Tuple)) else [arg])
+        for arg in args:
+            if isinstance(arg, ast.Attribute) and isinstance(arg.value, ast.Name):
+                out.append((arg.value.id, arg.attr))
+            else:
+                out.append((ast.dump(arg)[:40], None))
+    return out
+
+
+for _hook, _payload in (("movement_controller.on_move_finished", 2),
+                        ("movement_controller.on_move_started", 1)):
+    _listeners = _fed_listeners(_hook)
+    _unfit = []
+    for _var, _meth in _listeners:
+        _cls_name = _constructed_class(MAIN, _var) if _meth else None
+        _module = _CLASS_IMPORTS.get(_cls_name)
+        if _cls_name is None or _module is None:
+            _unfit.append("%s (class not resolvable)" % _var)
+            continue
+        _fn = getattr(getattr(__import__(_module, fromlist=[_cls_name]), _cls_name), _meth, None)
+        try:
+            _inspect.signature(_fn).bind(object(), *([object()] * _payload))
+        except (TypeError, ValueError):
+            _unfit.append("%s.%s" % (_cls_name, _meth))
+    ck.true("%s: the sweep resolved its listeners (%d)" % (_hook, len(_listeners)),
+            len(_listeners) >= (8 if _payload == 2 else 2))
+    ck.eq("%s: every listener accepts the hook's %d-argument payload" % (_hook, _payload),
+          _unfit, [])
 
 ck.finish()

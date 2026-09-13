@@ -63,8 +63,11 @@ def targeting_range_limit(squad):
     arrangement Squad.ard_as_nails_active and Squad.stim_injectors_active use -
     so game/shooting.py's two targeting sites need one call and no new
     dependency, and a third source later needs no third site."""
+    # Canoptek Court's Countertemporal Shift prints Psychic Shield's EFFECT word
+    # for word, so it is a third source of the same limit and folds here too.
     limits = [r for r in (lone_operative_range(squad),
-                          getattr(squad, "psychic_shield_range", None)) if r is not None]
+                          getattr(squad, "psychic_shield_range", None),
+                          getattr(squad, "countertemporal_shift_range", None)) if r is not None]
     return min(limits) if limits else None
 
 

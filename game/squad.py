@@ -930,7 +930,14 @@ def squad_has_infiltrators(squad):
         return True
     if squad is None:
         return False
-    return any(m.profile.recon_drone for m in squad.models if not m.is_dead())
+    if any(m.profile.recon_drone for m in squad.models if not m.is_dead()):
+        return True
+    # Canoptek Court's Dimensional Sanctum: "Models in the bearer's unit have
+    # the Infiltrators ability" - a UNIT-level grant, the Recon Drone's shape
+    # one module over. Imported here so game/enhancements.py stays out of this
+    # module's import graph; see game/enh_dimensional_sanctum.py.
+    from game import enh_dimensional_sanctum
+    return enh_dimensional_sanctum.grants_infiltrators(squad)
 
 
 def infiltrators_clear_of_enemies(x_in, y_in, radius_in, all_tokens, owner):

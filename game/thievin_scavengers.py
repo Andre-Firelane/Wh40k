@@ -25,6 +25,7 @@ current battle_round and reports whatever it actually granted (which may
 be less than the roll would otherwise justify, or 0 if that round's cap
 was already used by some other ability)."""
 
+from game.command_points import SOURCE_ABILITY
 from game.objectives import is_within_range_of_objective
 from game.squad import squad_has_thievin_scavengers
 from game.dice import THIEVIN_SCAVENGERS_ROLL
@@ -98,6 +99,7 @@ class ThievinScavengersController:
         success = any(r >= THIEVIN_SCAVENGERS_SUCCESS_THRESHOLD for r in rolls)
         if success and self.command_points is not None:
             battle_round = self.turn_tracker.battle_round if self.turn_tracker is not None else None
-            self.command_points.gain_cp(player, battle_round, amount=1, reason="Thievin' Scavengers")
+            self.command_points.gain_cp(player, battle_round, amount=1, reason="Thievin' Scavengers",
+                                        source=SOURCE_ABILITY)
         elif self.game_log is not None:
             self.game_log.add(f"{player}: Thievin' Scavengers roll {rolls} - no 4+, no CP gained.")

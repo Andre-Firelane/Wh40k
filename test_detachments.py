@@ -86,9 +86,14 @@ c.eq("the Aeldari model Seer Council plus the rules being built",
      ["Seer Council", "Armoured Warhost", "Path of the Outcast",
       "Guardian Battlehost", "Aspect Host", "Warhost", "Windrider Host",
       "Spirit Conclave"])
-c.eq("...and the other three model one each",
+# The Necrons grow one detachment per stage (Canoptek Court, then Hypercrypt
+# Legion, then Cryptek Conclave), so - like the Aeldari above - the list is
+# named rather than counted, and each stage is a visible one-line change.
+c.eq("the Necrons model Awakened Dynasty plus the detachments being built",
+     list(necrons.NECRONS.detachments), ["Awakened Dynasty", "Canoptek Court"])
+c.eq("...and Orks and Death Guard model one each",
      [len(f.detachments) for k, f in FACTION_MODULES
-      if k not in ("T'AU EMPIRE", "AELDARI")], [1, 1, 1])
+      if k not in ("T'AU EMPIRE", "AELDARI", "NECRONS")], [1, 1])
 
 # The printed DP costs, transcribed from the faction pages' own headings.
 EXPECTED_POINTS = {
@@ -103,6 +108,8 @@ EXPECTED_POINTS = {
     "Aspect Host": 3, "Guardian Battlehost": 2, "Warhost": 3,
     "Windrider Host": 2, "Spirit Conclave": 2, "Armoured Warhost": 1,
     "Path of the Outcast": 1,
+    # The Necron detachments, one per stage.
+    "Canoptek Court": 3,
 }
 for _keyword, faction in FACTION_MODULES:
     for name, detachment in faction.detachments.items():

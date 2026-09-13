@@ -252,6 +252,44 @@ def reanimate(squad, wounds, all_tokens=(), position_valid=None, game_state=None
     return spent, revived
 
 
+def activate(squad, rolled, *, boost=None, bonus=0, all_tokens=(), position_valid=None,
+             game_state=None, placer=None, on_placed=None, log=None):
+    """ONE activation of `squad`'s Reanimation Protocols - the only door into
+    reanimate() the engine uses.
+
+    Every caller prints some form of "that unit's Reanimation Protocols
+    activate": the army rule itself, Protocol of the Undying Legions ("Your unit
+    activates its Reanimation Protocols"), the Resurrection Orbs ("that unit's
+    Reanimation Protocols activate, but that unit heals D6 wounds") and the Ghost
+    Ark's Repair Barge - and the Necron detachments add more. The two Canoptek
+    boosts print "EACH TIME that unit's Reanimation Protocols activate", so the
+    boost belongs HERE, once, rather than in whichever door happened to be built
+    first. That is a user decision; until it the boost reached the army rule only
+    and this module said "ONLY THIS DOOR".
+
+    `rolled` is the printed die (D3, D6, ...), `bonus` a printed flat addition
+    (Undying Legions' "+1 if a CHARACTER is leading"), and `boost` the
+    ReanimationBoost main.py hands every door. The boost is added BEFORE the
+    wounds are spent - 01.02.03's Starting Strength cap and 02.02.04's
+    heal-then-revive order both operate on the TOTAL.
+
+    Returns (wounds, spent, revived): the wounds this activation offered, then
+    reanimate()'s own answer.
+    """
+    wounds = max(0, int(rolled)) + int(bonus)
+    if boost is not None:
+        wounds += boost.extra_wounds(squad, all_tokens, log=log)
+    spent, revived = reanimate(
+        squad, wounds,
+        all_tokens=all_tokens,
+        position_valid=position_valid,
+        game_state=game_state,
+        placer=placer,
+        on_placed=on_placed,
+    )
+    return wounds, spent, revived
+
+
 class ReanimationProtocolsController:
     """Runs the army rule at the end of its owner's Command phase.
 
@@ -488,29 +526,21 @@ class ReanimationProtocolsController:
     def _apply(self, squad, rolled):
         self._current = None
         # The two Canoptek boosts - the Reanimator's aura (+D3) and the
-        # Macrocytes' Nanoscarab Projector (+1). Added to the wound count
-        # BEFORE it is spent, never afterwards: 01.02.03's Starting Strength
-        # cap and 02.02.04's heal-then-revive order both operate on the TOTAL,
-        # so a wound handed over after the fact would be spent under different
-        # rules than the ones that granted it.
-        #
-        # ONLY THIS DOOR. reanimate() has three callers (this army rule,
-        # Protocol of the Undying Legions and the Resurrection Orb), and the
-        # printed boost says "each time that unit's REANIMATION PROTOCOLS
-        # activate" - which is this one. See game/reanimation_boost.py.
-        boosted = rolled
-        if self.boost is not None:
-            boosted += self.boost.extra_wounds(
-                squad, self._tokens(), log=self._log)
+        # Macrocytes' Nanoscarab Projector (+1) - are added inside activate(),
+        # which every door into reanimate() goes through. They used to be
+        # added HERE ONLY; the user decided "each time that unit's Reanimation
+        # Protocols activate" means every door. See game/reanimation_boost.py.
         self._applying = True
         try:
-            spent, revived = reanimate(
-                squad, boosted,
+            _wounds, spent, revived = activate(
+                squad, rolled,
+                boost=self.boost,
                 all_tokens=self._tokens(),
                 position_valid=self.position_valid,
                 game_state=self.game_state,
                 placer=self.placer,
                 on_placed=self._resume_queue,
+                log=self._log,
             )
         finally:
             self._applying = False

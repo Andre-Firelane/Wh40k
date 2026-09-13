@@ -26,6 +26,10 @@ from game.thresholds import parse_threshold as _parse_threshold
 from game.turn import PHASE_FIGHT
 from game import forewarned
 from game import timesplinter_mantle
+from game import court_power_matrix
+from game import court_cynosure_of_eradication
+from game import enh_hyperphasic_fulcrum
+from game import necron_detachments
 from game import the_stars_are_right
 from game import protect
 from game.doom import DOOM_WOUND_BONUS
@@ -146,7 +150,11 @@ def _melee_attack_key(model, weapon):
             # Aspect of Murder is per BEARER, and the one-representative
             # shortcut would otherwise hand its +1 Damage and [PRECISION] to
             # the whole group - the fourth time this exact term was needed.
-            enh_aspect_of_murder.attack_key(model))
+            enh_aspect_of_murder.attack_key(model),
+            # Canoptek Court's per-model CRYPTEK/CANOPTEK grants (Cynosure of
+            # Eradication, Curse of the Cryptek) - see
+            # game/necron_detachments.py's attack_key().
+            necron_detachments.attack_key(model))
 
 
 def _melee_group_label(pairs):
@@ -290,6 +298,10 @@ class FightController:
 
         # Mont'ka's Pinpoint Counter-Offensive, injected by main.py.
         self.pinpoint_counter_offensive = None
+        # Canoptek Court's Power Matrix and Curse of the Cryptek, injected by
+        # main.py - "an attack", so both reach this phase too.
+        self.power_matrix = None
+        self.curse_of_the_cryptek = None
 
         self.split_fire = False
 
@@ -1537,6 +1549,10 @@ class FightController:
         # Rage above, and in the chain for the same reason: _crit_note()
         # must know at ROLL time that a critical die is a devastating one.
         weapon = plasmacyte.adjusted_weapon(weapon, self.fighting_squad)
+        # Canoptek Court's Cynosure of Eradication - "the start of the Fight
+        # phase" is half its WHEN, so it reaches melee weapons too.
+        weapon = court_cynosure_of_eradication.adjusted_weapon(
+            weapon, self.fighting_squad, pairs[0][0])
         # Orikan The Diviner's The Stars Are Right: triple the Attacks and
         # Strength of HIS Staff of Tomorrow for the phase. Read off
         # pairs[0][0] rather than swept over the group, and that is exact
@@ -1927,6 +1943,10 @@ class FightController:
             return advanced_scouting_module.ADVANCED_SCOUTING_LABEL
         if destroyer_cult.whirling_onslaught_offers_full_reroll(self.fighting_squad):
             return destroyer_cult.WHIRLING_ONSLAUGHT_LABEL
+        # Canoptek Court's Power Matrix: "each time a model in a CRYPTEK or
+        # CANOPTEK unit makes an ATTACK" - both phases, the same two-clause shape.
+        if court_power_matrix.offers_full_reroll(self.fighting_squad, self.power_matrix):
+            return court_power_matrix.POWER_MATRIX_LABEL
         # The Lokhust Lord's Driven by Hatred is per MODEL ("each time THIS
         # MODEL makes an attack"), and this offer is made to a GROUP - so it
         # is granted only when every model in the group carries it, which is
@@ -2043,6 +2063,16 @@ class FightController:
                 hits=hits, crits=crits,
                 reason=triarch_auras.TRIARCH_ABILITY_NAMES[
                     triarch_auras.PHAERON_OF_THE_STARS],
+                rerollable=(free_hits, free_crits, free_count - ones),
+            )
+            return
+        if ones and court_power_matrix.applies(self.fighting_squad):
+            # The Power Matrix's base clause - held back above while its
+            # whole-roll alternative is on offer, like Whirling Onslaught's.
+            free_hits, free_crits, free_count = rerollable
+            self._begin_ones_reroll(
+                "hit", ones, hit_threshold, weapon, target_squad, weapon_label,
+                hits=hits, crits=crits, reason=court_power_matrix.POWER_MATRIX_LABEL,
                 rerollable=(free_hits, free_crits, free_count - ones),
             )
             return
@@ -2279,6 +2309,14 @@ class FightController:
                 "wound", ones, wound_threshold, weapon, target_squad, weapon_label,
                 wounds=wounds, crits=crits, target_profile=target_profile,
                 reason=nekrosor_ammentar.PROPHET_LABEL,
+            )
+        elif ones and enh_hyperphasic_fulcrum.applies(self.fighting_squad, self.power_matrix):
+            # Canoptek Court's Hyperphasic Fulcrum - "each time a model in that
+            # unit makes an attack", so this phase too; a plain automatic 1s.
+            self._begin_ones_reroll(
+                "wound", ones, wound_threshold, weapon, target_squad, weapon_label,
+                wounds=wounds, crits=crits, target_profile=target_profile,
+                reason=enh_hyperphasic_fulcrum.HYPERPHASIC_FULCRUM_LABEL,
             )
         else:
             self._resolve_wounds(weapon, target_squad, target_profile, weapon_label, wounds, crits)
@@ -2687,6 +2725,11 @@ class FightController:
         # only in reaching BOTH phases: its text says "an attack", not "a melee
         # attack", so game/shooting.py reads it too.
         modifiers.extend(awakened_dynasty.hit_modifiers(self.fighting_squad))
+        # Canoptek Court's Curse of the Cryptek - "an attack", so both phases;
+        # per MODEL, and added before the ignore filter below (it improves).
+        if self.curse_of_the_cryptek is not None:
+            modifiers.extend(self.curse_of_the_cryptek.hit_modifiers(
+                fighter_model, self.fighting_squad, target_squad))
         # Nurgle's Gift: an afflicted unit's OWN attacks take -1, which reads
         # backwards until you notice the printed text says "each time a model
         # in this unit makes AN ATTACK" about the afflicted unit itself.
@@ -2786,6 +2829,13 @@ class FightController:
         # Strength raised by something else is compared at its real value.
         modifiers.extend(strength_over_toughness.wound_modifiers(
             target_squad, weapon.strength, melee=True))
+        # Curse of the Cryptek's Wound half, read off the group's representative
+        # fighter - exact, because necron_detachments.attack_key() is part of
+        # _melee_attack_key().
+        if self.curse_of_the_cryptek is not None:
+            _pairs = self.current_group.get("pairs") if self.current_group else None
+            modifiers.extend(self.curse_of_the_cryptek.wound_modifiers(
+                _pairs[0][0] if _pairs else None, self.fighting_squad, target_squad))
         return modifiers
 
     def _report_group_statistics(self):

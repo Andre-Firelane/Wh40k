@@ -49,6 +49,7 @@ assuming. A Stratagem targeting a MODEL of the bearer's unit is not counted -
 """
 
 from game import enhancements
+from game.command_points import SOURCE_ABILITY
 
 PURETIDE_ENGRAM_NEUROCHIP = "Puretide Engram Neurochip"
 NEUROCHIP_THRESHOLD = 4
@@ -156,7 +157,8 @@ class PuretideNeurochipController:
             if self.command_points is not None:
                 self.command_points.gain_cp(
                     player, self._round(), NEUROCHIP_CP,
-                    reason=f"{PURETIDE_ENGRAM_NEUROCHIP}, {squad.name} targeted by {stratagem_name}")
+                    reason=f"{PURETIDE_ENGRAM_NEUROCHIP}, {squad.name} targeted by {stratagem_name}",
+                    source=SOURCE_ABILITY)
             else:
                 self._log(f"{player}: {PURETIDE_ENGRAM_NEUROCHIP} rolls {value} - "
                           f"{NEUROCHIP_CP} CP.")

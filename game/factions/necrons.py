@@ -2060,9 +2060,9 @@ AWAKENED_DYNASTY = NECRONS.add_detachment(Detachment(
         # RECORDED AS DATA ONLY - and the reason is no longer the one that
         # used to stand here. That said "Enhancements are not a system in this
         # engine", which went stale the moment game/enhancements.py was built:
-        # forty-seven are engine-wired today across fourteen T'au and Aeldari
-        # detachments, with a registry, a bearer predicate and a UnitProfile
-        # field each. Same class as the Mont'ka justification that rotted while
+        # fifty-one are engine-wired today across fifteen detachments (fourteen
+        # T'au and Aeldari, and the Canoptek Court below), with a registry, a
+        # bearer predicate and a UnitProfile field each. Same class as the Mont'ka justification that rotted while
         # its assertion stayed green.
         #
         # The real reason is a ROSTER fact: armies/necrons.json buys none of
@@ -2088,4 +2088,46 @@ AWAKENED_DYNASTY = NECRONS.add_detachment(Detachment(
     # stratagems is deliberately empty: a live Stratagem needs a controller to
     # own its effect, so the six Awakened Dynasty protocols are built in
     # main.py, exactly as the T'au Retaliation Cadre's are.
+))
+
+
+CANOPTEK_COURT = NECRONS.add_detachment(Detachment(
+    "Canoptek Court",
+    rule_name="Power Matrix",
+    setting="CANOPTEK_COURT_PLAYERS",
+    points=3,
+    force_disposition=force_dispositions.TAKE_AND_HOLD,
+    rule_text=(
+        "Power Matrix: Certain areas of the battlefield are considered to be within your "
+        "army's Power Matrix, as follows: Your deployment zone is always within your army's "
+        "Power Matrix. At the start of any phase, if you control at least half of the "
+        "objective markers within No Man's Land, until the end of that phase, No Man's Land "
+        "is within your army's Power Matrix. At the start of any phase, if you control at "
+        "least half of the objective markers within your opponent's deployment zone, until "
+        "the end of that phase, your opponent's deployment zone is within your army's Power "
+        "Matrix. Each time a model in a CRYPTEK or CANOPTEK unit from your army makes an "
+        "attack, re-roll a Hit roll of 1. If such a unit is wholly within your army's Power "
+        "Matrix, you can re-roll the Hit roll instead."
+    ),
+    enhancements=[
+        # ENGINE-WIRED, all four - registered in game/enhancements.py, each rule
+        # in its own game/enh_*.py module. Dormant by roster all the same: no
+        # shipped list fields the Canoptek Court (user decision), which the
+        # detachment's suite pins rather than hides.
+        Enhancement("Dimensional Sanctum", 20, description=(
+            "CRYPTEK model only. Models in the bearer's unit have the Infiltrators ability.")),
+        Enhancement("Hyperphasic Fulcrum", 15, description=(
+            "CRYPTEK model only. While the bearer is leading a unit, if that unit is wholly "
+            "within your army's Power Matrix, each time a model in that unit makes an "
+            "attack, re-roll a Wound roll of 1.")),
+        Enhancement("Autodivinator", 15, description=(
+            "CRYPTEK model only. Each time your opponent gains a CP as the result of an "
+            "ability, roll one D6: on a 2+, you also gain 1CP.")),
+        Enhancement("Metalodermal Tesla Weave", 10, description=(
+            "CRYPTEK model only. Once per phase, when an enemy unit selects the bearer's "
+            "unit as a target of a charge, roll one D6: on a 2-5, that enemy unit suffers "
+            "D3 mortal wounds; on a 6, that enemy unit suffers 3 mortal wounds.")),
+    ],
+    # The six Stratagems (game/court_*.py) are built in main.py, for the reason
+    # Awakened Dynasty's record above gives.
 ))

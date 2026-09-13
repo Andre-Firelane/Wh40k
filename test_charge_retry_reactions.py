@@ -415,9 +415,20 @@ c.true("the resume branch opens the move only when it is not open yet",
 # the memo. A behaviour test cannot see the FOURTH reactor, because it does
 # not exist yet; this line can.
 main_src = io.open("main.py", encoding="utf-8").read()
-extend = main_src[main_src.index("charge_declaration_reactions.extend(["):]
-extend = extend[:extend.index("])")]
-names = re.findall(r"(\w+)\.maybe_offer", extend)
+# EVERY extend block, not the first: the Canoptek Court's two reactors are built
+# ~250 lines after the original block (construction order, error class 23) and
+# join the chain with a second .extend([...]) - a sweep of only the first block
+# would never have asked them for the memo.
+names = []
+_extend_at = main_src.find("charge_declaration_reactions.extend([")
+_blocks = 0
+while _extend_at >= 0:
+    extend = main_src[_extend_at:]
+    extend = extend[:extend.index("])")]
+    names.extend(re.findall(r"(\w+)\.maybe_offer", extend))
+    _blocks += 1
+    _extend_at = main_src.find("charge_declaration_reactions.extend([", _extend_at + 1)
+c.true("every extend block is swept (%d found)" % _blocks, _blocks >= 2)
 single = re.search(r"charge_controller\.on_charge_declared = (\w+)\.maybe_offer", main_src)
 if single:
     names.append(single.group(1))

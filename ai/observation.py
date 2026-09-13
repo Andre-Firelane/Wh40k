@@ -1,5 +1,6 @@
 import math
 from game import config
+from game import court_power_matrix
 from game import formation_layout
 from game import line_of_sight
 from game import reanimation_protocols
@@ -932,6 +933,13 @@ def squad_summary(squad, in_reserve=False, embarked_in=None, include_weapons=Fal
                 "this unit can achieve nothing."
             ),
         }
+    # Canoptek Court's Power Matrix: which regions this army's matrix covers
+    # this phase, and whether this unit stands wholly inside - the difference
+    # between re-rolling 1s and the whole Hit roll. Absent for any unit the
+    # rule is not about, like the reanimation field above.
+    power_matrix = court_power_matrix.observation(squad, court_power_matrix.CURRENT)
+    if power_matrix is not None:
+        summary["power_matrix"] = power_matrix
     defence = defensive_profile(squad)
     if defence is not None:
         summary["defensive_profile"] = defence

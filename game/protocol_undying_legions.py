@@ -49,8 +49,12 @@ class UndyingLegionsController:
 
     def __init__(self, stratagem_controller, dice_manager=None, decision_manager=None,
                  game_log=None, game_state=None, position_valid=None, auto_players=(),
-                 placer=None):
+                 placer=None, boost=None):
         self.stratagem_controller = stratagem_controller
+        # The Canoptek boosts (game/reanimation_boost.py) - "each time that
+        # unit's Reanimation Protocols ACTIVATE", and this Stratagem's effect is
+        # exactly that. None means nothing is added.
+        self.boost = boost
         self.dice_manager = dice_manager
         self.decision_manager = decision_manager
         self.game_log = game_log
@@ -147,15 +151,18 @@ class UndyingLegionsController:
 
     def _apply(self, squad, rolled):
         self._pending = None
-        wounds = rolled
+        bonus = 0
         if awakened_dynasty.is_led_by_character(squad):
-            wounds += UNDYING_LEGIONS_LED_BONUS   # "or D3+1 ... if a CHARACTER is leading"
-        spent, revived = reanimation_protocols.reanimate(
-            squad, wounds,
+            bonus = UNDYING_LEGIONS_LED_BONUS   # "or D3+1 ... if a CHARACTER is leading"
+        wounds, spent, revived = reanimation_protocols.activate(
+            squad, rolled,
+            bonus=bonus,
+            boost=self.boost,
             all_tokens=self._tokens(),
             position_valid=self.position_valid,
             game_state=self.game_state,
             placer=self.placer,
+            log=self._log,
         )
         detail = f"{spent} wound(s)"
         if revived:

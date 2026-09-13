@@ -367,6 +367,8 @@ print("--- 6. coverage ---")
 EXEMPT = {
     # Not units at all - these name OBJECTIVES or CARDS.
     "game/aac_marker_beacon.py",
+    # Canoptek Court's Solar Pulse: "Select one objective marker within 18"".
+    "game/court_solar_pulse.py",
     "game/enh_strategic_conqueror.py",
     "game/kauyon_tempting_trap.py",
     "game/primary_missions.py",

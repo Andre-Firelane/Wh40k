@@ -579,9 +579,63 @@ _hurt, _rea, _state = boost_scene(REANIMATOR)
 tk.script(2)
 _boost = reanimation_boost.ReanimationBoost()
 c.eq("the beam's D3 is rolled and added", _boost.extra_wounds(_hurt, _state.tokens), 2)
-c.true("the army rule asks the boost BEFORE it spends the wounds",
-       "boosted += self.boost.extra_wounds("
-       in io.open("game/reanimation_protocols.py", encoding="utf-8").read())
+_RP_SRC = io.open("game/reanimation_protocols.py", encoding="utf-8").read()
+_ACT_AT = _RP_SRC.find("def activate(")
+c.true("activate() adds the boost BEFORE reanimate() spends the wounds",
+       -1 < _ACT_AT < _RP_SRC.find("wounds += boost.extra_wounds(", _ACT_AT)
+       < _RP_SRC.find("spent, revived = reanimate(", _ACT_AT))
+
+# EVERY DOOR, not only the army rule. User decision: "each time that unit's
+# Reanimation Protocols activate" covers Undying Legions, the Resurrection Orb
+# and the Repair Barge too, so all four go through reanimation_protocols.
+# activate(). A stub boost of +2 makes it countable: a die of 1 revives ONE
+# Warrior without it and THREE with it - through each door's real apply step.
+from game import protocol_undying_legions, resurrection_orb, repair_barge  # noqa: E402
+from game import reanimation_protocols as _rp  # noqa: E402
+
+
+class _StubBoost:
+    def __init__(self):
+        self.asked = 0
+
+    def extra_wounds(self, squad, all_tokens=(), log=None):
+        self.asked += 1
+        return 2
+
+
+def _revived_through(door, boost):
+    state = GameState()
+    squad = place(build(WARRIORS, composition_index=0), 20.0, 20.0)
+    for m in squad.models:
+        state.add_token(m)
+    for m in squad.models[:5]:
+        m.current_wounds = 0
+    state.remove_dead_models()
+    before = sum(1 for m in squad.models if not m.is_dead())
+    if door == "army rule":
+        ctrl = _rp.ReanimationProtocolsController(game_state=state)
+        ctrl.boost = boost
+        ctrl._apply(squad, 1)
+    elif door == "Undying Legions":
+        ctrl = protocol_undying_legions.UndyingLegionsController(
+            None, game_state=state, boost=boost)
+        ctrl._apply(squad, 1)
+    else:
+        cls = (resurrection_orb.ResurrectionOrbController if door == "Resurrection Orb"
+               else repair_barge.RepairBargeController)
+        ctrl = cls(game_state=state, boost=boost)
+        ctrl._pending = squad
+        ctrl._resolve(1)
+    return sum(1 for m in squad.models if not m.is_dead()) - before
+
+
+for _door in ("army rule", "Undying Legions", "Resurrection Orb", "Repair Barge"):
+    _stub = _StubBoost()
+    c.eq("%s: a die of 1 with no boost revives one Warrior" % _door,
+         _revived_through(_door, None), 1)
+    c.eq("%s: ...and the +2 boost makes it three" % _door,
+         _revived_through(_door, _stub), 3)
+    c.eq("%s: ...asked exactly once" % _door, _stub.asked, 1)
 
 
 # --- 9. Harassment Swarm and Weapon Sentinels -------------------------------
@@ -908,8 +962,14 @@ for needle, why in (
 ):
     c.true(why, bool(calls_in_main(needle)))
 
-c.true("the reanimation boost is handed to the army rule",
-       "reanimation_controller.boost = ReanimationBoost(" in MAIN)
+c.true("the reanimation boost is built once",
+       MAIN.count("reanimation_boost = ReanimationBoost(") == 1)
+c.true("...and handed to the army rule",
+       "reanimation_controller.boost = reanimation_boost" in MAIN)
+# Five since the Canoptek Court: Suboptimal Facade's "Your unit's Reanimation
+# Protocols activate" is one more door, and it takes the boost like the rest.
+c.eq("...and to the five other doors by the SAME instance",
+     MAIN.count("boost=reanimation_boost,"), 5)
 c.true("the Canoptek Swarm goes through the shared placer, like every other return",
        "canoptek_swarm_controller.placer = return_placement_controller" in MAIN)
 
@@ -917,8 +977,11 @@ c.true("the Canoptek Swarm goes through the shared placer, like every other retu
 # suite drives it. Both of this stage's back-references are measured.
 for first, second, why in (
     ("    reanimation_controller = ReanimationProtocolsController(",
-     "    reanimation_controller.boost = ReanimationBoost(",
+     "    reanimation_controller.boost = reanimation_boost",
      "the boost is attached AFTER the army rule is built"),
+    ("    reanimation_boost = ReanimationBoost(",
+     "    reanimation_controller.boost = reanimation_boost",
+     "...and after the boost itself exists"),
     ("    return_placement_controller = ReturnPlacementController(",
      "    canoptek_swarm_controller.placer = return_placement_controller",
      "...and the placer AFTER the placer exists"),

@@ -2074,7 +2074,7 @@ checks.eq("the card leaves the hand", len(ctrl.hand), 0)
 # not offered at all.
 ctrl, mission, cp, decision, turn, overlay, log, box = make(cards=[sm.CENTRE_GROUND])
 ctrl.hand = [sm.CENTRE_GROUND, sm.BRING_IT_DOWN]
-cp.gain_cp("Player 1", turn.battle_round, amount=1, reason="some other ability")
+cp.gain_cp("Player 1", turn.battle_round, amount=1, reason="some other ability", source="ability")
 before = cp.cp.get("Player 1", 0)
 ctrl.begin_end_of_turn("Player 1")
 checks.eq("with the round's bonus CP already spent elsewhere, nothing is offered",
@@ -2099,7 +2099,7 @@ checks.eq("an empty hand offers nothing", decision.is_pending, False)
 cp2 = CommandPointManager()
 checks.eq("a fresh round has bonus CP available", cp2.bonus_cp_remaining("Player 1", 1), 1)
 checks.eq("asking does not itself spend anything", cp2.bonus_cp_remaining("Player 1", 1), 1)
-cp2.gain_cp("Player 1", 1, amount=1, reason="test")
+cp2.gain_cp("Player 1", 1, amount=1, reason="test", source="ability")
 checks.eq("after a grant, none is left", cp2.bonus_cp_remaining("Player 1", 1), 0)
 checks.eq("the next battle round has it again", cp2.bonus_cp_remaining("Player 1", 2), 1)
 

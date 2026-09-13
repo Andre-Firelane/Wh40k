@@ -343,7 +343,7 @@ checks.eq("the opponent gains nothing from it", diviner.start_of_command_phase("
 # same round lands 0 - this ability must not route around it.
 checks.eq("cap is 1 bonus CP per battle round", BONUS_CP_PER_ROUND_CAP, 1)
 checks.eq("a second grant the same round yields 0",
-          cp.gain_cp("Player 1", None, amount=1, reason="something else"), 0)
+          cp.gain_cp("Player 1", None, amount=1, reason="something else", source="ability"), 0)
 
 # Not on the battlefield -> nothing, and no CP is spent looking.
 off_board = dof.DivinerOfFuturesController(command_points=cp, all_tokens=[], game_log=cp_log)

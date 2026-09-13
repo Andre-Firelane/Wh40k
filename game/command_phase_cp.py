@@ -39,6 +39,8 @@ is filtered too. Read per MODEL rather than per squad because the sentence says
 be on the battlefield while he personally is dead.
 """
 
+from game.command_points import SOURCE_ABILITY
+
 #: Both printed cards say 1CP.
 COMMAND_PHASE_CP = 1
 
@@ -90,4 +92,5 @@ class CommandPhaseCpController:
         battle_round = self.turn_tracker.battle_round if self.turn_tracker is not None else None
         return self.command_points.gain_cp(
             player, battle_round, amount=self.amount, reason=self.reason,
+            source=SOURCE_ABILITY,
         )

@@ -98,6 +98,10 @@ from game import misfortune as misfortune_module
 from game import spiritseer
 from game import armour_hunter as armour_hunter_module
 from game import fireknife
+from game import court_power_matrix
+from game import court_cynosure_of_eradication
+from game import enh_hyperphasic_fulcrum
+from game import necron_detachments
 from game import velocity_tracker as velocity_tracker_module
 from game import bounty_hunters as bounty_hunters_module
 from game import oversight_drone as oversight_drone_module
@@ -512,7 +516,14 @@ def _attack_key(model, weapon):
             # not, must not share a group and let the representative answer
             # for both. Sixth instance of the one-representative fix; False
             # for every other model in the game.
-            bool(getattr(model, "nebuloscope", False)))
+            bool(getattr(model, "nebuloscope", False)),
+            # Canoptek Court: Cynosure of Eradication grants [DEVASTATING
+            # WOUNDS] to CRYPTEK/CANOPTEK models' weapons and Curse of the
+            # Cryptek gives CANOPTEK models +1 to Hit and Wound - both PER
+            # MODEL, so a mixed attached unit must not share a group. Seventh
+            # instance of the one-representative fix; (False, False) for every
+            # player not fielding that detachment, so no existing group splits.
+            necron_detachments.attack_key(model))
 
 
 def _weapon_eligible_for_type(weapon, shooting_type, squad):
@@ -761,6 +772,12 @@ class ShootingController:
         # Mont'ka's Pinpoint Counter-Offensive, for the hit re-roll. None
         # means nobody plays that detachment.
         self.pinpoint_counter_offensive = None
+        # Canoptek Court: the Power Matrix (the hit re-roll, Hyperphasic
+        # Fulcrum), Curse of the Cryptek's battle-long marks and Solar Pulse's
+        # objective - all injected by main.py. None means nobody plays it.
+        self.power_matrix = None
+        self.curse_of_the_cryptek = None
+        self.solar_pulse = None
         # Armoured Warhost's Guiding Presence, for the hit step. Its mark
         # lives on the controller (it is per PLAYER, not per squad), so this
         # is a collaborator rather than a flag. None means nobody plays it.
@@ -2081,6 +2098,12 @@ class ShootingController:
             # attacks from anyone for the rest of the phase.
             or (self.target_acquisition is not None
                 and self.target_acquisition.is_marked(target_squad))
+            # Canoptek Court's Solar Pulse: NECRONS weapons have [IGNORES
+            # COVER] "while targeting units within range of that objective
+            # marker" - a property of the ATTACK, so a term here rather than a
+            # keyword copied onto a weapon. See game/court_solar_pulse.py.
+            or (self.solar_pulse is not None
+                and self.solar_pulse.ignores_cover(self.active_squad, target_squad))
         )
 
     def _dispatch_group(self, weapon_key, weapon_label, pairs, target_squad):
@@ -2587,6 +2610,14 @@ class ShootingController:
         # modifier, so both filters keep it, and placing it here means that
         # stays true by construction rather than by where the line sits.
         modifiers.extend(enh_precision_patient_hunter.hit_modifiers(shooter_model))
+        # Canoptek Court's Curse of the Cryptek: "each time a friendly CANOPTEK
+        # model makes an attack that targets the attacking unit, add 1 to the
+        # Hit roll". Per MODEL and exact here (necron_detachments.attack_key()
+        # is part of _attack_key()), and an IMPROVING modifier added before the
+        # ignore filters for the reason Command Protocols above records.
+        if self.curse_of_the_cryptek is not None:
+            modifiers.extend(self.curse_of_the_cryptek.hit_modifiers(
+                shooter_model, self.active_squad, target_squad))
         if shooter_model.profile.ignores_hit_modifiers:
             modifiers = [m for m in modifiers if m.amount <= 0]
         # Kauyon's Patient Hunter, second half: "you can ignore any or all
@@ -2776,6 +2807,10 @@ class ShootingController:
         # simplification, because the Enhancement is part of _attack_key().
         modifiers.extend(enh_precision_patient_hunter.wound_modifiers(
             self._representative_shooter(), self.turn_tracker))
+        # Curse of the Cryptek's second half - "and add 1 to the Wound roll".
+        if self.curse_of_the_cryptek is not None:
+            modifiers.extend(self.curse_of_the_cryptek.wound_modifiers(
+                self._representative_shooter(), self.active_squad, target_squad))
         # The Canoptek Tomb Crawlers' Weapon Sentinels, third noun: "you can
         # ignore any or all modifiers to ... the Wound roll". THE FIRST such
         # filter on this fold - ignores_hit_modifiers, [PSYCHIC], Kauyon and
@@ -3389,6 +3424,12 @@ class ShootingController:
         # because both the wound step and _crit_note() read it off the weapon
         # this chain returns - see game/conditional_devastating_wounds.py.
         weapon = conditional_devastating_wounds.adjusted_weapon(weapon, target_squad)
+        # Canoptek Court's Cynosure of Eradication: [DEVASTATING WOUNDS] on the
+        # weapons of CRYPTEK/CANOPTEK MODELS of the unit it was bought for. Per
+        # model, read off the group's representative - exact, because
+        # necron_detachments.attack_key() is part of _attack_key().
+        weapon = court_cynosure_of_eradication.adjusted_weapon(
+            weapon, self.active_squad, pairs[0][0])
         # The Spiritseer's Spirit Mark: [SUSTAINED HITS 1] on the marked
         # FRIENDLY unit's weapons, but only against the marked ENEMY unit -
         # the pair is the rule, and granting it to the friendly unit alone
@@ -3875,6 +3916,10 @@ class ShootingController:
         # shape, and the condition is the TARGET's Starting Strength.
         if fireknife.offers_full_reroll(self.active_squad, target_squad):
             return fireknife.FIREKNIFE_LABEL
+        # Canoptek Court's Power Matrix - the same two-clause shape, and the
+        # condition is the attacking UNIT standing wholly within the matrix.
+        if court_power_matrix.offers_full_reroll(self.active_squad, self.power_matrix):
+            return court_power_matrix.POWER_MATRIX_LABEL
         # The Sky Ray's Velocity Tracker - an ordinary "you can re-roll the
         # Hit roll", so deliberately NOT a reroll_scope source.
         if velocity_tracker_module.applies(self.active_squad, target_squad):
@@ -4040,6 +4085,10 @@ class ShootingController:
         # Observers, which it otherwise resembles, does both).
         hero_aura = hero_of_the_empire_module.applies(self.active_squad, self.all_tokens)
         fireknife_ones = fireknife.applies(self.active_squad)
+        # The Power Matrix's base clause: "re-roll a Hit roll of 1" for a
+        # CRYPTEK or CANOPTEK unit, unconditional. Its whole-roll upgrade is the
+        # reason above, and holds these back while it is on offer.
+        matrix_ones = court_power_matrix.applies(self.active_squad)
         # Reavers of the Void's base clause: "re-roll a Hit roll of 1",
         # unconditional. Its whole-roll upgrade is the reason above, and
         # when that is on offer these 1s are held back like every other
@@ -4065,6 +4114,7 @@ class ShootingController:
             or tyrant
             or hero_aura
             or fireknife_ones
+            or matrix_ones
             or reavers_ones
             or warrior_hit_ones
             or stars_aura
@@ -4076,6 +4126,8 @@ class ShootingController:
                 ones_reason = hero_of_the_empire_module.HERO_OF_THE_EMPIRE_LABEL
             elif fireknife_ones:
                 ones_reason = fireknife.FIREKNIFE_LABEL
+            elif matrix_ones:
+                ones_reason = court_power_matrix.POWER_MATRIX_LABEL
             elif reavers_ones:
                 ones_reason = reavers_of_the_void.REAVERS_OF_THE_VOID_LABEL
             elif stars_aura:
@@ -4191,6 +4243,11 @@ class ShootingController:
             ones_reason = "Forward Observers"
         elif implacable_eradication.applies(self.active_squad):
             ones_reason = implacable_eradication.IMPLACABLE_ERADICATION_LABEL
+        elif enh_hyperphasic_fulcrum.applies(self.active_squad, self.power_matrix):
+            # Canoptek Court's Hyperphasic Fulcrum: a plain automatic "re-roll
+            # a Wound roll of 1" while the bearer leads a unit wholly within
+            # the Power Matrix - no "instead", so not a reroll_scope source.
+            ones_reason = enh_hyperphasic_fulcrum.HYPERPHASIC_FULCRUM_LABEL
         elif destroyer_cult.optimised_for_slaughter_applies(self.active_squad, weapon, target_squad):
             ones_reason = destroyer_cult.OPTIMISED_FOR_SLAUGHTER_LABEL
         elif (self.path_of_the_warrior is not None

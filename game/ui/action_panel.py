@@ -2,6 +2,7 @@ import pygame
 
 from game import warhost_fire_and_fade
 from game import enh_higher_duty
+from game import court_reactive_subroutines
 from game import windrider_overflight
 from game import aura_ruler
 from game import base_contact
@@ -222,6 +223,10 @@ class ActionPanel:
         damage_pick=None,
         # The printed rule behind a board pick, drawn by _draw_unit_pick_ui().
         decision_rule=None,
+        # Canoptek Court's Reactive Subroutines - a reactive move with its own
+        # Confirm/Cancel hand-back, like higher_duty_controller above. Appended
+        # BY KEYWORD at the very end, for this chain's positional reasons.
+        reactive_subroutines_controller=None,
     ):
         surface.fill(config.PANEL_BG_COLOR, rect)
         pygame.draw.rect(surface, config.PANEL_BORDER_COLOR, rect, width=2)
@@ -282,6 +287,7 @@ class ActionPanel:
             unit_pick=unit_pick,
             damage_pick=damage_pick,
             decision_rule=decision_rule,
+            reactive_subroutines_controller=reactive_subroutines_controller,
         )
         # The FULL rect, not the shortened one: this strip is pinned to the
         # BOTTOM edge, which the selection box does not move.
@@ -339,6 +345,7 @@ class ActionPanel:
         damage_pick=None,
         # The printed rule behind a board pick, drawn by _draw_unit_pick_ui().
         decision_rule=None,
+        reactive_subroutines_controller=None,
     ):
         """The old draw() body, verbatim - one big state dispatch with an
         early return per screen (setup/firing-deck/damage-choice/dice-roll/
@@ -579,6 +586,7 @@ class ActionPanel:
             secondary_mission_controller=secondary_mission_controller,
             primary_mission_controller=primary_mission_controller,
             unmodified_six_controller=unmodified_six_controller,
+            reactive_subroutines_controller=reactive_subroutines_controller,
         )
 
     def _draw_selection_header(self, surface, rect, movement_controller):
@@ -2195,6 +2203,7 @@ class ActionPanel:
         # length. A controller joins the list and needs no edit here.
         proactive_stratagems=None,
         return_placement_controller=None,
+        reactive_subroutines_controller=None,
     ):
         squad = movement_controller.selected_squad
         turn_tracker = movement_controller.turn_tracker
@@ -2312,6 +2321,11 @@ class ActionPanel:
             # Spirit Conclave's Higher Duty - reactive in the same way, so it
             # needs the same hand-back branch. See game/enh_higher_duty.py.
             is_higher_duty = movement_controller.move_mode == enh_higher_duty.HIGHER_DUTY_MOVE_MODE
+            # Canoptek Court's Reactive Subroutines - the same reactive shape one
+            # Stratagem cost richer, so the same hand-back branch.
+            is_reactive_subroutines = (
+                movement_controller.move_mode
+                == court_reactive_subroutines.REACTIVE_SUBROUTINES_MOVE_MODE)
             # Warhost's Fire and Fade - NOT reactive (its WHEN is "your
             # Shooting phase", so the mover is the turn owner and select()
             # accepts it). It needs a branch only because its two locks -
@@ -2349,6 +2363,8 @@ class ActionPanel:
                 confirm_callback = overflight_controller.confirm_move
             elif is_higher_duty and higher_duty_controller is not None:
                 confirm_callback = higher_duty_controller.confirm_move
+            elif is_reactive_subroutines and reactive_subroutines_controller is not None:
+                confirm_callback = reactive_subroutines_controller.confirm_move
             elif is_warhost_fire_and_fade and warhost_fire_and_fade_controller is not None:
                 confirm_callback = warhost_fire_and_fade_controller.confirm_move
             else:
@@ -2432,6 +2448,8 @@ class ActionPanel:
                 cancel_callback = overflight_controller.cancel_move
             elif is_higher_duty and higher_duty_controller is not None:
                 cancel_callback = higher_duty_controller.cancel_move
+            elif is_reactive_subroutines and reactive_subroutines_controller is not None:
+                cancel_callback = reactive_subroutines_controller.cancel_move
             elif is_warhost_fire_and_fade and warhost_fire_and_fade_controller is not None:
                 cancel_callback = warhost_fire_and_fade_controller.cancel_move
             elif is_torchstar and torchstar_controller is not None:

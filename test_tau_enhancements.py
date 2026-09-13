@@ -469,7 +469,7 @@ with only("RETALIATION_CADRE_PLAYERS"):
 with only("RETALIATION_CADRE_PLAYERS"):
     _cp3 = CommandPointManager(game_log=tk.Log())
     _cp3.cp["Player 2"] = 5
-    _cp3.gain_cp("Player 2", 1, 1, reason="something else")   # spends the round's headroom
+    _cp3.gain_cp("Player 2", 1, 1, reason="something else", source="ability")   # spends the round's headroom
     pen_ctrl3 = PEN.PuretideNeurochipController(
         dice_manager=SpyDice(), command_points=_cp3,
         turn_tracker=tk._tracker("Command"), game_log=tk.Log())
@@ -1672,8 +1672,20 @@ c.true("Unmasking Suite uses the same two",
 
 # No AI path - the standing T'au rule. Checked as NEGATIVE SPACE: none of the
 # nineteen may be reachable from ai/agent_driver.py.
+#
+# SCOPED TO THE T'AU DETACHMENTS, because that is the rule: the registry also
+# holds the Canoptek Court's four since its stage, and that detachment gets a
+# full AI path by user decision - its Metalodermal Tesla Weave is named in the
+# driver on purpose (the AI resolves its own allocation when it charges into
+# one). Asking this T'au pin of the whole registry would forbid that.
+from game.factions import tau_empire as _tau_faction                 # noqa: E402
 _driver = io.open("ai/agent_driver.py", encoding="utf-8").read()
-_leaks = [n for n in E.ENHANCEMENTS if n.lower() in _driver.lower()]
+_leaks = [n for n, spec in E.ENHANCEMENTS.items()
+          if spec.detachment in _tau_faction.TAU_EMPIRE.detachments
+          and n.lower() in _driver.lower()]
+c.true("...the T'au scope is live - it holds the nineteen",
+       sum(1 for s in E.ENHANCEMENTS.values()
+           if s.detachment in _tau_faction.TAU_EMPIRE.detachments) == 19)
 c.eq("no Enhancement has an AI path in ai/agent_driver.py", _leaks, [])
 c.true("...and no enh_* module is imported there", "enh_" not in _driver)
 

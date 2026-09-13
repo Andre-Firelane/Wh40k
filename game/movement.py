@@ -486,7 +486,10 @@ class MovementController:
     #: the open move at all; then for Rangers' Path of the Outcast, when the gate
     #: looked but compared against the string "battle_focus" only.
     REACTIVE_MOVE_MODES = frozenset({"battle_focus", "path_of_the_outcast",
-                                     "raid_and_run", "overflight", "higher_duty"})
+                                     "raid_and_run", "overflight", "higher_duty",
+                                     # Canoptek Court's Reactive Subroutines -
+                                     # game/court_reactive_subroutines.py.
+                                     "court_reactive_subroutines"})
 
     #: "a Normal, Advance or Fall Back move" - exactly those three, the phrase
     #: several printed rules use (rule 09.07's shooting/charge bans, Aeldari

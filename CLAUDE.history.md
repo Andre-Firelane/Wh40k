@@ -9209,3 +9209,30 @@ nicht in einem Sondenfenster.
 beißend, `verify_round_progress_bar.py map2 1500`: 1499/1499 Frames mit Zahlen, Texte genau 1..5,
 0 Label-Pixel unter der Spur, in 29/29 gesampelten Schlacht-Frames ist genau die laufende Runde
 gold; Layout unverändert.
+
+# Sitzung 2026-09-13 — Necron-Detachments, Etappe 1: Canoptek Court
+
+**Auftrag:** "Necron Detachments anlegen / Detachment Regeln / Startagems / Enhancements / in
+Etappen. Ein Detachment pro Etappe / Nur diese 3: Canoptek Court / Hypercrypt Legion / Cryptek
+Conclave". Verdichteter Stand in CLAUDE.md `## Die Necron-Detachments`.
+
+**Ein TARGET-Test bestand aus dem falschen Grund.** Suboptimal Facades "nicht wholly within"-Szene
+setzte ein Modell auf die Zonenkante — genau zwischen die Wraiths und die Boyz-Reihe, 2" vor den
+Boyz. Die Boyz waren damit schon engaged, es wurde gar keine Charge deklariert, und die Prüfung
+"kein Angebot" hielt ohne je die Matrix zu fragen. Die Chargers stehen jetzt 6" vor dem ihnen
+NÄCHSTEN Wraith.
+
+**Ein Solar-Pulse-Test nahm an, die erste angebotene Option sei das Home Objective** — sie ist nur
+das erste Objective in 18". Er vergleicht jetzt mit der wirklich gewählten Option.
+
+**Der Sondenlauf fand neun Testlücken** (60 von 69 Sonden bissen zuerst): siehe CLAUDE.md. Die
+teuerste war nicht in dieser Etappe, sondern im geteilten Wächter: `test_event_chain_wiring.py` §11
+zählte Würfelbestätigungen per Regex über den Text und blieb grün, als die Tesla-Weave-Bestätigung
+unter `if False:` stand. Zwei Sonden ließen die Suite abstürzen (ein Klick-Helfer ohne `getattr`,
+und `_dist()` über ein Dict) — beide degradieren jetzt zu ROT.
+
+**Verify-Harness:** die erste Fassung meldete Cynosure nie im Fight. Gemessen statt geraten: 631
+Ablehnungen, alle "fight state=done" — die Phasen-Rotation setzte die Phase, rief aber nicht
+`reset_fight_phase()` wie `main()`. Danach Fight+Shooting gezeichnet. Die Frage, ob ein Mensch im
+Fight der KI überhaupt ein Fenster hat, ist am Code beantwortet: `_handle_fight()` wartet auf jeden
+ausstehenden Pile In beider Seiten.

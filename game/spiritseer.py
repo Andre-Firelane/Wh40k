@@ -218,7 +218,9 @@ class SpiritMarkController:
     def on_move_started(self, squad):
         return self.offer(squad)
 
-    def on_move_finished(self, squad):
+    def on_move_finished(self, squad, kind=None):
+        # listener(squad, kind) is the hook's payload; the move type is
+        # irrelevant to "when this model starts or ends a move".
         return self.offer(squad)
 
     def offer(self, bearer_squad, visible_to=None):

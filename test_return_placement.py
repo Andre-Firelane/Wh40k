@@ -323,16 +323,30 @@ def call_sites(func_name, exclude):
     return found
 
 
-doors = call_sites("reanimate", exclude={"reanimation_protocols.py"})
-c.true("reanimate() has more than one door (%d: %s)"
-       % (len(doors), sorted(m for m, _ in doors)), len(doors) >= 2)
+# SINCE THE CANOPTEK COURT the doors are one step further out. The Canoptek
+# boosts print "EACH TIME that unit's Reanimation Protocols activate", and the
+# user decided that means every door - so reanimation_protocols.activate() is
+# the one function that adds them and then calls reanimate(). The set difference
+# therefore has TWO halves now: nothing outside that module may call reanimate()
+# directly (it would skip the boost), and every activate() door passes a placer
+# AND the boost.
+bypasses = call_sites("reanimate", exclude={"reanimation_protocols.py"})
+c.eq("nothing outside reanimation_protocols.py calls reanimate() directly",
+     sorted("%s:%d" % (m, n.lineno) for m, n in bypasses), [])
+doors = [(m, n) for m, n in call_sites("activate", exclude={"reanimation_protocols.py"})
+         if isinstance(n.func, ast.Attribute)
+         and getattr(n.func.value, "id", None) == "reanimation_protocols"]
+c.true("activate() has more than one door (%d: %s)"
+       % (len(doors), sorted(m for m, _ in doors)), len(doors) >= 3)
 c.true("...and the army rule's own controller is not among them - it lives "
        "in the same module as the function",
        "reanimation_protocols" not in {m for m, _ in doors})
 
 for module, node in sorted(doors, key=lambda pair: pair[0]):
     passes = any(kw.arg == "placer" for kw in node.keywords)
-    c.true("%s hands reanimate() a placer (line %d)" % (module, node.lineno), passes)
+    c.true("%s hands activate() a placer (line %d)" % (module, node.lineno), passes)
+    c.true("%s hands activate() the boost (line %d)" % (module, node.lineno),
+           any(kw.arg == "boost" for kw in node.keywords))
 
 # ...and every one of those modules must actually GET one from main.py.
 #
@@ -356,26 +370,28 @@ def controller_class_with_placer(module):
     return None
 
 
-def main_hands_a_placer(class_name):
-    """True if main() gives that class a placer - either way round.
+def main_hands_a_placer(class_name, attr="placer", value="return_placement_controller"):
+    """True if main() gives that class `attr` = `value` - either way round.
 
     Two shapes, because construction order in main() is real (Fehlerklasse 23):
-    a constructor keyword for a controller built AFTER the placer, and an
-    attribute assignment for one built before it.
+    a constructor keyword for a controller built AFTER the collaborator, and an
+    attribute assignment for one built before it. Since the Canoptek Court it
+    is asked for the reanimation BOOST as well as the placer.
     """
     for node in ast.walk(MAIN_TREE):
         if (isinstance(node, ast.Call)
                 and getattr(node.func, "id", None) == class_name
-                and any(kw.arg == "placer" for kw in node.keywords)):
+                and any(kw.arg == attr and getattr(kw.value, "id", None) == value
+                        for kw in node.keywords)):
             return True
-    # ...or `<something>.placer = return_placement_controller`
+    # ...or `<something>.<attr> = <value>`
     for node in ast.walk(MAIN_TREE):
         if not isinstance(node, ast.Assign):
             continue
         for target in node.targets:
-            if (isinstance(target, ast.Attribute) and target.attr == "placer"
+            if (isinstance(target, ast.Attribute) and target.attr == attr
                     and isinstance(node.value, ast.Name)
-                    and node.value.id == "return_placement_controller"):
+                    and node.value.id == value):
                 # The name on the left must be the local this class was
                 # assigned to, or any assignment anywhere would satisfy any
                 # class - which is the hole this whole block exists to close.
@@ -397,6 +413,10 @@ for module, _node in sorted(doors, key=lambda pair: pair[0]):
     if class_name:
         c.true("...and main.py hands %s one" % class_name,
                main_hands_a_placer(class_name))
+        c.true("...and the shared reanimation boost",
+               main_hands_a_placer(class_name, "boost", "reanimation_boost"))
+c.true("the army rule's own controller gets the same boost instance",
+       main_hands_a_placer("ReanimationProtocolsController", "boost", "reanimation_boost"))
 
 # Construction order again, for the door that takes it as an argument: it is
 # built AFTER the placer, so a constructor argument is the right shape - and

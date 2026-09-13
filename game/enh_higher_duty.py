@@ -122,9 +122,10 @@ class HigherDutyController:
 
     # --- the trigger ------------------------------------------------------
 
-    def on_move_finished(self, mover):
+    def on_move_finished(self, mover, kind=None):
         """"if an enemy unit ends a move within 8"" - the first enemy-side
-        consumer of this hook."""
+        consumer of this hook. MovementController fires listener(squad, kind);
+        "a move" names no type, so `kind` is accepted and not read."""
         for squad in self.reactors_for(mover):
             if squad.owner in self.auto_players or self.decision_manager is None:
                 return False           # no AI path (standing Aeldari rule)

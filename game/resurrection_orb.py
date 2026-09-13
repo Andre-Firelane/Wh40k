@@ -70,13 +70,16 @@ class ResurrectionOrbController:
 
     def __init__(self, dice_manager=None, decision_manager=None, game_log=None,
                  game_state=None, position_valid=None, auto_players=(),
-                 placer=None):
+                 placer=None, boost=None):
         self.dice_manager = dice_manager
         self.decision_manager = decision_manager
         self.game_log = game_log
         self.game_state = game_state
         self.position_valid = position_valid
         self.auto_players = ai_mode.players(auto_players)
+        # "When a unit resurrects, that unit's Reanimation Protocols ACTIVATE" -
+        # so the Canoptek boosts apply here too. See reanimation_protocols.activate().
+        self.boost = boost
         # ReturnPlacementController - rule 01.02.03's "set up" half. This is
         # the OTHER door into reanimate() besides the army rule's own
         # controller; each door needs its own placer, or a human watches the
@@ -247,12 +250,14 @@ class ResurrectionOrbController:
 
     def _resolve(self, rolled):
         squad, self._pending = self._pending, None
-        spent, revived = reanimation_protocols.reanimate(
+        _wounds, spent, revived = reanimation_protocols.activate(
             squad, rolled,
+            boost=self.boost,
             all_tokens=self._tokens(),
             position_valid=self.position_valid,
             game_state=self.game_state,
             placer=self.placer,
+            log=self._log,
         )
         detail = f"{spent} wound(s)"
         if revived:

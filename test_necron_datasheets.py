@@ -432,8 +432,9 @@ c.eq("the two Destroyer datasheets keep their own art",
 print("--- the Enhancement gap ---")
 
 # Awakened Dynasty prints four Enhancements. NONE of them is engine-wired:
-# game/enhancements.py's registry holds forty-seven specs across fourteen T'au
-# and Aeldari detachments and not one Necron entry.
+# game/enhancements.py's registry holds fifty-one specs across fifteen
+# detachments - the fourteen T'au and Aeldari ones, and since its own stage the
+# Canoptek Court's four - and not one of Awakened Dynasty's.
 #
 # THAT IS A DECISION, NOT AN OVERSIGHT, and the reason is a ROSTER fact rather
 # than a mechanism one: armies/necrons.json buys none of the four, so wiring
@@ -462,9 +463,11 @@ c.true("the Enhancement registry is live (%d wired)" % len(_enh.ENHANCEMENTS),
        len(_enh.ENHANCEMENTS) >= 40)
 c.eq("...and none of the four is among them",
      [n for n in _PRINTED if n in _enh.ENHANCEMENTS], [])
-c.eq("...nor is any other Necron detachment Enhancement",
+# The one Necron detachment whose Enhancements ARE wired is named, so the next
+# stage's detachment turns this red as a visible change rather than slipping in.
+c.eq("...and the only wired Necron detachment is the Canoptek Court",
      sorted({s.detachment for s in _enh.ENHANCEMENTS.values()}
-            & set(nec.NECRONS.detachments)), [])
+            & set(nec.NECRONS.detachments)), ["Canoptek Court"])
 
 # The ROSTER half, which is the actual reason.
 _roster = _enh_json.loads(

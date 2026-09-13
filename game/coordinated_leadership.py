@@ -21,6 +21,8 @@ mandatory and its effect is automatic - so a human and the AI take exactly the
 same path, and the AI needs no entry in ai/ at all.
 """
 
+from game.command_points import SOURCE_ABILITY
+
 COORDINATED_LEADERSHIP_THRESHOLD = 4
 COORDINATED_LEADERSHIP_DICE_SIDES = 6
 COORDINATED_LEADERSHIP_CP = 1
@@ -109,7 +111,8 @@ class CoordinatedLeadershipController:
             if self.command_points is not None:
                 self.command_points.gain_cp(
                     player, self._round(), COORDINATED_LEADERSHIP_CP,
-                    reason=f"{COORDINATED_LEADERSHIP_LABEL} ({squad.name})")
+                    reason=f"{COORDINATED_LEADERSHIP_LABEL} ({squad.name})",
+                    source=SOURCE_ABILITY)
             elif self.game_log:
                 self.game_log.add(
                     f"[coordinated leadership] {squad.name} rolled {value}: +1 CP")

@@ -186,7 +186,9 @@ print("--- 4. Reavers of the Void ---")
 
 checks.true("it registers as a ones-or-whole source",
             reroll_scope.is_ones_or_whole(reavers_of_the_void.REAVERS_OF_THE_VOID_LABEL))
-checks.eq("...the seventh of them", len(reroll_scope.ONES_OR_WHOLE_LABELS), 7)
+# Canoptek Court's Power Matrix made it eight. A count, so every new source of
+# this form is a visible one-line change here.
+checks.eq("...one of eight of them", len(reroll_scope.ONES_OR_WHOLE_LABELS), 8)
 checks.true("the Voidreavers carry it", reavers_of_the_void.applies(vr))
 checks.true("...and the Voidscarred do not", not reavers_of_the_void.applies(vs))
 

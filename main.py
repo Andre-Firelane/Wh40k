@@ -8,6 +8,7 @@ import pygame
 from ai import deployment_ai
 from ai import observation as ai_observation
 from ai.agent_driver import AIMemory, take_one_action
+from ai.agent_driver import reactive_subroutines_destination, reactive_subroutines_move
 from ai.claude_agent import ClaudeAgent
 # from ai.mock_agent import MockAgent  # free/offline alternative - no API key or network needed
 from game import attached_units, battle_focus, biomes, charge, config, consolidate, crushing_impact, enhancements, epic_challenge, explosives, fall_back, fight, firing_deck, greater_good, line_of_sight, maps, movement, overwatch, pregame, setup, shooting, starflare_ignition, status_effects, strands_of_fate
@@ -67,6 +68,18 @@ from game.enh_echoes_of_ulthanesh import EchoesOfUlthaneshController
 from game.enh_ethereal_pathway import EtherealPathwayStep
 from game.enh_firstdrawn_blade import FirstdrawnBladeStep
 from game.enh_higher_duty import HigherDutyController
+from game import court_power_matrix
+from game import court_cynosure_of_eradication
+from game import court_countertemporal_shift
+from game.court_power_matrix import PowerMatrixController
+from game.court_curse_of_the_cryptek import CurseOfTheCryptekController
+from game.court_cynosure_of_eradication import CynosureOfEradicationController
+from game.court_solar_pulse import SolarPulseController
+from game.court_reactive_subroutines import ReactiveSubroutinesController
+from game.court_countertemporal_shift import CountertemporalShiftController
+from game.court_suboptimal_facade import SuboptimalFacadeController
+from game.enh_autodivinator import AutodivinatorController
+from game.enh_metalodermal_tesla_weave import MetalodermalTeslaWeaveController
 from game.enh_phoenix_gem import PhoenixGemController
 from game.enh_gift_of_foresight import GiftOfForesightDiscount
 from game.enh_guiding_presence import GuidingPresenceController
@@ -1152,12 +1165,15 @@ def main(map_key=None):
         decision_manager=decision_manager, game_log=game_log,
         turn_tracker=turn_tracker, auto_players=ai_players,
     )
-    # BOTH reanimation boosts behind one question, so the army rule asks once.
-    # Assigned rather than passed to the constructor because reanimation_
-    # controller is built above - main() is one long function in which
-    # construction order is a real hazard (error class 23).
-    reanimation_controller.boost = ReanimationBoost(
-        projector=nanoscarab_projector_controller)
+    # BOTH reanimation boosts behind one question, so each activation asks once.
+    # ONE instance for EVERY door into reanimation_protocols.activate() - the
+    # army rule, Undying Legions, both Resurrection Orbs, the Repair Barge and
+    # the Necron detachments (user: the boosts apply on every activation).
+    # Assigned to the army rule rather than passed to its constructor because
+    # reanimation_controller is built above - main() is one long function in
+    # which construction order is a real hazard (error class 23).
+    reanimation_boost = ReanimationBoost(projector=nanoscarab_projector_controller)
+    reanimation_controller.boost = reanimation_boost
     self_destruction_controller = SelfDestructionController(
         decision_manager=decision_manager, game_state=state, game_log=game_log,
         dice_manager=dice_manager, auto_players=ai_players,
@@ -1185,6 +1201,7 @@ def main(map_key=None):
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
         game_state=state, auto_players=ai_players,
         position_valid=_necron_position_valid,
+        boost=reanimation_boost,
     )
     # The Catacomb Command Barge's orb, which prints a DIFFERENT sentence:
     # "select up to one friendly NECRONS INFANTRY/NECRONS MOUNTED unit within
@@ -1198,6 +1215,7 @@ def main(map_key=None):
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
         game_state=state, auto_players=ai_players,
         position_valid=_necron_position_valid,
+        boost=reanimation_boost,
     )
     # The Kroot War Shaper's Root of Honour. Offered at the start of EVERY
     # phase (see the call in advance_turn_phase), so no dice and no CP - it
@@ -1278,6 +1296,7 @@ def main(map_key=None):
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
         game_state=state, auto_players=ai_players,
         position_valid=_necron_position_valid,
+        boost=reanimation_boost,
     )
     # Krootox Rampagers' Kroot Linebreakers - Crimson Harvest's sibling in
     # game/mortal_wound_abilities.py, on the same charge hook. It is the
@@ -1404,10 +1423,18 @@ def main(map_key=None):
     # own docstring licenses that - "each controller decides for itself whether
     # it wants to act at all" - and game/repair_barge.py says so out loud, so
     # it does not read like a half-built reactor.
+    # Canoptek Court's Countertemporal Shift prints Psychic Shield's EFFECT word
+    # for word and reacts at the same instant, so it sits beside it in the tuple
+    # below - and, like it, gets on_activated once shooting_controller exists.
+    # Built HERE because the tuple is immutable and handed to ShootingController.
+    countertemporal_shift_controller = CountertemporalShiftController(
+        stratagem_controller=stratagem_controller, decision_manager=decision_manager,
+        game_log=game_log, turn_tracker=turn_tracker, auto_players=ai_players,
+    )
     shooting_target_reactions = (
         stim_injectors_controller, ard_as_nails_controller, psychic_shield_controller,
         kroot_packmates_controller, multi_threat_eliminator_controller,
-        repair_barge_controller,
+        repair_barge_controller, countertemporal_shift_controller,
     )
     fight_target_reactions = (
         stim_injectors_controller, ard_as_nails_controller, forewarned_controller,
@@ -1719,6 +1746,7 @@ def main(map_key=None):
     # that selection illegal and the attacker has to pick again. See
     # game/psychic_shield.py; a plain callback, like on_fall_back_finished.
     psychic_shield_controller.on_activated = shooting_controller.revalidate_target_selection
+    countertemporal_shift_controller.on_activated = shooting_controller.revalidate_target_selection
     # Seer Council's Fate Inescapable - proactive ("your Shooting phase", and the
     # unit must not have shot yet), so an ActionPanel button rather than a break
     # point, and it needs shooting_controller for that "has not shot" test.
@@ -2856,6 +2884,9 @@ def main(map_key=None):
         # human sets them up. Built after return_placement_controller, hence a
         # constructor argument rather than an assignment.
         placer=return_placement_controller,
+        # ...and the Canoptek boosts, which apply on EVERY activation of
+        # Reanimation Protocols (reanimation_protocols.activate()).
+        boost=reanimation_boost,
     )
     eternal_revenant_controller = EternalRevenantController(
         stratagem_controller, decision_manager=decision_manager, game_log=game_log,
@@ -2876,6 +2907,68 @@ def main(map_key=None):
         turn_tracker=turn_tracker, auto_players=ai_players,
         worth_using=_vengeful_stars_worth_it,
     )
+
+    # --- Canoptek Court, the second Necron detachment ------------------------
+    # Built unconditionally like every other detachment's block: every rule and
+    # Stratagem gates on config.CANOPTEK_COURT_PLAYERS, so all of it is inert in
+    # a battle nobody plays it in - which, by user decision, is every battle a
+    # shipped list produces.
+    #
+    # The Power Matrix is ONE controller with five readers: both attack steps
+    # (the hit re-roll and Hyperphasic Fulcrum), Cynosure of Eradication's and
+    # Suboptimal Facade's TARGET lines, and the AI's observation. Latched at the
+    # start of every phase in advance_turn_phase().
+    power_matrix_controller = PowerMatrixController(
+        game_state=state, turn_tracker=turn_tracker, game_log=game_log)
+    court_power_matrix.CURRENT = power_matrix_controller
+    shooting_controller.power_matrix = power_matrix_controller
+    fight_controller.power_matrix = power_matrix_controller
+    # Reactive, so no panel button: fed from the death sweep and the two
+    # after-attack hooks, read by both attack steps.
+    curse_of_the_cryptek_controller = CurseOfTheCryptekController(
+        stratagem_controller, turn_tracker=turn_tracker, decision_manager=decision_manager,
+        game_state=state, game_log=game_log, auto_players=ai_players)
+    shooting_controller.curse_of_the_cryptek = curse_of_the_cryptek_controller
+    fight_controller.curse_of_the_cryptek = curse_of_the_cryptek_controller
+    # The two panel buttons.
+    cynosure_controller = proactive_stratagems.add(CynosureOfEradicationController(
+        stratagem_controller, turn_tracker=turn_tracker,
+        shooting_controller=shooting_controller, fight_controller=fight_controller,
+        power_matrix=power_matrix_controller, game_log=game_log))
+    solar_pulse_controller = proactive_stratagems.add(SolarPulseController(
+        stratagem_controller, turn_tracker=turn_tracker, shooting_controller=shooting_controller,
+        game_state=state, decision_manager=decision_manager, game_log=game_log,
+        auto_players=ai_players))
+    shooting_controller.solar_pulse = solar_pulse_controller
+    # Reactive Subroutines: the AI's destination and mover are injected from
+    # ai/agent_driver.py, because game/ must not import ai/.
+    reactive_subroutines_controller = ReactiveSubroutinesController(
+        stratagem_controller, movement_controller=movement_controller, turn_tracker=turn_tracker,
+        game_state=state, decision_manager=decision_manager, game_log=game_log,
+        auto_players=ai_players,
+        ai_destination=lambda squad, mover: reactive_subroutines_destination(state, squad, mover),
+        ai_mover=lambda squad, point: reactive_subroutines_move(movement_controller, squad, point),
+    )
+    movement_controller.on_move_finished.append(reactive_subroutines_controller.on_move_finished)
+    # The two charge-declaration reactors. Each owns the charge's resume while
+    # its dice, allocation or placement are open (game/charge.py's protocol).
+    suboptimal_facade_controller = SuboptimalFacadeController(
+        stratagem_controller, dice_manager=dice_manager, decision_manager=decision_manager,
+        turn_tracker=turn_tracker, game_state=state, power_matrix=power_matrix_controller,
+        position_valid=_necron_position_valid, placer=return_placement_controller,
+        boost=reanimation_boost, game_log=game_log, auto_players=ai_players)
+    metalodermal_tesla_weave_controller = MetalodermalTeslaWeaveController(
+        dice_manager=dice_manager, turn_tracker=turn_tracker, game_log=game_log)
+    charge_controller.charge_declaration_reactions.extend([
+        metalodermal_tesla_weave_controller.maybe_offer,
+        suboptimal_facade_controller.maybe_offer,
+    ])
+    # The Autodivinator listens to every CP an ability grants - which is why
+    # command_points.gain_cp() now requires a `source`.
+    autodivinator_controller = AutodivinatorController(
+        command_points=command_points, game_state=state, turn_tracker=turn_tracker,
+        game_log=game_log)
+    command_points.on_cp_gained.append(autodivinator_controller.on_cp_gained)
 
     # --- The six Death Lord's Chosen Stratagems -------------------------------
     # Built unconditionally like every other detachment's: each one's can_use()
@@ -3040,6 +3133,9 @@ def main(map_key=None):
         # group of an activation wipes a unit, which is the ordinary way a
         # Windrider unit destroys something.
         overflight_controller.credit_owed_kills(shooter_squad)
+        # Canoptek Court's Curse of the Cryptek: "just after an enemy unit has
+        # shot" - the attacker arrives here as an argument.
+        curse_of_the_cryptek_controller.maybe_offer(shooter_squad)
 
     shooting_controller.on_squad_finished_shooting.append(_necron_after_enemy_shooting)
 
@@ -3073,6 +3169,8 @@ def main(map_key=None):
             undying_spite_controller.resolve_after_attacks(_fighter)
             to_their_final_breath_controller.resolve_after_attacks(_fighter)
             malevolent_souls_controller.resolve_after_attacks(_fighter)
+            # Curse of the Cryptek's other half of its WHEN - "or fought".
+            curse_of_the_cryptek_controller.maybe_offer(_fighter)
             systematic_vigour_controller.resolve_after_attacks(_fighter)
             # The Ghost Ark's Repair Barge, FIGHT half. Its printed "just
             # after an enemy unit finishes making its attacks" is a sentence
@@ -3163,11 +3261,18 @@ def main(map_key=None):
     # Seer Council's Isha's Fury: "just after an enemy unit ends a Normal,
     # Advance or Fall Back move" - broader than the Fall-Back-only hook above,
     # and fired at the same point for the same reason.
-    movement_controller.on_move_finished = [
+    #
+    # EXTENDED, never assigned. This line used to be `on_move_finished = [...]`
+    # and threw away the five listeners appended ~1600 lines earlier (Spirit
+    # Stone of Raelyth, Spirit Mark, Higher Duty, Wraith Form, Internal Grenade
+    # Racks) - every one of them was built, unit-tested and never fed in a real
+    # game. test_event_chain_wiring.py section 25 now refuses a fed list hook
+    # being rebound anywhere in main().
+    movement_controller.on_move_finished.extend([
         ishas_fury_controller.offer_after_move,
         path_of_the_outcast_controller.offer_after_move,
         grenade_pack_controller.offer_after_move,
-    ]
+    ])
     # Aeldari Seer Council detachment rule Strands of Fate: a Fate dice pool
     # rolled ONCE for the whole battle, where each die's FACE decides which one
     # stratagem it can discount. Plugged into the same cost-discount hook
@@ -3862,6 +3967,16 @@ def main(map_key=None):
             _skyborne.reset_phase()
         # An unattributed death does not outlive the phase it happened in.
         pinpoint_controller.reset_phase()
+        # Canoptek Court - everything that lasts "until the end of the phase".
+        # Curse of the Cryptek's MARKS are battle-long and survive this; only
+        # its owed deaths and asked-set are phase-scoped.
+        _court_squads = {t.squad for t in state.tokens if t.squad is not None}
+        court_cynosure_of_eradication.reset_phase(_court_squads)
+        court_countertemporal_shift.reset_phase(_court_squads)
+        countertemporal_shift_controller.reset_phase()
+        solar_pulse_controller.reset_phase()
+        curse_of_the_cryptek_controller.reset_phase()
+        metalodermal_tesla_weave_controller.reset_phase()
         # Mont'ka's Killing Blow is not a Stratagem and expires nothing - this
         # RE-DERIVES Squad.montka_killing_blow, which is how the detachment
         # rule reaches game/coldstar.py's weapon_has_assault() (rule 10.05)
@@ -4478,6 +4593,12 @@ def main(map_key=None):
         # BOTH players rather than to turn_owner. Its own predicate keeps it
         # silent unless a War Shaper is on the table with a Battle-shocked
         # KROOT unit in range, so the unconditional call costs nothing.
+        # Canoptek Court's Power Matrix: "AT THE START OF ANY PHASE, if you
+        # control at least half of the objective markers ... until the end of
+        # that phase". Latched HERE, where Level of Control has just been
+        # recomputed at the boundary above, and before anything this phase can
+        # read it. Inert for anyone not fielding the detachment.
+        power_matrix_controller.stamp_at_start_of_phase()
         root_of_honour_controller.offer_at_start_of_phase(
             {t.squad for t in state.tokens if t.squad is not None})
         # ...and its Necron twin, at the same instant and for the same reason:
@@ -4873,6 +4994,9 @@ def main(map_key=None):
         # The Annihilation Barge's Malevolent Arcing - the same sweep again,
         # one allocation per unit struck by arcing energies.
         malevolent_arcing_controller,
+        # Canoptek Court's Metalodermal Tesla Weave - mortal wounds on the
+        # CHARGING unit, so the allocation belongs to that unit's owner.
+        metalodermal_tesla_weave_controller,
         # The Ghost Ark's Repair Barge does NOT belong here: it never
         # inflicts anything, it HEALS, so it owes no rule 06.02 allocation.
     )
@@ -5122,6 +5246,14 @@ def main(map_key=None):
             # the reanimation, so the phase must not turn over on it.
             or repair_barge_controller.is_busy
             or puretide_neurochip_controller.is_busy
+            # Canoptek Court: the Tesla Weave's dice and allocation, Suboptimal
+            # Facade's D3 and placement, Reactive Subroutines' open move. Each is
+            # ANSWERABLE - the dice ack chain, the click branch, the panel's own
+            # Confirm/Cancel - which is what keeps these guards, not deadlocks.
+            or metalodermal_tesla_weave_controller.is_busy
+            or metalodermal_tesla_weave_controller.pending_damage_choice is not None
+            or suboptimal_facade_controller.is_busy
+            or reactive_subroutines_controller.is_busy
         )
 
     def _fight_warning_intercepts_end_turn():
@@ -5253,6 +5385,14 @@ def main(map_key=None):
             # to the AI by user instruction.
             grim_reapers_controller=grim_reapers_controller,
             fight_wait_notice=fight_wait_notice,
+            # Canoptek Court: its two panel Stratagems get handlers (the four
+            # reactive ones answer inside their own controllers), and the Tesla
+            # Weave is passed for the reason deadly_vectors_controller is - its
+            # mortal wounds land on the CHARGING unit, which is the AI's own when
+            # the AI charges, so that allocation has to be answerable there.
+            cynosure_controller=cynosure_controller,
+            solar_pulse_controller=solar_pulse_controller,
+            metalodermal_tesla_weave_controller=metalodermal_tesla_weave_controller,
         )
         # User: "ich würde den plan gerne ausführlicher in einem großen text
         # prompt sehen am anfang des gegnerischen zuges nachdem er erstellt
@@ -5715,6 +5855,10 @@ def main(map_key=None):
         # first step IS a Battle-Shock test, and its second roll
         # is queued only once that outcome has been applied.
         grav_inhibitor_controller.on_dice_acknowledged()
+        # Canoptek Court's two charge reactors, in the same place for the
+        # same reason: each owns the charge's resume behind its own dice.
+        metalodermal_tesla_weave_controller.on_dice_acknowledged()
+        suboptimal_facade_controller.on_dice_acknowledged()
         # Kauyon's Photon Grenades, for the same reason and in
         # the same place: its one roll IS a Battle-Shock test,
         # and the charge it interrupted resumes once that
@@ -6775,6 +6919,14 @@ def main(map_key=None):
                     clicked = input_manager.token_at_event(state.tokens, board, event.pos)
                     if clicked is not None and clicked in grav_inhibitor_controller.pending_damage_choice:
                         grav_inhibitor_controller.choose_damage_model(clicked)
+            elif metalodermal_tesla_weave_controller.pending_damage_choice is not None:
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in metalodermal_tesla_weave_controller.pending_damage_choice:
+                        metalodermal_tesla_weave_controller.choose_damage_model(clicked)
             elif grenade_pack_controller.pending_damage_choice is not None:
                 if (
                     event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
@@ -7446,6 +7598,14 @@ def main(map_key=None):
             # which phase the death happened in is not reconstructable later.
             phoenix_gem_controller.notify_model_destroyed(
                 getattr(dead, "squad", None), dead)
+            # Canoptek Court's Curse of the Cryptek: a CRYPTEK MODEL destroyed,
+            # per model for the same reason - a Cryptek dies out of a unit that
+            # need not be wiped. The offer waits for the attacker's own hook, or
+            # is made now if that hook already fired this frame.
+            curse_of_the_cryptek_controller.notify_model_destroyed(
+                dead,
+                getattr(shooting_controller, "active_squad", None)
+                or getattr(fight_controller, "fighting_squad", None))
             # Shepherds of the Dead: "each time an ASURYANI PSYKER model from
             # your army is destroyed BY AN ENEMY UNIT, that enemy unit gains a
             # Vengeful Dead token". Per MODEL, so it is fed from this loop
@@ -7970,6 +8130,7 @@ def main(map_key=None):
         renderer.draw_damage_choice_highlight(board_surface, board, crushing_strides_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, grenade_pack_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, grav_inhibitor_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, metalodermal_tesla_weave_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, flickerjump_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, deadly_demise_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, transport_controller.pending_damage_choice)
@@ -8081,6 +8242,7 @@ def main(map_key=None):
             evasion_engrams_controller=evasion_engrams_controller,
             overflight_controller=overflight_controller,
             higher_duty_controller=higher_duty_controller,
+            reactive_subroutines_controller=reactive_subroutines_controller,
             warhost_fire_and_fade_controller=warhost_fire_and_fade_controller,
             targeting_array_controller=targeting_array_controller,
             # An open "click a unit on the board" request from a Secondary

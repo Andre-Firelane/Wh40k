@@ -301,6 +301,19 @@ def _rangers_or_shroud_runners_unit(model, squad):
     return _unit_is(squad, ("Rangers", "Shroud Runners"))
 
 
+def _cryptek_character(model, squad):
+    """"CRYPTEK model only" - the Canoptek Court's four.
+
+    CRYPTEK is a DATASHEET keyword and it is asked of the COMPONENT the model
+    came from (attached_units.model_has_datasheet_keyword()): a Technomancer
+    leading Necron Warriors makes a CRYPTEK unit, but the Warriors are not
+    CRYPTEK models and may not carry a Cryptek's Enhancement. The general rule
+    that a bearer is a CHARACTER is folded in, as for every "model only" line."""
+    from game import necron_detachments
+    return (bool(getattr(model.profile, "character", False))
+            and necron_detachments.model_is_cryptek(squad, model))
+
+
 # --- the registry --------------------------------------------------------
 #
 # Every engine-wired Enhancement, keyed by its printed name. `flag` names the
@@ -326,6 +339,11 @@ _SPIRIT_CONCLAVE = ("Spirit Conclave", "SPIRIT_CONCLAVE_PLAYERS")
 _ARMOURED_WARHOST = ("Armoured Warhost", "ARMOURED_WARHOST_PLAYERS")
 _PATH_OF_THE_OUTCAST = ("Path of the Outcast", "PATH_OF_THE_OUTCAST_PLAYERS")
 _SEER_COUNCIL = ("Seer Council", "SEER_COUNCIL_PLAYERS")
+
+# The Necron detachments. Awakened Dynasty's four stay descriptive data (no
+# roster buys them - see game/factions/necrons.py); the Canoptek Court's four
+# are wired.
+_CANOPTEK_COURT = ("Canoptek Court", "CANOPTEK_COURT_PLAYERS")
 
 ENHANCEMENTS = {}
 
@@ -477,6 +495,17 @@ _add("Stone of Eldritch Fury", 15, _SEER_COUNCIL, "stone_of_eldritch_fury",
      _asuryani_psyker, "ASURYANI PSYKER model only")
 _add("Torc of Morai-Heg", 20, _SEER_COUNCIL, "torc_of_morai_heg",
      _asuryani_psyker, "ASURYANI PSYKER model only")
+
+# Canoptek Court - game/enh_dimensional_sanctum.py, game/enh_hyperphasic_fulcrum.py,
+# game/enh_autodivinator.py and game/enh_metalodermal_tesla_weave.py.
+_add("Dimensional Sanctum", 20, _CANOPTEK_COURT, "dimensional_sanctum",
+     _cryptek_character, "CRYPTEK model only")
+_add("Hyperphasic Fulcrum", 15, _CANOPTEK_COURT, "hyperphasic_fulcrum",
+     _cryptek_character, "CRYPTEK model only")
+_add("Autodivinator", 15, _CANOPTEK_COURT, "autodivinator",
+     _cryptek_character, "CRYPTEK model only")
+_add("Metalodermal Tesla Weave", 10, _CANOPTEK_COURT, "metalodermal_tesla_weave",
+     _cryptek_character, "CRYPTEK model only")
 
 
 def get(name):

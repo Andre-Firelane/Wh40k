@@ -147,7 +147,11 @@ class SpiritStoneOfRaelythController:
             self._used_this_move.pop(id(squad), None)
         self.offer(squad)
 
-    def on_move_finished(self, squad):
+    def on_move_finished(self, squad, kind=None):
+        """MovementController fires this hook as listener(squad, kind). The
+        one-argument signature this had was never called in a real game (main.py
+        rebound the list and dropped it) - so it could not have crashed there.
+        The move type is irrelevant to "at the start or end of this unit's move"."""
         self.offer(squad)
 
     def offer(self, squad):

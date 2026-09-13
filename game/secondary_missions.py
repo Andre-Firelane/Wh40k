@@ -55,6 +55,7 @@ until a card sets it, it stays a documented gap rather than an unused system.
 import random
 
 from game import config
+from game.command_points import SOURCE_MISSION
 from game.objectives import is_within_range_of_objective
 from game.actions import ActionDefinition
 from game.turn import PHASE_SHOOTING
@@ -2517,6 +2518,8 @@ class SecondaryMissionController:
         if self.command_points is not None:
             granted = self.command_points.gain_cp(
                 self.player, battle_round, amount=1, reason=f"discarded {card.name}",
+                # Not an ability - the Autodivinator's FAQ names exactly this case.
+                source=SOURCE_MISSION,
             )
         self._discard(card)
         self._log(f"{self.player} discards Secondary Mission {card.name} for {granted} CP.")

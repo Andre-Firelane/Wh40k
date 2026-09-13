@@ -27,6 +27,7 @@ MEASURED FROM THE BEARER MODEL, not from its unit: "if the BEARER is within",
 and a 12"-long Windrider line can easily straddle a zone edge.
 """
 from game import enhancements
+from game.command_points import SOURCE_ABILITY
 
 ECHOES_OF_ULTHANESH = "Echoes of Ulthanesh"
 
@@ -102,7 +103,7 @@ class EchoesOfUlthaneshController:
         if total >= ECHOES_THRESHOLD and self.command_points is not None:
             self.command_points.gain_cp(
                 player, getattr(self.turn_tracker, "battle_round", None),
-                amount=ECHOES_CP, reason=ECHOES_LABEL)
+                amount=ECHOES_CP, reason=ECHOES_LABEL, source=SOURCE_ABILITY)
         if self.game_log is not None:
             self.game_log.add(
                 "%s: %s rolls %d%s = %d - %s."

@@ -100,13 +100,16 @@ def is_warriors_unit(squad):
 class RepairBargeController:
     def __init__(self, dice_manager=None, decision_manager=None, game_log=None,
                  game_state=None, position_valid=None, auto_players=(),
-                 placer=None):
+                 placer=None, boost=None):
         self.dice_manager = dice_manager
         self.decision_manager = decision_manager
         self.game_log = game_log
         self.game_state = game_state
         self.position_valid = position_valid
         self.auto_players = ai_mode.players(auto_players)
+        # The Canoptek boosts - user decision: they apply on EVERY activation
+        # of Reanimation Protocols, this door included.
+        self.boost = boost
         # The FOURTH door into reanimate() - see the module docstring. Assigned
         # in main.py rather than passed in, because this controller is built
         # long before the placer exists.
@@ -282,12 +285,14 @@ class RepairBargeController:
 
     def _resolve(self, rolled):
         squad, self._pending = self._pending, None
-        spent, revived = reanimation_protocols.reanimate(
+        _wounds, spent, revived = reanimation_protocols.activate(
             squad, rolled,
+            boost=self.boost,
             all_tokens=self._tokens(),
             position_valid=self.position_valid,
             game_state=self.game_state,
             placer=self.placer,
+            log=self._log,
         )
         detail = f"{spent} wound(s)"
         if revived:
