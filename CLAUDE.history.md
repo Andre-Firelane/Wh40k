@@ -9317,3 +9317,36 @@ Hash-Vergleich am Ende bestätigte die Rückstellung.
 **Laufzeit:** `selfplay.py map2 2500` mit der Liste auf beiden Seiten, exit 0: Reconnaissance Sweep,
 vier Anbindungen je Seite, Monolith aufgestellt (P1) bzw. von der KI in Reserve genommen
 (zusammen mit Hexmark und Praetorians). Hyperphasing feuerte in den 8 erreichten Phasen nicht.
+
+## 2026-09-13 — Absturz beim reaktiven Schuss (Multi-threat Eliminator)
+
+**Gemeldet:** Traceback aus `main()` — `TypeError: 'Squad' object is not iterable` in
+`start_reactive_shooting()`, erreicht über `_handle_shooting` → `_actually_finish_squad` →
+`ReactiveBodyguardShooting.on_squad_finished_shooting`. Auslöser: die KI beschoss eine Einheit neben
+dem Hexmark Destroyer des Menschen (`necrons_hypercrypt`, seit `59caf10` die einzige Liste mit Hexmark).
+
+**Reproduziert** mit echtem `ShootingController` (Scratch-Skript): A) wie ausgeliefert → exakt der
+TypeError; B) TypeError umgangen → `active_squad None`, `state idle`, und der NÄCHSTE Listener bekam den
+Hexmark als Schützen. B ist der eigentliche Fund: ein reiner Listen-Fix hätte den Absturz beseitigt und
+die Fähigkeit still tot gelassen — und traf Vaul's Vengeance und Vengeful Stars' KI-Pfad genauso.
+
+**Geschichte des Vertrags:** `list(restrict_to)` stand seit `324fb3f` (2026-08-26); Kroot Packmates
+reichte schon VOR der Etappe-3-Extraktion die nackte Einheit. Die drei Stub-Suiten nahmen jede Form an.
+
+**Fix:** der Treiber nimmt Einheit oder Liste; Starts während des Listener-Loops werden gequeut und nach
+`_finish_activation()` geöffnet; eine Ablehnung mangels Schusstyp räumt `active_squad` ab. Ein
+Zwischenstand, der den Schützen vor dem Loop fing, ist wieder raus — mit der Queue kann `active_squad` im
+Loop nicht mehr wechseln, eine Sonde darauf hätte nie gebissen. Die `return`-Zeile im Drain ebenso (die
+`while`-Bedingung trägt es).
+
+**Laufzeit-Sonde, erster Anlauf FAIL, und der Grund war die Bühne:** Sichtlinie allein platzierte die Ark
+so, dass das Brett gar kein Ziel anbot. Jetzt fragt die Bühne `has_valid_target()`, bevor eine Aktivierung
+offen ist. Danach PASS; beide Neutralisierungen mit der endgültigen Datei neu gefahren (TypeError; gelöscht
+bei 238 KI-Aktionen in 240 Frames).
+
+**Sondenlauf 1 HING** an „die Flagge kommt nie herunter": Drain poppt, Start queut neu, Endlosschleife.
+Treiber per `Stop-Process` beendet; `game/shooting.py` stand mit `pass  # AB-PROBE` da, die Ausgabe des
+Treibers war verloren (nicht geflusht). Anhand des Markers zurückgesetzt, jeden Anker gezählt (je 1),
+Diff-Größe unverändert. Daraus: ein realer latenter Hänger (Listener ruft `cancel()` im Loop) → Guard im
+Drain; Treiber mit Suite-Timeout und Zeilenpuffer; Leftover-Check nur noch auf `*.py` (CLAUDE.md nennt den
+Marker in Prosa, der alte Check hätte eine gescheiterte Rückstellung gemeldet). Sondenlauf 2: 9/9 beißend.

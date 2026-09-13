@@ -197,6 +197,11 @@ der gemeldeten Fehler. Dafür ist `drain()` da.
 **Reihenfolge-Falle:** eine 15.01-Reset-Prüfung gehört VOR den Kauf, sonst
 maskiert 15.01 sie.
 
+**Ein Stub prüft keinen Vertrag.** Drei Suiten fuhren `start_reactive_shooting()` gegen Stubs, die jede
+`restrict_to`-Form schluckten — grün, während der echte Controller beim ersten echten Aufruf abstürzte
+(siehe `## Regelengine — Schießen`). Wer einen Kollaborator stubbt, braucht mindestens EINEN Durchlauf
+gegen den echten, und zwar durch den Trichter, aus dem die Fähigkeit wirklich gerufen wird.
+
 ### 5. Was danach noch von Hand zu prüfen ist
 
 Die Wächter decken die vierzehn gefundenen Formen ab. Nicht abgedeckt und
@@ -5900,6 +5905,47 @@ reaktiv). Split Fire, und die Weapon Abilities [ANTI-X]/[ASSAULT]/[BLAST]/[CLEAV
     (Defiler, Plagueburst Crawler, Doomsday Ark, Kill Rig, Deffkoptas, Void Dragon). Ein eigener
     Fix — er macht die gemeldete Einheit SCHWÄCHER und war nicht die Bitte.
 
+- **Ein reaktiver Schuss muss ÖFFNEN — und das Öffnen überleben** (gemeldeter Absturz aus `main()`,
+  `necrons_hypercrypt`: `TypeError: 'Squad' object is not iterable` in `start_reactive_shooting()`, als die KI
+  eine Einheit neben dem Hexmark des Menschen beschoss). **Zwei Fehler, der zweite hinter dem ersten:**
+  - **Ein Vertrag, zwei Lesarten, beide ausgeliefert** (Fehlerklasse 10, dritte Form). Die Methode nahm seit
+    2026-08-26 nur eine LISTE (`list(restrict_to)`); Vengeful Stars und Vaul's Vengeance reichen `[killer]`,
+    Kroot Packmates, Multi-threat Eliminator und Hyperspace Hunters die Einheit selbst. Die drei waren nie in
+    einem echten Spiel gelaufen (Hexmark erst seit der Hypercrypt-Liste gefieldet, Krootox Riders und
+    Deathmarks gar nicht), und ihre Suiten fuhren STUBS, die jede Form schluckten. Der TREIBER nimmt jetzt
+    beide (`pregame.Resume`-Präzedenz) und gibt `True`/`False` zurück statt immer `None`.
+  - **Im Listener-Loop gestartet, wurde die Aktivierung sofort gelöscht.** Jedes gedruckte "after that enemy
+    unit has finished making its attacks" antwortet aus `on_squad_finished_shooting`, also aus
+    `_actually_finish_squad()`, das direkt nach dem Loop `active_squad`/`state` leert. Mit umgangenem
+    TypeError gemessen: der Reaktor schoss nie, und jeder SPÄTERE Listener bekam den REAKTOR als die Einheit,
+    die gerade geschossen hatte. Traf genauso Vaul's Vengeance und Vengeful Stars' KI-Pfad (CP bezahlt, kein
+    Schuss). Jetzt steht `_closing_activation` für den Loop (try/finally); ein Start währenddessen landet in
+    `_deferred_reactive` und wird von `_open_deferred_reactive()` am Ende von `_finish_activation()` geöffnet —
+    NACH dem Completion-Callback, einer nach dem anderen, Tote übersprungen (`_attack_groups()` prüft keine
+    Wunden).
+  - **Nebenbefund, mitbehoben:** ein mangels Schusstyp abgelehnter Start ließ die Einheit in `active_squad`
+    stehen — für `_foreign_activation_in_progress()` eine laufende fremde Aktivierung, auf die die KI ewig
+    gewartet hätte, und in der Queue ein Stopper. Die Ablehnung räumt jetzt vollständig ab.
+  - **Die eigene Sonde fand einen HÄNGER, mitbehoben:** ein Listener, der die schließende Aktivierung selbst
+    beendet (`cancel()` mitten im Loop), erreichte den Drain mit gehobener Flagge — der Start queute das gerade
+    Gepoppte neu, die `while`-Schleife endete nie. Kein heutiger Listener tut das; der Drain kehrt jetzt zurück,
+    solange der Loop läuft. **Und der Sondentreiber lief dabei selbst fest:** er bekam die Kontrolle nie zurück,
+    `game/shooting.py` blieb im Sondenzustand, bis die Prozesse von Hand beendet und die Markerzeile
+    zurückgesetzt waren. Seither hat jeder Suite-Lauf dort eine Frist (ein HÄNGER zählt als Befund), die Ausgabe
+    ist zeilengepuffert, und §7b läuft in einem Daemon-Thread mit `join(timeout)` — rot statt hängend.
+  - **Getestet:** neu `test_reactive_shooting_start.py` (**70/70**, echter `ShootingController`; §2-§4 durch
+    den echten Trichter, §6 die Queue, §7/§7b die Flagge) plus `ab_reactive_shooting_start.py`
+    (**9 A/B-Sonden, alle beißend**, byte-identisch zurückgestellt; die ganze Vor-Fix-Welt kippt 33 von 70).
+    Volle Regression **233 Suiten, ~22258 Prüfungen, 232 grün / 0 rot / 1 bekannt**, alle neun schweren
+    Skripte von `run_tests.py --smoke` grün (im Wiederholungslauf fiel einmal die dokumentierte
+    `test_ere_we_go.py`-Flake, einzeln 3 von 3 grün). **Im ECHTEN Spiel**
+    (`verify_reactive_shooting_start.py`, Hexmark des Menschen gegen eine KI-Doomsday-Ark): kein Absturz,
+    Aktivierung offen und auf die Ark beschränkt, **0 KI-Aktionen in 240 Frames**, ein echter Klick nimmt das
+    Ziel, die KI setzt 3 Frames nach dem Stopp fort. `--neutralize` reproduziert den TypeError,
+    `--neutralize-wipe` die gelöschte Aktivierung (die KI spielt dabei in 238 der 240 Frames weiter). GESTELLT:
+    der Moment (die KI schießt passiv nie verlässlich auf die richtige Einheit), der Stopp-Knopf des
+    Menschen, und die Lage der Ark — Sichtlinie allein reichte nicht, das Brett bot dann gar kein Ziel an,
+    also fragt die Bühne `has_valid_target()`, bevor irgendeine Aktivierung offen ist.
 - **Zielwahl friert den Zustand ein (10.02).** `_snapshot_target_state()` hält Reichweite,
   Sichtlinie, Deckung und "nächstes zulässiges Ziel" für die ganze Aktivierung fest — Verluste sind
   eine FOLGE der Sequenz und können eine legale Zielwahl nicht rückwirkend aufheben. Ein KOMPLETT

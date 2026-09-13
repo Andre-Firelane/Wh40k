@@ -825,6 +825,12 @@ class ShootingController:
         # already tracks. Same generalisation target_reactions and
         # StratagemController.cost_discounts got for the same reason.
         self.on_squad_finished_shooting = []
+        # True only while _actually_finish_squad() walks the list above, and
+        # the reactive activations asked for during that walk - opened once
+        # the finishing activation has fully closed. See
+        # start_reactive_shooting() for the report behind both.
+        self._closing_activation = False
+        self._deferred_reactive = []
         # Callables (attacking_squad, target_squad, reactive=bool), fired at
         # rule 10.02's select-targets step from both places that constitute it.
         #
@@ -1098,9 +1104,43 @@ class ShootingController:
 
         `restrict_to` is the printed "must target only that enemy unit"; it is
         enforced in _is_valid_target_squad(), the one place that decides what
-        may be shot at, so no separate filtering can drift from it."""
+        may be shot at, so no separate filtering can drift from it.
+
+        `restrict_to` takes ONE unit or a LIST of units, because both readings
+        shipped: Vengeful Stars and Vaul's Vengeance pass [killer], while Kroot
+        Packmates, Multi-threat Eliminator and Hyperspace Hunters pass the unit
+        itself - and list(<Squad>) raised TypeError the first time one of
+        those three fired in a real game (user report: a Hexmark Destroyer of
+        necrons_hypercrypt, "TypeError: 'Squad' object is not iterable"). Every
+        test of the three drove a stub that took whatever it was given, so the
+        contract was never checked. A contract with two readings is the
+        driver's to honour, not every future caller's to guess -
+        pregame.Resume's precedent.
+
+        STARTED LATE when asked for while an activation is closing. Every
+        printed "after that enemy unit has finished making its attacks" is
+        answered from on_squad_finished_shooting, i.e. from INSIDE
+        _actually_finish_squad() - and that method clears active_squad and
+        state right after its listener loop. Started there, the new activation
+        was wiped the instant it opened (the reactor never shot, and Vengeful
+        Stars' AI path had already spent the CP), and every later listener was
+        handed the REACTOR as the unit that had just shot. So a request made
+        during that loop is queued and opened once the finishing activation has
+        fully closed - see _open_deferred_reactive().
+
+        Returns True when the activation opened or was queued, False when the
+        unit had nothing it could shoot with."""
         if squad is None or not _attack_groups(squad):
-            return
+            return False
+        if self._closing_activation:
+            self._deferred_reactive.append((squad, restrict_to, on_finished))
+            return True
+        if restrict_to is None:
+            restrict = None
+        elif hasattr(restrict_to, "models"):     # one unit, not a list of them
+            restrict = [restrict_to]
+        else:
+            restrict = list(restrict_to) or None
         self.active_squad = squad
         self.target_squad = None
         self.split_fire = False
@@ -1115,14 +1155,24 @@ class ShootingController:
         self._resolved_weapon_names_this_activation = {}
         self._fired_this_activation = False
         self._reactive = True
-        self._restrict_targets_to = list(restrict_to) if restrict_to else None
+        self._restrict_targets_to = restrict
         self._on_activation_finished = on_finished
         self.available_types = available_shooting_types(squad, self.all_tokens, self.movement_controller)
         self.shooting_type = self.available_types[0] if self.available_types else None
         if self.shooting_type is None:
+            # Nothing it may fire right now (engaged without a pistol, say).
+            # Left exactly as idle as a refusal should be: a unit left in
+            # active_squad with no activation open reads as a foreign
+            # activation in progress to ai/agent_driver.py's gate - the AI
+            # would wait for it forever - and a queued start failing here
+            # would stop the queue behind it.
+            self.active_squad = None
+            self._reactive = False
             self._restrict_targets_to = None
-            return
+            self._on_activation_finished = None
+            return False
         self._enter_target_selection()
+        return True
 
     def start_snap_shooting(self, squad, on_finished=None):
         """Rule 15.08/15.09 (Fire Overwatch / Snap Shooting): a reactive
@@ -1245,6 +1295,34 @@ class ShootingController:
         self._on_activation_finished = None
         if callback is not None:
             callback()
+        self._open_deferred_reactive()
+
+    def _open_deferred_reactive(self):
+        """Opens the next reactive activation start_reactive_shooting() queued
+        while an activation was closing.
+
+        AFTER the finished activation's own completion callback, so whatever
+        that callback restores (Fire Overwatch's active_player, a Firing Deck
+        transport's borrowed weapons) is settled before the next unit acts. ONE
+        at a time, in the order owed: the loop stops as soon as one opens, and
+        the next waits for that one's own _finish_activation(). A queued unit
+        with no living model left is skipped (_attack_groups() does not look at
+        wounds, so the start alone would open it), and one refused for having
+        no shooting type leaves active_squad empty, so the loop moves on
+        instead of stopping the queue behind it.
+
+        Not while the listener loop is still walking: a listener that ends
+        the closing activation itself (cancel() from inside the walk) reaches
+        here with the flag up, and a start would only re-queue what was just
+        popped - forever. The walk's own _finish_activation() drains it."""
+        if self._closing_activation:
+            return
+        while self._deferred_reactive and self.active_squad is None:
+            squad, restrict_to, on_finished = self._deferred_reactive.pop(0)
+            if not any(not m.is_dead() for m in squad.models):
+                continue
+            self.start_reactive_shooting(squad, restrict_to=restrict_to,
+                                         on_finished=on_finished)
 
     @property
     def pending_damage_choice(self):
@@ -5264,8 +5342,21 @@ class ShootingController:
             # Snap Shooting activation (rule 15.09) is explicitly NOT the
             # unit's own Shooting phase, so it's excluded here the same way
             # shot_squad_ids itself is.
-            for listener in self.on_squad_finished_shooting:
-                listener(self.active_squad, self._hit_target_squads_this_activation)
+            #
+            # _closing_activation is up for the walk: a listener answering
+            # "after that enemy unit has finished making its attacks" may ask
+            # for a reactive activation, and start_reactive_shooting() queues
+            # it instead of opening it on top of this one - opened here, it was
+            # wiped by the reset below, and every later listener was handed the
+            # REACTOR as the unit that had just shot. try/finally, because a
+            # flag left up would queue every reactive start for the rest of the
+            # battle.
+            self._closing_activation = True
+            try:
+                for listener in self.on_squad_finished_shooting:
+                    listener(self.active_squad, self._hit_target_squads_this_activation)
+            finally:
+                self._closing_activation = False
         self._note_ranged_attack()
         self.active_squad = None
         self.shooting_type = None
