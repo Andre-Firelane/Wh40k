@@ -636,8 +636,12 @@ c.eq("...and is handed to the ingress controller as the gated arrival",
      _g8b.ingress_controller.eternity_gate_squad, _rider8b)
 c.eq("...naming the Monolith to measure from",
      _g8b.ingress_controller.eternity_gate_bearer, _mono8b)
-c.true("...and it cannot charge this turn",
-       _rider8b.charge_locked_until_end_of_turn)
+c.true("...and it cannot charge this turn - on the gate's OWN lock",
+       _rider8b.eternity_gate_charge_locked)
+# Hypercrypt Legion's Dimensional Corridor lifts THIS lock and no other, so the
+# gate must not ride the shared field every other no-charge rule uses.
+c.true("...not on the shared charge_locked_until_end_of_turn",
+       not _rider8b.charge_locked_until_end_of_turn)
 c.true("...and the Monolith is spent for the turn", not _g8b.can_use(_mono8b))
 
 _s8c, _mono8c, _rider8c, _dm8c, _g8c = gate_scene(battle_round=2, auto=("Player 2",))

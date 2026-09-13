@@ -2131,3 +2131,41 @@ CANOPTEK_COURT = NECRONS.add_detachment(Detachment(
     # The six Stratagems (game/court_*.py) are built in main.py, for the reason
     # Awakened Dynasty's record above gives.
 ))
+
+
+HYPERCRYPT_LEGION = NECRONS.add_detachment(Detachment(
+    "Hypercrypt Legion",
+    rule_name="Hyperphasing",
+    setting="HYPERCRYPT_LEGION_PLAYERS",
+    points=2,
+    force_disposition=force_dispositions.RECONNAISSANCE,
+    rule_text=(
+        "Hyperphasing: At the end of your opponent's turn, you can select a number of "
+        "NECRONS units from your army (excluding units that are within Engagement Range "
+        "of one or more enemy units). The maximum number of units you can select depends "
+        "on the battle size, as follows: Incursion: Up to 1 unit. Strike Force: Up to 2 "
+        "units. Onslaught: Up to 3 units. Once you have made your selections, remove those "
+        "units from the battlefield and place them into Strategic Reserves."
+    ),
+    enhancements=[
+        # ENGINE-WIRED, all four - registered in game/enhancements.py, each rule
+        # in its own game/enh_*.py module. Dormant by roster, like the Canoptek
+        # Court's: no shipped list fields the Hypercrypt Legion (user decision).
+        Enhancement("Dimensional Overseer", 25, description=(
+            "NECRONS model only. While the bearer is on the battlefield or in Strategic "
+            "Reserves, add one to the number of units from your army that you can select "
+            "for the Hyperphasing rule.")),
+        Enhancement("Arisen Tyrant", 25, description=(
+            "NECRONS model only. Each time a model in the bearer's unit makes an attack, "
+            "re-roll a Hit roll of 1. If the bearer's unit was set up on the battlefield "
+            "this turn, you can re-roll the Hit roll instead.")),
+        Enhancement("Hyperspatial Transfer Node", 15, description=(
+            "NECRONS model only. Each time the bearer's unit Advances, do not make an "
+            "Advance roll for it. Instead, until the end of the phase, add 6\" to the Move "
+            "characteristic of models in the bearer's unit.")),
+        Enhancement("Osteoclave Fulcrum", 20, description=(
+            "NECRONS model only. Models in the bearer's unit have the Deep Strike ability.")),
+    ],
+    # The six Stratagems (game/hypercrypt_*.py) are built in main.py, for the
+    # reason Awakened Dynasty's record above gives.
+))

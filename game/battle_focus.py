@@ -111,8 +111,10 @@ def tokens_for_battle_size(battle_size=None):
     An unknown size falls back to Strike Force rather than to zero: zero would
     make the whole army rule silently inert, which reads exactly like a bug in
     the rule instead of like a typo in a setting."""
-    key = (battle_size or config.BATTLE_SIZE or "").strip().lower().replace(" ", "_")
-    return TOKENS_BY_BATTLE_SIZE.get(key, TOKENS_BY_BATTLE_SIZE["strike_force"])
+    # The reading of the setting lives in game/battle_size.py since its third
+    # consumer (Hypercrypt Legion's Hyperphasing) arrived; the table stays here.
+    from game import battle_size as battle_size_module
+    return battle_size_module.lookup(TOKENS_BY_BATTLE_SIZE, battle_size)
 
 
 def has_battle_focus(squad):

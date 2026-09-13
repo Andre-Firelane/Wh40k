@@ -29,6 +29,7 @@ from game import timesplinter_mantle
 from game import court_power_matrix
 from game import court_cynosure_of_eradication
 from game import enh_hyperphasic_fulcrum
+from game import enh_arisen_tyrant
 from game import necron_detachments
 from game import the_stars_are_right
 from game import protect
@@ -282,6 +283,7 @@ class FightController:
         self.sub_step = None
         self.whose_turn = None
         self.fought_squad_ids = set()
+        self._living_when_first_hit = {}  # id(squad) -> living models when this activation first hit it; see models_lost_this_activation()
         self._attacked_squads_this_activation = set()  # rule 19.04's grace window - squads this fight activation has attacked, so _actually_finish_current_fight() can close it on each (see _begin_resolution())
         self._announced_turn = None  # see _announce_whose_turn()
         self.engaged_at_start = set()  # squads engaged when the Fight step began (rule 12.04)
@@ -352,6 +354,7 @@ class FightController:
         self._announced_turn = None
         self._passed_in_a_row = 0
         self.forced_next_fighter = {}  # rule 15.12: "until the end of the phase"
+        self._living_when_first_hit = {}
         self.fighting_squad = None
         self.target_squad = None
         self.remaining_weapon_types = []
@@ -739,6 +742,10 @@ class FightController:
         self._reset_engagement_snapshot()
         self._hazardous_count = 0
         self._lethal_hits_auto_wounds = 0
+        # Reset at the START of an activation, not at its end: the after-attacks
+        # hook (on_unit_finished_fighting) runs at the very end of
+        # _actually_finish_current_fight() and still has to read it.
+        self._living_when_first_hit = {}
         self._passed_in_a_row = 0  # a real selection breaks any "passes in a row" streak
         targets = self.engaged_enemy_squads(squad)
         if not targets:
@@ -1626,11 +1633,32 @@ class FightController:
             labels = ["DEVASTATING WOUND"] if weapon.devastating_wounds else []
         return {"crit_threshold": threshold, "crit_labels": tuple(labels)}
 
+    def models_lost_this_activation(self, target_squad):
+        """How many models `target_squad` has lost since this fight activation
+        first hit it - ShootingController.models_lost_this_activation()'s melee
+        twin, read after the activation by the after-attacks hook.
+
+        Zero for a unit this activation never hit, which is the honest answer:
+        the question is only asked about a unit that was attacked."""
+        before = self._living_when_first_hit.get(id(target_squad))
+        if before is None:
+            return 0
+        from game.shooting import _living_count
+        return max(0, before - _living_count(target_squad))
+
     def _handle_hit_results(self, hits, crits, weapon, target_squad, weapon_label):
         """See shooting.py's identical method - shared continuation after
         the hit count is known, whether from an actual hit roll or (rule
         24.37, [TORRENT]) with no roll at all."""
         if hits > 0:
+            # How many models that unit still had when this activation FIRST
+            # hit it - the melee half of shooting.py's identical ledger, for
+            # the same reason: "had one or more of its models destroyed as a
+            # result of the attacking unit's attacks" (Hypercrypt Legion's
+            # Hyperphasic Recall) cannot be answered afterwards, because a
+            # corpse in Squad.models may be this activation's or an older one's.
+            from game.shooting import _living_count
+            self._living_when_first_hit.setdefault(id(target_squad), _living_count(target_squad))
             # Rule 24.23 ([LETHAL HITS]) is taken for every critical hit
             # without asking - see shooting.py's identical branch for the
             # user report and the trade it accepts.
@@ -1947,6 +1975,10 @@ class FightController:
         # CANOPTEK unit makes an ATTACK" - both phases, the same two-clause shape.
         if court_power_matrix.offers_full_reroll(self.fighting_squad, self.power_matrix):
             return court_power_matrix.POWER_MATRIX_LABEL
+        # Hypercrypt Legion's Arisen Tyrant: "each time a model in the bearer's
+        # unit makes an ATTACK" - both phases, the same two-clause shape.
+        if enh_arisen_tyrant.offers_full_reroll(self.fighting_squad):
+            return enh_arisen_tyrant.ARISEN_TYRANT_LABEL
         # The Lokhust Lord's Driven by Hatred is per MODEL ("each time THIS
         # MODEL makes an attack"), and this offer is made to a GROUP - so it
         # is granted only when every model in the group carries it, which is
@@ -2073,6 +2105,16 @@ class FightController:
             self._begin_ones_reroll(
                 "hit", ones, hit_threshold, weapon, target_squad, weapon_label,
                 hits=hits, crits=crits, reason=court_power_matrix.POWER_MATRIX_LABEL,
+                rerollable=(free_hits, free_crits, free_count - ones),
+            )
+            return
+        if ones and enh_arisen_tyrant.applies(self.fighting_squad):
+            # Arisen Tyrant's base clause - held back above while its
+            # whole-roll alternative is on offer, like the Power Matrix's.
+            free_hits, free_crits, free_count = rerollable
+            self._begin_ones_reroll(
+                "hit", ones, hit_threshold, weapon, target_squad, weapon_label,
+                hits=hits, crits=crits, reason=enh_arisen_tyrant.ARISEN_TYRANT_LABEL,
                 rerollable=(free_hits, free_crits, free_count - ones),
             )
             return

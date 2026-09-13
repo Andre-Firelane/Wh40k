@@ -46,9 +46,15 @@ version that only checked the arrival gate would let a player pull a unit off
 the board in round 1 and discover afterwards that it cannot come back until
 round 2. The gate is checked BEFORE anything is removed.
 
-"THAT UNIT CANNOT MAKE A CHARGE MOVE THIS TURN" rides
-Squad.charge_locked_until_end_of_turn, the field rule 11.04's other exceptions
-already use, so 18.02's and 09.07's readers need no new term.
+"THAT UNIT CANNOT MAKE A CHARGE MOVE THIS TURN" is Squad.eternity_gate_charge_locked,
+read by ChargeController.can_declare_charge() beside the shared
+charge_locked_until_end_of_turn. It USED to ride that shared field, and the
+Hypercrypt Legion is why it no longer does: Dimensional Corridor ("Your unit is
+eligible to charge this phase") lifts the gate's lock and nothing else, and a
+gated unit that also bought Cosmic Precision - whose RESTRICTIONS set the shared
+field - must stay locked. One field cannot answer both. The Monolith's own
+"started the turn on the battlefield" is recorded beside it, because that
+Stratagem's TARGET asks it and nothing else can reconstruct it after the fact.
 """
 
 from game import ai_mode, awakened_dynasty, strategic_reserves
@@ -209,7 +215,12 @@ class EternityGateController:
                            passenger.name))
         self.ingress_controller.eternity_gate_squad = passenger
         self.ingress_controller.eternity_gate_bearer = monolith_squad
-        passenger.charge_locked_until_end_of_turn = True
+        passenger.eternity_gate_charge_locked = True
+        # "a MONOLITH model that started the turn on the battlefield" - the
+        # gate is offered at the start of the Movement phase, so a Monolith
+        # that arrived THIS turn carries set_up_this_turn.
+        passenger.eternity_gate_bearer_started_on_board = not bool(
+            getattr(monolith_squad, "set_up_this_turn", False))
         self._log('%s (%s): %s may arrive wholly within %.0f" of the Monolith and '
                   "unengaged, and cannot charge this turn."
                   % (ETERNITY_GATE_LABEL, monolith_squad.name, passenger.name,

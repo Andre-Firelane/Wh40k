@@ -463,11 +463,11 @@ c.true("the Enhancement registry is live (%d wired)" % len(_enh.ENHANCEMENTS),
        len(_enh.ENHANCEMENTS) >= 40)
 c.eq("...and none of the four is among them",
      [n for n in _PRINTED if n in _enh.ENHANCEMENTS], [])
-# The one Necron detachment whose Enhancements ARE wired is named, so the next
+# The Necron detachments whose Enhancements ARE wired are named, so the next
 # stage's detachment turns this red as a visible change rather than slipping in.
-c.eq("...and the only wired Necron detachment is the Canoptek Court",
+c.eq("...and the wired Necron detachments are the Canoptek Court and the Hypercrypt Legion",
      sorted({s.detachment for s in _enh.ENHANCEMENTS.values()}
-            & set(nec.NECRONS.detachments)), ["Canoptek Court"])
+            & set(nec.NECRONS.detachments)), ["Canoptek Court", "Hypercrypt Legion"])
 
 # The ROSTER half, which is the actual reason.
 _roster = _enh_json.loads(

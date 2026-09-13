@@ -342,9 +342,24 @@ c.true("...and the army rule's own controller is not among them - it lives "
        "in the same module as the function",
        "reanimation_protocols" not in {m for m, _ in doors})
 
+def is_off_board_door(node):
+    """activate(..., off_board=True) - a unit in RESERVES (Hypercrypt Legion's
+    Reanimation Crypts). Nothing is SET UP there: a revived model rejoins the
+    unit without a spot and arrives with it, so rule 01.02.03's placer has no
+    job - and handing one over would be the bug, not the fix."""
+    return any(kw.arg == "off_board" and getattr(kw.value, "value", None) is True
+               for kw in node.keywords)
+
+
+c.true("the off-board door exists, so its exemption below is not vacuous",
+       any(is_off_board_door(n) for _m, n in doors))
 for module, node in sorted(doors, key=lambda pair: pair[0]):
     passes = any(kw.arg == "placer" for kw in node.keywords)
-    c.true("%s hands activate() a placer (line %d)" % (module, node.lineno), passes)
+    if is_off_board_door(node):
+        c.true("%s is an OFF-BOARD door and hands activate() no placer (line %d)"
+               % (module, node.lineno), not passes)
+    else:
+        c.true("%s hands activate() a placer (line %d)" % (module, node.lineno), passes)
     c.true("%s hands activate() the boost (line %d)" % (module, node.lineno),
            any(kw.arg == "boost" for kw in node.keywords))
 
@@ -357,14 +372,14 @@ for module, node in sorted(doors, key=lambda pair: pair[0]):
 MAIN_TREE = ast.parse(MAIN_SRC)
 
 
-def controller_class_with_placer(module):
-    """The class in game/<module>.py that holds a `self.placer`."""
+def controller_class_with_placer(module, attr="placer"):
+    """The class in game/<module>.py that holds a `self.placer` (or `attr`)."""
     tree = ast.parse((GAME / (module + ".py")).read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         if not isinstance(node, ast.ClassDef):
             continue
         for sub in ast.walk(node):
-            if (isinstance(sub, ast.Attribute) and sub.attr == "placer"
+            if (isinstance(sub, ast.Attribute) and sub.attr == attr
                     and isinstance(sub.value, ast.Name) and sub.value.id == "self"):
                 return node.name
     return None
@@ -399,14 +414,36 @@ def main_hands_a_placer(class_name, attr="placer", value="return_placement_contr
                 for other in ast.walk(MAIN_TREE):
                     if (isinstance(other, ast.Assign)
                             and isinstance(other.value, ast.Call)
-                            and getattr(other.value.func, "id", None) == class_name
+                            and _constructs(other.value, class_name)
                             and any(getattr(t, "id", None) == local
                                     for t in other.targets)):
                         return True
     return False
 
 
+def _constructs(call, class_name):
+    """`ClassName(...)`, or a registry's `x.add(ClassName(...))` - the form every
+    panel Stratagem is built in (game/proactive_stratagems.py returns what it
+    registers, so main.py binds the local in the same expression)."""
+    if getattr(call.func, "id", None) == class_name:
+        return True
+    return (isinstance(call.func, ast.Attribute) and call.func.attr == "add"
+            and any(isinstance(arg, ast.Call) and getattr(arg.func, "id", None) == class_name
+                    for arg in call.args))
+
+
 for module, _node in sorted(doors, key=lambda pair: pair[0]):
+    if is_off_board_door(_node):
+        # No placer to hand over (see is_off_board_door()) - but the boost
+        # still has to arrive, since activate() is still the door it goes
+        # through, even where it adds nothing.
+        class_name = controller_class_with_placer(module, attr="boost")
+        c.true("%s (off the board) has a controller that holds the boost (%s)"
+               % (module, class_name), class_name is not None)
+        if class_name:
+            c.true("...and main.py hands %s the shared reanimation boost" % class_name,
+                   main_hands_a_placer(class_name, "boost", "reanimation_boost"))
+        continue
     class_name = controller_class_with_placer(module)
     c.true("%s has a controller that holds a placer (%s)" % (module, class_name),
            class_name is not None)

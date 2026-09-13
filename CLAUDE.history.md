@@ -9236,3 +9236,45 @@ Ablehnungen, alle "fight state=done" — die Phasen-Rotation setzte die Phase, r
 `reset_fight_phase()` wie `main()`. Danach Fight+Shooting gezeichnet. Die Frage, ob ein Mensch im
 Fight der KI überhaupt ein Fenster hat, ist am Code beantwortet: `_handle_fight()` wartet auf jeden
 ausstehenden Pile In beider Seiten.
+
+# Sitzung 2026-09-13 — Necron-Detachments, Etappe 2: Hypercrypt Legion
+
+**Auftrag:** "Necron-Detachments, Etappe 2 von 3: Hypercrypt Legion" — Regel, alle sechs
+Stratagems, alle vier Enhancements. Bindende Entscheidungen: keine Armeeliste ändert sich; volle
+KI-Nutzung deterministisch; Hyperphasing-KI "Retten + Umpositionieren"; Relaxed Arrival hebt das
+20.04-Zonenverbot auf (Daring Riders/Cloudstrider ziehen mit); Reanimation-Boosts bei jeder
+Aktivierung, auch off board durch `activate()`; "Your NECRONS WARLORD" ein belegter No-op.
+Verdichteter Stand in CLAUDE.md `## Die Necron-Detachments`.
+
+**Suite-Fehler beim Bauen, alle gemessen:**
+- Ein Absturz, weil `_home` None war — Player 1s Zone liegt auf map2 bei HOHEM y; jetzt
+  `min(y, H - y) < 5.0` plus `SETUP4.position_valid()` und ein Rückfall.
+- "Monolith druckt keinen Rettungswurf: got '-'" — '-' ist der Sentinel, gelesen über
+  `parse_threshold()`.
+- Quantum Deflections Memo-Wiederangebot wurde von 15.01 verdeckt; isolierte Resets
+  (`reset_phase()` des Stratagems allein, dann der Controller) trennen die zwei Hälften.
+- "_busy bleibt stehen" war rot, weil die Immortals in Reichweite der Boyz standen und zu Recht
+  gerettet wurden — nach (34,12) gerückt.
+- Der Dimensional-Corridor-Reihenfolge-Pin traf ein früheres `_handle_charge(` in
+  `_take_one_action`; er schneidet jetzt ab `elif phase == PHASE_CHARGE:`.
+- Der Fight-Tyrant-Pin nannte `_hit_step`; die 1er laufen in `_hit_without_optional_reroll`.
+- UI 206/207: `HyperphasingController` ERBT seinen Hook — die Erwartung prüft jetzt `hasattr`.
+- Sonden-Anker in `game/charge.py`: die Datei hat CRLF, mehrzeilige Anker trafen nie — einzeilig.
+
+**Verify-Flake, gemessen statt geraten:** Lauf 1 grün, Lauf 2 zeichnete Reanimation Crypts nie
+("no arrival opened 560x: setup=idle in_reserves=False"). Die gestagten Reserve-Einheiten waren
+nicht mehr in `state.reserves`: selfplay klickt im gestagten Player-1-Zug selbst "Next Phase", die
+echte Uhr lief bis Runde 3 (gemessen: max 3), und 20.03 zerstörte dort alle Reserven. Fix: Runde
+jeden Frame auf 2 pinnen und `destroy_remaining_reserves()` während des Stagings zählen (0). Danach
+gefixt und `--neutralize` beide wie erwartet.
+
+**Sondenlauf 1: 85 von 91 bissen.** Die sechs Nicht-Beißer: ein Test mit zwei getrennt gebauten
+Szenen (Controller der einen, Einheit der anderen); zwei redundante Filter (Overseers
+`embarked_in`, Recalls "kein Monolith"-Early-out) — entfernt und die Sonden auf das Entscheidende
+umgezielt; eine Label-Menge, die jede Reroll-Scope-Prüfung selbst iteriert (jetzt namentlich
+gepinnt); zwei Sonden gegen Suiten, die die Stelle strukturell nicht sehen (RC-busy am Panel von
+15.01 maskiert; Wiring §10 prüft nur Tor → auflösbar). Sondenlauf 2: alle 91 beißen, 108
+Suite-Läufe, `git grep AB-PROBE` leer.
+
+**Volle Regression danach:** `test_corsairs.py` zählte die Ones-or-whole-Menge (8) — die neunte
+Quelle ist genau die sichtbare Änderung, für die der Pin gesetzt war; auf 9 nachgezogen.

@@ -97,6 +97,11 @@ def effective_invulnerable_save(model, waaagh=None, melee=False):
     # 4+ Shimmershield or Forceshield worse.
     from game import windrider_spiralling_evasion
     save = _better(save, windrider_spiralling_evasion.invulnerable_save_for(squad))
+    # Hypercrypt Legion's Quantum Deflection: the same printed EFFECT for a
+    # NECRONS VEHICLE unit, in the Shooting OR the Fight phase - and composed the
+    # same way, so 1CP cannot make a Monolith's own 4+ worse.
+    from game import hypercrypt_quantum_deflection
+    save = _better(save, hypercrypt_quantum_deflection.invulnerable_save_for(squad))
 
     if unit_has_serpent_shield(squad):
         save = _better(save, SERPENT_SHIELD_INVULNERABLE_SAVE)

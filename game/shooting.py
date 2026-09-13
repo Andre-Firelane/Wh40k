@@ -101,6 +101,8 @@ from game import fireknife
 from game import court_power_matrix
 from game import court_cynosure_of_eradication
 from game import enh_hyperphasic_fulcrum
+from game import enh_arisen_tyrant
+from game import hypercrypt_entropic_damping
 from game import necron_detachments
 from game import velocity_tracker as velocity_tracker_module
 from game import bounty_hunters as bounty_hunters_module
@@ -3592,6 +3594,11 @@ class ShootingController:
         # module - and it is in the chain, not the wound step, because
         # _crit_note() reads the keyword off the returned weapon at ROLL time.
         weapon = gift_of_contagion.adjusted_weapon(weapon, self.active_squad, target_squad)
+        # Hypercrypt Legion's Entropic Damping: [HAZARDOUS] on every weapon of
+        # the ATTACKING unit - the flag is on self.active_squad, never on the
+        # TITANIC target the Stratagem was used on. _dispatch_group()'s Hazard
+        # ledger reads this method's result, so the grant is counted there.
+        weapon = hypercrypt_entropic_damping.adjusted_weapon(weapon, self.active_squad)
         # Exemplars of Mont'ka's "is it the closest eligible target" answer
         # comes from the target-selection snapshot, never recomputed here -
         # see game/exemplars_of_montka.py.
@@ -3920,6 +3927,11 @@ class ShootingController:
         # condition is the attacking UNIT standing wholly within the matrix.
         if court_power_matrix.offers_full_reroll(self.active_squad, self.power_matrix):
             return court_power_matrix.POWER_MATRIX_LABEL
+        # Hypercrypt Legion's Arisen Tyrant - the same two-clause shape, and
+        # the condition is the unit having been set up on the battlefield THIS
+        # turn (Squad.set_up_this_turn).
+        if enh_arisen_tyrant.offers_full_reroll(self.active_squad):
+            return enh_arisen_tyrant.ARISEN_TYRANT_LABEL
         # The Sky Ray's Velocity Tracker - an ordinary "you can re-roll the
         # Hit roll", so deliberately NOT a reroll_scope source.
         if velocity_tracker_module.applies(self.active_squad, target_squad):
@@ -4089,6 +4101,9 @@ class ShootingController:
         # CRYPTEK or CANOPTEK unit, unconditional. Its whole-roll upgrade is the
         # reason above, and holds these back while it is on offer.
         matrix_ones = court_power_matrix.applies(self.active_squad)
+        # Arisen Tyrant's base clause: "re-roll a Hit roll of 1" for the
+        # bearer's unit, always. Its whole-roll upgrade is the reason above.
+        tyrant_ones = enh_arisen_tyrant.applies(self.active_squad)
         # Reavers of the Void's base clause: "re-roll a Hit roll of 1",
         # unconditional. Its whole-roll upgrade is the reason above, and
         # when that is on offer these 1s are held back like every other
@@ -4115,6 +4130,7 @@ class ShootingController:
             or hero_aura
             or fireknife_ones
             or matrix_ones
+            or tyrant_ones
             or reavers_ones
             or warrior_hit_ones
             or stars_aura
@@ -4128,6 +4144,8 @@ class ShootingController:
                 ones_reason = fireknife.FIREKNIFE_LABEL
             elif matrix_ones:
                 ones_reason = court_power_matrix.POWER_MATRIX_LABEL
+            elif tyrant_ones:
+                ones_reason = enh_arisen_tyrant.ARISEN_TYRANT_LABEL
             elif reavers_ones:
                 ones_reason = reavers_of_the_void.REAVERS_OF_THE_VOID_LABEL
             elif stars_aura:

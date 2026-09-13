@@ -3,7 +3,7 @@
 Every detachment permits exactly one Force Disposition, and it decides which
 Primary Mission a list taking that detachment may play. This suite pins:
 
-- the eighteen modelled detachments' dispositions AGAINST THE CORPUS
+- the nineteen modelled detachments' dispositions AGAINST THE CORPUS
   (rules/*/detachments/*.md), not against literals. Those files are generated
   straight from Wahapedia's own headings, so this is engine-versus-GW rather
   than one hand-typed list versus another - and a GW change shows up as a
@@ -81,7 +81,7 @@ for keyword, folder in FOLDERS.items():
         checks.eq(f"{name}: Force Disposition matches the corpus",
                   detachment.force_disposition, fd.from_printed(printed or ""))
 
-checks.eq("all eighteen modelled detachments were checked", seen, 18)
+checks.eq("all nineteen modelled detachments were checked", seen, 19)
 
 # The corpus itself must be complete - all 56 detachment files carry the line.
 files = []

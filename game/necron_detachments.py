@@ -38,6 +38,7 @@ CRYPTEK_KEYWORD = "CRYPTEK"
 CANOPTEK_KEYWORD = "CANOPTEK"
 
 CANOPTEK_COURT_SETTING = "CANOPTEK_COURT_PLAYERS"
+HYPERCRYPT_LEGION_SETTING = "HYPERCRYPT_LEGION_PLAYERS"
 
 #: The detachments whose rules ask a PER-MODEL CRYPTEK/CANOPTEK question during
 #: an attack, and therefore need it in the attack-grouping key (see attack_key()).

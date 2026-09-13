@@ -107,6 +107,14 @@ class IngressController:
         # pair waives the board edge but names no bearer.
         self.eternity_gate_squad = None
         self.eternity_gate_bearer = None
+        # Squads whose arrival THIS TURN was made through the Eternity Gate -
+        # recorded in confirm_ingress() while the gate's rule is still armed,
+        # because it is cleared the same instant. Hypercrypt Legion's
+        # Dimensional Corridor asks "set up on the battlefield this turn USING
+        # THE ETERNITY GATE", and nothing else can answer it afterwards: a
+        # passenger whose gated arrival was cancelled keeps the gate's charge
+        # lock, and may still arrive the ordinary way. Cleared in reset_turn().
+        self.gate_arrivals_this_turn = set()
         # Optional callable(squad) - fired once `squad`'s Set Up workflow
         # actually concludes (confirm_ingress() succeeds, or
         # cancel_ingress() abandons it) - wired in main.py to
@@ -127,6 +135,7 @@ class IngressController:
         """Called from main.py's end-of-turn block. Its own method, and its
         own set, because "this phase" and "this turn" are different clocks."""
         self.ingressed_this_turn = set()
+        self.gate_arrivals_this_turn = set()
 
     def can_ingress(self, squad):
         if squad is None or squad not in self.game_state.reserves:
@@ -272,6 +281,18 @@ class IngressController:
                 squad, self.turn_tracker.battle_round) >= 3:
             return False
         if self._has_deep_strike(squad):
+            return False
+        if self._uses_relaxed_arrival(squad):
+            # "can be set up ANYWHERE on the battlefield that is more than 6"
+            # horizontally away from all enemy models" - the words every
+            # relaxed source prints (The Shortened Blade, Cloudstrider, Daring
+            # Riders, Hypercrypt Legion's Cosmic Precision). "Anywhere" removes
+            # this ban too (user decision). It used to stay here, and that was
+            # a disagreement rather than a reading: _relaxed_arrival_extra_check()
+            # - the Confirm - never tested the zone, while this predicate - the
+            # overlay, the drag clamp and ai/agent_driver.py's candidate sweep -
+            # still painted the opponent's zone red. Daring Riders' own docstring
+            # already claimed the zone was lifted for it.
             return False
         if self.eternity_gate_squad is squad:
             # "even if that is within your opponent's deployment zone" -
@@ -528,6 +549,8 @@ class IngressController:
             squad.ingress_locked = True
             self.ingressed_this_phase.add(squad)
             self.ingressed_this_turn.add(squad)
+            if self.eternity_gate_squad is squad:
+                self.gate_arrivals_this_turn.add(squad)
             if self.game_log is not None:
                 self.game_log.add(f"{squad.owner}: {squad.name} arrives via Ingress move (rule 20.04).")
             self._ingressing_squad = None

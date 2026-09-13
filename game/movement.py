@@ -6,6 +6,7 @@ from game import config, geometry
 from game import scuttling_walker
 from game import transdimensional_displacement
 from game import translocation_shroud
+from game import enh_hyperspatial_transfer_node
 from game.coherency import coherency_report
 from game import whirling_death
 from game import whole_unit_drag
@@ -715,6 +716,11 @@ class MovementController:
             # rather than a fourth one beside it.
             no_roll_bonus = (translocation_shroud.TRANSLOCATION_SHROUD_BONUS_IN,
                              translocation_shroud.TRANSLOCATION_SHROUD_NAME)
+        elif enh_hyperspatial_transfer_node.skips_advance_roll(self.selected_squad):
+            # Hypercrypt Legion's Hyperspatial Transfer Node - the same sentence
+            # again, on an Enhancement.
+            no_roll_bonus = (enh_hyperspatial_transfer_node.HYPERSPATIAL_TRANSFER_NODE_BONUS_IN,
+                             enh_hyperspatial_transfer_node.HYPERSPATIAL_TRANSFER_NODE)
         if no_roll_bonus is not None:
             bonus, _label = no_roll_bonus
             for model in self.selected_squad.models:

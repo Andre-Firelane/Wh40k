@@ -59,8 +59,8 @@ the clause silently inert, which reads like a broken rule instead of a typo in
 a setting.
 """
 
-from game import aeldari_detachments, ai_mode, config, per_unit_offer
-from game.strategic_reserves import withdraw_to_reserves
+from game import aeldari_detachments, battle_size as battle_size_module
+from game.end_of_turn_withdrawal import EndOfTurnWithdrawalController
 
 RIDE_THE_WIND_LABEL = "Ride the Wind"
 
@@ -87,9 +87,9 @@ def has_detachment(player):
 
 
 def withdrawal_limit(battle_size=None):
-    """How many units may be pulled back at the end of one opponent turn."""
-    key = (battle_size or config.BATTLE_SIZE or "").strip().lower().replace(" ", "_")
-    return WITHDRAWALS_BY_BATTLE_SIZE.get(key, WITHDRAWALS_BY_BATTLE_SIZE["strike_force"])
+    """How many units may be pulled back at the end of one opponent turn. The
+    reading of the setting is game/battle_size.py's; the table is this rule's."""
+    return battle_size_module.lookup(WITHDRAWALS_BY_BATTLE_SIZE, battle_size)
 
 
 def applies(squad):
@@ -137,82 +137,31 @@ def is_engaged(squad, all_tokens=()):
     return False
 
 
-class RideTheWindController:
-    """The end-of-opponent-turn withdrawal and its per-turn cap."""
+class RideTheWindController(EndOfTurnWithdrawalController):
+    """The end-of-opponent-turn withdrawal and its per-turn cap.
 
-    def __init__(self, decision_manager=None, game_state=None, game_log=None,
-                 all_tokens=None, auto_players=(), battle_size=None):
-        self.decision_manager = decision_manager
-        self.game_state = game_state
-        self.game_log = game_log
-        self.all_tokens = all_tokens if all_tokens is not None else []
-        self.auto_players = ai_mode.players(auto_players)
-        self.battle_size = battle_size
-        #: How many have been pulled back during the turn currently ending.
-        self._withdrawn_this_turn = 0
+    Everything but the unit filter, the cap table and the words lives in
+    game/end_of_turn_withdrawal.py since Hypercrypt Legion's Hyperphasing printed
+    the same paragraph for NECRONS units - the chained one-prompt-per-unit offer,
+    the counter reset, the Engagement Range exclusion and the withdrawal itself.
 
-    def limit(self):
+    No AI path (standing Aeldari instruction): main.py hands this controller no
+    `choose`, so an `auto_players` owner is filtered out of the candidates and
+    stays put - pulling a unit off the board is a whole-army judgement this
+    engine does not make for Aeldari."""
+
+    LABEL = RIDE_THE_WIND_LABEL
+
+    def applies(self, squad):
+        return applies(squad)
+
+    def limit(self, player=None):
         return withdrawal_limit(self.battle_size)
 
-    def remaining(self):
-        return max(0, self.limit() - self._withdrawn_this_turn)
+    def prompt_for(self, squad):
+        return ("%s: %s - pull it back into Strategic Reserves? (%d of %d left this turn)"
+                % (RIDE_THE_WIND_LABEL, squad.name, self.remaining(), self.limit()))
 
-    def can_use(self, squad):
-        if not applies(squad) or self.game_state is None:
-            return False
-        if self.remaining() <= 0:
-            return False
-        if squad in getattr(self.game_state, "reserves", ()) or []:
-            return False
-        if not any(not m.is_dead() for m in (getattr(squad, "models", ()) or ())):
-            return False
-        return not is_engaged(squad, self.all_tokens)
-
-    def eligible_squads(self, squads, player):
-        return sorted((s for s in squads if s.owner == player and self.can_use(s)),
-                      key=lambda s: s.name)
-
-    def offer_at_end_of_turn(self, squads, ending_player):
-        """`ending_player` is whose turn just ENDED, so the offer goes to
-        everyone else - the same argument name and the same trap Airborne
-        Agility records, because "at the end of your OPPONENT'S turn" is the
-        timing most easily read backwards.
-
-        EVERY eligible unit is asked, one prompt at a time (game/per_unit_offer.py).
-        This clause is the one that needs the chain most: it is CAPPED by battle
-        size, and its own prompt prints how much of that cap is left - a number
-        that only ever moves because an earlier answer moved it. Asked one at a
-        time, the count is right and can_use() stops offering once the cap is
-        spent; built all at once, every prompt would read the same stale number
-        and the ones past the cap would do nothing when accepted.
-
-        The counter is reset HERE and not inside the chain: the chain re-enters
-        offer_each(), never this method, so a mid-chain answer cannot hand the
-        player back a fresh allowance.
-
-        No AI path (standing Aeldari instruction). An `auto_players` owner is
-        filtered out of the candidates rather than ending the sweep; staying
-        put is the honest default, because pulling a unit off the board is a
-        whole-army judgement this engine cannot make - the same call Airborne
-        Agility already documents."""
-        self._withdrawn_this_turn = 0
-        candidates = sorted(
-            (s for s in squads
-             if s.owner != ending_player and s.owner not in self.auto_players),
-            key=lambda s: (str(s.owner), s.name))
-        return per_unit_offer.offer_each(
-            self.decision_manager, candidates, self.can_use,
-            lambda s: ("%s: %s - pull it back into Strategic Reserves? (%d of %d left "
-                       "this turn)" % (RIDE_THE_WIND_LABEL, s.name,
-                                       self.remaining(), self.limit())),
-            lambda s: [("Go into Strategic Reserves", lambda t=s: self.use(t)),
-                       ("Stay on the battlefield", lambda: None)])
-
-    def use(self, squad):
-        if not self.can_use(squad):
-            return False
-        self._withdrawn_this_turn += 1
-        return withdraw_to_reserves(
-            self.game_state, squad, log=self.game_log,
-            message="%s: %s rides the wind back into Strategic Reserves."
-                    % (RIDE_THE_WIND_LABEL, squad.name))
+    def withdraw_message(self, squad):
+        return ("%s: %s rides the wind back into Strategic Reserves."
+                % (RIDE_THE_WIND_LABEL, squad.name))

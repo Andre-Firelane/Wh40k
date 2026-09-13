@@ -173,8 +173,25 @@ def placement_validator(squad, all_tokens=(), position_valid=None):
     return _valid
 
 
+def _revive_off_board(model, squad, wounds):
+    """model_return.set_up_model()'s three non-positional halves, for a unit that
+    is NOT on the battlefield: back into the unit, off the destroyed list, with
+    `wounds` remaining - and deliberately NOT onto the board. A unit in
+    Strategic Reserves has no battlefield to stand a model on; its models come
+    down together when the unit arrives, because IngressController.start_ingress()
+    places every model in squad.models (SetupController.start_setup())."""
+    maximum = model.profile.wounds
+    model.current_wounds = max(1, min(int(wounds), maximum))
+    if model not in squad.models:
+        squad.models.append(model)
+    model.squad = squad
+    if model in getattr(squad, "destroyed_models", ()):
+        squad.destroyed_models.remove(model)
+    return model
+
+
 def reanimate(squad, wounds, all_tokens=(), position_valid=None, game_state=None,
-              placer=None, on_placed=None):
+              placer=None, on_placed=None, off_board=False):
     """Spend `wounds` reanimated wounds on `squad`, per 02.02.04 + 01.02.03.
 
     Returns (wounds_spent, revived_models). `wounds_spent` can be less than
@@ -188,6 +205,12 @@ def reanimate(squad, wounds, all_tokens=(), position_valid=None, game_state=None
     from there; an owner in its auto_players lands on them outright, which is
     what this did for everyone. None keeps that older path for every caller
     that has not been handed one.
+
+    `off_board=True` is for a unit in RESERVES (Hypercrypt Legion's Reanimation
+    Crypts: "each of your NECRONS units in Reserves, that Reserves unit's
+    Reanimation Protocols activate"). Healing is unchanged; a revived model
+    goes back into the unit WITHOUT a spot, a token or a placer, and stands up
+    with the rest of the unit when it arrives - see _revive_off_board().
     """
     remaining = max(0, int(wounds))
     spent = 0
@@ -218,6 +241,14 @@ def reanimate(squad, wounds, all_tokens=(), position_valid=None, game_state=None
         remaining -= give
     if not plan:
         return spent, []
+
+    if off_board:
+        revived = []
+        for model, give in plan:
+            _revive_off_board(model, squad, give)
+            revived.append(model)
+            spent += give
+        return spent, revived
 
     valid = placement_validator(squad, all_tokens, position_valid)
     spots = returning_positions(squad, [m for m, _ in plan], position_valid=valid)
@@ -253,7 +284,7 @@ def reanimate(squad, wounds, all_tokens=(), position_valid=None, game_state=None
 
 
 def activate(squad, rolled, *, boost=None, bonus=0, all_tokens=(), position_valid=None,
-             game_state=None, placer=None, on_placed=None, log=None):
+             game_state=None, placer=None, on_placed=None, log=None, off_board=False):
     """ONE activation of `squad`'s Reanimation Protocols - the only door into
     reanimate() the engine uses.
 
@@ -275,17 +306,26 @@ def activate(squad, rolled, *, boost=None, bonus=0, all_tokens=(), position_vali
 
     Returns (wounds, spent, revived): the wounds this activation offered, then
     reanimate()'s own answer.
+
+    `off_board=True` - a unit in RESERVES (Reanimation Crypts). It still comes
+    through here, so the door stays one door, but the boosts add NOTHING, and
+    that is the printed text rather than an exception to the user's "every
+    activation" decision: both boosts are AURAS ("within 3\" of this model"), and
+    a unit in Strategic Reserves is within 3" of nothing. Asking them anyway
+    would measure the unit's stale last-known coordinates against a Reanimator
+    on the board. There is no placer either - see reanimate().
     """
     wounds = max(0, int(rolled)) + int(bonus)
-    if boost is not None:
+    if boost is not None and not off_board:
         wounds += boost.extra_wounds(squad, all_tokens, log=log)
     spent, revived = reanimate(
         squad, wounds,
         all_tokens=all_tokens,
         position_valid=position_valid,
         game_state=game_state,
-        placer=placer,
+        placer=None if off_board else placer,
         on_placed=on_placed,
+        off_board=off_board,
     )
     return wounds, spent, revived
 

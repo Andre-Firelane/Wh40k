@@ -19,7 +19,11 @@ import subprocess
 import sys
 
 AIRBORNE = os.path.join("game", "airborne_agility.py")
-RIDE = os.path.join("game", "ride_the_wind.py")
+# Ride the Wind's chained offer moved into the shared base class when Hypercrypt
+# Legion's Hyperphasing printed the same paragraph (game/end_of_turn_withdrawal.py),
+# so that is where the Windrider probe now bites - and it still runs the Windrider
+# suite, which must catch a first-unit-only loop in the base it inherits.
+RIDE = os.path.join("game", "end_of_turn_withdrawal.py")
 CLOUD = os.path.join("game", "cloudstrider.py")
 OFFER = os.path.join("game", "per_unit_offer.py")
 MAIN = "main.py"
@@ -90,12 +94,9 @@ AIRBORNE_NEW = '''        candidates = sorted(
                        ("Stay on the battlefield", lambda: None)])'''
 
 RIDE_NEW = '''        return per_unit_offer.offer_each(
-            self.decision_manager, candidates, self.can_use,
-            lambda s: ("%s: %s - pull it back into Strategic Reserves? (%d of %d left "
-                       "this turn)" % (RIDE_THE_WIND_LABEL, s.name,
-                                       self.remaining(), self.limit())),
-            lambda s: [("Go into Strategic Reserves", lambda t=s: self.use(t)),
-                       ("Stay on the battlefield", lambda: None)])'''
+            self.decision_manager, candidates, self.can_use, self.prompt_for,
+            lambda s: [(self.GO_LABEL, lambda t=s: self.use(t)),
+                       (self.STAY_LABEL, lambda: None)])'''
 
 RIDE_OLD = '''        for squad in candidates:
             if not self.can_use(squad):
@@ -103,12 +104,9 @@ RIDE_OLD = '''        for squad in candidates:
             if self.decision_manager is None:
                 return False
             self.decision_manager.request(
-                squad.owner,
-                "%s: %s - pull it back into Strategic Reserves? (%d of %d left "
-                "this turn)" % (RIDE_THE_WIND_LABEL, squad.name,
-                                self.remaining(), self.limit()),
-                [("Go into Strategic Reserves", lambda s=squad: self.use(s)),
-                 ("Stay on the battlefield", lambda: None)])
+                squad.owner, self.prompt_for(squad),
+                [(self.GO_LABEL, lambda s=squad: self.use(s)),
+                 (self.STAY_LABEL, lambda: None)])
             return True
         return False'''
 

@@ -129,6 +129,11 @@ class ChargeController:
             return False  # rule 20.04: not eligible for any other move type until the next Charge phase
         if squad.charge_locked_until_end_of_turn:
             return False  # rules 18.04/18.05: Rapid/Combat/Emergency Disembark forbid a charge this turn
+        if squad.eternity_gate_charge_locked:
+            # The Monolith's Eternity Gate: "That unit cannot make a charge move
+            # this turn." Its own field because Hypercrypt Legion's Dimensional
+            # Corridor lifts exactly this lock - see game/eternity_gate.py.
+            return False
         # Rule 16.01: "If a unit starts an action, until the end of the turn...
         # it is not eligible to declare a charge." No TITANIC carve-out on this
         # half of the rule, unlike the shooting one.

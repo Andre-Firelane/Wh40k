@@ -9,6 +9,7 @@ from ai import deployment_ai
 from ai import observation as ai_observation
 from ai.agent_driver import AIMemory, take_one_action
 from ai.agent_driver import reactive_subroutines_destination, reactive_subroutines_move
+from ai.agent_driver import hyperphasing_choice, hyperphasic_recall_verdict
 from ai.claude_agent import ClaudeAgent
 # from ai.mock_agent import MockAgent  # free/offline alternative - no API key or network needed
 from game import attached_units, battle_focus, biomes, charge, config, consolidate, crushing_impact, enhancements, epic_challenge, explosives, fall_back, fight, firing_deck, greater_good, line_of_sight, maps, movement, overwatch, pregame, setup, shooting, starflare_ignition, status_effects, strands_of_fate
@@ -173,6 +174,14 @@ from game.malevolent_arcing import MalevolentArcingController
 from game.repair_barge import RepairBargeController
 from game.enh_strike_swiftly import StrikeSwiftlyStep
 from game.enh_student_of_kauyon import StudentOfKauyonStep
+from game import enh_osteoclave_fulcrum, hypercrypt_entropic_damping, hypercrypt_quantum_deflection
+from game.hypercrypt_cosmic_precision import CosmicPrecisionController
+from game.hypercrypt_dimensional_corridor import DimensionalCorridorController
+from game.hypercrypt_entropic_damping import EntropicDampingController
+from game.hypercrypt_hyperphasic_recall import HyperphasicRecallController
+from game.hypercrypt_hyperphasing import HyperphasingController
+from game.hypercrypt_quantum_deflection import QuantumDeflectionController
+from game.hypercrypt_reanimation_crypts import ReanimationCryptsController
 from game.enh_unmasking_suite import UnmaskingSuiteController
 from game.airborne_agility import AirborneAgilityController
 from game.ride_the_wind import RideTheWindController
@@ -919,6 +928,9 @@ def main(map_key=None):
         # Enhancement, and its points, with none of its effect. Idempotent, so
         # a scene that somehow reached both paths is still upgraded once.
         enh_prototype_weapons.apply_all(state.all_squads(), game_log=game_log)
+        # Hypercrypt Legion's Osteoclave Fulcrum, for the same reason: its
+        # printed moment is Declare Battle Formations, which this path lacks.
+        enh_osteoclave_fulcrum.apply_all(state.all_squads(), game_log=game_log)
         command_points.gain_core_cp()  # rule 08.02: the battle's very first phase is already Command
         # Same "the battle's very first phase is already Command" case as
         # gain_core_cp() above - update_control() itself only ever runs
@@ -1431,14 +1443,26 @@ def main(map_key=None):
         stratagem_controller=stratagem_controller, decision_manager=decision_manager,
         game_log=game_log, turn_tracker=turn_tracker, auto_players=ai_players,
     )
+    # Hypercrypt Legion's two target reactions. Quantum Deflection prints "your
+    # opponent's Shooting phase OR THE FIGHT PHASE", so it is in BOTH tuples;
+    # Entropic Damping is Shooting only, and its grant lands on the ATTACKER.
+    quantum_deflection_controller = QuantumDeflectionController(
+        stratagem_controller, turn_tracker=turn_tracker, decision_manager=decision_manager,
+        game_log=game_log, auto_players=ai_players,
+    )
+    entropic_damping_controller = EntropicDampingController(
+        stratagem_controller, turn_tracker=turn_tracker, decision_manager=decision_manager,
+        game_log=game_log, auto_players=ai_players,
+    )
     shooting_target_reactions = (
         stim_injectors_controller, ard_as_nails_controller, psychic_shield_controller,
         kroot_packmates_controller, multi_threat_eliminator_controller,
         repair_barge_controller, countertemporal_shift_controller,
+        quantum_deflection_controller, entropic_damping_controller,
     )
     fight_target_reactions = (
         stim_injectors_controller, ard_as_nails_controller, forewarned_controller,
-        repair_barge_controller,
+        repair_barge_controller, quantum_deflection_controller,
     )
     # The Falcon's Fire Support - constructed before the shooting controller
     # because that one reads its mark when deciding whether a Wound roll may
@@ -1692,6 +1716,15 @@ def main(map_key=None):
     ride_the_wind_controller = RideTheWindController(
         decision_manager=decision_manager, game_state=state, game_log=game_log,
         all_tokens=state.tokens, auto_players=ai_players)
+    # Hypercrypt Legion's Hyperphasing prints Ride the Wind's paragraph for
+    # NECRONS units, so it is the second subclass of the same withdrawal
+    # (game/end_of_turn_withdrawal.py). Unlike Ride the Wind it has an AI path:
+    # the policy lives in ai/agent_driver.py and is injected, because game/
+    # must not import ai/.
+    hyperphasing_controller = HyperphasingController(
+        decision_manager=decision_manager, game_state=state, game_log=game_log,
+        all_tokens=state.tokens, auto_players=ai_players, turn_tracker=turn_tracker,
+        choose=lambda eligible, cap: hyperphasing_choice(state, turn_tracker, eligible, cap))
     airborne_agility_controller = AirborneAgilityController(
         decision_manager=decision_manager, game_state=state, game_log=game_log,
         auto_players=ai_players)
@@ -2970,6 +3003,28 @@ def main(map_key=None):
         game_log=game_log)
     command_points.on_cp_gained.append(autodivinator_controller.on_cp_gained)
 
+    # --- Hypercrypt Legion (Necron detachments, stage 2) -----------------------
+    # Hyperphasic Recall is REACTIVE: offered from the two after-attack hooks
+    # below, answered for the AI through the injected verdict, and its set-up
+    # waits for the death sweep (resolve_deferred(), see game/hypercrypt_
+    # hyperphasic_recall.py for why).
+    hyperphasic_recall_controller = HyperphasicRecallController(
+        stratagem_controller, setup_controller=setup_controller, turn_tracker=turn_tracker,
+        game_state=state, decision_manager=decision_manager, game_log=game_log,
+        auto_players=ai_players,
+        ai_verdict=lambda squad: hyperphasic_recall_verdict(state, squad))
+    # The three panel buttons. Cosmic Precision names the ARRIVAL screen.
+    reanimation_crypts_controller = proactive_stratagems.add(ReanimationCryptsController(
+        stratagem_controller, turn_tracker=turn_tracker, game_state=state,
+        dice_manager=dice_manager, game_log=game_log))
+    reanimation_crypts_controller.boost = reanimation_boost
+    cosmic_precision_controller = proactive_stratagems.add(CosmicPrecisionController(
+        stratagem_controller, ingress_controller=ingress_controller,
+        setup_controller=setup_controller, turn_tracker=turn_tracker, game_log=game_log))
+    dimensional_corridor_controller = proactive_stratagems.add(DimensionalCorridorController(
+        stratagem_controller, turn_tracker=turn_tracker, charge_controller=charge_controller,
+        ingress_controller=ingress_controller, game_state=state, game_log=game_log))
+
     # --- The six Death Lord's Chosen Stratagems -------------------------------
     # Built unconditionally like every other detachment's: each one's can_use()
     # goes through death_lords_chosen.stratagem_target_ok(), which reads
@@ -3136,6 +3191,10 @@ def main(map_key=None):
         # Canoptek Court's Curse of the Cryptek: "just after an enemy unit has
         # shot" - the attacker arrives here as an argument.
         curse_of_the_cryptek_controller.maybe_offer(shooter_squad)
+        # Hypercrypt Legion's Hyperphasic Recall: "just after an enemy unit has
+        # shot", with THIS phase's loss ledger handed in.
+        hyperphasic_recall_controller.maybe_offer(
+            shooter_squad, shooting_controller.models_lost_this_activation)
 
     shooting_controller.on_squad_finished_shooting.append(_necron_after_enemy_shooting)
 
@@ -3171,6 +3230,9 @@ def main(map_key=None):
             malevolent_souls_controller.resolve_after_attacks(_fighter)
             # Curse of the Cryptek's other half of its WHEN - "or fought".
             curse_of_the_cryptek_controller.maybe_offer(_fighter)
+            # Hyperphasic Recall's "or fought" - the Fight phase's own ledger.
+            hyperphasic_recall_controller.maybe_offer(
+                _fighter, fight_controller.models_lost_this_activation)
             systematic_vigour_controller.resolve_after_attacks(_fighter)
             # The Ghost Ark's Repair Barge, FIGHT half. Its printed "just
             # after an enemy unit finishes making its attacks" is a sentence
@@ -3977,6 +4039,13 @@ def main(map_key=None):
         solar_pulse_controller.reset_phase()
         curse_of_the_cryptek_controller.reset_phase()
         metalodermal_tesla_weave_controller.reset_phase()
+        # Hypercrypt Legion - everything that lasts "until the end of the phase".
+        hypercrypt_quantum_deflection.reset_phase(_court_squads)
+        quantum_deflection_controller.reset_phase()
+        hypercrypt_entropic_damping.reset_phase(_court_squads)
+        entropic_damping_controller.reset_phase()
+        cosmic_precision_controller.reset_phase()
+        hyperphasic_recall_controller.reset_phase()
         # Mont'ka's Killing Blow is not a Stratagem and expires nothing - this
         # RE-DERIVES Squad.montka_killing_blow, which is how the detachment
         # rule reaches game/coldstar.py's weapon_has_assault() (rule 10.05)
@@ -4190,6 +4259,10 @@ def main(map_key=None):
             # unlike Airborne Agility, which is per unit.
             ride_the_wind_controller.offer_at_end_of_turn(
                 {t.squad for t in state.tokens if t.squad is not None}, ending_player)
+            # Hypercrypt Legion's Hyperphasing - the same paragraph for NECRONS
+            # units, the same instant, and the same "your OPPONENT'S turn".
+            hyperphasing_controller.offer_at_end_of_turn(
+                {t.squad for t in state.tokens if t.squad is not None}, ending_player)
             # Ophydian Destroyers' Tunnelling Horrors - the third offer at this
             # instant, and the same "your OPPONENT'S turn" reading as the two
             # above it.
@@ -4295,6 +4368,13 @@ def main(map_key=None):
             # placement sets - deployment included - and so cannot answer a
             # question about Reserves.
             ingress_controller.reset_turn()
+            # The Monolith's Eternity Gate lock - "this turn". Swept over EVERY
+            # squad, reserves included, and not over ending_squads: a gated unit
+            # whose arrival was cancelled sits in Strategic Reserves, and a lock
+            # left on it would forbid the charge of its NEXT, ordinary arrival.
+            for _gate_squad in state.all_squads():
+                _gate_squad.eternity_gate_charge_locked = False
+                _gate_squad.eternity_gate_bearer_started_on_board = False
             for squad in ending_squads:
                 squad.fights_first = False
                 squad.charged_this_turn = False  # rule 11.04's own marker, see Squad.charged_this_turn
@@ -5165,6 +5245,9 @@ def main(map_key=None):
             or secondary_mission_controller.is_busy
             or grav_inhibitor_controller.is_busy
             or flickerjump_controller.is_busy
+            # Hypercrypt Legion's Reanimation Crypts drains one D3 per reserve
+            # unit; the phase must not roll over the units still owed a roll.
+            or reanimation_crypts_controller.is_busy
             or epic_challenge_controller.state != epic_challenge.IDLE
             or greater_good_controller.state != greater_good.IDLE
             or crushing_impact_controller.state != crushing_impact.IDLE
@@ -5393,6 +5476,11 @@ def main(map_key=None):
             cynosure_controller=cynosure_controller,
             solar_pulse_controller=solar_pulse_controller,
             metalodermal_tesla_weave_controller=metalodermal_tesla_weave_controller,
+            # Hypercrypt Legion's three panel Stratagems (the reactive three and
+            # Hyperphasing answer inside their own controllers).
+            reanimation_crypts_controller=reanimation_crypts_controller,
+            cosmic_precision_controller=cosmic_precision_controller,
+            dimensional_corridor_controller=dimensional_corridor_controller,
         )
         # User: "ich würde den plan gerne ausführlicher in einem großen text
         # prompt sehen am anfang des gegnerischen zuges nachdem er erstellt
@@ -5574,6 +5662,11 @@ def main(map_key=None):
         # The three Experimental Prototype Cadre weapon upgrades - permanent
         # changes to one named weapon, applied once and idempotent.
         enh_prototype_weapons.apply_all(
+            _all_squads(state, pregame_controller), game_log=game_log)
+        # Hypercrypt Legion's Osteoclave Fulcrum: Deep Strike on every model of
+        # the bearer's unit, BEFORE either player (or the deployment AI, which
+        # reads deep_strike) declares what starts in reserves.
+        enh_osteoclave_fulcrum.apply_all(
             _all_squads(state, pregame_controller), game_log=game_log)
         # Mont'ka's Strike Swiftly runs in Resolve Pre-battle Abilities and
         # MUST come before the Scouts step it feeds - hence the ordered list
@@ -5859,6 +5952,7 @@ def main(map_key=None):
         # same reason: each owns the charge's resume behind its own dice.
         metalodermal_tesla_weave_controller.on_dice_acknowledged()
         suboptimal_facade_controller.on_dice_acknowledged()
+        reanimation_crypts_controller.on_dice_acknowledged()
         # Kauyon's Photon Grenades, for the same reason and in
         # the same place: its one roll IS a Battle-Shock test,
         # and the charge it interrupted resumes once that
@@ -7482,6 +7576,11 @@ def main(map_key=None):
         # of "back on the board" into this loop.
         malevolent_souls_controller.intercept_destroyed(_swept)
         systematic_vigour_controller.intercept_destroyed(_swept)
+        # Hyperphasic Recall's set-up judges the unit by its LIVING models, and
+        # the corpses its trigger created are only gone now - so a bought
+        # set-up, and an AI owner's deferred answer, resolve right after the
+        # sweep (game/hypercrypt_hyperphasic_recall.py).
+        hyperphasic_recall_controller.resolve_deferred()
         # Nurgle's Gift: re-derive Squad.afflicted / Squad.afflicted_plague for
         # every unit, once per frame. Here, right AFTER the sweep, because the
         # aura is measured against LIVING Death Guard models and a unit wiped

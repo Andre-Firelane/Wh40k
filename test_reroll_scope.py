@@ -76,6 +76,17 @@ print("--- 1. the set ---")
 
 LABELS = sorted(reroll_scope.ONES_OR_WHOLE_LABELS)
 checks.true("the sweep found the sources", len(LABELS) >= 7)
+# Every section below iterates LABELS, so a source that silently LEAVES the set
+# just shrinks the sweep and stays green (measured: an A/B probe removing Arisen
+# Tyrant's entry could not bite here). The members are therefore pinned by name
+# - a tenth source is a visible one-line change, a dropped one is red.
+checks.eq("the ones-or-whole sources, by name", set(reroll_scope.ONES_OR_WHOLE_LABELS), {
+    reroll_scope.SWIFT_DEMISE_LABEL, reroll_scope.HARD_WIRED_LABEL,
+    reroll_scope.WHIRLING_ONSLAUGHT_LABEL, reroll_scope.IMPLACABLE_ERADICATION_LABEL,
+    reroll_scope.CONQUERING_TYRANT_LABEL, reroll_scope.FIREKNIFE_LABEL,
+    reroll_scope.REAVERS_OF_THE_VOID_LABEL, reroll_scope.POWER_MATRIX_LABEL,
+    reroll_scope.ARISEN_TYRANT_LABEL,
+})
 checks.eq("an unlisted source is not one of them",
           reroll_scope.is_ones_or_whole("[TWIN-LINKED]"), False)
 checks.eq("...nor is a label nobody uses", reroll_scope.is_ones_or_whole(None), False)

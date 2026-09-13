@@ -63,6 +63,7 @@ the two steps cannot disagree about it.
 """
 
 from game.court_power_matrix import POWER_MATRIX_LABEL
+from game.enh_arisen_tyrant import ARISEN_TYRANT_LABEL
 from game.destroyer_cult import HARD_WIRED_LABEL, WHIRLING_ONSLAUGHT_LABEL
 from game.fireknife import FIREKNIFE_LABEL
 from game.implacable_eradication import IMPLACABLE_ERADICATION_LABEL
@@ -83,6 +84,7 @@ ONES_OR_WHOLE_LABELS = frozenset({
     FIREKNIFE_LABEL,                    # Crisis Fireknife Battlesuits (hit)
     REAVERS_OF_THE_VOID_LABEL,          # Corsair Voidreavers (hit)
     POWER_MATRIX_LABEL,                 # Canoptek Court detachment rule (hit)
+    ARISEN_TYRANT_LABEL,                # Hypercrypt Legion Enhancement (hit)
 })
 
 

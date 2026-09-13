@@ -90,7 +90,8 @@ c.eq("the Aeldari model Seer Council plus the rules being built",
 # Legion, then Cryptek Conclave), so - like the Aeldari above - the list is
 # named rather than counted, and each stage is a visible one-line change.
 c.eq("the Necrons model Awakened Dynasty plus the detachments being built",
-     list(necrons.NECRONS.detachments), ["Awakened Dynasty", "Canoptek Court"])
+     list(necrons.NECRONS.detachments),
+     ["Awakened Dynasty", "Canoptek Court", "Hypercrypt Legion"])
 c.eq("...and Orks and Death Guard model one each",
      [len(f.detachments) for k, f in FACTION_MODULES
       if k not in ("T'AU EMPIRE", "AELDARI", "NECRONS")], [1, 1])
@@ -109,7 +110,7 @@ EXPECTED_POINTS = {
     "Windrider Host": 2, "Spirit Conclave": 2, "Armoured Warhost": 1,
     "Path of the Outcast": 1,
     # The Necron detachments, one per stage.
-    "Canoptek Court": 3,
+    "Canoptek Court": 3, "Hypercrypt Legion": 2,
 }
 for _keyword, faction in FACTION_MODULES:
     for name, detachment in faction.detachments.items():

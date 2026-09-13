@@ -13,6 +13,9 @@ from game import combat_focus
 from game import court_cynosure_of_eradication
 from game import court_reactive_subroutines
 from game import court_solar_pulse
+from game import hypercrypt_hyperphasing
+from game import hypercrypt_reanimation_crypts
+from game import reanimation_protocols
 from game import config
 from game import attached_units
 from game.coherency import coherency_report, connected_groups
@@ -43,7 +46,7 @@ from game.consolidate import CONSOLIDATE_RANGE_IN
 from game.damage_estimate import expected_wounds_against
 from game.dice import CHARGE_ROLL
 from game.ere_we_go import ERE_WE_GO_ROLL_BONUS
-from game.objectives import is_on_objective
+from game.objectives import is_on_objective, is_within_range_of_objective
 from game.pile_in import PILE_IN_RANGE_IN
 from game.setup import PLACING
 from game.shooting import _wound_threshold as _shooting_wound_threshold
@@ -5253,7 +5256,14 @@ def _ingress_landing_candidates(ingress_controller, squad, all_tokens, objective
     # board edge), so this only widens WHERE the sweep looks, never what it
     # accepts. Added to the edge candidates rather than replacing them: an
     # edge spot is a perfectly good drop zone when it scores better.
-    if ingress_controller._has_deep_strike(squad):
+    #
+    # A RELAXED arrival ("anywhere on the battlefield more than 6" from all
+    # enemy models" - The Shortened Blade, Cloudstrider, Daring Riders, Cosmic
+    # Precision) is not confined to the edge either, so it gets the same grid.
+    # Without it the sweep would still only look along the edges for a unit its
+    # own rule lets land anywhere - the candidate half of the zone fix in
+    # IngressController._in_enemy_deployment_zone().
+    if ingress_controller._has_deep_strike(squad) or ingress_controller._uses_relaxed_arrival(squad):
         step = DEEP_STRIKE_GRID_STEP_IN
         y = step
         while y < config.BOARD_HEIGHT_IN:
@@ -5295,7 +5305,7 @@ def _best_ingress_landing_point(ingress_controller, squad, all_tokens, objective
 
 
 def _auto_ingress_squad(setup_controller, ingress_controller, squad, all_tokens, objectives=(),
-                        state=None, plan=None, game_log=None):
+                        state=None, plan=None, game_log=None, cosmic_precision_controller=None):
     """Deploys `squad` from strategic reserves via an Ingress move (rule
     20.04) as soon as it's legally eligible, landing as close as possible
     to the front (see _ingress_landing_candidates()) so it's useful as
@@ -5339,6 +5349,38 @@ def _auto_ingress_squad(setup_controller, ingress_controller, squad, all_tokens,
     candidates = _ingress_landing_candidates(
         ingress_controller, squad, all_tokens, objectives=objectives, score_with=score_with,
     )
+    # Hypercrypt Legion's Cosmic Precision (1CP): "anywhere on the battlefield
+    # more than 6\" from all enemy models". Its TARGET is a unit ARRIVING, so the
+    # decision is made here, where the arrival is. The landing sweep is run a
+    # second time with the relaxed rule armed - position_valid() reads that one
+    # field - and the Stratagem is bought only when that finds a clearly better
+    # spot (see _cosmic_precision_improves()). Bought by opening the arrival once,
+    # which is what makes the TARGET true, and cancelling it; every later attempt
+    # below re-arms the rule, since cancel_ingress() clears it.
+    bought_cosmic = False
+    if (cosmic_precision_controller is not None and score_with is not None
+            and ingress_controller.relaxed_arrival_squad is None
+            and cosmic_precision_controller.could_target(squad)):
+        ingress_controller.relaxed_arrival_squad = squad
+        try:
+            relaxed = _ingress_landing_candidates(
+                ingress_controller, squad, all_tokens, objectives=objectives, score_with=score_with,
+            )
+        finally:
+            ingress_controller.relaxed_arrival_squad = None
+        plain_best = score_with(candidates[0]) if candidates else None
+        if relaxed and _cosmic_precision_improves(score_with(relaxed[0]), plain_best):
+            ingress_controller.start_ingress(squad, relaxed[0][0], relaxed[0][1])
+            if setup_controller.setting_up_squad is squad:
+                bought_cosmic = cosmic_precision_controller.use(squad)
+                ingress_controller.cancel_ingress()
+            if bought_cosmic:
+                candidates = relaxed
+                if game_log is not None:
+                    game_log.add(
+                        f"  [cosmic precision] {squad.name}: the relaxed arrival finds a better "
+                        f"landing ({score_with(relaxed[0])[:2]} against "
+                        f"{plain_best[:2] if plain_best else 'nothing legal'})", file_only=True)
     planned = _planned_position(squad, plan) if plan else None
     if planned is not None:
         candidates = sorted(
@@ -5361,6 +5403,10 @@ def _auto_ingress_squad(setup_controller, ingress_controller, squad, all_tokens,
             ingress_controller.start_ingress(squad, x, y)
             if setup_controller.setting_up_squad is not squad:
                 break  # start_ingress() itself refused this spot - facings cannot help
+            if bought_cosmic:
+                # cancel_ingress() cleared it with the last attempt; the CP is
+                # already spent on THIS unit's arrival.
+                ingress_controller.relaxed_arrival_squad = squad
             positions = _ingress_pack_positions(
                 squad, x, y, all_tokens, angle_offset=facing,
                 # The FULL arrival rule per slot, not just standable ground:
@@ -6358,6 +6404,12 @@ def _take_one_action(
     # charges, that allocation is the AI's own to resolve.
     cynosure_controller=None, solar_pulse_controller=None,
     metalodermal_tesla_weave_controller=None,
+    # Hypercrypt Legion's three PROACTIVE Stratagems. Appended, like everything
+    # above. Hyperphasing, Hyperphasic Recall, Quantum Deflection and Entropic
+    # Damping answer inside their own controllers (the first two through
+    # policies injected from this module).
+    reanimation_crypts_controller=None, cosmic_precision_controller=None,
+    dimensional_corridor_controller=None,
 ):
     """Resolve exactly ONE pending decision for `player` (Player 2 by
     default) and return - this is the function main.py's "A" key calls. A
@@ -6599,6 +6651,9 @@ def _take_one_action(
     elif phase == PHASE_COMMAND:
         acted = _maybe_call_waaagh(player, turn_tracker, waaagh_controller)
         if not acted:
+            acted = _handle_reanimation_crypts(player, all_tokens, reanimation_crypts_controller,
+                                               game_log=game_log)
+        if not acted:
             acted = _handle_battle_shock(agent, player, all_tokens, battle_shock_controller, insane_bravery_controller, turn_tracker, on_thinking)
     elif phase == PHASE_MOVEMENT:
         acted = _handle_movement(
@@ -6609,6 +6664,7 @@ def _take_one_action(
             mission_controller=mission_controller,
             sudden_storm_controller=sudden_storm_controller,
             shooting_controller=shooting_controller,
+            cosmic_precision_controller=cosmic_precision_controller,
         )
     elif phase == PHASE_SHOOTING:
         acted = _handle_shooting(
@@ -6619,11 +6675,14 @@ def _take_one_action(
             cynosure_controller=cynosure_controller, solar_pulse_controller=solar_pulse_controller,
         )
     elif phase == PHASE_CHARGE:
-        acted = _handle_charge(
-            agent, memory, player, all_tokens, charge_controller, movement_controller, on_thinking,
-            crushing_impact_controller=crushing_impact_controller, plan=_current_unit_plans(memory),
-            game_log=game_log,
-        )
+        acted = _handle_dimensional_corridor(player, all_tokens, dimensional_corridor_controller,
+                                             game_log=game_log)
+        if not acted:
+            acted = _handle_charge(
+                agent, memory, player, all_tokens, charge_controller, movement_controller, on_thinking,
+                crushing_impact_controller=crushing_impact_controller, plan=_current_unit_plans(memory),
+                game_log=game_log,
+            )
     elif phase == PHASE_FIGHT:
         acted = _handle_fight(
             agent, memory, player, all_tokens, fight_controller, pile_in_controller, movement_controller, on_thinking,
@@ -8617,6 +8676,7 @@ def _handle_movement(
     game_log, on_thinking, ingress_controller=None, fall_back_controller=None, waaagh_controller=None,
     last_ranged_attack_turn=None, mission_controller=None, ere_we_go_controller=None,
     sudden_storm_controller=None, shooting_controller=None,
+    cosmic_precision_controller=None,
 ):
     all_tokens = state.tokens
 
@@ -8701,6 +8761,7 @@ def _handle_movement(
                     objectives=state.objectives, state=state,
                     plan=(memory.turn_plan["unit_plans"] if memory.turn_plan else None),
                     game_log=game_log,
+                    cosmic_precision_controller=cosmic_precision_controller,
                 ):
                     return True
 
@@ -11068,6 +11129,210 @@ def _handle_solar_pulse(player, all_tokens, solar_pulse_controller, game_log=Non
             file_only=True,
         )
     return True
+
+
+# ---------------------------------------------------------------------------
+# Hypercrypt Legion (Necron detachments, stage 2). All deterministic, no agent.
+# ---------------------------------------------------------------------------
+
+#: Hyperphasing's RESCUE half: a unit expected to lose at least this share of
+#: its remaining wounds to the enemy's next turn is worth pulling back...
+HYPERPHASING_RESCUE_SHARE = 0.5
+#: ...weighted by how much of it would be lost, capped so one doomed unit does
+#: not outrank every other candidate by an arbitrary factor.
+HYPERPHASING_RESCUE_WEIGHT_CAP = 2.0
+#: The REPOSITION half: a unit with nothing to shoot, charge or take next turn.
+HYPERPHASING_REPOSITION_WEIGHT = 0.5
+#: Reanimation Crypts: bought when the reserve units have at least this many
+#: wounds to recover between them, each counted up to the D3's average of 2.
+REANIMATION_CRYPTS_MIN_RECOVERABLE = 2
+REANIMATION_CRYPTS_PER_UNIT_CAP = 2
+#: Dimensional Corridor: the nearest enemy must be a charge at least this likely.
+DIMENSIONAL_CORRIDOR_MIN_CHARGE_CHANCE = 50.0
+
+
+def _remaining_wounds(squad):
+    return sum(m.current_wounds for m in squad.models if not m.is_dead())
+
+
+def _expected_incoming_wounds(state, squad):
+    """Wounds the enemy is expected to strip off `squad` in one turn: for every
+    enemy unit, the more dangerous of its two attack modes that can reach it -
+    observation._reaches_this_turn() gating damage_estimate's number, the pair
+    ai/observation.py's own threat figures are built from."""
+    total = 0.0
+    for enemy in _all_squads(state.tokens):
+        if enemy.owner == squad.owner or not any(not m.is_dead() for m in enemy.models):
+            continue
+        gap = observation._squad_distance(enemy, squad)
+        best = 0.0
+        for melee in (False, True):
+            if not observation._reaches_this_turn(enemy, squad, melee, gap=gap):
+                continue
+            got = expected_wounds_against(enemy, squad, melee=melee, gap_in=gap)
+            if got:
+                best = max(best, got)
+        total += best
+    return total
+
+
+def _hyperphasing_is_stranded(state, squad):
+    """Next turn this unit can neither shoot nor charge an enemy, nor reach an
+    objective it does not already control."""
+    for enemy in _all_squads(state.tokens):
+        if enemy.owner == squad.owner or not any(not m.is_dead() for m in enemy.models):
+            continue
+        gap = observation._squad_distance(squad, enemy)
+        if (observation._reaches_this_turn(squad, enemy, False, gap=gap)
+                or observation._reaches_this_turn(squad, enemy, True, gap=gap)):
+            return False
+    reach = OBJECTIVE_CONSOLIDATION_RANGE_IN + min_model_movement(squad)
+    for objective in state.objectives:
+        if getattr(objective, "controlled_by", None) == squad.owner:
+            continue
+        if is_within_range_of_objective(squad, [objective], range_in=reach):
+            return False
+    return True
+
+
+def hyperphasing_choice(state, turn_tracker, candidates, cap):
+    """Hypercrypt Legion's Hyperphasing, the AI's policy (user decision:
+    "Retten + Umpositionieren"). Injected by main.py into
+    game/hypercrypt_hyperphasing.py's HyperphasingController as `choose`, and
+    handed that player's eligible units and how many it may still withdraw.
+
+    NEVER when the withdrawal cannot come back in time - both are rule facts the
+    detachment module owns: at the end of battle round 3 (rule 20.03 destroys
+    the reserves in the same call), and before the owner's first arrival round
+    (the unit would skip its next Movement phase).
+
+    A GARRISON STAYS: a unit within range of an objective its army controls is
+    never pulled off it.
+
+    Otherwise a unit qualifies to be RESCUED - the enemy's next turn is expected
+    to strip at least HYPERPHASING_RESCUE_SHARE of its remaining wounds - or to
+    be REPOSITIONED - it has nothing to shoot, charge or take where it stands.
+    The re-arrival is _auto_ingress_squad()'s, which lands it on the best
+    damage/safety/objective spot. Candidates are ranked by points times danger
+    (rescue weighted by the share it would lose, capped; reposition at a flat
+    HYPERPHASING_REPOSITION_WEIGHT) and the best `cap` of them go."""
+    if cap <= 0 or not candidates or state is None:
+        return []
+    if (hypercrypt_hyperphasing.withdrawal_is_doomed(turn_tracker)
+            or hypercrypt_hyperphasing.misses_next_arrival(turn_tracker)):
+        return []
+    player = candidates[0].owner
+    held = [objective for objective, _threat in _held_objectives(state, player)]
+    scored = []
+    for squad in candidates:
+        if held and is_within_range_of_objective(squad, held):
+            continue
+        remaining = _remaining_wounds(squad)
+        if remaining <= 0:
+            continue
+        incoming = _expected_incoming_wounds(state, squad)
+        if incoming >= HYPERPHASING_RESCUE_SHARE * remaining:
+            weight = min(incoming / remaining, HYPERPHASING_RESCUE_WEIGHT_CAP)
+        elif _hyperphasing_is_stranded(state, squad):
+            weight = HYPERPHASING_REPOSITION_WEIGHT
+        else:
+            continue
+        scored.append((-((squad.points or 0) * weight), squad.name, squad))
+    scored.sort(key=lambda entry: (entry[0], entry[1]))
+    return [squad for _score, _name, squad in scored[:cap]]
+
+
+def hyperphasic_recall_verdict(state, squad):
+    """Hypercrypt Legion's Hyperphasic Recall (2CP), the AI's answer - injected
+    by main.py into game/hypercrypt_hyperphasic_recall.py as `ai_verdict`.
+
+    Bought for a unit whose expected incoming wounds reach its remaining wounds:
+    left where it stands it is wiped out, and the MONOLITH is somewhere else.
+    The other half of the rule - a legal set-up wholly within 6" exists - is the
+    controller's own gate, asked before this is."""
+    remaining = _remaining_wounds(squad)
+    return remaining > 0 and _expected_incoming_wounds(state, squad) >= remaining
+
+
+def _handle_reanimation_crypts(player, all_tokens, reanimation_crypts_controller, game_log=None):
+    """Hypercrypt Legion's Reanimation Crypts (1CP) in the AI's Command phase:
+    bought when the NECRONS units in its Reserves have at least
+    REANIMATION_CRYPTS_MIN_RECOVERABLE wounds to recover between them, each
+    counted up to REANIMATION_CRYPTS_PER_UNIT_CAP - one CP for about one D3's
+    worth. The target "Your NECRONS WARLORD" is a documented no-op, so the
+    button of any eligible unit will do."""
+    ctrl = reanimation_crypts_controller
+    if ctrl is None:
+        return False
+    units = hypercrypt_reanimation_crypts.recovering_units(ctrl.game_state, player)
+    worth = sum(min(REANIMATION_CRYPTS_PER_UNIT_CAP, reanimation_protocols.recoverable_wounds(s))
+                for s in units)
+    if worth < REANIMATION_CRYPTS_MIN_RECOVERABLE:
+        return False
+    for squad in sorted(_all_squads(all_tokens), key=lambda s: s.name):
+        if squad.owner != player or not ctrl.can_use(squad):
+            continue
+        if not ctrl.use(squad):
+            return False
+        if game_log is not None:
+            game_log.add(
+                f"[reanimation crypts] {player}: {len(units)} unit(s) in Reserves, about {worth} "
+                "wound(s) to recover.", file_only=True)
+        return True
+    return False
+
+
+def _dimensional_corridor_verdict(squad, all_tokens):
+    """The percent chance of the charge Dimensional Corridor would make possible,
+    or None when it is not worth 2CP: a shooting unit is never offered a charge
+    (_shooting_specialist_charge_block()), and the nearest enemy must be a charge
+    of at least DIMENSIONAL_CORRIDOR_MIN_CHARGE_CHANCE."""
+    if _shooting_specialist_charge_block(squad) is not None:
+        return None
+    gaps = [squad.min_distance_to(enemy) for enemy in _all_squads(all_tokens)
+            if enemy.owner != squad.owner and any(not m.is_dead() for m in enemy.models)]
+    gaps = [gap for gap in gaps if gap <= CHARGE_RANGE_IN]
+    if not gaps:
+        return None
+    chance = _charge_roll_probability(math.ceil(min(gaps)))
+    return chance if chance >= DIMENSIONAL_CORRIDOR_MIN_CHARGE_CHANCE else None
+
+
+def _handle_dimensional_corridor(player, all_tokens, dimensional_corridor_controller, game_log=None):
+    """Hypercrypt Legion's Dimensional Corridor (2CP), asked ahead of the AI's
+    charge declarations. NAMED: dormant for the AI today, because the AI
+    declines the MONOLITH's gate ability (its module records why), so no AI unit is ever
+    set up through it - can_use() then refuses every unit."""
+    ctrl = dimensional_corridor_controller
+    if ctrl is None:
+        return False
+    best = None
+    for squad in sorted(_all_squads(all_tokens), key=lambda s: s.name):
+        if squad.owner != player or not ctrl.can_use(squad):
+            continue
+        chance = _dimensional_corridor_verdict(squad, all_tokens)
+        if chance is not None and (best is None or chance > best[0]):
+            best = (chance, squad)
+    if best is None or not ctrl.use(best[1]):
+        return False
+    if game_log is not None:
+        game_log.add(
+            f"[dimensional corridor] {player}: {best[1].name} - the nearest charge is "
+            f"{best[0]:.0f}% likely.", file_only=True)
+    return True
+
+
+def _cosmic_precision_improves(relaxed_score, plain_score):
+    """Whether the relaxed arrival's best landing is CLEARLY better than the
+    ordinary one's, by _ingress_landing_score()'s own tuple (lower is better):
+    a better threat bucket, or the same bucket with a nearer next-turn target.
+    The later terms are tie-breaks, and a tie-break is not worth a CP. No legal
+    ordinary landing at all makes any relaxed one an improvement."""
+    if relaxed_score is None:
+        return False
+    if plain_score is None:
+        return True
+    return tuple(relaxed_score[:2]) < tuple(plain_score[:2])
 
 
 def reactive_subroutines_destination(state, squad, mover):

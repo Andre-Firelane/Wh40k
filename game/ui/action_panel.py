@@ -412,7 +412,8 @@ class ActionPanel:
         if setup_controller is not None and setup_controller.state == setup.PLACING:
             self._draw_setup_ui(surface, rect, setup_controller, ingress_controller, transport_controller,
                                 shortened_blade_controller=shortened_blade_controller,
-                                return_placement_controller=return_placement_controller)
+                                return_placement_controller=return_placement_controller,
+                                proactive_stratagems=proactive_stratagems)
             return
 
         if firing_deck_controller is not None and firing_deck_controller.state == firing_deck.CHOOSING_MODELS:
@@ -1352,7 +1353,7 @@ class ActionPanel:
 
     def _draw_setup_ui(self, surface, rect, setup_controller, ingress_controller=None, transport_controller=None,
                        pregame_controller=None, shortened_blade_controller=None,
-                       return_placement_controller=None):
+                       return_placement_controller=None, proactive_stratagems=None):
         """Rule 03.02 (Set Up): a reserve unit was dropped on the board and
         is being dragged into coherency before it's confirmed - mirrors
         Movement's MOVING-state Confirm/Cancel, but with no Advance-style
@@ -1424,6 +1425,23 @@ class ActionPanel:
             cancel_callback = setup_controller.cancel_setup
 
         button_y = text_y
+        # Registered Stratagems bought DURING an ingress move - Hypercrypt
+        # Legion's Cosmic Precision is the first. The unit screen that draws the
+        # rest of the registry is never reached while a placement is open, so
+        # they name this screen instead (game/proactive_stratagems.py's
+        # ARRIVAL_SCREEN) and are drawn here, above Confirm.
+        arrival_notes = []
+        if is_ingress and proactive_stratagems is not None:
+            from game.proactive_stratagems import ARRIVAL_SCREEN
+            for arrival_label, arrival_callback in proactive_stratagems.buttons_for(
+                    squad, screen=ARRIVAL_SCREEN):
+                arrival_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
+                arrival_rect = self._draw_button(surface, arrival_rect, arrival_label, accent="stratagem")
+                self._buttons.append((arrival_rect, arrival_callback))
+                button_y += arrival_rect.height + BUTTON_GAP
+            arrival_notes = proactive_stratagems.notes_for(squad, screen=ARRIVAL_SCREEN)
+            for note in arrival_notes:
+                button_y = self._draw_text(surface, rect, note, button_y, color=HINT_COLOR, gap=8)
         # Retaliation Cadre's The Shortened Blade (2CP): bought DURING the
         # arrival, since its whole effect is on where this placement may end -
         # so it belongs on this screen and nowhere else. can_use() already
@@ -1437,7 +1455,8 @@ class ActionPanel:
             )
             self._buttons.append((blade_rect, lambda: shortened_blade_controller.use(squad)))
             button_y += blade_rect.height + BUTTON_GAP
-        elif ingress_controller is not None and ingress_controller.relaxed_arrival_squad is squad:
+        elif (ingress_controller is not None and ingress_controller.relaxed_arrival_squad is squad
+              and not arrival_notes):
             text_y = self._draw_text(
                 surface, rect,
                 f'The Shortened Blade is active: set up more than {SHORTENED_BLADE_MIN_ENEMY_DISTANCE_IN:.0f}" '

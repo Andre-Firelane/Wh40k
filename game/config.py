@@ -162,6 +162,11 @@ AWAKENED_DYNASTY_PLAYERS = ("Player 2",)
 # declares it. Same list-building-declaration reasoning as the two around it.
 CANOPTEK_COURT_PLAYERS = ()
 
+# The third Necron detachment, HYPERCRYPT LEGION (Hyperphasing - see
+# game/hypercrypt_hyperphasing.py). Empty by default for the Canoptek Court's
+# reason: no shipped list fields it (user decision).
+HYPERCRYPT_LEGION_PLAYERS = ()
+
 # Which players field the Death Guard detachment "Death Lord's Chosen", whose
 # rule is Deadly Vectors (game/deadly_vectors.py) and whose six Stratagems all
 # gate on game/death_lords_chosen.py's stratagem_target_ok().

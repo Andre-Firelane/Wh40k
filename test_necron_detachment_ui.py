@@ -12,7 +12,22 @@ The Necron detachments added after Awakened Dynasty put their panel Stratagems
 on game/proactive_stratagems.py, so they reach the panel through the registry
 rather than as bespoke keyword arguments. This file renders that path, once per
 phase, and asks which Stratagem names came out of the button funnel. It GROWS
-by one block per detachment; the Canoptek Court is the first.
+by one block per detachment; the Canoptek Court is the first (sections 0-8),
+the Hypercrypt Legion the second (sections 9-17).
+
+THE HYPERCRYPT LEGION has three panel buttons and three reactive Stratagems:
+
+    Reanimation Crypts (1CP)    "Your Command phase."
+    Dimensional Corridor (2CP)  "Your Charge phase."
+    Cosmic Precision (1CP)      "Your Movement phase." - on a unit ARRIVING
+                                using an ingress move
+
+Cosmic Precision is the first registered Stratagem that is NOT on the unit
+screen: while a placement is open the panel draws the Set Up screen and returns,
+so its button names game/proactive_stratagems.py's ARRIVAL_SCREEN and has its own
+render here - SetupController PLACING an IngressController arrival. A render of
+the unit screen that shows no Cosmic Precision button proves nothing unless the
+arrival render shows it, and the other two must never appear on that screen.
 
 THE CANOPTEK COURT has two panel buttons and four reactive Stratagems:
 
@@ -588,5 +603,489 @@ c.eq("the four reactive Stratagems are found by their hooks",
                          "ReactiveSubroutinesController", "SuboptimalFacadeController"])
 c.eq("...and none of them is on the registry",
      sorted(n for n in _reactive if n in _registered), [])
+
+
+# ##########################################################################
+# THE HYPERCRYPT LEGION
+# ##########################################################################
+
+from game import hypercrypt_cosmic_precision as cosmic               # noqa: E402
+from game import hypercrypt_dimensional_corridor as dcor             # noqa: E402
+from game import hypercrypt_reanimation_crypts as crypts             # noqa: E402
+from game.charge import ChargeController                             # noqa: E402
+from game.ingress import IngressController                           # noqa: E402
+from game.proactive_stratagems import ARRIVAL_SCREEN                 # noqa: E402
+from game.setup import PLACING, SetupController                      # noqa: E402
+from game.turn import PHASE_CHARGE, PHASE_COMMAND, PHASE_MOVEMENT    # noqa: E402
+from game.factions.orks import BOYZ                                  # noqa: E402
+
+HYPER = dict(HYPERCRYPT_LEGION_PLAYERS=(HUMAN,))
+NO_HYPER = dict(HYPERCRYPT_LEGION_PLAYERS=())
+RC = crypts.REANIMATION_CRYPTS_NAME
+COS = cosmic.COSMIC_PRECISION_NAME
+DCN = dcor.DIMENSIONAL_CORRIDOR_NAME
+HYPER_NAMES = (RC, COS, DCN)
+# TRANSCRIBED from rules/necrons/detachments/Hypercrypt Legion.md: every WHEN
+# says "your", and Cosmic Precision's screen is the arrival.
+HWHEN = {RC: frozenset({PHASE_COMMAND}), DCN: frozenset({PHASE_CHARGE}),
+         COS: frozenset({PHASE_MOVEMENT})}
+MID = (M2.width_in / 2.0, M2.height_in / 2.0)
+ARRIVE_AT = (3.0, 3.0)
+HB = {}
+
+
+def build_hyper_board():
+    """The Court board plus three things the Hypercrypt buttons need:
+
+      * a NECRONS unit in Reserves with three destroyed Warriors - Reanimation
+        Crypts is never offered for Reserves with nothing to recover;
+      * a unit that came through the Eternity Gate THIS TURN, its Monolith on
+        the battlefield at the start of it, with an enemy 10" away - so lifting
+        the gate's lock alone would make it eligible to charge;
+      * a NECRONS unit in Reserves, ready to arrive.
+    """
+    build_board()
+    st = B["state"]
+    HB.clear()
+    crypt = tk.build(nec.NECRON_WARRIORS, HUMAN, name="1 Necron Warriors 21")
+    for model in list(crypt.models[:3]):
+        model.current_wounds = 0
+        crypt.models.remove(model)
+        crypt.destroyed_models.append(model)
+    st.reserves.append(crypt)
+    gated = cluster(tk.build(nec.NECRON_WARRIORS, HUMAN, name="1 Necron Warriors 22"), MID)
+    gated.eternity_gate_charge_locked = True
+    gated.eternity_gate_bearer_started_on_board = True
+    boyz = cluster(tk.build(BOYZ, FOE, name="2 Boyz 22"), (MID[0], MID[1] + 10.0))
+    for squad in (gated, boyz):
+        for model in squad.models:
+            st.add_token(model)
+            ALL_TOKENS.append(model)
+    arriving = tk.build(nec.NECRON_WARRIORS, HUMAN, name="1 Necron Warriors 23")
+    st.reserves.append(arriving)
+    HB.update(state=st, crypt=crypt, gated=gated, boyz=boyz, arriving=arriving)
+    return HB
+
+
+def hyper(tracker=None, cp=10):
+    """The three Hypercrypt panel controllers on one registry, one
+    StratagemController, and the charge/ingress collaborators they ask."""
+    tracker = tracker or turn_at(PHASE_COMMAND)
+    sc = strat(cp)
+    st = HB["state"]
+    mover = MovementController([], tk.Log(), HUMAN, DiceManager(), tracker, ALL_TOKENS)
+    charge = ChargeController(dice_manager=DiceManager(), turn_tracker=tracker, all_tokens=st.tokens,
+                              movement_controller=mover)
+    setup = SetupController(st, obstacles=st.obstacles, all_tokens=st.tokens,
+                            board_width_in=M2.width_in, board_height_in=M2.height_in)
+    ingress = IngressController(setup, st, st.tokens, turn_tracker=tracker,
+                                board_width_in=M2.width_in, board_height_in=M2.height_in)
+    ingress.gate_arrivals_this_turn.add(HB["gated"])
+    dice = DiceManager()
+    built = {
+        RC: crypts.ReanimationCryptsController(sc, turn_tracker=tracker, game_state=st, dice_manager=dice,
+                                               game_log=tk.Log()),
+        COS: cosmic.CosmicPrecisionController(sc, ingress_controller=ingress, setup_controller=setup,
+                                              turn_tracker=tracker, game_log=tk.Log()),
+        DCN: dcor.DimensionalCorridorController(sc, turn_tracker=tracker, charge_controller=charge,
+                                                ingress_controller=ingress, game_state=st, game_log=tk.Log()),
+    }
+    registry = ProactiveStratagems()
+    for name in HYPER_NAMES:
+        registry.add(built[name])
+    return dict(sc=sc, built=built, registry=registry, charge=charge, setup=setup, ingress=ingress,
+                dice=dice, mover=mover, tracker=tracker)
+
+
+def retrack(rig, tracker):
+    for ctrl in rig["built"].values():
+        ctrl.turn_tracker = tracker
+    rig["charge"].turn_tracker = tracker
+    rig["ingress"].turn_tracker = tracker
+    rig["tracker"] = tracker
+
+
+_setup_reached = []
+_texts = []
+_real_setup_ui = ActionPanel._draw_setup_ui
+_real_text = ActionPanel._draw_text
+
+
+def _spy_setup_ui(self, *a, **kw):
+    _setup_reached.append(True)
+    return _real_setup_ui(self, *a, **kw)
+
+
+def _spy_text(self, surface, rect, text, *a, **kw):
+    _texts.append(text)
+    return _real_text(self, surface, rect, text, *a, **kw)
+
+
+ActionPanel._draw_setup_ui = _spy_setup_ui
+ActionPanel._draw_text = _spy_text
+
+
+def hrender(squad, phase, rig, owner=HUMAN, registry=None):
+    """The unit screen, as render() draws it, with every collaborator the
+    Hypercrypt controllers ask moved onto the same clock."""
+    tracker = turn_at(phase, owner)
+    retrack(rig, tracker)
+    mover = MovementController([], tk.Log(), owner, DiceManager(), tracker, ALL_TOKENS)
+    shooter = ShootingController(obstacles=[], game_log=tk.Log(), player_name=owner,
+                                 dice_manager=DiceManager(), turn_tracker=tracker,
+                                 all_tokens=ALL_TOKENS, decision_manager=DecisionManager())
+    _labels.clear()
+    _reached.clear()
+    _texts.clear()
+    _surface.fill((0, 0, 0))
+    mover.select(squad.models[0])
+    _panel.draw(_surface, _rect, mover, shooter, dice_manager=DiceManager(),
+                proactive_stratagems=rig["registry"] if registry is None else registry)
+    return (list(_labels), [n for _, n in _panel._stratagem_buttons], list(_panel._buttons),
+            mover.selected_squad is squad and bool(_reached))
+
+
+def arrive(rig, phase=PHASE_MOVEMENT, owner=HUMAN, squad=None, registry=None):
+    """The ARRIVAL screen: SetupController PLACING an IngressController arrival.
+    Starts the arrival if none is open."""
+    tracker = turn_at(phase, owner)
+    retrack(rig, tracker)
+    squad = squad or HB["arriving"]
+    if rig["setup"].state != PLACING:
+        rig["ingress"].start_ingress(squad, *ARRIVE_AT)
+    mover = MovementController([], tk.Log(), owner, DiceManager(), tracker, ALL_TOKENS)
+    shooter = ShootingController(obstacles=[], game_log=tk.Log(), player_name=owner,
+                                 dice_manager=DiceManager(), turn_tracker=tracker,
+                                 all_tokens=ALL_TOKENS, decision_manager=DecisionManager())
+    _labels.clear()
+    _setup_reached.clear()
+    _texts.clear()
+    _surface.fill((0, 0, 0))
+    _panel.draw(_surface, _rect, mover, shooter, dice_manager=DiceManager(),
+                setup_controller=rig["setup"], ingress_controller=rig["ingress"],
+                proactive_stratagems=rig["registry"] if registry is None else registry)
+    placing = rig["setup"].state == PLACING and rig["ingress"].is_ingressing(squad)
+    return (list(_labels), [n for _, n in _panel._stratagem_buttons], list(_panel._buttons),
+            placing and bool(_setup_reached))
+
+
+def hyper_names(names):
+    return [n for n in names if n in HYPER_NAMES]
+
+
+# ==========================================================================
+print("=== 9. Hypercrypt Legion: the renders really produced a panel ===")
+# ==========================================================================
+
+with settings_as(**HYPER):
+    build_hyper_board()
+    rig = hyper()
+    c.eq("(live) the Reserves hold one NECRONS unit with something to recover",
+         crypts.recovering_units(HB["state"], HUMAN), [HB["crypt"]])
+    c.true("(live) the gated unit arrived through the Eternity Gate this turn",
+           rig["built"][DCN].arrived_through_gate(HB["gated"]))
+    retrack(rig, turn_at(PHASE_CHARGE))
+    c.true("(live) ...and lifting the gate's lock alone would make it eligible to charge",
+           rig["built"][DCN].eligible_once_lifted(HB["gated"]))
+    c.true("(live) ...a question that leaves the lock in place", HB["gated"].eternity_gate_charge_locked)
+    for _phase in PHASES:
+        for _key in ("led", "gated"):
+            _l, _n, _b, _ok = hrender(B[_key] if _key == "led" else HB[_key], _phase, rig)
+            c.true("%s / %s: a unit was selected AND the unit screen was drawn" % (_phase, _key), _ok)
+    _l, _n, _b, _ok = arrive(rig)
+    c.true("the arrival render reached the Set Up screen of an ingress move", _ok)
+    c.true("...which drew its ordinary Confirm button", "Confirm" in _l)
+    build_hyper_board()
+    rig = hyper()
+    _l, _names, _b, _ok = arrive(rig, registry=ProactiveStratagems())
+    c.eq("with an EMPTY registry no Hypercrypt button is drawn on the arrival screen",
+         (_ok, hyper_names(_names)), (True, []))
+    _l, _names, _b, _ok = hrender(B["led"], PHASE_COMMAND, hyper(), registry=ProactiveStratagems())
+    c.eq("...nor on the unit screen", (_ok, hyper_names(_names)), (True, []))
+
+
+# ==========================================================================
+print("=== 10. the phase matrix: 3 Stratagems x 5 phases, on their own screens ===")
+# ==========================================================================
+
+with settings_as(**HYPER):
+    for _name, _key in ((RC, "led"), (DCN, "gated")):
+        for _phase in PHASES:
+            build_hyper_board()
+            rig = hyper()
+            _squad = B["led"] if _key == "led" else HB["gated"]
+            _l, names, _b, _ok = hrender(_squad, _phase, rig)
+            c.eq("%s on the unit screen for the %s in %s" % (_name, _key, _phase),
+                 (_ok, _name in names), (True, _phase in HWHEN[_name]))
+    for _phase in PHASES:
+        build_hyper_board()
+        rig = hyper()
+        _l, names, _b, _ok = arrive(rig, phase=_phase)
+        c.eq("%s on the arrival screen in %s" % (COS, _phase),
+             (_ok, COS in names), (True, _phase in HWHEN[COS]))
+        c.eq("...and neither other Hypercrypt button is ever on that screen (%s)" % _phase,
+             [n for n in names if n in (RC, DCN)], [])
+    for _phase in PHASES:
+        for _key in ("led", "gated"):
+            build_hyper_board()
+            rig = hyper()
+            _squad = B["led"] if _key == "led" else HB["gated"]
+            _l, names, _b, _ok = hrender(_squad, _phase, rig)
+            c.eq("Cosmic Precision is never on the unit screen (%s, %s)" % (_phase, _key),
+                 (_ok, COS in names), (True, False))
+
+
+# ==========================================================================
+print("=== 11. whose phase ===")
+# ==========================================================================
+
+with settings_as(**HYPER):
+    for _name, _phase, _squad_key in ((RC, PHASE_COMMAND, "led"), (DCN, PHASE_CHARGE, "gated")):
+        build_hyper_board()
+        rig = hyper()
+        _squad = B["led"] if _squad_key == "led" else HB["gated"]
+        retrack(rig, turn_at(_phase, FOE))
+        c.eq("%s refuses the OPPONENT's %s phase" % (_name, _phase), rig["built"][_name].can_use(_squad), False)
+        retrack(rig, turn_at(_phase, HUMAN))
+        c.eq("...and accepts your own (the counter-proof)", rig["built"][_name].can_use(_squad), True)
+    # The arrival screen needs no selection, so the owner clause is measurable AT THE PANEL.
+    build_hyper_board()
+    rig = hyper()
+    _l, names, _b, _ok = arrive(rig, owner=FOE)
+    c.eq("Cosmic Precision is not drawn in the OPPONENT's Movement phase (Rapid Ingress's timing)",
+         (_ok, COS in names), (True, False))
+    _l, names, _b, _ok = arrive(rig, owner=HUMAN)
+    c.eq("...and is in your own, on the same open arrival", (_ok, COS in names), (True, True))
+
+
+# ==========================================================================
+print("=== 12. the detachment gate, AT THE PANEL ===")
+# ==========================================================================
+
+with settings_as(**NO_HYPER):
+    for _phase in PHASES:
+        build_hyper_board()
+        rig = hyper()
+        _l, names, _b, _ok = hrender(B["led"], _phase, rig)
+        _l2, names2, _b2, _ok2 = hrender(HB["gated"], _phase, rig)
+        build_hyper_board()
+        rig = hyper()
+        _l3, names3, _b3, _ok3 = arrive(rig, phase=_phase)
+        c.eq("no Hypercrypt Legion, no Hypercrypt button (%s)" % _phase,
+             (_ok and _ok2 and _ok3, hyper_names(names + names2 + names3)), (True, []))
+
+
+# ==========================================================================
+print("=== 13. the printed TARGET clauses, as negatives at the panel ===")
+# ==========================================================================
+
+with settings_as(**HYPER):
+    build_hyper_board()
+    rig = hyper()
+    HB["state"].reserves.remove(HB["crypt"])
+    _l, names, _b, _ok = hrender(B["led"], PHASE_COMMAND, rig)
+    c.eq("Reanimation Crypts: nothing in Reserves to recover, no button", (_ok, RC in names), (True, False))
+
+    build_hyper_board()
+    rig = hyper()
+    rig["ingress"].gate_arrivals_this_turn.clear()
+    _l, names, _b, _ok = hrender(HB["gated"], PHASE_CHARGE, rig)
+    c.eq("Dimensional Corridor: a unit that did not arrive through the gate, no button",
+         (_ok, DCN in names), (True, False))
+
+    build_hyper_board()
+    rig = hyper()
+    cluster(HB["boyz"], (MID[0] + 25.0, MID[1]))
+    _l, names, _b, _ok = hrender(HB["gated"], PHASE_CHARGE, rig)
+    c.eq("...no enemy within 12\" - lifting the lock would buy nothing, no button",
+         (_ok, DCN in names), (True, False))
+    c.true("...and drawing the panel left the gate's lock where it was", HB["gated"].eternity_gate_charge_locked)
+
+    build_hyper_board()
+    rig = hyper()
+    HB["gated"].charge_locked_until_end_of_turn = True
+    _l, names, _b, _ok = hrender(HB["gated"], PHASE_CHARGE, rig)
+    c.eq("...a second lock (Cosmic Precision's own) stays, so no button", (_ok, DCN in names), (True, False))
+
+    build_hyper_board()
+    rig = hyper()
+    _ctan = tk.build(nec.CTAN_SHARD_OF_THE_VOID_DRAGON, HUMAN, name="1 C'tan Shard of the Void Dragon 23")
+    HB["state"].reserves.append(_ctan)
+    _l, names, _b, _ok = arrive(rig, squad=_ctan)
+    c.eq("Cosmic Precision: an arriving MONSTER is excluded", (_ok, COS in names), (True, False))
+
+    build_hyper_board()
+    rig = hyper()
+    rig["ingress"].start_ingress(HB["arriving"], *ARRIVE_AT)
+    rig["ingress"].eternity_gate_squad = HB["arriving"]
+    _l, names, _b, _ok = arrive(rig)
+    c.eq("...and an arrival through the Eternity Gate is not offered it", (_ok, COS in names), (True, False))
+
+    build_hyper_board()
+    rig = hyper(cp=1)
+    _l, names, _b, _ok = hrender(HB["gated"], PHASE_CHARGE, rig)
+    c.eq("with 1CP, Dimensional Corridor (2CP) is not drawn", (_ok, DCN in names), (True, False))
+    _l, names, _b, _ok = hrender(B["led"], PHASE_COMMAND, rig)
+    c.true("...while Reanimation Crypts (1CP) still is - the counter-proof", RC in names)
+
+
+# ==========================================================================
+print("=== 14. the resets, each isolated ===")
+# ==========================================================================
+
+with settings_as(**HYPER):
+    build_hyper_board()
+    rig = hyper()
+    tk.script(1)
+    _l, names, buttons, _ok = hrender(B["led"], PHASE_COMMAND, rig)
+    c.true("Reanimation Crypts is on the panel before any purchase", RC in names)
+    c.true("...pressed", press(RC, buttons))
+    _l, names, _b, _ok = hrender(B["led"], PHASE_COMMAND, rig)
+    c.eq("...and gone while its D3 is still on the table", RC in names, False)
+    rig["dice"].acknowledge()
+    rig["built"][RC].on_dice_acknowledged()
+    c.true("(live) a 1 left the unit with wounds still to recover",
+           crypts.recovering_units(HB["state"], HUMAN) == [HB["crypt"]])
+    _l, names, _b, _ok = hrender(B["led"], PHASE_COMMAND, rig)
+    c.eq("...so with the roll done only rule 15.01 refuses it - still gone", RC in names, False)
+    rig["sc"].reset_phase()
+    _l, names, _b, _ok = hrender(B["led"], PHASE_COMMAND, rig)
+    c.true("...and 15.01's reset brings it back", RC in names)
+    tk.script()
+
+    build_hyper_board()
+    rig = hyper()
+    _l, names, buttons, _ok = arrive(rig)
+    c.true("Cosmic Precision is on the arrival screen before any purchase", COS in names)
+    press(COS, buttons)
+    _l, names, _b, _ok = arrive(rig)
+    c.eq("...and gone after it - the arrival is already relaxed", COS in names, False)
+    rig["ingress"].cancel_ingress()
+    _l, names, _b, _ok = arrive(rig)
+    c.eq("a cancelled and restarted arrival is still refused by rule 15.01 alone", COS in names, False)
+    rig["sc"].reset_phase()
+    _l, names, _b, _ok = arrive(rig)
+    c.true("...and 15.01's reset brings it back", COS in names)
+
+    build_hyper_board()
+    rig = hyper()
+    _l, names, buttons, _ok = hrender(HB["gated"], PHASE_CHARGE, rig)
+    press(DCN, buttons)
+    rig["sc"].reset_phase()
+    _l, names, _b, _ok = hrender(HB["gated"], PHASE_CHARGE, rig)
+    c.eq("Dimensional Corridor: once the lock is lifted, 15.01's reset does not bring it back",
+         DCN in names, False)
+
+
+# ==========================================================================
+print("=== 15. the click really pays ===")
+# ==========================================================================
+
+with settings_as(**HYPER):
+    build_hyper_board()
+    rig = hyper()
+    tk.script(3)
+    _l, names, buttons, _ok = hrender(B["led"], PHASE_COMMAND, rig)
+    _before = rig["sc"].command_points.cp[HUMAN]
+    c.true("pressing Reanimation Crypts", press(RC, buttons))
+    c.eq("...spends its printed 1CP", _before - rig["sc"].command_points.cp[HUMAN], crypts.REANIMATION_CRYPTS_CP)
+    c.true("...and rolls the named D3", rig["dice"].is_pending and rig["dice"].label == RC)
+    rig["dice"].acknowledge()
+    rig["built"][RC].on_dice_acknowledged()
+    c.eq("...which brings the three Warriors back into the unit in Reserves",
+         (len(HB["crypt"].destroyed_models), len(HB["crypt"].models)), (0, 10))
+    c.eq("...without standing them on the battlefield",
+         [m for m in HB["crypt"].models if m in HB["state"].tokens], [])
+    tk.script()
+
+    build_hyper_board()
+    rig = hyper()
+    _l, names, buttons, _ok = arrive(rig)
+    _before = rig["sc"].command_points.cp[HUMAN]
+    c.true("pressing Cosmic Precision", press(COS, buttons))
+    c.eq("...spends its printed 1CP", _before - rig["sc"].command_points.cp[HUMAN], cosmic.COSMIC_PRECISION_CP)
+    c.true("...arms the relaxed arrival for the arriving unit",
+           rig["ingress"].relaxed_arrival_squad is HB["arriving"])
+    c.true("...and locks its charge for the turn", HB["arriving"].charge_locked_until_end_of_turn)
+    _l, names, _b, _ok = arrive(rig)
+    c.true("the next render says Cosmic Precision is active",
+           any("Cosmic Precision is active" in (t or "") for t in _texts))
+    c.eq("...and not that The Shortened Blade is",
+         [t for t in _texts if "The Shortened Blade is active" in (t or "")], [])
+
+    build_hyper_board()
+    rig = hyper()
+    _l, names, buttons, _ok = hrender(HB["gated"], PHASE_CHARGE, rig)
+    _before = rig["sc"].command_points.cp[HUMAN]
+    c.true("pressing Dimensional Corridor", press(DCN, buttons))
+    c.eq("...spends its printed 2CP", _before - rig["sc"].command_points.cp[HUMAN], dcor.DIMENSIONAL_CORRIDOR_CP)
+    c.eq("...lifts the gate's lock", HB["gated"].eternity_gate_charge_locked, False)
+    c.true("...so the unit may declare a charge", rig["charge"].can_declare_charge(HB["gated"]))
+
+
+# ==========================================================================
+print("=== 16. what the corpus prints, and what the panel draws ===")
+# ==========================================================================
+
+_HCORPUS = rules_text.detachment_stratagems("NECRONS", "Hypercrypt Legion")
+c.eq("the printed detachment was read - six Stratagems", len(_HCORPUS), 6)
+for _name in HYPER_NAMES:
+    with settings_as(**HYPER):
+        build_hyper_board()
+        rig = hyper()
+        if _name == RC:
+            _drawn, names, _b, _ok = hrender(B["led"], PHASE_COMMAND, rig)
+        elif _name == DCN:
+            _drawn, names, _b, _ok = hrender(HB["gated"], PHASE_CHARGE, rig)
+        else:
+            _drawn, names, _b, _ok = arrive(rig)
+    _label = next((lab for lab in _drawn if lab.startswith(_name + " (")), None)
+    c.true("%s: a label was drawn" % _name, _label is not None)
+    found = rules_text.stratagem_named("NECRONS", ["Hypercrypt Legion"], _name)
+    c.true("...the DRAWN name resolves to the printed Stratagem",
+           found is not None and found.name.lower() == _name.lower())
+    _printed_cp = re.search(r"(\d+)", str(found.cost)) if found is not None else None
+    _drawn_cp = re.search(r"\((\d+) CP\)", _label or "")
+    c.eq("...and the label's cost is the printed cost",
+         _drawn_cp.group(1) if _drawn_cp else None, _printed_cp.group(1) if _printed_cp else None)
+
+
+# ==========================================================================
+print("=== 17. which Hypercrypt Stratagems belong on the panel, and on which screen, by AST ===")
+# ==========================================================================
+
+_hyper_modules = sorted(f for f in os.listdir("game") if f.startswith("hypercrypt_") and f.endswith(".py"))
+c.true("the Hypercrypt module sweep is live (%d)" % len(_hyper_modules), len(_hyper_modules) >= 7)
+_h_label, _h_reactive, _h_screens = [], [], {}
+for _file in _hyper_modules:
+    _tree = ast.parse(io.open(os.path.join("game", _file), encoding="utf-8").read())
+    for _cls in (n for n in _tree.body if isinstance(n, ast.ClassDef)):
+        _methods = {f.name for f in _cls.body if isinstance(f, ast.FunctionDef)}
+        for _stmt in _cls.body:
+            if (isinstance(_stmt, ast.Assign) and any(getattr(t, "id", None) == "PANEL_SCREEN"
+                                                     for t in _stmt.targets)):
+                _h_screens[_cls.name] = getattr(_stmt.value, "id", None)
+        if "panel_label" in _methods:
+            _h_label.append(_cls.name)
+        elif "maybe_offer" in _methods or "offer_at_end_of_turn" in _methods:
+            _h_reactive.append(_cls.name)
+c.eq("exactly the three panel Stratagems define panel_label()",
+     sorted(_h_label), ["CosmicPrecisionController", "DimensionalCorridorController",
+                        "ReanimationCryptsController"])
+c.eq("...and every one of them is on main.py's registry",
+     sorted(n for n in _h_label if n not in _registered), [])
+c.eq("the three reactive Stratagems are found by their own hooks",
+     sorted(_h_reactive), ["EntropicDampingController", "HyperphasicRecallController",
+                           "QuantumDeflectionController"])
+c.eq("...and none of them is on the registry", sorted(n for n in _h_reactive if n in _registered), [])
+# The rule's controller inherits its hook (game/end_of_turn_withdrawal.py), so
+# an own-body sweep cannot see it - asked of the class instead.
+from game.hypercrypt_hyperphasing import HyperphasingController      # noqa: E402
+c.true("the rule is offered at the end of a turn, inherited from the withdrawal base",
+       hasattr(HyperphasingController, "offer_at_end_of_turn")
+       and not hasattr(HyperphasingController, "panel_label"))
+c.eq("...and is not on the registry", "HyperphasingController" in _registered, False)
+c.eq("only Cosmic Precision names a screen - the ARRIVAL screen",
+     _h_screens, {"CosmicPrecisionController": "ARRIVAL_SCREEN"})
 
 c.finish()

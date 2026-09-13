@@ -97,6 +97,11 @@ SQUAD_FLAGS = (
     "set_up_this_turn",
     "ingress_locked",
     "charge_locked_until_end_of_turn",
+    # The Monolith's Eternity Gate lock and its Monolith's start-of-turn fact:
+    # a mid-turn save that dropped the lock would hand a gated unit its charge
+    # back, and one that dropped the fact would refuse Dimensional Corridor.
+    "eternity_gate_charge_locked",
+    "eternity_gate_bearer_started_on_board",
     "explosives_locked_until_end_of_turn",
     "fights_first",
     # bought and paid for - a CP or a Battle Focus token was spent on each of

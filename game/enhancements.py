@@ -314,6 +314,19 @@ def _cryptek_character(model, squad):
             and necron_detachments.model_is_cryptek(squad, model))
 
 
+def _necrons_character(model, squad):
+    """"NECRONS model only" - the Hypercrypt Legion's four.
+
+    NECRONS is the FACTION, and a unit's faction is read off its datasheet
+    (awakened_dynasty.is_necrons_unit() - one definition for the whole faction).
+    Asked of the squad the model belongs to, which is the model's own unit before
+    the 19.01 merge army building runs this under. The general rule that a
+    bearer is a CHARACTER is folded in, as for every "model only" line."""
+    from game import necron_detachments
+    return (bool(getattr(model.profile, "character", False))
+            and necron_detachments.is_necrons_unit(squad))
+
+
 # --- the registry --------------------------------------------------------
 #
 # Every engine-wired Enhancement, keyed by its printed name. `flag` names the
@@ -342,8 +355,9 @@ _SEER_COUNCIL = ("Seer Council", "SEER_COUNCIL_PLAYERS")
 
 # The Necron detachments. Awakened Dynasty's four stay descriptive data (no
 # roster buys them - see game/factions/necrons.py); the Canoptek Court's four
-# are wired.
+# are wired, and so are the Hypercrypt Legion's.
 _CANOPTEK_COURT = ("Canoptek Court", "CANOPTEK_COURT_PLAYERS")
+_HYPERCRYPT_LEGION = ("Hypercrypt Legion", "HYPERCRYPT_LEGION_PLAYERS")
 
 ENHANCEMENTS = {}
 
@@ -506,6 +520,17 @@ _add("Autodivinator", 15, _CANOPTEK_COURT, "autodivinator",
      _cryptek_character, "CRYPTEK model only")
 _add("Metalodermal Tesla Weave", 10, _CANOPTEK_COURT, "metalodermal_tesla_weave",
      _cryptek_character, "CRYPTEK model only")
+
+# Hypercrypt Legion - game/enh_dimensional_overseer.py, game/enh_arisen_tyrant.py,
+# game/enh_hyperspatial_transfer_node.py and game/enh_osteoclave_fulcrum.py.
+_add("Dimensional Overseer", 25, _HYPERCRYPT_LEGION, "dimensional_overseer",
+     _necrons_character, "NECRONS model only")
+_add("Arisen Tyrant", 25, _HYPERCRYPT_LEGION, "arisen_tyrant",
+     _necrons_character, "NECRONS model only")
+_add("Hyperspatial Transfer Node", 15, _HYPERCRYPT_LEGION, "hyperspatial_transfer_node",
+     _necrons_character, "NECRONS model only")
+_add("Osteoclave Fulcrum", 20, _HYPERCRYPT_LEGION, "osteoclave_fulcrum",
+     _necrons_character, "NECRONS model only")
 
 
 def get(name):

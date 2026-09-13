@@ -12519,7 +12519,133 @@ mit Necrons auf BEIDEN Seiten und beiden im Court (exit 0; das Log zeigt
 `verify_rules_vs_engine.py` unverändert bei 70 Differenzen, keine nennt den Court;
 `fetch_datasheet_rules.py --offline` ohne Korpus-Diff.
 
-**Offen:** Etappe 2 (Hypercrypt Legion) und Etappe 3 (Cryptek Conclave), erst nach „weiter".
+### Etappe 2 — Hypercrypt Legion (2 DP, Reconnaissance)
+
+Regel Hyperphasing, vier Enhancements, sechs Stratagems. Module `game/hypercrypt_*.py` und
+`game/enh_{dimensional_overseer,arisen_tyrant,hyperspatial_transfer_node,osteoclave_fulcrum}.py`.
+Dieselben Vorgaben wie Etappe 1 (dormant by roster, volle deterministische KI-Nutzung).
+
+**Sechs Vorarbeiten:**
+1. **`game/battle_size.py`** — `normalize()`/`lookup(table)`, gelesen von Battle Focus, Ride the Wind
+   und Hyperphasing (drei Kopien derselben Schlachtgrößen-Frage).
+2. **`game/end_of_turn_withdrawal.py`** — die Zugende-Rücknahme in Strategic Reserves als Basisklasse
+   aus `RideTheWindController` (Zähler, `limit()`, `per_unit_offer`-Kette, `prompt_for`). Ride the
+   Wind verhaltensneutral umgestellt (seine Suite ohne Anpassung grün; `ab_per_unit_offer.py` zielt
+   jetzt auf die Basis). Neu: ein injiziertes `choose(eligible, cap)` beantwortet `auto_players`
+   synchron; ohne Politik wird die KI weiter nur herausgefiltert (Ride the Wind injiziert keine).
+3. **Relaxed Arrival (User-Entscheidung):** „anywhere on the battlefield" hebt 20.04s
+   Gegnerzonen-Verbot auf — `IngressController._in_enemy_deployment_zone()` antwortet False für
+   `_uses_relaxed_arrival()`, und Overlay, Confirm und die KI-Landesuche
+   (`_ingress_landing_candidates`) lesen dieselbe Stelle. Daring Riders und Cloudstrider ziehen mit.
+4. **Eigenes Eternity-Gate-Charge-Lock** (`Squad.eternity_gate_charge_locked`, dazu
+   `eternity_gate_bearer_started_on_board` und `IngressController.gate_arrivals_this_turn`):
+   `eternity_gate.use` setzt es statt des geteilten `charge_locked_until_end_of_turn` — sonst höbe
+   Dimensional Corridor Cosmic Precisions Lock mit auf. In `SQUAD_FLAGS`, am Zugende geräumt;
+   `test_necron_titans.py` pinnt beide Richtungen.
+5. **`FightController.models_lost_this_activation()`** — Spiegel der Schuss-Seite, damit
+   Hyperphasic Recall aus beiden Phasen das Verlust-Ledger SEINER Phase bekommt.
+6. **Off-Board-Reanimation:** `reanimation_protocols.activate(..., off_board=True)` (weiter die eine
+   Tür) nimmt eine Einheit in `state.reserves`: Heilen wie immer, wiederbelebte Modelle kehren in
+   `squad.models` zurück — ohne Token, ohne Platzierung, ohne Boost-FRAGE (der Boost gilt); sie
+   landen mit der Einheit per Ingress. `test_return_placement.py` nimmt diese Tür ausdrücklich von
+   der „jede Tür bekommt einen Placer"-Regel aus, mit Liveness-Zeile.
+
+**Hyperphasing** (`hypercrypt_hyperphasing.py`): Cap 1/2/3 nach Battle Size plus Dimensional
+Overseer; NECRONS, nicht engaged, nicht embarked, nicht schon in Reserve. **Nie angeboten, wenn die
+Rücknahme nach 20.03 sicher tödlich wäre** (`withdrawal_is_doomed`: keine eigene Bewegungsphase mehr
+vor der Zerstörung am Ende von Runde 3) — es öffnet dann gar keinen Prompt. **KI-Politik**
+`agent_driver.hyperphasing_choice` (User: „Retten + Umpositionieren"): nie in Runde 1, nie eine
+Garnison auf einem gehaltenen Objective; retten, wenn der erwartete eingehende Schaden ≥ ½
+Restwunden; umpositionieren, wenn nächsten Zug weder Feind noch Objective erreichbar ist; nach
+Punkten, bis zum Cap. Die Rückkehr übernimmt `_auto_ingress_squad`.
+
+**Enhancements:** Dimensional Overseer (+1 auf den Cap, Träger auf dem Brett ODER in Reserve;
+eingestiegen zählt nicht, und dafür braucht es keinen Filter — gemessen steht eine eingestiegene
+Einheit in keinem der zwei gelesenen Container), Arisen Tyrant (automatische Hit-1er, ganzer Wurf
+wenn die Einheit `set_up_this_turn` ist; neunter Eintrag in `ONES_OR_WHOLE_LABELS`, beide Phasen),
+Hyperspatial Transfer Node (Kein-Wurf-Advance +6" in `start_run`), Osteoclave Fulcrum (Deep Strike
+auf JEDES Modell der Einheit, idempotent, am Declare-Battle-Formations-Seam wie Student of Kauyon).
+
+**Stratagems:**
+- **Quantum Deflection** (reaktiv, in BEIDEN `target_reactions`): 4+ Invulnerable für die Phase,
+  eigener Phasen-Reset; die KI kauft nur, wo 4+ die beste Rettung wirklich verbessert.
+- **Entropic Damping** (reaktiv, nur Schuss): die Marke liegt auf dem ANGREIFER, `_adjusted_weapon`
+  gibt jeder seiner Waffen [HAZARDOUS], der Hazard-Ledger zählt je Waffe; eine schon durchgehend
+  hazardous Einheit wird nicht gefragt. KI: immer, wenn angeboten.
+- **Hyperphasic Recall** (reaktiv aus `_necron_after_enemy_shooting`/`_fight`): Einheit getaggt,
+  Monolith-Liste nur bei mehreren. **Das Set-up wartet auf den Todes-Sweep** (`resolve_deferred()`
+  nach `remove_dead_models()`) — vorher liegen die Leichen noch im Weg; Basen wholly within 6" des
+  Monolithen, nicht in Engagement Range, Cancel stellt die alten Positionen wieder her. KI: kauft,
+  wenn der erwartete Schaden die Einheit sonst auslöscht.
+- **Reanimation Crypts** (Panel, eigene Command-Phase): je Reserve-Einheit ein sichtbarer D3 durch
+  `activate()` off board; die Würfel-Queue steht im Phasen-Tor und wird aus `main.py` bestätigt. KI
+  (`_handle_reanimation_crypts`): ab zwei zurückholbaren Wunden.
+- **Cosmic Precision** (Panel, eigene Movement-Phase, **auf dem ARRIVAL-Screen**): der erste
+  Registry-Knopf, der auf dem Set-Up-Screen einer Ingress-Ankunft statt auf dem Einheiten-Screen
+  steht. Naht: `ProactiveStratagems.buttons_for(squad, screen=ARRIVAL_SCREEN)` plus `notes_for()`,
+  `PANEL_SCREEN` als Klassenattribut, und das Panel reicht die Registry per Keyword an
+  `_draw_setup_ui()` (Fehlerklasse 22). Wirkung: Relaxed Arrival, Charge-Lock, neu gebautes
+  Platzierungs-Overlay. KI in `_auto_ingress_squad`: nur bei klar besserem Landeplatz — ein
+  Gleichstand ist kein CP.
+- **Dimensional Corridor** (Panel, eigene Charge-Phase): hebt NUR das Gate-Lock, und nur wenn 11.02
+  danach wirklich ja sagt — `eligible_once_lifted()` fragt die echte `can_declare_charge()` mit
+  beiseitegelegtem Lock und stellt es im `finally` zurück. **Für die KI dormant**, solange sie das
+  Eternity Gate ablehnt (benannt).
+
+**Die Panel-Hälfte** (`test_necron_detachment_ui.py` §9-17): Liveness, die 2×5-Matrix auf BEIDEN
+Screens (RC/DC nie auf dem Arrival-Screen, COS nie auf dem Einheiten-Screen), Besitzer, Detachment-
+Tor und TARGET-Negative am Panel, isolierte Resets, der Klick zahlt (RC-Würfel revive off board,
+COS zeichnet seine Notiz statt der Shortened-Blade-Zeile, DC hebt das Lock), Label ↔ Korpus, und per
+AST: genau die drei definieren `panel_label()` und stehen auf der Registry,
+`_h_screens == {"CosmicPrecisionController": "ARRIVAL_SCREEN"}`.
+
+**A/B-Sonden (`ab_necron_hypercrypt_legion.py`): 91 Sonden, 108 Suite-Läufe, alle beißend, keine
+stürzt ab.** Sechs bissen im ersten Lauf nicht — jede ein Befund über einen Test oder den Code:
+- **Ein Test fragte den Controller der EINEN Szene nach der Einheit einer ZWEITEN**
+  (`dc_scene(in_set=False)` zweimal gebaut): die fremde Einheit steht nicht auf dessen Brett, also
+  Ablehnung aus dem falschen Grund.
+- **Zwei Filter waren redundant und sind entfernt:** Overseers `embarked_in`-Term und Recalls
+  „kein Monolith"-Early-out (`monoliths_with_room()` liest `monoliths_for()`). Die Sonden zielen
+  jetzt auf das, was wirklich entscheidet (ein dritter Container; die MONOLITH-Keyword-Frage).
+- **`test_reroll_scope.py` konnte einen verschwundenen Label gar nicht sehen** — jeder Abschnitt
+  iteriert die Menge selbst. Die neun Mitglieder sind jetzt namentlich gepinnt.
+- **Zwei Sonden zielten auf Suiten, die die Stelle nicht sehen können**, und sind umdeklariert:
+  Reanimation Crypts' `is_busy` ist am Panel von 15.01 maskiert, und `test_event_chain_wiring.py`
+  §10 prüft nur Tor → auflösbar, nie auflösbar → Tor.
+
+**Im ECHTEN Spiel belegt** (`verify_necron_hypercrypt_legion.py`; Necrons als Player 1, Detachment
+per Wrapper; `--neutralize` per Import-Hook, `main.py` auf der Platte unberührt):
+
+| | gefixt | `--neutralize` |
+|---|---|---|
+| Hyperphasing hält die KI-Politik | ja | nein |
+| Quantum Deflection Schuss/Fight, Entropic Damping Schuss | ja/ja, ja | nein |
+| Reanimation Crypts hält den Boost | ja | nein |
+| auf main()s Registry | alle drei | keiner |
+| Phasen-Tor wartet auf Reanimation-Crypts-Würfel | ja | nein |
+| Recall aus beiden Hooks, je eigenes Ledger | shooting, fight | nie |
+| gezeichnet | RC Command, DC Charge, COS Movement (Arrival) | nie |
+| Knöpfe außerhalb ihres WHEN | 0 | 0 |
+
+**Gemessener Harness-Befund:** ein Lauf zeichnete Reanimation Crypts nie. selfplays eigene
+„Next Phase"-Klicks treiben die echte Uhr über Runde 3 hinaus, und 20.03 zerstört dort jede noch
+reservierte Einheit — auch die zwei gestagten. Die Sonde pinnt die Runde deshalb auf 2 und zählt
+Reserve-Zerstörungen während des Stagings (0).
+
+**Mitwandernde Pins:** `test_corsairs.py` (neun Labels), `test_return_placement.py` (Off-Board-Tür,
+und `_constructs()` erkennt eine per `proactive_stratagems.add(...)` gebaute Controller-Instanz),
+`test_necron_titans.py` (eigenes Gate-Lock), `test_detachments.py`, `test_force_dispositions.py`
+(19), `test_necron_datasheets.py`, `ab_per_unit_offer.py`.
+
+**Getestet:** `test_necron_hypercrypt_legion.py` **455/455**, `test_necron_detachment_ui.py`
+**209/209**, `test_reroll_scope.py` **138/138**, `test_event_chain_wiring.py` **252/252**. Volle
+Regression **231 Suiten, ~22124 Prüfungen, 230 grün / 0 rot / 1 bekannt**, `run_tests.py --smoke`
+komplett grün (alle neun schweren Skripte, inkl. `selfplay.py map2 1500` mit den Default-Armeen),
+dazu `selfplay.py map2 1500` mit Necrons auf BEIDEN Seiten im Hypercrypt (exit 0; Runde 1 mit zwei
+Zugenden, die KI-Politik nimmt dort bewusst nichts). `verify_rules_vs_engine.py` unverändert bei 70,
+`fetch_datasheet_rules.py --offline` ohne Korpus-Diff (255 Dateien, nur das Abrufdatum).
+
+**Offen:** Etappe 3 (Cryptek Conclave), erst nach „weiter".
 
 ## Die sieben Aeldari-Detachment-REGELN
 
