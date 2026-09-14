@@ -223,7 +223,7 @@ text = planner_prompt.SYSTEM_PROMPT if hasattr(planner_prompt, "SYSTEM_PROMPT") 
 for needle, label in (
     ("chance_to_reach_it_this_turn", "the new field is named"),
     ("Getting into combat AT ALL this turn", "tempo is stated as the rule"),
-    ("WAAAGH", "and the Advance-and-charge case is called out"),
+    ("riled up", "and the Advance-and-charge case is called out"),
 ):
     c.true(label, needle in text)
 

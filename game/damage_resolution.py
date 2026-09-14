@@ -29,7 +29,7 @@ def _resolve_save(roll, ap, sv_threshold, insv_threshold):
     return "damage"
 
 
-def save_thresholds(model, weapon, waaagh=None):
+def save_thresholds(model, weapon):
     """The three numbers rule 05.04's save actually turns on, for ONE model
     against ONE weapon: the printed armour save, the invulnerable save in
     force, and the AP actually applying.
@@ -67,7 +67,7 @@ def save_thresholds(model, weapon, waaagh=None):
         from game import aac_autoreactive_camouflage
         sv -= aac_autoreactive_camouflage.save_bonus_for(getattr(model, "squad", None))
     insv = parse_threshold(effective_invulnerable_save(
-        model, waaagh, melee=getattr(weapon, "weapon_type", None) == MELEE,
+        model, melee=getattr(weapon, "weapon_type", None) == MELEE,
     ))
     # Two AP adjustments, applied in turn rather than folded: Ramshackle but
     # Rugged belongs to the MODEL being allocated to, the Enforcer Commander's
@@ -78,7 +78,7 @@ def save_thresholds(model, weapon, waaagh=None):
     return sv, insv, enforcer_commander_adjusted_ap(ap, model, weapon)
 
 
-def save_display(model, weapon, waaagh=None):
+def save_display(model, weapon):
     """(shown_modifiers, invulnerable) for the dice panel's heading on a Save
     roll - read off the same save_thresholds() the resolution uses, so the
     heading cannot name a modifier the save is not actually taking.
@@ -93,25 +93,25 @@ def save_display(model, weapon, waaagh=None):
     they still reach the threshold the panel prints."""
     if model is None or weapon is None:
         return (), False
-    sv, insv, ap = save_thresholds(model, weapon, waaagh)
+    sv, insv, ap = save_thresholds(model, weapon)
     armour = (sv - ap) if sv is not None else None
     if insv is not None and (armour is None or insv <= armour):
         return (), True
     return (((ap, "AP"),) if ap else ()), False
 
 
-def save_heading(model, weapon, waaagh=None, subtitle=""):
+def save_heading(model, weapon, subtitle=""):
     """The dice panel's heading kwargs for a Save roll - title, subtitle and
     shown modifiers - so the four save-roll sites in shooting.py and fight.py
     say it one way. An invulnerable save says so on the subtitle, since that
     is exactly the case where no AP is listed."""
-    shown, invulnerable = save_display(model, weapon, waaagh)
+    shown, invulnerable = save_display(model, weapon)
     if invulnerable:
         subtitle = f"{subtitle} - invulnerable save" if subtitle else "Invulnerable save"
     return {"title": "Roll to Save", "subtitle": subtitle, "shown_modifiers": shown}
 
 
-def displayed_save_threshold(model, weapon, waaagh=None):
+def displayed_save_threshold(model, weapon):
     """The single number a save die has to REACH to save - the best of the
     AP-modified armour save and the (AP-proof) invulnerable save, which is
     exactly what _resolve_save() above lets through.
@@ -120,7 +120,7 @@ def displayed_save_threshold(model, weapon, waaagh=None):
     marks "no passing roll exists". Note the unmodified-1 rule is NOT folded
     in here - DiceManager.is_success() applies that itself, for every kind of
     roll."""
-    sv, insv, ap = save_thresholds(model, weapon, waaagh)
+    sv, insv, ap = save_thresholds(model, weapon)
     reachable = [t for t in ((sv - ap) if sv is not None else None, insv) if t is not None]
     return min(reachable) if reachable else None
 
@@ -132,7 +132,7 @@ def displayed_save_threshold(model, weapon, waaagh=None):
 AUTO_FAILED_SAVE = 1
 
 
-def save_is_impossible(target_squad, weapon, waaagh=None):
+def save_is_impossible(target_squad, weapon):
     """True when NO living model of `target_squad` could pass a Save roll
     against `weapon` - i.e. every one of them needs more than a D6 can show.
 
@@ -162,7 +162,7 @@ def save_is_impossible(target_squad, weapon, waaagh=None):
     if not models:
         return False
     for model in models:
-        threshold = displayed_save_threshold(model, weapon, waaagh)
+        threshold = displayed_save_threshold(model, weapon)
         if threshold is not None and threshold <= 6:
             return False
     return True
@@ -223,7 +223,7 @@ class DamageAllocationSession:
 
     def __init__(
         self, rolls, weapon, target_squad, dice_manager=None, log=None, priority_group=None, stealth_drones=None,
-        waaagh=None, damage_reroll=None, attacker_squad=None,
+        damage_reroll=None, attacker_squad=None,
     ):
         self.weapon = weapon
         self.target_squad = target_squad
@@ -238,7 +238,6 @@ class DamageAllocationSession:
         self.dice_manager = dice_manager
         self.log = log
         self.stealth_drones = stealth_drones
-        self.waaagh = waaagh  # Orks army rule "Waaagh!" - optional, like stealth_drones; see game/waaagh.py
         # Optional collaborator offering a re-roll of a dice-notation Damage
         # roll, with maybe_offer(total, on_resolved) -> bool, same contract
         # stealth_drones satisfies. Crisis Sunforge Battlesuits' Sunforge
@@ -343,9 +342,9 @@ class DamageAllocationSession:
 
             roll = self._rolls.pop(0)
             sv_threshold, insv_threshold, effective_ap = save_thresholds(
-                group[0], self.weapon, self.waaagh,
+                group[0], self.weapon,
             )
-            # Waaagh!'s granted 5+ invulnerable, a printed invulnerable that
+            # Riled up's granted 5+ invulnerable (game/riled_up.py), a printed invulnerable that
             # improves against melee (Howling Banshees), and the Battlewagon's
             # Ramshackle AP worsening all live in save_thresholds() above -
             # one definition, so the dice panel colours a die by the same
@@ -551,7 +550,7 @@ class DamageAllocationSession:
         # is the one place that can answer whether this was a Psychic Attack -
         # rule 24.29's keyword. Seer Council's Runes of Warding asks it.
         fnp = FeelNoPainRoll(model, self._reduced_damage(model, amount), self.dice_manager,
-                             log=self.log, waaagh=self.waaagh,
+                             log=self.log,
                              psychic=bool(getattr(self.weapon, "psychic", False)))
         if fnp.is_pending:
             self.pending_fnp = fnp
@@ -637,7 +636,7 @@ class DamageAllocationSession:
 
         comment)."""
         fnp = FeelNoPainRoll(model, self._reduced_damage(model, amount), self.dice_manager,
-                             log=self.log, waaagh=self.waaagh,
+                             log=self.log,
                              psychic=bool(getattr(self.weapon, "psychic", False)))
         if fnp.is_pending:
             self.pending_fnp = fnp
@@ -726,7 +725,7 @@ class MortalWoundAllocationSession:
     #: arrive too late for the wound that triggered it.
     on_mortal_wounds = None
 
-    def __init__(self, squad, count, dice_manager=None, log=None, waaagh=None,
+    def __init__(self, squad, count, dice_manager=None, log=None,
                  attacker_squad=None):
         self.squad = squad
         # Who is inflicting these - bookkeeping only, see the same field on
@@ -737,7 +736,6 @@ class MortalWoundAllocationSession:
         self.attacker_squad = attacker_squad
         self.dice_manager = dice_manager
         self.log = log
-        self.waaagh = waaagh  # Orks army rule "Waaagh!" - optional, like DamageAllocationSession's own; see game/waaagh.py
         self.remaining = count
         self.inflicted = 0
         self.pending_choice = None
@@ -801,7 +799,7 @@ class MortalWoundAllocationSession:
         # is the one place that can answer the question the Broadsides'
         # Advanced Armour asks - see game/advanced_armour.py.
         fnp = FeelNoPainRoll(model, 1, self.dice_manager, log=self.log,
-                             waaagh=self.waaagh, mortal=True)
+                             mortal=True)
         if fnp.is_pending:
             self.pending_fnp = fnp
             self._fnp_model = model
@@ -839,7 +837,7 @@ class DevastatingWoundAllocationSession:
     Pain): see DamageAllocationSession's docstring - same pending_fnp/
     on_fnp_acknowledged() pattern."""
 
-    def __init__(self, squad, damage, crit_count, dice_manager=None, log=None, waaagh=None,
+    def __init__(self, squad, damage, crit_count, dice_manager=None, log=None,
                  attacker_squad=None):
         self.squad = squad
         # [DEVASTATING WOUNDS] only ever comes off an attack, and the two
@@ -850,7 +848,6 @@ class DevastatingWoundAllocationSession:
         self.damage = damage
         self.dice_manager = dice_manager
         self.log = log
-        self.waaagh = waaagh  # Orks army rule "Waaagh!" - optional, like DamageAllocationSession's own; see game/waaagh.py
         self.remaining_crits = crit_count
         self.pending_choice = None
         self.pending_fnp = None
@@ -901,7 +898,7 @@ class DevastatingWoundAllocationSession:
         # Enhancement. Runes of Warding carries its own flag so it does not
         # depend on how that is settled.
         fnp = FeelNoPainRoll(model, self.damage, self.dice_manager, log=self.log,
-                             waaagh=self.waaagh, devastating=True)
+                             devastating=True)
         if fnp.is_pending:
             self.pending_fnp = fnp
             self._fnp_model = model

@@ -536,7 +536,7 @@ class Squad:
         self.battle_shocked = False  # rules 08.03/09.07 set this; the roll itself is game.battle_shock.BattleShockController
         self.charged_this_turn = False  # rule 11.04: this unit made a Charge move this turn. A SEPARATE flag from fights_first below, which looks like it would do - but game/counteroffensive.py (15.12) also sets that one, so it means "fights first" and not "charged". Read by game/crit_hit.py for Striking Scorpions' Mandiblasters; cleared at end of turn
         self.fights_first = False  # rule 11.04/24.13 sets this; nothing clears it at end of turn yet (no Fight phase to consume it)
-        self.stim_injectors_active = False  # Retaliation Cadre's Stim Injectors stratagem: "until the end of the phase, models in your unit have the Feel No Pain 6+ ability" - see game/stim_injectors.py. A unit-level flag rather than a controller threaded into each damage source, so it reaches EVERY one of them (including Crushing Impact/Deadly Demise/Explosives/Hazardous mortal wounds, which game/waaagh.py's own conditional FNP documents itself as NOT reaching). Cleared on every phase change, alongside StratagemController.reset_phase()
+        self.stim_injectors_active = False  # Retaliation Cadre's Stim Injectors stratagem: "until the end of the phase, models in your unit have the Feel No Pain 6+ ability" - see game/stim_injectors.py. A unit-level flag rather than a controller threaded into each damage source, so it reaches EVERY one of them (including Crushing Impact/Deadly Demise/Explosives/Hazardous mortal wounds). Cleared on every phase change, alongside StratagemController.reset_phase()
         self.arrokon_protocol_active = False  # Retaliation Cadre's The Arro'kon Protocol stratagem: "until the end of the phase", this unit's attacks have [SUSTAINED HITS 1] against enemy units of 6+ models ([SUSTAINED HITS 2] against 11+) - see game/arrokon_protocol.py. A unit-level flag for the same reason stim_injectors_active is one, and cleared in the same place
         self.ere_we_go_active = False  # War Horde's 'Ere We Go stratagem: "until the end of the turn, add 2 to Advance and Charge rolls made for your unit" - see game/ere_we_go.py. A unit-level flag like the two below, but cleared at END OF TURN (alongside fights_first/set_up_this_turn/charge_locked_until_end_of_turn), not on every phase change
         self.ard_as_nails_active = False  # War Horde's 'Ard as Nails stratagem: "until the end of the phase, each time an attack targets your unit, subtract 1 from the Wound roll" - see game/ard_as_nails.py. A unit-level flag for the same reason stim_injectors_active is one, and cleared in the same place
@@ -549,6 +549,19 @@ class Squad:
         self.swift_as_the_wind_active = False  # add 2" to this unit's Move characteristic - read by game/coldstar.py's effective_movement_in()
         self.star_engines_active = False       # this unit's ranged weapons have [ASSAULT] - read by game/coldstar.py's weapon_has_assault()
         self.montka_killing_blow = False       # Mont'ka's Killing Blow: this unit's ranged weapons have [ASSAULT] in the detachment's battle rounds - read by game/coldstar.py's weapon_has_assault(), which is handed only (weapon, squad) and so cannot ask the round question itself. Stamped once per phase change by game/montka.py's refresh_killing_blow(); the flag exists for the same reason star_engines_active above does, one rule higher up
+        # The Orks' riled up (army rule Waaagh!, game/riled_up.py). The DEADLINE is a
+        # turn serial and is what a grant writes and a save keeps; `riled_up` is the
+        # derived answer every reader asks, stamped at the start of every phase and
+        # at once by a grant - in activation_state.SQUAD_FLAGS_EXCLUDED for that reason.
+        self.riled_up_expires_turn = None
+        self.riled_up = False
+        # War Cry's once-per-battle spend, written onto every unit it reached so a
+        # save carries it - see game/war_cry.py's is_used().
+        self.war_cry_called = False
+        # Unstable Energies' psychic-level budget for one battle round - see
+        # game/unstable_energies.py. Two scalars so they round-trip through JSON.
+        self.unstable_energies_round = None
+        self.unstable_energies_spent = 0
         self.triarch_ability = None            # The Silent King's Voice of the Triarch: which of the three Triarch abilities this SILENT KING unit selected this battle round, as a key from game/triarch_auras.py - None on every other unit in the game. A CHOICE with a battle-round lifetime, so it is in activation_state.SQUAD_FLAGS and survives a save; the only non-boolean entry there
         self.triarch_auras_active = frozenset()  # which Triarch auras THIS unit is currently under - derived from the selection above plus 6" to a Szarekh model, stamped once per frame by triarch_auras.refresh_active_auras(). Four seams read it (both attack steps, coldstar.effective_movement_in() and game/charge_reroll.py) and none of them has the board in hand, which is why it is a flag; in SQUAD_FLAGS_EXCLUDED because the next frame re-stamps it
         self.flitting_shadows_active = False   # enemies cannot Fire Overwatch (15.08) at this unit - read by game/shooting.py's _is_valid_target_squad(), gated on Snap Shooting

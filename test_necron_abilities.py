@@ -111,9 +111,9 @@ finally:
 print("--- 2. Dispersion Shield ---")
 
 c.eq("a shielded Lychguard has a 4+ invulnerable save",
-     invulnerable_save.effective_invulnerable_save(lychguard().models[0], None), "4+")
+     invulnerable_save.effective_invulnerable_save(lychguard().models[0]), "4+")
 c.eq("a warscythe Lychguard has none",
-     invulnerable_save.effective_invulnerable_save(lychguard(shielded=False).models[0], None), "-")
+     invulnerable_save.effective_invulnerable_save(lychguard(shielded=False).models[0]), "-")
 
 
 # --- 3. damage reduction (Overlord, Void Dragon) ----------------------------

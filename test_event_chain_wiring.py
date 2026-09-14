@@ -1733,6 +1733,7 @@ def _tags_a_unit(call, func):
 
 
 _untagged_offers = []
+_player_loops = []
 _offers_seen = 0
 for _fname in sorted(os.listdir("game")):
     if not _fname.endswith(".py"):
@@ -1747,11 +1748,20 @@ for _fname in sorted(os.listdir("game")):
                 and _node.name.startswith("offer_at_")):
             continue
         for _loop in [n for n in ast.walk(_node) if isinstance(n, ast.For)]:
+            # A loop over PLAYERS is not a choice among units, and naming it is
+            # the whole exemption: War Cry (game/war_cry.py) asks each ORKS army
+            # once whether to use an army-wide rule - there is no unit to tag.
+            # Recognised by its loop variable, and counted below, so the
+            # exemption cannot quietly widen to a unit loop that happens to be
+            # spelled the same way.
             _reqs = [c for c in ast.walk(_loop)
                      if isinstance(c, ast.Call)
                      and isinstance(c.func, ast.Attribute)
                      and c.func.attr == "request"]
             if not _reqs:
+                continue
+            if isinstance(_loop.target, ast.Name) and _loop.target.id == "player":
+                _player_loops.append("%s.%s" % (_fname, _node.name))
                 continue
             _offers_seen += 1
             if not any(_tags_a_unit(c, _node) for c in _reqs):
@@ -1761,6 +1771,8 @@ for _fname in sorted(os.listdir("game")):
 # a pass. Four legitimate ones exist today.
 ck.true("the sweep really examined some looping offers", _offers_seen >= 4)
 ck.eq("no looping offer raises an untagged prompt", sorted(set(_untagged_offers)), [])
+ck.eq("...and the one loop over PLAYERS exempted from it is War Cry's",
+      sorted(set(_player_loops)), ["war_cry.py.offer_at_start_of_command_phase"])
 for _mod in ("guardian_cost_of_victory", "warhost_webway_tunnel",
              "skyborne_sanctuary", "windrider_overflight"):
     ck.true("%s offers every candidate, not just the first" % _mod,

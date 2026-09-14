@@ -73,8 +73,8 @@ PROBES = [
      STATS),
 
     ("the attacker is never named when damage lands (melee)",
-     [(FIGHT, "stealth_drones=self.stealth_drones, waaagh=self.waaagh, attacker_squad=self.fighting_squad,",
-       "stealth_drones=self.stealth_drones, waaagh=self.waaagh,")],
+     [(FIGHT, "stealth_drones=self.stealth_drones, attacker_squad=self.fighting_squad,",
+       "stealth_drones=self.stealth_drones,")],
      STATS),
 
     ("Feel No Pain no longer counts as damage turned aside",
@@ -203,8 +203,8 @@ PROBES = [
       (FIGHT, "        self._report_group_statistics()\n", ""),
       (SHOOTING, "damage_reroll=damage_reroll, attacker_squad=self.active_squad,",
        "damage_reroll=damage_reroll,"),
-      (FIGHT, "stealth_drones=self.stealth_drones, waaagh=self.waaagh, attacker_squad=self.fighting_squad,",
-       "stealth_drones=self.stealth_drones, waaagh=self.waaagh,"),
+      (FIGHT, "stealth_drones=self.stealth_drones, attacker_squad=self.fighting_squad,",
+       "stealth_drones=self.stealth_drones,"),
       (FNP, "        battle_stats.report_prevented(self.model, min(successes, self.amount))\n", ""),
       (DAMAGE, "        battle_stats.report_prevented(model, amount - reduced)\n", ""),
       (MOVEMENT,

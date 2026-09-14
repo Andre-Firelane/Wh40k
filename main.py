@@ -9,7 +9,7 @@ from ai import deployment_ai
 from ai import observation as ai_observation
 from ai.agent_driver import AIMemory, take_one_action
 from ai.agent_driver import reactive_subroutines_destination, reactive_subroutines_move
-from ai.agent_driver import hyperphasing_choice, hyperphasic_recall_verdict
+from ai.agent_driver import hyperphasing_choice, hyperphasic_recall_verdict, war_cry_verdict
 from ai.claude_agent import ClaudeAgent
 # from ai.mock_agent import MockAgent  # free/offline alternative - no API key or network needed
 from game import attached_units, battle_focus, biomes, charge, config, consolidate, crushing_impact, enhancements, epic_challenge, explosives, fall_back, fight, firing_deck, greater_good, line_of_sight, maps, movement, overwatch, pregame, setup, shooting, starflare_ignition, status_effects, strands_of_fate
@@ -37,7 +37,9 @@ from game.fieldcraft import apply_fieldcraft
 from game.grot_riggers import apply_grot_riggers
 from game.thievin_scavengers import ThievinScavengersController
 from game import waaagh as waaagh_module
-from game.waaagh import WaaaghController
+from game.waaagh import WaaaghAdvanceRerollController
+from game.war_cry import WarCryController
+from game import riled_up
 from game.stratagems import StratagemController
 from game.consolidate import ConsolidateController
 from game.counteroffensive import CounteroffensiveController
@@ -1020,18 +1022,6 @@ def main(map_key=None):
     # way around without an import cycle risk - wired as a plain callback,
     # same pattern as fight_controller.on_unit_finished_fighting below.
     movement_controller.on_remain_stationary = support_turret_controller.on_remain_stationary
-    waaagh_controller = WaaaghController(game_log=game_log)
-    # WHOSE army rule this is, derived from the built armies exactly the way
-    # Battle Focus derives its own. Set once, here, because the armies are
-    # complete by this point and an army's faction does not change mid-battle.
-    #
-    # Without it the AI called a Waaagh! for whatever army it happened to be
-    # playing (user: "die necrons haben soeben einen waagh ausgerufen. das
-    # koennen nur orks") - can_call() checked the phase and once-per-battle and
-    # nothing about the army, which was invisible while Player 2 was always
-    # Orks.
-    waaagh_controller.orks_players = waaagh_module.qualifying_players(
-        entry["squad"] for entry in scene_units)
     # WHO THE ENGINE ANSWERS FOR, read ONCE and frozen for this whole battle.
     #
     # This is the switch (user: "es muss also eine weiche geben. je nachdem ob
@@ -1755,7 +1745,7 @@ def main(map_key=None):
         targeting_array=targeting_array_controller,
         prototype_weapon_system=prototype_weapon_system_controller,
         unmasking_suite=unmasking_suite_controller,
-        objectives=state.objectives, stealth_drones=stealth_drones_controller, waaagh=waaagh_controller,
+        objectives=state.objectives, stealth_drones=stealth_drones_controller,
         target_reactions=shooting_target_reactions, nova_charge=nova_charge_controller,
         fire_support=fire_support_controller, hand_of_asuryan=hand_of_asuryan_controller,
         guide=guide_controller, doom=doom_controller,
@@ -1837,6 +1827,24 @@ def main(map_key=None):
     superlative_strategist_controller = SuperlativeStrategistController(
         dice_manager=dice_manager, decision_manager=decision_manager,
         game_log=game_log, auto_players=ai_players)
+    # The Orks army rule Waaagh!'s first bullet - "re-roll advance rolls" - on the
+    # same machinery (game/advance_reroll_offer.py), offered from the same seam.
+    waaagh_advance_reroll_controller = WaaaghAdvanceRerollController(
+        dice_manager=dice_manager, decision_manager=decision_manager,
+        game_log=game_log, auto_players=ai_players)
+    # War Cry, the army rule's once-per-battle call (game/war_cry.py). Offered at
+    # the start of EVERY Command phase; the AI answers through the injected
+    # verdict, so it costs no API call and game/ never imports ai/.
+    war_cry_controller = WarCryController(
+        turn_tracker=turn_tracker, decision_manager=decision_manager, game_log=game_log,
+        auto_players=ai_players, squads_provider=state.all_squads,
+        verdict=lambda player, tracker: war_cry_verdict(player, tracker, state.tokens))
+    # WHOSE army rule it is, derived from the built armies exactly the way Battle
+    # Focus derives its own. The old Waaagh! was once called by a Necron army for
+    # want of this (user: "die necrons haben soeben einen waagh ausgerufen. das
+    # koennen nur orks").
+    war_cry_controller.orks_players = waaagh_module.qualifying_players(
+        entry["squad"] for entry in scene_units)
     face_of_death_controller = FaceOfDeathController(
         battle_shock_controller=battle_shock_controller,
         decision_manager=decision_manager, game_log=game_log)
@@ -2288,7 +2296,7 @@ def main(map_key=None):
     reserves_panel = ReservesPanel()
     charge_controller = ChargeController(
         game_log=game_log, dice_manager=dice_manager, turn_tracker=turn_tracker,
-        all_tokens=state.tokens, movement_controller=movement_controller, waaagh=waaagh_controller,
+        all_tokens=state.tokens, movement_controller=movement_controller,
     )
     # Rule 16.01's two locks: a unit that started an action this turn is not
     # eligible to shoot (excluding TITANIC) and not eligible to declare a
@@ -2372,7 +2380,7 @@ def main(map_key=None):
     fight_controller = FightController(
         game_log=game_log, dice_manager=dice_manager, turn_tracker=turn_tracker, all_tokens=state.tokens,
         pile_in_controller=pile_in_controller, charge_controller=charge_controller, decision_manager=decision_manager,
-        suppression=suppression_controller, stealth_drones=stealth_drones_controller, waaagh=waaagh_controller,
+        suppression=suppression_controller, stealth_drones=stealth_drones_controller,
         target_reactions=fight_target_reactions,
         # The Kroot Lone-Spear's Advanced Scouting mark. The SAME ledger the
         # shooting controller writes: his ranged hit places it, and his
@@ -3453,12 +3461,11 @@ def main(map_key=None):
         lambda player, stratagem: stratagem_notice_overlay.enqueue(player, stratagem) if player == "Player 2" else None
     )
     # User: "ich will außerdem, dass ein prompt erscheint, das ich weg
-    # klicken muss, wenn ein waagh ausgerufen wird" - same "only for the AI"
-    # reasoning as the Stratagem notice above (no UI button exists yet for
-    # a human to call one themselves, so this is Player 2-only in practice
-    # today, but the check is here for when that changes).
-    waaagh_controller.on_called = (
-        lambda player: waaagh_notice_overlay.enqueue(player) if player == "Player 2" else None
+    # klicken muss, wenn ein waagh ausgerufen wird" - the army rule's
+    # once-per-battle call is War Cry now. Only when the AI used it: a human
+    # already knows, they just answered its prompt.
+    war_cry_controller.on_used = (
+        lambda player: waaagh_notice_overlay.enqueue(player) if player in ai_players else None
     )
     player_banner = PlayerBanner()
     unit_datacard = UnitDatacardOverlay()
@@ -3640,7 +3647,7 @@ def main(map_key=None):
                 fire_overwatch_targets_cache["result"] = set()
         return fire_overwatch_targets_cache["result"]
 
-    def begin_battle(first_player):
+    def begin_battle(first_player, resuming=False):
         """Everything the battle proper needs once rule 03.01's pre-game
         sequence has finished and Determine First Turn has an answer.
 
@@ -3711,6 +3718,13 @@ def main(map_key=None):
         secondary_mission_controller.sync_battle_round(turn_tracker.battle_round)
         secondary_mission_controller.draw_at_command_phase(
             turn_tracker.turn_owner, turn_tracker.battle_round)
+        # War Cry's offer for the battle's very first Command phase, for the same
+        # reason as the draw above. NOT when a snapshot is being resumed: the
+        # loaded phase need not be the start of a Command phase at all, and a
+        # War Cry already spent comes back with the units (war_cry_called).
+        riled_up.refresh(state.all_squads(), turn_tracker)
+        if not resuming:
+            war_cry_controller.offer_at_start_of_command_phase(turn_tracker)
 
     # The must-click-away modal notices, in the SAME priority order the event
     # chain below dispatches them in. One definition, read by both the chain's
@@ -4506,14 +4520,6 @@ def main(map_key=None):
             # of your Command phase" - same instant, same active-player
             # argument as the Support Turret expiry right above.
             apply_grot_riggers(state.tokens, turn_tracker.active_player)
-            # Orks army rule "Waaagh!" (user-supplied): "until the start of
-            # your next Command phase" - same instant/argument again. Must
-            # run BEFORE the player is offered a chance to call a fresh one
-            # this same Command phase (see the "Call Waaagh!" button/AI
-            # policy further down) - expiring first, then calling, is what
-            # makes "start of your next Command phase" a real boundary
-            # instead of a Waaagh! call immediately cancelling itself.
-            waaagh_controller.expire_for(turn_tracker.active_player)
             # The Farseer's Guide: "until the start of YOUR next Command
             # phase" - so it ends here, for the player whose Command phase
             # this is, rather than in the end-of-turn block with every other
@@ -4679,6 +4685,11 @@ def main(map_key=None):
         # recomputed at the boundary above, and before anything this phase can
         # read it. Inert for anyone not fielding the detachment.
         power_matrix_controller.stamp_at_start_of_phase()
+        # The Orks' riled up (army rule Waaagh!): re-derived from each unit's
+        # stored deadline at the start of every phase. Both printed durations end
+        # on a turn boundary, which is always one of these - and this runs before
+        # anything this phase can read it, and before War Cry's offer below.
+        riled_up.refresh(state.all_squads(), turn_tracker)
         root_of_honour_controller.offer_at_start_of_phase(
             {t.squad for t in state.tokens if t.squad is not None})
         # ...and its Necron twin, at the same instant and for the same reason:
@@ -4694,6 +4705,10 @@ def main(map_key=None):
             {t.squad for t in state.tokens if t.squad is not None},
             turn_tracker.turn_owner)
         if turn_tracker.phase == PHASE_COMMAND:
+            # War Cry (army rule Waaagh!): "At the start of THE Command phase" -
+            # every Command phase, the opponent's included, offered to each ORKS
+            # army that has not used it, the phase owner first. game/war_cry.py.
+            war_cry_controller.offer_at_start_of_command_phase(turn_tracker)
             # Kroot Hounds' Loping Pounce: "AT THE START of your Command
             # phase" - checked once and latched for the turn, which is what
             # separates it from the two live advance-then-charge sources it
@@ -5447,7 +5462,7 @@ def main(map_key=None):
             crushing_impact_controller=crushing_impact_controller, deadly_demise_controller=deadly_demise_controller,
             consolidate_controller=consolidate_controller,
             fire_overwatch_controller=fire_overwatch_controller,
-            waaagh_controller=waaagh_controller, arrokon_controller=arrokon_controller,
+            war_cry_controller=war_cry_controller, arrokon_controller=arrokon_controller,
             unbridled_carnage_controller=unbridled_carnage_controller,
             ere_we_go_controller=ere_we_go_controller,
             retro_thrusters_controller=retro_thrusters_controller,
@@ -5591,7 +5606,7 @@ def main(map_key=None):
         # begin_battle() FIRST, then the turn state: start_battle() resets the
         # round to 1 and the phase to Command, so restoring them before it runs
         # would be silently thrown away.
-        begin_battle((loaded.get("turn") or {}).get("turn_owner") or "Player 1")
+        begin_battle((loaded.get("turn") or {}).get("turn_owner") or "Player 1", resuming=True)
         complaints += scene_io.restore_turn(loaded, turn_tracker, command_points)
         # AFTER begin_battle() for the same reason the turn state is: starting
         # the battle draws round 1's Secondary cards and zeroes the score, so a
@@ -5602,6 +5617,10 @@ def main(map_key=None):
         # restore that ran first would have the flag wiped straight back off.
         complaints += scene_io.restore_activation(
             loaded, [e["squad"] for e in scene_units], _activation_slots())
+        # The riled-up DEADLINES came back with the flags above; the derived
+        # answer is not saved, so it is stamped from them right here rather than
+        # at the next phase change.
+        riled_up.refresh(state.all_squads(), turn_tracker)
         # Same ordering rule again: begin_battle() built a fresh ledger above,
         # so the resume goes back on after it, never before.
         complaints += scene_io.restore_stats(loaded, battle_stats)
@@ -5890,6 +5909,7 @@ def main(map_key=None):
         # click-anywhere path hands them.
         lambda: superlative_strategist_controller.pending_roll_choice(movement_controller.selected_squad),
         lambda: sudden_storm_controller.pending_roll_choice(movement_controller.selected_squad),
+        lambda: waaagh_advance_reroll_controller.pending_roll_choice(movement_controller.selected_squad),
     ))
 
     def _acknowledge_pending_roll():
@@ -5910,6 +5930,8 @@ def main(map_key=None):
             _adv_squad = movement_controller.selected_squad
             superlative_strategist_controller.maybe_offer_advance_reroll(_adv_squad)
             sudden_storm_controller.maybe_offer_advance_reroll(_adv_squad)
+            # The Orks army rule Waaagh!: every unit with it can re-roll Advances.
+            waaagh_advance_reroll_controller.maybe_offer_advance_reroll(_adv_squad)
             if decision_manager.is_pending:
                 return False
         # A CHARGE roll has exactly the same one-instant
@@ -7432,9 +7454,8 @@ def main(map_key=None):
             # this check used to run AFTER the ai_auto_play block further
             # down, so on that exact frame turn_start_overlay.is_pending was
             # still False when that block's gate was evaluated, letting
-            # run_ai_action() fire immediately (Player 2's very first
-            # Command-phase decision is often _maybe_call_waaagh() - see
-            # ai/agent_driver.py's take_one_action() - which enqueues
+            # run_ai_action() fire immediately (the AI's first Command-phase
+            # decision used to be the old Waaagh! call, which enqueued
             # waaagh_notice_overlay right then). Both the turn banner and
             # the WAAAGH notice ended up pending by the time this frame
             # rendered, instead of one after the other. Showing the banner

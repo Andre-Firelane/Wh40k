@@ -27,7 +27,7 @@ this module does NOT flatten them:
   * some abilities lift the SHOOTING ban only (Battlesuit Support System, War
     Construct, Agile Combatant),
   * some lift BOTH halves of 09.07 (Hovering Death, Full Throttle),
-  * some lift only 09.06's CHARGE ban (Waaagh!, Loping Pounce, Alien
+  * some lift only 09.06's CHARGE ban (riled up, Loping Pounce, Alien
     Expertise).
 
 So there are three questions here, not one, and each keeps its own source list.
@@ -37,7 +37,7 @@ whichever file happened to need it first.
 
 LATCHED VERSUS LIVE is deliberately not this module's business. Some sources
 read a flag set earlier in the turn (Loping Pounce, Alien Expertise), some
-measure the board right now (Waaagh!). Each predicate answers for itself; the
+read a stamped state (riled up). Each predicate answers for itself; the
 folds below only ask.
 """
 
@@ -46,7 +46,7 @@ from game.relentless_combatants import squad_has_relentless_combatants
 from game.adaptive_strategy import squad_has_adaptive_strategy
 from game.squad import (squad_has_agile_combatant, squad_has_battlesuit_support_system,
                         squad_has_full_throttle, squad_has_war_construct)
-from game.waaagh import squad_waaagh_active
+from game import riled_up
 
 
 def _flag(squad, name):
@@ -138,16 +138,12 @@ def may_shoot_after_advancing(squad):
     return any(_flag(squad, name) for name in SHOOT_AFTER_ADVANCE_FLAGS)
 
 
-def may_charge_after_advancing(squad, waaagh=None):
-    """Rule 09.06's ban on charging after an Advance.
-
-    `waaagh` is passed in because the Orks army rule is a live per-player
-    state rather than anything on the squad - the same argument every other
-    reader of it takes."""
+def may_charge_after_advancing(squad):
+    """Rule 09.06's ban on charging after an Advance."""
     if squad is None:
         return False
     return (squad_has_full_throttle(squad)
-            or squad_waaagh_active(squad, waaagh)
+            or riled_up.is_riled_up(squad)
             or loping_pounce.is_active(squad)
             or aux_alien_expertise.is_active(squad)
             or any(_flag(squad, name) for name in CHARGE_AFTER_ADVANCE_FLAGS))

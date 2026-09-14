@@ -33,8 +33,9 @@ WHY THE EFFECTS ARE FLAGS ON THE SQUAD
 --------------------------------------
 Same reason Squad.stim_injectors_active is one: a flag reaches every reader,
 whereas a controller has to be threaded into each one and the ones nobody
-remembered to thread stay silently wrong (game/waaagh.py's conditional Feel No
-Pain documents four damage sources it never reached for exactly this reason).
+remembered to thread stay silently wrong (the old Waaagh!'s conditional Feel No
+Pain never reached four damage sources for exactly this reason - and its
+successor, the Orks' riled up, is a squad flag too; see game/riled_up.py).
 Here the readers are spread across five modules - the Move characteristic, the
 [ASSAULT] grant, Fire Overwatch's target check, the pile-in range and the
 consolidation range - and none of them should have to know this rule exists.

@@ -185,9 +185,13 @@ def weapon_has_assault(weapon, squad):
     # from game/squad.py's own import, and game/skilled_crews.py pulls
     # game.factions through aeldari_detachments (protocol_sudden_storm reaches
     # it too, via game/awakened_dynasty.py).
+    # The Orks' riled up is the seventh (army rule Waaagh!, game/riled_up.py):
+    # "that unit's ranged attacks have [ASSAULT]" - a stamped flag, like
+    # Killing Blow's, for the same reason.
     from game import (dlc_mortarions_teachings, montka, protocol_sudden_storm,
-                      skilled_crews)
+                      riled_up, skilled_crews)
     return (squad_has_coldstar_commander(squad) or battle_focus.grants_assault(squad)
             or skilled_crews.applies(squad) or protocol_sudden_storm.is_active(squad)
             or dlc_mortarions_teachings.is_active(squad)
-            or montka.grants_assault(squad))
+            or montka.grants_assault(squad)
+            or riled_up.grants_assault(squad))

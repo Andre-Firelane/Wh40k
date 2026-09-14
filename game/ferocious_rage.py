@@ -66,7 +66,7 @@ def applies(pairs, charge_controller, squad):
 def ferocious_rage_adjusted_weapon(weapon, pairs, charge_controller, squad):
     """Grants [DEVASTATING WOUNDS] as a real characteristic change on a
     shallow copy - the shared WeaponProfile instance is never mutated, same
-    reasoning as get_stuck_in_adjusted_weapon()/waaagh_melee_adjusted_weapon().
+    reasoning as get_stuck_in_adjusted_weapon()/riled_up.adjusted_weapon().
 
     MELEE only, per the rule text. A weapon that already has the ability
     from another source keeps it and is returned untouched - granting is

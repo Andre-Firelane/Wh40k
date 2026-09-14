@@ -77,7 +77,7 @@ def spirit_of_gork_adjusted_weapon(weapon, squad):
 
     Modeled as a real characteristic change on a shallow copy - the shared
     WeaponProfile instance is never mutated, same reasoning as
-    get_stuck_in_adjusted_weapon()/waaagh_melee_adjusted_weapon(). Granting
+    get_stuck_in_adjusted_weapon()/riled_up.adjusted_weapon(). Granting
     [LETHAL HITS] never removes it from a weapon that already had it."""
     if weapon.weapon_type != MELEE or squad is None:
         return weapon

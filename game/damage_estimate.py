@@ -176,9 +176,8 @@ def attack_modifiers(attacker_model, defender, melee=False):
 
     Still missing and now cheap to add, in rough order of what they are
     worth: Might is Right (melee hit, Warboss-led units), Volley Fire (an
-    extra Attack per ranged weapon), Waaagh! (+1 A and +1 S in melee). Each
-    is one line here; each needs its own measurement, which is why they are
-    named rather than swept in."""
+    extra Attack per ranged weapon). Each is one line here; each needs its
+    own measurement, which is why they are named rather than swept in."""
     hit = wound = 0
     # `melee` is threaded through so the Myphitic Blight-hauler's ranged-only
     # Tank Hunters is not counted for its Gnashing Maw - see

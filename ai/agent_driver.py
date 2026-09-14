@@ -53,7 +53,7 @@ from game.shooting import _wound_threshold as _shooting_wound_threshold
 from game.squad import COHERENCY_RANGE_IN, ENGAGEMENT_RANGE_IN, MAX_SPREAD_IN, OBJECTIVE_CONSOLIDATION_RANGE_IN, attached_unit_toughness, edge_distance, max_model_radius, min_model_movement, model_engaged_with, model_terrain_violation, spread_limit_applies
 from game.transport import DISEMBARK_DISTANCE_IN
 from game.turn import PHASE_CHARGE, PHASE_COMMAND, PHASE_FIGHT, PHASE_MOVEMENT, PHASE_SHOOTING
-from game.waaagh import squad_waaagh_active
+from game import riled_up
 from game.weapons import RANGED
 
 # _movement_priority_key()'s fallback sort priority for a squad the strategic
@@ -6370,7 +6370,7 @@ def _take_one_action(
     transport_controller=None, setup_controller=None, ingress_controller=None,
     rapid_ingress_controller=None, greater_good_controller=None, fall_back_controller=None,
     crushing_impact_controller=None, deadly_demise_controller=None, consolidate_controller=None,
-    fire_overwatch_controller=None, waaagh_controller=None, arrokon_controller=None,
+    fire_overwatch_controller=None, war_cry_controller=None, arrokon_controller=None,
     unbridled_carnage_controller=None, ere_we_go_controller=None,
     retro_thrusters_controller=None,
     # Awakened Dynasty's three PROACTIVE protocols. The reactive three need
@@ -6649,17 +6649,17 @@ def _take_one_action(
             game_log=game_log,
         )
     elif phase == PHASE_COMMAND:
-        acted = _maybe_call_waaagh(player, turn_tracker, waaagh_controller)
-        if not acted:
-            acted = _handle_reanimation_crypts(player, all_tokens, reanimation_crypts_controller,
-                                               game_log=game_log)
+        # War Cry needs nothing here: the AI answers it inside game/war_cry.py's
+        # own offer, through war_cry_verdict() below.
+        acted = _handle_reanimation_crypts(player, all_tokens, reanimation_crypts_controller,
+                                           game_log=game_log)
         if not acted:
             acted = _handle_battle_shock(agent, player, all_tokens, battle_shock_controller, insane_bravery_controller, turn_tracker, on_thinking)
     elif phase == PHASE_MOVEMENT:
         acted = _handle_movement(
             agent, memory, player, state, movement_controller, transport_controller, setup_controller,
             game_log, on_thinking, ingress_controller=ingress_controller, fall_back_controller=fall_back_controller,
-            waaagh_controller=waaagh_controller, ere_we_go_controller=ere_we_go_controller,
+            war_cry_controller=war_cry_controller, ere_we_go_controller=ere_we_go_controller,
             last_ranged_attack_turn=getattr(shooting_controller, "last_ranged_attack_turn", None),
             mission_controller=mission_controller,
             sudden_storm_controller=sudden_storm_controller,
@@ -6810,26 +6810,46 @@ def _announce_fight_wait(player, turn_tracker, fight_controller,
     )
 
 
-def _maybe_call_waaagh(player, turn_tracker, waaagh_controller):
-    """User policy: the AI always calls a WAAAGH! in battle round 2, if it
-    still can (once per battle, only at the very start of `player`'s own
-    Command phase) - a deterministic policy, not a judgment call, same as
-    Strategic Reserves' "deploy as early as possible" (see
-    take_one_action()'s own docstring: "a deterministic policy, not a
-    judgment call, so this never asks the agent") - so this never spends an
-    agent.decide() call. Round 2 specifically (not "as soon as possible" in
-    round 1) is the user's own choice, not derived from anything else -
-    presumably because round 1 is normally spent Advancing into position
-    rather than already fighting, so the round 2 charge phase is the first
-    one where the melee/invulnerable-save boost reliably matters.
-    Returns whether it actually called one (True), so the PHASE_COMMAND
-    branch above knows to treat this as this frame's one action, exactly
-    like every other _handle_*() function's own True/False contract."""
-    if waaagh_controller is None or turn_tracker is None:
+#: War Cry, the AI's policy (user decision). In its OWN Command phase it calls
+#: War Cry once at least WAR_CRY_MIN_SHARE of its on-board Waaagh! units - and at
+#: least WAR_CRY_MIN_UNITS of them, or all it has left - have an enemy within a
+#: plain move, an average Advance and a 12" charge; in the OPPONENT'S Command
+#: phase the same share within WAR_CRY_ENEMY_TURN_REACH_IN, because riled up's 5+
+#: invulnerable save then covers the enemy's turn and the army's own next one;
+#: and otherwise in its own Command phase of battle round WAR_CRY_FALLBACK_ROUND,
+#: so a once-per-battle rule is never simply left unused.
+WAR_CRY_MIN_UNITS = 2
+WAR_CRY_MIN_SHARE = 0.4
+WAR_CRY_ENEMY_TURN_REACH_IN = 18.0
+WAR_CRY_FALLBACK_ROUND = 3
+
+
+def war_cry_verdict(player, turn_tracker, all_tokens):
+    """Whether the AI uses War Cry at the start of this Command phase.
+
+    Injected into game/war_cry.py's WarCryController by main.py, so the AI
+    answers inside the controller - deterministic, 0 API calls. A pure
+    function of the board: a "no" this phase is asked again at the next
+    Command phase, which is exactly the printed window."""
+    if turn_tracker is None:
         return False
-    if turn_tracker.battle_round != 2:
-        return False
-    return waaagh_controller.call(player, turn_tracker)
+    squads = _all_squads(all_tokens)
+    own = [s for s in squads if s.owner == player and riled_up.has_ability(s)
+           and any(not m.is_dead() for m in s.models)]
+    enemies = [s for s in squads if s.owner != player
+               and any(not m.is_dead() for m in s.models)]
+    own_phase = turn_tracker.turn_owner == player
+    if own and enemies:
+        def _reach(squad):
+            if own_phase:
+                return observation.advance_reach_in(squad) + CHARGE_RANGE_IN
+            return WAR_CRY_ENEMY_TURN_REACH_IN
+        close = sum(1 for s in own
+                    if any(s.min_distance_to(e) <= _reach(s) for e in enemies))
+        needed = min(len(own), max(WAR_CRY_MIN_UNITS, math.ceil(WAR_CRY_MIN_SHARE * len(own))))
+        if close >= needed:
+            return True
+    return own_phase and (turn_tracker.battle_round or 0) >= WAR_CRY_FALLBACK_ROUND
 
 
 def _handle_battle_shock(agent, player, all_tokens, battle_shock_controller, insane_bravery_controller, turn_tracker, on_thinking):
@@ -8381,7 +8401,7 @@ def _validate_turn_plan(plan, player, state, turn_tracker, game_log=None):
 
 def _maybe_generate_turn_plan(agent, memory, player, state, turn_tracker, game_log, on_thinking,
                               last_ranged_attack_turn=None, mission_controller=None,
-                              waaagh_controller=None):
+                              war_cry_controller=None):
     """The strategic planning phase (ai/claude_agent.py's
     PLANNER_SYSTEM_PROMPT/plan_turn()): once per the player's own turn,
     before the first real Movement-phase decision, ask for a short turn plan
@@ -8441,7 +8461,7 @@ def _maybe_generate_turn_plan(agent, memory, player, state, turn_tracker, game_l
             on_board_squads, reserve_squads, turn_tracker, player, objectives=state.objectives,
             embarked_squads=embarked_squads, obstacles=state.obstacles, terrain_areas=state.terrain_areas,
             last_ranged_attack_turn=last_ranged_attack_turn,
-            mission_controller=mission_controller, waaagh_controller=waaagh_controller,
+            mission_controller=mission_controller, war_cry_controller=war_cry_controller,
         )
         memory.turn_plan_result = {}
         memory.turn_plan_thread = threading.Thread(
@@ -8625,7 +8645,7 @@ def _ere_we_go_gain(squad, all_tokens, movement_controller):
     return gain, -gap
 
 
-def _handle_ere_we_go(player, all_tokens, movement_controller, ere_we_go_controller, waaagh_controller,
+def _handle_ere_we_go(player, all_tokens, movement_controller, ere_we_go_controller,
                       turn_tracker, game_log=None):
     """Buy 'Ere We Go at the first opportunity of the WAAAGH! turn, per the
     user: "auch deterministisch. bei der ersten gelegenheit eines squads im
@@ -8648,9 +8668,12 @@ def _handle_ere_we_go(player, all_tokens, movement_controller, ere_we_go_control
     choice is a pure function of the board, so a "no" this frame is a "no"
     next frame too, and a "yes" cannot repeat (can_use() refuses once the
     grant is up, and 15.01 refuses a second use this phase)."""
-    if ere_we_go_controller is None or waaagh_controller is None or turn_tracker is None:
+    if ere_we_go_controller is None or turn_tracker is None:
         return False
-    if not waaagh_controller.is_active(player):
+    # The WAAAGH! turn of the old army rule is the RILED-UP turn of the new one:
+    # War Cry makes the whole army riled up, and riled up is what lets an Advance
+    # keep the charge - the same reason the +2 is worth most then.
+    if not any(riled_up.is_riled_up(s) for s in _all_squads(all_tokens) if s.owner == player):
         return False
     candidates = [
         s for s in sorted(_all_squads(all_tokens), key=lambda s: s.name)
@@ -8664,7 +8687,7 @@ def _handle_ere_we_go(player, all_tokens, movement_controller, ere_we_go_control
     if game_log is not None:
         gain, closeness = _ere_we_go_gain(best, all_tokens, movement_controller)
         game_log.add(
-            f"[ere we go] {player}: {best.name} - WAAAGH! turn, {-closeness:.1f}\" from the nearest enemy, "
+            f"[ere we go] {player}: {best.name} - riled-up turn, {-closeness:.1f}\" from the nearest enemy, "
             f"the +2 improves its charge odds by {gain:.0f} percentage points.",
             file_only=True,
         )
@@ -8673,7 +8696,7 @@ def _handle_ere_we_go(player, all_tokens, movement_controller, ere_we_go_control
 
 def _handle_movement(
     agent, memory, player, state, movement_controller, transport_controller, setup_controller,
-    game_log, on_thinking, ingress_controller=None, fall_back_controller=None, waaagh_controller=None,
+    game_log, on_thinking, ingress_controller=None, fall_back_controller=None, war_cry_controller=None,
     last_ranged_attack_turn=None, mission_controller=None, ere_we_go_controller=None,
     sudden_storm_controller=None, shooting_controller=None,
     cosmic_precision_controller=None,
@@ -8689,7 +8712,7 @@ def _handle_movement(
     _maybe_generate_turn_plan(
         agent, memory, player, state, movement_controller.turn_tracker, game_log, on_thinking,
         last_ranged_attack_turn=last_ranged_attack_turn, mission_controller=mission_controller,
-        waaagh_controller=waaagh_controller,
+        war_cry_controller=war_cry_controller,
     )
     if memory.is_planning and memory.turn_plan is None:
         # The FIRST plan of the turn is still in flight on its background
@@ -8708,7 +8731,7 @@ def _handle_movement(
     # would shut the window. Deterministic, so a "yes" costs no agent call and
     # the next frame simply falls straight through it.
     if _handle_ere_we_go(
-        player, all_tokens, movement_controller, ere_we_go_controller, waaagh_controller,
+        player, all_tokens, movement_controller, ere_we_go_controller,
         movement_controller.turn_tracker, game_log,
     ):
         return True
@@ -8799,21 +8822,21 @@ def _handle_movement(
         # offer it at all when a plain move would leave the enemy chargeable
         # anyway - Advance is then strictly worse, never a judgment call.
         #
-        # Orks army rule "Waaagh!" (user-supplied, see game/waaagh.py):
-        # while active for this squad, Advancing no longer costs it the
-        # charge (only non-Assault shooting) - user policy: "in dem Zug
+        # The Orks' riled up (army rule Waaagh!, see game/riled_up.py):
+        # while riled up, Advancing costs this squad neither the charge nor
+        # its shooting ([ASSAULT]) - user policy for the old rule: "in dem Zug
         # möglichst immer advance anwenden mit nahkampforientierten
         # einheiten, da man danach ja noch chargen kann". So the whole
         # "strictly worse when a plain move already reaches charge range"
         # reasoning above no longer applies: Advance is worth offering
         # unconditionally, and its own trade-off description below is
         # rewritten to say so (Claude still makes the final call - see
-        # SYSTEM_PROMPT's own WAAAGH! guidance - but the option is never
+        # SYSTEM_PROMPT's own riled-up guidance - but the option is never
         # withheld the way it normally would be here).
-        waaagh_charge_ok = squad_waaagh_active(squad, waaagh_controller)
+        waaagh_charge_ok = riled_up.is_riled_up(squad)
         advance_trade_off_text = (
-            "but this unit can still declare a charge this turn (WAAAGH! is active) - it just can't "
-            "shoot with non-Assault weapons"
+            "but this unit is riled up (Waaagh!), so it can still declare a charge this turn and its "
+            "ranged weapons have [ASSAULT]"
         ) if waaagh_charge_ok else (
             "but this unit cannot shoot with non-Assault weapons or declare a charge this turn"
         )
@@ -9420,8 +9443,8 @@ def _advance_charge_note(squad, enemy, waaagh_charge_ok):
     """What the extra D6 buys, as a charge probability - the difference
     between plain-moving and Advancing at `enemy` this turn.
 
-    Only produced while Advancing keeps the charge (an active WAAAGH!, rule
-    09.06's cost suspended by the army rule). Otherwise there is no
+    Only produced while Advancing keeps the charge (a riled-up unit, rule
+    09.06's cost suspended by the army rule Waaagh!). Otherwise there is no
     before/after to compare: Advancing forfeits the charge outright, which the
     option's own trade-off sentence already says.
 

@@ -48,6 +48,7 @@ from game.nova_charge import nova_charge_adjusted_weapon
 from game import damaged_attacks, triarch_auras
 from game import awakened_dynasty, destroyer_cult, nekrosor_ammentar, dlc_mortarions_teachings, exemplars_of_montka, gift_of_contagion, hovering_death, miasma_of_pestilence, protocol_conquering_tyrant, protocol_sudden_storm, guardian_protocols, implacable_eradication, mechanical_augmentation, monster_hunters, overwhelming_obliteration, plagues, reroll_scope, sunforge, target_uploaded, way_of_the_short_blade
 from game import weapon_range
+from game import riled_up
 from game.retaliation_cadre import bonded_heroes_adjusted_weapon
 from game import (aux_experimental_modifications, aux_guided_fire,
                   epc_experimental_ammunition, hidden_after_shooting,
@@ -690,7 +691,7 @@ class ShootingController:
         turn_tracker=None, all_tokens=None, movement_controller=None, terrain_areas=None,
         decision_manager=None, greater_good=None, suppression=None, objectives=None, stealth_drones=None,
         barrage_of_filth=None, spore_laced=None,
-        waaagh=None, target_reactions=(), nova_charge=None, ammo_runt=None, fire_support=None, hand_of_asuryan=None, guide=None, doom=None, whispering_web=None,
+        target_reactions=(), nova_charge=None, ammo_runt=None, fire_support=None, hand_of_asuryan=None, guide=None, doom=None, whispering_web=None,
         advanced_scouting=None, bounty_hunters=None, oversight_drone=None,
         sonic_destruction=None, monofilament_snare=None, misfortune=None,
         spirit_mark=None, piratical_raiders=None, fury_of_the_void=None,
@@ -752,7 +753,6 @@ class ShootingController:
         self.monofilament_snare = monofilament_snare  # the Shadow Weaver Platforms' snare marks - optional; WRITTEN here (the mark is placed by a hit) and read from game/movement.py
         self.ammo_runt = ammo_runt  # Flash Gitz' Ammo Runt wargear - optional, same shape and same start_shooting()-only trigger as nova_charge (see game/ammo_runt.py)
         self.nova_charge = nova_charge  # Riptide Battlesuit's Nova Charge ability - optional, like greater_good; offered from start_shooting() only (see game/nova_charge.py)
-        self.waaagh = waaagh  # Orks army rule "Waaagh!" - optional, like greater_good (its invulnerable-save boost applies to an Ork squad being SHOT AT, not just when it's shooting/fighting); see game/waaagh.py
         # Reactive stratagems whose WHEN is "just after an enemy unit has
         # selected its targets" - Stim Injectors and 'Ard as Nails today.
         # A LIST rather than one named field per stratagem: the trigger is a
@@ -2376,8 +2376,7 @@ class ShootingController:
         total_attacks += extra_attack_dice(weapon, target_squad, weapon_key, self.split_fire, self.assignments, pairs)
         # Cadre Fireblade's "Volley Fire" (user-supplied): +1 A to every ranged
         # weapon in the unit he is leading. Added here rather than folded into
-        # extra_attack_dice() for the same reason fight.py adds Waaagh!'s own
-        # +1 A separately - that function is the WEAPON's own abilities
+        # extra_attack_dice() because that function is the WEAPON's own abilities
         # (24.05/24.06/24.30), this is a unit ability granted by another model.
         total_attacks += volley_fire_extra_attacks(pairs)
         self._continue_resolution_with_attacks(weapon, total_attacks)
@@ -2786,7 +2785,7 @@ class ShootingController:
         Tankbustas' own "Tank Hunters" (user-supplied, not a core rule) is
         the opposite direction - an ATTACKER-side bonus, checked against
         self.active_squad's representative model (same "read it off model
-        0" simplification as e.g. squad_waaagh_active())."""
+        0" simplification as e.g. crit_hit_threshold())."""
         modifiers = []
         if squad_has_guardian_drone(target_squad):
             modifiers.append(Modifier(1, "Guardian Drone"))
@@ -3187,7 +3186,6 @@ class ShootingController:
             if total_mortal_wounds > 0:
                 self.mortal_wound_session = MortalWoundAllocationSession(
                     self.active_squad, total_mortal_wounds, dice_manager=self.dice_manager, log=self._log,
-                    waaagh=self.waaagh,
                 )
                 self.pending_step = "hazard_wounds"
                 self._check_hazard_wounds_done()
@@ -3632,6 +3630,10 @@ class ShootingController:
         # Awakened Dynasty's Protocol of the Sudden Storm: [ASSAULT] on ranged
         # weapons until the end of the turn.
         weapon = protocol_sudden_storm.adjusted_weapon(weapon, self.active_squad)
+        # The Orks' riled up (army rule Waaagh!): "that unit's ranged attacks
+        # have [ASSAULT]". Its other reader is weapon_has_assault() - see
+        # game/riled_up.py.
+        weapon = riled_up.adjusted_weapon(weapon, self.active_squad)
         # Armoured Warhost's Skilled Crews: the same keyword granted to a
         # whole faction's vehicles for the whole battle. Beside its
         # Necron twin because they do the same thing to the same field.
@@ -3904,7 +3906,7 @@ class ShootingController:
             # AP) is no longer coloured red and counted as a failure. User
             # report: "oft werden bestandene rettungswuerfe rot angezeigt".
             save_threshold = displayed_save_threshold(
-                allocation_target_model(target_squad), weapon, self.waaagh,
+                allocation_target_model(target_squad), weapon,
             )
             # Melta-adjusted damage preview (rule 24.25) - positions don't
             # change between kicking off this roll and its acknowledgement,
@@ -3928,7 +3930,7 @@ class ShootingController:
                 success_threshold=save_threshold if save_threshold is not None else 7,
                 target_name=target_squad.name, attacker_squad=self.active_squad, target_squad=target_squad, rolled_for=target_squad, roll_kind=SAVE_ROLL,
                 damage_per_failure=damage_preview,
-                **save_heading(allocation_target_model(target_squad), weapon, self.waaagh, weapon_label),
+                **save_heading(allocation_target_model(target_squad), weapon, weapon_label),
             )
             self.pending_step = "save"
         elif self._devastating_crits > 0:
@@ -4910,7 +4912,7 @@ class ShootingController:
         it reads - the same one definition that already stops the panel and the
         resolution disagreeing about a save. Note it asks about EVERY model of
         the unit, not the representative `save_threshold` shown on the panel."""
-        if wounds <= 0 or not save_is_impossible(target_squad, weapon, self.waaagh):
+        if wounds <= 0 or not save_is_impossible(target_squad, weapon):
             self._save_not_rolled = None
             return False
         needed = save_threshold if save_threshold is not None else 7
@@ -4974,7 +4976,7 @@ class ShootingController:
         # re-rolling it - a separate collaborator on the same die.
         self.damage_session = DamageAllocationSession(
             rolls, weapon, target_squad, dice_manager=self.dice_manager, log=self._log, priority_group=priority_group,
-            stealth_drones=self.stealth_drones, waaagh=self.waaagh, damage_reroll=damage_reroll, attacker_squad=self.active_squad,
+            stealth_drones=self.stealth_drones, damage_reroll=damage_reroll, attacker_squad=self.active_squad,
         )
         self.damage_session.on_resumed = self._make_damage_resume_hook(self.damage_session, rolls)
         self.pending_step = "allocate"
@@ -5044,7 +5046,7 @@ class ShootingController:
         damage_weapon = melta_adjusted_weapon(weapon, self.current_group["pairs"], target_squad)
         self.devastating_wound_session = DevastatingWoundAllocationSession(
             target_squad, damage_weapon.damage, self._devastating_crits, dice_manager=self.dice_manager, log=self._log,
-            waaagh=self.waaagh, attacker_squad=self.active_squad,
+            attacker_squad=self.active_squad,
         )
         # Statistics: a [DEVASTATING WOUNDS] crit skips the save entirely, so
         # it GOT THROUGH - counted alongside the failed saves rather than as
@@ -5104,7 +5106,7 @@ class ShootingController:
         # AP) is no longer coloured red and counted as a failure. User
         # report: "oft werden bestandene rettungswuerfe rot angezeigt".
         save_threshold = displayed_save_threshold(
-            allocation_target_model(target_squad), crit_ap_weapon, self.waaagh,
+            allocation_target_model(target_squad), crit_ap_weapon,
         )
         melta_weapon = melta_adjusted_weapon(crit_ap_weapon, self.current_group["pairs"], target_squad)
         damage_preview = None if melta_weapon.damage_notation is not None else melta_weapon.damage
@@ -5117,7 +5119,7 @@ class ShootingController:
             count=crits, sides=6,
             label=(f"Save Roll: {weapon_label} ({crit_source}, AP{crit_ap_weapon.ap}, "
                    f"{crits} critical wound(s))"),
-            **save_heading(allocation_target_model(target_squad), crit_ap_weapon, self.waaagh,
+            **save_heading(allocation_target_model(target_squad), crit_ap_weapon,
                            f"{weapon_label} - {crit_source}"),
             success_threshold=save_threshold if save_threshold is not None else 7,
             target_name=target_squad.name, attacker_squad=self.active_squad, target_squad=target_squad, rolled_for=target_squad, roll_kind=SAVE_ROLL,

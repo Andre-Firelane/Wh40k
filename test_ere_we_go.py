@@ -25,7 +25,7 @@ Four things carry real risk and so get the most attention here:
     on decide()).
 
 Uses real StratagemController/CommandPointManager/TurnTracker/
-MovementController/ChargeController/WaaaghController/GameState objects and
+MovementController/ChargeController/GameState objects (and the Orks' riled up) and
 real datasheets throughout.
 
 Run: python test_ere_we_go.py
@@ -52,7 +52,7 @@ from game.game_state import GameState
 from game.movement import MovementController, advance_total
 from game.stratagems import StratagemController
 from game.turn import PHASES, PHASE_CHARGE, PHASE_MOVEMENT, PHASE_SHOOTING, TurnTracker
-from game.waaagh import WaaaghController
+from game import riled_up
 
 m = maps.get("map2")
 maps.apply_to_config(m)
@@ -114,14 +114,14 @@ def scene(phase=PHASE_MOVEMENT, cp=5, waaagh=True, gap_in=14.0, target_sheet=BOY
     cps.cp["Player 1"] = cps.cp["Player 2"] = cp
     dm = DiceManager()
     strat = StratagemController(command_points=cps)
-    wa = WaaaghController()
-    if waaagh:
-        wa.active_players.add("Player 2")
     mc = MovementController(obstacles=st.obstacles, turn_tracker=tt, all_tokens=st.tokens, dice_manager=dm)
-    cc = ChargeController(dice_manager=dm, turn_tracker=tt, all_tokens=st.tokens, movement_controller=mc, waaagh=wa)
+    cc = ChargeController(dice_manager=dm, turn_tracker=tt, all_tokens=st.tokens, movement_controller=mc)
     ewg = EreWeGoController(strat, movement_controller=mc, turn_tracker=tt)
+    # The old rule's WAAAGH! turn is the new rule's riled-up turn (War Cry).
+    if waaagh:
+        riled_up.grant(orks, riled_up.until_end_of_next_turn(tt), tt)
     return dict(state=st, orks=orks, foe=foe, dice=dm, move=mc, charge=cc, turn=tt,
-                cp=cps, stratagems=strat, ere=ewg, waaagh=wa)
+                cp=cps, stratagems=strat, ere=ewg)
 
 
 # ==================================================== 1. TARGET / WHEN clauses
@@ -316,25 +316,25 @@ print("\n5) the AI's deterministic use (WAAAGH! turn, first opportunity, 0 agent
 
 sc = scene(gap_in=14.0)
 acted = agent_driver._handle_ere_we_go(
-    "Player 2", sc["state"].tokens, sc["move"], sc["ere"], sc["waaagh"], sc["turn"], None,
+    "Player 2", sc["state"].tokens, sc["move"], sc["ere"], sc["turn"], None,
 )
 ok("in the WAAAGH! turn it buys it straight away",
    acted and sc["orks"].ere_we_go_active and sc["cp"].cp["Player 2"] == 4)
 ok("a second call does nothing", not agent_driver._handle_ere_we_go(
-    "Player 2", sc["state"].tokens, sc["move"], sc["ere"], sc["waaagh"], sc["turn"], None))
+    "Player 2", sc["state"].tokens, sc["move"], sc["ere"], sc["turn"], None))
 
 sc = scene(gap_in=14.0, waaagh=False)
 ok("outside the WAAAGH! turn it keeps the CP", not agent_driver._handle_ere_we_go(
-    "Player 2", sc["state"].tokens, sc["move"], sc["ere"], sc["waaagh"], sc["turn"], None)
+    "Player 2", sc["state"].tokens, sc["move"], sc["ere"], sc["turn"], None)
    and sc["cp"].cp["Player 2"] == 5)
 
 sc = scene(phase=PHASE_SHOOTING)
 ok("and it never fires outside the Movement phase", not agent_driver._handle_ere_we_go(
-    "Player 2", sc["state"].tokens, sc["move"], sc["ere"], sc["waaagh"], sc["turn"], None))
+    "Player 2", sc["state"].tokens, sc["move"], sc["ere"], sc["turn"], None))
 
 sc = scene()
 ok("a missing controller is simply skipped", not agent_driver._handle_ere_we_go(
-    "Player 2", sc["state"].tokens, sc["move"], None, sc["waaagh"], sc["turn"], None))
+    "Player 2", sc["state"].tokens, sc["move"], None, sc["turn"], None))
 
 # Which unit: the one whose charge odds gain most from the +2. With 6" move,
 # a unit 14" away needs an 8 (a coin-flip, so the +2 is worth a lot) while one
@@ -349,7 +349,7 @@ far_gain, _ = agent_driver._ere_we_go_gain(far, sc["state"].tokens, sc["move"])
 ok("the unit in charge range values it more than one out of reach",
    near_gain > far_gain, f"{near_gain:.0f} vs {far_gain:.0f} percentage points")
 agent_driver._handle_ere_we_go(
-    "Player 2", sc["state"].tokens, sc["move"], sc["ere"], sc["waaagh"], sc["turn"], None)
+    "Player 2", sc["state"].tokens, sc["move"], sc["ere"], sc["turn"], None)
 ok("...and is the one that gets it",
    sc["orks"].ere_we_go_active and not far.ere_we_go_active)
 
@@ -360,7 +360,7 @@ memory.turn_plan = {"turn_intent": "", "unit_plans": [], "malformed": False}
 memory.plan_turn_key = ("Player 2", 1)
 acted = agent_driver._handle_movement(
     RaisingAgent(), memory, "Player 2", sc["state"], sc["move"], None, None, None, None,
-    waaagh_controller=sc["waaagh"], ere_we_go_controller=sc["ere"],
+    ere_we_go_controller=sc["ere"],
 )
 ok("_handle_movement() buys it before anything moves, with 0 agent calls",
    acted and sc["orks"].ere_we_go_active and not sc["move"].moved_squad_ids)

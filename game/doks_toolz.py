@@ -19,10 +19,9 @@ Feel No Pain part-way through an attack.
 
 WHY THIS NEEDS NO THREADING THROUGH THE CONTROLLERS
 ---------------------------------------------------
-Contrast game/waaagh.py's Krumpin' Time, whose own note lists the damage
-sources it does NOT reach (Crushing Impact, Deadly Demise, Explosives,
-[HAZARDOUS] mortal wounds) because those controllers are never handed a
-WaaaghController. This ability is a property of the UNIT the model is in, so
+Contrast the old Waaagh!'s Krumpin' Time (retired with that rule), which never
+reached Crushing Impact, Deadly Demise, Explosives or [HAZARDOUS] mortal wounds
+because those controllers were never handed its controller. This ability is a property of the UNIT the model is in, so
 it is readable from the model alone - exactly like Stim Injectors - and
 therefore reaches every source that builds a FeelNoPainRoll at all, with no
 optional collaborator to forget to pass. game/feel_no_pain.py's

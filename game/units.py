@@ -221,18 +221,16 @@ class UnitProfile:
     drive_by_dakka = False  # Warbikers' "Drive-by Dakka" ability (user-supplied, not a core rule): improves the AP of this model's ranged attacks that target a unit within 9" - see game/drive_by_dakka.py
     full_throttle = False  # Stormboyz' "Full Throttle" ability (user-supplied, not a core rule): this unit remains eligible to declare a charge in a turn it Advanced or Fell Back - see squad_has_full_throttle(), game/charge.py's can_declare_charge()
     grot_riggers = False  # Trukk's "Grot Riggers" ability (user-supplied, not a core rule): at the start of its controller's Command phase, this model regains 1 lost wound - see game/grot_riggers.py
-    waaagh = False  # Orks army rule "Waaagh!" (user-supplied, not a core rule): while active for this model's owner, it can charge after Advancing, its melee weapons get +1 S/+1 A, and it has (at least) a 5+ invulnerable save - see game/waaagh.py
-    waaagh_biggest_and_best = False  # Warboss's own "Da Biggest and da Best" ability (user-supplied, not a core rule): while the Waaagh! is active for this model's owner, add 4 (on top of the army-wide +1 every `waaagh` model already gets) to the Attacks characteristic of this model's melee weapons - see game/waaagh.py's waaagh_extra_attacks()
-    krumpin_time = False  # Meganobz's own "Krumpin' Time" ability (user-supplied, not a core rule): while the Waaagh! is active for this model's owner, this model has the Feel No Pain 5+ ability - see game/waaagh.py's effective_feel_no_pain() (that function's own note covers which damage sources this reaches and which it doesn't)
+    waaagh = False  # the Orks army rule "Waaagh!" (2026-09 codex): this unit can re-roll Advance rolls and can become riled up - see game/waaagh.py and game/riled_up.py. Pinned against every printed FACTION line by test_ork_army_rules.py
     bodyguard_two_leaders = False  # Boyz'/Kroot Carnivores' own "Bodyguard" ability (user-supplied datasheet text): if THIS unit has a Starting Strength of 20, up to TWO Leader units may be attached to it instead of one, provided one of them is a WARBOSS model - rule 19.01's own "unless otherwise stated" escape hatch. Read by game/attached_units.py's can_attach()
     joins_warlock_led_unit = False  # Eldrad Ulthran's own LEADER line: he may be attached to a unit even if one WARLOCKS unit is already attached to it. The MIRROR of bodyguard_two_leaders above - that one is printed on the bodyguard and asks what is arriving, this one is printed on the arriving leader and asks what is already there. Read by game/attached_units.py's can_attach(); it is what finally makes game/protect.py reachable
     joins_without_leader_slot = False  # Warlock Conclave's LEADER ability is printed as a JOIN with its OWN restriction ("a unit cannot have more than one WARLOCK CONCLAVE unit joined to it") rather than as an ordinary attachment, so 19.01's one-leader-per-bodyguard default is not what limits it. Read by game/attached_units.py's can_attach(); the direction matters and is asymmetric on purpose - see _join_not_bound_by_leader_slot() there
     doks_toolz = False  # Painboy's own "Dok's Toolz" ability (user-supplied, not a core rule): while this model is LEADING a unit (19.01), models in that unit have the Feel No Pain 5+ ability - see game/doks_toolz.py, read through game/feel_no_pain.py's current_feel_no_pain()
-    waaagh_dead_brutal_damage = None  # Warboss in Mega Armour's own "Dead Brutal" ability (user-supplied, not a core rule): while the Waaagh! is active for this model's owner, this model's melee weapon has a Damage characteristic of this value (an absolute override, not a bonus) - None = no such override; see game/waaagh.py's waaagh_melee_adjusted_weapon()
     tank_hunters = False  # Tankbustas' own "Tank Hunters" ability (user-supplied, not a core rule): each time a model with this ability makes an attack (ranged or melee) that targets a MONSTER or VEHICLE unit, add 1 to the Hit roll and add 1 to the Wound roll - see game/shooting.py's/game/fight.py's own _hit_modifiers()/_wound_modifiers()
     ramshackle_but_rugged = False  # Battlewagon's own "Ramshackle but Rugged" ability (user-supplied, not a core rule): each time an attack is allocated to this model, worsen that attack's Armour Penetration by 1 - see game/ramshackle.py
     gun_crazy_showoffs = False  # Flash Gitz' own "Gun-crazy Show-offs" ability (user-supplied, not a core rule): a Snazzgun targeting the closest eligible target has an Attacks characteristic of 4 - see game/gun_crazy_showoffs.py
     psyker = False  # the PSYKER keyword - purely descriptive here (no engine rule reads it yet), same status as MOUNTED/SMOKE; the [PSYCHIC] weapon keyword (24.29) is a separate, wired thing on WeaponProfile
+    psyker_level = 0  # the Orks army rule Unstable Energies: how many psychic levels this PSYKER may use per battle round ("psyker level N" in its abilities) - read by game/unstable_energies.py
     beast_snagga = False  # the BEAST SNAGGA keyword - matters for Kill Rig's transport_requires ("11 BEAST SNAGGA INFANTRY models"), see UnitProfile.transport_requires
     spirit_of_gork = False  # Kill Rig's own "Spirit of Gork (Psychic)" ability (user-supplied, not a core rule): at the start of the Fight phase, buff one friendly ORKS unit within 12" - see game/spirit_of_gork.py
     ferocious_rage = False  # Beastboss's own "Ferocious Rage" ability (user-supplied, not a core rule): each time this model makes a Charge move, until the end of the turn, melee weapons it is equipped with have [DEVASTATING WOUNDS] - per MODEL, not per unit, which matters once it is leading one (19.01); see game/ferocious_rage.py
@@ -773,7 +771,6 @@ class WarbossProfile(UnitProfile):
     leader = True  # the Leader core ability (24.22) - "can be attached to Boyz/Nobz", enforced by game/attached_units.py's can_attach()
     might_is_right = True  # this datasheet's own "Might is Right" ability - see UnitProfile.might_is_right's own note and game/fight.py's _hit_modifiers()
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
-    waaagh_biggest_and_best = True  # this datasheet's own "Da Biggest and da Best" ability - see UnitProfile.waaagh_biggest_and_best's own note and game/waaagh.py
     orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
 
 
@@ -805,7 +802,6 @@ class MeganobzProfile(UnitProfile):
     grenades = True  # the GRENADES keyword - Meganobz datasheet keyword
     mega_armour = True  # the MEGA ARMOUR keyword - see UnitProfile.mega_armour's own note
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
-    krumpin_time = True  # this datasheet's own "Krumpin' Time" ability - see UnitProfile.krumpin_time's own note and game/waaagh.py's effective_feel_no_pain()
     orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
 
 
@@ -846,7 +842,6 @@ class WarbossMegaArmourProfile(UnitProfile):
     leader = True  # the Leader core ability (24.22) - "can be attached to Meganobz", enforced by game/attached_units.py's can_attach()
     might_is_right = True  # this datasheet's own "Might is Right" ability, identical text to the plain Warboss's - see game/fight.py's _hit_modifiers()
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
-    waaagh_dead_brutal_damage = 3  # this datasheet's own "Dead Brutal" ability - see UnitProfile.waaagh_dead_brutal_damage's own note and game/waaagh.py's waaagh_melee_adjusted_weapon()
     orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
 
 
@@ -1189,6 +1184,7 @@ class KillRigProfile(UnitProfile):
     oc = 5
     monster = True  # the MONSTER keyword
     psyker = True  # the PSYKER keyword - descriptive, see UnitProfile.psyker's own note
+    psyker_level = 1  # "Wurrboy (psyker level 1)" - the Unstable Energies budget, see game/unstable_energies.py
     beast_snagga = True  # the BEAST SNAGGA keyword
     feel_no_pain = "6+"  # "Rules: Feel No Pain 6+" - rule 24.12, an existing generic field
     damaged_threshold = 5  # "Damaged: 1-5 Wounds Remaining" -> -1 to this model's own Hit rolls, an existing generic field (see game/shooting.py's _damaged_modifier())

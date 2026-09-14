@@ -185,7 +185,7 @@ _charge_src = io.open("game/charge.py", encoding="utf-8").read()
 c.true("charge.py asks it for the charge half of 09.07",
        "move_exceptions.may_charge_after_falling_back(squad)" in _charge_src)
 c.true("...and for 09.06's advance ban",
-       "move_exceptions.may_charge_after_advancing(squad, self.waaagh)" in _charge_src)
+       "move_exceptions.may_charge_after_advancing(squad)" in _charge_src)
 
 # The three lists are genuinely different, and that difference is printed:
 # Battlesuit Support System and Agile Combatant say "shoot", Hovering Death and
@@ -208,7 +208,7 @@ c.true("...and the charge-after-fall-back list is SHORTER",
        not in _body(_exc, "may_charge_after_falling_back"))
 c.true("...while the advance list names its own four",
        all(n in _body(_exc, "may_charge_after_advancing")
-           for n in ("squad_has_full_throttle", "squad_waaagh_active",
+           for n in ("squad_has_full_throttle", "riled_up.is_riled_up",
                      "loping_pounce.is_active", "aux_alien_expertise.is_active")))
 
 # A plain squad is exempt from nothing.

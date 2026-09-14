@@ -1,15 +1,12 @@
 """Orks faction data.
 
-Army rule "Waaagh!" is supplied and engine-wired (game/waaagh.py -
-WaaaghController, wired into ChargeController/FightController/
-ShootingController/DamageAllocationSession, plus main.py's own start-of-
-Command-phase block for the expiry) - see that module's own docstring for
-the full rule text and reasoning. The AI (Player 2) calls it via a
-deterministic "always in battle round 2" policy, ai/agent_driver.py's
-_maybe_call_waaagh() (user instruction, not a judgment call - never asks
-the agent). No UI button exists yet for the human player (Player 1) to call
-one themselves - out of scope for what was asked so far, WaaaghController.
-call()/can_call() are ready for it whenever that's wanted. Detachment rule
+Army rule "Waaagh!" is the 2026-09 codex text (rules/orks/army_rules.md) and
+is engine-wired: the Advance re-roll in game/waaagh.py, riled up in
+game/riled_up.py and War Cry in game/war_cry.py - a prompt for a human at the
+start of every Command phase until used, a deterministic verdict for the AI
+(ai/agent_driver.py's war_cry_verdict()). The old user-supplied Waaagh! and its
+WaaaghController are retired; see game/waaagh.py's docstring for what went
+with them. Detachment rule
 is still to come (user announcement, not yet supplied). This module
 currently holds sixteen datasheets: Boyz, Warbikers, Stormboyz, Trukk,
 Gretchin, Warboss, Meganobz, Warboss in Mega Armour, Tankbustas,
@@ -84,12 +81,8 @@ other five (each a squad built from several ModelLines). Its Leader ability
 Hit-roll buff) are NOT engine-wired - both depend on the live Attached-Unit
 formation flow this engine deliberately doesn't have yet (same documented
 gap as Boyz'/Kroot Carnivores' own Bodyguard text below), so they're
-abilities_text only. Da Biggest and da Best IS engine-wired though - it's
-self-contained (only affects the Warboss's own melee weapons, no attached-
-unit dependency) - see the new `waaagh_biggest_and_best` UnitProfile flag
-and game/waaagh.py's waaagh_extra_attacks(), which folds it into the
-existing army-wide Waaagh! Attacks bonus rather than needing a second
-mechanism. Its Invulnerable Save (5+) is just WarbossProfile's own
+abilities_text only. Da Biggest and da Best was engine-wired as a rider on
+the old Waaagh! and retired with it (2026-09 codex). Its Invulnerable Save (5+) is just WarbossProfile's own
 `invulnerable_save` field, same as Warbikers'/Trukk's own printed 6+ - no
 new code, and it happens to coincide numerically with (but is distinct
 from) the conditional 5+ that Waaagh! itself grants every `waaagh` model.
@@ -99,29 +92,15 @@ UnitProfile flag makes Trukk's own "each MEGA ARMOUR model takes up the
 space of 2 models" transport-capacity rule reachable for the first time
 (previously documented as unreachable in TrukkProfile's own note, since no
 such datasheet existed yet), see game/transport.py's
-_model_capacity_cost(). Krumpin' Time IS engine-wired, same "self-contained,
-no Attached-Unit dependency" reasoning as Da Biggest and da Best - the new
-`krumpin_time` flag and game/waaagh.py's effective_feel_no_pain() grant
-Feel No Pain 5+ while the Waaagh! is active, threaded through
-DamageAllocationSession/MortalWoundAllocationSession/
-DevastatingWoundAllocationSession wherever their owning FightController/
-ShootingController already carry a `self.waaagh` (normal shooting/fight
-damage, devastating wounds, hazard mortal wounds) - NOT threaded into
-game/crushing_impact.py, game/deadly_demise.py, game/explosives.py or
-game/hazard.py's own mortal-wound sessions, none of which are given a
-WaaaghController at all (a documented, narrower gap - see
-effective_feel_no_pain()'s own note).
+_model_capacity_cost(). Its old Krumpin' Time (Feel No Pain 5+ while the old
+Waaagh! was active) was retired with that rule (2026-09 codex).
 
 Warboss in Mega Armour is a second standalone single-model Character/Leader
 datasheet (like the plain Warboss), this time a MEGA ARMOUR one - "can be
 attached to Meganobz" and Might is Right are NOT engine-wired, same
 Attached-Unit-flow gap as every other Leader/Bodyguard text in this module.
-Dead Brutal IS engine-wired though (same "self-contained, no attached-unit
-dependency" reasoning as Da Biggest and da Best/Krumpin' Time) - see the
-new `waaagh_dead_brutal_damage` UnitProfile flag and game/waaagh.py's
-waaagh_melee_adjusted_weapon(), which now folds in an ABSOLUTE Damage
-override (not a bonus, unlike every other Waaagh!-related adjustment) on
-top of its existing Strength bonus.
+Dead Brutal was a rider on the old Waaagh! and was retired with it (2026-09
+codex).
 
 Tankbustas is the first non-standalone datasheet since Gretchin - a real
 6-model squad (1 Boss Nob + 5 Tankbusta), whose Boss Nob shares the rank-
@@ -516,17 +495,15 @@ WARBOSS = ORKS.add_datasheet(Datasheet(
     abilities_text=[
         'Might is Right: While this model is leading a unit, each time a model in that unit makes '
         'a melee attack, add 1 to the Hit roll.',
-        'Da Biggest and da Best: While the Waaagh! is active for your army, add 4 to the Attacks '
-        "characteristic of this model's melee weapons.",
+        'Da Biggest and da Best: NOT ENGINE-WIRED - retired with the old Waaagh! (2026-09 codex).',
         'Invulnerable Save (5+): This model has a 5+ invulnerable save.',
         'Leader: This model can be attached to the following units: Boyz, Nobz.',
     ],
 ))
 # Might is Right and Leader are NOT engine-wired - see this module's own
 # docstring (same Attached-Unit-flow gap as Boyz'/Kroot Carnivores' own
-# Bodyguard text). Da Biggest and da Best IS engine-wired (see
-# WarbossProfile's own `waaagh_biggest_and_best` flag in game/units.py and
-# game/waaagh.py's waaagh_extra_attacks()). Invulnerable Save (5+) is just
+# Bodyguard text). Da Biggest and da Best was retired with the old Waaagh!
+# (see game/waaagh.py). Invulnerable Save (5+) is just
 # WarbossProfile.invulnerable_save, no new code needed.
 
 _MEGANOB_LOADOUT = [KustomShootaProfile, PowerKlawProfile]
@@ -563,13 +540,11 @@ MEGANOBZ = ORKS.add_datasheet(Datasheet(
     # composition.
     points=ORKS_POINTS["Meganobz"],
     abilities_text=[
-        "Krumpin' Time: While the Waaagh! is active for your army, models in this unit have the "
-        'Feel No Pain 5+ ability.',
+        "Krumpin' Time: NOT ENGINE-WIRED - retired with the old Waaagh! (2026-09 codex).",
     ],
 ))
-# Krumpin' Time IS engine-wired - see this module's own docstring
-# (MeganobzProfile's own `krumpin_time` flag in game/units.py and
-# game/waaagh.py's effective_feel_no_pain()).
+# Krumpin' Time was retired with the old Waaagh! - see this module's own
+# docstring.
 
 _WARBOSS_MEGA_ARMOUR_LOADOUT = [BigShootaProfile, UgeChoppaProfile]
 
@@ -586,17 +561,15 @@ WARBOSS_MEGA_ARMOUR = ORKS.add_datasheet(Datasheet(
     abilities_text=[
         'Might is Right: While this model is leading a unit, each time a model in that unit makes '
         'a melee attack, add 1 to the Hit roll.',
-        "Dead Brutal: While the Waaagh! is active for your army, this model's 'uge Choppa has a "
-        'Damage characteristic of 3.',
+        "Dead Brutal: NOT ENGINE-WIRED - retired with the old Waaagh! (2026-09 codex).",
         'Invulnerable Save (5+): This model has a 5+ invulnerable save.',
         'Leader: This model can be attached to the following unit: Meganobz.',
     ],
 ))
 # Might is Right and Leader are NOT engine-wired - see this module's own
 # docstring (same Attached-Unit-flow gap as every other Leader/Bodyguard
-# text here). Dead Brutal IS engine-wired (see WarbossMegaArmourProfile's
-# own `waaagh_dead_brutal_damage` flag in game/units.py and
-# game/waaagh.py's waaagh_melee_adjusted_weapon()). Invulnerable Save (5+)
+# text here). Dead Brutal was retired with the old Waaagh! (see
+# game/waaagh.py). Invulnerable Save (5+)
 # is just WarbossMegaArmourProfile.invulnerable_save, no new code needed.
 
 _TANKBUSTA_BOSS_NOB_LOADOUT = [TankbustaChoppaProfile, RokkitPistolProfile, RokkitPistolProfile]

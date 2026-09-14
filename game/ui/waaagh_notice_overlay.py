@@ -6,13 +6,13 @@ from game.ui.text_utils import wrap_text
 
 # User: "ich will außerdem, dass ein prompt erscheint, das ich weg klicken
 # muss, wenn ein waagh ausgerufen wird." - same must-click-away pattern as
-# game/ui/stratagem_notice_overlay.py's own StratagemNoticeOverlay, wired
-# from game.waaagh.WaaaghController.on_called only when the caller is
-# Player 2 (the AI) - a human already knows when THEY call a Waaagh!,
-# they'd have just clicked its own button (once one exists - see
-# game/factions/orks.py's own note on that still-missing UI hook).
+# game/ui/stratagem_notice_overlay.py's own StratagemNoticeOverlay. Since the
+# 2026-09 codex the army rule's once-per-battle call is War Cry
+# (game/war_cry.py); main.py wires WarCryController.on_used here only when the
+# AI used it - a human already knows, they just answered its prompt. The class
+# and main()'s variable keep their names because every harness names it.
 #
-# The "confirm" green accent, not "stratagem" violet - a Waaagh! costs no
+# The "confirm" green accent, not "stratagem" violet - a War Cry costs no
 # CP, so it isn't a Stratagem (button_style.py's own color code reserves
 # violet specifically for CP-spending Stratagem buttons); green also reads
 # as "a friendly army-wide buff just activated", and happens to be the
@@ -29,11 +29,11 @@ HEADER_BLOCK_HEIGHT = button_style.HEADER_MARGIN + button_style.HEADER_BAR_HEIGH
 
 
 class WaaaghNoticeOverlay:
-    """A modal, must-click-away notice that `player` just called a Waaagh! -
+    """A modal, must-click-away notice that `player` just used War Cry -
     without this, it was just a quiet game_log line, easy to miss entirely
     while ai_auto_play keeps running (same gap StratagemNoticeOverlay was
     built to close for Stratagem spends). A queue, not a single slot, for
-    the same reason StratagemNoticeOverlay uses one - though a Waaagh! can
+    the same reason StratagemNoticeOverlay uses one - though a War Cry can
     only ever be called once per player per battle, so in practice this
     queue never holds more than one entry at a time."""
 
@@ -60,9 +60,9 @@ class WaaaghNoticeOverlay:
         player = self._queue[0]
 
         body_text = (
-            f"{player} calls a WAAAGH! Until the start of their next Command phase: their units with this "
-            "ability can charge after Advancing, get +1 Strength/+1 Attacks on melee weapons, and have a 5+ "
-            "invulnerable save."
+            f"{player} uses War Cry! Until the end of the next turn their units with the Waaagh! ability "
+            "are riled up: a 5+ invulnerable save, [ASSAULT] on ranged attacks, and an Advance no longer "
+            "stops them charging."
         )
         text_max_width = BOX_WIDTH - 2 * BOX_PADDING
         body_lines = wrap_text(self.body_font, body_text, text_max_width) or [body_text]
@@ -85,7 +85,7 @@ class WaaaghNoticeOverlay:
             bg_color=button_style.BG_NORMAL_CONFIRM, border_width=2,
         )
         y = button_style.draw_panel_header(
-            surface, box_rect, "WAAAGH!", self.heading_font,
+            surface, box_rect, "WAR CRY!", self.heading_font,
             text_color=button_style.TEXT_NORMAL_CONFIRM, bg_color=button_style.BG_ACTIVE_CONFIRM,
         )
 

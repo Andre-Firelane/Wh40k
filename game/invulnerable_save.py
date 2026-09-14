@@ -1,8 +1,8 @@
 """A model's invulnerable save after every source that can grant or improve
 one - the single place the Save roll asks.
 
-Extracted from game/waaagh.py, which owned it while the Ork Waaagh! was the
-only granting source. The Aeldari Serpent's Scale Platform's Serpent Shield is
+Extracted from game/waaagh.py, which owned it while the old user-supplied Ork
+Waaagh! was the only granting source (its successor, riled up, is read below). The Aeldari Serpent's Scale Platform's Serpent Shield is
 the second, and a module named after one faction's army rule is the wrong home
 for another faction's wargear. Cheap to move: there was exactly one caller
 (game/damage_resolution.py's Save roll).
@@ -21,13 +21,13 @@ Known gap, stated rather than left to be found: game/damage_estimate.py reads
 UnitProfile.invulnerable_save DIRECTLY and so sees none of these grants. The
 AI therefore overestimates its damage against a unit whose invulnerable save is
 granted rather than printed - which now includes any Serpent Shield unit it
-shoots at. That was already true for the Waaagh! grant; closing it means
+shoots at. That was already true for the Orks' grant; closing it means
 teaching the estimate both sources and re-verifying it, which is its own
 measured step.
 """
 
+from game import riled_up
 from game.thresholds import parse_threshold
-from game.waaagh import WAAAGH_INVULNERABLE_SAVE
 
 SERPENT_SHIELD_INVULNERABLE_SAVE = "5+"
 SHIMMERSHIELD_INVULNERABLE_SAVE = "4+"
@@ -65,7 +65,7 @@ def _better(current, candidate):
     return candidate
 
 
-def effective_invulnerable_save(model, waaagh=None, melee=False):
+def effective_invulnerable_save(model, melee=False):
     """This model's invulnerable save, printed value plus every grant.
 
     `melee` is whether the attack being saved against is a melee one. Some
@@ -87,9 +87,10 @@ def effective_invulnerable_save(model, waaagh=None, melee=False):
         save = _better(save, getattr(model.profile, "invulnerable_save_vs_ranged", None))
     squad = getattr(model, "squad", None)
 
-    if (waaagh is not None and model.profile.waaagh
-            and squad is not None and waaagh.is_active(squad.owner)):
-        save = _better(save, WAAAGH_INVULNERABLE_SAVE)
+    # The Orks' riled up (army rule Waaagh!): "that unit has 5+ InSv". A state
+    # on the UNIT, stamped by game/riled_up.py - nothing is threaded in.
+    if riled_up.is_riled_up(squad):
+        save = _better(save, riled_up.RILED_UP_INVULNERABLE_SAVE)
 
     # Windrider Host's Spiralling Evasion: "models in your unit have a 4+
     # invulnerable save" until the end of the phase. Folded through _better()

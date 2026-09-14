@@ -64,7 +64,7 @@ from game.game_state import GameState
 from game.movement import MovementController
 from game.squad import min_model_movement
 from game.turn import PHASE_MOVEMENT, PHASES, TurnTracker
-from game.waaagh import WaaaghController
+from game import riled_up
 
 maps.apply_to_config(maps.get("map2"))
 
@@ -173,8 +173,11 @@ def scene():
     turn.phase_index = PHASES.index(PHASE_MOVEMENT)
     turn.turn_owner = "Player 2"
     turn.set_active("Player 2")
-    waaagh = WaaaghController()
-    waaagh.active_players.add("Player 2")
+    # The old rule's WAAAGH! is the new rule's riled up, per unit.
+    for _squad in squads.values():
+        if _squad.owner == "Player 2":
+            riled_up.grant(_squad, riled_up.until_end_of_next_turn(turn), turn)
+    waaagh = None
     mover = MovementController(obstacles=state.obstacles, turn_tracker=turn,
                                all_tokens=state.tokens, dice_manager=DiceManager())
     return state, turn, waaagh, mover, squads
@@ -231,7 +234,7 @@ def chain(name, band_inches):
     real_choose, agent_driver._choose = agent_driver._choose, spy
     try:
         agent_driver._handle_movement(None, memory, "Player 2", state, mover,
-                                      None, None, None, None, waaagh_controller=waaagh)
+                                      None, None, None, None)
     finally:
         agent_driver._choose = real_choose
     advanced = any(t.startswith("advance") for t in seen.get("types", []))

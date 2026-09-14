@@ -374,7 +374,7 @@ _exc_src = io.open("game/move_exceptions.py", encoding="utf-8").read()
 c.true("...and Alien Expertise is one of its sources",
        "aux_alien_expertise.is_active(squad)" in _exc_src)
 c.true("...alongside the three that were already there",
-       "squad_has_full_throttle" in _exc_src and "squad_waaagh_active" in _exc_src
+       "squad_has_full_throttle" in _exc_src and "riled_up.is_riled_up" in _exc_src
        and "loping_pounce.is_active" in _exc_src)
 
 # -- Guided Fire ([LETHAL HITS] near friendly Kroot) ----------------------

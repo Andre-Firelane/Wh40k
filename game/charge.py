@@ -5,7 +5,6 @@ from game.dice import CHARGE_ROLL
 from game.roll_bonus import advance_and_charge_bonus, sources as roll_bonus_sources
 from game.squad import squad_has_full_throttle
 from game.turn import PHASE_CHARGE
-from game.waaagh import squad_waaagh_active
 from game import move_exceptions
 
 IDLE = "idle"
@@ -27,20 +26,18 @@ class ChargeController:
     can_declare_charge() excludes a unit that Advanced or Fell Back this
     turn (rules 09.06/09.07), with two named exceptions: Stormboyz' own
     "Full Throttle" ability (user-supplied, see squad_has_full_throttle() -
-    covers BOTH Advanced and Fell Back, permanently) and the Orks army rule
-    "Waaagh!" (user-supplied, see game/waaagh.py - covers Advanced ONLY,
-    and only while active for the squad's owner)."""
+    covers BOTH Advanced and Fell Back, permanently) and the Orks' riled up
+    (army rule Waaagh!, see game/riled_up.py - covers Advanced ONLY, and only
+    while the unit is riled up)."""
 
     def __init__(
         self, game_log=None, dice_manager=None, turn_tracker=None, all_tokens=None, movement_controller=None,
-        waaagh=None,
     ):
         self.game_log = game_log
         self.dice_manager = dice_manager
         self.turn_tracker = turn_tracker
         self.all_tokens = all_tokens if all_tokens is not None else []
         self.movement_controller = movement_controller
-        self.waaagh = waaagh
 
         self.state = IDLE
         # Set by reopen_target_selection() when a reaction takes a declared
@@ -152,10 +149,9 @@ class ChargeController:
             return False  # rule 09.07: a unit that Fell Back this turn cannot charge until the end of the turn
         if squad.is_engaged(self.all_tokens):
             return False
-        # Orks army rule "Waaagh!" (user-supplied): "eligible to declare a
-        # charge in a turn in which they Advanced" - ADVANCED only, unlike
-        # Full Throttle above (no Fell Back exception in this ability's own
-        # text), and only while active for this squad's owner.
+        # The Orks' riled up (army rule Waaagh!): "that advance move does not
+        # prevent that unit from being eligible to declare a charge" - ADVANCED
+        # only, unlike Full Throttle above, and only while riled up.
         # Kroot Hounds' Loping Pounce is the THIRD source of the same
         # exception. Unlike the two beside it, it is LATCHED rather than
         # live - set at the start of the Command phase and held all turn -
@@ -164,7 +160,7 @@ class ChargeController:
         # Auxiliary Cadre's Alien Expertise is the FOURTH source of the same
         # exception, and the second latched one - bought for one unit in the
         # Movement phase and read here, a phase later.
-        advance_ok = move_exceptions.may_charge_after_advancing(squad, self.waaagh)
+        advance_ok = move_exceptions.may_charge_after_advancing(squad)
         if self.movement_controller is not None and squad in self.movement_controller.advanced_squad_ids and not advance_ok:
             return False
         return len(self._enemy_squads_within(squad, CHARGE_RANGE_IN)) > 0

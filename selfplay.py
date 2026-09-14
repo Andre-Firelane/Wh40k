@@ -166,6 +166,16 @@ def fake_events():
         decisions.choose(len(decisions.options) - 1)
         return []
 
+    # War Cry (the Orks army rule, game/war_cry.py) is offered to a HUMAN Ork
+    # player at the start of EVERY Command phase until it is used - so, like
+    # Starflare above, an Ork Player 1 would stall every run at the battle's
+    # first Command phase. Declined (its last option is always Decline), which
+    # leaves the army exactly as it was.
+    if (decisions is not None and decisions.is_pending and decisions.player == "Player 1"
+            and "War Cry" in (decisions.prompt or "")):
+        decisions.choose(len(decisions.options) - 1)
+        return []
+
     # The Twin Lance's Retro-thrusters (game/retro_thrusters.py) is offered to
     # the HUMAN at the end of the Fight phase, and since battle round
     # 2026-08-16 Player 2 deliberately HOLDS its turn-end while that offer is

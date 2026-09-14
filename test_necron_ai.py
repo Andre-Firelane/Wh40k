@@ -359,17 +359,17 @@ for needle, label in [
 
 
 
-# --- 8. the WAAAGH! is an ORKS rule, and only Orks may call it ---------------
-print("--- 8. no Waaagh for Necrons ---")
+# --- 8. War Cry is an ORKS rule, and only Orks may use it -------------------
+print("--- 8. no War Cry for Necrons ---")
 
 from game import waaagh as waaagh_module
+from game import war_cry as war_cry_module
 from game.factions import orks as ork_sheets
 
-# User report: "die necrons haben soeben einen waagh ausgerufen. das koennen
-# nur orks." WaaaghController.can_call() checked once-per-battle and the phase
-# and NOTHING about the army - invisible for as long as Player 2 was always
-# Orks, and wrong the moment that became switchable. Gated in the controller
-# rather than in the AI, so the human's button gets the same answer.
+# User report about the OLD army rule: "die necrons haben soeben einen waagh
+# ausgerufen. das koennen nur orks." Its once-per-battle call is War Cry since
+# the 2026-09 codex, and the gate moved with it: into the controller, so the
+# human's prompt and the AI's verdict get the same answer.
 _t = turn_at(PHASE_COMMAND)
 ork_army = [build_squad(ork_sheets.BOYZ, AI, name="2 Boyz 1", composition_index=0)]
 necron_army = [warriors(name="2 Necron Warriors 30")]
@@ -377,31 +377,39 @@ necron_army = [warriors(name="2 Necron Warriors 30")]
 c.eq("an Ork army qualifies", sorted(waaagh_module.qualifying_players(ork_army)), [AI])
 c.eq("a Necron army does not", sorted(waaagh_module.qualifying_players(necron_army)), [])
 
-ork_ctrl = waaagh_module.WaaaghController()
-ork_ctrl.orks_players = waaagh_module.qualifying_players(ork_army)
-c.eq("Orks may call a Waaagh!", ork_ctrl.can_call(AI, _t), True)
 
-nec_ctrl = waaagh_module.WaaaghController()
-nec_ctrl.orks_players = waaagh_module.qualifying_players(necron_army)
-c.eq("Necrons may NOT", nec_ctrl.can_call(AI, _t), False)
-c.eq("...and calling one is refused outright, not merely un-offered",
-     nec_ctrl.call(AI, _t), False)
+def _war_cry(army):
+    ctrl = war_cry_module.WarCryController(
+        turn_tracker=_t, squads_provider=lambda: army, auto_players=(AI,),
+        verdict=lambda player, tracker: True)
+    ctrl.orks_players = waaagh_module.qualifying_players(army)
+    return ctrl
+
+
+ork_ctrl = _war_cry(ork_army)
+c.eq("Orks may use War Cry", ork_ctrl.can_use(AI), True)
+nec_ctrl = _war_cry(necron_army)
+c.eq("Necrons may NOT", nec_ctrl.can_use(AI), False)
+c.eq("...and using it is refused outright, not merely un-offered",
+     nec_ctrl.use(AI, _t), False)
 
 # The empty-set trap: qualifying_players() returns an EMPTY frozenset for a
 # battle with no Orks in it, which is a real answer and must refuse. Written as
 # a plain truthiness test it would be falsy and silently re-open the bug.
 c.eq("an empty answer is a REAL answer, not 'unknown'",
-     (nec_ctrl.orks_players == frozenset(), nec_ctrl.can_call(AI, _t)), (True, False))
-c.eq("...while an unset controller keeps the old unrestricted behaviour, so "
-     "every existing caller and test is unchanged",
-     waaagh_module.WaaaghController().can_call(AI, _t), True)
+     (nec_ctrl.orks_players == frozenset(), nec_ctrl.can_use(AI)), (True, False))
+c.eq("...while an unset controller keeps the unrestricted behaviour",
+     war_cry_module.WarCryController(squads_provider=lambda: ork_army).can_use(AI), True)
 
-# ...and the AI's own policy call goes through that same gate.
-c.eq("_maybe_call_waaagh refuses for a Necron army",
-     agent_driver._maybe_call_waaagh(AI, turn_at(PHASE_COMMAND), nec_ctrl), False)
+# ...and the AI's own verdict goes through that same gate: an always-yes
+# verdict still spends nothing for a Necron army, and does for an Ork one.
+nec_ctrl.offer_at_start_of_command_phase(_t)
+c.eq("an always-yes AI verdict uses nothing for a Necron army", nec_ctrl.is_used(AI), False)
+ork_ctrl.offer_at_start_of_command_phase(_t)
+c.eq("...and uses War Cry for an Ork one", ork_ctrl.is_used(AI), True)
 
 _main_src = pathlib.Path("main.py").read_text(encoding="utf-8")
 c.true("main.py really derives it from the built armies",
-       "waaagh_controller.orks_players = waaagh_module.qualifying_players(" in _main_src)
+       "war_cry_controller.orks_players = waaagh_module.qualifying_players(" in _main_src)
 
 c.finish()

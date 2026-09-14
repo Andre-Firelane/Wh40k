@@ -4,12 +4,10 @@ by the user (not a core rulebook rule):
     "While this model is leading a unit, add 1 to the Attacks characteristic
      of ranged weapons equipped by models in that unit."
 
-Wired the same way the Orks army rule Waaagh! is (game/waaagh.py's
-waaagh_extra_attacks()): a per-model bonus to the Attacks characteristic is
-just extra attack dice for the group, added alongside extra_attack_dice() at
-every total_attacks computation. The difference is who grants it. Waaagh! is a
-property each model carries itself, so it reads the firing model's own profile;
-Volley Fire is granted by ANOTHER model - the Fireblade leading the unit - to
+Wired the way the old user-supplied Waaagh!'s +1 Attacks was (retired with that
+rule): a per-model bonus to the Attacks characteristic is just extra attack dice
+for the group, added alongside extra_attack_dice() at every total_attacks
+computation. Volley Fire is granted by ANOTHER model - the Fireblade leading the unit - to
 every model in it, so it has to ask the SQUAD.
 
 Deferred until now for a reason that has since expired: the ability only ever

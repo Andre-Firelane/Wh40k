@@ -59,7 +59,6 @@ from game import corsair_abilities
 from game import spiritseer
 from game import ritual_butchery
 from game import united_in_destruction
-from game.waaagh import waaagh_extra_attacks, waaagh_melee_adjusted_weapon
 from game.war_horde import get_stuck_in_adjusted_weapon
 from game.weapons import MELEE
 
@@ -229,7 +228,7 @@ class FightController:
     def __init__(
         self, game_log=None, dice_manager=None, turn_tracker=None, all_tokens=None,
         pile_in_controller=None, charge_controller=None, decision_manager=None, suppression=None, stealth_drones=None,
-        waaagh=None, target_reactions=(), lethal_ichor=None, guide=None, doom=None, whispering_web=None,
+        target_reactions=(), lethal_ichor=None, guide=None, doom=None, whispering_web=None,
         advanced_scouting=None, bounty_hunters=None, fated_hero=None, herald_of_ynnead=None,
         path_of_the_warrior=None, shepherds_of_the_dead=None, misfortune=None, spirit_mark=None,
         piratical_raiders=None, fury_of_the_void=None, plasmacyte=None,
@@ -267,7 +266,6 @@ class FightController:
         self.piratical_raiders = piratical_raiders
         self.fury_of_the_void = fury_of_the_void
         self.whispering_web = whispering_web  # Lhykhis' Whispering Web mark - optional; read by the hit step's crit threshold (see game/whispering_web.py)
-        self.waaagh = waaagh  # Orks army rule "Waaagh!" - optional, like suppression/stealth_drones; see game/waaagh.py
         # Reactive stratagems whose WHEN is "just after an enemy unit has
         # selected its targets" - see ShootingController's identical field.
         # Both of the ones that exist name "the Fight phase" as well as the
@@ -1154,14 +1152,12 @@ class FightController:
             total = self._pending_attacks_roll.total
             self._pending_attacks_roll = None
             total_attacks = total + extra_attack_dice(weapon, target_squad, weapon_key, self.split_fire, self.assignments, pairs)
-            total_attacks += waaagh_extra_attacks(pairs, self.waaagh)
             self._continue_resolution_with_attacks(weapon, total_attacks)
             return
 
         # Per PAIR, not on the total - see shooting.py's twin.
         total_attacks = sum(damaged_attacks.attacks_for(m, w) for m, w in pairs)
         total_attacks += extra_attack_dice(weapon, target_squad, weapon_key, self.split_fire, self.assignments, pairs)
-        total_attacks += waaagh_extra_attacks(pairs, self.waaagh)  # Orks army rule "Waaagh!" (user-supplied): +1 A to melee weapons of models with this ability, while active
         self._continue_resolution_with_attacks(weapon, total_attacks)
 
     def _continue_resolution_with_attacks(self, weapon, total_attacks):
@@ -1179,16 +1175,11 @@ class FightController:
         # target" - no hit roll, so no die can come up a natural 6: every
         # attack becomes an ordinary (non-critical) hit.
         if weapon.torrent:
-            # Orks army rule "Waaagh!" (user-supplied): +1 S to melee
-            # weapons of models with this ability, while active - applied
-            # here too (not just on_dice_acknowledged()'s own "wound" step
-            # below) for the same reason melta_adjusted_weapon()/bonded_
-            # heroes_adjusted_weapon() are chained at shooting.py's own
-            # [TORRENT] shortcut: this path skips straight to
-            # _handle_hit_results() without ever reaching that step. No
-            # current Ork melee weapon actually has [TORRENT], but the
-            # adjustment function is a no-op unless its own condition
-            # applies, so this stays correct if one ever does.
+            # Every melee grant is applied here too (not just in
+            # on_dice_acknowledged()'s own "wound" step below) for the same
+            # reason shooting.py chains its grants at its own [TORRENT]
+            # shortcut: this path skips straight to _handle_hit_results()
+            # without ever reaching that step.
             torrent_weapon = self._adjusted_weapon(group["pairs"], target_squad)
             # War Horde's Unbridled Carnage needs no equivalent hook here:
             # it only lowers the hit roll's CRITICAL threshold, and [TORRENT]
@@ -1232,7 +1223,6 @@ class FightController:
             if total_mortal_wounds > 0:
                 self.mortal_wound_session = MortalWoundAllocationSession(
                     self.fighting_squad, total_mortal_wounds, dice_manager=self.dice_manager, log=self._log,
-                    waaagh=self.waaagh,
                 )
                 self.pending_step = "hazard_wounds"
                 self._check_hazard_wounds_done()
@@ -1277,7 +1267,6 @@ class FightController:
             if total > 0:
                 self.hold_still_session = MortalWoundAllocationSession(
                     target_squad, total, dice_manager=self.dice_manager, log=self._log,
-                    waaagh=self.waaagh,
                 )
                 self.pending_step = "hold_still_wounds"
                 self._check_hold_still_done()
@@ -1308,11 +1297,8 @@ class FightController:
             # notation Attacks roll (weapon.attacks_notation) before the
             # real Hit roll can start. The RAW (un-adjusted) `weapon` is
             # used here, matching _begin_resolution()'s own synchronous
-            # path exactly - see shooting.py's identical comment: Waaagh!'s
-            # Strength bonus is applied once, below, only for the "hit"
-            # step onward; using an already-adjusted weapon here would
-            # double it once _continue_resolution_with_attacks()'s own
-            # [TORRENT] check (if ever reached) re-applies it.
+            # path exactly - see shooting.py's identical comment: the grants
+            # are applied once, below, only for the "hit" step onward.
             if self._pending_attacks_roll is None:
                 return
             self._pending_attacks_roll.on_dice_acknowledged()
@@ -1321,22 +1307,14 @@ class FightController:
             total_attacks = total + extra_attack_dice(
                 weapon, target_squad, group["weapon_key"], self.split_fire, self.assignments, group["pairs"],
             )
-            total_attacks += waaagh_extra_attacks(group["pairs"], self.waaagh)
             self._continue_resolution_with_attacks(weapon, total_attacks)
             return
 
-        # Orks army rule "Waaagh!" (user-supplied): +1 S to melee weapons of
-        # models with this ability, while active - applied once here so it
-        # flows through every downstream use of `weapon` this call (wound
-        # threshold, and - chained via melta_adjusted_weapon() - damage),
-        # same reasoning/placement as shooting.py's own Bonded Heroes/
-        # Starscythe/Drive-by Dakka chain. War Horde's Get Stuck In
-        # (user-supplied): [SUSTAINED HITS 1] on Orks models' melee weapons,
-        # chained right after for the same reason - it has to be in place
-        # BEFORE the "hit" step below reads weapon.sustained_hits, not just
-        # at the wound step (Waaagh!'s own S/AP-only adjustment could wait
-        # either way, since neither touches sustained_hits - so ordering
-        # between the two doesn't matter here).
+        # Every conditional melee grant, applied once here so it flows through
+        # every downstream use of `weapon` this call (wound threshold, and -
+        # chained via melta_adjusted_weapon() - damage). The keyword grants
+        # (War Horde's Get Stuck In's [SUSTAINED HITS 1] among them) have to be
+        # in place BEFORE the "hit" step below reads them.
         weapon = self._adjusted_weapon(group["pairs"], group["target_squad"])
         if self.pending_step == "hit":
             self._hit_step(rolls, group, weapon, target_squad, weapon_label)
@@ -1488,12 +1466,11 @@ class FightController:
         applied, in one place - game/shooting.py's own _adjusted_weapon() for
         the ranged side.
 
-        Waaagh! (+1 S), War Horde's Get Stuck In ([SUSTAINED HITS 1]),
+        War Horde's Get Stuck In ([SUSTAINED HITS 1]),
         Ferocious Rage ([DEVASTATING WOUNDS]) and Spirit of Gork (+1 S and
         [LETHAL HITS]). Order matters for the last three: the hit and wound
         steps read those keywords straight off the returned weapon, so they
-        have to be in place before those steps run. Waaagh! only touches
-        Strength/AP, so where it sits among them does not matter.
+        have to be in place before those steps run.
 
         Extracted because three callers need the same answer and must not
         disagree: the [TORRENT] shortcut (which skips straight to
@@ -1504,7 +1481,7 @@ class FightController:
         are conditional. Unbridled Carnage needs no place here: it lowers the
         hit roll's CRITICAL threshold rather than granting a keyword, and
         _crit_note()/the hit step both read that from crit_hit_threshold()."""
-        weapon = waaagh_melee_adjusted_weapon(pairs[0][1], pairs, self.waaagh)
+        weapon = pairs[0][1]
         weapon = get_stuck_in_adjusted_weapon(weapon, pairs)
         weapon = ferocious_rage_adjusted_weapon(
             weapon, pairs, self.charge_controller, self.fighting_squad,
@@ -1734,7 +1711,7 @@ class FightController:
             # AP) is no longer coloured red and counted as a failure. User
             # report: "oft werden bestandene rettungswuerfe rot angezeigt".
             save_threshold = displayed_save_threshold(
-                allocation_target_model(target_squad), weapon, self.waaagh,
+                allocation_target_model(target_squad), weapon,
             )
             # Melta-adjusted damage preview (rule 24.25) - positions don't
             # change between kicking off this roll and its acknowledgement,
@@ -1751,7 +1728,7 @@ class FightController:
             self.dice_manager.roll(
                 count=normal_wounds, sides=6,
                 label=f"Save Roll: {weapon_label} ({normal_wounds} wound(s))",
-                **save_heading(allocation_target_model(target_squad), weapon, self.waaagh, weapon_label),
+                **save_heading(allocation_target_model(target_squad), weapon, weapon_label),
                 success_threshold=save_threshold if save_threshold is not None else 7,
                 target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, rolled_for=target_squad, roll_kind=SAVE_ROLL,
                 damage_per_failure=damage_preview,
@@ -1873,7 +1850,7 @@ class FightController:
         damage_weapon = melta_adjusted_weapon(weapon, self.current_group["pairs"], target_squad)
         self.devastating_wound_session = DevastatingWoundAllocationSession(
             target_squad, damage_weapon.damage, self._devastating_crits, dice_manager=self.dice_manager, log=self._log,
-            waaagh=self.waaagh, attacker_squad=self.fighting_squad,
+            attacker_squad=self.fighting_squad,
         )
         # Statistics: a [DEVASTATING WOUNDS] crit skips the save entirely, so
         # it GOT THROUGH - counted alongside the failed saves rather than as
@@ -1922,7 +1899,7 @@ class FightController:
         # one wound roll. Asked against the SPLIT weapon, which is the whole
         # point: this share resolves against what its source dictates.
         save_threshold = displayed_save_threshold(
-            allocation_target_model(target_squad), split_weapon, self.waaagh)
+            allocation_target_model(target_squad), split_weapon)
         split_label = critical_wound_split.label(
             weapon, self.current_group["pairs"][0][0], self.fighting_squad)
         melta_weapon = melta_adjusted_weapon(
@@ -1935,7 +1912,7 @@ class FightController:
         self.dice_manager.roll(
             count=crits, sides=6,
             label="Save Roll (%s): %d critical wound(s)" % (split_label, crits),
-            **save_heading(allocation_target_model(target_squad), split_weapon, self.waaagh,
+            **save_heading(allocation_target_model(target_squad), split_weapon,
                            f"{self.current_group['weapon_label']} - {split_label}"),
             success_threshold=save_threshold if save_threshold is not None else 7,
             target_name=target_squad.name, attacker_squad=self.fighting_squad,
@@ -2661,7 +2638,7 @@ class FightController:
         """See shooting.py's method of the same name - same user report, same
         one predicate in game/damage_resolution.py, asked of EVERY model of the
         target rather than the representative the panel is sized from."""
-        if wounds <= 0 or not save_is_impossible(target_squad, weapon, self.waaagh):
+        if wounds <= 0 or not save_is_impossible(target_squad, weapon):
             self._save_not_rolled = None
             return False
         needed = save_threshold if save_threshold is not None else 7
@@ -2680,7 +2657,7 @@ class FightController:
                 self.lethal_ichor.notify_melee_allocation(target_squad, self.fighting_squad)
         self.damage_session = DamageAllocationSession(
             rolls, weapon, target_squad, dice_manager=self.dice_manager, log=self._log, priority_group=priority_group,
-            stealth_drones=self.stealth_drones, waaagh=self.waaagh, attacker_squad=self.fighting_squad,
+            stealth_drones=self.stealth_drones, attacker_squad=self.fighting_squad,
         )
         # Same resume hook as game/shooting.py's - see
         # DamageAllocationSession.on_resumed. No damage_reroll is passed here
@@ -2810,7 +2787,7 @@ class FightController:
 
         Tankbustas' own "Tank Hunters" (user-supplied, not a core rule) is
         checked against fighting_squad's representative model, same "read
-        it off model 0" simplification as e.g. squad_waaagh_active()."""
+        it off model 0" simplification as e.g. crit_hit_threshold()."""
         modifiers = []
         # War Horde's 'Ard as Nails (user-supplied): its WHEN names the Fight
         # phase as well as the opponent's Shooting phase, and its EFFECT says

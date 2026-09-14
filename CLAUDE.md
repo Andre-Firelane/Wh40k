@@ -8196,7 +8196,8 @@ Spiellänge definieren.
   weil AIRCRAFT/FORTIFICATION/TITANIC belegte No-ops sind und es keine Vertikalität gibt.
 - **Orks** — Boyz (10/20), Warbikers, Stormboyz, Trukk, Gretchin, Battlewagon, Kill Rig, Deff Dread,
   Deffkoptas, Flash Gitz, Tankbustas, Meganobz, Beast Snagga Boyz, Beastboss, Warboss (Fuß + Mega
-  Armour), Painboy. Armeeregel Waaagh!, Detachment "War Horde" (Get Stuck In + Stratagems). Komplette
+  Armour), Painboy. Armeeregel Waaagh! (seit E1 der 2026-09-Codex: riled up + War Cry, siehe
+  `## Die Ork-Armeeregel`), Detachment "War Horde" (bis E2 noch Get Stuck In + alte Stratagems). Komplette
   Punkteliste (58 Einträge).
 - **Aeldari** — Guardian Defenders, Storm Guardians, Striking Scorpions, Howling Banshees, Warp
   Spiders, Dire Avengers, Fire Dragons, Dark Reapers, Shining Spears, Windriders, Warlock Skyrunners,
@@ -9089,6 +9090,68 @@ Modell 0; ein Tausch wird übersprungen, wenn das Modell die Waffe gar nicht tr�
 statt einer ANZAHL eine Liste von Modell-INDIZES tragen (das ist eine Aussage der Armeeliste, nicht
 des Datenblatts). Gear läuft NACH den Waffentäuschen, deshalb funktionieren bedingte Optionen.
 
+## Die Ork-Armeeregel (2026-09-Codex): Waaagh!, riled up, War Cry — Etappe E1
+
+Plan: `C:\Users\Andre\.claude\plans\transient-munching-boot.md`. Gedruckter Text in
+`rules/orks/army_rules.md`; die Module tragen ihn im Docstring.
+
+- **Riled up ist ein Zustand PRO EINHEIT** (`game/riled_up.py`), nicht mehr pro Spieler. Gespeichert
+  wird die FRIST `Squad.riled_up_expires_turn` (Zugserie `(battle_round-1)*2 + turn_index_in_round`,
+  in `SQUAD_FLAGS`), abgeleitet `Squad.riled_up` (in `SQUAD_FLAGS_EXCLUDED`) — gestempelt von
+  `refresh()` am Beginn jeder Phase (main.py, direkt nach dem Power-Matrix-Stempel, VOR War Crys
+  Angebot), bei Schlachtbeginn und nach einem Load, und von `grant()` sofort. „Bis Ende des nächsten
+  Zuges" = Serie+2; „bis Beginn deines nächsten Zuges" = +2 aus dem eigenen, +1 aus dem gegnerischen
+  Zug. `grant()` lehnt eine Einheit ohne die Fähigkeit ab, und die spätere Frist gewinnt.
+- **Drei Leser, nichts gefädelt:** 5+ InSv in `invulnerable_save.effective_invulnerable_save()`,
+  [ASSAULT] in `ShootingController._adjusted_weapon()` UND `coldstar.weapon_has_assault()` (§7),
+  Charge nach Advance in `move_exceptions.may_charge_after_advancing(squad)`. Jeder `waaagh=`-Parameter
+  ist entfernt (Damage-Sessions, FNP, Save-Schwellen/-Überschrift, alle drei Angriffs-Controller);
+  `test_ork_army_rules.py` §12 fegt `game/` und `ai/` per AST.
+- **War Cry (`game/war_cry.py`):** „At the start of THE Command phase" → in JEDER Command-Phase
+  angeboten, dem Phasenbesitzer zuerst; einmal pro Schlacht pro Armee. Mensch: Prompt mit rotem
+  Decline. KI: injizierte `agent_driver.war_cry_verdict(player, tracker, tokens)` (0 API-Calls) —
+  eigene Command-Phase ≥ min(alle, max(2, ⌈40 %⌉)) der Waaagh!-Einheiten mit Feind in
+  Move+Advance+12", gegnerische dieselbe Schwelle in 18", sonst eigene Command-Phase ab Runde 3.
+  `orks_players` aus `waaagh.qualifying_players()`: `None` = unbeschränkt (Harness), LEERE Menge =
+  echte Absage. Die Nutzung steht auf den Einheiten (`Squad.war_cry_called`, gespeichert). Die erste
+  Command-Phase bietet `begin_battle()` an, beim Resume nicht (`resuming=True`). **Benannte Grenze:**
+  der Legacy-Pfad `--no-deployment` bietet für die allererste Command-Phase keinen War Cry an.
+  §18 des Wiring-Wächters nimmt genau diese eine `PLAYERS`-Schleife ungetaggt aus (jeder Spieler
+  bekommt seine eigene Frage — keine Einheitenwahl).
+- **Advance-Reroll auf geteilter Maschine:** `game/advance_reroll_offer.py` (aus Superlative Strategist
+  extrahiert; ein Träger besitzt `LABEL` + `applies()`), `WaaaghAdvanceRerollController` in
+  `waaagh.py`, angeboten in `_acknowledge_pending_roll()` VOR `acknowledge()` und als
+  „Re-roll Advance"-Knopf im Würfelpanel; einmal pro Wurf geclaimt; KI rerollt unter 4.
+- **Unstable Energies** (`game/unstable_energies.py`): `UnitProfile.psyker_level` (Kill Rig 1),
+  Rundenledger `Squad.unstable_energies_round/_spent` gespeichert, ruht bis E3e. **Da Boss** ist ein
+  belegter No-op (kein Warlord-Bezeichner in `game/`/`ai/`), die **Special Move Types** nennt kein
+  gebautes Ork-Blatt.
+- **Stillgelegt:** `WaaaghController`, der alte Nahkampfbonus (+1 S/+1 A) samt Da Biggest and da
+  Best, Dead Brutal und Krumpin'-Time-FNP, `_maybe_call_waaagh`. Die Variable
+  `waaagh_notice_overlay` bleibt (Harnesses), ihr Text ist „WAR CRY!".
+- **Gemessen:** 20 Boyz + Warboss gegen 20 Necron Warriors, eine Nahkampfrunde
+  (`damage_estimate`): alter Waaagh! **26.8**, riled up **15.9** erwartete Wunden (**59 %**); die
+  Boyz allein kamen alt auf 24.0 gegen 20 Modelle — die Schätzung deckelt keinen Overkill.
+  `measure_advance_usage.py`: Advance im riled-up-Zug +15 Punkte mittlere Charge-Chance, 2 von 8
+  Münzwürfen werden zum Favoriten.
+- **`selfplay.py` lehnt einen War-Cry-Prompt für Player 1 ab** (wie Starflare) — sonst hängt jeder
+  Lauf mit einem Ork-Player-1 in der ersten Command-Phase.
+- **Getestet:** neu `test_ork_army_rules.py` (**133/133**), `ab_ork_army_rules.py` (**52 Sonden,
+  56 Läufe, alle beißend**; ein Absturz in `test_advance_usage.py` — `next()` ohne Default — gefunden
+  und degradiert), `verify_ork_army_rules.py` (echtes `main()`, Orks auf BEIDEN Seiten: War Cry
+  in Player 1s UND Player 2s Command-Phase gefragt — Decline, dann Use, danach nie wieder —, die KI
+  per Verdict ohne Prompt, 0 von 13 MockAgent-Entscheidungen zeigten War Cry oder den Reroll; 14/14
+  Einheiten riled up, Battlewagon 6+ → 5+, Schusstypen nach Advance `[]` → `['Assault']`, Charge
+  nach Advance nein → ja, main()s Refresh hält bis zur Frist; „Re-roll Advance"-Knopf für den
+  Menschen, die KI wirft ihre Advance-1 ohne Prompt neu. `--neutralize` kehrt alles um. Gestellt:
+  Orks auf beiden Seiten, die Antworten des Menschen, zwei Advance-Würfe — und zwei stehende
+  Menschen-Prompts eines Ork-Player-1 (Spirit of Gork, 'Ard as Nails), die selfplay nicht beantwortet
+  und die den Lauf sonst nach 5 Phasen anhielten, per letzter Option abgelehnt und benannt). Nachgezogen: `test_ere_we_go.py`,
+  `test_advance_usage.py` (43), `test_necron_ai.py` §8, `test_event_chain_wiring.py` §18.
+  `verify_rules_vs_engine.py` **173**, `CORPUS_AHEAD` **17** (beides unverändert). Volle Regression
+  **234 Suiten, ~22442 Prüfungen, 233 grün / 0 rot / 1 bekannt**, `run_tests.py --smoke` komplett
+  grün; `selfplay.py map2 1500` mit Orks gegen Necrons in beiden Sitzordnungen exit 0.
+
 ## KI-Architektur
 
 `ai/agent_driver.py`, `ai/claude_agent.py`, `ai/observation.py`, `ai/planner_prompt.py`,
@@ -9248,7 +9311,8 @@ KI-Pfad.**
 - **Deterministische Entscheidungen ohne API-Call** (jeweils weil es ein VOLLSTÄNDIGES Verfahren ohne
   Restermessen gibt, und ein Test mit werfendem Agenten belegt die 0 Calls): Command Re-roll auf einen
   verfehlten Charge (verfehlt + Nahkampfeinheit + Lücke ≤7"), War Hordes Unbridled Carnage,
-  'Ere We Go im WAAAGH-Zug, 'Ard as Nails, Ammo Runt, Grot Orderly, Spirit of Gork — und die
+  'Ere We Go im riled-up-Zug, War Cry (`war_cry_verdict`), der Waaagh!-Advance-Reroll (unter 4),
+  'Ard as Nails, Ammo Runt, Grot Orderly, Spirit of Gork — und die
   **gesamte Necron-Fraktion**: Reanimation Protocols samt Warriors-Reroll, Resurrection Orb,
   Technomancer, Matter Absorption, Living Lightning, Wraith Form und alle sechs
   Awakened-Dynasty-Protokolle. **Und seit Etappe 3 auch der Plasmacyte** — er stand hier

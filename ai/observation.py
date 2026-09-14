@@ -15,7 +15,7 @@ from game.hazard import MORTAL_WOUNDS_ON_FAIL, MORTAL_WOUNDS_ON_FAIL_MONSTER_VEH
 from game.squad import (attached_unit_toughness, edge_distance, is_monster_or_vehicle_unit,
                         max_model_radius, min_model_movement, model_terrain_violation)
 from game.transport import TACTICAL_DISEMBARK_DISTANCE_IN
-from game.waaagh import squad_waaagh_active
+from game import riled_up
 from game.weapons import MELEE, RANGED
 
 
@@ -300,7 +300,7 @@ def charge_now(squad, enemy, at_point=None, advance_keeps_charge=False):
     if advance_keeps_charge:
         entry["chance_if_you_advance_first"] = (
             f"{charge_chance_after_advancing(squad, enemy, at_point=at_point):.0f}%"
-            " - WAAAGH! is active, so Advancing costs only non-Assault shooting, not the charge"
+            " - this unit is riled up (Waaagh!), so Advancing costs it neither its charge nor its shooting"
         )
     return entry
 
@@ -917,10 +917,15 @@ def squad_summary(squad, in_reserve=False, embarked_in=None, include_weapons=Fal
     # it derives badly, and this one needs the CHARACTER exclusion and the
     # starting-strength cap to come out right.
     #
-    # Deliberately NOT a meta-level "go turn" field like waaagh: reanimation is
+    # Deliberately NOT a meta-level "go turn" field like war_cry: reanimation is
     # a steady per-unit trickle rather than a moment to build a plan around, so
     # it belongs on the unit. Absent entirely for a non-Necron unit, so no
     # other army pays a key for it.
+    # ORKS only: riled up (army rule Waaagh!) - the unit's own state, because
+    # other rules than War Cry make one unit riled up on its own.
+    if riled_up.is_riled_up(squad):
+        summary["riled_up"] = ("5+ invulnerable save, [ASSAULT] on its ranged attacks, "
+                               "and it may Advance and still charge")
     if reanimation_protocols.has_reanimation_protocols(squad):
         recoverable = reanimation_protocols.recoverable_wounds(squad)
         returnable = len(reanimation_protocols.revivable_models(squad))
@@ -1468,7 +1473,7 @@ def add_planning_distances(summary, squad, enemy_squads, objectives, obstacles=(
                 "radius_in": round(advance_reach_in(squad) + reach_bonus_in, 1),
                 "note": (
                     "naming a position between the two radii means this unit Advances (rule 09.06) to reach it"
-                    + (" - and WAAAGH! is active, so that costs it only non-Assault shooting, NOT its charge"
+                    + (" - and this unit is riled up (Waaagh!), so that costs it NOT its charge, and its ranged attacks have [ASSAULT]"
                        if advance_keeps_charge else
                        " - which costs it non-Assault shooting AND its charge this turn")
                 ),
@@ -1743,38 +1748,37 @@ def _score_summary(mission_controller, player, turn_tracker):
     }
 
 
-def waaagh_summary(player, waaagh_controller):
-    """Is this the army's WAAAGH! turn - the one turn it is strongest?
+def war_cry_summary(player, war_cry_controller):
+    """Is this the army's riled-up turn - the one War Cry buys, once?
 
-    The single most consequential fact the planner was never told. WAAAGH! gives
-    the whole army a 5+ invulnerable save, +1 melee Strength, +1 Attack, and lets
-    units Advance and still charge - so it is the turn to commit everything. Only
-    the TACTICAL layer knew, and only indirectly, because an Advance option's own
-    description mentions it. The planner, which decides roles, disembarks and
-    charge targets, wrote its plan as if it were an ordinary turn (user: "es ist
-    ihr waagh zug. in diesem zug sind sie extrem stark. das war ihr go turn. und
-    die boyz sind nicht ausgestiegen und die bikes haben nicht angegriffen").
-
-    Same failure shape as every other gap this project has found: the engine knew,
-    the observation did not report it."""
-    if waaagh_controller is None:
+    The successor of the old waaagh summary, and there for the same reason: the
+    single most consequential fact the planner was otherwise never told (user,
+    about the old rule: "es ist ihr waagh zug. in diesem zug sind sie extrem
+    stark. das war ihr go turn"). None for an army without the rule, so no
+    other army pays a key for it. Which units ARE riled up is on each squad
+    entry, because rules other than War Cry make a single unit riled up."""
+    if war_cry_controller is None:
         return None
-    if player in getattr(waaagh_controller, "active_players", ()):
+    orks = getattr(war_cry_controller, "orks_players", None)
+    if orks is not None and player not in orks:
+        return None
+    if war_cry_controller.is_active(player):
         return {
-            "active_now": True,
-            "effects": ("your whole army has a 5+ invulnerable save, +1 melee Strength, +1 Attack, "
-                        "and may Advance and still charge this turn"),
+            "riled_up_now": True,
+            "effects": ("your riled-up units have a 5+ invulnerable save, [ASSAULT] on their ranged "
+                        "attacks, and may Advance and still charge"),
             "note": "this is your strongest turn of the game - commit now rather than positioning for later",
         }
-    if player in getattr(waaagh_controller, "used_players", ()):
-        return {"active_now": False, "note": "your WAAAGH! is already spent and will not come again"}
-    return {"active_now": False, "note": "your WAAAGH! is still available for a later turn"}
+    if war_cry_controller.is_used(player):
+        return {"riled_up_now": False, "note": "your War Cry is already spent and will not come again"}
+    return {"riled_up_now": False,
+            "note": "your War Cry is still available - it is offered at the start of every Command phase"}
 
 
 def build_planning_observation(on_board_squads, reserve_squads, turn_tracker, player, objectives=None,
                                embarked_squads=None, obstacles=(), terrain_areas=(),
                                last_ranged_attack_turn=None, mission_controller=None,
-                               waaagh_controller=None):
+                               war_cry_controller=None):
     """JSON-ready summary handed to Agent.plan_turn() - same meta/squads/
     objectives shape as build_observation(), but no available_actions (this
     isn't a choose_action-style enumerated choice, see ai/base.py's
@@ -1805,7 +1809,7 @@ def build_planning_observation(on_board_squads, reserve_squads, turn_tracker, pl
             add_planning_distances(
                 summary, s, enemy_squads, objectives,
                 obstacles=obstacles, terrain_areas=terrain_areas, all_tokens=tokens,
-                advance_keeps_charge=squad_waaagh_active(s, waaagh_controller),
+                advance_keeps_charge=riled_up.is_riled_up(s),
             )
         squads.append(summary)
     for s in reserve_squads:
@@ -1844,13 +1848,13 @@ def build_planning_observation(on_board_squads, reserve_squads, turn_tracker, pl
                 obstacles=obstacles, terrain_areas=terrain_areas, all_tokens=tokens,
                 from_point=(transport.x_in, transport.y_in),
                 reach_bonus_in=disembark_reach_in(transport),
-                advance_keeps_charge=squad_waaagh_active(s, waaagh_controller),
+                advance_keeps_charge=riled_up.is_riled_up(s),
             )
         if s.models and enemy_squads and transport is not None:
             assessment = threat_assessment(
                 s, enemy_squads, at_point=(transport.x_in, transport.y_in),
                 point_radius_in=disembark_reach_in(transport),
-                advance_keeps_charge=squad_waaagh_active(s, waaagh_controller),
+                advance_keeps_charge=riled_up.is_riled_up(s),
             )
             # "if you stay" means the OPPOSITE thing here. For a unit on the
             # board it reads "if you stand where you are"; nested under
@@ -1871,7 +1875,7 @@ def build_planning_observation(on_board_squads, reserve_squads, turn_tracker, pl
             "phase": turn_tracker.phase,
             "player": player,
             "score": _score_summary(mission_controller, player, turn_tracker),
-            "waaagh": waaagh_summary(player, waaagh_controller),
+            "war_cry": war_cry_summary(player, war_cry_controller),
             "note": (
                 f"You are {player}. An objective's name is only a label for where it sits on the board - "
                 "a name mentioning a player does NOT mean that player owns it. Read controlled_by for "

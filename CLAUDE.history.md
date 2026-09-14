@@ -9413,3 +9413,56 @@ Pod des Riptide.
 
 **Nicht gemacht, benannt:** der Damaged-X-Vergleich in `verify_rules_vs_engine.py` (im Plan als
 optional) — er gehört zu E3d, wo die Ork-Fahrzeuge ihre Damaged-Stufe neu bekommen.
+
+## 2026-09-14 — Orks E1: die Armeeregel (Waaagh!, riled up, War Cry)
+
+User: *"mach mit etappe 2 weiter bei der ork aku´tusalisierung aus der anderemn session"*. Gelesen
+als die zweite PLANetappe, also E1: E0 war committet (`307f535`), die andere Sitzung wartete
+ausdrücklich auf „weiter" für E1, und E2 (War Horde) baut auf riled up auf.
+
+**Gebaut:** `game/riled_up.py` (Zugserie, zwei Fristen, `grant`/`refresh`, die drei Leser),
+`game/war_cry.py` (Angebot in jeder Command-Phase, einmal pro Schlacht, KI per injiziertem Verdict),
+`game/advance_reroll_offer.py` (aus Superlative Strategist extrahiert, Waaagh! als zweiter Träger),
+`game/unstable_energies.py` (ruhender Ledger). `WaaaghController` und jedes `waaagh=` sind weg.
+
+**Unterwegs gefunden:**
+- `game/charge.py` und `game/damage_estimate.py` sind CRLF; mehrzeilige LF-Anker trafen dort nicht
+  und meldeten sich nur als „nicht gefunden" → CRLF-bewusster Ersetzungshelfer.
+- Die erste Regression hatte vier Rote, alle erwartbar: zwei Suiten importierten noch
+  `WaaaghController`, `test_necron_ai.py` §8 prüfte das alte Angebot, und §18 des Wiring-Wächters
+  meldete War Crys Angebotsschleife als ungetaggten Schleifen-Prompt. §18 hatte formal recht, aber
+  die Schleife läuft über SPIELER (jeder bekommt seine eigene Frage), nicht über Einheiten — als die
+  EINE benannte Ausnahme eingetragen. Die erste Fassung der Ausnahme stand VOR dem Filter „erhebt
+  überhaupt einen Request" und listete sechs Module statt einem.
+- `test_ork_army_rules.py` war sofort 127/127. Der Sondenplan zeigte fünf Prüfungen, die ihren
+  Fehler NICHT gefangen hätten (leere `orks_players`-Menge gegen `None`, der 40-%-Anteil — bei fünf
+  Einheiten ist er gleich der Zwei-Einheiten-Untergrenze —, eine Frist auf einer Einheit ohne
+  Fähigkeit, das Angebot „als Anweisung irgendwo" statt genau zweimal, und die
+  `orks_players`/`verdict`-Verdrahtung) → 133.
+- `ab_ork_army_rules.py`: 52 Sonden, 56 Läufe; 55 bissen sofort, einer ließ `test_advance_usage.py`
+  mit `StopIteration` ABSTÜRZEN (`next()` ohne Default, Zeile 235). Degradiert plus Liveness-Zeile,
+  nachgeprobt: beißt (39/43). Marker-Grep über HEAD leer, alle Dateien per Hash zurück.
+- `verify_ork_army_rules.py` kam in beiden Welten zuerst INCONCLUSIVE zurück: „kein ruhiger Frame"
+  für die gestellten Advance-Würfe. Gemessen statt geraten (Gründe gezählt): ein Ork-Player-1 wird
+  Dinge gefragt, die ein Aeldari-Player-1 nie gefragt wird — Spirit of Gork und 'Ard as Nails —,
+  selfplay beantwortet außerhalb des Vorspiels keinen Menschen-Prompt, und der Lauf stand nach fünf
+  Phasen. Die Sonde lehnt einen solchen Prompt nach 30 Frames per letzter Option ab und NENNT ihn;
+  danach 8 Phasenwechsel, alle elf Prüfungen OK, `--neutralize` kehrt alle sechs um. Nebenbei: die
+  KI (Player 2) nahm War Cry in Runde 1 in ihrer eigenen Command-Phase — ihr Verdict sagte ja.
+- `selfplay.py` lehnt War Cry für Player 1 jetzt selbst ab, wie Starflare: sonst hängt JEDER Lauf mit
+  einem Ork-Player-1 an der ersten Command-Phase.
+
+**Gemessen:** 20 Boyz + Warboss gegen 20 Necron Warriors, eine Nahkampfrunde über
+`damage_estimate.expected_wounds_against()`: alter Waaagh! (+1 S/+1 A) 26.8, riled up 15.9 erwartete
+Wunden — 59 % des alten Ausstoßes, 10.9 Krieger weniger (die Boyz allein alt 24.0 gegen 20 Modelle:
+die Schätzung deckelt keinen Overkill). Die Defensiv- und Charge-Hälfte sind in beiden Regeln gleich,
+[ASSAULT] ist neu. `measure_advance_usage.py`: Advance im riled-up-Zug +15 Punkte mittlere
+Charge-Chance, größter Einzelgewinn +46, 2 von 8 Münzwürfen werden zum Favoriten.
+
+**Verifiziert:** volle Regression 234 Suiten, ~22442 Prüfungen, 233 grün / 0 rot / 1 bekannt,
+`run_tests.py --smoke` komplett grün (alle neun schweren Skripte);
+`selfplay.py map2 1500` Orks gegen Necrons in beiden Sitzordnungen exit 0; `verify_rules_vs_engine.py`
+173 und `CORPUS_AHEAD` 17, beide unverändert (E1 fasst keine Datenblattwerte an).
+
+**Benannte Grenze:** der Legacy-Pfad `--no-deployment` bietet War Cry für die allererste
+Command-Phase nicht an (`begin_battle()` ist dort nicht der Einstieg).

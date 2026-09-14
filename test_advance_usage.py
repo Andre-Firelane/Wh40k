@@ -29,7 +29,7 @@ characteristic. Restoring _CLAMP_TOLERANCE_IN alone would NOT be enough - the
 three rules only bite together, and this repo has now hit that trap three
 times.
 
-Uses real MovementController/TurnTracker/WaaaghController/GameState objects and
+Uses real MovementController/TurnTracker/GameState objects (and the Orks' riled up) and
 real datasheets throughout.
 
 Run: python test_advance_usage.py
@@ -51,7 +51,7 @@ from game.factions.tau_empire import STRIKE_TEAM
 from game.movement import MovementController
 from game.squad import min_model_movement
 from game.turn import PHASE_MOVEMENT, PHASES
-from game.waaagh import WaaaghController
+from game import riled_up
 
 maps.apply_to_config(maps.get("map2"))
 c = Checks("Advance usage (rule 09.06)")
@@ -98,13 +98,13 @@ def scene(gap_in=14.0, waaagh=True, ork_sheet=BOYZ, ork_kwargs=None):
     turn.phase_index = PHASES.index(PHASE_MOVEMENT)
     turn.turn_owner = "Player 2"
     turn.set_active("Player 2")
-    wa = WaaaghController()
+    # The old rule's WAAAGH! is the new rule's riled up (army rule Waaagh!).
     if waaagh:
-        wa.active_players.add("Player 2")
+        riled_up.grant(orks, riled_up.until_end_of_next_turn(turn), turn)
     mover = MovementController(obstacles=state.obstacles, turn_tracker=turn,
                                all_tokens=state.tokens, dice_manager=DiceManager())
     return {"state": state, "orks": orks, "foe": foe, "turn": turn,
-            "waaagh": wa, "move": mover}
+            "move": mover}
 
 
 def options_for(sc, position=None, target=None):
@@ -126,7 +126,7 @@ def options_for(sc, position=None, target=None):
     try:
         agent_driver._handle_movement(
             RaisingAgent(), memory, "Player 2", sc["state"], sc["move"],
-            None, None, None, None, waaagh_controller=sc["waaagh"])
+            None, None, None, None)
     finally:
         agent_driver._choose = real
     return seen.get("types", []), seen.get("descriptions", [])
@@ -142,7 +142,7 @@ sc = scene()
 move = min_model_movement(sc["orks"])
 c.eq("scene: the Boyz mob moves 6\"", move, 6)
 c.true("scene: WAAAGH! is active for this unit",
-       agent_driver.squad_waaagh_active(sc["orks"], sc["waaagh"]))
+       riled_up.is_riled_up(sc["orks"]))
 
 types, _ = options_for(sc, position=(20.0, 20.0 + move * 0.9))
 c.true("a plan position inside the move offers a plain move", "move_to_planned_position" in types)
@@ -232,8 +232,11 @@ print("\n4. the option states what the Advance is worth")
 
 sc = scene(gap_in=14.0)
 _, descriptions = options_for(sc, position=None)
-advance_text = next(d for d in descriptions if "Advance toward" in d)
-c.true("the WAAAGH! text says the charge survives",
+# next() with a default: a probe that loses the option must turn this RED, not
+# crash the suite before anything reports (ab_ork_army_rules.py found it).
+advance_text = next((d for d in descriptions if "Advance toward" in d), "")
+c.true("an Advance option is offered at all", bool(advance_text))
+c.true("the riled-up text says the charge survives",
        "can still declare a charge" in advance_text)
 c.true("...and the option quotes both charge chances",
        "after a plain move needs" in advance_text and "after this Advance" in advance_text)
@@ -322,7 +325,7 @@ sc = scene(gap_in=14.0)
 obs = observation.build_planning_observation(
     [sc["orks"], sc["foe"]], [], sc["turn"], "Player 2",
     objectives=sc["state"].objectives, obstacles=sc["state"].obstacles,
-    terrain_areas=sc["state"].terrain_areas, waaagh_controller=sc["waaagh"])
+    terrain_areas=sc["state"].terrain_areas)
 entry = next(u for u in obs["squads"] if u["name"] == "2 Boyz 1")
 circle = entry["reachable_this_turn"]
 c.eq("the plain-move radius is unchanged", circle["radius_in"], float(move))
@@ -342,7 +345,7 @@ sc = scene(gap_in=14.0, waaagh=False)
 obs = observation.build_planning_observation(
     [sc["orks"], sc["foe"]], [], sc["turn"], "Player 2",
     objectives=sc["state"].objectives, obstacles=sc["state"].obstacles,
-    terrain_areas=sc["state"].terrain_areas, waaagh_controller=sc["waaagh"])
+    terrain_areas=sc["state"].terrain_areas)
 entry = next(u for u in obs["squads"] if u["name"] == "2 Boyz 1")
 c.true("without WAAAGH! the note says the charge is lost too",
        "AND its charge" in entry["reachable_this_turn"]["if_you_advance"]["note"])

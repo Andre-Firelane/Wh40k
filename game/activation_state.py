@@ -116,6 +116,14 @@ SQUAD_FLAGS = (
     # would silently change which aura the army is under for the rest of the
     # round.
     "triarch_ability",
+    # The Orks' riled up: a DEADLINE (a turn serial), written by War Cry and
+    # every other grant - the derived flag is re-stamped, the deadline is not.
+    "riled_up_expires_turn",
+    # War Cry is once per battle per army; see game/war_cry.py's is_used().
+    "war_cry_called",
+    # Unstable Energies' psychic-level spend this battle round.
+    "unstable_energies_round",
+    "unstable_energies_spent",
     "stim_injectors_active",
     "arrokon_protocol_active",
     "ere_we_go_active",
@@ -159,6 +167,7 @@ SQUAD_FLAGS_EXCLUDED = {
     # carries, so saving it would store a cache the next phase change
     # overwrites - and a stale one could only ever disagree with the rule.
     "montka_killing_blow": "re-derived every phase change by montka.refresh_killing_blow()",
+    "riled_up": "re-derived at the start of every phase by riled_up.refresh() - its deadline, riled_up_expires_turn, IS saved",
     "triarch_auras_active": "re-derived every frame by triarch_auras.refresh_active_auras() - the CHOICE it comes from, triarch_ability, IS saved",
     "nova_charge_grants": "keyed by model.id and weapon instance id - neither survives a rebuild",
     "attached_ability_grace": "rule 19.04's window, open only inside an attack sequence",

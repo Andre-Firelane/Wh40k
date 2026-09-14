@@ -25,7 +25,7 @@ GET_STUCK_IN_SUSTAINED_HITS = 1
 def get_stuck_in_adjusted_weapon(weapon, pairs):
     """"Have the [SUSTAINED HITS 1] ability" is modeled as an actual
     characteristic change (shallow copy, same reasoning as
-    bonded_heroes_adjusted_weapon()/waaagh_melee_adjusted_weapon() - the
+    bonded_heroes_adjusted_weapon()/riled_up.adjusted_weapon() - the
     shared WeaponProfile instance is never mutated), only for MELEE weapons
     (the rule text says "melee weapons" explicitly).
 
