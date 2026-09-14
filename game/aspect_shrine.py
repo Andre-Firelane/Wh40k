@@ -73,7 +73,7 @@ from game import unmodified_six
 ASPECT_SHRINE_MODELS_PER_TOKEN = 5
 # "an unmodified 6" - and rule 05.01 makes an unmodified 6 always a success,
 # while rule 05.02 makes it a critical under any threshold at or below 6 (so
-# also under Mandiblasters' or Unbridled Carnage's lowered 5+).
+# also under Mandiblasters' lowered 5+).
 ASPECT_SHRINE_RESULT = unmodified_six.UNMODIFIED_SIX
 
 

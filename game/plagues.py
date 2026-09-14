@@ -48,7 +48,7 @@ regression-prone area in this repo").
 
 Instead NurglesGiftController.refresh() - which already walks every unit once
 a frame to set Squad.afflicted - writes Squad.afflicted_plague in the same
-pass. The Plague is then read off the unit, like Squad.ard_as_nails_active and
+pass. The Plague is then read off the unit, like Squad.stim_injectors_active and
 Squad.psychic_shield_range, and a funnel needs one call and no new dependency.
 This module therefore imports only game/modifiers.py and game/nurgles_gift.py,
 both of which are leaves (nurgles_gift.py imports nothing at all, by design -

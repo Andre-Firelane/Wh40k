@@ -60,7 +60,7 @@ def targeting_range_limit(squad):
         phase", so it lives on the unit as Squad.psychic_shield_range.
 
     Read off the squad rather than through the stratagem's controller, the same
-    arrangement Squad.ard_as_nails_active and Squad.stim_injectors_active use -
+    arrangement Squad.stim_injectors_active uses -
     so game/shooting.py's two targeting sites need one call and no new
     dependency, and a third source later needs no third site."""
     # Canoptek Court's Countertemporal Shift prints Psychic Shield's EFFECT word

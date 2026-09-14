@@ -86,17 +86,14 @@ probe(
                     (lambda target=candidates[0]: self._use(target)))]""",
 )
 
-# 4. 'Ard as Nails puts its verdict back above the split, so an AI heuristic
-#    decides whether a human sees the Stratagem at all.
+# 4. Undying Spite puts its verdict back above the split, so an AI heuristic
+#    decides whether a human sees the Stratagem at all. ('Ard as Nails was the
+#    first module with this finding; the 2026-09 Ork codex retired it.)
 probe(
-    "'Ard as Nails pre-filters the human's prompt",
-    G("ard_as_nails.py"),
-    "        if target.owner in self.auto_players:\n"
-    "            if not is_worth_using(attacker, target, melee=melee):",
-    "        if not is_worth_using(attacker, target, melee=melee):\n"
-    "            pass\n"
-    "        if target.owner in self.auto_players:\n"
-    "            if not is_worth_using(attacker, target, melee=melee):",
+    "Undying Spite pre-filters the human's prompt",
+    G("dlc_undying_spite.py"),
+    "        if target_squad.owner in self.auto_players and not self.is_worth_using(",
+    "        if not self.is_worth_using(",
 )
 
 # 5. Sickening Impact likewise - the second module that had it.

@@ -113,7 +113,6 @@ from game.setup import SetupController
 from game.suppression import SuppressionController
 from game.stealth_drones import StealthDronesController
 from game.starflare_ignition import StarflareIgnitionController
-from game.ard_as_nails import ArdAsNailsController
 from game.ammo_runt import AmmoRuntController
 from game.grot_orderly import GrotOrderlyController, unit_has_grot_orderly
 from game.reanimation_protocols import ReanimationProtocolsController
@@ -212,7 +211,6 @@ from game.protocol_eternal_revenant import EternalRevenantController
 from game.protocol_vengeful_stars import VengefulStarsController
 from game import protocol_sudden_storm
 from game.spirit_of_gork import SpiritOfGorkController, unit_has_spirit_of_gork
-from game.ere_we_go import EreWeGoController
 from game import hand_of_asuryan
 from game import branching_fates
 from game import psychic_communion
@@ -276,7 +274,6 @@ from game.input_handler import InputManager
 from game.renderer import Renderer
 from game.shooting import ShootingController
 from game.turn import TurnTracker, PHASE_COMMAND, PHASE_MOVEMENT, PHASE_SHOOTING, PHASE_CHARGE, PHASE_FIGHT
-from game.unbridled_carnage import UnbridledCarnageController
 from game.ui.action_panel import ActionPanel
 from game.ui.army_select import ArmySelectScreen
 from game.auxiliary_cadre import AuxiliaryCadreController
@@ -1069,27 +1066,17 @@ def main(map_key=None):
     stim_injectors_controller = StimInjectorsController(
         stratagem_controller, decision_manager=decision_manager, turn_tracker=turn_tracker, game_log=game_log,
     )
-    # War Horde's 'Ard as Nails - the same "just after an enemy unit has
-    # selected its targets" trigger, but answered DETERMINISTICALLY for a side
-    # the engine plays rather than asked about (user: "hier auch
-    # deterministisch"). `ai_players` above is the one place that says which
-    # side that is; a human running Orks gets a DecisionManager prompt instead.
-    # See game/ard_as_nails.py.
-    ard_as_nails_controller = ArdAsNailsController(
-        stratagem_controller, decision_manager=decision_manager, turn_tracker=turn_tracker, game_log=game_log,
-        auto_players=ai_players,
-    )
     # Flash Gitz' Ammo Runt (user-supplied): offered when the unit is
     # selected to shoot, once per battle. Handed to ShootingController the
-    # same way the Riptide's Nova Charge is - see game/ammo_runt.py. Same
-    # auto_players shape as 'Ard as Nails above: per explicit user
+    # same way the Riptide's Nova Charge is - see game/ammo_runt.py. The
+    # auto_players shape (game/ai_mode.py): per explicit user
     # instruction the AI uses it at the first opportunity instead of being
     # asked, while a human running Orks keeps the choice.
     ammo_runt_controller = AmmoRuntController(
         decision_manager=decision_manager, game_log=game_log, auto_players=ai_players,
     )
     # Kill Rig's Spirit of Gork (user-supplied): resolved at the start of
-    # each Fight phase. Same auto_players shape as 'Ard as Nails above -
+    # each Fight phase. The same auto_players shape as Ammo Runt above -
     # Player 2 is this project's AI throughout main.py, and per explicit
     # user instruction it picks the highest-points eligible unit itself
     # rather than being asked; a human keeps the DecisionManager prompt.
@@ -1445,13 +1432,13 @@ def main(map_key=None):
         game_log=game_log, auto_players=ai_players,
     )
     shooting_target_reactions = (
-        stim_injectors_controller, ard_as_nails_controller, psychic_shield_controller,
+        stim_injectors_controller, psychic_shield_controller,
         kroot_packmates_controller, multi_threat_eliminator_controller,
         repair_barge_controller, countertemporal_shift_controller,
         quantum_deflection_controller, entropic_damping_controller,
     )
     fight_target_reactions = (
-        stim_injectors_controller, ard_as_nails_controller, forewarned_controller,
+        stim_injectors_controller, forewarned_controller,
         repair_barge_controller, quantum_deflection_controller,
     )
     # The Falcon's Fire Support - constructed before the shooting controller
@@ -3177,7 +3164,7 @@ def main(map_key=None):
 
     # Undying Legions' WHEN is "just after an enemy unit has RESOLVED its
     # attacks", which is a different instant from the target_reactions list
-    # ('Ard as Nails et al. fire at "just after it has SELECTED its targets").
+    # (Stim Injectors et al. fire at "just after it has SELECTED its targets").
     # So it hangs off the after-resolution hooks instead.
     def _necron_after_enemy_shooting(shooter_squad, target_squads=()):
         for target in target_squads or ():
@@ -3263,19 +3250,10 @@ def main(map_key=None):
 
     fight_controller.on_unit_finished_fighting = _necron_after_enemy_fight
 
-    # War Horde's 'Ere We Go - proactive (start of your own Movement phase),
-    # so like Unbridled Carnage it needs no DecisionManager hook: an
-    # ActionPanel button for a human, and a deterministic call for the AI (see
-    # ai/agent_driver.py's _handle_ere_we_go()). Needs movement_controller for
-    # its "start of the phase" check - see game/ere_we_go.py.
-    ere_we_go_controller = EreWeGoController(
-        stratagem_controller, movement_controller=movement_controller,
-        turn_tracker=turn_tracker, game_log=game_log,
-    )
     # Warp Spiders' Flickerjump - a datasheet ability, not a stratagem, so no
     # CP and no 15.01 ledger. Offered as an ActionPanel button above "Move",
-    # for the same reason 'Ere We Go's is: the Move characteristic is read once
-    # when the move starts. Aeldari is human-only, so there is no AI path.
+    # because the Move characteristic is read once when the move starts.
+    # Aeldari is human-only, so there is no AI path.
     flickerjump_controller = FlickerjumpController(
         turn_tracker=turn_tracker, movement_controller=movement_controller,
         dice_manager=dice_manager, game_log=game_log,
@@ -3365,17 +3343,6 @@ def main(map_key=None):
         zones={z.owner: (z, next((o for o in state.deployment_zones if o.owner != z.owner), None))
                for z in getattr(state, "deployment_zones", []) or []})
     stratagem_controller.cost_discounts.append(fate_dice_pool)
-    # War Horde's Unbridled Carnage - proactive (Fight phase, bought before a
-    # unit is selected to fight), so like The Arro'kon Protocol it needs no
-    # DecisionManager hook: a plain ActionPanel button for a human, and a
-    # deterministic call for the AI (see ai/agent_driver.py's
-    # _unbridled_carnage_verdict()). Built after fight_controller because its
-    # eligibility reads that controller's own rule 12.04 answer - see
-    # game/unbridled_carnage.py.
-    unbridled_carnage_controller = UnbridledCarnageController(
-        stratagem_controller, fight_controller=fight_controller,
-        turn_tracker=turn_tracker, game_log=game_log,
-    )
     # The Twin Lance's Retro-thrusters - built after fight_controller because
     # its "was eligible to fight this phase" latch reads that controller's own
     # rule 12.04 answer; see game/retro_thrusters.py.
@@ -4009,9 +3976,6 @@ def main(map_key=None):
         # BOTH armies - the Fight phase is shared (12.04), so either side can
         # be holding the grant when a phase ends.
         stim_injectors_controller.reset_phase({t.squad for t in state.tokens if t.squad is not None})
-        # War Horde's 'Ard as Nails: likewise "until the end of the phase",
-        # and it also clears its own per-attack de-duplication here.
-        ard_as_nails_controller.reset_phase({t.squad for t in state.tokens if t.squad is not None})
         # The Arro'kon Protocol: likewise "until the end of the phase", and
         # expired in the same place for the same reason.
         arrokon_controller.reset_phase({t.squad for t in state.tokens if t.squad is not None})
@@ -4125,9 +4089,6 @@ def main(map_key=None):
         # the same idempotent every-phase-change schedule and for the same
         # reason: the reset must not depend on catching one exact moment.
         secondary_mission_controller.sync_battle_round(turn_tracker.battle_round)
-        # War Horde's Unbridled Carnage: likewise "until the end of the phase",
-        # and expired in the same place for the same reason.
-        unbridled_carnage_controller.reset_phase({t.squad for t in state.tokens if t.squad is not None})
         # Riptide's Nova Charge: the [DEVASTATING WOUNDS] grant is likewise
         # "until the end of the phase". Its once-per-BATTLE counter lives in
         # the controller and is deliberately not touched here - a spent use
@@ -4257,9 +4218,6 @@ def main(map_key=None):
             # Rapid/Combat/Emergency Disembark no-charge lock are likewise
             # this-turn-only.
             ending_squads = {t.squad for t in state.tokens if t.squad is not None and t.squad.owner == ending_player}
-            # War Horde's 'Ere We Go: "until the end of the turn", the same
-            # lifetime as the three flags cleared in the loop right below.
-            ere_we_go_controller.expire_for_turn(ending_squads)
             # Vespid Stingwings' Airborne Agility: "at the end of YOUR
             # OPPONENT'S turn" - so it is offered to whoever's turn just
             # ENDED is not, which is what the controller's own argument
@@ -5463,8 +5421,6 @@ def main(map_key=None):
             consolidate_controller=consolidate_controller,
             fire_overwatch_controller=fire_overwatch_controller,
             war_cry_controller=war_cry_controller, arrokon_controller=arrokon_controller,
-            unbridled_carnage_controller=unbridled_carnage_controller,
-            ere_we_go_controller=ere_we_go_controller,
             retro_thrusters_controller=retro_thrusters_controller,
             # Awakened Dynasty's three proactive protocols. The reactive three
             # (Undying Legions, Eternal Revenant, Vengeful Stars) are NOT here
@@ -8334,7 +8290,7 @@ def main(map_key=None):
             insane_bravery_controller, crushing_impact_controller, firing_deck_controller,
             greater_good_controller, fall_back_controller, fire_overwatch_controller,
             pregame_controller, arrokon_controller, shortened_blade_controller,
-            torchstar_controller, unbridled_carnage_controller, ere_we_go_controller,
+            torchstar_controller,
             tactical_acumen_controller,
             flickerjump_controller,
             battle_focus_pool,

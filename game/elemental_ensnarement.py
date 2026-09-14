@@ -122,7 +122,8 @@ class ElementalEnsnarementController:
             return False
         rolled = self._roll_one()
         if rolled == SELF_SHOCK_FACE:
-            squad.battle_shocked = True
+            from game import battle_shock
+            battle_shock.set_battle_shocked(squad, source=ELEMENTAL_ENSNAREMENT_LABEL)
             if self.game_log is not None:
                 self.game_log.add("%s: %s rolled a 1 and is battle-shocked."
                                   % (ELEMENTAL_ENSNAREMENT_LABEL, squad.name))

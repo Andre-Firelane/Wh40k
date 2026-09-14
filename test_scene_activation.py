@@ -262,7 +262,7 @@ live["shooting"].last_ranged_attack_turn[squad] = 3
 live["charge"].charged_squad_ids.add(other)
 squad.charged_this_turn = True
 squad.set_up_this_turn = True
-other.ere_we_go_active = True
+other.star_engines_active = True
 other.aspect_shrine_tokens_used = 1
 
 c.true("...and after moving it may not", not live["movement"].can_move(squad))
@@ -308,8 +308,8 @@ c.true("the unit's own charged_this_turn flag is back (11.04)",
        fresh.charged_this_turn)
 c.true("...and set_up_this_turn, which begin_battle() would have cleared (18.02)",
        fresh.set_up_this_turn)
-c.true("a stratagem paid for until the end of the turn is still on",
-       fresh_other.ere_we_go_active)
+c.true("a grant paid for until the end of the turn is still on",
+       fresh_other.star_engines_active)
 c.eq("...and a once-per-battle token stays spent",
      fresh_other.aspect_shrine_tokens_used, 1)
 
@@ -325,7 +325,7 @@ fresh_tracker2.phase_index = PHASES.index("Movement")
 new2 = controllers(fresh_tracker2, fresh_state)
 fresh.charged_this_turn = False
 fresh.set_up_this_turn = False
-fresh_other.ere_we_go_active = False
+fresh_other.star_engines_active = False
 fresh_other.aspect_shrine_tokens_used = 0
 scene_io.restore_activation({}, [fresh, fresh_other], new2)
 c.true("A/B - with no activation section the unit may move again",

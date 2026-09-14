@@ -10,7 +10,7 @@ from game.missions import BATTLE_ROUNDS
 from game.damage_estimate import (defender_soak, expected_wounds, models_destroyed_by,  # noqa: F401 - expected_wounds is re-exported: ai/agent_driver.py calls observation.expected_wounds()
                                   expected_wounds_against)
 from game.coldstar import effective_movement_in
-from game.ere_we_go import roll_bonus as charge_roll_bonus
+from game.roll_bonus import advance_and_charge_bonus as charge_roll_bonus
 from game.hazard import MORTAL_WOUNDS_ON_FAIL, MORTAL_WOUNDS_ON_FAIL_MONSTER_VEHICLE
 from game.squad import (attached_unit_toughness, edge_distance, is_monster_or_vehicle_unit,
                         max_model_radius, min_model_movement, model_terrain_violation)
@@ -200,7 +200,8 @@ AVERAGE_ADVANCE_IN = 3.5  # the mean of a D6, rule 09.06's Advance roll
 def advance_reach_in(squad):
     """How far this unit gets THIS turn if it Advances (rule 09.06): its Move
     characteristic plus the average Advance roll, plus any standing bonus to
-    that roll (War Horde's 'Ere We Go, +2 - see game/ere_we_go.py).
+    that roll the unit carries itself (game/roll_bonus.py - the Avatar's
+    aura needs the board, which this is not handed, so it is not counted).
 
     Reported as the AVERAGE rather than the guaranteed minimum (M+1) because
     the movement code degrades gracefully: a unit that rolls low simply ends

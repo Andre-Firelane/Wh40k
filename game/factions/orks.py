@@ -175,18 +175,14 @@ main.py's own start-of-Command-phase block, same hook as Support Turret's
 own expiry) - genuinely new code again, no existing per-model wound-
 regeneration mechanism to reuse.
 
-Detachment "War Horde" is supplied and engine-wired too (game/war_horde.py -
+Detachment "War Horde" is engine-wired (game/war_horde.py -
 get_stuck_in_adjusted_weapon(), chained into FightController the same way
-Bonded Heroes/Waaagh! are, see that module's own docstring), as is its
-Unbridled Carnage stratagem (game/unbridled_carnage.py - melee Critical Hits
-on an unmodified 5+, which is what makes Get Stuck In's army-wide [SUSTAINED
-HITS 1] worth 1 CP to double up on). Same
-"currently the only detachment, so it's applied unconditionally, no army-
-building/detachment-selection flow" simplification as Retaliation Cadre's
-own note in game/factions/tau_empire.py - every Ork UnitProfile here also
-sets a new `orks` flag (see UnitProfile.orks' own note) so this rule has
-something to check, since there's no generic per-model Faction tracking to
-read instead.
+Bonded Heroes is, see that module's own docstring), gated on
+config.WAR_HORDE_PLAYERS like every other detachment since the 2026-09 codex.
+Its three pre-codex stratagems (Unbridled Carnage, 'Ard as Nails, 'Ere We Go)
+are retired. Every Ork UnitProfile here sets an `orks` flag (see
+UnitProfile.orks' own note) so the rule has something to check, since there is
+no generic per-model Faction tracking to read instead.
 
 Gretchin's own "Runtherd" ability is engine-wired directly inside
 game/squad.py's attached_unit_toughness() (see that function's own note) -
@@ -240,10 +236,10 @@ WAR_HORDE = ORKS.add_detachment(Detachment(
     # The 2026-09 Ork codex prints TWO on War Horde's heading ("Take and Hold;
     # Purge the Foe"); armies/orks.json declares the first.
     force_dispositions=(force_dispositions.TAKE_AND_HOLD, force_dispositions.PURGE_THE_FOE),
-    # No `setting`: War Horde is the only Ork detachment modelled, and both
-    # its rule and its stratagems gate on the ORKS keyword, so there is
-    # nothing to declare. This is the position Retaliation Cadre was in until
-    # the other T'au detachments were added - see game/detachments.py.
+    # A config setting like every other detachment since the 2026-09 codex:
+    # War Horde is no longer the only Ork detachment Wahapedia prints (15 are),
+    # so "this unit is an Ork" stopped meaning "this army runs War Horde".
+    setting="WAR_HORDE_PLAYERS",
     rule_text=(
         'Get Stuck In: Melee weapons equipped by Orks models from your army have the '
         '[SUSTAINED HITS 1] ability.'

@@ -189,7 +189,7 @@ class BattleShockController:
             self._log(f"{squad.owner}: {squad.name} passes its Battle-Shock roll ({rolls}"
                       f"{f' - {penalty}' if penalty else ''} = {total}) and {outcome}.")
         else:
-            squad.battle_shocked = True
+            set_battle_shocked(squad, source="a failed Battle-shock test")
             self._log(f"{squad.owner}: {squad.name} fails its Battle-Shock roll ({rolls}"
                       f"{f' - {penalty}' if penalty else ''} = {total}) and is battle-shocked.")
 
@@ -210,3 +210,46 @@ class BattleShockController:
     def _log(self, message):
         if self.game_log is not None:
             self.game_log.add(message)
+
+# ------------------------------------------------------ becoming battle-shocked
+#
+# THE ONE DOOR. A unit BECOMES battle-shocked in three places in this engine - a
+# failed test (above), Elemental Ensnarement's 1, and a Combat or Emergency
+# Disembark (rule 18.04/18.05) - and War Horde's Breakin' Heads is written
+# against the MOMENT ("when a friendly attached ORKS INFANTRY unit becomes
+# battle-shocked"), in ANY phase. Three assignments cannot be listened to; one
+# function can. test_event_chain_wiring.py pins that no other module assigns
+# `battle_shocked = True` again.
+#
+# The listeners are MODULE-level because two of the three callers hold no
+# BattleShockController. main() clears them at the start of every battle
+# (clear_became_battle_shocked_listeners()) before registering its own, so a
+# second battle in the same process cannot hear the first one's controllers.
+
+_became_battle_shocked_listeners = []
+
+
+def add_became_battle_shocked_listener(listener):
+    """listener(squad, source) - called once each time a unit that was NOT
+    battle-shocked becomes battle-shocked."""
+    _became_battle_shocked_listeners.append(listener)
+    return listener
+
+
+def clear_became_battle_shocked_listeners():
+    del _became_battle_shocked_listeners[:]
+
+
+def set_battle_shocked(squad, source=None):
+    """Make `squad` battle-shocked. Returns whether it BECAME so - a unit that
+    already was stays shocked and fires no listener, because "becomes" is a
+    transition, not a state."""
+    if squad is None:
+        return False
+    was = bool(getattr(squad, "battle_shocked", False))
+    squad.battle_shocked = True
+    if was:
+        return False
+    for listener in list(_became_battle_shocked_listeners):
+        listener(squad, source)
+    return True

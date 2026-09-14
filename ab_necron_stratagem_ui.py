@@ -82,14 +82,14 @@ _LAST_STAGE_OFF = ("        # Appended, not slotted in: draw() forwards everythi
 # ...and the forwarding hop INTO that stage. draw() -> _draw_dispatch() and
 # _draw_dispatch() -> _draw_movement_ui() forward the same three names in the
 # same order, so the anchor reaches up to the positional tail that differs.
-_FORWARD = ("            arrokon_controller, torchstar_controller, unbridled_carnage_controller, ere_we_go_controller," + NL
+_FORWARD = ("            arrokon_controller, torchstar_controller," + NL
             + "            tactical_acumen_controller," + NL
             + "            flickerjump_controller," + NL
             + "            battle_focus_pool," + NL
             + "            sudden_storm_controller=sudden_storm_controller," + NL
             + "            conquering_tyrant_controller=conquering_tyrant_controller," + NL
             + "            hungry_void_controller=hungry_void_controller,")
-_FORWARD_OFF = ("            arrokon_controller, torchstar_controller, unbridled_carnage_controller, ere_we_go_controller," + NL
+_FORWARD_OFF = ("            arrokon_controller, torchstar_controller," + NL
                 + "            tactical_acumen_controller," + NL
                 + "            flickerjump_controller," + NL
                 + "            battle_focus_pool," + NL

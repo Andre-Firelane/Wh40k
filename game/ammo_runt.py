@@ -46,7 +46,7 @@ shoot; there is no relevance gate, because unlike 'Ard as Nails or Stim
 Injectors this costs no CP and forecloses nothing - the only thing "saving
 it" can buy is a better target later, and the AI has no way to know a better
 one is coming. Anyone else keeps the DecisionManager prompt and the choice,
-the same auto_players split game/ard_as_nails.py and game/spirit_of_gork.py
+the same auto_players split game/spirit_of_gork.py and game/grot_orderly.py
 use.
 """
 

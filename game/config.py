@@ -167,6 +167,12 @@ CANOPTEK_COURT_PLAYERS = ()
 # reason: no shipped list fields it (user decision).
 HYPERCRYPT_LEGION_PLAYERS = ()
 
+# The Ork detachment WAR HORDE (Get Stuck In - see game/war_horde.py). Player 2
+# by default, for AWAKENED_DYNASTY_PLAYERS' reason: the Orks were the AI's army
+# for most of this project, and every Ork fixture builds them as Player 2.
+# army_lists.apply_to_config() rewrites it from the chosen lists at startup.
+WAR_HORDE_PLAYERS = ("Player 2",)
+
 # Which players field the Death Guard detachment "Death Lord's Chosen", whose
 # rule is Deadly Vectors (game/deadly_vectors.py) and whose six Stratagems all
 # gate on game/death_lords_chosen.py's stratagem_target_ok().

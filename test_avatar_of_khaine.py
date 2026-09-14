@@ -8,9 +8,8 @@ back through the code the ENGINE runs, not through its own predicate:
     BOTH phases. Checked by counting the dice the next step throws.
   * Molten Form - the first halving in this engine, hooked at both places
     DamageAllocationSession settles an amount, and before Feel No Pain.
-  * The Bloody-Handed - the first aura that modifies a ROLL, folded with War
-    Horde's 'Ere We Go into game/roll_bonus.py. Checked through the real
-    Advance and Charge roll sites, including that the two sources stack.
+  * The Bloody-Handed - the first aura that modifies a ROLL, read through
+    game/roll_bonus.py. Checked through the real Advance and Charge roll sites.
 """
 
 import copy
@@ -313,13 +312,11 @@ tokens2 = list(lord2.models) + list(buffed.models)
 checks.eq("no aura in reach: the Advance roll is just the die",
           advance_total(buffed, [3], None), 3)
 checks.eq("with the aura: +1", advance_total(buffed, [3], tokens2), 4)
-# The two sources STACK - they are separate modifiers to the same roll.
-buffed.ere_we_go_active = True
-checks.eq("'Ere We Go and the aura stack", advance_total(buffed, [3], tokens2), 6)
-checks.eq("...and roll_bonus names both",
-          sorted(label for label, _ in roll_bonus.sources(buffed, tokens2)),
-          ["'Ere We Go", "The Bloody-Handed"])
-buffed.ere_we_go_active = False
+# roll_bonus names the aura as the source. It is the only one since the 2026-09
+# Ork codex retired War Horde's 'Ere We Go, whose +2 used to stack with it.
+checks.eq("...and roll_bonus names the aura",
+          [label for label, _ in roll_bonus.sources(buffed, tokens2)],
+          ["The Bloody-Handed"])
 
 # And the Charge roll, through _capped_roll - which is also where rule 15.11's
 # cap sits, so the bonus has to land BEFORE it.

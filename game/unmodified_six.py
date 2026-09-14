@@ -28,7 +28,7 @@ interruption this project has pushed back on before.
 
 # "An unmodified 6" - and rule 05.01 makes an unmodified 6 always a success,
 # while rule 05.02 makes it a critical under any threshold at or below 6 (so
-# also under Mandiblasters' or Unbridled Carnage's lowered 5+).
+# also under Mandiblasters' lowered 5+).
 UNMODIFIED_SIX = 6
 
 

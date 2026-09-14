@@ -4,7 +4,6 @@ import copy
 # cannot cycle back into anything here.
 from game import battle_stats
 from game import attached_units, battle_focus, line_of_sight, status_effects
-from game.ard_as_nails import ARD_AS_NAILS_WOUND_PENALTY, ard_as_nails_wound_modifier_applies
 from game.damage_estimate import wound_threshold as _wound_threshold  # rule 05.02's S-vs-T table; moved to a leaf module so game/stim_injectors.py can reach it without an import cycle - re-exported here under its old private name for game/fight.py and ai/ (see game/damage_estimate.py's docstring)
 from game.damage_resolution import DamageAllocationSession, DevastatingWoundAllocationSession, MortalWoundAllocationSession, displayed_save_threshold, save_heading, save_is_impossible, AUTO_FAILED_SAVE
 from game.hazard import hazard_failures, hazard_mortal_wounds
@@ -754,10 +753,10 @@ class ShootingController:
         self.ammo_runt = ammo_runt  # Flash Gitz' Ammo Runt wargear - optional, same shape and same start_shooting()-only trigger as nova_charge (see game/ammo_runt.py)
         self.nova_charge = nova_charge  # Riptide Battlesuit's Nova Charge ability - optional, like greater_good; offered from start_shooting() only (see game/nova_charge.py)
         # Reactive stratagems whose WHEN is "just after an enemy unit has
-        # selected its targets" - Stim Injectors and 'Ard as Nails today.
+        # selected its targets" - Stim Injectors, Psychic Shield and more.
         # A LIST rather than one named field per stratagem: the trigger is a
         # shared moment in the sequence (rule 10.02's "select targets" step,
-        # i.e. wherever _snapshot_target_state() is called), and the two that
+        # i.e. wherever _snapshot_target_state() is called), and the ones that
         # exist differ only in what they then do. Each entry needs one method,
         # maybe_offer(attacker, target, melee=...).
         self.target_reactions = [r for r in target_reactions if r is not None]
@@ -1576,7 +1575,7 @@ class ShootingController:
         Fire's assign_current()), i.e. alongside _snapshot_target_state(),
         which freezes rule 10.02's state at exactly the same moment. Each
         controller decides for itself whether it wants to act at all - see
-        game/stim_injectors.py and game/ard_as_nails.py."""
+        game/stim_injectors.py."""
         if self.active_squad is None:
             return
         for reaction in self.target_reactions:
@@ -2351,7 +2350,7 @@ class ShootingController:
                 return
             total = self._pending_attacks_roll.total
             self._pending_attacks_roll = None
-            total_attacks = total + extra_attack_dice(weapon, target_squad, weapon_key, self.split_fire, self.assignments, pairs)
+            total_attacks = total + extra_attack_dice(self._adjusted_weapon(pairs, target_squad), target_squad, weapon_key, self.split_fire, self.assignments, pairs)
             total_attacks += volley_fire_extra_attacks(pairs)
             self._continue_resolution_with_attacks(weapon, total_attacks)
             return
@@ -2373,7 +2372,7 @@ class ShootingController:
                 m, gun_crazy_adjusted_weapon(w, [(m, w)], is_closest))
             for m, w in pairs
         )
-        total_attacks += extra_attack_dice(weapon, target_squad, weapon_key, self.split_fire, self.assignments, pairs)
+        total_attacks += extra_attack_dice(self._adjusted_weapon(pairs, target_squad), target_squad, weapon_key, self.split_fire, self.assignments, pairs)
         # Cadre Fireblade's "Volley Fire" (user-supplied): +1 A to every ranged
         # weapon in the unit he is leading. Added here rather than folded into
         # extra_attack_dice() because that function is the WEAPON's own abilities
@@ -2435,7 +2434,7 @@ class ShootingController:
         """The shared tail of the Attacks step - reached whether or not a
         re-roll was offered, taken or declined."""
         total_attacks = total + extra_attack_dice(
-            weapon, group["target_squad"], group["weapon_key"],
+            self._adjusted_weapon(group["pairs"], group["target_squad"]), group["target_squad"], group["weapon_key"],
             self.split_fire, self.assignments, group["pairs"],
         )
         self._continue_resolution_with_attacks(weapon, total_attacks)
@@ -2804,12 +2803,6 @@ class ShootingController:
         # set of attacks. See game/squad.py's own note.
         if squad_has_advanced_guardian_drone(target_squad):
             modifiers.append(Modifier(1, "Advanced Guardian Drone"))
-        # War Horde's 'Ard as Nails (user-supplied): "each time an attack
-        # targets your unit, subtract 1 from the Wound roll" - the same
-        # defender-side malus as the Guardian Drone above, from a stratagem
-        # instead of wargear. See game/ard_as_nails.py.
-        if ard_as_nails_wound_modifier_applies(target_squad):
-            modifiers.append(Modifier(ARD_AS_NAILS_WOUND_PENALTY, "'Ard as Nails"))
         # Warlock Conclave's Protect: "while a FARSEER model is leading this
         # unit, each time an attack targets this unit, subtract 1 from the
         # Wound roll" - the same defender-side malus, from a datasheet
@@ -3843,7 +3836,7 @@ class ShootingController:
             wound_threshold = _wound_threshold(self._effective_strength(weapon), attached_unit_toughness(target_squad))
             # Name the modifiers on the roll, as game/fight.py's identical
             # wound step and this file's own HIT step both already do. Without
-            # it a defensive malus (Guardian Drone, 'Ard as Nails) silently
+            # it a defensive malus (Guardian Drone, Protect) silently
             # made the roll harder with nothing on screen saying why.
             wound_modifiers = self._wound_modifiers(target_squad, self._effective_strength(weapon))
             wound_threshold = apply_modifiers(wound_threshold, wound_modifiers)
@@ -4132,7 +4125,7 @@ class ShootingController:
         # "makes a melee attack"), so this step passes one at all now -
         # it used to take rule 05.02's default 6 implicitly. melee_only
         # is False here, which is what keeps the two melee-worded sources
-        # (Unbridled Carnage, Mandiblasters) out. See game/crit_hit.py.
+        # (Mandiblasters, Flesh Hunger) out. See game/crit_hit.py.
         crit_threshold = crit_hit_threshold(
             group["pairs"][0][0], target_squad, self.whispering_web,
             hit_threshold=threshold, weapon=weapon,

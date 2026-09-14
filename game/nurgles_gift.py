@@ -40,7 +40,7 @@ predicate asked at each use. Two independent reasons:
     never see that; a flag is the union of both.
 
 This is the same arrangement game/status_effects.py's targeting_range_limit()
-documents for Squad.psychic_shield_range / ard_as_nails_active /
+documents for Squad.psychic_shield_range /
 stim_injectors_active: the effect is read off the unit, so a reader needs one
 call and no new dependency, and a third source later needs no third site.
 

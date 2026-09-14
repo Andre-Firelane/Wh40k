@@ -45,7 +45,6 @@ from game.charge import CHARGE_RANGE_IN
 from game.consolidate import CONSOLIDATE_RANGE_IN
 from game.damage_estimate import expected_wounds_against
 from game.dice import CHARGE_ROLL
-from game.ere_we_go import ERE_WE_GO_ROLL_BONUS
 from game.objectives import is_on_objective, is_within_range_of_objective
 from game.pile_in import PILE_IN_RANGE_IN
 from game.setup import PLACING
@@ -6108,9 +6107,9 @@ MIN_CHARGE_REROLL_MELEE_FRACTION = 0.25
 # 28%. So 7" is the last distance at which a re-roll is better than even
 # money; past it the CP is buying a coin-flip that is already losing.
 #
-# Taken literally as a DISTANCE, not as an effective one: with War Horde's
-# 'Ere We Go up (+2 to Charge rolls, see game/ere_we_go.py) a 7" gap only
-# needs a 5+, i.e. 83%. That makes a "yes" here better than the number above,
+# Taken literally as a DISTANCE, not as an effective one: with a bonus to the
+# Charge roll up (the Avatar of Khaine's The Bloody-Handed, +1) a 7" gap only
+# needs a 6+, i.e. 72%. That makes a "yes" here better than the number above,
 # never worse - the gate can only ever be too cautious, which is the safe
 # direction for something that spends CP on its own.
 MAX_CHARGE_REROLL_GAP_IN = 7.0
@@ -6371,7 +6370,6 @@ def _take_one_action(
     rapid_ingress_controller=None, greater_good_controller=None, fall_back_controller=None,
     crushing_impact_controller=None, deadly_demise_controller=None, consolidate_controller=None,
     fire_overwatch_controller=None, war_cry_controller=None, arrokon_controller=None,
-    unbridled_carnage_controller=None, ere_we_go_controller=None,
     retro_thrusters_controller=None,
     # Awakened Dynasty's three PROACTIVE protocols. The reactive three need
     # nothing here - they answer inside their own controllers via auto_players.
@@ -6659,7 +6657,7 @@ def _take_one_action(
         acted = _handle_movement(
             agent, memory, player, state, movement_controller, transport_controller, setup_controller,
             game_log, on_thinking, ingress_controller=ingress_controller, fall_back_controller=fall_back_controller,
-            war_cry_controller=war_cry_controller, ere_we_go_controller=ere_we_go_controller,
+            war_cry_controller=war_cry_controller,
             last_ranged_attack_turn=getattr(shooting_controller, "last_ranged_attack_turn", None),
             mission_controller=mission_controller,
             sudden_storm_controller=sudden_storm_controller,
@@ -6687,7 +6685,6 @@ def _take_one_action(
         acted = _handle_fight(
             agent, memory, player, all_tokens, fight_controller, pile_in_controller, movement_controller, on_thinking,
             consolidate_controller=consolidate_controller, game_log=game_log,
-            unbridled_carnage_controller=unbridled_carnage_controller,
             hungry_void_controller=hungry_void_controller,
             grim_reapers_controller=grim_reapers_controller,
             cynosure_controller=cynosure_controller,
@@ -8621,83 +8618,10 @@ def _maybe_generate_turn_plan(agent, memory, player, state, turn_tracker, game_l
             )
 
 
-def _ere_we_go_gain(squad, all_tokens, movement_controller):
-    """How much War Horde's 'Ere We Go (+2 to Advance AND Charge rolls) is
-    worth to this unit right now, as (charge-odds gain, closeness).
-
-    The charge half is the one that can be put a number on: with `gap` left
-    after moving, the unit needs `gap` on 2D6, and the +2 turns that into
-    `gap - 2`. The difference in probability is the gain, and it peaks exactly
-    where a charge is a coin-flip - which is where a re-roll-shaped boost is
-    worth the most and where the WAAAGH! turn wants it.
-
-    Closeness is the tie-break, not a second term: when nothing is chargeable
-    this turn the +2 is purely an Advance bonus, worth the same 2" to anybody,
-    so the unit nearest the enemy - the one actually going forward - gets it.
-    Both are deterministic; no agent call anywhere in this path."""
-    enemies = [s for s in _all_squads(all_tokens) if s.owner != squad.owner and s.models]
-    if not enemies:
-        return 0.0, 0.0
-    gap = min(_squad_distance_between(squad, e) for e in enemies)
-    move = min_model_movement(squad)
-    needed = max(2, math.ceil(gap - move))
-    gain = _charge_roll_probability(needed - ERE_WE_GO_ROLL_BONUS) - _charge_roll_probability(needed)
-    return gain, -gap
-
-
-def _handle_ere_we_go(player, all_tokens, movement_controller, ere_we_go_controller,
-                      turn_tracker, game_log=None):
-    """Buy 'Ere We Go at the first opportunity of the WAAAGH! turn, per the
-    user: "auch deterministisch. bei der ersten gelegenheit eines squads im
-    waagh zug". Returns True if the CP was actually spent.
-
-    TIMING is the instruction taken literally: the stratagem's WHEN is the
-    start of your Movement phase, so the first opportunity in the WAAAGH! turn
-    is that phase - and can_use() enforces "nothing of yours has moved yet",
-    so this cannot fire late even if it is called late.
-
-    WHICH unit is not left to chance, because rule 15.01 allows exactly one
-    use per phase: the eligible unit that gains the most (see
-    _ere_we_go_gain()). Restricting it to the WAAAGH! turn is the user's own
-    call and a sound one - +2 to Advance AND Charge is worth most in the turn
-    the army is already Advancing-and-charging (the Waaagh! army rule lifts
-    rule 09.06's ban on charging after an Advance, see game/charge.py), and
-    the CP is better kept in any other turn.
-
-    Needs no memory.declined_* memo, like _handle_unbridled_carnage(): the
-    choice is a pure function of the board, so a "no" this frame is a "no"
-    next frame too, and a "yes" cannot repeat (can_use() refuses once the
-    grant is up, and 15.01 refuses a second use this phase)."""
-    if ere_we_go_controller is None or turn_tracker is None:
-        return False
-    # The WAAAGH! turn of the old army rule is the RILED-UP turn of the new one:
-    # War Cry makes the whole army riled up, and riled up is what lets an Advance
-    # keep the charge - the same reason the +2 is worth most then.
-    if not any(riled_up.is_riled_up(s) for s in _all_squads(all_tokens) if s.owner == player):
-        return False
-    candidates = [
-        s for s in sorted(_all_squads(all_tokens), key=lambda s: s.name)
-        if s.owner == player and ere_we_go_controller.can_use(s)
-    ]
-    if not candidates:
-        return False
-    best = max(candidates, key=lambda s: _ere_we_go_gain(s, all_tokens, movement_controller))
-    if not ere_we_go_controller.use(best):
-        return False
-    if game_log is not None:
-        gain, closeness = _ere_we_go_gain(best, all_tokens, movement_controller)
-        game_log.add(
-            f"[ere we go] {player}: {best.name} - riled-up turn, {-closeness:.1f}\" from the nearest enemy, "
-            f"the +2 improves its charge odds by {gain:.0f} percentage points.",
-            file_only=True,
-        )
-    return True
-
-
 def _handle_movement(
     agent, memory, player, state, movement_controller, transport_controller, setup_controller,
     game_log, on_thinking, ingress_controller=None, fall_back_controller=None, war_cry_controller=None,
-    last_ranged_attack_turn=None, mission_controller=None, ere_we_go_controller=None,
+    last_ranged_attack_turn=None, mission_controller=None,
     sudden_storm_controller=None, shooting_controller=None,
     cosmic_precision_controller=None,
 ):
@@ -8725,20 +8649,12 @@ def _handle_movement(
         # the Movement phase - skipping the entire turn the plan is for.
         return True
 
-    # War Horde's 'Ere We Go (1CP): its WHEN is the START of the Movement
-    # phase, so it goes ahead of everything that moves anything - including
-    # the Disembark/Ingress resumes below, both of which are movement and
-    # would shut the window. Deterministic, so a "yes" costs no agent call and
-    # the next frame simply falls straight through it.
-    if _handle_ere_we_go(
-        player, all_tokens, movement_controller, ere_we_go_controller,
-        movement_controller.turn_tracker, game_log,
-    ):
-        return True
-
-    # Awakened Dynasty's Sudden Storm shares 'Ere We Go's window exactly - a
-    # Movement-phase Stratagem whose value is spent the moment the unit moves -
-    # so it is checked in the same place and for the same reason.
+    # Awakened Dynasty's Sudden Storm (1CP): its WHEN is the START of the
+    # Movement phase - a Stratagem whose value is spent the moment the unit
+    # moves - so it goes ahead of everything that moves anything, including
+    # the Disembark/Ingress resumes below, both of which are movement and would
+    # shut the window. Deterministic, so a "yes" costs no agent call and the
+    # next frame simply falls straight through it.
     if _handle_sudden_storm(
         player, all_tokens, movement_controller, sudden_storm_controller,
         shooting_controller, game_log,
@@ -9743,7 +9659,7 @@ def _choose_shooting_target_and_weapon(agent, memory, player, all_tokens, shooti
         shooting_controller.choose_target_squad(target)
         # STOP HERE if picking the target opened a decision. Rule 10.02's
         # select-targets step is the trigger for every target reaction
-        # (Psychic Shield, Stim Injectors, 'Ard as Nails), and choose_weapon()
+        # (Psychic Shield, Stim Injectors, Quantum Deflection), and choose_weapon()
         # below immediately throws the Hit roll - so doing both in one call
         # put the dice on screen before the defender had answered. User
         # report: "bei psychic shield kann ich erst entscheiden, wenn der hit
@@ -10944,16 +10860,15 @@ def _squad_remaining_wounds(squad):
 #
 # The three reactive ones (Undying Legions, Eternal Revenant, Vengeful Stars)
 # need nothing here: they resolve inside their own controllers via
-# auto_players, the same arrangement 'Ard as Nails and Grot Orderly use, so
+# auto_players, the same arrangement Grot Orderly uses, so
 # the human prompt and the AI answer share one verdict.
 #
 # These three are different for one reason: rule 15.01 allows ONE use of a
 # Stratagem per phase, so the choice is not "should this unit buy it" but
 # "which of my units should" - and that is a comparison across the army, which
-# only a handler here can make. Same shape, and same reasoning, as
-# _handle_unbridled_carnage() and _handle_ere_we_go().
+# only a handler here can make.
 #
-# NONE of them takes a memory.declined_* memo, for the reason those two record:
+# NONE of them takes a memory.declined_* memo:
 # the verdict is a pure function of the board, so a "no" this frame is a "no"
 # next frame and re-deriving it costs nothing. A "yes" cannot repeat because
 # can_use() refuses once the grant is up and 15.01 refuses a second use.
@@ -10974,9 +10889,9 @@ def _hungry_void_verdict(squad, fight_controller):
     against T8 is a 4+, while S9 against T8 was already a 3+ and gains
     nothing.
 
-    Like Unbridled Carnage, it is SKIPPED when the unit can already erase an
-    engaged target unaided: the sensible line there is to swing at that one
-    and keep the CP. And like it, game/damage_estimate.py's documented
+    It is SKIPPED when the unit can already erase an engaged target unaided:
+    the sensible line there is to swing at that one and keep the CP. And
+    game/damage_estimate.py's documented
     understatement is the safe direction - it can only make a target look more
     survivable than it is, i.e. buy the Stratagem in a borderline case rather
     than skip it."""
@@ -11438,7 +11353,7 @@ def _conquering_tyrant_verdict(squad, all_tokens, shooting_controller):
     float is the ranking key for 15.01's one use per phase.
 
     HALF RANGE IS THE WHOLE GATE, and it is what makes this verdict different
-    from Unbridled Carnage's: the Stratagem only re-rolls "an attack that
+    from Hungry Void's: the Stratagem only re-rolls "an attack that
     targets a unit within half range", so a unit whose targets are all further
     off gains literally nothing. That is measured through the Stratagem's own
     applies(), not re-derived - it already knows to read half range through
@@ -11542,8 +11457,7 @@ def _handle_sudden_storm(player, all_tokens, movement_controller, sudden_storm_c
     for one that would actually have to Advance to reach anything.
 
     Bought at the START of the Movement phase, ahead of anything that moves -
-    the same placement 'Ere We Go uses, and for the same reason: its own
-    window closes once the unit has moved."""
+    because its own window closes once the unit has moved."""
     if sudden_storm_controller is None:
         return False
     best_squad, best_value = None, 0.0
@@ -11585,48 +11499,6 @@ def _has_target_without_advancing(squad, all_tokens, shooting_controller):
                for shooting_type in types)
 
 
-def _unbridled_carnage_verdict(squad, fight_controller):
-    """War Horde's Unbridled Carnage (1CP, game/unbridled_carnage.py), decided
-    DETERMINISTICALLY - no agent call, per the user: "ki soll diese
-    deterministisch einsetzen... es sollte eingesetzt werden, wenn orks ein
-    ziel im nahkampf angreifen, dass sie rechnerisch nicht vollständig
-    auslöschen."
-
-    Returns the unit's expected melee output (a positive float) if the CP is
-    worth spending, or None if it is not - the float doubles as the ranking
-    key for which unit gets it, since rule 15.01 allows only ONE use per
-    phase and the extra Critical Hits scale with attack volume (with War
-    Horde's own Get Stuck In giving every Ork melee weapon [SUSTAINED HITS 1],
-    a 5+ crit threshold is worth roughly an extra hit per six attacks).
-
-    "Cannot wipe it out" is read across EVERY engaged enemy unit, not just one
-    of them: the stratagem's window closes the instant the unit is selected to
-    fight, which is also when its target is chosen, so at decision time there
-    is no way to know which enemy it will actually swing at. If one of them
-    could be erased outright, the sensible line is to swing at that one and
-    keep the CP - so this only fires when NO engaged target can be finished
-    off unaided. With a single engaged enemy (the ordinary case) the two
-    readings coincide exactly.
-
-    The estimate is game/damage_estimate.py's, with all of its documented
-    caveats - notably that it models no [SUSTAINED HITS] at all, so it
-    UNDERSTATES an Ork unit's real output. That bias is the safe direction
-    here: it can only make the AI judge a target survivable when it is
-    borderline, i.e. buy the stratagem in a close case rather than skip it."""
-    targets = fight_controller.engaged_enemy_squads(squad)
-    if not targets:
-        return None  # nothing to swing at - the grant would buy nothing
-    best = 0.0
-    for target in targets:
-        expected = expected_wounds_against(squad, target, melee=True) or 0.0
-        if expected <= 0:
-            continue  # this unit does nothing to that target either way
-        if expected >= _squad_remaining_wounds(target):
-            return None  # it can already erase something - save the CP
-        best = max(best, expected)
-    return best if best > 0 else None
-
-
 def _handle_grim_reapers(player, all_tokens, grim_reapers_controller, game_log=None):
     """Death Lord's Chosen's Grim Reapers: buy it at the FIRST OPPORTUNITY.
 
@@ -11641,17 +11513,16 @@ def _handle_grim_reapers(player, all_tokens, grim_reapers_controller, game_log=N
 
     The one thing that IS enforced is the printed TARGET line, and can_use()
     already does it: "has not been selected to fight this phase". That is why
-    this runs BEFORE the fight loop, exactly like Unbridled Carnage below - an
+    this runs BEFORE the fight loop, exactly like Hungry Void above - an
     offer after that point would be illegal.
 
     Deterministic by construction: `sorted(..., key=name)` picks the same unit
     on every replay, and the function takes no `agent`, so it cannot cost an
     API call however it is wired.
 
-    No memory.declined_* memo, for the reason _handle_unbridled_carnage()
-    records: the verdict is a pure function of the board, and a "yes" cannot
-    repeat because can_use() refuses once the grant is up and rule 15.01
-    refuses a second use this phase."""
+    No memory.declined_* memo: the verdict is a pure function of the board,
+    and a "yes" cannot repeat because can_use() refuses once the grant is up
+    and rule 15.01 refuses a second use this phase."""
     if grim_reapers_controller is None:
         return False
     for squad in sorted(_all_squads(all_tokens), key=lambda s: s.name):
@@ -11667,47 +11538,9 @@ def _handle_grim_reapers(player, all_tokens, grim_reapers_controller, game_log=N
     return False
 
 
-def _handle_unbridled_carnage(player, all_tokens, fight_controller, unbridled_carnage_controller, game_log=None):
-    """Buy Unbridled Carnage for whichever of `player`'s own units gains the
-    most from it, if any. Returns True if the CP was actually spent, so the
-    caller can treat that as this frame's one action.
-
-    Checked BEFORE any unit is selected to fight, because the stratagem's own
-    TARGET clause is "a unit that has NOT been selected to fight this phase" -
-    an offer after that point would be illegal. Same placement, and same
-    reasoning, as The Arro'kon Protocol's loop ahead of the shoot loop in
-    _handle_shooting().
-
-    Needs no memory.declined_* memo, unlike every agent-driven stratagem
-    handler: the verdict is a pure function of the board, so a "no" this frame
-    is a "no" next frame too and re-deriving it costs nothing (no API call and
-    no line-of-sight sweep). A "yes" cannot repeat either - can_use() refuses
-    once the grant is up, and rule 15.01 refuses a second use this phase."""
-    if unbridled_carnage_controller is None:
-        return False
-    best_squad, best_value = None, 0.0
-    for squad in sorted(_all_squads(all_tokens), key=lambda s: s.name):
-        if squad.owner != player or not unbridled_carnage_controller.can_use(squad):
-            continue
-        value = _unbridled_carnage_verdict(squad, fight_controller)
-        if value is not None and value > best_value:
-            best_squad, best_value = squad, value
-    if best_squad is None:
-        return False
-    if not unbridled_carnage_controller.use(best_squad):
-        return False
-    if game_log is not None:
-        game_log.add(
-            f"[unbridled carnage] {player}: {best_squad.name} - expected to strip only "
-            f"{best_value:.1f} wound(s) in melee, not enough to destroy any unit it is engaged with.",
-            file_only=True,
-        )
-    return True
-
-
 def _handle_fight(
     agent, memory, player, all_tokens, fight_controller, pile_in_controller, movement_controller, on_thinking,
-    consolidate_controller=None, game_log=None, unbridled_carnage_controller=None,
+    consolidate_controller=None, game_log=None,
     hungry_void_controller=None, grim_reapers_controller=None,
     cynosure_controller=None,
 ):
@@ -11772,20 +11605,15 @@ def _handle_fight(
     if fight_controller.state != fight_module.SELECTING or fight_controller.whose_turn != player:
         return False  # not Player 2's sub-turn in the Fight step's alternation right now
 
-    # War Horde's Unbridled Carnage (1CP): must be bought BEFORE a unit is
+    # Awakened Dynasty's Hungry Void (1CP): must be bought BEFORE a unit is
     # selected to fight, so it goes ahead of the selection below - and ahead
     # of the _choose() call in it, so a "yes" never costs an extra agent call
     # (the next frame's deterministic check simply says no and falls straight
     # through to selecting).
-    if _handle_unbridled_carnage(player, all_tokens, fight_controller, unbridled_carnage_controller, game_log):
-        return True
-
-    # Awakened Dynasty's Hungry Void: the same window and the same "not yet
-    # selected to fight" TARGET clause, so it sits alongside.
     if _handle_hungry_void(player, all_tokens, fight_controller, hungry_void_controller, game_log):
         return True
 
-    # Death Lord's Chosen's Grim Reapers: the third stratagem sharing this
+    # Death Lord's Chosen's Grim Reapers: the second stratagem sharing this
     # window and the same "not yet selected to fight" TARGET clause. Bought at
     # the first opportunity by user instruction, so it has no verdict function -
     # see _handle_grim_reapers().
@@ -11812,7 +11640,7 @@ def _handle_fight(
     # missing here. select_to_fight() auto-picks the target when a unit is
     # engaged with exactly one enemy (the ordinary case), and THAT is rule
     # 12.02's select-targets step - the trigger for every target reaction
-    # (Forewarned, Stim Injectors, 'Ard as Nails). _resolve_fight_choices()
+    # (Forewarned, Stim Injectors, Quantum Deflection). _resolve_fight_choices()
     # below immediately throws the Hit roll, so doing both in one call put
     # the dice on screen before the defender had answered. User report:
     # "forewarned wurde angeboten, da wurde der trefferwurf schon
@@ -11963,7 +11791,7 @@ def _choose_melee_weapon(agent, player, all_tokens, fight_controller, squad, wea
 def _defender_is_deciding(fight_controller):
     """Whether the target-selection step just handed the DEFENDER an open
     choice (rule 12.02 is the trigger for Forewarned, Stim Injectors and
-    'Ard as Nails).
+    Quantum Deflection).
 
     Its own function rather than the condition inline twice: both places that
     constitute the select-targets step here must stop at it, and the shooting

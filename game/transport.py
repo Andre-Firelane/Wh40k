@@ -486,7 +486,8 @@ class TransportController:
             if self.game_log is not None:
                 self.game_log.add(f"{squad.owner}: {squad.name} disembarks ({mode} disembark, rule 18.04/18.05).")
             if mode in (COMBAT, EMERGENCY):
-                squad.battle_shocked = True
+                from game import battle_shock
+                battle_shock.set_battle_shocked(squad, source="a %s Disembark" % mode)
                 # Rule 18.04/18.05: the hazard roll (06.03) happens AFTER the
                 # unit is on the battlefield, not before it. Two reasons, and
                 # the second one is a hard engine constraint, not a

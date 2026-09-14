@@ -45,7 +45,7 @@ from testkit import Checks, GameState, TurnTracker, build_squad
 from ai import agent_driver, observation
 from game import attached_units, maps
 from game.dice import DiceManager
-from game.ere_we_go import ERE_WE_GO_ROLL_BONUS
+from game import roll_bonus
 from game.factions.orks import BOYZ, FLASH_GITZ, WARBOSS
 from game.factions.tau_empire import STRIKE_TEAM
 from game.movement import MovementController
@@ -274,7 +274,7 @@ def brute_force(squad, foe):
     """Every (D6, 2D6) outcome enumerated, as a percentage."""
     gap = squad.min_distance_to(foe)
     move = min_model_movement(squad)
-    bonus = ERE_WE_GO_ROLL_BONUS if getattr(squad, "ere_we_go_active", False) else 0
+    bonus = roll_bonus.advance_and_charge_bonus(squad)
     hits = 0
     for die in range(1, 7):
         left = max(0.0, gap - move - die - bonus)
@@ -304,16 +304,10 @@ joint = observation.charge_chance_after_advancing(sc["orks"], sc["foe"])
 c.true(f"...and beats averaging the Advance roll first "
        f"(naive {naive:.0f}% vs joint {joint:.0f}%)", joint - naive > 5.0)
 
-# 'Ere We Go's +2 applies to the Advance roll AND the charge roll, so it must
-# raise both the reach and the odds.
-sc = scene(gap_in=14.0)
-plain_reach = observation.advance_reach_in(sc["orks"])
-without = observation.charge_chance_after_advancing(sc["orks"], sc["foe"])
-sc["orks"].ere_we_go_active = True
-c.eq("'Ere We Go widens the Advance reach by its +2",
-     observation.advance_reach_in(sc["orks"]), plain_reach + ERE_WE_GO_ROLL_BONUS)
-c.true("...and raises the advance-first charge chance",
-       observation.charge_chance_after_advancing(sc["orks"], sc["foe"]) > without)
+# No roll bonus is checked here any more: War Horde's 'Ere We Go (+2, a unit
+# flag) was the one source these radii could read, and the 2026-09 Ork codex
+# retired it. The Avatar of Khaine's aura needs the board, which
+# advance_reach_in() is not handed - named, not modelled.
 
 
 # ===========================================================================

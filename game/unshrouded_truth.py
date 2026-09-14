@@ -25,7 +25,7 @@ sentence of the EFFECT:
   * "Your unit HAS DEEP STRIKE" - a phase-scoped grant, so the arrival uses rule
     24.09's "anywhere more than 9" from every enemy" rather than 20.04's 6"
     board-edge band. Read off the unit by game/ingress.py, the same arrangement
-    Squad.psychic_shield_range and Squad.ard_as_nails_active use.
+    Squad.psychic_shield_range and Squad.stim_injectors_active use.
   * "MUST make an ingress move THIS phase" - which normally cannot happen at
     all, because rule 20.03 lets reserves arrive only from battle round 2. The
     printed text overrides that for this unit; the same flag lifts the round

@@ -125,11 +125,11 @@ c.eq("exactly two detachments carry an exclusion tag",
      tagged, {"Experimental Prototype Cadre": "BATTLESUIT",
               "Auxiliary Cadre": "AUXILIARIES"})
 
-# War Horde is the one detachment with no config setting, and that is a
-# decision: it is the only Ork detachment modelled and its rule gates on the
-# ORKS keyword. Pinned so a second Ork detachment turns this line red.
+# Every detachment declares a config setting. War Horde was the one exception
+# while it was the only Ork detachment modelled and its rule gated on the ORKS
+# keyword; the 2026-09 codex prints fifteen, so its rule gates on the list now.
 without = [d.name for _k, f in FACTION_MODULES for d in f.detachments.values() if not d.setting]
-c.eq("War Horde alone declares no config setting", without, ["War Horde"])
+c.eq("every detachment declares a config setting", without, [])
 
 # The detachments belong to the LIST.
 c.true("ArmyList carries a TUPLE of detachments",
@@ -253,12 +253,12 @@ with settings_as(**ALL):
 c.true("game/army_lists.py no longer writes the settings itself",
        "setattr(cfg, setting" not in io.open("game/army_lists.py", encoding="utf-8").read())
 
-# War Horde declares no setting, so an Ork list writes none - and that is not
-# a failure, it is the documented "nothing to declare" case.
+# An Ork list writes War Horde's setting, and only that one.
 with settings_as(**ALL):
     detachments.apply_to_config({"Player 1": "orks", "Player 2": "orks"})
-    c.eq("an Ork list writes no detachment setting at all",
-         [s for s in detachments.all_settings() if getattr(config, s)], [])
+    c.eq("an Ork list writes War Horde's setting and no other",
+         [s for s in detachments.all_settings() if getattr(config, s)], ["WAR_HORDE_PLAYERS"])
+    c.eq("...for both players fielding it", config.WAR_HORDE_PLAYERS, ("Player 1", "Player 2"))
 
 
 # --- 4. Retaliation Cadre is gated ----------------------------------------

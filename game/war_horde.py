@@ -1,46 +1,56 @@
-"""Orks detachment rule: War Horde's Get Stuck In, as supplied by the user
-(not a rule from the generic 40k core rulebook, so it lives in its own
-module - same reasoning as game/retaliation_cadre.py for T'au Empire's
-Retaliation Cadre). See game/factions/orks.py for the descriptive
-Detachment record.
+"""Orks detachment rule: War Horde's Get Stuck In (2026-09 codex).
 
-RULE: melee weapons equipped by Orks models from your army have the
-[SUSTAINED HITS 1] ability.
+PRINTED (rules/orks/detachments/War Horde.md):
 
-Simplification (documented, matching game/retaliation_cadre.py's own
-precedent for Bonded Heroes): this engine has no army-building/detachment-
-selection flow yet (see CLAUDE.md's Später-Liste), and War Horde is
-currently the only Orks detachment that exists - get_stuck_in_adjusted_
-weapon() therefore applies unconditionally to any model with the `orks`
-UnitProfile flag, without an "is this army actually running War Horde"
-check."""
+    Get Stuck In: Friendly ORKS units' melee attacks have [Sustained Hits 1].
+
+GATED ON THE DETACHMENT. Until the 2026-09 codex this applied to every model
+with the `orks` UnitProfile flag, with no "is this army running War Horde"
+check, because War Horde was the only Ork detachment modelled and there was no
+army list to declare anything. Neither is true any more: Wahapedia prints 15 Ork
+detachments, and a list declares its own (game/detachments.py writes
+config.WAR_HORDE_PLAYERS from it). So the rule asks the one gate every other
+detachment rule asks, game/detachment_gate.py's has_detachment().
+
+The Enhancements are game/enh_headwoppas_killchoppa.py and its three siblings;
+the six Stratagems are game/horde_*.py.
+"""
 
 import copy
 
+from game.detachment_gate import has_detachment
 from game.weapons import MELEE
 
+#: The config constant game/detachments.py writes for this detachment.
+SETTING = "WAR_HORDE_PLAYERS"
 GET_STUCK_IN_SUSTAINED_HITS = 1
 
 
-def get_stuck_in_adjusted_weapon(weapon, pairs):
-    """"Have the [SUSTAINED HITS 1] ability" is modeled as an actual
-    characteristic change (shallow copy, same reasoning as
-    bonded_heroes_adjusted_weapon()/riled_up.adjusted_weapon() - the
-    shared WeaponProfile instance is never mutated), only for MELEE weapons
-    (the rule text says "melee weapons" explicitly).
+def fields_war_horde(player):
+    return has_detachment(player, SETTING)
 
-    Whether the group counts as an Orks attack is decided from its
-    representative fighter (pairs[0][0]), same simplification as every
-    other detachment/army-rule adjuster in this codebase. Granting the
-    ability sets it to (at least) 1 rather than unconditionally overwriting
-    it - a weapon that already has SUSTAINED HITS at a higher value from
-    some other source (none currently exists among Ork weapons, but the
-    rule only GRANTS the ability, it doesn't say "set to 1") keeps its
-    better value."""
+
+def is_orks_unit(squad):
+    """"Friendly ORKS units" - read off the models' `orks` flag, which every Ork
+    UnitProfile sets (there is no per-model faction tracking to read instead)."""
+    return bool(squad is not None and any(
+        getattr(m.profile, "orks", False) for m in getattr(squad, "models", ()) or ()))
+
+
+def get_stuck_in_adjusted_weapon(weapon, pairs):
+    """[SUSTAINED HITS 1] on the group's melee weapons, as a copy so the shared
+    WeaponProfile instance is never mutated. A GRANT, not a set: a weapon that
+    already has a higher value keeps it.
+
+    Decided from the group's representative fighter (pairs[0][0]), the same
+    simplification every other army-rule adjuster in the fight chain uses."""
     if weapon.weapon_type != MELEE:
         return weapon
     fighter_model = pairs[0][0] if pairs else None
     if fighter_model is None or not fighter_model.profile.orks:
+        return weapon
+    squad = getattr(fighter_model, "squad", None)
+    if not fields_war_horde(getattr(squad, "owner", None)):
         return weapon
     if weapon.sustained_hits >= GET_STUCK_IN_SUSTAINED_HITS:
         return weapon

@@ -126,8 +126,6 @@ SQUAD_FLAGS = (
     "unstable_energies_spent",
     "stim_injectors_active",
     "arrokon_protocol_active",
-    "ere_we_go_active",
-    "ard_as_nails_active",
     "swift_as_the_wind_active",
     "star_engines_active",
     "flitting_shadows_active",
@@ -136,7 +134,6 @@ SQUAD_FLAGS = (
     "spirit_of_gork_strength",
     "spirit_of_gork_lethal",
     "ammo_runt_active",
-    "unbridled_carnage_active",
     "flickerjump_active",
     # battle-scoped spend: once per battle each, so this only ever grows
     "aspect_shrine_tokens_used",

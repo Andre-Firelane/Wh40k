@@ -241,12 +241,12 @@ checks.eq("marked: 5, in the SHOOTING step (melee_only=False)",
 checks.eq("...and in the Fight step too",
           crit_hit.crit_hit_threshold(model, hit, web3, melee_only=True), 5)
 # The two melee-worded sources stayed melee-only.
-boyz = tk.build(__import__("game.factions.orks", fromlist=["BOYZ"]).BOYZ, "Player 2", name="2 Boyz 1")
-boyz.unbridled_carnage_active = True
-checks.eq("Unbridled Carnage does NOT reach a ranged attack",
-          crit_hit.crit_hit_threshold(boyz.models[0]), 6)
+scorp = tk.build(ae.STRIKING_SCORPIONS, "Player 1", name="1 Striking Scorpions 1")
+scorp.charged_this_turn = True
+checks.eq("Mandiblasters does NOT reach a ranged attack",
+          crit_hit.crit_hit_threshold(scorp.models[1]), 6)
 checks.eq("...but does in the Fight phase",
-          crit_hit.crit_hit_threshold(boyz.models[0], melee_only=True), 5)
+          crit_hit.crit_hit_threshold(scorp.models[1], melee_only=True), 5)
 checks.eq("no model degrades to the default", crit_hit.crit_hit_threshold(None), 6)
 
 

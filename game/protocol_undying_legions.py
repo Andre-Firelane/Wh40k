@@ -44,8 +44,7 @@ UNDYING_LEGIONS_MIN_RECOVERABLE = 2
 
 class UndyingLegionsController:
     """Reactive. Wired into main.py's after-attacks hooks; a human is prompted,
-    the AI answers from is_worth_using() - the same auto_players split
-    game/ard_as_nails.py uses, so both routes share one verdict."""
+    the AI answers from is_worth_using(), so both routes share one verdict."""
 
     def __init__(self, stratagem_controller, dice_manager=None, decision_manager=None,
                  game_log=None, game_state=None, position_valid=None, auto_players=(),

@@ -184,7 +184,7 @@ class UndyingSpiteController:
         # That last sentence described an intention rather than the code for a
         # long while: 'Ard as Nails ran its verdict ABOVE the split and did gate
         # the human's prompt with it. This module was right and the one it cited
-        # was not; both do it this way now.
+        # was not. That one was fixed, and then retired with the 2026-09 Ork codex.
         if target_squad.owner in self.auto_players and not self.is_worth_using(
                 target_squad, attacking_squad):
             return False

@@ -25,7 +25,7 @@ exception, `auto_players`: for those the target is chosen deterministically
 (the highest-points OTHER unit, falling back to the caster's own unit when
 no other is eligible) and no prompt is raised at all. That is an explicit
 user instruction for the AI, and it is the same auto_players shape
-game/ard_as_nails.py already uses. Points are read from Squad.points, which
+game/grot_orderly.py already uses. Points are read from Squad.points, which
 is None for a unit whose faction has no published list - those sort last
 rather than crashing. See strongest() for why "other" is worth spelling out.
 
@@ -39,7 +39,7 @@ not the unit being resolved when a fight actually happens - so it is stored
 on the Squad (spirit_of_gork_strength / spirit_of_gork_lethal) and read at
 attack time by spirit_of_gork_adjusted_weapon(), chained into game/fight.py
 next to War Horde's Get Stuck In. Same arrangement as
-game/ard_as_nails.py's own defensive flag, and for the same reason.
+Squad.stim_injectors_active, and for the same reason.
 
 "Until the end of the phase" is cleared by reset_phase(), called from
 main.py's own phase-change block alongside every other per-phase grant.

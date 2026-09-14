@@ -20,7 +20,7 @@ ability.
 "ELIGIBLE TO FIGHT THIS PHASE"
 ------------------------------
 Read off FightController, which already owns that question (12.04) -
-is_eligible_to_fight() was made public for War Horde's Unbridled Carnage and
+is_eligible_to_fight() was made public for War Horde's since-retired Unbridled Carnage and
 answers exactly this, independent of whose sub-turn it is. Deliberately NOT
 "actually fought": the text says eligible, and a unit can be eligible and
 still end up passing (the Appendix's "Eligible to Fight, But Unable").

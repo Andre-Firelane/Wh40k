@@ -7,7 +7,6 @@ from game import damaged_attacks, triarch_auras
 from game import aux_experimental_modifications, awakened_dynasty, nekrosor_ammentar, swift_demise, montka_pinpoint_counter_offensive, destroyer_cult, destroyer_hive, dlc_grim_reapers, gift_of_contagion, guardian_protocols, protocol_hungry_void, implacable_eradication, mechanical_augmentation, monster_hunters, plagues, plasmacyte, reroll_scope
 from game import way_of_the_short_blade
 from game import strength_over_toughness
-from game.ard_as_nails import ARD_AS_NAILS_WOUND_PENALTY, ard_as_nails_wound_modifier_applies
 from game.damage_resolution import DamageAllocationSession, DevastatingWoundAllocationSession, MortalWoundAllocationSession, displayed_save_threshold, save_heading, save_is_impossible, AUTO_FAILED_SAVE
 from game.dice import ATTACKS_ROLL, HIT_ROLL, SAVE_ROLL, WOUND_ROLL
 from game.dice_notation import DiceNotationRoll, describe as describe_dice_notation
@@ -268,9 +267,9 @@ class FightController:
         self.whispering_web = whispering_web  # Lhykhis' Whispering Web mark - optional; read by the hit step's crit threshold (see game/whispering_web.py)
         # Reactive stratagems whose WHEN is "just after an enemy unit has
         # selected its targets" - see ShootingController's identical field.
-        # Both of the ones that exist name "the Fight phase" as well as the
-        # opponent's Shooting phase, which is why this controller carries them
-        # too: game/stim_injectors.py, game/ard_as_nails.py.
+        # Several name "the Fight phase" as well as the opponent's Shooting
+        # phase, which is why this controller carries them too - see
+        # game/stim_injectors.py.
         self.target_reactions = [r for r in target_reactions if r is not None]
         # Death Lord's Chosen's Lethal Ichor counts melee wound ALLOCATIONS,
         # including ones that were then saved - a number nothing downstream
@@ -461,8 +460,8 @@ class FightController:
         this phase - independent of whose sub-turn it currently is, which is
         what eligible_to_select_now() adds on top.
 
-        Exists for War Horde's Unbridled Carnage (game/unbridled_carnage.py),
-        whose window is BEFORE a unit is selected to fight: a unit that
+        Exists for the Stratagems whose window is BEFORE a unit is selected
+        to fight: a unit that
         cannot fight this phase can never make the melee attack the stratagem
         buffs, so offering it there would be offering to burn 1 CP for
         nothing."""
@@ -793,7 +792,7 @@ class FightController:
         opponent's Shooting phase. Called from both places that constitute the
         target-selection step here, mirroring ShootingController's own
         _offer_target_reactions(); each controller decides for itself whether
-        it wants to act - see game/stim_injectors.py, game/ard_as_nails.py."""
+        it wants to act - see game/stim_injectors.py."""
         if self.fighting_squad is None:
             return
         for reaction in self.target_reactions:
@@ -1151,13 +1150,13 @@ class FightController:
                 return
             total = self._pending_attacks_roll.total
             self._pending_attacks_roll = None
-            total_attacks = total + extra_attack_dice(weapon, target_squad, weapon_key, self.split_fire, self.assignments, pairs)
+            total_attacks = total + extra_attack_dice(self._adjusted_weapon(pairs, target_squad), target_squad, weapon_key, self.split_fire, self.assignments, pairs)
             self._continue_resolution_with_attacks(weapon, total_attacks)
             return
 
         # Per PAIR, not on the total - see shooting.py's twin.
         total_attacks = sum(damaged_attacks.attacks_for(m, w) for m, w in pairs)
-        total_attacks += extra_attack_dice(weapon, target_squad, weapon_key, self.split_fire, self.assignments, pairs)
+        total_attacks += extra_attack_dice(self._adjusted_weapon(pairs, target_squad), target_squad, weapon_key, self.split_fire, self.assignments, pairs)
         self._continue_resolution_with_attacks(weapon, total_attacks)
 
     def _continue_resolution_with_attacks(self, weapon, total_attacks):
@@ -1181,7 +1180,7 @@ class FightController:
             # shortcut: this path skips straight to _handle_hit_results()
             # without ever reaching that step.
             torrent_weapon = self._adjusted_weapon(group["pairs"], target_squad)
-            # War Horde's Unbridled Carnage needs no equivalent hook here:
+            # A lowered Critical Hit threshold needs no equivalent hook here:
             # it only lowers the hit roll's CRITICAL threshold, and [TORRENT]
             # means there is no hit roll at all - no die exists to come up an
             # unmodified 5, exactly as none can come up a 6 (crits=0 below).
@@ -1305,7 +1304,7 @@ class FightController:
             total = self._pending_attacks_roll.total
             self._pending_attacks_roll = None
             total_attacks = total + extra_attack_dice(
-                weapon, target_squad, group["weapon_key"], self.split_fire, self.assignments, group["pairs"],
+                self._adjusted_weapon(group["pairs"], target_squad), target_squad, group["weapon_key"], self.split_fire, self.assignments, group["pairs"],
             )
             self._continue_resolution_with_attacks(weapon, total_attacks)
             return
@@ -1478,7 +1477,7 @@ class FightController:
         on_dice_acknowledged()'s own resolution, and _crit_note(), which has
         to know at ROLL time whether a critical die is a [LETHAL HITS] or
         [DEVASTATING WOUNDS] one - the grants are what decide that, and they
-        are conditional. Unbridled Carnage needs no place here: it lowers the
+        are conditional. Mandiblasters needs no place here: it lowers the
         hit roll's CRITICAL threshold rather than granting a keyword, and
         _crit_note()/the hit step both read that from crit_hit_threshold()."""
         weapon = pairs[0][1]
@@ -1594,8 +1593,8 @@ class FightController:
 
     def _crit_note(self, kind, weapon, target_squad):
         """See game/shooting.py's _crit_note - identical purpose, with
-        melee_only=True on the hit threshold (Unbridled Carnage and
-        Mandiblasters are both worded "melee attack"; see game/crit_hit.py)
+        melee_only=True on the hit threshold (Mandiblasters and Flesh Hunger
+        are both worded "melee attack"; see game/crit_hit.py)
         and `weapon` expected to be _adjusted_weapon()'s result."""
         if kind == "hit":
             model = self.current_group["pairs"][0][0] if self.current_group else None
@@ -2201,7 +2200,7 @@ class FightController:
             _parse_threshold(effective_weapon_skill(group["pairs"][0][0], weapon)),
             self._hit_modifiers(group["pairs"][0][0], target_squad),
         )
-        # Unbridled Carnage, Mandiblasters and Whispering Web all say
+        # Mandiblasters and Whispering Web both say
         # "an unmodified hit roll of 5+ scores a Critical Hit" - i.e.
         # purely a change to _resolve_roll's crit threshold, which is
         # already compared against the RAW die (so "unmodified" is
@@ -2789,12 +2788,6 @@ class FightController:
         checked against fighting_squad's representative model, same "read
         it off model 0" simplification as e.g. crit_hit_threshold()."""
         modifiers = []
-        # War Horde's 'Ard as Nails (user-supplied): its WHEN names the Fight
-        # phase as well as the opponent's Shooting phase, and its EFFECT says
-        # "each time an ATTACK targets your unit" - not "ranged attack" - so
-        # it applies here too. See game/ard_as_nails.py.
-        if ard_as_nails_wound_modifier_applies(target_squad):
-            modifiers.append(Modifier(ARD_AS_NAILS_WOUND_PENALTY, "'Ard as Nails"))
         # Warlock Conclave's Protect: "while a FARSEER model is leading this
         # unit, each time an attack targets this unit, subtract 1 from the
         # Wound roll" - the same defender-side malus, from a datasheet

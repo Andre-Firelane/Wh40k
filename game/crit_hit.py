@@ -24,8 +24,8 @@ Hit. The BEST (lowest) threshold wins if two sources apply at once.
 WHICH SOURCES REACH WHICH PHASE is a property of each source's own wording, not
 of this module any more:
 
-  * Unbridled Carnage (Ork stratagem) and Mandiblasters (Striking Scorpions)
-    both say "melee attack", so they are gated on the caller being the Fight
+  * Mandiblasters (Striking Scorpions) and Flesh Hunger (Flayed Ones) both
+    say "melee attack", so they are gated on the caller being the Fight
     phase. That gate is `melee_only`, passed by the two call sites, rather than
     a re-check of the phase here - the caller knows which step it is, and
     reading turn_tracker.phase would be wrong anyway for a reactive Snap Shot
@@ -38,15 +38,9 @@ from game.attached_units import leader_ability
 
 DEFAULT_CRIT_HIT_THRESHOLD = 6
 
-UNBRIDLED_CARNAGE_CRIT_HIT_THRESHOLD = 5
 MANDIBLASTERS_CRIT_HIT_THRESHOLD = 5
 WHISPERING_WEB_CRIT_HIT_THRESHOLD = 5
 LEADING_RANGED_CRIT_HIT_THRESHOLD = 5
-
-
-def _unbridled_carnage_applies(squad):
-    """War Horde's Unbridled Carnage: a phase-long grant on the unit."""
-    return squad is not None and getattr(squad, "unbridled_carnage_active", False)
 
 
 def _mandiblasters_applies(model, squad):
@@ -138,8 +132,6 @@ def crit_hit_threshold(model, target_squad=None, whispering_web=None, melee_only
         if _bf is not None:
             threshold = min(threshold, _bf)
     if melee_only:
-        if _unbridled_carnage_applies(squad):
-            threshold = min(threshold, UNBRIDLED_CARNAGE_CRIT_HIT_THRESHOLD)
         if _mandiblasters_applies(model, squad):
             threshold = min(threshold, MANDIBLASTERS_CRIT_HIT_THRESHOLD)
         # Flayed Ones' Flesh Hunger: "each time a model in this unit makes a

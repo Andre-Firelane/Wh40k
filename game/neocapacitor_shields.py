@@ -41,8 +41,8 @@ known; each module keeps its own value.
 "UNTIL THE END OF THE TURN"
 ---------------------------
 A unit-level flag cleared in main.py's end-of-turn block, alongside
-fights_first / set_up_this_turn / charge_locked_until_end_of_turn /
-ere_we_go_active - the other flags with exactly this lifetime.
+fights_first / set_up_this_turn / charge_locked_until_end_of_turn - the
+other flags with exactly this lifetime.
 expire_for_turn() below is the one definition of that, so it stays testable
 without the game loop.
 """

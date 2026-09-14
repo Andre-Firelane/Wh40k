@@ -2399,4 +2399,57 @@ for _hook, _payload in (("movement_controller.on_move_finished", 2),
     ck.eq("%s: every listener accepts the hook's %d-argument payload" % (_hook, _payload),
           _unfit, [])
 
+
+# --- 26. a unit BECOMES battle-shocked through one door ---------------------
+print("--- 26. battle-shocked is set through battle_shock.set_battle_shocked() ---")
+# War Horde's Breakin' Heads is written against the MOMENT a unit becomes
+# battle-shocked, in any phase. Before it there were three plain assignments
+# (a failed test, Elemental Ensnarement's 1, a Combat/Emergency Disembark), and
+# an assignment cannot be listened to. A fourth written the same way would
+# become battle-shocked without the Stratagem ever hearing it.
+
+
+def _py_files(*roots):
+    for root in roots:
+        for base, _dirs, names in os.walk(root):
+            for name in names:
+                if name.endswith(".py"):
+                    yield os.path.join(base, name)
+
+
+_shock_assignments, _door_callers = [], set()
+for _path in list(_py_files("game", "ai")) + ["main.py"]:
+    _tree = ast.parse(io.open(_path, encoding="utf-8").read())
+    for _n in ast.walk(_tree):
+        if (isinstance(_n, ast.Assign) and isinstance(_n.value, ast.Constant) and _n.value.value is True
+                and any(isinstance(t, ast.Attribute) and t.attr == "battle_shocked" for t in _n.targets)):
+            _shock_assignments.append("%s:%d" % (_path.replace(os.sep, "/"), _n.lineno))
+        if (isinstance(_n, ast.Call) and isinstance(_n.func, (ast.Attribute, ast.Name))
+                and getattr(_n.func, "attr", getattr(_n.func, "id", None)) == "set_battle_shocked"):
+            _door_callers.add(_path.replace(os.sep, "/"))
+ck.eq("the only `battle_shocked = True` is inside the door itself",
+      [a.split(":")[0] for a in _shock_assignments], ["game/battle_shock.py"])
+ck.true("the door is live - it has its three callers (%s)" % sorted(_door_callers),
+        {"game/battle_shock.py", "game/elemental_ensnarement.py", "game/transport.py"} <= _door_callers)
+
+
+# --- 27. [BLAST]/[CLEAVE]/[RAPID FIRE] dice read the ADJUSTED weapon --------
+print("--- 27. extra_attack_dice() is handed the adjusted weapon ---")
+# The keyword counts that add attack dice were read off the PRINTED
+# representative weapon, while every grant lives on _adjusted_weapon()'s copy -
+# so War Horde's Close-Range Dakka ([RAPID FIRE 1]) and Mow 'Em Down ([CLEAVE 1])
+# would have reached the hit and wound steps and added no dice at all: the
+# keyword-grant-reaches-only-the-chain shape of section 7, one reader over.
+_extra_calls, _raw = 0, []
+for _path in (os.path.join("game", "shooting.py"), os.path.join("game", "fight.py")):
+    _tree = ast.parse(io.open(_path, encoding="utf-8").read())
+    for _n in ast.walk(_tree):
+        if isinstance(_n, ast.Call) and getattr(_n.func, "id", None) == "extra_attack_dice":
+            _extra_calls += 1
+            _first = _n.args[0] if _n.args else None
+            if not (isinstance(_first, ast.Call) and getattr(_first.func, "attr", None) == "_adjusted_weapon"):
+                _raw.append("%s:%d" % (_path.replace(os.sep, "/"), _n.lineno))
+ck.true("the sweep is live - it found the extra-dice calls (%d)" % _extra_calls, _extra_calls >= 6)
+ck.eq("every one is handed self._adjusted_weapon(...), never the printed weapon", _raw, [])
+
 ck.finish()

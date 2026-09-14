@@ -538,14 +538,12 @@ class Squad:
         self.fights_first = False  # rule 11.04/24.13 sets this; nothing clears it at end of turn yet (no Fight phase to consume it)
         self.stim_injectors_active = False  # Retaliation Cadre's Stim Injectors stratagem: "until the end of the phase, models in your unit have the Feel No Pain 6+ ability" - see game/stim_injectors.py. A unit-level flag rather than a controller threaded into each damage source, so it reaches EVERY one of them (including Crushing Impact/Deadly Demise/Explosives/Hazardous mortal wounds). Cleared on every phase change, alongside StratagemController.reset_phase()
         self.arrokon_protocol_active = False  # Retaliation Cadre's The Arro'kon Protocol stratagem: "until the end of the phase", this unit's attacks have [SUSTAINED HITS 1] against enemy units of 6+ models ([SUSTAINED HITS 2] against 11+) - see game/arrokon_protocol.py. A unit-level flag for the same reason stim_injectors_active is one, and cleared in the same place
-        self.ere_we_go_active = False  # War Horde's 'Ere We Go stratagem: "until the end of the turn, add 2 to Advance and Charge rolls made for your unit" - see game/ere_we_go.py. A unit-level flag like the two below, but cleared at END OF TURN (alongside fights_first/set_up_this_turn/charge_locked_until_end_of_turn), not on every phase change
-        self.ard_as_nails_active = False  # War Horde's 'Ard as Nails stratagem: "until the end of the phase, each time an attack targets your unit, subtract 1 from the Wound roll" - see game/ard_as_nails.py. A unit-level flag for the same reason stim_injectors_active is one, and cleared in the same place
         # The three Aeldari Agile Manoeuvres (army rule Battle Focus, see
         # game/battle_focus.py). Unit-level flags for the same reason as the
-        # four above, but note the two DIFFERENT lifetimes: Swift as the Wind
+        # two above, but note the two DIFFERENT lifetimes: Swift as the Wind
         # is "until the end of the phase" and is cleared with the phase flags,
         # while Star Engines and Flitting Shadows are "until the end of the
-        # turn" and are cleared with ere_we_go_active/fights_first.
+        # turn" and are cleared with fights_first.
         self.swift_as_the_wind_active = False  # add 2" to this unit's Move characteristic - read by game/coldstar.py's effective_movement_in()
         self.star_engines_active = False       # this unit's ranged weapons have [ASSAULT] - read by game/coldstar.py's weapon_has_assault()
         self.montka_killing_blow = False       # Mont'ka's Killing Blow: this unit's ranged weapons have [ASSAULT] in the detachment's battle rounds - read by game/coldstar.py's weapon_has_assault(), which is handed only (weapon, squad) and so cannot ask the round question itself. Stamped once per phase change by game/montka.py's refresh_killing_blow(); the flag exists for the same reason star_engines_active above does, one rule higher up
@@ -566,12 +564,11 @@ class Squad:
         self.triarch_auras_active = frozenset()  # which Triarch auras THIS unit is currently under - derived from the selection above plus 6" to a Szarekh model, stamped once per frame by triarch_auras.refresh_active_auras(). Four seams read it (both attack steps, coldstar.effective_movement_in() and game/charge_reroll.py) and none of them has the board in hand, which is why it is a flag; in SQUAD_FLAGS_EXCLUDED because the next frame re-stamps it
         self.flitting_shadows_active = False   # enemies cannot Fire Overwatch (15.08) at this unit - read by game/shooting.py's _is_valid_target_squad(), gated on Snap Shooting
         self.sudden_strike_active = False      # Pile-in/Consolidation moves may go 6" instead of 3" - read by game/pile_in.py and game/consolidate.py; phase lifetime, like swift_as_the_wind_active
-        self.neocapacitor_shielded = False  # The Twin Lance's Neocapacitor Shields: -1 to Charge rolls made for this unit "until the end of the turn" - see game/neocapacitor_shields.py. A unit-level flag like ere_we_go_active, and cleared in the same end-of-turn place
+        self.neocapacitor_shielded = False  # The Twin Lance's Neocapacitor Shields: -1 to Charge rolls made for this unit "until the end of the turn" - see game/neocapacitor_shields.py. A unit-level flag like star_engines_active, and cleared in the same end-of-turn place
         self.nova_charge_grants = {}  # Riptide Battlesuit's Nova Charge ability: {model.id -> {weapon instance id, ...}} that have [DEVASTATING WOUNDS] "until the end of the phase" - see game/nova_charge.py. A dict rather than a bool like the flags around it because this ability names ONE weapon of one model, not the whole unit; cleared on every phase change in the same place they are
         self.spirit_of_gork_strength = False  # Kill Rig's Spirit of Gork: "until the end of the phase, add 1 to the Strength characteristic of melee weapons equipped by models in that unit" - see game/spirit_of_gork.py. A unit-level flag for the same reason the others here are (the buff lands on a unit that is not the one being resolved when a fight happens), and cleared in the same place
         self.spirit_of_gork_lethal = False  # Kill Rig's Spirit of Gork, the "on a 6" half: those same weapons also gain [LETHAL HITS]
         self.ammo_runt_active = False  # Flash Gitz' Ammo Runt wargear: "until the end of the phase, ranged weapons equipped by models in this unit have the [LETHAL HITS] ability" - see game/ammo_runt.py. A unit-level flag for the same reason the ones above are, and cleared in the same place
-        self.unbridled_carnage_active = False  # War Horde's Unbridled Carnage stratagem: "until the end of the phase", this unit's melee attacks score a Critical Hit on an unmodified hit roll of 5+ - see game/unbridled_carnage.py. A unit-level flag for the same reason the two above are, and cleared in the same place
         # The DEATH GUARD army rule Nurgle's Gift (game/nurgles_gift.py). Two
         # flags rather than a live geometric test, both stamped by the same
         # once-per-frame NurglesGiftController.refresh(): "Afflicted" has a

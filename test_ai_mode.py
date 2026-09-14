@@ -252,21 +252,22 @@ c.true("...and is derived from ai_players, not written out a second time",
 # --------------------------------------------------------------------------
 print("\n=== 6. it is a switch, not a constant ===")
 
-from game.ard_as_nails import ArdAsNailsController  # noqa: E402
+from game.protocol_undying_legions import UndyingLegionsController  # noqa: E402
 from game.decision import DecisionManager           # noqa: E402
 
 # Driven at the controller, which is where the fact lands. With the owner
 # listed, the rule answers itself; without, the same rule raises a prompt.
-# 'Ard as Nails is the canonical carrier of the pattern.
-src = (ROOT / "game" / "ard_as_nails.py").read_text(encoding="utf-8")
+# Protocol of the Undying Legions carries the pattern ('Ard as Nails did,
+# until the 2026-09 Ork codex retired it).
+src = (ROOT / "game" / "protocol_undying_legions.py").read_text(encoding="utf-8")
 c.true("the canonical gate answers for a listed owner",
-       "if target.owner in self.auto_players:" in src)
+       "if target_squad.owner in self.auto_players:" in src)
 c.true("...and falls through to a prompt for anyone else",
        "self.decision_manager.request(" in src)
 
-listed = ArdAsNailsController(None, decision_manager=DecisionManager(),
+listed = UndyingLegionsController(None, decision_manager=DecisionManager(),
                               auto_players=("Player 2",))
-unlisted = ArdAsNailsController(None, decision_manager=DecisionManager(),
+unlisted = UndyingLegionsController(None, decision_manager=DecisionManager(),
                                 auto_players=())
 c.true("a controller told about Player 2 holds it", "Player 2" in listed.auto_players)
 c.eq("...and one told about nobody holds nobody", len(unlisted.auto_players), 0)
@@ -275,7 +276,7 @@ c.eq("...and one told about nobody holds nobody", len(unlisted.auto_players), 0)
 # cannot change under it, which is why the question may be asked once, before
 # main() builds anything.
 handed = ["Player 2"]
-frozen = ArdAsNailsController(None, decision_manager=DecisionManager(),
+frozen = UndyingLegionsController(None, decision_manager=DecisionManager(),
                               auto_players=handed)
 handed.append("Player 1")
 c.true("a controller freezes what it was handed", "Player 1" not in frozen.auto_players)

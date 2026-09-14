@@ -179,7 +179,7 @@ class ActionPanel:
         insane_bravery_controller=None, crushing_impact_controller=None, firing_deck_controller=None,
         greater_good_controller=None, fall_back_controller=None, fire_overwatch_controller=None,
         pregame_controller=None, arrokon_controller=None, shortened_blade_controller=None,
-        torchstar_controller=None, unbridled_carnage_controller=None, ere_we_go_controller=None,
+        torchstar_controller=None,
         tactical_acumen_controller=None,
         flickerjump_controller=None,
         battle_focus_pool=None,
@@ -261,7 +261,7 @@ class ActionPanel:
             insane_bravery_controller, crushing_impact_controller, firing_deck_controller,
             greater_good_controller, fall_back_controller, fire_overwatch_controller,
             pregame_controller, arrokon_controller, shortened_blade_controller,
-            torchstar_controller, unbridled_carnage_controller, ere_we_go_controller,
+            torchstar_controller,
             tactical_acumen_controller,
             flickerjump_controller,
             battle_focus_pool,
@@ -302,7 +302,7 @@ class ActionPanel:
         insane_bravery_controller=None, crushing_impact_controller=None, firing_deck_controller=None,
         greater_good_controller=None, fall_back_controller=None, fire_overwatch_controller=None,
         pregame_controller=None, arrokon_controller=None, shortened_blade_controller=None,
-        torchstar_controller=None, unbridled_carnage_controller=None, ere_we_go_controller=None,
+        torchstar_controller=None,
         tactical_acumen_controller=None,
         flickerjump_controller=None,
         battle_focus_pool=None,
@@ -565,7 +565,7 @@ class ActionPanel:
             retro_thrusters_controller,
             battle_shock_controller, explosives_controller, transport_controller, insane_bravery_controller,
             crushing_impact_controller, firing_deck_controller, greater_good_controller, fall_back_controller,
-            arrokon_controller, torchstar_controller, unbridled_carnage_controller, ere_we_go_controller,
+            arrokon_controller, torchstar_controller,
             tactical_acumen_controller,
             flickerjump_controller,
             battle_focus_pool,
@@ -2189,7 +2189,7 @@ class ActionPanel:
         battle_shock_controller=None, explosives_controller=None, transport_controller=None,
         insane_bravery_controller=None, crushing_impact_controller=None, firing_deck_controller=None,
         greater_good_controller=None, fall_back_controller=None, arrokon_controller=None,
-        torchstar_controller=None, unbridled_carnage_controller=None, ere_we_go_controller=None,
+        torchstar_controller=None,
         tactical_acumen_controller=None,
         flickerjump_controller=None,
         battle_focus_pool=None,
@@ -2525,16 +2525,6 @@ class ActionPanel:
             # other one, and the "nothing to do here" hint below finally
             # accounts for them.
             can_crushing_impact_now = crushing_impact_controller is not None and crushing_impact_controller.can_use(squad)
-            # War Horde's Unbridled Carnage: can_use() already refuses for a
-            # unit that cannot fight this phase, so the button never offers a
-            # CP burn that would buy nothing.
-            can_unbridled_carnage_now = (
-                unbridled_carnage_controller is not None and unbridled_carnage_controller.can_use(squad)
-            )
-            # War Horde's 'Ere We Go: can_use() enforces "start of your
-            # Movement phase" itself (nothing of yours has moved yet), so the
-            # button simply disappears once the phase is under way.
-            can_ere_we_go_now = ere_we_go_controller is not None and ere_we_go_controller.can_use(squad)
             # Awakened Dynasty's three proactive protocols. Each can_use()
             # carries its own WHEN (the phase, whose it is, and whether the
             # unit has already shot/fought), so a button appears exactly when
@@ -2564,9 +2554,9 @@ class ActionPanel:
                 mortarions_teachings_controller is not None
                 and mortarions_teachings_controller.can_use(squad)
             )
-            # Warp Spiders' Flickerjump: same "has to be pressed before the
-            # move" reason as 'Ere We Go above - MovementController reads the
-            # Move characteristic once, when the move starts.
+            # Warp Spiders' Flickerjump: has to be pressed before the move -
+            # MovementController reads the Move characteristic once, when the
+            # move starts.
             can_flickerjump_now = (
                 flickerjump_controller is not None and flickerjump_controller.can_use(squad)
             )
@@ -2630,14 +2620,6 @@ class ActionPanel:
                 )
                 self._buttons.append((flicker_rect, lambda: flickerjump_controller.use(squad)))
                 button_y += flicker_rect.height + BUTTON_GAP
-
-            if can_ere_we_go_now:
-                ere_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
-                ere_rect = self._draw_button(
-                    surface, ere_rect, "'Ere We Go (1 CP) - +2 Advance and Charge rolls", accent="stratagem",
-                )
-                self._buttons.append((ere_rect, lambda: ere_we_go_controller.use(squad)))
-                button_y += ere_rect.height + BUTTON_GAP
 
             # Sudden Storm is bought in the Movement phase, so it belongs with
             # the other before-you-move buttons: its [ASSAULT] grant is what
@@ -2820,12 +2802,10 @@ class ActionPanel:
                 self._buttons.append((skip_pile_in_rect, lambda: pile_in_controller.skip_pile_in(squad)))
                 button_y += skip_pile_in_rect.height + BUTTON_GAP
 
-            # War Horde's Unbridled Carnage: drawn just ABOVE "Fight" because
-            # its TARGET clause is "a unit that has NOT been selected to fight
-            # this phase" - once Fight is clicked the window is shut, so the
-            # two buttons are offered in the order they have to be used in.
-            # Hungry Void is bought before the unit fights, so it sits with
-            # Unbridled Carnage above the Fight button.
+            # Hungry Void: drawn just ABOVE "Fight" because its TARGET clause
+            # is "a unit that has NOT been selected to fight this phase" - once
+            # Fight is clicked the window is shut, so the two buttons are
+            # offered in the order they have to be used in.
             if can_hungry_void_now:
                 void_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
                 void_rect = self._draw_button(
@@ -2871,15 +2851,6 @@ class ActionPanel:
                 self._buttons.append(
                     (bloom_rect, lambda: blooming_pestilence_controller.use(squad)))
                 button_y += bloom_rect.height + BUTTON_GAP
-
-            if can_unbridled_carnage_now:
-                carnage_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
-                carnage_rect = self._draw_button(
-                    surface, carnage_rect,
-                    "Unbridled Carnage (1 CP) - melee Critical Hits on 5+", accent="stratagem",
-                )
-                self._buttons.append((carnage_rect, lambda: unbridled_carnage_controller.use(squad)))
-                button_y += carnage_rect.height + BUTTON_GAP
 
             # Aeldari Battle Focus, Sudden Strike. ONE draw site for its two
             # windows (see BattleFocusPool.can_sudden_strike): it sits above
@@ -2944,7 +2915,6 @@ class ActionPanel:
                 and not can_pile_in_now and not can_fight_now and not can_consolidate_now
                 and not can_battle_shock_now and not can_explosives_now and not can_crushing_impact_now
                 and not can_mark_spotted_now and not can_arrokon_now and not can_torchstar_now
-                and not can_unbridled_carnage_now and not can_ere_we_go_now
                 and not can_flickerjump_now
                 and not can_sudden_storm_now and not can_conquering_tyrant_now
                 and not can_hungry_void_now

@@ -377,7 +377,7 @@ class BattleFocusPool:
 
         Lives here rather than in main.py's phase loop so that "when does
         this stop applying" has one answer and is testable without the game
-        loop - the shape ArdAsNailsController.reset_phase() established.
+        loop - the shape StimInjectorsController.reset_phase() established.
         Callers pass every squad on the board."""
         self._units_this_phase = set()
         self._manoeuvres_this_phase = set()
@@ -558,8 +558,8 @@ class BattleFocusPool:
         angeboten beim consolidate"), not a transcription:
 
           1. BEFORE the unit is selected to fight - the printed trigger,
-             widened backwards the same way War Horde's Unbridled Carnage is
-             bought before the unit fights, and gated on the same predicate.
+             widened backwards the way the before-you-fight Stratagems (Hungry
+             Void, Grim Reapers) are bought before the unit fights.
           2. BEFORE that unit makes its Consolidation move.
 
         Why the second one is not just laxness about the printed trigger:

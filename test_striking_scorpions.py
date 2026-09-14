@@ -224,17 +224,14 @@ no_ability.charged_this_turn = True
 checks.eq("a unit without the ability is unaffected even after charging",
           crit_hit.crit_hit_threshold(no_ability.models[1], melee_only=True), 6)
 
-# Wiring: game/fight.py's hit step must read the FOLDED function, not the old
-# Ork-only one. Asserted by identity rather than by driving a whole fight here -
-# the end-to-end path through the real hit resolution is already covered by
-# test_unbridled_carnage.py, and both sources now go through this same hook, so
-# proving fight.py holds this exact function proves the path.
+# Wiring: game/fight.py's hit step must read the FOLDED function. Asserted by
+# identity rather than by driving a whole fight here - the end-to-end path
+# through the real hit resolution is covered by test_lhykhis.py's section 6,
+# and every melee-worded source goes through this same hook, so proving
+# fight.py holds this exact function proves the path.
 import game.fight as _fight
 checks.true("fight.py reads the folded melee crit threshold",
             _fight.crit_hit_threshold is crit_hit.crit_hit_threshold)
-checks.eq("and the old module no longer defines its own copy",
-          hasattr(__import__("game.unbridled_carnage", fromlist=["x"]),
-                  "crit_hit_threshold"), False)
 
 
 # ------------------------------------------------------------ 5. sprites

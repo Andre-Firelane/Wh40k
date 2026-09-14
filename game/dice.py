@@ -118,7 +118,7 @@ class DiceManager:
         self.rolled_for = None
         # Rule 05.02's critical threshold for THIS roll (an unmodified 6
         # normally; [ANTI-X Y+] 24.03 lowers it on a wound roll, Whispering
-        # Web / Unbridled Carnage / Mandiblasters on a hit roll), plus what
+        # Web / Mandiblasters on a hit roll), plus what
         # a critical die on it actually BUYS - "LETHAL HIT", "SUSTAINED HIT",
         # "DEVASTATING WOUND". User: "markiere bitte die kritischen
         # gewuerfelten treffer mit 'lethal hit', wenn diese Regel aktiv ist."

@@ -42,7 +42,6 @@ T = "test_ork_army_rules.py"
 WIRING = "test_event_chain_wiring.py"
 AUTARCH = "test_autarchs_and_maugan_ra.py"
 SCENE = "test_scene_activation.py"
-ERE = "test_ere_we_go.py"
 ADVANCE = "test_advance_usage.py"
 
 RU = os.path.join("game", "riled_up.py")
@@ -226,9 +225,6 @@ PROBES = [
     ("the 40% share is dropped (two units always suffice)",
      [(AG, "        needed = min(len(own), max(WAR_CRY_MIN_UNITS, math.ceil(WAR_CRY_MIN_SHARE * len(own))))",
        "        needed = min(len(own), max(WAR_CRY_MIN_UNITS, 1))" + MARK)], (T,)),
-    ("'Ere We Go no longer waits for the riled-up turn",
-     [(AG, "    if not any(riled_up.is_riled_up(s) for s in _all_squads(all_tokens) if s.owner == player):",
-       "    if False:" + MARK)], (ERE,)),
     ("the AI's charge planning forgets that riled up keeps the charge",
      [(AG, "        waaagh_charge_ok = riled_up.is_riled_up(squad)",
        "        waaagh_charge_ok = False" + MARK)], (ADVANCE,)),

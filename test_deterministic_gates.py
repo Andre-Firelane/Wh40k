@@ -227,13 +227,15 @@ def body_of(path, marker):
     return src.split(marker, 1)[1]
 
 
-# 'Ard as Nails: is_worth_using() must come AFTER the auto_players branch
-# opens, never before it.
-ard = body_of("game/ard_as_nails.py", "    def maybe_offer(")
-split_at = ard.find("if target.owner in self.auto_players:")
-verdict_at = ard.find("if not is_worth_using(")
-c.true("'Ard as Nails: the verdict is inside the AI branch",
-       0 <= split_at < verdict_at)
+# Undying Spite: is_worth_using() is only ever asked together with the
+# auto_players test, never ahead of it. 'Ard as Nails was the first module with
+# this finding; the 2026-09 Ork codex retired it, and Undying Spite (which cited
+# it) carries the same split.
+spite = body_of("game/dlc_undying_spite.py", "    def maybe_offer(")
+spite_split = spite.find("if target_squad.owner in self.auto_players and not self.is_worth_using(")
+spite_handled = spite.find("self._handled.add(key)")
+c.true("Undying Spite: the verdict is inside the AI branch",
+       0 <= spite_split < spite_handled)
 
 # Sickening Impact: the second module that had it above the split.
 sick = body_of("game/dlc_sickening_impact.py", "    def maybe_offer(")
