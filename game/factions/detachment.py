@@ -70,9 +70,12 @@ class Detachment:
     sharing a tag are mutually exclusive however cheap they are, so this is a
     second, independent restriction on top of the points.
 
-    `force_disposition` is the ONE disposition this detachment permits - a
-    game/force_dispositions.py key, transcribed from the same heading `points`
-    comes from and mirrored into rules/*/detachments/*.md. It decides which
+    `force_dispositions` are the dispositions this detachment permits - a
+    tuple of game/force_dispositions.py keys, transcribed from the same heading
+    `points` comes from and mirrored into rules/*/detachments/*.md. Nearly every
+    detachment prints ONE; the 2026-09 Ork War Horde prints two, so the tuple
+    is the record and `force_disposition` (a property) is its first entry for
+    the older single-key readers. It decides which
     PRIMARY MISSION a list taking this detachment may play. A list fielding
     several detachments picks one of the dispositions they grant and writes it
     down (ArmyList.force_disposition); game/detachments.py's validate() is what
@@ -85,7 +88,7 @@ class Detachment:
 
     def __init__(self, name, rule_text="", enhancements=(), stratagems=(),
                  setting=None, rule_name="", description="", points=0, tag=None,
-                 force_disposition=None):
+                 force_disposition=None, force_dispositions=()):
         self.name = name
         self.faction = None
         self.rule_text = rule_text
@@ -96,4 +99,18 @@ class Detachment:
         self.setting = setting
         self.points = points
         self.tag = tag
-        self.force_disposition = force_disposition
+        # Every disposition this detachment permits, in printed order. Almost
+        # all print one, so the single-key argument stays; War Horde (2026-09
+        # Ork codex) prints two and passes the tuple.
+        if force_dispositions:
+            self.force_dispositions = tuple(force_dispositions)
+        elif force_disposition:
+            self.force_dispositions = (force_disposition,)
+        else:
+            self.force_dispositions = ()
+
+    @property
+    def force_disposition(self):
+        """The FIRST permitted disposition, or None - for the readers that
+        predate the pair. Validation reads force_dispositions, never this."""
+        return self.force_dispositions[0] if self.force_dispositions else None

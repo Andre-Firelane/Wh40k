@@ -1,91 +1,57 @@
 # Blitz Brigade
 
-**Orks** - 2 DP detachment - Force Disposition: Reconnaissance
+**Orks** - 1 DP detachment - Force Disposition: Take and Hold
 
 Source: <https://wahapedia.ru/wh40k11ed/factions/orks/>
 
 ## Detachment rule
 
-### Eager for the Fight
+### Unstoppable Momentum
 
-Each time an ORKS unit from your army disembarks from a TRANSPORT, until the end of the turn, you can re-roll **Advance** and **Charge rolls** made for that ORKS unit.
+- Friendly WAGON units can re-roll **charge rolls**.
+- When a friendly WAGON unit is selected to make an **advance move**, that unit can change **advance rolls** to a 6.
 
 ## Enhancements
 
-### Runnin’ Boots - 10 pts
+### Targetin' Gizmos - 10 pts
 
-ORKS INFANTRY CHARACTER model only. Each time you make a **Charge roll** for the bearer’s unit, if that unit disembarked from a TRANSPORT this turn, add 1 to the result.
+WAGON unit only. While a BIG MEK model is embarked within this unit:
 
-### Blitzkaptin - 25 pts
+- This unit’s ranged attacks have [Ignores Cover].
+- If this unit is **riled up**, this unit’s ranged attacks have [Sustained Hits 1].
 
-ORKS CHARACTER model only. After both players have deployed their armies, if the bearer’s unit (or any TRANSPORT it is embarked within) is on the battlefield, select up to three ORKS VEHICLE units from your army and redeploy them. When doing so, you can set those units up in **Strategic Reserves**, regardless of how many units are already in Strategic Reserves.
+### Boss Boomer - 10 pts
 
-### Supercharged Squig Oil - 10 pts
-
-MEK model only. Each time the bearer uses its Mekaniak ability, until the end of the turn, you can re-roll **Charge rolls** for the selected VEHICLE model’s unit.
-
-### Tuff Git - 5 pts
-
-ORKS INFANTRY CHARACTER model only. At the end of a phase in which the bearer’s unit disembarked from a TRANSPORT, if that unit is **Battle-shocked**, it is no longer Battle-shocked.
+WAGON unit only. While a WARBOSS model is embarked within this unit, this unit has that WARBOSS model’s **Intimidating Motivation**/**Keep Huntin’** ability.
 
 ## Stratagems
 
-### MOUNT UP, LADZ - 1CP
+### KEEP IT RUNNIN' - 1CP
 
-*Blitz Brigade – Strategic Ploy Stratagem*
+*Blitz Brigade Stratagem*
 
 **WHEN:** End of the Fight phase.
 
-**TARGET:** One ORKS INFANTRY unit from your army that is not within **Engagement Range** of one or more enemy units, and one friendly TRANSPORT it is able to embark within.
+**TARGET:** One friendly **unengaged** ORKS INFANTRY unit that was **eligible to fight** this phase and is wholly within 6" of a friendly TRANSPORT unit that INFANTRY unit is able to embark within.
 
-**EFFECT:** If your ORKS INFANTRY unit is wholly within 6" of that TRANSPORT, it can embark within it.
+**EFFECT:** Your INFANTRY unit embarks within that TRANSPORT unit.
 
-### MEKANISED BRUTALITY - 1CP
+### READIED BRAWLERS - 1CP
 
-*Blitz Brigade – Strategic Ploy Stratagem*
+*Blitz Brigade Stratagem*
 
-**WHEN:** Your Movement phase.
+**WHEN:** Your Movement phase, when a friendly WAGON unit ends a **normal move**.
 
-**TARGET:** One BATTLEWAGON, KILL RIG or HUNTA RIG unit from your army that has not been **selected to move** this phase.
+**TARGET:** That WAGON unit.
 
-**EFFECT:** When this unit ends a **normal move**, units embarked within this unit can make an **assault disembark move** (Core Rules, 18.06).
+**EFFECT:** Units embarked within your unit can make an **assault disembark move**.
 
-### RUN ’EM DOWN - 1CP
+### IMPENDING KRUNCH - 1CP
 
-*Blitz Brigade – Strategic Ploy Stratagem*
+*Blitz Brigade Stratagem*
 
-**WHEN:** Your Movement phase.
+**WHEN:** Your Charge phase, when a friendly WAGON unit ends a **charge move**.
 
-**TARGET:** One BATTLEWAGON, KILL RIG or HUNTA RIG unit from your army that has not been selected to move this phase.
+**TARGET:** That WAGON unit.
 
-**EFFECT:** Select up to two other friendly ORKS VEHICLE or ORKS MONSTER units within 6" of your unit. Until the end of the turn, your unit and each unit you selected are eligible to declare a charge in a turn in which they Advanced.
-
-### ARMOURED DUELLISTS - 1CP
-
-*Blitz Brigade – Battle Tactic Stratagem*
-
-**WHEN:** Your Shooting phase.
-
-**TARGET:** One ORKS VEHICLE unit from your army that has not been selected to shoot this phase.
-
-**EFFECT:** Until the end of the phase, each time your unit makes an attack that targets a MONSTER or VEHICLE unit, add 1 to the Hit roll and add 1 to the Wound roll.
-
-### IMPERVIOUS - 1CP
-
-*Blitz Brigade – Strategic Ploy Stratagem*
-
-**WHEN:** Your opponent’s Shooting phase, just after an enemy unit has selected its targets.
-
-**TARGET:** One BATTLEWAGON, KILL RIG or HUNTA RIG unit from your army that was selected as the target of one or more of the attacking unit’s attacks.
-
-**EFFECT:** Until the end of the phase, each time an attack targets your unit, if the Strength characteristic of that attack is greater than the Toughness characteristic of your unit, subtract 1 from the Wound roll.
-
-### YOOZ IN TROUBLE NOW - 1CP
-
-*Blitz Brigade – Strategic Ploy Stratagem*
-
-**WHEN:** Your opponent’s Shooting phase, just after an enemy unit has shot.
-
-**TARGET:** One BATTLEWAGON, HUNTA RIG or KILL RIG model from your army that was hit by one or more of the attacking unit’s attacks.
-
-**EFFECT:** One ORKS INFANTRY unit embarked within your model makes a **disembark move**, then makes a **surge move** of up to D6”.
+**EFFECT:** Each enemy unit **engaged** with your unit makes a **battle-shock roll**, with -1 to that **battle-shock roll**.

@@ -4,30 +4,66 @@ Source: <https://wahapedia.ru/wh40k11ed/factions/orks/>
 
 ## Waaagh!
 
-If your Army Faction is ORKS, once per battle, at the start of your Command phase, you can call a Waaagh!. If you do, until the start of your next Command phase, the Waaagh! is active for your army and:
+Friendly ORKS units with this ability can:
 
-- Units from your army with this ability are eligible to declare a charge in a turn in which they Advanced.
-- Add 1 to the Strength and Attacks characteristics of melee weapons equipped by models from your army with this ability.
-- Models from your army with this ability have a 5+ invulnerable save.
+- Re-roll advance rolls**.**
+- Become **riled up**, as stated in other rules.
+While a unit is **riled up**:
 
-## FAQ / Errata
+  - That unit has 5+ InSv.
+  - That unit’s ranged attacks have [ASSAULT].
+  - When that unit is selected to make an advance move, that **advance move** does not prevent that unit from being eligible to declare a charge.
 
-FAQ
+**War Cry (Once per battle, per army):** At the start of the Command phase, you can use this ability. If you do, friendly ORKS units with the **Waaagh!** ability are **riled up** until the end of the next turn.
 
-Q:If a unit has an ability that checks if the Waaagh! is active for your army in order for that ability to take effect (e.g. the Meganobz’ Krumpin’ Time ability), does that ability take effect if another rule makes the Waaagh! active for that unit (e.g. the Bully Boyz Detachment rule)?
+## Da Boss
 
-A:
-Yes.
+At the start of the battle round, if a model with this ability is your WARLORD, gain 1CP.
 
-Q:If a model has an ability that triggers when you call a Waaagh! and that model is embarked within a TRANSPORT when this happens (e.g. a Warboss’ Da Biggest and da Best ability), does that ability take effect?
+## Unstable Energies
 
-A:
-Yes.
+ORKS PSYKER units with this ability have a **psyker level** of 1 or higher, specified in that unit’s abilities. Each **psychic ability** has a **psychic level** of 1 or higher, specified in that ability’s name.
 
-Errata
+In a battle round, a friendly ORKS PSYKER unit can use a number of psychic abilities whose total **psychic level** does not exceed that PSYKER unit’s **psyker level**.
 
-Waaagh! Army Rule
+## Special Move Types
 
-Change first paragraph to:
+The following are special **move types** that certain or all of your units are eligible to make.
 
-‘If your Army Faction is ORKS, once per battle, at the start of your Command phase, you can call a Waaagh!. If you do, until the start of your next Command phase, the Waaagh! is active for your army and:’
+PULSE JET MOVE
+
+**MAXIMUM DISTANCE:** Pulse roll + 18"
+
+**ELIGIBLE IF:** As stated in the rule allowing this move type.
+
+**EFFECT:** Your unit moves as described in Moving (Core Rules, 03).
+
+**BEFORE MOVING:**
+
+- Make a **pulse roll** by rolling one D6.
+
+**WHILE MOVING:**
+
+- Ignore all vertical distance for the purposes of how far your unit has moved.
+- Your unit can move through all types of model.
+- Your unit can move horizontally and vertically through all categories of terrain feature.
+
+**AFTER MOVING:**
+
+- Your unit must be unengaged.
+- Until the end of the turn, your unit is not eligible to declare a charge or start an action.
+- Until the start of your next turn, attacks that target your unit have -1 to hit rolls.
+
+ASSAULT DISEMBARK MOVE18.06
+
+**SET-UP DISTANCE:** 3"
+
+**ELIGIBLE IF:**
+
+- Embarked within a TRANSPORT on the battlefield
+- Did not embark within that TRANSPORT this phase
+- That TRANSPORT has not made an **advance**/**fall-back move** this phase
+
+**EFFECT:** Set up as described in Set Up (03.02).
+
+**WHILE MOVING:** Set up each model wholly within the **set-up distance** of that TRANSPORT.

@@ -222,13 +222,22 @@ if CACHE_READY:
           str(names))
 
     # -- nested wargear lists -------------------------------------------
+    # One sheet per LAYOUT: rules/orks/ has been refetched in the 2026-09
+    # layout, the other four folders are still the old one, and the nested
+    # <ul> is rendered by the same code in both - which is exactly what has to
+    # stay true.
+    guardians_md = corpus_text("aeldari", "Guardian Defenders")
+    old_wargear = md_section(guardians_md, "Wargear Options")
+    check("a nested wargear sub-choice is indented, not flattened (old layout)",
+          "\n  - 1 missile launcher" in "\n" + old_wargear,
+          old_wargear.split("\n")[1] if old_wargear else "")
     boyz_md = corpus_text("orks", "Boyz")
     wargear = md_section(boyz_md, "Wargear Options")
-    check("a nested wargear sub-choice is indented, not flattened",
-          "\n  - 1 big choppa and 1 kustom shoota" in "\n" + wargear,
+    check("...and in the 2026-09 layout",
+          "\n  - 1 Kombi-rokkit" in "\n" + wargear,
           wargear.split("\n")[1] if wargear else "")
     check("consecutive bullets are not separated by blank lines",
-          "\n\n- Any number of Boyz" not in wargear)
+          "\n\n- Any number of Nob models" not in wargear and "- Any number of Nob models" in wargear)
 
     # -- points tiers ----------------------------------------------------
     # Both tiers live in ONE table as two header rows; reading the header once
@@ -256,19 +265,26 @@ if CACHE_READY:
           "5+*" in md_section(corpus_text("aeldari", "Rangers"), "Profile"))
 
     # -- multi-profile statlines ----------------------------------------
-    boyz = sheet_named("orks", "Boyz")
-    check("both model profiles are parsed", len(boyz["profiles"]) == 2,
-          str(len(boyz["profiles"])))
-    check("characteristic names carry over to the second profile "
-          "(only the first prints them)",
-          boyz["char_names"] == ["M", "T", "SV", "W", "LD", "OC"],
-          str(boyz["char_names"]))
-    check("each profile keeps its own model label and base",
-          [p["label"] for p in boyz["profiles"]] == ["BOY", "BOSS NOB"],
-          str([p["label"] for p in boyz["profiles"]]))
-    check("the Boss Nob's extra wound is not lost",
-          boyz["profiles"][1]["values"][3] == "2",
-          str(boyz["profiles"][1]["values"]))
+    # Both layouts, because both are live in the corpus: the old one on the
+    # Aeldari page, the 2026-09 one on the refetched Ork page.
+    _empty = {"profiles": [], "char_names": []}
+    for slug, sheet, labels, wounds in (
+            ("aeldari", "Dire Avengers", ["DIRE AVENGER", "DIRE AVENGER EXARCH"], "2"),
+            ("orks", "Boyz", ["Boy", "Nob"], "3")):
+        parsed = sheet_named(slug, sheet) or _empty
+        profiles = parsed["profiles"]
+        check("%s: both model profiles are parsed" % sheet, len(profiles) == 2,
+              str(len(profiles)))
+        check("%s: characteristic names carry over to the second profile "
+              "(only the first prints them)" % sheet,
+              parsed["char_names"] == ["M", "T", "SV", "W", "LD", "OC"],
+              str(parsed["char_names"]))
+        check("%s: each profile keeps its own model label" % sheet,
+              [p["label"] for p in profiles] == labels,
+              str([p["label"] for p in profiles]))
+        check("%s: the second line's extra wound is not lost" % sheet,
+              len(profiles) == 2 and profiles[1]["values"][3] == wounds,
+              str(profiles[1]["values"]) if len(profiles) == 2 else "")
 
     # -- the Damaged profile --------------------------------------------
     # Its dsHeader carries a <span class="dsSkull2"> icon, not a "...Icon"
@@ -376,7 +392,7 @@ for folder, _slug, _faction in F.FACTIONS:
 DETACHMENT_COUNTS = {
     # Measured on the live pages. A count that drops is the signal that the
     # page shape moved, which is the only way this corpus can go quietly wrong.
-    "aeldari": 15, "orks": 13, "necrons": 12, "tau_empire": 7, "death_guard": 9,
+    "aeldari": 15, "orks": 15, "necrons": 12, "tau_empire": 7, "death_guard": 9,
 }
 for folder, expected_count in sorted(DETACHMENT_COUNTS.items()):
     found = glob.glob(os.path.join("rules", folder, "detachments", "*.md"))
@@ -611,6 +627,182 @@ check("--detachment that names nothing is an error, not a silent no-op",
       "--detachment named no known detachment" in src)
 check("the faction page is cached under its own name",
       '"%s-faction" % slug' in src)
+
+
+# --- 6. The 2026-09 datasheet LAYOUT ---------------------------------------
+# Wahapedia moved the Ork page to a new datasheet layout (2026-09), and the old
+# parser read it WITHOUT an error while losing four things: the KEYWORDS bar
+# (its class attribute grew a second class), the CORE and FACTION lines (they
+# moved into a table the section cutter either swallowed into MELEE WEAPONS or
+# glued onto WARGEAR OPTIONS), a Hunter profile's condition (a row of its own
+# above the weapon), and the Damaged X marker. Each is pinned twice: on a
+# committed, INVENTED fixture - so it runs on a fresh clone, where rules/.cache/
+# is absent - and on the refetched Ork corpus itself. Sections 3 and 5 keep
+# running against the old layout, which the other four factions still use.
+print("\n6. The 2026-09 datasheet layout")
+
+FIXTURE_PATH = os.path.join("testdata", "wahapedia_new_layout_blocks.html")
+fixture_html = (io.open(FIXTURE_PATH, encoding="utf-8").read()
+                if os.path.exists(FIXTURE_PATH) else "")
+fixture = {}
+for _block in F.split_blocks(fixture_html):
+    _parsed = F.parse_datasheet(_block)
+    fixture[_parsed["name"]] = _parsed
+check("the committed fixture parses into its two invented datasheets",
+      sorted(fixture) == ["Test Brute", "Test Mob"], str(sorted(fixture)))
+_empty_sheet = {"keywords": "", "faction_keywords": "", "damaged": "",
+                "sections": [], "weapons": []}
+brute = fixture.get("Test Brute") or _empty_sheet
+mob = fixture.get("Test Mob") or _empty_sheet
+
+
+def _section_of(parsed, title):
+    return next((text for t, text in parsed["sections"] if t == title), "")
+
+
+check("the KEYWORDS bar is read although its class grew a second class",
+      brute["keywords"] == "KEYWORDS: VEHICLE; TEST BRUTE", brute["keywords"])
+check("...and so is the FACTION KEYWORDS bar beside it",
+      brute["faction_keywords"] == "FACTION KEYWORDS: TESTERS", brute["faction_keywords"])
+check("...on both blocks", mob["keywords"] == "KEYWORDS: INFANTRY; MOB", mob["keywords"])
+
+_brute_abilities = _section_of(brute, "ABILITIES")
+check("a core table after MELEE WEAPONS is not swallowed: CORE and FACTION head ABILITIES",
+      _brute_abilities.startswith("CORE: **Damaged 4, Deep Strike**\n\nFACTION: **Test Rally**"),
+      _brute_abilities[:60])
+check("...and the section's own ability still follows them",
+      "**Invented Stomp:**" in _brute_abilities)
+_mob_abilities = _section_of(mob, "ABILITIES")
+check("a core table after WARGEAR OPTIONS is not glued onto them",
+      _mob_abilities.startswith("FACTION: **Test Rally**")
+      and "Test Rally" not in _section_of(mob, "WARGEAR OPTIONS"),
+      _mob_abilities[:60])
+check("moving the lines never duplicates the ABILITIES section",
+      [t for t, _ in brute["sections"]].count("ABILITIES") == 1
+      and [t for t, _ in mob["sections"]].count("ABILITIES") == 1)
+
+check("the Damaged marker is read", brute["damaged"] == "4", repr(brute["damaged"]))
+check("...and agrees with the Damaged X its CORE line prints",
+      bool(brute["damaged"]) and ("Damaged %s" % brute["damaged"]) in _brute_abilities)
+check("...while a sheet without one reads none", mob["damaged"] == "", repr(mob["damaged"]))
+
+_fixture_rows = {row["name"]: row for table in brute["weapons"] for row in table["rows"]}
+check("weapon names lose the new layout's bold markers",
+      sorted(_fixture_rows) == ["Test Choppa", "Test Launcha - Hunter", "Test Launcha - Standard"],
+      str(sorted(_fixture_rows)))
+_hunter = _fixture_rows.get("Test Launcha - Hunter") or {"keywords": []}
+_standard = _fixture_rows.get("Test Launcha - Standard") or {"keywords": []}
+check("the Hunter row's condition lands on the Hunter profile's keywords",
+      _hunter["keywords"] == ["HUNTER: MONSTER/VEHICLE"], str(_hunter["keywords"]))
+check("...and not on the Standard profile printed above it",
+      "HUNTER: MONSTER/VEHICLE" not in _standard["keywords"], str(_standard["keywords"]))
+check("a conditional keyword survives whole, colon and all",
+      "LETHAL HITS: non-MONSTER/VEHICLE" in _standard["keywords"], str(_standard["keywords"]))
+
+_brute_md = F.render_markdown(brute, "Testers", "testers") if "name" in brute else ""
+check("the rendered file carries the KEYWORDS bar and the CORE line",
+      "\nKEYWORDS: VEHICLE; TEST BRUTE\n" in _brute_md
+      and "\nCORE: **Damaged 4, Deep Strike**\n" in _brute_md)
+
+# The two labels the table prints are mapped; a third one is a layout change
+# nobody has looked at, and dropping it would lose rule text without a sound.
+try:
+    for _block in F.split_blocks(fixture_html.replace("ARMY RULES", "SOMETHING NEW")):
+        F.parse_datasheet(_block)
+    _raised = False
+except SystemExit:
+    _raised = True
+check("an unknown core-table row aborts the run instead of being dropped", _raised)
+check("...while a body with no core table (the old layout) passes through untouched",
+      F.extract_core_army("<div>old layout</div>") == ("<div>old layout</div>", [], None))
+
+# -- the refetched Ork corpus ------------------------------------------------
+_ork_files = sorted(p for p in glob.glob(os.path.join("rules", "orks", "*.md"))
+                    if os.path.basename(p) != "army_rules.md")
+check("the Ork folder holds one file per built Ork datasheet",
+      len(_ork_files) == len(orks.ORKS.datasheets) and len(_ork_files) > 10,
+      "%d files, %d built" % (len(_ork_files), len(orks.ORKS.datasheets)))
+_bars_missing = []
+for _path in _ork_files:
+    _text = corpus_text_path(_path)
+    if (len(re.findall(r"^KEYWORDS: ", _text, re.M)) != 1
+            or not re.search(r"^FACTION KEYWORDS: ORKS$", _text, re.M)
+            or not re.search(r"^FACTION: \*\*.*Waaagh!.*\*\*$", _text, re.M)):
+        _bars_missing.append(os.path.basename(_path))
+check("every Ork sheet carries its KEYWORDS bar and its FACTION line",
+      not _bars_missing, str(_bars_missing))
+
+_beastboss = corpus_text("orks", "Beastboss")
+check("Beastboss (table swallowed by MELEE WEAPONS) keeps CORE and FACTION in its abilities",
+      md_section(_beastboss, "Abilities").startswith(
+          "CORE: **Feel No Pain 6+, Leader**\n\nFACTION: **Da Boss, Waaagh!**"))
+_warboss = corpus_text("orks", "Warboss")
+check("Warboss (table glued onto WARGEAR OPTIONS) keeps them in its abilities too",
+      md_section(_warboss, "Abilities").startswith(
+          "CORE: **Leader**\n\nFACTION: **Da Boss, Waaagh!**")
+      and "Da Boss" not in md_section(_warboss, "Wargear Options"))
+check("no Ork weapon row keeps the bold name marker",
+      not [os.path.basename(p) for p in _ork_files
+           if re.search(r"^\| \*\*", corpus_text_path(p), re.M)])
+check("Tankbustas' Hunter rows carry their printed condition",
+      re.search(r"^\| Busta Rokkit Launcha - Hunter \|.*\| HUNTER: MONSTER/VEHICLE \|$",
+                corpus_text("orks", "Tankbustas"), re.M) is not None)
+
+_war_horde = corpus_text_path(os.path.join("rules", "orks", "detachments", "War Horde.md"))
+check("War Horde's heading prints BOTH of its Force Dispositions",
+      "Force Disposition: Take and Hold; Purge the Foe" in _war_horde)
+_withdrawn = ["Equatorial Hordes", "Freebooter Krew", "More Dakka!", "Rollin' Deff",
+              "Speedwaaagh!"]
+check("the five detachments GW withdrew left no file behind",
+      not [n for n in _withdrawn if os.path.exists(os.path.join(
+          "rules", "orks", "detachments", "%s.md" % F.safe_filename(n)))])
+
+# A one-faction refresh still rewrites rules/README.md and rebuilds the other
+# factions' rows from the files on disk. Run through the real writer, those
+# rows must reproduce the committed README - otherwise `--faction orks`
+# quietly drops or reorders the other four.
+import shutil  # noqa: E402
+import tempfile  # noqa: E402
+
+_index_rows, _detachment_rows = [], []
+for _folder, _slug, _faction in F.FACTIONS:
+    _index_row, _detachment_row = F._index_rows_from_disk(_folder, _faction)
+    if _index_row:
+        _index_rows.append(_index_row)
+    if _detachment_row:
+        _detachment_rows.append(_detachment_row)
+_saved_out_dir = F.OUT_DIR
+_tmp_dir = tempfile.mkdtemp()
+try:
+    F.OUT_DIR = _tmp_dir
+    F.write_index(_index_rows, _detachment_rows)
+    _rebuilt_readme = io.open(os.path.join(_tmp_dir, "README.md"), encoding="utf-8").read()
+finally:
+    F.OUT_DIR = _saved_out_dir
+    shutil.rmtree(_tmp_dir, ignore_errors=True)
+
+
+def _undated(text):
+    return [line for line in text.splitlines() if not line.startswith("Last fetched:")]
+
+
+check("every faction's README rows rebuild from disk",
+      len(_index_rows) == len(F.FACTIONS) and len(_detachment_rows) == len(F.FACTIONS),
+      "%d / %d" % (len(_index_rows), len(_detachment_rows)))
+_committed_readme = corpus_text_path(os.path.join("rules", "README.md"))
+check("...and reproduce the committed rules/README.md line for line, date aside",
+      bool(_committed_readme) and _undated(_rebuilt_readme) == _undated(_committed_readme))
+
+# -- source guards -----------------------------------------------------------
+check("--faction is a flag, and a folder that does not exist is an error",
+      'add_argument("--faction"' in src and "--faction named no known faction folder" in src)
+check("a one-faction run takes the other factions' rows from disk",
+      "_index_rows_from_disk(folder, faction)" in src)
+_write_rules_src = src.split("def _write_faction_rules")[-1].split("\ndef ")[0]
+_guard_at = _write_rules_src.find("if not only_detachments:", _write_rules_src.find("names.append"))
+check("a withdrawn detachment's file is removed only on a full faction pass",
+      _guard_at != -1 and "no longer on the page" in _write_rules_src
+      and _guard_at < _write_rules_src.find("os.remove("))
 
 print(f"\n{len(PASS)}/{len(PASS) + len(FAIL)} checks passed")
 if FAIL:

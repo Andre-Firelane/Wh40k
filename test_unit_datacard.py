@@ -199,9 +199,9 @@ titles = [a.title for _, abilities in groups for a in abilities if a.title]
 # Hovering a rank-and-file Boy is exactly the case a single squad.datasheet
 # gets wrong: it would show the Boyz' own rules and nothing of the characters
 # merged into the unit.
-checks.true("the bodyguard's own rule is shown", "Get Da Good Bitz" in titles)
-checks.true("the Warboss's rule is shown too", "Might is Right" in titles)
-checks.true("and the Painboy's", "Dok's Toolz" in titles)
+checks.true("the bodyguard's own rule is shown", "Tide of Muscle" in titles)
+checks.true("the Warboss's rule is shown too", "Might Is Right" in titles)
+checks.true("and the Painboy's", "Crude Surgery" in titles)
 
 # A plain unit gets no component heading - there is one datasheet, and naming
 # it would just repeat the card's own title.

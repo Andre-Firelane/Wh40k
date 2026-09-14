@@ -16,12 +16,8 @@
 
 | Weapon | RANGE | A | WS | S | AP | D | Keywords |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Power klaw | Melee | 3 | 4+ | 9 | -2 | 2 |  |
-| ’Urty syringe | Melee | 1 | 3+ | 2 | 0 | 1 | anti-infantry 4+, extra attacks, precision |
-
-## Wargear Options
-
-- This model can be equipped with 1 grot orderly.
+| ’Urty Syringe | Melee | 1 | 3+ | 2 | 0 | D6 | anti-infantry 4+, DEVASTATING WOUNDS: INFANTRY, Extra Attacks |
+| Dok’s Toolz | Melee | 3 | 3+ | 10 | -2 | 2 |  |
 
 ## Abilities
 
@@ -29,27 +25,23 @@ CORE: **Support**
 
 FACTION: **Waaagh!**
 
-**Dok’s Toolz:** While this model is leading a unit, models in that unit have the Feel No Pain 5+ ability.
+**Crude Surgery:** In your Command phase, this unit **heals** 3 wounds.
 
-**Hold Still and Say ‘Aargh!’:** Each time an attack made by this model with its ’urty syringe scores a Critical Wound against a unit (excluding VEHICLE units), that unit suffers D6 **mortal wounds**.
+**Catch Dat Red Bit (Once per battle, per unit):** When this model uses its **Crude Surgery** ability, you can add D3 to the number of wounds **healed**.
 
-## Wargear Abilities
-
-**Grot Orderly:** Once per battle, in your Command phase, if the bearer is leading a unit that is below its Starting Strength, you can return up to D3 destroyed **Bodyguard** models to that unit.
-
-**Designer’s Note:** Place a Grot Orderly token next to the unit, removing it once this ability has been used
+Place a Grot Orderly token next to the unit, removing it when this ability is used.
 
 ## Unit Composition
 
-- 1 Painboy
+- 1 Painboy model
 
-**This model is equipped with:** power klaw; ’urty syringe.
+**This model is equipped with:** 1 Dok’s Toolz; 1 ’Urty Syringe.
 
 ## Points
 
 | Unit | Models | Points |
 | --- | --- | --- |
-| YOUR UNIT COSTS | 1 model | 90 |
+| YOUR UNIT COSTS | 1 model | 45 |
 
 ## Support
 
@@ -57,13 +49,12 @@ This model can be attached to the following units:
 
 - BOYZ
 - BREAKA BOYZ
-- BURNA BOYZ
-- LOOTAS
+- FLASH GITZ
 - NOBZ
 - TANKBUSTAS
 
 ## Keywords
 
-KEYWORDS: INFANTRY; CHARACTER; PAINBOY
+KEYWORDS: INFANTRY; CHARACTER
 
 FACTION KEYWORDS: ORKS

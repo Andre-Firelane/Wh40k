@@ -2,10 +2,12 @@
 
 WHAT A FORCE DISPOSITION IS
 ---------------------------
-Every detachment permits exactly ONE Force Disposition, printed on the
+Every detachment permits at least one Force Disposition, printed on the
 detachment itself (Wahapedia renders it as an icon beside the DP cost in the
 detachment's own heading; see fetch_datasheet_rules.py's
 heading_force_dispositions(), which transcribes it into rules/*/detachments/).
+Nearly all print exactly one; the 2026-09 Ork War Horde prints two ("Take and
+Hold; Purge the Foe"), which is what from_printed_list() below is for.
 A list that fields SEVERAL detachments may pick one of the dispositions they
 grant, and that pick is written down as part of the list - user: "jedes
 detachment hat zugang zu einer force disposition. diese waehlt man beim listen
@@ -65,6 +67,16 @@ def from_printed(text):
     holds against what GW printed, instead of comparing two hand-typed lists.
     """
     return _BY_PRINTED.get((text or "").strip().lower())
+
+
+def from_printed_list(text):
+    """The keys for a printed LIST of dispositions, in printed order.
+
+    One detachment can print more than one: the 2026-09 Ork War Horde's heading
+    reads "Take and Hold; Purge the Foe". They are separated by ";". An unknown
+    name comes back as None IN ITS SLOT rather than being dropped, so a test can
+    tell "GW printed a sixth disposition" apart from "none printed at all"."""
+    return tuple(from_printed(part) for part in (text or "").split(";") if part.strip())
 
 
 def is_valid(key):

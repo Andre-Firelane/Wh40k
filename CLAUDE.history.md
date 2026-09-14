@@ -9350,3 +9350,66 @@ Treibers war verloren (nicht geflusht). Anhand des Markers zurückgesetzt, jeden
 Diff-Größe unverändert. Daraus: ein realer latenter Hänger (Listener ruft `cancel()` im Loop) → Guard im
 Drain; Treiber mit Suite-Timeout und Zeilenpuffer; Leftover-Check nur noch auf `*.py` (CLAUDE.md nennt den
 Marker in Prosa, der alte Check hätte eine gescheiterte Rückstellung gemeldet). Sondenlauf 2: 9/9 beißend.
+
+## 2026-09-14 — Orks, Etappe 0: neues Wahapedia-Layout, Korpus-Refresh, Übergang
+
+**Auftrag:** "Orks haben neue Regeln bekommen. Aktualisiere die Armeeregel, das Detachment und die
+Datasheets, die jetzt schon angelegt sind." Plan in Etappen (E0 Korpus, E1 Armeeregel, E2 War
+Horde, E3a-e Datenblätter), nach jeder Etappe Regression, Commit, Push, Bericht, Stopp.
+User-Entscheidungen: KI voll deterministisch; Da Boss belegter No-op; `armies/orks.json` nur
+minimal lauffähig (ein App-Export folgt); War Cry in jeder Command-Phase; Dodge Dis! wörtlich
+(+1 auf eigene Treffer); Kill-Rig-Psychic-Roll wirkt immer, eine 1 schockt zusätzlich; Orks Is
+Never Beaten = kämpft mit, sonst nichts. Nur Orks neu holen; die übrigen Fraktionen müssen offline
+byte-identisch bleiben.
+
+**Gemessen vor jeder Änderung** (Live-Seite in memory gegen `rules/orks/*.md`): alle 17 gebauten
+Ork-Blätter geändert, Armeeregel neu (Waaagh! = Advance-Reroll + "riled up" + War Cry, Da Boss,
+Unstable Energies, Special Move Types), War Horde mit zwei Dispositionen, 4 neuen Enhancements und
+6 neuen Stratagems, 15 statt 13 Detachments. Und: **das Seitenlayout ist neu**, und der alte Parser
+las es ohne Fehler, während er KEYWORDS, die CORE/FACTION-Zeile, die Hunter-Bedingung und Damaged X
+verlor.
+
+**Parser (beide Layouts):** Keyword-Regex mit Zusatzklassen; äußeres `**…**` um Waffennamen weg;
+`dsHunterKwRow` → `HUNTER: MONSTER/VEHICLE` auf die nächste Zeile; `table.dsCoreArmy` VOR dem
+Sektionsschnitt herausgelöst und als `CORE:`/`FACTION:` an den Kopf von ABILITIES gesetzt (sonst
+schluckt MELEE WEAPONS sie bei Beastboss bzw. klebt sie an WARGEAR OPTIONS bei Warboss); unbekanntes
+Label → `SystemExit`; `dsCharDamagedVal` gelesen; `"Psychic Abilities"` in
+`rules_text.ABILITY_SECTIONS`. **Gegenprobe:** alle fünf alten Caches in memory gegen den Korpus
+re-gerendert → 255 Dateien, 0 Differenzen.
+
+**`--faction FOLDER`** plus `_index_rows_from_disk()`: ein Ein-Fraktions-Lauf schreibt die README
+weiter für alle fünf; `--offline` und `--offline --faction orks` erzeugen byte-identische READMEs.
+**Veraltete Detachment-Dateien** werden auf einem vollen Fraktionslauf gelöscht (mit Ausgabe).
+Live-Refresh der Orks: 17 Blätter, army_rules, 8 Detachments geändert, 5 gelöscht (Equatorial Hordes,
+Freebooter Krew, More Dakka!, Rollin' Deff, Speedwaaagh!), 7 neu (Brute Bosses, Flyboyz, Madcap
+Meks, Runt Swarm, Shoota Boyz, Wreckas, Wurrband).
+
+**Zwei eigene Fallen:** der Cyrillic-С stand in der Fixture zuerst als `&#1057;`-Entity und hätte
+nie gematcht (per Zählung ersetzt und belegt); und `split_blocks()` liefert Dicts, nicht Strings.
+Die Tooltip-Definitionen der Kernregeln stehen nicht auf der Datenblatt-Seite, sondern auf
+`the-rules/core-rules/` (BLAST 24.05, CLEAVE 24.06, bedingte Fähigkeiten 24.01.01, Hunter 04.01.03,
+Damaged X 24.39, Heal 02.02.04, HAZARDOUS 24.15 gelesen).
+
+**Force-Disposition-Paar:** `Detachment.force_dispositions` (Tupel) + Property, `from_printed_list()`,
+Validierung gegen die Vereinigung, WAR_HORDE mit beiden; die Ork-Liste bleibt bei Take and Hold
+(`test_force_dispositions.py` pinnt, dass eine Liste mit Purge the Foe legal ist und Unstoppable
+Force spielt).
+
+**Übergang ohne ungeklärtes Rot:** der erste volle Lauf nach dem Refresh war **227 grün / 5 rot /
+1 bekannt** — alle fünf vom neuen Korpus. Vier waren Pins auf verschwundenen Text (Battlewagons
+"Damaged:"-Sektion und 'Ard Case, "Get Da Good Bitz"/"Might is Right"/"Dok's Toolz", "call a
+Waaagh!", 13 Ork-Detachments) und sind auf Blätter umgezogen, die die Aussage weiter tragen (Falcon
+für die Damaged-Form, Gretchins "Thievin' Scavengers" für die Apostroph-Faltung, die neuen Titel).
+Der fünfte ist die eigentliche Übergangsfrage: `test_weapon_characteristics.py` meldete 24 Wert- und
+22 Keyword-Abweichungen, alle Ork, alle geplant. `CORPUS_AHEAD` sammelt sie, dreifach bewacht; die
+vier alten Ork-Ausnahmen (Grot-Smacka, Spiked Wheel, Dread Klaw, Stikka Kannon) sind entfallen —
+die zwei Keyword-Ausnahmen wären sonst vom "rottet nicht"-Wächter gemeldet worden, weil ihre Blätter
+jetzt vor der Ausnahmeprüfung abzweigen.
+
+**Sonden:** `ab_weapon_characteristics.py` **19/19** — drei neue auf die Übergangsmenge (ein
+Nicht-Ork-Blatt geparkt; ein noch abweichendes Ork-Blatt herausgenommen; Abweichungen nicht mehr
+gezählt). Die alte "echter Namensdrift"-Sonde hing an Grot-Smacka und zielt jetzt auf den Missile
+Pod des Riptide.
+
+**Nicht gemacht, benannt:** der Damaged-X-Vergleich in `verify_rules_vs_engine.py` (im Plan als
+optional) — er gehört zu E3d, wo die Ork-Fahrzeuge ihre Damaged-Stufe neu bekommen.

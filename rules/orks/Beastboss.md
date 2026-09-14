@@ -10,42 +10,44 @@
 
 | M | T | SV | W | LD | OC | INSV |
 | --- | --- | --- | --- | --- | --- | --- |
-| 6" | 5 | 4+ | 6 | 6+ | 1 | 5+ |
+| 6" | 6 | 4+ | 6 | 6+ | 1 | 5+ |
 
 ## Ranged Weapons
 
 | Weapon | RANGE | A | BS | S | AP | D | Keywords |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Shoota | 18" | 2 | 4+ | 4 | 0 | 1 | rapid fire 1 |
+| Shoota | 18" | 2 | 4+ | 4 | 0 | 1 | LETHAL HITS: non-MONSTER/VEHICLE, Rapid Fire 1 |
 
 ## Melee Weapons
 
 | Weapon | RANGE | A | WS | S | AP | D | Keywords |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Beast Snagga klaw | Melee | 4 | 3+ | 10 | -2 | 2 | anti-monster 4+, anti-vehicle 4+ |
-| Beastchoppa | Melee | 6 | 2+ | 6 | -1 | 2 | anti-monster 4+, anti-vehicle 4+ |
+| Beast Snagga Klaw and Beastchoppa | Melee | 6 | 2+ | 12 | -2 | 2 | SUSTAINED HITS 2: MONSTER/VEHICLE |
 
 ## Abilities
 
 CORE: **Feel No Pain 6+, Leader**
 
-FACTION: **Waaagh!**
+FACTION: **Da Boss, Waaagh!**
 
-**Beastboss:** While this model is leading a unit, each time a model in that unit makes a melee attack, add 1 to the Hit roll.
+**Keep Huntin’! (Once per battle round, per army):** In your Movement phase, at the start or end of this unit’s move, you can select one friendly BEAST SNAGGA unit within 6" of this unit. That unit:
 
-**Beastly Rage:** Each time this model makes a **Charge move**, until the end of the turn, melee weapons it is equipped with have the [DEVASTATING WOUNDS] ability.
+- Is no longer **battle-shocked**.
+- Is **riled up** until the start of your next turn.
+
+**Dodge Dis!:** This unit’s attacks have +1 to **hit rolls**.
 
 ## Unit Composition
 
-- 1 Beastboss
+- 1 Beastboss model
 
-**This model is equipped with:** shoota; beastchoppa; Beast Snagga klaw.
+**This model is equipped with:** 1 Shoota; 1 Beast Snagga Klaw and Beastchoppa.
 
 ## Points
 
 | Unit | Models | Points |
 | --- | --- | --- |
-| YOUR UNIT COSTS | 1 model | 80 |
+| YOUR UNIT COSTS | 1 model | 85 |
 
 ## Leader
 
@@ -55,6 +57,6 @@ This model can be attached to the following unit:
 
 ## Keywords
 
-KEYWORDS: INFANTRY; CHARACTER; BEAST SNAGGA; WARBOSS; BEASTBOSS
+KEYWORDS: INFANTRY; BEAST SNAGGA; CHARACTER; WARBOSS
 
 FACTION KEYWORDS: ORKS

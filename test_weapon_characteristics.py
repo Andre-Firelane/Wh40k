@@ -56,9 +56,6 @@ UNMATCHED_BY_NAME = {
     # [BLAST] in the keyword column.
     "Missile Launcher - Sunburst Blast": "printed 'missile launcher - sunburst', [BLAST] is the keyword",
     "Twin Missile Launcher - Sunburst Blast": "same, twin-mounted",
-    # Flavour names the engine gave two rows the datasheet leaves generic.
-    "Grot-Smacka": "printed 'Runtherd tools'; A3/S5/AP0/D1 match exactly",
-    "Spiked Wheel": "printed 'Spiked wheels' (plural); A3/S6/AP0/D1 match",
     # NOT a name question: the engine's Riptide carries two Missile Drones, and
     # the 11th-edition datasheet in rules/ has no drones and no missile pod at
     # all. A composition difference, reported rather than silently dropped -
@@ -67,6 +64,41 @@ UNMATCHED_BY_NAME = {
 }
 
 VALUE_EXCEPTIONS = {}   # empty, and that is the point - see the docstring
+
+
+# --- the corpus is AHEAD of the engine, for a named and shrinking set ------
+# The 2026-09 Ork codex rewrote every Ork datasheet. rules/orks/ was refetched
+# first, and the engine's Ork datasheets are rebuilt sheet by sheet in the
+# stages after that - so until a sheet's stage lands, it MUST differ from its
+# new printed rows, and a suite that went red on it would be red for a reason
+# that is planned rather than found.
+#
+# Their differences are therefore COLLECTED instead of failed, and the set is
+# guarded from three sides so it cannot become a hiding place (section 5b):
+#   (a) only the orks folder may appear here - no other faction can hide;
+#   (b) its size is pinned to EXPECTED_AHEAD, which every rebuild stage lowers;
+#   (c) every listed sheet must STILL differ - one that already matches has to
+#       leave the set, so no stage can forget to shrink it.
+# Everything outside the set is checked exactly as before. The last datasheet
+# stage deletes this block and its three A/B probes.
+CORPUS_AHEAD = {
+    "orks": {
+        "Battlewagon", "Beast Snagga Boyz", "Beastboss", "Boyz", "Deff Dread",
+        "Deffkoptas", "Flash Gitz", "Gretchin", "Kill Rig", "Meganobz", "Painboy",
+        "Stormboyz", "Tankbustas", "Trukk", "Warbikers", "Warboss",
+        "Warboss in Mega Armour",
+    },
+}
+EXPECTED_AHEAD = 17
+
+_AHEAD_KEYS = {(folder, normalise_name(name))
+               for folder, names in CORPUS_AHEAD.items() for name in names}
+ahead_seen = set()     # (folder, normalised sheet) actually swept
+ahead_diffs = {}       # (folder, normalised sheet) -> differences collected
+
+
+def _note_ahead(key):
+    ahead_diffs[key] = ahead_diffs.get(key, 0) + 1
 
 
 corpus = read_corpus()
@@ -80,13 +112,18 @@ for folder, _slug, faction in FACTIONS:
         key = (folder, normalise_name(sheet_name))
         if key not in corpus:
             continue
+        ahead = key in _AHEAD_KEYS
+        if ahead:
+            ahead_seen.add(key)
         _path, text = corpus[key]
         printed_rows = printed_weapons(text)
         for weapon_cls, profile_cls in weapon_pairs(sheet):
             is_melee = weapon_cls.weapon_type == MELEE
             row = printed_rows.get((is_melee, normalise_name(weapon_cls.name)))
             if row is None:
-                if weapon_cls.name in UNMATCHED_BY_NAME:
+                if ahead:
+                    _note_ahead(key)
+                elif weapon_cls.name in UNMATCHED_BY_NAME:
                     seen_exceptions.add(weapon_cls.name)
                 else:
                     name_diffs.append("%s/%s: %s" % (folder, sheet_name, weapon_cls.name))
@@ -105,6 +142,9 @@ for folder, _slug, faction in FACTIONS:
                     continue
                 compared += 1
                 if not same_value(row[column], engine_value):
+                    if ahead:
+                        _note_ahead(key)
+                        continue
                     value_diffs.append("%s/%s %s %s: printed %s, engine %s"
                                        % (folder, sheet_name, weapon_cls.name,
                                           column, row[column], engine_value))
@@ -185,8 +225,6 @@ KEYWORD_EXCEPTIONS = {
     # are left OFF the card on purpose: every keyword it prints is one the
     # engine actually enforces, and printing these would promise a rule no
     # code applies.
-    "Dread Klaw": "printed 'dead choppy'; NOT engine-wired (see game/factions/orks.py)",
-    "Stikka Kannon": "printed 'snagged'; NOT engine-wired (see its own profile's note)",
     "Prism Cannon - Focused Lances": "printed 'linked fire'; NOT engine-wired",
     # One printed keyword naming two target keywords at once. The engine models
     # it as the two separate [ANTI-X] entries it is, which resolves
@@ -204,6 +242,7 @@ for folder, _slug, faction in FACTIONS:
         key = (folder, normalise_name(sheet_name))
         if key not in corpus:
             continue
+        ahead = key in _AHEAD_KEYS
         _path, text = corpus[key]
         printed_rows = printed_weapons(text)
         for weapon_cls, _profile_cls in weapon_pairs(sheet):
@@ -215,6 +254,9 @@ for folder, _slug, faction in FACTIONS:
             printed = keyword_set(row["Keywords"])
             engine = keyword_set(", ".join(printed_keywords(weapon_cls)))
             if printed == engine:
+                continue
+            if ahead:
+                _note_ahead(key)
                 continue
             if weapon_cls.name in KEYWORD_EXCEPTIONS:
                 seen_keyword_exceptions.add(weapon_cls.name)
@@ -232,6 +274,21 @@ checks.eq("no weapon's keywords differ from its printed row",
           sorted(keyword_diffs), [])
 checks.eq("every named keyword exception still applies to something",
           sorted(set(KEYWORD_EXCEPTIONS) - seen_keyword_exceptions), [])
+
+print("--- 5b. the sheets the corpus is AHEAD of the engine on ---")
+
+# The three guards named where CORPUS_AHEAD is defined. Without them the set
+# would be a place any difference could be parked and forgotten.
+checks.eq("(a) only the orks folder may be ahead of the engine",
+          sorted(CORPUS_AHEAD), ["orks"])
+checks.eq("(b) the ahead set holds exactly EXPECTED_AHEAD sheets",
+          sum(len(names) for names in CORPUS_AHEAD.values()), EXPECTED_AHEAD)
+# A name that is spelled wrong would never be swept, and so would never differ
+# either - (c) cannot see it, this can.
+checks.eq("every ahead sheet is a built datasheet the sweep actually reached",
+          sorted("%s/%s" % key for key in _AHEAD_KEYS - ahead_seen), [])
+checks.eq("(c) every ahead sheet STILL differs - one that matches must leave the set",
+          sorted("%s/%s" % key for key in _AHEAD_KEYS if not ahead_diffs.get(key)), [])
 
 print("--- 6. the five weapons the keyword sweep fixed ---")
 

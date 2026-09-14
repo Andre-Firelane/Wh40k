@@ -16,30 +16,30 @@
 
 | Weapon | RANGE | A | BS | S | AP | D | Keywords |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Big shoota | 36" | 3 | 5+ | 5 | 0 | 1 | rapid fire 2 |
-| Kustom mega-blasta | 24" | 3 | 5+ | 9 | -2 | D6 | hazardous |
-| Rokkit launcha | 24" | D3 | 5+ | 9 | -2 | 3 | blast |
-| Skorcha | 12" | D6 | N/A | 5 | -1 | 1 | ignores cover, torrent |
+| Big Shoota | 36" | 3 | 5+ | 5 | 0 | 1 | LETHAL HITS: non-MONSTER/VEHICLE, Rapid Fire 2 |
+| Kustom Mega-blasta | 24" | 3 | 5+ | 9 | -2 | 3 | Hazardous |
+| Rokkit Launcha - Blasta | 24" | 2 | 5+ | 4 | 0 | 1 | BLAST 2 |
+| Rokkit Launcha - Busta | 24" | 2 | 5+ | 10 | -2 | 3 |  |
+| Skorcha | 12" | 3 | - | 5 | 0 | 1 | BLAST 1, Torrent |
 
 ## Melee Weapons
 
 | Weapon | RANGE | A | WS | S | AP | D | Keywords |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Dread klaw | Melee | 4 | 3+ | 12 | -2 | 3 | dead choppy |
-| Stompy feet | Melee | 4 | 3+ | 5 | 0 | 1 |  |
+| Extra Klaw | Melee | 1 | 3+ | 12 | -2 | 3 | Extra Attacks |
+| Dread Klaws | Melee | 5 | 3+ | 12 | -2 | 3 | CLEAVE 1 |
 
 ## Wargear Options
 
-- This model’s big shootas can each be replaced with one of the following:
-  - 1 dread klaw
-  - 1 kustom-mega blasta
-  - 1 rokkit launcha
-  - 1 skorcha
-- This model’s dread klaws can each be replaced with one of the following:
-  - 1 big shoota
-  - 1 kustom-mega blasta
-  - 1 rokkit launcha
-  - 1 skorcha
+- This model’s Big Shoota can be replaced with one of the following:
+  - 1 Extra Klaw
+  - 1 Kustom Mega-blasta
+  - 1 Rokkit Launcha
+- This model’s Skorcha can be replaced with one of the following:
+  - 1 Extra Klaw
+  - 1 Big Shoota
+  - 1 Kustom Mega-blasta
+  - 1 Rokkit Launcha
 
 ## Abilities
 
@@ -47,23 +47,23 @@ CORE: **Deadly Demise 1**
 
 FACTION: **Waaagh!**
 
-**Piston-driven Brutality:** Each time this model ends a **Charge move**, select one enemy unit within **Engagement Range** of it and roll one D6: on a 2-5, that enemy unit suffers D3 **mortal wounds**; on a 6, that enemy unit suffers D3+3 mortal wounds.
+**Dread ’Ard:** Attacks that target this unit have -1 **D**.
 
 ## Unit Composition
 
-- 1 Deff Dread
+- 1 Deff Dread model
 
-**This model is equipped with:** 2 big shootas; 2 dread klaws; stompy feet.
+**This model is equipped with:** 1 Big Shoota; 1 Dread Klaws; 1 Skorcha.
 
 ## Points
 
 | Unit | Models | Points |
 | --- | --- | --- |
-| YOUR 1ST TO 2ND UNITS COST | 1 model | 110 |
-| YOUR 3RD + UNIT COSTS | 1 model | 120 |
+| YOUR 1ST TO 2ND UNITS COST | 1 model | 130 |
+| YOUR 3RD + UNIT COSTS | 1 model | 140 |
 
 ## Keywords
 
-KEYWORDS: VEHICLE; WALKER; DEFF DREAD
+KEYWORDS: VEHICLE; WALKER
 
 FACTION KEYWORDS: ORKS

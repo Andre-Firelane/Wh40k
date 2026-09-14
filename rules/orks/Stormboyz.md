@@ -9,25 +9,26 @@
 
 | Model | M | T | SV | W | LD | OC | Base |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| STORMBOY | 12" | 5 | 5+ | 1 | 7+ | 1 | ⌀32mm |
-| BOSS NOB | 12" | 5 | 5+ | 2 | 7+ | 1 | ⌀32mm |
+| Stormboy | 12" | 5 | 5+ | 1 | 7+ | 1 | ⌀32mm |
+| Nob | 12" | 5 | 5+ | 3 | 7+ | 1 | ⌀32mm |
 
 ## Ranged Weapons
 
 | Weapon | RANGE | A | BS | S | AP | D | Keywords |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Slugga | 12" | 1 | 5+ | 4 | 0 | 1 | pistol |
+| Slugga | 12" | 1 | 5+ | 4 | 0 | 1 | CLOSE-QUARTERS, LETHAL HITS: non-MONSTER/VEHICLE |
 
 ## Melee Weapons
 
 | Weapon | RANGE | A | WS | S | AP | D | Keywords |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Choppa | Melee | 3 | 3+ | 4 | -1 | 1 |  |
-| Power klaw | Melee | 3 | 4+ | 9 | -2 | 2 |  |
+| Choppa | Melee | 3 | 3+ | 5 | -1 | 1 |  |
+| Kustom Choppa | Melee | 4 | 3+ | 5 | -2 | 2 |  |
+| Power Klaw | Melee | 3 | 3+ | 10 | -2 | 2 |  |
 
 ## Wargear Options
 
-- The Boss Nob’s choppa can be replaced with 1 power klaw.
+- The Nob can have their Kustom Choppa replaced with 1 Power Klaw.
 
 ## Abilities
 
@@ -35,21 +36,26 @@ CORE: **Deep Strike**
 
 FACTION: **Waaagh!**
 
-**Full Throttle:** This unit is eligible to declare a charge in a turn in which it Advanced or Fell Back.
+**Rokkit Charge:** When this unit is **selected to fight**, if this unit made a **charge move** this turn, you can use this ability. If you do, this unit’s melee attacks have:
+
+- +1 **A** and **S**.
+- [Hazardous].
 
 ## Unit Composition
 
-- 1 Boss Nob
-- 4-9 Stormboyz
+- 1 Nob model
+- 4-9 Stormboy models
 
-**Every model is equipped with:** slugga; choppa.
+**The Nob is equipped with:** 1 Kustom Choppa; 1 Slugga.
+
+**Every Stormboy is equipped with:** 1 Choppa; 1 Slugga.
 
 ## Points
 
 | Unit | Models | Points |
 | --- | --- | --- |
-| YOUR UNIT COSTS | 5 models | 65 |
-| YOUR UNIT COSTS | 10 models | 130 |
+| YOUR UNIT COSTS | 5 models | 70 |
+| YOUR UNIT COSTS | 10 models | 140 |
 
 ## Led By
 
@@ -59,6 +65,6 @@ This unit can be led by the following unit:
 
 ## Keywords
 
-KEYWORDS: INFANTRY; JUMP PACK; FLY; GRENADES; STORMBOYZ
+KEYWORDS: INFANTRY; EXPLOSIVES; FLY; JUMP PACK
 
 FACTION KEYWORDS: ORKS

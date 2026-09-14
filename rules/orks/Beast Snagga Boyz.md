@@ -7,64 +7,72 @@
 
 ## Profile
 
-| Model | M | T | SV | W | LD | OC | Base |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| BEAST SNAGGA BOY | 6" | 5 | 5+ | 1 | 7+ | 2 | ⌀32mm |
-| BEAST SNAGGA NOB | 6" | 5 | 5+ | 2 | 7+ | 2 | ⌀32mm |
+| Model | M | T | SV | W | LD | OC | INSV | Base |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Beast Snagga Boy | 6" | 5 | 5+ | 1 | 7+ | 2 | - | ⌀32mm |
+| Nob | 6" | 5 | 5+ | 3 | 7+ | 2 | 6+ | ⌀32mm |
 
 ## Ranged Weapons
 
 | Weapon | RANGE | A | BS | S | AP | D | Keywords |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Slugga | 12" | 1 | 5+ | 4 | 0 | 1 | pistol |
-| Thump gun | 18" | D3 | 5+ | 6 | 0 | 2 | blast |
+| Slugga | 12" | 1 | 5+ | 4 | 0 | 1 | CLOSE-QUARTERS, LETHAL HITS: non-MONSTER/VEHICLE |
+| Thump Gun | 18" | 3 | 5+ | 6 | 0 | 2 | ANTI-MONSTER/VEHICLE 4+ |
 
 ## Melee Weapons
 
 | Weapon | RANGE | A | WS | S | AP | D | Keywords |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Choppa | Melee | 3 | 3+ | 5 | -1 | 1 |  |
-| Close combat weapon | Melee | 2 | 3+ | 5 | 0 | 1 |  |
-| Power snappa | Melee | 4 | 3+ | 7 | -1 | 2 |  |
+| Choppa - Standard | Melee | 3 | 3+ | 5 | -1 | 1 |  |
+| Choppa - Hunter | Melee | 3 | 3+ | 6 | -2 | 1 | HUNTER: MONSTER/VEHICLE |
+| Power Snappa | Melee | 3 | 3+ | 8 | -2 | 2 | ANTI-MONSTER/VEHICLE 4+ |
 
 ## Wargear Options
 
-- For every 10 models in this unit, 1 Beast Snagga Boy’s slugga and choppa can be replaced with 1 thump gun and 1 close combat weapon.
+- For every 10 models in this unit, 1 Beast Snagga Boy model can be equipped with 1 Thump Gun.
 
 ## Abilities
 
-CORE: **Feel No Pain 6+**
-
 FACTION: **Waaagh!**
 
-**Monster Hunters:** Each time a model in this unit makes an attack that targets a MONSTER or VEHICLE unit, you can re-roll the Hit roll.
+**Mobbed:** When this unit ends a **charge move**, each enemy MONSTER/VEHICLE unit **engaged** with this unit makes a **battle-shock roll**:
+
+- With -1 to that **battle-shock roll**.
+- Or: With -2 to that **battle-shock roll** if this unit has 13+ models.
 
 ## Unit Composition
 
-- 1 Beast Snagga Nob
-- 9-19 Beast Snagga Boyz
+- 1-2 Nob models
+- 9-18 Beast Snagga Boy models
 
-**The Beast Snagga Nob is equipped with:** slugga; power snappa.
+**Every Nob is equipped with:** 1 Power Snappa; 1 Slugga.
 
-**Every Beast Snagga Boy is equipped with:** slugga; choppa.
+**Every Beast Snagga Boy is equipped with:** 1 Choppa; 1 Slugga.
 
 ## Points
 
 | Unit | Models | Points |
 | --- | --- | --- |
-| YOUR UNIT COSTS | 10 models | 90 |
-| YOUR UNIT COSTS | 20 models | 170 |
+| YOUR 1ST TO 3RD UNITS COST | 10 models | 85 |
+| YOUR 1ST TO 3RD UNITS COST | 20 models | 170 |
+| YOUR 4TH + UNIT COSTS | 10 models | 95 |
+| YOUR 4TH + UNIT COSTS | 20 models | 180 |
 
 ## Led By
 
-This unit can be led by the following units:
+This unit can be led by the following unit:
 
 - BEASTBOSS
+
+## Supported By
+
+This unit can be supported by the following units:
+
 - PAINBOSS
-- WURRBOY
+- WEIRDBOY
 
 ## Keywords
 
-KEYWORDS: INFANTRY; MOB; BATTLELINE; BEAST SNAGGA; BEAST SNAGGA BOYZ
+KEYWORDS: INFANTRY; BATTLELINE; BEAST SNAGGA; MOB
 
 FACTION KEYWORDS: ORKS

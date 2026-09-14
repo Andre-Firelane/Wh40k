@@ -66,6 +66,7 @@ USAGE
     python fetch_datasheet_rules.py --offline    # re-parse the cached HTML
     python fetch_datasheet_rules.py --only "Vespid Stingwings"
     python fetch_datasheet_rules.py --detachment "Kauyon"
+    python fetch_datasheet_rules.py --faction orks   # one faction's files only
 
 The `--only` form is the one to use when ADDING a datasheet: per the standing
 instruction, a datasheet that gets built in game/factions/ also gets its
@@ -489,6 +490,13 @@ def split_weapon_cell(fragment):
     renderer = _Renderer(capture_keywords=True)
     renderer.feed(fragment)
     name = re.sub(r"\s+", " ", renderer.text()).strip()
+    # The 2026-09 layout wraps the name in <b class="dsWeaponName">, which the
+    # renderer faithfully turns into "**Big Shoota**" - and a bold name matches
+    # no engine weapon. One OUTER pair only: the old layout never bolds a name,
+    # so it cannot reach this.
+    bold = re.match(r"^\*\*(.+)\*\*$", name)
+    if bold and "**" not in bold.group(1):
+        name = bold.group(1).strip()
     return name, renderer.keyword_list()
 
 
@@ -519,8 +527,13 @@ BLOCK_RE = re.compile(
 # Wahapedia's own markup uses a CYRILLIC "С" (U+0421) in these two class
 # names. Spelling them with a Latin C silently matches nothing, which is how
 # the faction-keywords line went missing on the first pass.
-KW_LEFT_RE = re.compile(r'<div class="dsLeft\u0421olKW">(.*?)</div>', re.S)
-KW_RIGHT_RE = re.compile(r'<div class="dsRight\u0421olKW">(.*?)</div>', re.S)
+#
+# The 2026-09 page layout (live for every faction; Orks were the first to be
+# refetched in it) adds a second class to the left one - `dsLeft\u0421olKW bkg1` -
+# and an exact class match silently dropped the whole KEYWORDS line again.
+# Extra classes are therefore allowed; the Cyrillic \u0421 stays.
+KW_LEFT_RE = re.compile(r'<div class="dsLeft\u0421olKW(?:\s[^"]*)?">(.*?)</div>', re.S)
+KW_RIGHT_RE = re.compile(r'<div class="dsRight\u0421olKW(?:\s[^"]*)?">(.*?)</div>', re.S)
 
 
 def split_blocks(page_html):
@@ -623,8 +636,19 @@ def parse_weapon_tables(block_html):
         cols = [inline_text(c) for c in
                 re.findall(r'<div class="ct dsHeader[^"]*">(.*?)</div>', section, re.S)][:6]
         rows = []
+        # A HUNTER profile (core rule 04.01.03: "Hunter profiles can only target
+        # units with the specified keywords") prints its restriction as a row of
+        # its own - `<tr class="dsHunterKwRow">HUNTER: MONSTER/VEHICLE</tr>` -
+        # ABOVE the weapon it restricts. Read into that weapon's keyword column,
+        # because the restriction is exactly as much part of the weapon as its
+        # [BLAST]; skipped like any other non-weapon row, it vanished.
+        pending_hunter = None
         for row in re.finditer(r"<tr[^>]*>(.*?)</tr>", section, re.S):
             row_html = row.group(1)
+            row_tag = row.group(0)[:row.group(0).find(">") + 1]
+            if "dsHunterKwRow" in row_tag:
+                pending_hunter = inline_text(row_html) or None
+                continue
             if "wTable2_short" not in row_html:
                 continue
             name_cell = re.search(
@@ -632,6 +656,9 @@ def parse_weapon_tables(block_html):
             if not name_cell:
                 continue
             name, keywords = split_weapon_cell(name_cell.group(1))
+            if pending_hunter:
+                keywords = [pending_hunter] + keywords
+                pending_hunter = None
             values = [inline_text(v) for v in
                       re.findall(r'<div class="ct pad2626">(.*?)</div>', row_html, re.S)]
             rows.append({"name": name, "keywords": keywords, "values": values[:6]})
@@ -723,6 +750,77 @@ def parse_sections(body_html, keep_only=None):
     return sections
 
 
+# The 2026-09 layout moved a datasheet's core abilities and army rules out of
+# its ABILITIES text into a two-column table - CORE ABILITIES | Deep Strike,
+# ARMY RULES | Waaagh! - printed just ABOVE the ABILITIES heading. Two failures
+# came from that, both on real Ork sheets: when the table follows a section this
+# parser SKIPS (MELEE WEAPONS on the Painboy, the Beastboss and the Gretchin) it
+# was dropped with that section; when it follows one it keeps (WARGEAR OPTIONS
+# on the Boyz) it was glued onto its end as "CORE ABILITIES**Deep Strike**".
+#
+# So the table is lifted out BEFORE sections are cut, and written back as the
+# lines the old layout printed at the head of ABILITIES - "CORE: **...**" and
+# "FACTION: **...**". Normalised here rather than taught to game/rules_text.py:
+# the four factions still on old caches keep the same shape, and a later
+# refresh of them then diffs on RULE changes instead of on Wahapedia's UI
+# wording. A label this map does not know aborts the run, so a new row type
+# cannot vanish the way the whole table did.
+CORE_ARMY_RE = re.compile(r'<table class="dsCoreArmy[^"]*".*?</table>', re.S)
+CORE_ARMY_ROW_RE = re.compile(
+    r'<td class="dsCoreArmyLabel[^"]*">(.*?)</td>\s*'
+    r'<td class="dsCoreArmyValue[^"]*">(.*?)</td>', re.S)
+CORE_ARMY_LABELS = {"CORE ABILITIES": "CORE", "ARMY RULES": "FACTION"}
+
+# "Damaged X" (core rule 24.39) is a skull marker beside W in the new layout,
+# with no DAMAGED section at all. It is read so a test can hold it against the
+# "Damaged X" the CORE line prints, but not rendered: the profile table keeps
+# its shape, and the CORE line already says it.
+DAMAGED_VALUE_RE = re.compile(r'<div class="dsCharDamagedVal[^"]*">(.*?)</div>', re.S)
+
+
+def extract_core_army(body_html):
+    """(body without the table, [(CORE|FACTION, value)], where the table was)."""
+    match = CORE_ARMY_RE.search(body_html)
+    if not match:
+        return body_html, [], None
+    rows = []
+    for label_html, value_html in CORE_ARMY_ROW_RE.findall(match.group(0)):
+        label = inline_text(label_html)
+        if label not in CORE_ARMY_LABELS:
+            raise SystemExit(
+                "unknown dsCoreArmy row %r - the datasheet layout grew a row type "
+                "this parser does not map; refusing to drop it silently" % label)
+        value = inline_text(value_html).replace("**", "").strip()
+        rows.append((CORE_ARMY_LABELS[label], value))
+    stripped = body_html[:match.start()] + body_html[match.end():]
+    return stripped, rows, match.start()
+
+
+def attach_core_army(sections, body_html, core_rows, core_at):
+    """Put the CORE/FACTION lines at the head of the ABILITIES section that
+    follows the table - or, if the next heading is something else, into an
+    ABILITIES section of their own at that point."""
+    if not core_rows:
+        return sections
+    lines = "\n\n".join("%s: **%s**" % (label, value) for label, value in core_rows)
+    following = [m.group(1).strip() for m in HEADER_RE.finditer(body_html)
+                 if m.start() >= core_at]
+    target = following[0] if following else None
+    out = list(sections)
+    if target == "ABILITIES":
+        for index, (title, text) in enumerate(out):
+            if title == "ABILITIES":
+                out[index] = (title, lines + "\n\n" + text if text else lines)
+                return out
+    insert_at = len(out)
+    for index, (title, _text) in enumerate(out):
+        if target is not None and title == target:
+            insert_at = index
+            break
+    out.insert(insert_at, ("ABILITIES", lines))
+    return out
+
+
 def parse_datasheet(block):
     """Everything one datasheet contributes to its markdown file."""
     block_html = block["html"]
@@ -743,6 +841,10 @@ def parse_datasheet(block):
     # which also occurs inside printed rule text.
     cut = block_html.find('<div class="ds2colKW')
     body = block_html[:cut] if cut > 0 else block_html
+    # Before anything cuts sections - see CORE_ARMY_RE. A no-op on the old
+    # layout, which has no such table.
+    body, core_rows, core_at = extract_core_army(body)
+    damaged = DAMAGED_VALUE_RE.search(body)
 
     char_names, profiles = parse_profiles(body)
 
@@ -774,9 +876,10 @@ def parse_datasheet(block):
         "profiles": profiles,
         "weapons": parse_weapon_tables(body),
         "points": parse_points(body),
-        "sections": (parse_sections(body)
+        "sections": (attach_core_army(parse_sections(body), body, core_rows, core_at)
                      + (parse_sections(block_html[cut:], POST_KEYWORD_SECTIONS)
                         if cut > 0 else [])),
+        "damaged": inline_text(damaged.group(1)) if damaged else "",
         "keywords": keywords,
         "faction_keywords": faction_keywords,
         "errata": errata,
@@ -1188,6 +1291,62 @@ def _fetch(url, cache_name, offline):
 # main
 # --------------------------------------------------------------------------
 
+def _index_rows_from_disk(folder, faction):
+    """README rows for a faction this run did NOT refresh, read off the corpus
+    already on disk.
+
+    `--faction orks` still has to rewrite rules/README.md, and the index is
+    built from the rows of the factions a run processed - so without this, a
+    one-faction refresh would drop the other four from the README. The rows are
+    rebuilt the way a full run produces them (same datasheet order for the
+    version, same sorted page names, army-rule headings minus errata/FAQ), which
+    is what lets `--offline` and `--offline --faction X` write byte-identical
+    READMEs; test_datasheet_rules.py holds that.
+    """
+    out_folder = os.path.join(OUT_DIR, folder)
+    titles = {}
+    entries = sorted(os.listdir(out_folder)) if os.path.isdir(out_folder) else []
+    for entry in entries:
+        if not entry.endswith(".md") or entry == "army_rules.md":
+            continue
+        with open(os.path.join(out_folder, entry), encoding="utf-8") as handle:
+            text = handle.read()
+        title = text.split("\n", 1)[0].lstrip("# ").strip()
+        version = re.search(r"^- \*\*Wahapedia version:\*\* (.+)$", text, re.M)
+        titles[normalise_name(title)] = (title, version.group(1).strip() if version else "")
+
+    built = {normalise_name(n) for n in faction.datasheets}
+    wanted = list(faction.datasheets) + [
+        n for n in MISSING_BY_FOLDER.get(folder, ()) if normalise_name(n) not in built]
+    present = [titles[normalise_name(n)] for n in wanted if normalise_name(n) in titles]
+    index_row = None
+    if present:
+        version = next((v for _t, v in present if v), "")
+        index_row = (folder, faction.name, version, len(present),
+                     sorted(t for t, _v in present))
+
+    detachment_row = None
+    det_folder = os.path.join(out_folder, "detachments")
+    names = []
+    if os.path.isdir(det_folder):
+        for entry in sorted(os.listdir(det_folder)):
+            if entry.endswith(".md"):
+                with open(os.path.join(det_folder, entry), encoding="utf-8") as handle:
+                    names.append(handle.readline().lstrip("# ").strip())
+    if names:
+        rule_names = []
+        army_path = os.path.join(out_folder, "army_rules.md")
+        if os.path.exists(army_path):
+            with open(army_path, encoding="utf-8") as handle:
+                for line in handle:
+                    if line.startswith("## "):
+                        heading = line[3:].strip()
+                        if not re.search(r"errata|faq", heading, re.I):
+                            rule_names.append(heading)
+        detachment_row = (folder, faction.name, rule_names, sorted(names))
+    return index_row, detachment_row
+
+
 def main():
     parser = argparse.ArgumentParser(description="Snapshot datasheet rules as markdown.")
     parser.add_argument("--offline", action="store_true",
@@ -1196,7 +1355,17 @@ def main():
                         help="write just these datasheets (repeatable)")
     parser.add_argument("--detachment", action="append", default=[], metavar="NAME",
                         help="write just these detachments (repeatable)")
+    parser.add_argument("--faction", action="append", default=[], metavar="FOLDER",
+                        help="refresh just these factions, by output folder "
+                             "(repeatable); README.md keeps the others' rows")
     args = parser.parse_args()
+
+    known_folders = [folder for folder, _slug, _faction in FACTIONS]
+    unknown = sorted(set(args.faction) - set(known_folders))
+    if unknown:
+        raise SystemExit("--faction named no known faction folder: %s (known: %s)"
+                         % (", ".join(unknown), ", ".join(known_folders)))
+    selected_folders = set(args.faction)
 
     only = {normalise_name(n) for n in args.only}
     only_detachments = {normalise_name(n) for n in args.detachment}
@@ -1212,6 +1381,16 @@ def main():
     detachment_rows = []
 
     for folder, slug, faction in FACTIONS:
+        if selected_folders and folder not in selected_folders:
+            # Not refreshed, and not even fetched - but its README rows still
+            # have to be written, or a one-faction run drops it from the index.
+            if not only and not only_detachments:
+                index_row, detachment_row = _index_rows_from_disk(folder, faction)
+                if index_row:
+                    index_rows.append(index_row)
+                if detachment_row:
+                    detachment_rows.append(detachment_row)
+            continue
         blocks = []
         faction_written = []
         if do_datasheets:
@@ -1326,6 +1505,19 @@ def _write_faction_rules(folder, slug, faction, offline, only_detachments,
             handle.write(render_detachment(faction.name, slug, detachment))
         written.append(path)
         names.append(detachment["name"])
+    if not only_detachments:
+        # A detachment GW withdrew is gone from the page, and a file left behind
+        # would go on claiming it is printed. Measured on the 2026-09 Ork page:
+        # five were withdrawn (Equatorial Hordes, Freebooter Krew, More Dakka!,
+        # Rollin' Deff, Speedwaaagh!). Only on a full faction pass - a
+        # --detachment run sees one entry and must not read the rest as stale -
+        # and only after MIN_DETACHMENTS_PER_FACTION has already refused a
+        # truncated page, so a bad download cannot empty the folder.
+        keep = {"%s.md" % safe_filename(detachment["name"]) for detachment in detachments}
+        for entry in sorted(os.listdir(det_folder)):
+            if entry.endswith(".md") and entry not in keep:
+                os.remove(os.path.join(det_folder, entry))
+                print("  removed %s/detachments/%s - no longer on the page" % (folder, entry))
     if names:
         # "Errata"/"FAQ" are sections of the army rule, not further army
         # rules, so they do not belong in the index's label for it.
@@ -1349,6 +1541,7 @@ def write_index(rows, detachment_rows=()):
         "    python fetch_datasheet_rules.py --offline        # re-parse the cached HTML",
         "    python fetch_datasheet_rules.py --only NAME      # just these datasheets",
         "    python fetch_datasheet_rules.py --detachment X   # just these detachments",
+        "    python fetch_datasheet_rules.py --faction orks   # just one faction's files",
         "",
         "Every datasheet built in `game/factions/` has a file here. The T'au and",
         "Aeldari folders additionally carry entries that are not built yet, because",

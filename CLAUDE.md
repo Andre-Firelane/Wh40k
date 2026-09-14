@@ -6764,8 +6764,9 @@ braucht — kein spekulatives System.
 
 ## Primary Missions über Force Dispositions (game/primary_missions.py)
 
-**Jedes Detachment lässt genau EINE Force Disposition zu; die Liste schreibt eine davon fest, und
-die bestimmt die Primary Mission** (User: "jedes detachment hat zugang zu einer force disposition.
+**Jedes Detachment lässt mindestens eine Force Disposition zu (fast alle genau eine, War Horde seit
+dem Ork-Codex 2026-09 zwei); die Liste schreibt eine davon fest, und die bestimmt die Primary
+Mission** (User: "jedes detachment hat zugang zu einer force disposition.
 diese wählt man beim listen bau ... ist aber in der Liste festgeschrieben"). Fünf Dispositionen,
 fünf gelieferte Karten. **Nur Spieler 1** — die KI behält "Hold the Line"
 (`config.PRIMARY_MISSION_CARD_PLAYERS`).
@@ -8968,6 +8969,52 @@ nur die gebauten, aus demselben Grund, aus dem die 29 ungebauten T'au-Datenblät
 - **`--detachment NAME`** ist das Gegenstück zu `--only`. Jede Flagge verengt auf ihre eigene
   Dateiart und schaltet die andere ab, damit keine die Seiten der anderen neu lädt.
 - **Byte-Stabilität weiter belegt:** zwei Läufe erzeugen 175 identische Dateien.
+
+### Das 2026-09-Layout (Orks zuerst), `--faction` und der Übergang
+
+**Wahapedia hat die Datenblatt-SEITE umgebaut, sichtbar zuerst am neuen Ork-Codex** (User:
+"Orks haben neue Regeln bekommen. Aktualisiere die Armeeregel, das Detachment und die Datasheets").
+Der alte Parser las die neue Seite **ohne einen einzigen Fehler** und verlor dabei vier Dinge. Er
+liest jetzt beide Layouts; die vier anderen Fraktionen (Cache noch alt) rendern gemessen
+byte-identisch (In-Memory-Vergleich über 255 Dateien, 0 Differenzen). Plan und Etappen:
+`C:\Users\Andre\.claude\plans\transient-munching-boot.md`.
+
+- **Keyword-Leiste:** `dsLeftСolKW bkg1` — die Klasse bekam eine zweite Klasse; `KW_LEFT_RE`/
+  `KW_RIGHT_RE` erlauben `(?:\s[^"]*)?`. Ohne das fehlt die KEYWORDS-Zeile lautlos.
+- **CORE/FACTION** stehen in `table.dsCoreArmy` (Labels CORE ABILITIES / ARMY RULES) statt als
+  Absatz. `extract_core_army()` löst die Tabelle VOR `parse_sections()` aus dem Body — sonst wird
+  sie in MELEE WEAPONS verschluckt (Beastboss) oder an WARGEAR OPTIONS geklebt (Warboss) —, und
+  `attach_core_army()` setzt `CORE: **…**`/`FACTION: **…**` an den Kopf von ABILITIES. Das ist die
+  alte Korpusform, `rules_text` liest sie also unverändert. **Ein unbekanntes Label bricht ab.**
+- **Hunter-Profile:** `tr.dsHunterKwRow` über einer Waffe wird `HUNTER: MONSTER/VEHICLE` als
+  erstes Keyword der Zeile darunter. Bedingte Keywords (`LETHAL HITS: non-MONSTER/VEHICLE`) kommen
+  ganz an. Fette Waffennamen (`b.dsWeaponName`) verlieren ihr `**…**`.
+- **Damaged X** hat im neuen Layout keine `## Damaged:`-Sektion mehr: es steht als CORE-Keyword
+  (`Damaged 6`) und als `dsCharDamagedVal` am W-Wert; der Parser liest beides.
+- **`"Psychic Abilities"`** gehört zu `rules_text.ABILITY_SECTIONS` (Kill Rig).
+- **`--faction FOLDER`** (wiederholbar) holt nur diese Fraktionen. `rules/README.md` wird trotzdem
+  neu geschrieben; die Zeilen der übrigen baut `_index_rows_from_disk()` von der Platte, also
+  schreiben `--offline` und `--offline --faction orks` byte-identische READMEs.
+- **Ein zurückgezogenes Detachment verliert seine Datei** — nur auf einem vollen Fraktionslauf
+  (nie mit `--detachment`) und erst hinter `MIN_DETACHMENTS_PER_FACTION`, damit ein kaputter
+  Download den Ordner nicht leert. Orks 2026-09: 5 weg, 7 neu, **15**; alle Fraktionen **58**.
+- **War Horde druckt ZWEI Force Dispositions** ("Take and Hold; Purge the Foe"):
+  `Detachment.force_dispositions` ist ein TUPEL, `force_disposition` eine Property auf den ersten
+  Eintrag, `force_dispositions.from_printed_list()` liest die Zeile, und `detachments.py` prüft die
+  Deklaration einer Liste gegen die VEREINIGUNG. Die Ork-Liste bleibt bei Take and Hold.
+- **ÜBERGANG, bis die Datenblatt-Etappen landen:** der Korpus ist den 17 gebauten Ork-Blättern
+  VORAUS. `test_weapon_characteristics.py` führt sie in `CORPUS_AHEAD` — ihre Abweichungen werden
+  GESAMMELT statt gefailt, und die Menge ist dreifach bewacht (nur `orks`; Anzahl ==
+  `EXPECTED_AHEAD`; jedes gelistete Blatt MUSS noch abweichen, sonst raus). Jede Datenblatt-Etappe
+  senkt die Zahl, die letzte löscht den Block samt drei Sonden. `verify_rules_vs_engine.py` meldet
+  bis dahin **173 statt 70** Differenzen (106 Ork-Zeilen). Und bis E2 zeigt der Army-Rules-Leser
+  schon den neuen War-Horde-Text, während die Engine die alten Stratagems spielt.
+- **Getestet:** `test_datasheet_rules.py` → **145/145** (neu §6: eine COMMITTETE, ERFUNDENE Fixture
+  `testdata/wahapedia_new_layout_blocks.html` — nur Markup, kein GW-Text, weil `.cache/`
+  gitignoriert ist —, derselbe Satz Zusicherungen am echten Ork-Korpus, und die README-Zeilen von
+  der Platte durch den echten Writer gegen die committete Datei); `test_force_dispositions.py`
+  **180/180**; `ab_weapon_characteristics.py` **19/19** (drei neue Sonden auf `CORPUS_AHEAD`).
+  Volle Regression **233 Suiten, ~22305 Prüfungen, 232 grün / 0 rot / 1 bekannt**, `--smoke` grün.
 
 - **Warum überhaupt:** `abilities_text` kann die Frage nicht beantworten, weil seine Treue je
   Fraktion verschieden ist — Orks und T'au sind nahezu wörtlich, Necrons zitieren wörtlich aber

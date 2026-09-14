@@ -4,89 +4,88 @@
 - **Source:** https://wahapedia.ru/wh40k11ed/factions/orks/datasheets.html#Tankbustas
 - **Wahapedia version:** Faction Pack. Orks (11th edition, version 1.2)
 - **Legends:** no
-- **Base:** ⌀32mmNob on 40mm
 
 ## Profile
 
-| M | T | SV | W | LD | OC |
-| --- | --- | --- | --- | --- | --- |
-| 6" | 5 | 4+ | 2 | 7+ | 1 |
+| Model | M | T | SV | W | LD | OC | Base |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Tankbusta | 6" | 5 | 4+ | 2 | 7+ | 1 | ⌀32mm |
+| Nob | 6" | 5 | 4+ | 3 | 7+ | 1 | ⌀40mm |
 
 ## Ranged Weapons
 
 | Weapon | RANGE | A | BS | S | AP | D | Keywords |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Rokkit launcha | 24" | D3 | 5+ | 9 | -2 | 3 | blast |
-| Rokkit pistol | 12" | 1 | 5+ | 9 | -2 | 3 | pistol |
+| Busta Rokkit Launcha - Standard | 24" | 2 | 4+ | 10 | -2 | 3 |  |
+| Busta Rokkit Launcha - Hunter | 24" | 3 | 4+ | 12 | -2 | 3 | HUNTER: MONSTER/VEHICLE |
+| Rokkit Pistol | 12" | 1 | 4+ | 10 | -2 | 3 | CLOSE-QUARTERS |
 
 ## Melee Weapons
 
 | Weapon | RANGE | A | WS | S | AP | D | Keywords |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Choppa | Melee | 4 | 3+ | 5 | -1 | 1 |  |
-| Close combat weapon | Melee | 3 | 3+ | 5 | 0 | 1 |  |
-| Smash hammer | Melee | 2 | 3+ | 6 | -2 | 3 | anti-monster 4+, anti-vehicle 4+ |
+| Gitstikka | Melee | 3 | 3+ | 5 | 0 | 1 |  |
+| Smash Hammer - Standard | Melee | 3 | 3+ | 7 | -2 | 2 |  |
+| Smash Hammer - Hunter | Melee | 3 | 3+ | 12 | -2 | 3 | HUNTER: MONSTER/VEHICLE |
 
 ## Wargear Options
 
-- 1 of the Boss Nob’s rokkit pistols can be replaced with 1 smash hammer.
-- One Tankbusta can be equipped with one of the following:
-  - 1 pulsa rokkit
-  - 1 additional rokkit launcha
-
-## Attached Unit
-
-If a CHARACTER unit from your army with the Leader ability can be **attached** to a LOOTAS unit, it can be attached to this unit instead.
+- The Nob can have their Rokkit Pistol replaced with 1 Smash Hammer.
+- 1 Tankbusta model can be equipped with one of the following:
+  - 1 Busta Rokkit Launcha
+  - 1 Pulsa Rokkit
 
 ## Abilities
 
 FACTION: **Waaagh!**
 
-**Tank Hunters:** Each time a model in this unit makes a ranged attack that targets a MONSTER or VEHICLE unit, add 1 to the Hit roll and add 1 to the Wound roll.
+**Rokkit Barrage:** In your Shooting phase, when this unit has shot, select one enemy unit hit by those attacks. That unit makes a **battle-shock roll**, with -1 to that **battle-shock roll**.
 
-**Bomb Squigs:** Once per battle, for each bomb squig this unit has, after this unit ends a **Normal move**, you can use one Bomb Squig. If you do, select one enemy unit within 12" and **visible** to this unit and roll one D6: on a 3+, that enemy unit suffers D3 **mortal wounds**.
+**Bomb Squigs (Once per turn, twice per battle, per unit):** In your Movement phase, when this unit ends a **normal move**, you can select one **visible** enemy unit within 12" of this unit and roll one D6:
 
-**Designer’s Note:** Place two Bomb Squig tokens next to the unit, removing one each time this unit uses this ability.
+- On a 3+, that enemy unit suffers D3 **mortal wounds**.
 
-## Wargear Abilities
+Place two Bomb Squig tokens next to the unit, removing one each time this ability is used.
 
-**Pulsa Rokkit:** Once per battle, when the bearer’s unit is selected to shoot in your Shooting phase, the bearer can use its pulsa rokkit. If it does, until the end of the phase, improve the Strength and Armour Penetration characteristics of ranged weapons equipped by models in the bearer’s unit by 1.
+**Pulsa Rokkit:** In your Shooting phase, when this unit is **selected to shoot**, you can select one enemy MONSTER/VEHICLE unit within 24" of this unit. If you do. this unit's attacks that target that unit have:
+
+- +1 **AP**
+- [LETHAL HITS]
 
 ## Unit Composition
 
-- 1 Boss Nob
-- 5 Tankbustas
+- 1 Nob model
+- 5 Tankbusta models
 
-**The Boss Nob is equipped with:** 2 rokkit pistols; choppa.
+**The Nob is equipped with:** 1 Choppa; 2 Rokkit Pistol.
 
-**Each Tankbusta is equipped with:** rokkit launcha; close combat weapon.
+**Every Tankbusta is equipped with:** 1 Busta Rokkit Launcha; 1 Gitstikka.
 
 ## Points
 
 | Unit | Models | Points |
 | --- | --- | --- |
-| YOUR 1ST TO 2ND UNITS COST | 6 models | 125 |
-| YOUR 3RD + UNIT COSTS | 6 models | 135 |
+| YOUR 1ST TO 2ND UNITS COST | 6 models | 145 |
+| YOUR 3RD + UNIT COSTS | 6 models | 155 |
 
 ## Led By
 
 This unit can be led by the following units:
 
 - BIG MEK
-- BIG MEK WITH KUSTOM FORCE FIELD
 - BIG MEK WITH SHOKK ATTACK GUN
 - MAD DOK GROTSNIK
-- MEK
 
 ## Supported By
 
 This unit can be supported by the following units:
 
-- BANNERNOB
+- MEK
 - PAINBOY
 
 ## Keywords
 
-KEYWORDS: INFANTRY; GRENADES; TANKBUSTAS
+KEYWORDS: INFANTRY; EXPLOSIVES
 
 FACTION KEYWORDS: ORKS

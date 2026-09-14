@@ -142,8 +142,9 @@ def validate(army_key):
     # declaring one the detachments do not grant.
     declared = getattr(entry, "force_disposition", None)
     if declared is not None:
-        granted = {d.force_disposition for d in for_army(army_key)
-                   if d.force_disposition}
+        # The UNION of every disposition every fielded detachment permits - one
+        # detachment can permit two (War Horde: Take and Hold; Purge the Foe).
+        granted = {key for d in for_army(army_key) for key in d.force_dispositions}
         if declared not in granted:
             problems.append(
                 f"{entry.name} declares the {force_dispositions.label(declared)} "

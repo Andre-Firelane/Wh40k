@@ -10,52 +10,63 @@
 
 | M | T | SV | W | LD | OC | INSV |
 | --- | --- | --- | --- | --- | --- | --- |
-| 6" | 5 | 4+ | 6 | 6+ | 1 | 5+ |
+| 6" | 6 | 4+ | 6 | 6+ | 1 | 5+ |
 
 ## Ranged Weapons
 
 | Weapon | RANGE | A | BS | S | AP | D | Keywords |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Kombi-weapon | 24" | 1 | 5+ | 4 | 0 | 1 | anti-infantry 4+, devastating wounds, rapid fire 1 |
-| Kustom Shoota | 18" | 4 | 5+ | 4 | 0 | 1 | rapid fire 2 |
-| Twin slugga | 12" | 2 | 5+ | 4 | 0 | 1 | pistol, twin-linked |
+| Kombi-rokkit - Busta Rokkit | 24" | 1 | 5+ | 10 | -2 | 3 |  |
+| Kombi-rokkit - Shoota | 18" | 2 | 5+ | 4 | 0 | 1 | LETHAL HITS: non-MONSTER/VEHICLE, Rapid Fire 1 |
+| Kombi-skorcha - Shoota | 18" | 2 | 5+ | 4 | 0 | 1 | LETHAL HITS: non-MONSTER/VEHICLE, Rapid Fire 1 |
+| Kombi-skorcha - Skorcha | 12" | 3 | - | 5 | 0 | 1 | BLAST 1, Torrent |
+| Kustom Shoota | 18" | 4 | 5+ | 4 | 0 | 1 | LETHAL HITS: non-MONSTER/VEHICLE, Rapid Fire 2 |
 
 ## Melee Weapons
 
 | Weapon | RANGE | A | WS | S | AP | D | Keywords |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Attack squig | Melee | 2 | 4+ | 4 | 0 | 1 | extra attacks |
-| Big choppa | Melee | 5 | 2+ | 8 | -1 | 2 |  |
-| Power klaw | Melee | 4 | 3+ | 10 | -2 | 2 |  |
-| Kustom Choppa | Melee | 6 | 2+ | 8 | -2 | 2 | Cleave 1 |
+| Kustom Choppa | Melee | 6 | 2+ | 7 | -2 | 2 | CLEAVE 2 |
+| Power Klaw | Melee | 6 | 2+ | 12 | -2 | 2 |  |
 
 ## Wargear Options
 
-- This model’s big choppa can be replaced with 1 power klaw.
-- This model can be equipped with 1 attack squig.
-- This model can have its kombi-weapon, twin sluggas and big choppa replaced with 1 kustom choppa and 1 kustom shoota.
+- This model’s Kustom Choppa can be replaced with 1 Power Klaw.
+- This model’s Kustom Shoota can be replaced with one of the following:
+  - 1 Kombi-rokkit
+  - 1 Kombi-skorcha
 
 ## Abilities
 
 CORE: **Leader**
 
-FACTION: **Waaagh!**
+FACTION: **Da Boss, Waaagh!**
 
-**Might is Right:** While this model is leading a unit, each time a model in that unit makes a melee attack, add 1 to the Hit roll.
+**Boss’ Ammo Runt (Once per battle, per unit):** In your Shooting phase, when this unit is **selected to shoot**, you can use this ability. If you do, this model’s ranged attacks have +1 to **hit rolls**.
 
-**Da Biggest and da Best:** While the Waaagh! is active for your army, add 4 to the Attacks characteristic of this model’s melee weapons.
+Place a Boss’ Ammo Runt token next to the unit, removing it when this ability is used.
+
+**Might Is Right:** If this unit made a **charge move** this turn, this model’s melee attacks have:
+
+- +3 **A**.
+- +2 **S**.
+
+**Intimidating Motivation (Once per battle round, per army):** In your Movement phase, at the start or end of this unit’s move, you can select one friendly ORKS unit within 6" of this unit. That unit:
+
+- Is no longer **battle-shocked**.
+- Is **riled up** until the start of your next turn.
 
 ## Unit Composition
 
-- 1 Warboss
+- 1 Warboss model
 
-**This model is equipped with:** kombi-weapon; twin slugga; big choppa.
+**This model is equipped with:** 1 Kustom Choppa; 1 Kustom Shoota.
 
 ## Points
 
 | Unit | Models | Points |
 | --- | --- | --- |
-| YOUR UNIT COSTS | 1 model | 85 |
+| YOUR UNIT COSTS | 1 model | 100 |
 
 ## Leader
 
@@ -67,6 +78,6 @@ This model can be attached to the following units:
 
 ## Keywords
 
-KEYWORDS: INFANTRY; CHARACTER; GRENADES; WARBOSS
+KEYWORDS: INFANTRY; CHARACTER; EXPLOSIVES; WARBOSS
 
 FACTION KEYWORDS: ORKS

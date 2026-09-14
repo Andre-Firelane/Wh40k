@@ -1,6 +1,6 @@
 # War Horde
 
-**Orks** - 3 DP detachment - Force Disposition: Take and Hold
+**Orks** - 3 DP detachment - Force Disposition: Take and Hold; Purge the Foe
 
 Source: <https://wahapedia.ru/wh40k11ed/factions/orks/>
 
@@ -8,84 +8,95 @@ Source: <https://wahapedia.ru/wh40k11ed/factions/orks/>
 
 ### Get Stuck In
 
-Melee weapons equipped by ORKS models from your army have the [SUSTAINED HITS 1] ability.
+Friendly ORKS units’ melee attacks have [Sustained Hits 1].
 
 ## Enhancements
 
-### Follow Me Ladz - 25 pts
+### Headwoppa's Killchoppa - 15 pts
 
-ORKS model only. While the bearer is leading a unit, add 2" to the Move characteristic of models in that unit.
+ORKS model only. If this unit made a **charge move** this turn, this model’s melee attacks have +1 AP.
 
-### Headwoppa’s Killchoppa - 20 pts
+### Da Boss is Watchin' - 25 pts
 
-ORKS model only. Melee weapons equipped by the bearer (excluding Extra Attacks weapons) have the [DEVASTATING WOUNDS] ability.
+ORKS model only. (Once per battle, per army) In your Movement phase, you can use this ability. If you do, this unit is **riled up** until the start of your next turn.
 
-### Kunnin’ But Brutal - 15 pts
+### Kunnin' But Brutal - 20 pts
 
-ORKS model only. While the bearer is leading a unit, that unit is eligible to shoot and declare a charge in a turn in which it Fell Back.
+ORKS model only. When this unit is selected to make a **fall-back move**, that fall-back move does not prevent this unit from being **eligible to shoot**/**declare a charge**.
 
-### Supa-Cybork Body - 15 pts
+### Follow Me Ladz - 20 pts
 
-ORKS model only. The bearer has the Feel No Pain 4+ ability.
+ORKS model only. This unit has +2" **M**.
 
 ## Stratagems
 
-### CAREEN! - 1CP
+### BREAKIN' HEADS - 1CP
 
-*War Horde – Epic Deed Stratagem*
+*War Horde Stratagem*
 
-**WHEN:** Any phase, just after an ORKS VEHICLE unit from your army with the **Deadly Demise** ability is destroyed.
+**WHEN:** Any phase, when a friendly **attached** ORKS INFANTRY unit becomes **battle-shocked**.
 
-**TARGET:** That destroyed ORKS VEHICLE unit, if you roll a 6 for its **Deadly Demise** ability. You can use this Stratagem on that unit even though it was just **destroyed**.
+**TARGET:** That ORKS INFANTRY unit. You can target that unit with this **stratagem** even though it is **battle-shocked**.
 
-**EFFECT:** Your unit can make a **Normal** or **Fall Back move** before its **Deadly Demise** ability is resolved, and before any embarked units perform an **emergency disembark move**. When making this move, your unit can move over enemy units (excluding MONSTERS and VEHICLES) as if they were not there.
+**EFFECT:** Roll one D3:
 
-### ORKS IS NEVER BEATEN - 2CP
+- Your unit suffers a number of **mortal wounds** equal to the result.
+- Your unit is no longer **battle-shocked**.
 
-*War Horde – Epic Deed Stratagem*
+### HIT 'EM HARDER - 1CP
 
-**WHEN:** Fight phase, just after an enemy unit has selected its targets.
+*War Horde Stratagem*
 
-**TARGET:** One ORKS unit from your army that was selected as the target of one or more of the attacking unit’s attacks.
+**WHEN:** Fight phase, when a friendly ORKS unit is **selected to fight**.
 
-**EFFECT:** Until the end of the phase, each time a model in your unit is destroyed, if that model has not fought this phase, do not remove it from play. The destroyed model can fight after the attacking model’s unit has finished making attacks, and is then removed from play.
+**TARGET:** That ORKS unit.
 
-### UNBRIDLED CARNAGE - 1CP
+**EFFECT:** Your unit’s melee attacks have [Lethal Hits].
 
-*War Horde – Battle Tactic Stratagem*
+### ORKS IS NEVER BEATEN - 1CP
 
-**WHEN:** Fight phase.
+*War Horde Stratagem*
 
-**TARGET:** One ORKS unit from your army that has not been selected to fight this phase.
+**WHEN:** Fight phase, when an enemy unit targets a friendly ORKS unit (excluding TITANIC units).
 
-**EFFECT:** Until the end of the phase, each time a model in your unit makes a melee attack, an unmodified hit roll of 5+ scores a Critical Hit.
+**TARGET:** That ORKS unit.
 
-### ’ARD AS NAILS - 1CP
+**EFFECT:** When a model in your unit is **destroyed**, if your unit has not been **selected to fight** this phase, roll one D6, with +1 to that roll if your unit is **riled up**:
 
-*War Horde – Battle Tactic Stratagem*
+- On a 4+, do not remove that model from the battlefield. When your unit has fought, or at the end of the phase (whichever comes first), that model is removed from the battlefield.
 
-**WHEN:** Your opponent’s Shooting phase or the Fight phase, just after an enemy unit has selected its targets.
+### MOW 'EM DOWN - 1CP
 
-**TARGET:** One ORKS unit from your army (excluding GROTS, MONSTER and VEHICLE units) that was selected as the target of one or more of the attacking unit’s attacks.
+*War Horde Stratagem*
 
-**EFFECT:** Until the end of the phase, each time an attack targets your unit, subtract 1 from the Wound roll.
+**WHEN:** Fight phase, when a friendly ORKS VEHICLE unit (excluding WALKER units) that made a **charge move** this turn is **selected to fight**.
 
-### MOB RULE - 1CP
+**TARGET:** That ORKS VEHICLE unit.
 
-*War Horde – Battle Tactic Stratagem*
+**EFFECT:** Your unit’s melee attacks have:
 
-**WHEN:** End of your Command phase.
+- [Cleave 1].
+- Or: If that attack already has [CLEAVE], +1 to the value of that [CLEAVE] (e.g. [CLEAVE 1] becomes [CLEAVE 2]).
 
-**TARGET:** One MOB unit from your army that contains 10 or more models and is not Below Half-strength.
+### FUNGUS-FUEL INJECTION - 1CP
 
-**EFFECT:** Select one friendly **Battle-shocked** ORKS INFANTRY unit within 6" of that MOB unit. That ORKS INFANTRY unit is no longer Battle-shocked.
+*War Horde Stratagem*
 
-### ERE WE GO - 1CP
+**WHEN:** Your Movement phase, when a friendly ORKS MOUNTED/VEHICLE unit is **selected to move**.
 
-*War Horde – Battle Tactic Stratagem*
+**TARGET:** That ORKS MOUNTED/VEHICLE unit.
 
-**WHEN:** Start of your Movement phase.
+**EFFECT:** Your unit has +2" **M**.
 
-**TARGET:** One ORKS INFANTRY unit from your army.
+### CLOSE-RANGE DAKKA - 1CP
 
-**EFFECT:** Until the end of the turn, add 2 to **Advance** and **Charge rolls** made for your unit.
+*War Horde Stratagem*
+
+**WHEN:** Your Shooting phase, when a friendly ORKS unit is **selected to shoot**.
+
+**TARGET:** That ORKS unit.
+
+**EFFECT:** Your unit’s ranged attacks have:
+
+- [Rapid Fire 1].
+- Or: If that attack already has [RAPID FIRE], +1 to the value of that [RAPID FIRE] (e.g. [RAPID FIRE 1] becomes [RAPID FIRE 2]).

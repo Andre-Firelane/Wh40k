@@ -258,7 +258,9 @@ WAR_HORDE = ORKS.add_detachment(Detachment(
     "War Horde",
     rule_name="Get Stuck In",
     points=3,
-    force_disposition=force_dispositions.TAKE_AND_HOLD,
+    # The 2026-09 Ork codex prints TWO on War Horde's heading ("Take and Hold;
+    # Purge the Foe"); armies/orks.json declares the first.
+    force_dispositions=(force_dispositions.TAKE_AND_HOLD, force_dispositions.PURGE_THE_FOE),
     # No `setting`: War Horde is the only Ork detachment modelled, and both
     # its rule and its stratagems gate on the ORKS keyword, so there is
     # nothing to declare. This is the position Retaliation Cadre was in until

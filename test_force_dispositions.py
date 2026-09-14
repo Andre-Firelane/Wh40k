@@ -1,7 +1,8 @@
 """FORCE DISPOSITIONS: the transcription, the declaration, and the choice.
 
-Every detachment permits exactly one Force Disposition, and it decides which
-Primary Mission a list taking that detachment may play. This suite pins:
+Every detachment permits at least one Force Disposition (War Horde, since the
+2026-09 Ork codex, permits two), and the one a list declares decides which
+Primary Mission it plays. This suite pins:
 
 - the nineteen modelled detachments' dispositions AGAINST THE CORPUS
   (rules/*/detachments/*.md), not against literals. Those files are generated
@@ -78,24 +79,41 @@ for keyword, folder in FOLDERS.items():
         seen += 1
         checks.eq(f"{name}: DP matches the corpus", detachment.points, dp)
         checks.true(f"{name}: the corpus states a Force Disposition", printed is not None)
-        checks.eq(f"{name}: Force Disposition matches the corpus",
-                  detachment.force_disposition, fd.from_printed(printed or ""))
+        # Compared as the WHOLE printed list: a detachment can permit more than
+        # one (War Horde prints "Take and Hold; Purge the Foe").
+        checks.eq(f"{name}: Force Dispositions match the corpus",
+                  detachment.force_dispositions, fd.from_printed_list(printed or ""))
 
 checks.eq("all nineteen modelled detachments were checked", seen, 19)
 
-# The corpus itself must be complete - all 56 detachment files carry the line.
+# The one detachment that permits two, pinned by name so the pair cannot quietly
+# collapse back to its first entry.
+_war_horde = FACTIONS["ORKS"].detachments["War Horde"]
+checks.eq("War Horde permits Take and Hold AND Purge the Foe",
+          _war_horde.force_dispositions, (fd.TAKE_AND_HOLD, fd.PURGE_THE_FOE))
+checks.eq("...and the single-key reader still answers its first",
+          _war_horde.force_disposition, fd.TAKE_AND_HOLD)
+checks.eq("a printed pair parses to both keys, in printed order",
+          fd.from_printed_list("Take and Hold; Purge the Foe"),
+          (fd.TAKE_AND_HOLD, fd.PURGE_THE_FOE))
+checks.eq("...an unknown name keeps its slot as None",
+          fd.from_printed_list("Take and Hold; Grand Strategy"), (fd.TAKE_AND_HOLD, None))
+checks.eq("...and an empty line is no dispositions at all", fd.from_printed_list(""), ())
+
+# The corpus itself must be complete - every detachment file carries the line.
+# 58 since the 2026-09 Ork refresh: five withdrawn, seven added (13 -> 15).
 files = []
 for folder in FOLDERS.values():
     root = os.path.join("rules", folder, "detachments")
     files += [os.path.join(root, f) for f in os.listdir(root) if f.endswith(".md")]
-checks.eq("the corpus holds 56 detachments", len(files), 56)
+checks.eq("the corpus holds 58 detachments", len(files), 58)
 missing = [os.path.basename(f) for f in files
            if not re.search(r"Force Disposition: ", open(f, encoding="utf-8").read())]
 checks.eq("every one of them states a Force Disposition", missing, [])
 unknown = []
 for path in files:
     found = CORPUS_LINE.search(open(path, encoding="utf-8").read())
-    if found and found.group(2) and fd.from_printed(found.group(2)) is None:
+    if found and found.group(2) and None in fd.from_printed_list(found.group(2)):
         unknown.append((os.path.basename(path), found.group(2)))
 checks.eq("...and every one of them is one of the five we model", unknown, [])
 
@@ -124,9 +142,22 @@ for key, (disposition, mission_name) in EXPECTED.items():
               pm.mission_for(entry.force_disposition).name, mission_name)
     checks.eq(f"{entry.name}'s detachments are a legal set",
               detachments.validate(key), [])
-    granted = {d.force_disposition for d in detachments.for_army(key)}
+    granted = {k for d in detachments.for_army(key) for k in d.force_dispositions}
     checks.true(f"{entry.name}'s declaration is one its detachments permit",
                 entry.force_disposition in granted)
+
+# War Horde's SECOND disposition is a real choice for the one-detachment Ork
+# list - the first shipped list where one detachment alone offers two.
+_orks = army_lists.get("orks")
+_was = _orks.force_disposition
+try:
+    _orks.force_disposition = fd.PURGE_THE_FOE
+    checks.eq("the Ork list declaring War Horde's second disposition is legal",
+              detachments.validate("orks"), [])
+    checks.eq("...and it would play Unstoppable Force",
+              pm.mission_for(_orks.force_disposition).name, "Unstoppable Force")
+finally:
+    _orks.force_disposition = _was
 
 # The T'au list is the only one with more than one detachment, and the user
 # named which one the pick comes from.

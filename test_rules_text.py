@@ -99,7 +99,10 @@ checks.true("Wargear Abilities are included too",
             any(a.section == "Wargear Abilities" for a in avengers))
 checks.true("...such as the Shimmershield", "Shimmershield" in by_title)
 
-wagon = rt.abilities_for(orks.ORKS.datasheets["Battlewagon"])
+# The Falcon, not an Ork vehicle: rules/orks/ was refetched in the 2026-09
+# layout, which prints Damaged X as a CORE keyword and no "Damaged:" section at
+# all. The old layout still carries all three shapes on this one sheet.
+wagon = rt.abilities_for(aeldari.AELDARI.datasheets["Falcon"])
 sections = {a.section for a in wagon}
 checks.true("a CORE: row is read as a label",
             any(a.label == "CORE" for a in wagon))
@@ -218,12 +221,12 @@ for faction in FACTIONS:
                     tofu.append(f"{name}: {ch!r}")
 checks.eq("no unfolded typographic glyph survives into the card", tofu[:5], [])
 checks.true("and the fold really fires - the corpus is full of them",
-            "’" in io.open(rt.rules_path(orks.ORKS.datasheets["Battlewagon"]),
+            "’" in io.open(rt.rules_path(orks.ORKS.datasheets["Gretchin"]),
                            encoding="utf-8").read())
-ard = next(a for a in rt.abilities_for(orks.ORKS.datasheets["Battlewagon"])
-           if a.title and "Ard Case" in a.title)
-checks.true("...so 'Ard Case reads with a straight apostrophe",
-            "'" in ard.title and "’" not in ard.title)
+thievin = next((a for a in rt.abilities_for(orks.ORKS.datasheets["Gretchin"])
+                if a.title and "Scavengers" in a.title), None)
+checks.true("...so Thievin' Scavengers reads with a straight apostrophe",
+            thievin is not None and "'" in thievin.title and "’" not in thievin.title)
 
 
 # --- 7. army rules and detachment rules ------------------------------------

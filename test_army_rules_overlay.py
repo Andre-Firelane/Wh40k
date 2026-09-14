@@ -149,7 +149,7 @@ print("\n=== 1b. rules text only ===")
 
 FLUFF_AND_RULE = [
     ("aeldari", "In war, as in all things", "Battle Focus tokens"),
-    ("orks", "The infamous war cry of the Orks", "call a Waaagh!"),
+    ("orks", "The infamous war cry of the Orks", "are riled up until the end of the next turn"),
     ("necrons", "The Necron dynasties benefit", "heals D3 wounds"),
     ("tau", "The Hunter Cadres battle for the betterment", "Observer unit"),
     (DG_LIST, "The Death Guard are warriors of the Plague God",

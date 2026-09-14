@@ -11,6 +11,7 @@ reading `git diff` tells you exactly which rules Games Workshop changed.
     python fetch_datasheet_rules.py --offline        # re-parse the cached HTML
     python fetch_datasheet_rules.py --only NAME      # just these datasheets
     python fetch_datasheet_rules.py --detachment X   # just these detachments
+    python fetch_datasheet_rules.py --faction orks   # just one faction's files
 
 Every datasheet built in `game/factions/` has a file here. The T'au and
 Aeldari folders additionally carry entries that are not built yet, because
@@ -30,7 +31,7 @@ every `<faction>.html`, and its absence here once cost a shipped rules bug -
 wording now lives in `game/explosives.py`'s docstring, which is its only copy
 in the repo.
 
-Last fetched: 2026-09-11
+Last fetched: 2026-09-14
 
 | Faction | Files | Wahapedia version |
 | --- | --- | --- |
@@ -141,23 +142,25 @@ Last fetched: 2026-09-11
 
 ## Orks
 
-**Army rule:** [Waaagh!](orks/army_rules.md)
+**Army rule:** [Waaagh!, Da Boss, Unstable Energies, Special Move Types](orks/army_rules.md)
 
 **Detachments:**
 
 - [Blitz Brigade](orks/detachments/Blitz Brigade.md)
+- [Brute Bosses](orks/detachments/Brute Bosses.md)
 - [Bully Boyz](orks/detachments/Bully Boyz.md)
 - [Da Big Hunt](orks/detachments/Da Big Hunt.md)
 - [Dread Mob](orks/detachments/Dread Mob.md)
-- [Equatorial Hordes](orks/detachments/Equatorial Hordes.md)
-- [Freebooter Krew](orks/detachments/Freebooter Krew.md)
+- [Flyboyz](orks/detachments/Flyboyz.md)
 - [Green Tide](orks/detachments/Green Tide.md)
 - [Kult of Speed](orks/detachments/Kult of Speed.md)
-- [More Dakka!](orks/detachments/More Dakka!.md)
-- [Rollin’ Deff](orks/detachments/Rollin' Deff.md)
-- [Speedwaaagh!](orks/detachments/Speedwaaagh!.md)
+- [Madcap Meks](orks/detachments/Madcap Meks.md)
+- [Runt Swarm](orks/detachments/Runt Swarm.md)
+- [Shoota Boyz](orks/detachments/Shoota Boyz.md)
 - [Taktikal Brigade](orks/detachments/Taktikal Brigade.md)
 - [War Horde](orks/detachments/War Horde.md)
+- [Wreckas](orks/detachments/Wreckas.md)
+- [Wurrband](orks/detachments/Wurrband.md)
 
 **Datasheets:**
 

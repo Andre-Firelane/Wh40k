@@ -55,7 +55,11 @@ RULES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 # "1-20"), and it belongs here because it is a rule that fires from the
 # model's CURRENT wounds - which is exactly what the player is hovering to
 # find out.
-ABILITY_SECTIONS = ("Abilities", "Wargear Abilities", "Transport")
+#
+# "Psychic Abilities" came with the 2026-09 Ork codex (the Kill Rig prints its
+# Beastscent and Warpath under it, and its own "Wurrboy" ability points there
+# with "see above"). No older corpus file has the heading, so nothing else moves.
+ABILITY_SECTIONS = ("Abilities", "Psychic Abilities", "Wargear Abilities", "Transport")
 ABILITY_SECTION_PREFIXES = ("Damaged:",)
 
 # Typographic characters Wahapedia uses that pygame's default SysFont renders
