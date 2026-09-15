@@ -224,10 +224,14 @@ def capture(state, map_key, turn_tracker=None, command_points=None, armies=None,
             # trooper and deleted the character instead. The datasheet line
             # plus the weapon list is enough to tell every model of every
             # shipped roster apart, and it costs nothing to derive.
+            # A destroyed model a rule is keeping on the board for now
+            # (Token.kept_after_death) is left OUT, so restore() puts it where
+            # a casualty belongs. A snapshot never restores a half-finished
+            # activation, and the model was already counted as destroyed.
             "models": [
                 {"x_in": m.x_in, "y_in": m.y_in, "wounds": m.current_wounds,
                  "model": _profile_name(m), "weapons": _weapon_names(m)}
-                for m in squad.models
+                for m in squad.models if not getattr(m, "kept_after_death", False)
             ],
         })
     data = {

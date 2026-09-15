@@ -113,6 +113,12 @@ def effective_movement_in(model):
     # names, costs and owners and only happen to share an effect.
     from game import guardian_time_to_strike
     total += guardian_time_to_strike.move_bonus_for(squad)
+    # War Horde: Follow Me Ladz (an Enhancement, +2" while the bearer lives)
+    # and Fungus-Fuel Injection (a Stratagem, +2" this phase) both ADD to what
+    # the characteristic has become. Imported here, like triarch_auras above.
+    from game import enh_follow_me_ladz, horde_fungus_fuel_injection
+    total += enh_follow_me_ladz.move_bonus_for(squad)
+    total += horde_fungus_fuel_injection.move_bonus_for(squad)
     total -= montka_pulse_onslaught.move_penalty_for(squad)
     # PINNED: -2 Move. A SEPARATE status from `shaken` above, and they STACK -
     # two printed effects on one unit - which is why this is its own term rather

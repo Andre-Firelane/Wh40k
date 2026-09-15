@@ -202,6 +202,7 @@ cost is written down twice. See game/factions/points.py for the structure."""
 
 from game import force_dispositions
 from game.factions import Datasheet, Detachment, Faction, Gear, ModelLine, WargearOption, register_faction
+from game.factions.detachment import Enhancement
 from game.factions.orks_points import ORKS_POINTS
 from game.units import (
     BattlewagonProfile, BeastbossProfile, FlashGitzKaptinProfile, FlashGitzProfile, KillRigProfile,
@@ -241,9 +242,27 @@ WAR_HORDE = ORKS.add_detachment(Detachment(
     # so "this unit is an Ork" stopped meaning "this army runs War Horde".
     setting="WAR_HORDE_PLAYERS",
     rule_text=(
-        'Get Stuck In: Melee weapons equipped by Orks models from your army have the '
-        '[SUSTAINED HITS 1] ability.'
+        "Get Stuck In: Friendly ORKS units' melee attacks have [Sustained Hits 1]."
     ),
+    enhancements=[
+        # ENGINE-WIRED, all four - registered in game/enhancements.py, each rule
+        # in its own game/enh_*.py module. Dormant by roster: armies/orks.json
+        # buys none of them, which test_ork_war_horde.py pins.
+        Enhancement("Headwoppa's Killchoppa", 15, description=(
+            "ORKS model only. If this unit made a charge move this turn, this model's melee "
+            "attacks have +1 AP.")),
+        Enhancement("Da Boss is Watchin'", 25, description=(
+            "ORKS model only. (Once per battle, per army) In your Movement phase, you can use "
+            "this ability. If you do, this unit is riled up until the start of your next turn.")),
+        Enhancement("Kunnin' But Brutal", 20, description=(
+            "ORKS model only. When this unit is selected to make a fall-back move, that "
+            "fall-back move does not prevent this unit from being eligible to shoot/declare a "
+            "charge.")),
+        Enhancement("Follow Me Ladz", 20, description=(
+            "ORKS model only. This unit has +2\" M.")),
+    ],
+    # The six Stratagems (game/horde_*.py) are built in main.py, like every other
+    # detachment's.
 ))
 
 _BOSS_NOB_LOADOUT = [SluggaProfile, BigChoppaProfile]

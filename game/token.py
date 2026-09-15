@@ -30,6 +30,12 @@ class Token:
     # Painboy's "Grot Orderly" wargear item - same shape as ammo_runt above
     # (a real rule reads it: game/grot_orderly.py).
     grot_orderly: bool = False
+    # A destroyed model a rule keeps on the battlefield for now (Undying Spite,
+    # Orks Is Never Beaten - game/fight_after_death.py sets and clears it).
+    # GameState.remove_dead_models() skips it: without that, the NEXT frame's
+    # sweep took the zero-wound model again and the ledger rolled for it again,
+    # so a kept model was gone after a median of one frame.
+    kept_after_death: bool = False
 
     def __post_init__(self):
         if self.current_wounds is None and self.profile is not None:

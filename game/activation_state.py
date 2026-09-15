@@ -134,6 +134,12 @@ SQUAD_FLAGS = (
     "spirit_of_gork_strength",
     "spirit_of_gork_lethal",
     "ammo_runt_active",
+    "hit_em_harder_active",
+    "mow_em_down_active",
+    "fungus_fuel_injection_active",
+    "close_range_dakka_active",
+    # War Horde's Da Boss is Watchin': once per battle per army, a spend.
+    "da_boss_is_watchin_used",
     "flickerjump_active",
     # battle-scoped spend: once per battle each, so this only ever grows
     "aspect_shrine_tokens_used",

@@ -101,10 +101,17 @@ class GameState:
         frame and counted exactly like any other casualty - blood splats, the
         "No Mercy" secondary, Squad.destroyed_models - instead of standing alone
         for a frame and taking a second path out. Terminates because every pass
-        removes at least one token from a finite list."""
+        removes at least one token from a finite list.
+
+        A token a rule is KEEPING on the battlefield after its death
+        (Token.kept_after_death, set by game/fight_after_death.py) is not
+        swept: it was destroyed on the frame it first reached 0 wounds and
+        was intercepted then, and taking it again every later frame re-rolled
+        its save roll and counted its death again."""
         dead = []
         while True:
-            batch = [token for token in self.tokens if token.is_dead()]
+            batch = [token for token in self.tokens
+                     if token.is_dead() and not getattr(token, "kept_after_death", False)]
             if not batch:
                 return dead
             self._remove_tokens(batch)

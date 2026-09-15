@@ -9466,3 +9466,51 @@ Charge-Chance, größter Einzelgewinn +46, 2 von 8 Münzwürfen werden zum Favor
 
 **Benannte Grenze:** der Legacy-Pfad `--no-deployment` bietet War Cry für die allererste
 Command-Phase nicht an (`begin_battle()` ist dort nicht der Einstieg).
+
+## 2026-09-15 — Orks E2: War Horde (Enhancements, Stratagems, der Ledger-Fund)
+
+User, aus einer festgefahrenen Sitzung: *"die session Ork aktualisierung etappe 2 ist einer sackgasse
+/ da kommt immer Promt is too long und wenn ich /compact machen will, kommt ein api error / Kannst
+du in dieser session weitermachen?"*, dann *"weiter"*. Teil 1 war committet (`1786db5`); die zehn
+Regelmodule der alten Sitzung lagen uncommittet im Arbeitsbaum, samt Verdrahtung in `main.py`,
+`ai/agent_driver.py` und acht Engine-Dateien. Sie wurden Datei für Datei gegen den Korpus gelesen
+und nicht blind übernommen.
+
+**Unterwegs gefunden:**
+- **Der geteilte `FightAfterDeath`-Ledger hielt nichts.** Aufgefallen beim Test von Orks Is Never
+  Beaten: ein gehaltenes Modell war im nächsten Frame weg. `measure_kept_resweep.py` (Scratchpad,
+  echter GameState, geskriptete Würfel) belegte die Ursache: 0 Wunden, der Sweep läuft jeden Frame,
+  der Ledger würfelt neu — Median 1 Frame, 98 % bis Frame 5. Betraf alle fünf Konsumenten. Fix über
+  `Token.kept_after_death`; danach 950/2000 gehalten, jedes 100 Frames lang. `scene_io.capture()`
+  musste mit, sonst schrieb ein Save die Leiche als lebendes Modell.
+- `Checks.summary()` gibt es nicht — beide neuen Suiten enden auf `c.finish()`.
+- Fünf Testfehler beim Aufbau der Suite, alle vom eigenen Lauf gefunden: eine `SimpleNamespace`-Kopie
+  verlor `weapon_type` (jetzt `copy.copy`); der Breakin'-Heads-Verdikt-Feind stand zu nah (Positionen
+  werden jetzt gesucht und live geprüft); `V.models[:-1]` ließ den W6-Warboss stehen (`[1:]`); 10 Boyz
+  bringen [LETHAL HITS] nur 1.61 erwartete Wunden unter die 2.0-Schwelle (eine 20-Boyz-Bühne dazu, die
+  10er prüft jetzt, dass die KI den CP behält); der `take_one_action`-Finder kannte nur Attribute,
+  nicht Namen.
+- **Sonden:** 53 Sonden, 62 Läufe; eine biss nicht — „remove_for() nimmt die Modelle ALLER Einheiten".
+  Die Suite prüfte `models_kept()`, und der Ledger listet das Modell weiter, das die Sonde vom Brett
+  genommen hat. Nachgerüstet: die Brettpräsenz; mit `--only` nachgeprobt, beißt (249/250). Ein
+  Sondenanker auf `game/game_state.py` traf nicht, weil die Datei CRLF ist — einzeilig ersetzt.
+  Marker-Grep über den Arbeitsbaum leer, alle Dateien per Hash zurück.
+- **Verify, drei Durchgänge:** A und B (Registry, Tür, Prompt, Ablehnen) waren sofort belegt. C (das
+  gehaltene Modell) warf immer eine 6 — damit hielt auch die Vor-Fix-Welt das Modell, weil jeder neue
+  Sweep es wieder rettete, und die Gegenprobe maß nichts. Jetzt 6, dann 1, plus die Frage, ob das
+  Modell beim Phasenwechsel ging (die Regel) oder mitten in der Phase (der Fehler): gefixt 31 Frames
+  und weg beim Phasenwechsel, neutralisiert nach 2 Frames in derselben Phase. D zeichnete Da Boss und
+  Mow 'Em Down zuerst nie: selfplay klickt weiter Next Phase, ein echtes Zugende löscht
+  `charged_this_turn`, und die einmal gestempelte Bühne war danach weg. Die Rotation stempelt jetzt
+  jeden Frame neu, und Spione auf `can_use()` zählen die Ablehnungsgründe — danach alle fünf Knöpfe
+  in ihrer Phase, keiner außerhalb.
+
+**Verifiziert:** `test_ork_war_horde.py` 250/250, `test_ork_detachment_ui.py` 139/139; volle Regression
+233 Suiten, ~22699 Prüfungen, 232 grün / 0 rot / 1 bekannt; `run_tests.py --smoke` komplett grün;
+`selfplay.py map2 1500` Orks gegen Necrons in beiden Sitzordnungen exit 0 (über einen
+Armee-Wrapper im Scratchpad); `verify_rules_vs_engine.py` 173 und `CORPUS_AHEAD` 17 unverändert.
+
+**CLAUDE.md nachgezogen:** neuer Abschnitt `## War Horde`, dazu die Zeilen, die noch stillgelegte
+Module nannten (`measure_ard_as_nails.py` in der Werkzeugliste, die KI-Liste mit Unbridled Carnage /
+'Ere We Go / 'Ard as Nails, der Übergangssatz „bis E2", die fünf Erwähnungen der gelöschten
+`test_ere_we_go.py`-Flake, und der `fight_after_death`-Extraktionseintrag).

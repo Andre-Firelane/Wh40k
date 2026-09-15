@@ -716,7 +716,7 @@ schickt die nächste Untersuchung zurück aufs Brett.**
   (Bewegung mit der GANZEN Armee auf dem Brett — die einzige aussagekräftige Welt, siehe unten),
   `measure_movement_fixes.py` (Geometrie EINER Einheit, macht KEINE Aussage über Spielqualität),
   `measure_placement_headroom.py`, `measure_deployment_safety.py` (Regressionsschranke),
-  `measure_ard_as_nails.py`, `measure_stim_injectors_gate.py`, `measure_advance_usage.py`,
+  `measure_stim_injectors_gate.py`, `measure_advance_usage.py`,
   `measure_fly_penalty.py` (kostet oder bringt 21.03 einer gemischten Einheit Boden — baut das
   Brett aus den Koordinaten EINES Logs nach, statt eine Einheit isoliert hinzustellen),
   `measure_home_garrison.py` (wer hält das Home Objective — beide Phasen der Entscheidung,
@@ -3927,7 +3927,7 @@ Bewegung. Setzt die erstklassige Auswahl darüber voraus — sie ist der GEGENST
 - Volle Regression **160 Suiten, ~13851 Prüfungen, 159 grün / 0 rot / 1 bekannt**, `run_tests.py
   --smoke` grün, alle sechs Smokes plus vier `--neutralize`-Gegenproben rot, `selfplay.py` auf map2
   und map3.
-- **Vorbestehende Flake benannt, nicht mir zugeordnet:** `test_ere_we_go.py` fällt unter dem
+- **Vorbestehende Flake benannt, nicht mir zugeordnet:** `test_ere_we_go.py` (mit Orks E2 gelöscht) fiel unter dem
   Parallel-Runner sprunghaft aus (~1 von 3), einzeln nie. **An einem HEAD-Worktree A/B belegt:**
   ohne eine einzige Änderung dieser Arbeit fällt es dort in 2 von 4 vollen Sweeps genauso. Nicht
   ursachenaufgeklärt.
@@ -5938,7 +5938,7 @@ reaktiv). Split Fire, und die Weapon Abilities [ANTI-X]/[ASSAULT]/[BLAST]/[CLEAV
     (**9 A/B-Sonden, alle beißend**, byte-identisch zurückgestellt; die ganze Vor-Fix-Welt kippt 33 von 70).
     Volle Regression **233 Suiten, ~22258 Prüfungen, 232 grün / 0 rot / 1 bekannt**, alle neun schweren
     Skripte von `run_tests.py --smoke` grün (im Wiederholungslauf fiel einmal die dokumentierte
-    `test_ere_we_go.py`-Flake, einzeln 3 von 3 grün). **Im ECHTEN Spiel**
+    `test_ere_we_go.py`-Flake, einzeln 3 von 3 grün; die Suite ist seit Orks E2 gelöscht). **Im ECHTEN Spiel**
     (`verify_reactive_shooting_start.py`, Hexmark des Menschen gegen eine KI-Doomsday-Ark): kein Absturz,
     Aktivierung offen und auf die Ark beschränkt, **0 KI-Aktionen in 240 Frames**, ein echter Klick nimmt das
     Ziel, die KI setzt 3 Frames nach dem Stopp fort. `--neutralize` reproduziert den TypeError,
@@ -6292,7 +6292,7 @@ für die KI.
     Schritt VOR jeder Kampfauswahl, 12.07/12.08 Consolidation ein eigener Schritt DANACH. Der
     gedruckte Triggermoment liegt also ZWISCHEN den zwei Zügen, die der Effekt nennt: wörtlich
     genommen kommt er für die Pile-in-Hälfte zu spät und zwingt die Consolidate-Hälfte, blind
-    bezahlt zu werden. Fenster 1 (vor dem Kampf, Form von Unbridled Carnage) gab es genau für die
+    bezahlt zu werden. Fenster 1 (vor dem Kampf, Form des mit Orks E2 stillgelegten Unbridled Carnage) gab es genau für die
     erste Hälfte schon; Fenster 2 (vor dem Consolidation-Zug) ist derselbe Fix für die zweite.
   - **Reproduziert vor der Änderung:** Gegner zerstört, der nächste 4.5" entfernt, Fight-Step
     fertig — `determine_mode()` gab **None**, es wurde also gar keine Consolidation angeboten, und
@@ -8197,7 +8197,8 @@ Spiellänge definieren.
 - **Orks** — Boyz (10/20), Warbikers, Stormboyz, Trukk, Gretchin, Battlewagon, Kill Rig, Deff Dread,
   Deffkoptas, Flash Gitz, Tankbustas, Meganobz, Beast Snagga Boyz, Beastboss, Warboss (Fuß + Mega
   Armour), Painboy. Armeeregel Waaagh! (seit E1 der 2026-09-Codex: riled up + War Cry, siehe
-  `## Die Ork-Armeeregel`), Detachment "War Horde" (bis E2 noch Get Stuck In + alte Stratagems). Komplette
+  `## Die Ork-Armeeregel`), Detachment "War Horde" (seit E2 Codex-Stand: Get Stuck In, vier Enhancements,
+  sechs Stratagems, siehe `## War Horde`). Komplette
   Punkteliste (58 Einträge).
 - **Aeldari** — Guardian Defenders, Storm Guardians, Striking Scorpions, Howling Banshees, Warp
   Spiders, Dire Avengers, Fire Dragons, Dark Reapers, Shining Spears, Windriders, Warlock Skyrunners,
@@ -8357,7 +8358,7 @@ Spiellänge definieren.
       "1en ODER ganzer Wurf"-Form. Seine Bedingung ist als einzige eine DISTANZ (Halbdistanz), und
       sie wird so gemessen, wie [RAPID FIRE X] und [MELTA X] es schon tun (`pairs` × Zielmodelle,
       Halbdistanz über `game/weapon_range.py`), statt ein zweites Mal.
-    - **KI-Pfade sind für die drei reaktiven schon da** (`auto_players`, Muster `'Ard as Nails`):
+    - **KI-Pfade sind für die drei reaktiven schon da** (`auto_players`, Muster des mit Orks E2 stillgelegten `'Ard as Nails`):
       Undying Legions ab `recoverable_wounds ≥ 2`, Eternal Revenant immer (ein Charakter ist 1 CP
       wert), Vengeful Stars nur bei positivem `damage_value`. Sudden Storms Advance-Reroll ist
       ebenfalls deterministisch (unter 4 neu werfen — ein D6 mittelt 3.5). Die drei PROAKTIVEN
@@ -8417,7 +8418,7 @@ Spiellänge definieren.
   - **Etappe 3 — die KI spielt die Fraktion deterministisch.** **Null API-Calls** für jede
     Necron-Entscheidung, belegt durch einen werfenden Agenten.
     - **Zwei Mechanismen, und die Wahl ist nicht beliebig.** Alles REAKTIVE antwortet über
-      `auto_players` im eigenen Controller (Muster `'Ard as Nails`) und braucht in `ai/`
+      `auto_players` im eigenen Controller (Muster des stillgelegten `'Ard as Nails`) und braucht in `ai/`
       **gar nichts** — Menschprompt und KI-Antwort teilen dort ein Urteil. Die drei PROAKTIVEN
       Protokolle brauchen ein `_verdict()`/`_handle_*()`-Paar in `ai/agent_driver.py`, weil 15.01
       nur EINE Nutzung pro Phase erlaubt: die Frage ist nicht "soll diese Einheit kaufen", sondern
@@ -9008,8 +9009,8 @@ byte-identisch (In-Memory-Vergleich über 255 Dateien, 0 Differenzen). Plan und 
   GESAMMELT statt gefailt, und die Menge ist dreifach bewacht (nur `orks`; Anzahl ==
   `EXPECTED_AHEAD`; jedes gelistete Blatt MUSS noch abweichen, sonst raus). Jede Datenblatt-Etappe
   senkt die Zahl, die letzte löscht den Block samt drei Sonden. `verify_rules_vs_engine.py` meldet
-  bis dahin **173 statt 70** Differenzen (106 Ork-Zeilen). Und bis E2 zeigt der Army-Rules-Leser
-  schon den neuen War-Horde-Text, während die Engine die alten Stratagems spielt.
+  bis dahin **173 statt 70** Differenzen (106 Ork-Zeilen). Seit E2 spielt die Engine
+  denselben War-Horde-Text, den der Army-Rules-Leser zeigt.
 - **Getestet:** `test_datasheet_rules.py` → **145/145** (neu §6: eine COMMITTETE, ERFUNDENE Fixture
   `testdata/wahapedia_new_layout_blocks.html` — nur Markup, kein GW-Text, weil `.cache/`
   gitignoriert ist —, derselbe Satz Zusicherungen am echten Ork-Korpus, und die README-Zeilen von
@@ -9146,11 +9147,112 @@ Plan: `C:\Users\Andre\.claude\plans\transient-munching-boot.md`. Gedruckter Text
   Menschen, die KI wirft ihre Advance-1 ohne Prompt neu. `--neutralize` kehrt alles um. Gestellt:
   Orks auf beiden Seiten, die Antworten des Menschen, zwei Advance-Würfe — und zwei stehende
   Menschen-Prompts eines Ork-Player-1 (Spirit of Gork, 'Ard as Nails), die selfplay nicht beantwortet
-  und die den Lauf sonst nach 5 Phasen anhielten, per letzter Option abgelehnt und benannt). Nachgezogen: `test_ere_we_go.py`,
+  und die den Lauf sonst nach 5 Phasen anhielten, per letzter Option abgelehnt und benannt). Nachgezogen: `test_ere_we_go.py` (in E2 gelöscht),
   `test_advance_usage.py` (43), `test_necron_ai.py` §8, `test_event_chain_wiring.py` §18.
   `verify_rules_vs_engine.py` **173**, `CORPUS_AHEAD` **17** (beides unverändert). Volle Regression
   **234 Suiten, ~22442 Prüfungen, 233 grün / 0 rot / 1 bekannt**, `run_tests.py --smoke` komplett
   grün; `selfplay.py map2 1500` mit Orks gegen Necrons in beiden Sitzordnungen exit 0.
+
+## War Horde (2026-09-Codex): Detachment-Regel, vier Enhancements, sechs Stratagems — Etappe E2
+
+Plan: `C:\Users\Andre\.claude\plans\transient-munching-boot.md`. Gedruckter Text in
+`rules/orks/detachments/War Horde.md`; jedes Modul trägt ihn im Docstring. **Die Ork-Liste fieldet
+War Horde** (also nicht dormant), `armies/orks.json` ist unverändert. Zwei Commits: Teil 1
+(`1786db5`) baut die Nähte, Teil 2 die Regeln.
+
+**Teil 1 — drei Nähte und die Stilllegung:**
+- Gate `config.WAR_HORDE_PLAYERS` wie jedes Detachment (`game/war_horde.py`); Get Stuck In
+  ([SUSTAINED HITS 1] im Nahkampf) liest es.
+- `extra_attack_dice()` liest in `shooting.py` UND `fight.py` die ANGEPASSTE Waffe
+  (`test_event_chain_wiring.py` §27) — sonst würfelt ein Laufzeit-Grant [BLAST]/[CLEAVE]/[RAPID FIRE]
+  keinen Zusatzwürfel.
+- `battle_shock.set_battle_shocked(squad, source)` ist die EINE Tür nach „becomes battle-shocked",
+  mit modulweiten Listenern (`add_became_battle_shocked_listener`, geleert je Schlacht in `main()`);
+  die drei direkten Zuweisungen gehen hindurch (§26).
+- Stillgelegt: Unbridled Carnage, 'Ard as Nails, 'Ere We Go (Module, Suiten,
+  `measure_ard_as_nails.py`, Panel- und Treiberpfade, Squad-Flags, `roll_bonus`-Term,
+  `crit_hit`-Fold); abhängige Suiten zeigen auf lebende Träger.
+
+**Enhancements** (`game/enh_*.py`, alle vier in `enhancements.py`s Registry; „ORKS model only" ist
+CHARACTER plus `profile.orks`):
+- **Headwoppa's Killchoppa** (15): +1 AP auf die Nahkampfwaffen des TRÄGERS, wenn seine EINHEIT
+  gechargt hat (`charged_this_turn`); Per-Träger-Term in `_melee_attack_key()`.
+- **Da Boss is Watchin'** (25): Registry-Knopf OHNE CP in der eigenen Movement-Phase, einmal pro
+  Schlacht pro Armee (`Squad.da_boss_is_watchin_used`, gespeichert), riled up bis zum Beginn des
+  nächsten eigenen Zuges über `riled_up.grant()`. Das Label sagt „no CP", weil die Registry jeden
+  Knopf im Stratagem-Akzent zeichnet.
+- **Kunnin' But Brutal** (20): beide Hälften von 09.07 in `move_exceptions` (wie Adaptive Strategy).
+- **Follow Me Ladz** (20): +2" auf `coldstar.effective_movement_in()`s `total`.
+
+**Stratagems** (`game/horde_*.py`, alle 1 CP):
+
+| Stratagem | Weg | Naht |
+|---|---|---|
+| Hit 'Em Harder | Registry, Fight (beide Spieler) | [LETHAL HITS] in `fight.py`s Kette |
+| Mow 'Em Down | Registry, Fight | [CLEAVE] +1 (ORKS VEHICLE ohne WALKER, gechargt) → `extra_attack_dice()` |
+| Fungus-Fuel Injection | Registry, eigene Movement | +2" für MOUNTED/VEHICLE; „selected to move" = noch nicht bewegt |
+| Close-Range Dakka | Registry, eigene Shooting | [RAPID FIRE] +1 in `shooting.py`s Kette → `extra_attack_dice()` |
+| Breakin' Heads | Listener an der Battle-Shock-Tür | Angebot AUFGESCHOBEN (`offer_pending()` pro Frame nach dem Sweep); D3 sichtbar, Mortal Wounds teilt der EIGENE Spieler zu (Session mit Drain, §17), danach nicht mehr geschockt; „attached" = 19.01-Merge |
+| Orks Is Never Beaten | `fight_controller.target_reactions` | `FightAfterDeath`-Ledger, 4+ (+1 riled up), TITANIC ausgenommen |
+
+- Die vier Registry-Grants leben eine Phase (`Squad.*_active` in `SQUAD_FLAGS`, Reset im
+  Per-Phasen-Block von `main.py`).
+- **Never Beaten (User-Entscheidungen):** gilt in beiden Fight-Phasen; ein gehaltenes Modell kämpft
+  mit seiner Einheit, bekommt keine Wunden zugeteilt (Sessions überspringen Tote) und zählt weder
+  für OC (`level_of_control()`) noch für Kohärenz (`check_coherency()`); entfernt wird es, sobald
+  SEINE Einheit gekämpft hat (`FightAfterDeath.remove_for()` aus dem Nach-Kampf-Haken) oder am
+  Phasenende (`reset_phase()`). **Benannte Grenze:** `is_eligible_to_fight()` verlangt ein lebendes
+  Modell — eine Einheit, deren jedes Modell gehalten wird, kann nicht gewählt werden.
+
+**DER FUND: der geteilte Ledger hat seine Modelle nie gehalten.** Ein gehaltenes Modell hat
+0 Wunden, `remove_dead_models()` läuft jeden Frame — also nahm der nächste Sweep es erneut, der
+Konsument würfelte neu, und ein Fehlwurf nahm es endgültig, während sein `_owed`-Eintrag stehenblieb.
+Gemessen mit dem echten GameState: gehalten auf Frame 0 → weg nach Median **1** Frame, **98 %** bis
+Frame 5. **Betraf alle fünf Ledger-Regeln** (Undying Spite, Malevolent Souls, Systematic Vigour, To
+Their Final Breath, Never Beaten): keine konnte in einem echten Spiel je zurückschlagen, und ihre
+Suiten riefen den Ledger direkt, sahen also den zweiten Frame nie. Fix: `Token.kept_after_death`
+(gesetzt von `_keep_up()`, gelöscht von `_take_off()`), `remove_dead_models()` überspringt es,
+`_keep_up()` dedupliziert `_owed`, `scene_io.capture()` schreibt ein gehaltenes Modell nicht als
+lebendes. Danach: 950 von 2000 Versuchen gehalten, jedes volle 100 Frames auf dem Brett.
+
+**KI** (0 API-Calls): Da Boss für die dem Feind nächste nicht-riled-up Einheit mit Feind in
+Advance-Reichweite plus Charge; Fungus-Fuel, wenn der nächste Feind weiter als Move und höchstens
+Move+2" weg ist; Close-Range Dakka ab 4 erwarteten Zusatzwürfeln; Hit 'Em Harder ab 2.0 erwarteten
+Zusatzwunden gegen einen engagierten Feind (10 Boyz kommen auf 1.61 und behalten den CP); Mow 'Em
+Down gegen mindestens 5 Modelle. Diese fünf als `_handle_*` in `ai/agent_driver.py`; Breakin' Heads
+(ab 6 Restwunden und Objective- oder 9"-Feindnähe) und Never Beaten (ab 2 erwarteten Verlusten)
+antworten über `auto_players` plus injiziertes Urteil.
+
+**Getestet:** neu `test_ork_war_horde.py` (**250/250**, zwölf Abschnitte, u. a. der Ledger über fünf
+Frames gegen den echten Sweep und ein Sweep über die fünf `FightAfterDeath(`-Module) und
+`test_ork_detachment_ui.py` (**139/139** — Liveness, 5×2×5-Phasenmatrix, gegnerischer Fight für
+Hit/Mow, Detachment-Tor AM PANEL, Negative samt CP-Tor mit Da Boss bei 0 CP, isolierte Resets, der
+Klick zahlt, Label gegen Korpus, AST). Neu `ab_ork_war_horde.py` (**53 Sonden, 62 Läufe, alle
+beißend**; Timeout, `--check`, `--only`). **Eine biss zuerst nicht, Befund über den TEST:** „remove_for()
+nimmt die Modelle ALLER Einheiten" — geprüft war nur `models_kept()`, und der Ledger listet ein Modell
+weiter, das das Brett verloren hat; jetzt zusätzlich die Brettpräsenz. `game/game_state.py` ist
+CRLF, ein mehrzeiliger LF-Sondenanker traf dort nicht → einzeilig. Volle Regression **233 Suiten,
+~22699 Prüfungen, 232 grün / 0 rot / 1 bekannt**, `run_tests.py --smoke` komplett grün,
+`selfplay.py map2 1500` Orks gegen Necrons in beiden Sitzordnungen exit 0,
+`verify_rules_vs_engine.py` **173** und `CORPUS_AHEAD` **17** unverändert.
+
+**Im ECHTEN Spiel belegt** (`verify_ork_war_horde.py`, Orks als Player 1):
+
+| | gefixt | `--neutralize` |
+|---|---|---|
+| Controller auf `main()`s Registry | alle fünf | keiner |
+| Breakin' Heads an der Tür, Prompt nach dem Schock | ja, Frame +1 | nein, nie |
+| Ablehnen | CP 3 → 3, weiter geschockt | — |
+| gehaltenes Modell | 31 Frames, weg beim PHASENWECHSEL | nach 2 Frames erneut gefegt, dieselbe Phase |
+| Knöpfe gezeichnet / außerhalb ihres WHEN | 5 von 5 / 0 | 0 von 5 / 0 |
+
+GESTELLT: der Schock durch die Tür, das gehaltene Modell (Würfel 6, danach nur noch 1 — immer 6
+hätte die Vor-Fix-Welt verdeckt) und eine Phasenrotation, die `charged_this_turn` und die
+Kampfberechtigung JEDEN Frame neu stempelt: selfplay klickt weiter Next Phase, und ein echtes
+Zugende löscht `charged_this_turn` — ohne das blieben Da Boss und Mow 'Em Down ungezeichnet. Die
+Sonde MISST die Ablehnungen statt sie zu erzählen (Da Boss: jede Nicht-Träger-Einheit „Enhancement
+not active"). `--neutralize` entfernt Listener und Registry-Adds per Import-Hook und stellt den
+Vor-Fix-Sweep her.
 
 ## KI-Architektur
 
@@ -9310,9 +9412,11 @@ KI-Pfad.**
   dann Charge").
 - **Deterministische Entscheidungen ohne API-Call** (jeweils weil es ein VOLLSTÄNDIGES Verfahren ohne
   Restermessen gibt, und ein Test mit werfendem Agenten belegt die 0 Calls): Command Re-roll auf einen
-  verfehlten Charge (verfehlt + Nahkampfeinheit + Lücke ≤7"), War Hordes Unbridled Carnage,
-  'Ere We Go im riled-up-Zug, War Cry (`war_cry_verdict`), der Waaagh!-Advance-Reroll (unter 4),
-  'Ard as Nails, Ammo Runt, Grot Orderly, Spirit of Gork — und die
+  verfehlten Charge (verfehlt + Nahkampfeinheit + Lücke ≤7"), War Cry (`war_cry_verdict`), der
+  Waaagh!-Advance-Reroll (unter 4), War Horde (Da Boss is Watchin', Fungus-Fuel Injection,
+  Close-Range Dakka, Hit 'Em Harder, Mow 'Em Down als `_handle_*` ohne `agent`; Breakin' Heads und
+  Orks Is Never Beaten über `auto_players` plus injiziertes Urteil), Ammo Runt, Grot Orderly,
+  Spirit of Gork — und die
   **gesamte Necron-Fraktion**: Reanimation Protocols samt Warriors-Reroll, Resurrection Orb,
   Technomancer, Matter Absorption, Living Lightning, Wraith Form und alle sechs
   Awakened-Dynasty-Protokolle. **Und seit Etappe 3 auch der Plasmacyte** — er stand hier
@@ -10881,7 +10985,8 @@ Dateien.
 
 ### Sechs Extraktionen, alle am ZWEITEN Konsumenten
 
-`fight_after_death.py` (18., geteilt von Undying Spite 4+ und Malevolent Souls 3+ — inklusive der
+`fight_after_death.py` (18., geteilt von Undying Spite 4+ und Malevolent Souls 3+; seit Orks E2 mit
+`Token.kept_after_death`, siehe `## War Horde` — inklusive der
 vier Hälften von "zurück auf dem Brett"), `activation_reroll.py` (19., Targeting Array und Crystal
 Matrix, die sich nur in `shared_use` unterscheiden), `cp_discount.py` (20., am VIERTEN Konsumenten:
 Puretide, My Will Be Done, War Leader), `battle_shock_after_shooting.py` (21.),
@@ -11782,7 +11887,7 @@ Volle Regression **216 Suiten, ~19190 Prüfungen, 215 grün / 0 rot / 1 bekannt*
 keine davon nennt eine Canoptek-Einheit**, `test_weapon_characteristics.py` bei
 **null** Waffenabweichungen, und `git status --porcelain rules/` leer.
 
-**Der `test_ere_we_go.py`-Fehlschlag im ersten Sweep ist die dokumentierte
+**Der `test_ere_we_go.py`-Fehlschlag (Suite seit Orks E2 gelöscht) im ersten Sweep ist die dokumentierte
 VORBESTEHENDE Flake** — einzeln 44/44, unter dem Parallel-Runner ~1 von 3;
 zwei weitere Sweeps meldeten 215 grün / 0 rot. Nicht dieser Arbeit zugeordnet
 (Fehlerklasse 20).
@@ -13977,7 +14082,8 @@ Abschnitt 6z tut das jetzt für JEDES gebaute Aeldari-Datenblatt und würde ein 
   angeboten; nach Verbrauch abgelehnt; nächste Runde wieder frei). Neu `ab_explosives_grenades.py`
   (**3 A/B-Sonden, alle beißend** — Autarch-Flag weg, alle 18 weg, Leck auf die geteilte
   Kroot-Hound-Basis). Volle Regression **228 Suiten, ~20938 Prüfungen, 226 grün / 1 rot / 1 bekannt** —
-  der eine rote ist `test_ere_we_go.py`, die dokumentierte Parallel-Runner-Flake, einzeln 3 von 3 grün.
+  der eine rote ist `test_ere_we_go.py` (seit Orks E2 gelöscht), die dokumentierte Parallel-Runner-Flake,
+  einzeln 3 von 3 grün.
 
 ## Cleanse bot einen Knopf an, der nicht auszahlen konnte (2026-09-10)
 

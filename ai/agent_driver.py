@@ -6408,6 +6408,12 @@ def _take_one_action(
     # policies injected from this module).
     reanimation_crypts_controller=None, cosmic_precision_controller=None,
     dimensional_corridor_controller=None,
+    # War Horde (Orks). Its five panel buttons get deterministic handlers - Da
+    # Boss is Watchin' and Fungus-Fuel Injection in the Movement phase, Close-
+    # Range Dakka in the Shooting phase, Hit 'Em Harder and Mow 'Em Down in the
+    # Fight phase. Breakin' Heads is here for deadly_vectors_controller's reason.
+    da_boss_controller=None, fungus_fuel_controller=None, close_range_dakka_controller=None,
+    hit_em_harder_controller=None, mow_em_down_controller=None, breakin_heads_controller=None,
 ):
     """Resolve exactly ONE pending decision for `player` (Player 2 by
     default) and return - this is the function main.py's "A" key calls. A
@@ -6557,6 +6563,7 @@ def _take_one_action(
         explosives_controller, transport_controller, fall_back_controller,
         crushing_impact_controller, deadly_demise_controller,
         deadly_vectors_controller, metalodermal_tesla_weave_controller,
+        breakin_heads_controller,
     ]
     controllers = [c for c in controllers if c is not None]
 
@@ -6663,6 +6670,7 @@ def _take_one_action(
             sudden_storm_controller=sudden_storm_controller,
             shooting_controller=shooting_controller,
             cosmic_precision_controller=cosmic_precision_controller,
+            da_boss_controller=da_boss_controller, fungus_fuel_controller=fungus_fuel_controller,
         )
     elif phase == PHASE_SHOOTING:
         acted = _handle_shooting(
@@ -6671,6 +6679,7 @@ def _take_one_action(
             charge_controller=charge_controller, arrokon_controller=arrokon_controller,
             conquering_tyrant_controller=conquering_tyrant_controller, game_log=game_log,
             cynosure_controller=cynosure_controller, solar_pulse_controller=solar_pulse_controller,
+            close_range_dakka_controller=close_range_dakka_controller,
         )
     elif phase == PHASE_CHARGE:
         acted = _handle_dimensional_corridor(player, all_tokens, dimensional_corridor_controller,
@@ -6688,6 +6697,7 @@ def _take_one_action(
             hungry_void_controller=hungry_void_controller,
             grim_reapers_controller=grim_reapers_controller,
             cynosure_controller=cynosure_controller,
+            hit_em_harder_controller=hit_em_harder_controller, mow_em_down_controller=mow_em_down_controller,
         )
     else:
         acted = False
@@ -8618,12 +8628,150 @@ def _maybe_generate_turn_plan(agent, memory, player, state, turn_tracker, game_l
             )
 
 
+
+# ---------------------------------------------------------------------------
+# War Horde (Orks, 2026-09 codex). All deterministic, no agent. The two REACTIVE
+# Stratagems (Breakin' Heads, Orks Is Never Beaten) answer inside their own
+# controllers through auto_players and a verdict main.py injects.
+# ---------------------------------------------------------------------------
+
+
+def _nearest_enemy_gap(squad, all_tokens):
+    """Edge distance to the nearest enemy unit with a living model, or None."""
+    enemies = [e for e in _all_squads(all_tokens)
+               if e.owner != squad.owner and any(not m.is_dead() for m in e.models)]
+    if not enemies:
+        return None
+    return min(_squad_distance_between(squad, e) for e in enemies)
+
+
+def _handle_da_boss(player, all_tokens, da_boss_controller, game_log=None):
+    """Da Boss is Watchin' (War Horde Enhancement - no CP, once per battle):
+    for the unit nearest the enemy that is NOT riled up yet and has an enemy
+    within its Advance reach plus a charge. Riled up keeps the charge after an
+    Advance, which is what that unit is about to want. Bought before it moves."""
+    if da_boss_controller is None:
+        return False
+    best = None
+    for squad in sorted(_all_squads(all_tokens), key=lambda s: s.name):
+        if squad.owner != player or not da_boss_controller.can_use(squad):
+            continue
+        if riled_up.is_riled_up(squad):
+            continue
+        gap = _nearest_enemy_gap(squad, all_tokens)
+        if gap is None or gap > observation.advance_reach_in(squad) + CHARGE_RANGE_IN:
+            continue
+        if best is None or gap < best[0]:
+            best = (gap, squad)
+    if best is None or not da_boss_controller.use(best[1]):
+        return False
+    if game_log is not None:
+        game_log.add(
+            f"[da boss] {player}: {best[1].name} - {best[0]:.1f}\" from the nearest enemy, "
+            "riled up so an Advance keeps its charge.", file_only=True)
+    return True
+
+
+def _handle_fungus_fuel(player, all_tokens, fungus_fuel_controller, game_log=None):
+    """Fungus-Fuel Injection (1CP): for a unit whose nearest enemy is further
+    than its Move and within Move + 2" - exactly the gap the +2" closes."""
+    from game import horde_fungus_fuel_injection as ffi
+    if fungus_fuel_controller is None:
+        return False
+    best = None
+    for squad in sorted(_all_squads(all_tokens), key=lambda s: s.name):
+        if squad.owner != player or not fungus_fuel_controller.can_use(squad):
+            continue
+        gap = _nearest_enemy_gap(squad, all_tokens)
+        move = min_model_movement(squad)
+        if gap is None or not (move < gap <= move + ffi.FUNGUS_FUEL_BONUS_IN):
+            continue
+        if best is None or gap < best[0]:
+            best = (gap, squad)
+    if best is None or not fungus_fuel_controller.use(best[1]):
+        return False
+    if game_log is not None:
+        game_log.add(
+            f"[fungus-fuel] {player}: {best[1].name} - the nearest enemy is {best[0]:.1f}\" away, "
+            "just past its Move.", file_only=True)
+    return True
+
+
+def _handle_close_range_dakka(player, all_tokens, close_range_dakka_controller, game_log=None):
+    """Close-Range Dakka (1CP): for the unit it adds the most dice to, and only
+    when that is at least CLOSE_RANGE_DAKKA_MIN_EXTRA_DICE."""
+    from game import horde_close_range_dakka as crd
+    if close_range_dakka_controller is None:
+        return False
+    enemies = [t for t in all_tokens if t.squad is not None and t.squad.owner != player]
+    best = None
+    for squad in sorted(_all_squads(all_tokens), key=lambda s: s.name):
+        if squad.owner != player or not close_range_dakka_controller.can_use(squad):
+            continue
+        extra = crd.expected_extra_dice(squad, enemies)
+        if extra >= crd.CLOSE_RANGE_DAKKA_MIN_EXTRA_DICE and (best is None or extra > best[0]):
+            best = (extra, squad)
+    if best is None or not close_range_dakka_controller.use(best[1]):
+        return False
+    if game_log is not None:
+        game_log.add(f"[close-range dakka] {player}: {best[1].name} - about {best[0]} extra "
+                     "dice inside half range.", file_only=True)
+    return True
+
+
+def _handle_hit_em_harder(player, all_tokens, fight_controller, hit_em_harder_controller, game_log=None):
+    """Hit 'Em Harder (1CP): for the unit [LETHAL HITS] helps most against an
+    engaged enemy, and only when that is at least HIT_EM_HARDER_MIN_GAIN wounds.
+    Bought before any unit is selected to fight, like Hungry Void."""
+    from game import horde_hit_em_harder as hit
+    if hit_em_harder_controller is None or fight_controller is None:
+        return False
+    best = None
+    for squad in sorted(_all_squads(all_tokens), key=lambda s: s.name):
+        if squad.owner != player or not hit_em_harder_controller.can_use(squad):
+            continue
+        gains = [hit.expected_lethal_gain(squad, t) for t in fight_controller.engaged_enemy_squads(squad)]
+        gain = max(gains) if gains else 0.0
+        if gain >= hit.HIT_EM_HARDER_MIN_GAIN and (best is None or gain > best[0]):
+            best = (gain, squad)
+    if best is None or not hit_em_harder_controller.use(best[1]):
+        return False
+    if game_log is not None:
+        game_log.add(f"[hit 'em harder] {player}: {best[1].name} - [LETHAL HITS] is worth about "
+                     f"{best[0]:.1f} extra wound(s).", file_only=True)
+    return True
+
+
+def _handle_mow_em_down(player, all_tokens, fight_controller, mow_em_down_controller, game_log=None):
+    """Mow 'Em Down (1CP): for a charging vehicle engaged with an enemy of at
+    least MOW_EM_DOWN_MIN_TARGET_MODELS models - below five, [CLEAVE] adds no die."""
+    from game import horde_mow_em_down as mow
+    if mow_em_down_controller is None or fight_controller is None:
+        return False
+    best = None
+    for squad in sorted(_all_squads(all_tokens), key=lambda s: s.name):
+        if squad.owner != player or not mow_em_down_controller.can_use(squad):
+            continue
+        sizes = [sum(1 for m in t.models if not m.is_dead())
+                 for t in fight_controller.engaged_enemy_squads(squad)]
+        size = max(sizes) if sizes else 0
+        if size >= mow.MOW_EM_DOWN_MIN_TARGET_MODELS and (best is None or size > best[0]):
+            best = (size, squad)
+    if best is None or not mow_em_down_controller.use(best[1]):
+        return False
+    if game_log is not None:
+        game_log.add(f"[mow 'em down] {player}: {best[1].name} - engaged with {best[0]} enemy "
+                     "models.", file_only=True)
+    return True
+
+
 def _handle_movement(
     agent, memory, player, state, movement_controller, transport_controller, setup_controller,
     game_log, on_thinking, ingress_controller=None, fall_back_controller=None, war_cry_controller=None,
     last_ranged_attack_turn=None, mission_controller=None,
     sudden_storm_controller=None, shooting_controller=None,
     cosmic_precision_controller=None,
+    da_boss_controller=None, fungus_fuel_controller=None,
 ):
     all_tokens = state.tokens
 
@@ -8659,6 +8807,13 @@ def _handle_movement(
         player, all_tokens, movement_controller, sudden_storm_controller,
         shooting_controller, game_log,
     ):
+        return True
+
+    # War Horde's two Movement-phase buttons, for the same reason: both have to
+    # be pressed before the unit moves. Deterministic, no agent call.
+    if _handle_da_boss(player, all_tokens, da_boss_controller, game_log):
+        return True
+    if _handle_fungus_fuel(player, all_tokens, fungus_fuel_controller, game_log):
         return True
 
     # Resume a Disembark Move already in progress: a Combat/Emergency
@@ -9688,7 +9843,7 @@ def _choose_shooting_target_and_weapon(agent, memory, player, all_tokens, shooti
     return True
 
 
-def _handle_shooting(agent, memory, player, all_tokens, shooting_controller, explosives_controller, on_thinking, greater_good_controller=None, plan=None, charge_controller=None, arrokon_controller=None, conquering_tyrant_controller=None, game_log=None, cynosure_controller=None, solar_pulse_controller=None):
+def _handle_shooting(agent, memory, player, all_tokens, shooting_controller, explosives_controller, on_thinking, greater_good_controller=None, plan=None, charge_controller=None, arrokon_controller=None, conquering_tyrant_controller=None, game_log=None, cynosure_controller=None, solar_pulse_controller=None, close_range_dakka_controller=None):
     # Real, severe bug found via user report ("die KI verliert die
     # Kontrolle..."): resume an activation someone ELSE already started
     # for `player`'s squad and left sitting at CHOOSING_TARGET with no
@@ -9787,6 +9942,10 @@ def _handle_shooting(agent, memory, player, all_tokens, shooting_controller, exp
     if _handle_solar_pulse(player, all_tokens, solar_pulse_controller, game_log):
         return True
     if _handle_cynosure(player, all_tokens, cynosure_controller, melee=False, game_log=game_log):
+        return True
+    # War Horde's Close-Range Dakka: "when a unit is selected to shoot", so it
+    # is bought ahead of the shoot loop that selects units.
+    if _handle_close_range_dakka(player, all_tokens, close_range_dakka_controller, game_log):
         return True
 
     for squad in sorted(_all_squads(all_tokens), key=lambda s: s.name):
@@ -11543,6 +11702,7 @@ def _handle_fight(
     consolidate_controller=None, game_log=None,
     hungry_void_controller=None, grim_reapers_controller=None,
     cynosure_controller=None,
+    hit_em_harder_controller=None, mow_em_down_controller=None,
 ):
     # Rule 12.07/12.08 (Consolidate): checked first, for any of player's own
     # squads that have already fought and haven't consolidated (or declined
@@ -11618,6 +11778,13 @@ def _handle_fight(
     # the first opportunity by user instruction, so it has no verdict function -
     # see _handle_grim_reapers().
     if _handle_grim_reapers(player, all_tokens, grim_reapers_controller, game_log):
+        return True
+
+    # War Horde's Hit 'Em Harder and Mow 'Em Down: the same window and the same
+    # "selected to fight" reading.
+    if _handle_hit_em_harder(player, all_tokens, fight_controller, hit_em_harder_controller, game_log):
+        return True
+    if _handle_mow_em_down(player, all_tokens, fight_controller, mow_em_down_controller, game_log):
         return True
 
     eligible = sorted(fight_controller.eligible_to_select_now(), key=lambda s: s.name)

@@ -91,6 +91,11 @@ class Objective:
                 continue
             if token.squad.battle_shocked:
                 continue
+            # A destroyed model a rule keeps on the board for now (Undying
+            # Spite, Orks Is Never Beaten - game/fight_after_death.py) adds no
+            # Objective Control: it is destroyed, only not REMOVED yet.
+            if token.is_dead():
+                continue
             # `objective=self`: Mont'ka's Strategic Conqueror Enhancement adds
             # +1 only "within range of THAT objective marker", so the fold has
             # to know which one is being counted. Every other OC source ignores

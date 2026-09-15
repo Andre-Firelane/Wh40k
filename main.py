@@ -83,6 +83,14 @@ from game.court_countertemporal_shift import CountertemporalShiftController
 from game.court_suboptimal_facade import SuboptimalFacadeController
 from game.enh_autodivinator import AutodivinatorController
 from game.enh_metalodermal_tesla_weave import MetalodermalTeslaWeaveController
+from game import battle_shock as battle_shock_module
+from game.enh_da_boss_is_watchin import DaBossIsWatchinController
+from game.horde_breakin_heads import BreakinHeadsController, ai_verdict as breakin_heads_verdict
+from game.horde_close_range_dakka import CloseRangeDakkaController
+from game.horde_fungus_fuel_injection import FungusFuelInjectionController
+from game.horde_hit_em_harder import HitEmHarderController
+from game.horde_mow_em_down import MowEmDownController
+from game.horde_orks_is_never_beaten import NEVER_BEATEN_MIN_EXPECTED_KILLS, OrksIsNeverBeatenController
 from game.enh_phoenix_gem import PhoenixGemController
 from game.enh_gift_of_foresight import GiftOfForesightDiscount
 from game.enh_guiding_presence import GuidingPresenceController
@@ -959,6 +967,11 @@ def main(map_key=None):
         game_log=game_log, dice_manager=dice_manager, turn_tracker=turn_tracker,
         all_tokens=state.tokens,
     )
+    # The "becomes battle-shocked" door's listeners are MODULE-level (two of the
+    # three places a unit becomes shocked hold no controller), so every battle
+    # starts from none - a second battle in this process must not hear the
+    # first one's controllers. See game/battle_shock.py.
+    battle_shock_module.clear_became_battle_shocked_listeners()
     insane_bravery_controller = InsaneBraveryController(
         stratagem_controller, battle_shock_controller, turn_tracker=turn_tracker, game_log=game_log,
     )
@@ -3020,6 +3033,50 @@ def main(map_key=None):
         stratagem_controller, turn_tracker=turn_tracker, charge_controller=charge_controller,
         ingress_controller=ingress_controller, game_state=state, game_log=game_log))
 
+    # --- War Horde (Orks, 2026-09 codex) ----------------------------------------
+    # Four Stratagem buttons on the registry (Hit 'Em Harder, Mow 'Em Down,
+    # Fungus-Fuel Injection, Close-Range Dakka) and the Enhancement ability Da
+    # Boss is Watchin'. Breakin' Heads listens at the one "becomes battle-shocked"
+    # door and offers from the per-frame hook after the death sweep; Orks Is
+    # Never Beaten is a Fight target reaction fed by that same sweep. Both answer
+    # for the AI inside their controllers (auto_players plus an injected
+    # verdict); the buttons get handlers in ai/agent_driver.py. No API call.
+    breakin_heads_controller = BreakinHeadsController(
+        stratagem_controller, dice_manager=dice_manager, decision_manager=decision_manager,
+        turn_tracker=turn_tracker, game_log=game_log, auto_players=ai_players,
+        verdict=lambda squad: breakin_heads_verdict(squad, state.tokens, state.objectives))
+    battle_shock_module.add_became_battle_shocked_listener(breakin_heads_controller.on_became_battle_shocked)
+    hit_em_harder_controller = proactive_stratagems.add(HitEmHarderController(
+        stratagem_controller, turn_tracker=turn_tracker, fight_controller=fight_controller,
+        game_log=game_log))
+    mow_em_down_controller = proactive_stratagems.add(MowEmDownController(
+        stratagem_controller, turn_tracker=turn_tracker, fight_controller=fight_controller,
+        game_log=game_log))
+    fungus_fuel_controller = proactive_stratagems.add(FungusFuelInjectionController(
+        stratagem_controller, turn_tracker=turn_tracker, movement_controller=movement_controller,
+        game_log=game_log))
+    close_range_dakka_controller = proactive_stratagems.add(CloseRangeDakkaController(
+        stratagem_controller, turn_tracker=turn_tracker, shooting_controller=shooting_controller,
+        game_log=game_log))
+    da_boss_controller = proactive_stratagems.add(DaBossIsWatchinController(
+        turn_tracker=turn_tracker, squads_provider=state.all_squads, game_log=game_log))
+
+    def _never_beaten_worth_it(attacker, defender):
+        """The AI's rule (user decision): buy it when the incoming melee
+        activation is expected to destroy at least NEVER_BEATEN_MIN_EXPECTED_KILLS
+        models - the same game/damage_estimate.py measure Undying Spite's verdict
+        uses, injected because game/ does not depend on ai/."""
+        estimate = ai_observation.expected_kills(attacker, defender, melee=True)
+        if not estimate:
+            return False
+        return (estimate.get("models") or 0.0) >= NEVER_BEATEN_MIN_EXPECTED_KILLS
+
+    never_beaten_controller = OrksIsNeverBeatenController(
+        stratagem_controller, decision_manager=decision_manager, turn_tracker=turn_tracker,
+        fight_controller=fight_controller, game_state=state, game_log=game_log,
+        auto_players=ai_players, worth_using=_never_beaten_worth_it)
+    fight_controller.target_reactions.append(never_beaten_controller)
+
     # --- The six Death Lord's Chosen Stratagems -------------------------------
     # Built unconditionally like every other detachment's: each one's can_use()
     # goes through death_lords_chosen.stratagem_target_ok(), which reads
@@ -3229,6 +3286,9 @@ def main(map_key=None):
             hyperphasic_recall_controller.maybe_offer(
                 _fighter, fight_controller.models_lost_this_activation)
             systematic_vigour_controller.resolve_after_attacks(_fighter)
+            # War Horde's Orks Is Never Beaten: "when YOUR unit has fought" -
+            # the fighter's own kept models are removed.
+            never_beaten_controller.on_unit_finished_fighting(_fighter)
             # The Ghost Ark's Repair Barge, FIGHT half. Its printed "just
             # after an enemy unit finishes making its attacks" is a sentence
             # about both phases, so it is here as well as on
@@ -4017,6 +4077,14 @@ def main(map_key=None):
         solar_pulse_controller.reset_phase()
         curse_of_the_cryptek_controller.reset_phase()
         metalodermal_tesla_weave_controller.reset_phase()
+        # War Horde: the four phase-long grants, and Orks Is Never Beaten's "or
+        # at the end of the phase" - whatever it still keeps is removed here.
+        _horde_squads = {t.squad for t in state.tokens if t.squad is not None}
+        hit_em_harder_controller.reset_phase(_horde_squads)
+        mow_em_down_controller.reset_phase(_horde_squads)
+        fungus_fuel_controller.reset_phase(_horde_squads)
+        close_range_dakka_controller.reset_phase(_horde_squads)
+        never_beaten_controller.reset_phase()
         # Hypercrypt Legion - everything that lasts "until the end of the phase".
         hypercrypt_quantum_deflection.reset_phase(_court_squads)
         quantum_deflection_controller.reset_phase()
@@ -5050,6 +5118,9 @@ def main(map_key=None):
         # Canoptek Court's Metalodermal Tesla Weave - mortal wounds on the
         # CHARGING unit, so the allocation belongs to that unit's owner.
         metalodermal_tesla_weave_controller,
+        # War Horde's Breakin' Heads - mortal wounds on the Ork player's OWN
+        # battle-shocked unit, so the allocation is that player's.
+        breakin_heads_controller,
         # The Ghost Ark's Repair Barge does NOT belong here: it never
         # inflicts anything, it HEALS, so it owes no rule 06.02 allocation.
     )
@@ -5308,6 +5379,10 @@ def main(map_key=None):
             # Confirm/Cancel - which is what keeps these guards, not deadlocks.
             or metalodermal_tesla_weave_controller.is_busy
             or metalodermal_tesla_weave_controller.pending_damage_choice is not None
+            # War Horde's Breakin' Heads: its D3 (the dice ack chain) and its
+            # allocation (the click branch) - answerable, so a guard.
+            or breakin_heads_controller.is_busy
+            or breakin_heads_controller.pending_damage_choice is not None
             or suboptimal_facade_controller.is_busy
             or reactive_subroutines_controller.is_busy
         )
@@ -5452,6 +5527,14 @@ def main(map_key=None):
             reanimation_crypts_controller=reanimation_crypts_controller,
             cosmic_precision_controller=cosmic_precision_controller,
             dimensional_corridor_controller=dimensional_corridor_controller,
+            # War Horde: its five buttons get handlers (the two reactive
+            # Stratagems answer inside their own controllers), and Breakin'
+            # Heads is passed for deadly_vectors_controller's reason - its mortal
+            # wounds land on the AI's own unit when the AI buys it.
+            da_boss_controller=da_boss_controller, fungus_fuel_controller=fungus_fuel_controller,
+            close_range_dakka_controller=close_range_dakka_controller,
+            hit_em_harder_controller=hit_em_harder_controller, mow_em_down_controller=mow_em_down_controller,
+            breakin_heads_controller=breakin_heads_controller,
         )
         # User: "ich würde den plan gerne ausführlicher in einem großen text
         # prompt sehen am anfang des gegnerischen zuges nachdem er erstellt
@@ -5929,6 +6012,8 @@ def main(map_key=None):
         # Canoptek Court's two charge reactors, in the same place for the
         # same reason: each owns the charge's resume behind its own dice.
         metalodermal_tesla_weave_controller.on_dice_acknowledged()
+        # War Horde's Breakin' Heads: its D3, then the allocation's Feel No Pain.
+        breakin_heads_controller.on_dice_acknowledged()
         suboptimal_facade_controller.on_dice_acknowledged()
         reanimation_crypts_controller.on_dice_acknowledged()
         # Kauyon's Photon Grenades, for the same reason and in
@@ -6999,6 +7084,14 @@ def main(map_key=None):
                     clicked = input_manager.token_at_event(state.tokens, board, event.pos)
                     if clicked is not None and clicked in metalodermal_tesla_weave_controller.pending_damage_choice:
                         metalodermal_tesla_weave_controller.choose_damage_model(clicked)
+            elif breakin_heads_controller.pending_damage_choice is not None:
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in breakin_heads_controller.pending_damage_choice:
+                        breakin_heads_controller.choose_damage_model(clicked)
             elif grenade_pack_controller.pending_damage_choice is not None:
                 if (
                     event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
@@ -7545,6 +7638,8 @@ def main(map_key=None):
         # shared ledger's job (game/fight_after_death.py), not this loop's -
         # which is what let the second consumer below join in one line.
         undying_spite_controller.intercept_destroyed(_swept)
+        # War Horde's Orks Is Never Beaten, fed from the same sweep.
+        never_beaten_controller.intercept_destroyed(_swept)
         to_their_final_breath_controller.intercept_destroyed(_swept)
         # Wraithblades' Malevolent Souls, fed from the same sweep and for the
         # same reason. It needs no re-add loop of its own: the shared ledger in
@@ -7558,6 +7653,11 @@ def main(map_key=None):
         # set-up, and an AI owner's deferred answer, resolve right after the
         # sweep (game/hypercrypt_hyperphasic_recall.py).
         hyperphasic_recall_controller.resolve_deferred()
+        # War Horde's Breakin' Heads: the "becomes battle-shocked" listener only
+        # QUEUES the unit (it fires inside another rule's resolution), so the
+        # offer is raised here, once per frame, and waits while dice or a
+        # decision are open - see game/horde_breakin_heads.py.
+        breakin_heads_controller.offer_pending()
         # Nurgle's Gift: re-derive Squad.afflicted / Squad.afflicted_plague for
         # every unit, once per frame. Here, right AFTER the sweep, because the
         # aura is measured against LIVING Death Guard models and a unit wiped
@@ -8207,6 +8307,7 @@ def main(map_key=None):
         renderer.draw_damage_choice_highlight(board_surface, board, grenade_pack_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, grav_inhibitor_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, metalodermal_tesla_weave_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, breakin_heads_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, flickerjump_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, deadly_demise_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, transport_controller.pending_damage_choice)

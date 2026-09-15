@@ -41,6 +41,16 @@ later would be reading a board the sweep has already changed - error class 12.
 WHY THE D6 IS NOT A DICE-PANEL STEP: there is one per destroyed model and no
 decision attached to any of them, so showing each would stop the game a dozen
 times for nothing. The result is REPORTED in the log instead.
+
+A KEPT MODEL IS MARKED, OR THE NEXT SWEEP TAKES IT AGAIN (found building Orks Is
+Never Beaten, 2026-09-15). A kept model still has 0 wounds, and
+remove_dead_models() runs every frame, so the next frame swept it again, every
+consumer rolled for it again, and a failed roll took it off for good while its
+entry stayed on `_owed`. Measured with the real GameState: a model kept on
+frame 0 was gone after a median of ONE frame and 98% were gone by frame 5 - so
+no rule built on this ledger could ever have struck back in a real game.
+_keep_up() now sets Token.kept_after_death, the sweep skips such a token, and
+_take_off() clears it.
 """
 
 
@@ -122,7 +132,10 @@ class FightAfterDeath:
                 destroyed.remove(model)
         if self.game_state is not None and model not in self.game_state.tokens:
             self.game_state.tokens.append(model)
-        self._owed.append(model)
+        # The sweep must not take it again - see the module docstring.
+        model.kept_after_death = True
+        if model not in self._owed:
+            self._owed.append(model)
 
     def _roll_one(self):
         from game.dice import random as dice_random
@@ -138,7 +151,27 @@ class FightAfterDeath:
         Returns the models finally removed."""
         removed = list(self._owed)
         self._owed = []
+        self._take_off(removed)
+        return removed
+
+    def remove_for(self, squad):
+        """Remove only `squad`'s kept models, and return them.
+
+        For a rule whose removal is tied to THAT unit's own activation rather
+        than to the attacker's - War Horde's Orks Is Never Beaten ("when your
+        unit has fought"). The earlier consumers remove everything owed when
+        the attacker finishes, which resolve_after_attacks() still does."""
+        mine = [m for m in self._owed if getattr(m, "squad", None) is squad]
+        if not mine:
+            return []
+        self._owed = [m for m in self._owed if getattr(m, "squad", None) is not squad]
+        self._take_off(mine)
+        return mine
+
+    def _take_off(self, removed):
+        """The four halves of taking a kept model away, in one place."""
         for model in removed:
+            model.kept_after_death = False
             squad = getattr(model, "squad", None)
             if squad is not None and model in squad.models:
                 squad.models.remove(model)
@@ -150,4 +183,3 @@ class FightAfterDeath:
         if removed:
             self._log("%s: %d model(s) struck back and are removed from play."
                       % (self.label, len(removed)))
-        return removed

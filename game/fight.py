@@ -44,6 +44,7 @@ from game import guardian_warding_salvoes
 from game import critical_wound_split
 from game import enh_mirage_field
 from game import enh_aspect_of_murder
+from game import enh_headwoppas_killchoppa, horde_hit_em_harder, horde_mow_em_down
 from game import aspect_warrior_focus
 from game import conclave_blades_from_beyond
 from game import conclave_seers_eye
@@ -153,7 +154,10 @@ def _melee_attack_key(model, weapon):
             # Canoptek Court's per-model CRYPTEK/CANOPTEK grants (Cynosure of
             # Eradication, Curse of the Cryptek) - see
             # game/necron_detachments.py's attack_key().
-            necron_detachments.attack_key(model))
+            necron_detachments.attack_key(model),
+            # War Horde's Headwoppa's Killchoppa is per BEARER as well - see
+            # game/enh_headwoppas_killchoppa.py.
+            enh_headwoppas_killchoppa.attack_key(model))
 
 
 def _melee_group_label(pairs):
@@ -1536,6 +1540,14 @@ class FightController:
         # phase" is half its WHEN, so it reaches melee weapons too.
         weapon = court_cynosure_of_eradication.adjusted_weapon(
             weapon, self.fighting_squad, pairs[0][0])
+        # War Horde's two melee grants - keywords the hit step, _crit_note() and
+        # extra_attack_dice() read off the returned weapon: Hit 'Em Harder's
+        # [LETHAL HITS] and Mow 'Em Down's [CLEAVE] +1. Headwoppa's Killchoppa is
+        # per BEARER (+1 AP after a charge), exact because _melee_attack_key()
+        # carries it.
+        weapon = horde_hit_em_harder.adjusted_weapon(weapon, self.fighting_squad)
+        weapon = horde_mow_em_down.adjusted_weapon(weapon, self.fighting_squad)
+        weapon = enh_headwoppas_killchoppa.adjusted_weapon(weapon, pairs[0][0] if pairs else None)
         # Orikan The Diviner's The Stars Are Right: triple the Attacks and
         # Strength of HIS Staff of Tomorrow for the phase. Read off
         # pairs[0][0] rather than swept over the group, and that is exact

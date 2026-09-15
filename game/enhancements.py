@@ -327,6 +327,17 @@ def _necrons_character(model, squad):
             and necron_detachments.is_necrons_unit(squad))
 
 
+def _orks_character(model, squad):
+    """"ORKS model only" - War Horde's four.
+
+    ORKS is read off the model's own `orks` flag, which every Ork UnitProfile
+    sets - there is no per-model faction keyword to read instead (the gap
+    UnitProfile.orks' own note records). The general rule that a bearer is a
+    CHARACTER is folded in, as for every "model only" line."""
+    return (bool(getattr(model.profile, "character", False))
+            and bool(getattr(model.profile, "orks", False)))
+
+
 # --- the registry --------------------------------------------------------
 #
 # Every engine-wired Enhancement, keyed by its printed name. `flag` names the
@@ -358,6 +369,9 @@ _SEER_COUNCIL = ("Seer Council", "SEER_COUNCIL_PLAYERS")
 # are wired, and so are the Hypercrypt Legion's.
 _CANOPTEK_COURT = ("Canoptek Court", "CANOPTEK_COURT_PLAYERS")
 _HYPERCRYPT_LEGION = ("Hypercrypt Legion", "HYPERCRYPT_LEGION_PLAYERS")
+
+# The Ork detachment War Horde (2026-09 codex) - all four are wired.
+_WAR_HORDE = ("War Horde", "WAR_HORDE_PLAYERS")
 
 ENHANCEMENTS = {}
 
@@ -531,6 +545,17 @@ _add("Hyperspatial Transfer Node", 15, _HYPERCRYPT_LEGION, "hyperspatial_transfe
      _necrons_character, "NECRONS model only")
 _add("Osteoclave Fulcrum", 20, _HYPERCRYPT_LEGION, "osteoclave_fulcrum",
      _necrons_character, "NECRONS model only")
+
+# War Horde - game/enh_headwoppas_killchoppa.py, game/enh_da_boss_is_watchin.py,
+# game/enh_kunnin_but_brutal.py and game/enh_follow_me_ladz.py.
+_add("Headwoppa's Killchoppa", 15, _WAR_HORDE, "headwoppas_killchoppa",
+     _orks_character, "ORKS model only")
+_add("Da Boss is Watchin'", 25, _WAR_HORDE, "da_boss_is_watchin",
+     _orks_character, "ORKS model only")
+_add("Kunnin' But Brutal", 20, _WAR_HORDE, "kunnin_but_brutal",
+     _orks_character, "ORKS model only")
+_add("Follow Me Ladz", 20, _WAR_HORDE, "follow_me_ladz",
+     _orks_character, "ORKS model only")
 
 
 def get(name):

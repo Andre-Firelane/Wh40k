@@ -100,6 +100,7 @@ from game import armour_hunter as armour_hunter_module
 from game import fireknife
 from game import court_power_matrix
 from game import court_cynosure_of_eradication
+from game import horde_close_range_dakka
 from game import enh_hyperphasic_fulcrum
 from game import enh_arisen_tyrant
 from game import hypercrypt_entropic_damping
@@ -3501,6 +3502,10 @@ class ShootingController:
         # necron_detachments.attack_key() is part of _attack_key().
         weapon = court_cynosure_of_eradication.adjusted_weapon(
             weapon, self.active_squad, pairs[0][0])
+        # War Horde's Close-Range Dakka: [RAPID FIRE] +1 on the unit's ranged
+        # weapons - read by extra_attack_dice(), which is handed this chain's
+        # weapon (test_event_chain_wiring.py section 27).
+        weapon = horde_close_range_dakka.adjusted_weapon(weapon, self.active_squad)
         # The Spiritseer's Spirit Mark: [SUSTAINED HITS 1] on the marked
         # FRIENDLY unit's weapons, but only against the marked ENEMY unit -
         # the pair is the rule, and granting it to the friendly unit alone

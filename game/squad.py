@@ -569,6 +569,11 @@ class Squad:
         self.spirit_of_gork_strength = False  # Kill Rig's Spirit of Gork: "until the end of the phase, add 1 to the Strength characteristic of melee weapons equipped by models in that unit" - see game/spirit_of_gork.py. A unit-level flag for the same reason the others here are (the buff lands on a unit that is not the one being resolved when a fight happens), and cleared in the same place
         self.spirit_of_gork_lethal = False  # Kill Rig's Spirit of Gork, the "on a 6" half: those same weapons also gain [LETHAL HITS]
         self.ammo_runt_active = False  # Flash Gitz' Ammo Runt wargear: "until the end of the phase, ranged weapons equipped by models in this unit have the [LETHAL HITS] ability" - see game/ammo_runt.py. A unit-level flag for the same reason the ones above are, and cleared in the same place
+        self.hit_em_harder_active = False  # War Horde's Hit 'Em Harder: [LETHAL HITS] on this unit's melee attacks until the end of the phase - see game/horde_hit_em_harder.py
+        self.mow_em_down_active = False  # War Horde's Mow 'Em Down: [CLEAVE] +1 on this unit's melee attacks until the end of the phase - see game/horde_mow_em_down.py
+        self.fungus_fuel_injection_active = False  # War Horde's Fungus-Fuel Injection: +2" Move until the end of the phase - read by game/coldstar.py; see game/horde_fungus_fuel_injection.py
+        self.close_range_dakka_active = False  # War Horde's Close-Range Dakka: [RAPID FIRE] +1 on this unit's ranged attacks until the end of the phase - see game/horde_close_range_dakka.py
+        self.da_boss_is_watchin_used = False  # War Horde's Da Boss is Watchin': the once-per-battle-per-army spend, written on the unit that used it so a save keeps it - see game/enh_da_boss_is_watchin.py
         # The DEATH GUARD army rule Nurgle's Gift (game/nurgles_gift.py). Two
         # flags rather than a live geometric test, both stamped by the same
         # once-per-frame NurglesGiftController.refresh(): "Afflicted" has a
@@ -625,20 +630,24 @@ class Squad:
         isolated model with zero neighbors at all is simply the degenerate
         case of "not connected to the rest", so this subsumes the old
         check rather than needing it kept separately."""
-        if len(self.models) <= 1:
+        # A destroyed model a rule keeps on the board for now
+        # (game/fight_after_death.py) is not part of the unit's coherency - it
+        # is destroyed, only not removed yet. A unit without one is unaffected.
+        models = [m for m in self.models if not m.is_dead()]
+        if len(models) <= 1:
             return []
 
         errors = []
 
-        reachable = {self.models[0]}
-        frontier = [self.models[0]]
+        reachable = {models[0]}
+        frontier = [models[0]]
         while frontier:
             current = frontier.pop()
-            for other in self.models:
+            for other in models:
                 if other not in reachable and edge_distance(current, other) <= COHERENCY_RANGE_IN:
                     reachable.add(other)
                     frontier.append(other)
-        if len(reachable) < len(self.models):
+        if len(reachable) < len(models):
             errors.append(
                 f'Not every model is within {COHERENCY_RANGE_IN}" of another model in a single connected group.'
             )
@@ -655,7 +664,7 @@ class Squad:
             # movement search - the hot path this comment was worried about -
             # never reaches here at all, because the gate above already skips
             # the whole sweep for anyone the 9" half was lifted for.
-            max_dist = widest_pair(self.models)[0]
+            max_dist = widest_pair(models)[0]
             if max_dist > MAX_SPREAD_IN:
                 errors.append(
                     f'The squad is spread too far apart (max {MAX_SPREAD_IN}" between any two models).'
