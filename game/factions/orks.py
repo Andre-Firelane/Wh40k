@@ -176,11 +176,13 @@ are retired. Every Ork UnitProfile here sets an `orks` flag (see
 UnitProfile.orks' own note) so the rule has something to check, since there is
 no generic per-model Faction tracking to read instead.
 
-Gretchin's Thievin' Scavengers is engine-wired (game/
-thievin_scavengers.py - ThievinScavengersController, called from main.py's
-own start-of-Movement-phase block, with a real visible DiceManager roll per
-user instruction) - the first datasheet ability in this engine that grants
-CP outright rather than just a combat/movement effect.
+Gretchin's Thievin' Scavengers (2026-09 codex) secures an objective the unit
+is controlling at the end of its Movement phase (game/thievin_scavengers.py,
+called from main.py's end-of-Movement block after update_control()). The
+codex's other new mob abilities each have a module of their own: Ammo Runts
+(game/ork_ammo_runts.py), Tide of Muscle, Never Too Busy to Fight, Mobbed,
+Rokkit Charge, Krumpin' Time, Arrogant Invulnerability, and Downtrodden
+(game/transport.py's squad_capacity_cost()).
 
 Points costs live in game/factions/orks_points.py (the whole published list -
 all 58 entries, including the 53 units without a datasheet here yet), same

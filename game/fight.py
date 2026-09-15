@@ -4,7 +4,8 @@ from game import attached_units
 # cannot cycle back into anything here.
 from game import battle_stats
 from game import damaged_attacks, triarch_auras
-from game import aux_experimental_modifications, awakened_dynasty, nekrosor_ammentar, swift_demise, montka_pinpoint_counter_offensive, destroyer_cult, destroyer_hive, dlc_grim_reapers, gift_of_contagion, guardian_protocols, protocol_hungry_void, implacable_eradication, mechanical_augmentation, monster_hunters, plagues, plasmacyte, reroll_scope
+from game import krumpin_time, rokkit_charge, tide_of_muscle
+from game import aux_experimental_modifications, awakened_dynasty, nekrosor_ammentar, swift_demise, montka_pinpoint_counter_offensive, destroyer_cult, destroyer_hive, dlc_grim_reapers, gift_of_contagion, guardian_protocols, protocol_hungry_void, implacable_eradication, mechanical_augmentation, plagues, plasmacyte, reroll_scope
 from game import way_of_the_short_blade
 from game import strength_over_toughness
 from game import conditional_keywords, weapon_profiles
@@ -239,7 +240,7 @@ class FightController:
         target_reactions=(), lethal_ichor=None, guide=None, doom=None, whispering_web=None,
         advanced_scouting=None, bounty_hunters=None, fated_hero=None, herald_of_ynnead=None,
         path_of_the_warrior=None, shepherds_of_the_dead=None, misfortune=None, spirit_mark=None,
-        piratical_raiders=None, fury_of_the_void=None, plasmacyte=None,
+        piratical_raiders=None, fury_of_the_void=None, plasmacyte=None, rokkit_charge=None,
         objectives=None,
     ):
         self.game_log = game_log
@@ -268,6 +269,9 @@ class FightController:
         # signature rather than inserted, and passed by keyword from main.py -
         # this constructor is long and error class 22 is about exactly that.
         self.plasmacyte = plasmacyte
+        # Stormboyz' Rokkit Charge OFFER (game/rokkit_charge.py), asked at the
+        # same instant as the Plasmacyte. None means nobody asks.
+        self.rokkit_charge = rokkit_charge
         self.herald_of_ynnead = herald_of_ynnead
         self.misfortune = misfortune
         self.spirit_mark = spirit_mark
@@ -330,12 +334,12 @@ class FightController:
         self._hazardous_count = 0  # [HAZARDOUS] weapons USED this activation - one roll each, rule 24.15
         self._lethal_hits_auto_wounds = 0  # rule 24.23: hits chosen to auto-wound, folded into normal_wounds once the (possibly skipped) wound roll resolves
         self._twin_linked_used = False  # rule 24.38: whether this group's one-time re-roll offer has already been made/used
-        self._hit_reroll_used = False  # Monster Hunters (user-supplied): whether this group's one-time Hit-roll re-roll offer has already been made/used - the hit-step twin of _twin_linked_used
+        self._hit_reroll_used = False  # the optional Hit re-roll (_hit_reroll_reason()): whether this group's one-time Hit-roll re-roll offer has already been made/used - the hit-step twin of _twin_linked_used
         self._pending_attacks_roll = None  # DiceNotationRoll while pending_step == "attacks" - see shooting.py's identical field
         self._pending_sustained = None       # hit-step context while pending_step == "sustained_hits" - see shooting.py's identical field
         self._pending_sustained_roll = None  # DiceNotationRoll while pending_step == "sustained_hits" (a dice-notation [SUSTAINED HITS X])
         self._pending_twin_linked_reroll = None  # rule 24.38: context dict while pending_step == "wound_twin_linked_reroll"
-        self._pending_hit_reroll = None  # Monster Hunters: context dict while pending_step == "hit_monster_hunters_reroll"
+        self._pending_hit_reroll = None  # the optional Hit re-roll: context dict while pending_step == "hit_optional_reroll"
         self._pending_ones_reroll = None  # a two-clause source's automatic re-roll of 1s: context dict while pending_step == "hit_reroll_ones"/"wound_reroll_ones"
         self.one_shot_used = set()  # rule 24.26: (model.id, id(weapon)) pairs already fought with - persists for the whole battle, never reset
         self.assignment_profile = 0  # Split Fire: which profile (rule 04.01.03) of the front pair's weapon is armed for the NEXT assignment - see toggle_assignment_profile()
@@ -745,6 +749,10 @@ class FightController:
         # ever asked. See game/plasmacyte.py.
         if self.plasmacyte is not None:
             self.plasmacyte.offer(squad)
+        # Stormboyz' Rokkit Charge: "when this unit is selected to fight" - the
+        # same instant, before any dice.
+        if self.rokkit_charge is not None:
+            self.rokkit_charge.offer(squad)
         self._used_other_melee_weapon = set()
         self._reset_engagement_snapshot()
         self._hazardous_count = 0
@@ -1229,7 +1237,7 @@ class FightController:
             "landed": 0,
         }
         self._twin_linked_used = False  # rule 24.38: fresh chance to re-roll for each new weapon group's attacks
-        self._hit_reroll_used = False  # Monster Hunters: likewise a fresh chance per weapon group
+        self._hit_reroll_used = False  # the optional Hit re-roll: likewise a fresh chance per weapon group
 
         if not pairs or not target_squad.models:
             self._finish_group()
@@ -1460,7 +1468,7 @@ class FightController:
                 ctx["wounds"] + extra_wounds, ctx["crits"] + extra_crits,
             )
 
-        elif self.pending_step == "hit_monster_hunters_reroll":
+        elif self.pending_step == "hit_optional_reroll":
             # Which scope the player picked arrives purely as "how many
             # hits/crits are carried over" - see shooting.py's identical
             # branch.
@@ -1594,6 +1602,12 @@ class FightController:
         weapon = conditional_keywords.adjusted_weapon(
             weapon, target_squad if target_squad is not None else self.target_squad)
         weapon = get_stuck_in_adjusted_weapon(weapon, pairs)
+        # The 2026-09 codex's two charge-turn melee grants: Boyz' Tide of
+        # Muscle ([LETHAL HITS]) and Stormboyz' Rokkit Charge (+1 A/S,
+        # [HAZARDOUS]). In the chain because _crit_note() and the hazard
+        # ledger read the returned weapon.
+        weapon = tide_of_muscle.adjusted_weapon(weapon, self.fighting_squad)
+        weapon = rokkit_charge.adjusted_weapon(weapon, self.fighting_squad)
         weapon = ferocious_rage_adjusted_weapon(
             weapon, pairs, self.charge_controller, self.fighting_squad,
         )
@@ -2055,8 +2069,6 @@ class FightController:
         if (self.pinpoint_counter_offensive is not None
                 and self.pinpoint_counter_offensive.applies(self.fighting_squad, target_squad)):
             return montka_pinpoint_counter_offensive.PINPOINT_NAME
-        if monster_hunters.applies(self.fighting_squad, target_squad):
-            return monster_hunters.MONSTER_HUNTERS_REROLL_LABEL
         # The Kroot Lone-Spear's Advanced Scouting is a MARK on the target
         # rather than a property of the attacker, so it is asked of the
         # controller that owns the marks - the same shape as Guide, Doom and
@@ -2124,12 +2136,10 @@ class FightController:
         self.pending_step = f"{kind}_reroll_ones"
 
     def _finish_hit_roll(self, hits, crits, weapon, target_squad, weapon_label, rerollable, hit_threshold, ones=0, preview=False):
-        """Tail of the hit-roll step - offers Monster Hunters' optional
-        re-roll of the whole Hit roll BEFORE [SUSTAINED HITS] is applied,
+        """Tail of the hit-roll step - offers an optional re-roll of the Hit
+        roll (see _hit_reroll_reason()) BEFORE [SUSTAINED HITS] is applied,
         since the extra hits a critical grants have to be computed from
-        whichever roll actually stands. See shooting.py's identical method
-        and game/monster_hunters.py's own docstring for why this re-rolls
-        the whole roll rather than just the misses."""
+        whichever roll actually stands. See shooting.py's identical method."""
         if self._hit_reroll_choice_needed(target_squad, rerollable[2]):
             if preview:
                 return self._hit_reroll_options(
@@ -2151,7 +2161,7 @@ class FightController:
 
         Reached two ways - no optional re-roll was on offer, or one was and
         the player kept the result. The second used to go straight to
-        _apply_sustained_hits(), so declining Monster Hunters also silently
+        _apply_sustained_hits(), so declining an optional re-roll also silently
         dropped Path of the Warrior's automatic 1s: a mandatory clause lost to
         the answer on a different ability. shooting.py asks in the same order
         now (the user report "man darf rerolls nicht rerollen"), and there the
@@ -2341,10 +2351,10 @@ class FightController:
                 f"{_threshold_note(threshold, _parse_threshold(effective_weapon_skill(group['pairs'][0][0], weapon)), self._hit_modifiers(group['pairs'][0][0], target_squad))}: "
                 f"{hits} hit(s) (of which {crits} critical), {misses} miss(es)."
             )
-        # Beast Snagga Boyz' Monster Hunters (user-supplied): its text
-        # says "makes an attack", not "makes a ranged attack", so it
-        # applies here as well as in shooting.py - the same both-phases
-        # reasoning as Tank Hunters. A dice can never be re-rolled more
+        # The optional Hit re-roll sources read "makes an attack", not
+        # "makes a ranged attack", so they apply here as well as in
+        # shooting.py - the same both-phases reasoning as Tank Hunters. A
+        # dice can never be re-rolled more
         # than once, so only the still-free share may be thrown again
         # (see shooting.py's identical split).
         spent = self.dice_manager.already_rerolled if self.dice_manager is not None else set()
@@ -2460,8 +2470,7 @@ class FightController:
             self._resolve_wounds(weapon, target_squad, target_profile, weapon_label, wounds, crits)
 
     def _hit_reroll_choice_needed(self, target_squad, free_count):
-        """Beast Snagga Boyz' Monster Hunters: see shooting.py's identical
-        method. Once per weapon group's attack sequence, and pointless with
+        """The optional Hit re-roll: see shooting.py's identical method. Once per weapon group's attack sequence, and pointless with
         no re-rollable dice left."""
         if self.decision_manager is None or self._hit_reroll_used:
             return False
@@ -2543,7 +2552,7 @@ class FightController:
             is_reroll=True,  # these dice have now used their one re-roll
             **self._crit_note("hit", weapon, target_squad),
         )
-        self.pending_step = "hit_monster_hunters_reroll"
+        self.pending_step = "hit_optional_reroll"
 
     def _wound_reroll_reason(self, weapon, target_squad):
         """Which ability, if any, grants a re-roll of THIS group's Wound roll -
@@ -2862,6 +2871,8 @@ class FightController:
         # Right above (a leader granting his whole unit +1 to hit), differing
         # only in reaching BOTH phases: its text says "an attack", not "a melee
         # attack", so game/shooting.py reads it too.
+        # Meganobz' Krumpin' Time: +1 to hit in this phase while riled up.
+        modifiers.extend(krumpin_time.hit_modifiers(self.fighting_squad))
         modifiers.extend(awakened_dynasty.hit_modifiers(self.fighting_squad))
         # Canoptek Court's Curse of the Cryptek - "an attack", so both phases;
         # per MODEL, and added before the ignore filter below (it improves).

@@ -8,7 +8,7 @@
         can re-roll the Hit roll.
 
 A HIT RE-ROLL WITH A TARGET FILTER, which makes it the mirror image of the
-engine's existing Monster Hunters (re-roll against MONSTERS and VEHICLES) - so
+engine's pre-codex Monster Hunters (re-roll against MONSTERS and VEHICLES) - so
 it plugs into exactly the same seam, FightController._hit_reroll_reason(), and
 needs no new mechanism at all. Worth naming the symmetry: the two can never
 both apply to the same attack, because their target tests are complements.

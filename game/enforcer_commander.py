@@ -56,4 +56,5 @@ def adjusted_ap(ap, model, weapon):
     bonus to the target's save."""
     if not applies(model, weapon):
         return ap
-    return min(0, ap + 1)
+    from game.ap_worsening import worsen
+    return worsen(ap)

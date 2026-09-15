@@ -27,7 +27,7 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 import testkit as tk  # noqa: E402
 from game import reroll_scope  # noqa: E402
-from game import monster_hunters  # noqa: E402
+from game import dlc_grim_reapers  # noqa: E402
 from game.factions import tau_empire as tau  # noqa: E402
 
 checks = tk.Checks("Re-roll scope")
@@ -119,7 +119,7 @@ for label in LABELS:
 
 # THE counter-check. Without it every line above is satisfied by a build in
 # which the distinction was deleted outright and every source offers all three.
-_ordinary = hit_options(_sc, _target, monster_hunters.MONSTER_HUNTERS_REROLL_LABEL)
+_ordinary = hit_options(_sc, _target, dlc_grim_reapers.GRIM_REAPERS_LABEL)
 checks.true("an ordinary source still offers the failures",
             has(_ordinary, "Re-roll failed hit rolls"))
 checks.true("...and the whole roll", has(_ordinary, "Re-roll the whole Hit roll"))

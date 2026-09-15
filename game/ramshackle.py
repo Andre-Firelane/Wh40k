@@ -34,6 +34,8 @@ a value here - the same distinction game/waaagh.py already draws for its own
 Strength bonus.
 """
 
+from game.ap_worsening import worsen
+
 
 def unit_has_ramshackle(squad):
     """True while at least one live model with the ability is in the unit -
@@ -51,4 +53,4 @@ def adjusted_ap(ap, model):
     caller can apply it unconditionally."""
     if model is None or not getattr(model.profile, "ramshackle_but_rugged", False):
         return ap
-    return min(0, ap + 1)
+    return worsen(ap)

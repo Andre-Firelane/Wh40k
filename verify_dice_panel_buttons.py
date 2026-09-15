@@ -58,7 +58,7 @@ for arg in sys.argv[1:]:
     if arg.startswith("map"):
         MAP = arg
 
-from game import config, monster_hunters, roll_choice   # noqa: E402
+from game import config, dlc_grim_reapers, roll_choice   # noqa: E402
 from game.decision import DecisionManager                # noqa: E402
 
 config.ARMY_SELECT = False
@@ -169,7 +169,7 @@ def stage(loc):
     tt.set_active(shooter.owner)
     sc.cancel()
     sc.active_squad = shooter
-    sc._hit_reroll_reason = lambda _target: monster_hunters.MONSTER_HUNTERS_REROLL_LABEL
+    sc._hit_reroll_reason = lambda _target: dlc_grim_reapers.GRIM_REAPERS_LABEL
     sc._forward_observers_applies = lambda _target: True
     sc._begin_resolution("verify", weapon.name, pairs, target)
     SEEN.update(staged=True, shooter=shooter.name, target=target.name,
@@ -340,14 +340,14 @@ else:
     keys = [k for k, _c in SEEN["buttons"]]
     ok = (keys[:1] == [roll_choice.ACCEPT] and roll_choice.FAILURES in keys
           and anywhere.get("roll_still_pending") and anywhere.get("step") == "hit"
-          and press.get("step") == "hit_monster_hunters_reroll"
+          and press.get("step") == "hit_optional_reroll"
           and press.get("rerolled_dice") == SEEN.get("misses")
           and dict(SEEN["buttons"]).get(roll_choice.FAILURES) == SEEN.get("misses")
           and dict(SEEN["buttons"]).get(roll_choice.WHOLE) == SEEN.get("dice")
           and not press.get("prompt_open") and SEEN["keep_prompts"] == 0)
     reroll = SEEN.get("reroll") or {}
     reroll_keys = [k for k, _c in (reroll.get("buttons") or [])]
-    ok_reroll = (reroll.get("step") == "hit_monster_hunters_reroll" and reroll_keys == [roll_choice.ACCEPT])
+    ok_reroll = (reroll.get("step") == "hit_optional_reroll" and reroll_keys == [roll_choice.ACCEPT])
     ok_abilities = (SEEN["left_ability_labels"] == 0
                     and (not SEEN.get("command_reroll_usable")
                          or "Command Re-roll (1 CP)" in (SEEN.get("ability_buttons") or [])))

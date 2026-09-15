@@ -9,7 +9,7 @@ from ai import deployment_ai
 from ai import observation as ai_observation
 from ai.agent_driver import AIMemory, take_one_action
 from ai.agent_driver import reactive_subroutines_destination, reactive_subroutines_move
-from ai.agent_driver import hyperphasing_choice, hyperphasic_recall_verdict, war_cry_verdict
+from ai.agent_driver import hyperphasing_choice, hyperphasic_recall_verdict, rokkit_charge_verdict, war_cry_verdict
 from ai.claude_agent import ClaudeAgent
 # from ai.mock_agent import MockAgent  # free/offline alternative - no API key or network needed
 from game import attached_units, battle_focus, biomes, charge, config, consolidate, crushing_impact, enhancements, epic_challenge, explosives, fall_back, fight, firing_deck, greater_good, line_of_sight, maps, movement, overwatch, pregame, setup, shooting, starflare_ignition, status_effects, strands_of_fate
@@ -35,7 +35,11 @@ from game.explosives import ExplosivesController
 from game.fall_back import FallBackController
 from game.fieldcraft import apply_fieldcraft
 from game.grot_riggers import apply_grot_riggers
-from game.thievin_scavengers import ThievinScavengersController
+from game import thievin_scavengers
+from game import ork_ammo_runts, rokkit_charge
+from game.mobbed import MobbedController
+from game.ork_ammo_runts import AmmoRuntsController
+from game.rokkit_charge import RokkitChargeController
 from game import waaagh as waaagh_module
 from game.waaagh import WaaaghAdvanceRerollController
 from game.war_cry import WarCryController
@@ -956,10 +960,6 @@ def main(map_key=None):
         secondary_mission_controller.draw_at_command_phase(
             turn_tracker.turn_owner, turn_tracker.battle_round)
     stratagem_controller = StratagemController(game_log=game_log, command_points=command_points)
-    thievin_scavengers_controller = ThievinScavengersController(
-        dice_manager=dice_manager, command_points=command_points, all_tokens=state.tokens,
-        objectives=state.objectives, turn_tracker=turn_tracker, game_log=game_log,
-    )
     command_reroll_controller = CommandRerollController(stratagem_controller, dice_manager, turn_tracker=turn_tracker)
 
     input_manager = InputManager(board_offset=board_rect_screen.topleft, camera=camera)
@@ -967,6 +967,11 @@ def main(map_key=None):
         game_log=game_log, dice_manager=dice_manager, turn_tracker=turn_tracker,
         all_tokens=state.tokens,
     )
+    # Beast Snagga Boyz' Mobbed (2026-09 codex): forced Battle-Shock tests when
+    # the mob ends a charge move - fed from charge_controller's
+    # on_charge_move_finished further down, drained by the dice acknowledgement.
+    mobbed_controller = MobbedController(
+        battle_shock_controller=battle_shock_controller, all_tokens=state.tokens, game_log=game_log)
     # The "becomes battle-shocked" door's listeners are MODULE-level (two of the
     # three places a unit becomes shocked hold no controller), so every battle
     # starts from none - a second battle in this process must not hear the
@@ -1087,6 +1092,12 @@ def main(map_key=None):
     # asked, while a human running Orks keeps the choice.
     ammo_runt_controller = AmmoRuntController(
         decision_manager=decision_manager, game_log=game_log, auto_players=ai_players,
+    )
+    # Boyz' Ammo Runts (2026-09 codex): offered at the same instant, a different
+    # rule. The AI uses it at its first opportunity.
+    ork_ammo_runts_controller = AmmoRuntsController(
+        decision_manager=decision_manager, turn_tracker=turn_tracker, game_log=game_log,
+        auto_players=ai_players,
     )
     # Kill Rig's Spirit of Gork (user-supplied): resolved at the start of
     # each Fight phase. The same auto_players shape as Ammo Runt above -
@@ -1740,7 +1751,8 @@ def main(map_key=None):
         obstacles=state.obstacles, game_log=game_log, dice_manager=dice_manager, turn_tracker=turn_tracker,
         all_tokens=state.tokens, movement_controller=movement_controller, terrain_areas=state.terrain_areas,
         decision_manager=decision_manager, greater_good=greater_good_controller, suppression=suppression_controller,
-        ammo_runt=ammo_runt_controller, advanced_scouting=advanced_scouting_controller,
+        ammo_runt=ammo_runt_controller, ork_ammo_runts=ork_ammo_runts_controller,
+        advanced_scouting=advanced_scouting_controller,
         bounty_hunters=bounty_hunters_controller, oversight_drone=oversight_drone_controller,
         targeting_array=targeting_array_controller,
         prototype_weapon_system=prototype_weapon_system_controller,
@@ -2365,6 +2377,10 @@ def main(map_key=None):
     # module as Crimson Harvest above.
     charge_controller.on_charge_move_finished.append(
         kroot_linebreakers_controller.on_charge_move_finished)
+    # Beast Snagga Boyz' Mobbed - the same hook, rule 11.04's "ends a charge
+    # move"; see game/mobbed.py.
+    charge_controller.on_charge_move_finished.append(
+        mobbed_controller.on_charge_move_finished)
     crushing_impact_controller = CrushingImpactController(
         stratagem_controller, dice_manager, charge_controller, all_tokens=state.tokens,
         turn_tracker=turn_tracker, game_log=game_log,
@@ -2411,6 +2427,13 @@ def main(map_key=None):
         plasmacyte=PlasmacyteController(
             decision_manager=decision_manager, game_log=game_log,
             auto_players=ai_players),
+        # Stormboyz' Rokkit Charge - offered at the same instant. The AI's rule
+        # is injected (game/ must not import ai/); the lambda reads
+        # fight_controller only once a unit is selected to fight.
+        rokkit_charge=RokkitChargeController(
+            decision_manager=decision_manager, game_log=game_log,
+            auto_players=ai_players,
+            verdict=lambda squad: rokkit_charge_verdict(squad, fight_controller)),
     )
 
     # Placed AFTER fight_controller: Experimental Modifications takes it for
@@ -4167,6 +4190,10 @@ def main(map_key=None):
         # Flash Gitz' Ammo Runt: same "until the end of the phase" grant. Its
         # once-per-BATTLE record is deliberately not touched here.
         ammo_runt_controller.reset_phase({t.squad for t in state.tokens if t.squad is not None})
+        # Boyz' Ammo Runts and Stormboyz' Rokkit Charge: phase grants. Ammo
+        # Runts' once-per-battle spend is a separate flag and survives.
+        ork_ammo_runts.reset_phase({t.squad for t in state.tokens if t.squad is not None})
+        rokkit_charge.reset_phase({t.squad for t in state.tokens if t.squad is not None})
         # Skorpekh Destroyers' Plasmacyte: "until the end of the phase". Its
         # once-per-battle-per-Plasmacyte spend count deliberately survives.
         plasmacyte.reset_phase({t.squad for t in state.tokens if t.squad is not None})
@@ -4609,11 +4636,6 @@ def main(map_key=None):
             movement_controller.reset_movement_phase()
             ingress_controller.reset_movement_phase()
             transport_controller.reset_movement_phase()
-            # Gretchin's Thievin' Scavengers ability (user-supplied): "at
-            # the start of your Movement phase" - this IS that instant, for
-            # the player whose turn is beginning (same active_player
-            # argument as every other phase-start trigger above).
-            thievin_scavengers_controller.start_check(turn_tracker.active_player)
         if turn_tracker.phase == PHASE_SHOOTING:
             shooting_controller.reset_shooting_phase()
         if turn_tracker.phase == PHASE_CHARGE:
@@ -4866,6 +4888,12 @@ def main(map_key=None):
         # overwatch.py's redesign) - it's its own board-click-driven state
         # now, not a DecisionManager text-button list.
         if phase_before == PHASE_MOVEMENT:
+            # Gretchin's Thievin' Scavengers: "at the end of your Movement
+            # phase, if this unit is controlling an objective, that objective
+            # is secured" - after update_control(), for the reason Marker Beacon
+            # gives below. See game/thievin_scavengers.py.
+            thievin_scavengers.secure_at_end_of_movement(
+                state.objectives, state.tokens, mover_before, game_log=game_log)
             # Marker Beacon: "End of your Movement phase". This block runs
             # AFTER update_control() at the top of advance_turn_phase(), which
             # is exactly what it needs - an objective taken by the move that
@@ -6005,6 +6033,10 @@ def main(map_key=None):
         # test; start_forced_roll() takes one at a time, so
         # each acknowledged roll releases the next.
         nightmare_shroud_controller.on_dice_acknowledged()
+        # Beast Snagga Boyz' Mobbed queues one test per engaged
+        # MONSTER/VEHICLE unit - after battle_shock's, so the finished
+        # test is applied before the next one opens.
+        mobbed_controller.on_dice_acknowledged()
         # After battle_shock's: the Grav-Inhibitor Field's own
         # first step IS a Battle-Shock test, and its second roll
         # is queued only once that outcome has been applied.
@@ -6051,7 +6083,6 @@ def main(map_key=None):
         transport_controller.on_dice_acknowledged()
         crushing_impact_controller.on_dice_acknowledged()
         fall_back_controller.on_dice_acknowledged()
-        thievin_scavengers_controller.on_dice_acknowledged()
         spirit_of_gork_controller.on_dice_acknowledged()
         grot_orderly_controller.on_dice_acknowledged()
         reanimation_controller.on_dice_acknowledged()

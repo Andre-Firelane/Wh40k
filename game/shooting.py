@@ -43,9 +43,10 @@ from game import fate_inescapable
 from game.drive_by_dakka import drive_by_dakka_adjusted_weapon
 from game.gun_crazy_showoffs import gun_crazy_adjusted_weapon, unit_has_gun_crazy_showoffs
 from game.ammo_runt import ammo_runt_adjusted_weapon
+from game import ork_ammo_runts
 from game.nova_charge import nova_charge_adjusted_weapon
 from game import damaged_attacks, triarch_auras
-from game import awakened_dynasty, destroyer_cult, nekrosor_ammentar, dlc_mortarions_teachings, exemplars_of_montka, gift_of_contagion, hovering_death, miasma_of_pestilence, protocol_conquering_tyrant, protocol_sudden_storm, guardian_protocols, implacable_eradication, mechanical_augmentation, monster_hunters, overwhelming_obliteration, plagues, reroll_scope, sunforge, target_uploaded, way_of_the_short_blade
+from game import awakened_dynasty, destroyer_cult, nekrosor_ammentar, dlc_mortarions_teachings, exemplars_of_montka, gift_of_contagion, hovering_death, miasma_of_pestilence, protocol_conquering_tyrant, protocol_sudden_storm, guardian_protocols, implacable_eradication, mechanical_augmentation, overwhelming_obliteration, plagues, reroll_scope, sunforge, target_uploaded, way_of_the_short_blade
 from game import weapon_range
 from game import riled_up
 from game.retaliation_cadre import bonded_heroes_adjusted_weapon
@@ -709,7 +710,7 @@ class ShootingController:
         turn_tracker=None, all_tokens=None, movement_controller=None, terrain_areas=None,
         decision_manager=None, greater_good=None, suppression=None, objectives=None, stealth_drones=None,
         barrage_of_filth=None, spore_laced=None,
-        target_reactions=(), nova_charge=None, ammo_runt=None, fire_support=None, hand_of_asuryan=None, guide=None, doom=None, whispering_web=None,
+        target_reactions=(), nova_charge=None, ammo_runt=None, ork_ammo_runts=None, fire_support=None, hand_of_asuryan=None, guide=None, doom=None, whispering_web=None,
         advanced_scouting=None, bounty_hunters=None, oversight_drone=None,
         sonic_destruction=None, monofilament_snare=None, misfortune=None,
         spirit_mark=None, piratical_raiders=None, fury_of_the_void=None,
@@ -769,6 +770,7 @@ class ShootingController:
         self.fury_of_the_void = fury_of_the_void  # Kharseth's riven mark - optional; a STRENGTH change, so it rides the adjuster chain (see game/fury_of_the_void.py)
         self.sonic_destruction = sonic_destruction  # the Vibro Cannon Platforms' shared per-phase ledger - optional; see game/sonic_destruction.py
         self.monofilament_snare = monofilament_snare  # the Shadow Weaver Platforms' snare marks - optional; WRITTEN here (the mark is placed by a hit) and read from game/movement.py
+        self.ork_ammo_runts = ork_ammo_runts  # Boyz' Ammo Runts (2026-09 codex) - optional, offered from start_shooting() beside ammo_runt below (see game/ork_ammo_runts.py)
         self.ammo_runt = ammo_runt  # Flash Gitz' Ammo Runt wargear - optional, same shape and same start_shooting()-only trigger as nova_charge (see game/ammo_runt.py)
         self.nova_charge = nova_charge  # Riptide Battlesuit's Nova Charge ability - optional, like greater_good; offered from start_shooting() only (see game/nova_charge.py)
         # Reactive stratagems whose WHEN is "just after an enemy unit has
@@ -898,8 +900,8 @@ class ShootingController:
         self._pending_attacks_roll = None  # DiceNotationRoll while pending_step == "attacks" (a dice-notation Attacks characteristic, e.g. a printed "D6", rolled once per attacking model before the Hit roll can even start - see WeaponProfile.attacks_notation)
         self._pending_ones_reroll = None  # Forward Observers (user-supplied): context dict while pending_step == "hit_reroll_ones"/"wound_reroll_ones"
         self._pending_twin_linked_reroll = None  # rule 24.38/Breach and Clear: context dict while pending_step == "wound_twin_linked_reroll"
-        self._hit_reroll_used = False  # Monster Hunters (user-supplied): whether this group's one-time Hit-roll re-roll offer has already been made/used - the hit-step twin of _twin_linked_used above
-        self._pending_hit_reroll = None  # Monster Hunters: context dict while pending_step == "hit_monster_hunters_reroll"
+        self._hit_reroll_used = False  # the optional Hit re-roll (_hit_reroll_reason()): whether this group's one-time Hit-roll re-roll offer has already been made/used - the hit-step twin of _twin_linked_used above
+        self._pending_hit_reroll = None  # the optional Hit re-roll: context dict while pending_step == "hit_optional_reroll"
         self._pending_sustained = None       # hit-step context while pending_step == "sustained_hits"
         self._pending_sustained_roll = None  # DiceNotationRoll while pending_step == "sustained_hits" (a dice-notation [SUSTAINED HITS X], one die per critical hit)
         self._pending_strength_roll = None  # DiceNotationRoll while pending_step == "strength" (a dice-notation Strength characteristic, e.g. the Zzap gun's printed "D6+6")
@@ -1062,6 +1064,10 @@ class ShootingController:
             self.hand_of_asuryan.maybe_offer(squad)
         if self.ammo_runt is not None:
             self.ammo_runt.offer(squad)
+        # Boyz' Ammo Runts - the same instant ("when this unit is selected to
+        # shoot"), a different rule from the Flash Gitz' wargear above.
+        if self.ork_ammo_runts is not None:
+            self.ork_ammo_runts.offer(squad)
         # The Vespid Strain Leader's Oversight Drone - "when the bearer's
         # unit is SELECTED TO SHOOT", which is this instant. Offered here
         # only, never mid-sequence, exactly like Nova Charge above.
@@ -2432,7 +2438,7 @@ class ShootingController:
             "landed": 0,
         }
         self._twin_linked_used = False  # rule 24.38: fresh chance to re-roll for each new weapon group's attacks
-        self._hit_reroll_used = False  # Monster Hunters: likewise a fresh chance per weapon group - see _hit_reroll_choice_needed()
+        self._hit_reroll_used = False  # the optional Hit re-roll: likewise a fresh chance per weapon group - see _hit_reroll_choice_needed()
         self._rolled_strength = None  # a dice-notation Strength is rolled once per weapon group - see _effective_strength()
         if target_squad is not None:
             self._targeted_squads_this_activation.add(target_squad)
@@ -2727,6 +2733,9 @@ class ShootingController:
         # game/psychic_guidance.py.
         if psychic_guidance.applies(self.active_squad, self.all_tokens):
             modifiers.append(Modifier(-1, "Psychic Guidance"))
+        # Boyz' Ammo Runts: "+1 to hit rolls" for the unit's ranged attacks in
+        # the phase it was used - a property of the attacking unit alone.
+        modifiers.extend(ork_ammo_runts.hit_modifiers(self.active_squad))
         # Prince Yriel's Piratical Hero, second half: "add 1 to the Hit roll"
         # while he leads. A bonus, so a -1 on the threshold.
         if corsair_abilities.piratical_hero_applies(self.active_squad):
@@ -3115,8 +3124,8 @@ class ShootingController:
         to reroll, or Forward Observers doesn't apply) or after that
         ability's automatic reroll-of-1s resolves.
 
-        Beast Snagga Boyz' Monster Hunters offers its optional Hit-roll
-        re-roll HERE rather than at the caller, so it sits after Forward
+        The optional Hit-roll re-roll (_hit_reroll_reason()) is offered
+        HERE rather than at the caller, so it sits after Forward
         Observers' automatic reroll-of-1s (the two chain: the 1s are thrown
         first and are then spent, so only what is left may still be
         re-rolled) and, crucially, BEFORE [SUSTAINED HITS] is applied below -
@@ -3145,7 +3154,7 @@ class ShootingController:
 
     def _apply_sustained_hits(self, hits, crits, weapon, target_squad, weapon_label):
         """Every path through the hit step funnels through here - both
-        _finish_hit_roll()'s tail and Monster Hunters' own re-roll branch,
+        _finish_hit_roll()'s tail and the optional Hit re-roll's own branch,
         which reaches it directly. That makes it the one place an Aspect
         Shrine token can be offered against the roll that actually STANDS,
         and it has to happen before _apply_sustained_hits_now() below turns
@@ -3154,7 +3163,7 @@ class ShootingController:
 
     def _apply_sustained_hits_now(self, hits, crits, weapon, target_squad, weapon_label):
         """The part of the hit step that must run on the FINAL hit roll -
-        split out of _finish_hit_roll() so Monster Hunters' optional re-roll
+        split out of _finish_hit_roll() so the optional Hit re-roll
         can interpose between the two."""
         # Rule 24.36 ([SUSTAINED HITS X]): each critical hit adds X extra
         # hits directly (no extra hit roll) - these extra hits are ordinary
@@ -3474,7 +3483,7 @@ class ShootingController:
         elif self.pending_step == "hit_reroll_ones":
             self._hit_reroll_ones_step(rolls)
 
-        elif self.pending_step == "hit_monster_hunters_reroll":
+        elif self.pending_step == "hit_optional_reroll":
             # Which scope the player picked arrives here purely as "how many
             # hits/crits are carried over" (see _offer_hit_reroll_choice()),
             # so this branch needs no branching of its own beyond the
@@ -4111,9 +4120,9 @@ class ShootingController:
         label, and a second source can be added here without touching the
         step itself.
 
-        Currently one source - Beast Snagga Boyz' Monster Hunters (see
-        game/monster_hunters.py). Unlike the wound side it takes no `weapon`
-        argument: no hit-roll re-roll here comes from a weapon keyword."""
+        Several sources, first match wins (below). Unlike the wound side it
+        takes no `weapon` argument: no hit-roll re-roll here comes from a
+        weapon keyword."""
         # Mont'ka's Pinpoint Counter-Offensive: "you can re-roll the Hit
         # roll" against the unit that destroyed one of yours, for the rest
         # of the battle. "An attack", so game/fight.py reads it too.
@@ -4121,8 +4130,6 @@ class ShootingController:
                 and self.pinpoint_counter_offensive.applies(self.active_squad, target_squad)):
             return montka_pinpoint_counter_offensive.PINPOINT_NAME
 
-        if monster_hunters.applies(self.active_squad, target_squad):
-            return monster_hunters.MONSTER_HUNTERS_REROLL_LABEL
         # Firesight Team's Precise Targeting - the first source here whose
         # condition is a MARK on the target rather than a keyword or a
         # distance, and it needs no new state: Spotted is already what the
@@ -4312,8 +4319,8 @@ class ShootingController:
         ones = sum(1 for i in free if rolls[i] == 1)
         # Same split as the wound step below: what the roll produced
         # overall vs. what part of it may still be re-rolled at all.
-        # Monster Hunters (offered in _finish_hit_roll()) may only throw
-        # the latter.
+        # The optional Hit re-roll (offered in _finish_hit_roll()) may only
+        # throw the latter.
         free_hits = sum(1 for i in free if results[i] != "fail")
         free_crits = sum(1 for i in free if results[i] == "critical")
         rerollable = (free_hits, free_crits, len(free))
@@ -4413,7 +4420,7 @@ class ShootingController:
                 )
 
             # ASKED FIRST, THROWN SECOND. An optional re-roll of this same Hit
-            # roll (Monster Hunters and the rest of _hit_reroll_reason()) used
+            # roll (any source of _hit_reroll_reason()) used
             # to be offered AFTER the automatic 1s had been thrown - so its
             # question landed on the 1s re-roll, and the dice panel showed
             # "re-roll failures" on a roll that was itself a re-roll. User:
@@ -4610,8 +4617,8 @@ class ShootingController:
         Neither is strictly better, which is exactly why the player picks
         rather than the engine. This differs from the wound side, where each
         source is fixed to one scope by its own explicit ruling (see
-        _wound_reroll_is_full()) - Monster Hunters is the first re-roll here
-        offered as a genuine two-way choice.
+        _wound_reroll_is_full()) - the Hit re-roll sources (the pre-codex
+        Monster Hunters first) are offered as a genuine two-way choice.
 
         Only the still-free share of the roll may be thrown either way -
         dice that already used their one re-roll keep what they landed on,
@@ -4688,7 +4695,7 @@ class ShootingController:
         """`count` dice are thrown again; `hits`/`crits` are only whatever
         the caller still carries over (see _offer_hit_reroll_choice()) and
         are stashed for on_dice_acknowledged()'s
-        "hit_monster_hunters_reroll" branch to add back in.
+        "hit_optional_reroll" branch to add back in.
 
         Failures-only: count == the failed dice, and the hits already rolled
         carry over. Whole roll: count == everything still re-rollable and
@@ -4708,7 +4715,7 @@ class ShootingController:
             is_reroll=True,  # these dice have now used their one re-roll
             **self._crit_note("hit", weapon, target_squad),
         )
-        self.pending_step = "hit_monster_hunters_reroll"
+        self.pending_step = "hit_optional_reroll"
 
     def _wound_reroll_reason(self, weapon, target_squad):
         """Rule 24.38 ([TWIN-LINKED]) and Breacher Team's "Breach and Clear"

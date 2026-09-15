@@ -5,6 +5,7 @@ from game import plagues  # imports only game/modifiers.py, so this cannot cycle
 from game.feel_no_pain import FeelNoPainRoll
 from game.enforcer_commander import adjusted_ap as enforcer_commander_adjusted_ap
 from game.ramshackle import adjusted_ap as ramshackle_adjusted_ap
+from game import arrogant_invulnerability
 from game.thresholds import parse_threshold
 from game.invulnerable_save import effective_invulnerable_save
 from game.weapons import MELEE  # imports only dice_notation, so this cannot cycle
@@ -75,6 +76,10 @@ def save_thresholds(model, weapon):
     # today, but composing them is what the printed texts say, where a max()
     # would silently cap two independent effects at one.
     ap = ramshackle_adjusted_ap(weapon.ap, model)
+    # The Meganobz' Arrogant Invulnerability ("attacks that target this unit
+    # have -1 AP"): the third defender-side step, applied in turn like the
+    # other two - see game/ap_worsening.py.
+    ap = arrogant_invulnerability.adjusted_ap(ap, model)
     return sv, insv, enforcer_commander_adjusted_ap(ap, model, weapon)
 
 

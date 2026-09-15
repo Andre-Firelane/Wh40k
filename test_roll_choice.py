@@ -32,7 +32,7 @@ import testkit as tk  # noqa: E402
 from testkit import Checks  # noqa: E402
 
 from game import roll_choice as rc  # noqa: E402
-from game import implacable_eradication, monster_hunters, reroll_scope  # noqa: E402
+from game import dlc_grim_reapers, implacable_eradication, reroll_scope  # noqa: E402
 from game.dice import DiceManager, ADVANCE_ROLL, CHARGE_ROLL  # noqa: E402
 from game.decision import DecisionManager  # noqa: E402
 from game.factions.orks import BOYZ, FLASH_GITZ  # noqa: E402
@@ -40,7 +40,7 @@ from game.factions.tau_empire import STRIKE_TEAM  # noqa: E402
 
 c = Checks("roll choices on the dice panel")
 
-ORDINARY = monster_hunters.MONSTER_HUNTERS_REROLL_LABEL
+ORDINARY = dlc_grim_reapers.GRIM_REAPERS_LABEL
 MANDATORY_ONES = sorted(reroll_scope.ONES_OR_WHOLE_LABELS)[0]
 
 # Read off the LABELS a player is shown - an independent reading of the prompt.
@@ -134,7 +134,7 @@ accept(dm, sc)
 c.eq("a pressed button opens no prompt", dec.is_pending, False)
 c.eq("...throws the failures again", len(dm.pending_values or []), 3)
 c.eq("...as spent dice", dm.already_rerolled, {0, 1, 2})
-c.eq("...on the re-roll step", sc.pending_step, "hit_monster_hunters_reroll")
+c.eq("...on the re-roll step", sc.pending_step, "hit_optional_reroll")
 c.eq("...spending the once-per-group offer", sc._hit_reroll_used, True)
 c.true("...under a heading that says so", (dm.title or "").startswith("Re-roll failures"))
 
@@ -256,7 +256,7 @@ scene, fc, dm, dec = swing((1, 1, 2), ORDINARY)
 dm.choose_reroll(rc.WHOLE)
 accept(dm, fc)
 c.eq("melee: a pressed button opens no prompt", dec.is_pending, False)
-c.eq("...and re-rolls the whole roll", fc.pending_step, "hit_monster_hunters_reroll")
+c.eq("...and re-rolls the whole roll", fc.pending_step, "hit_optional_reroll")
 
 
 # ---------------------------------------------------------------------------

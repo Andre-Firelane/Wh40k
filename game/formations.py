@@ -21,7 +21,7 @@ is imported rather than reimplemented so MEGA ARMOUR's cost-2 rule has
 exactly one implementation."""
 
 from game import attached_units
-from game.transport import _model_capacity_cost, fits_pools
+from game.transport import _model_capacity_cost, fits_pools, squad_capacity_cost
 
 
 def transport_name(transport_token):
@@ -38,7 +38,7 @@ def transport_name(transport_token):
 def transport_capacity_used(transport_token, assigned_squads):
     """How much of `transport_token`'s capacity `assigned_squads` take up
     (rule 18.01, counting MEGA ARMOUR models as 2)."""
-    return sum(_model_capacity_cost(m) for s in assigned_squads for m in s.models)
+    return sum(squad_capacity_cost(s) for s in assigned_squads)
 
 
 def embark_errors(squad, transport_token, already_assigned=(), joining=()):
@@ -109,7 +109,7 @@ def embark_errors(squad, transport_token, already_assigned=(), joining=()):
 
     capacity = transport_token.profile.transport_capacity
     used = transport_capacity_used(transport_token, already_assigned)
-    needed = sum(_model_capacity_cost(m) for m in squad.models)
+    needed = squad_capacity_cost(squad)
     if used + needed > capacity:
         errors.append(
             f"{name} has room for {capacity - used} more "

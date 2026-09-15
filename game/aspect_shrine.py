@@ -55,7 +55,7 @@ than an estimate (the same honest-eligibility shape as The Arro'kon Protocol's
 
 The offer sits at the END of its step, after every re-roll has resolved - a
 once-per-battle resource should be spent against the roll that actually stands,
-which is the same ordering argument that puts Monster Hunters after Forward
+which is the same ordering argument that puts the optional Hit re-roll after Forward
 Observers. It is a pure choice with no dice of its own, so unlike the re-roll
 offers it resolves synchronously.
 

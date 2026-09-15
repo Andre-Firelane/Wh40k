@@ -258,8 +258,14 @@ c.true("...answered by the shared exception", move_exceptions.may_charge_after_a
 # ===========================================================================
 print("\n5. the old user-supplied Waaagh! is gone")
 # ===========================================================================
-for _field in ("waaagh_biggest_and_best", "krumpin_time", "waaagh_dead_brutal_damage"):
+for _field in ("waaagh_biggest_and_best", "waaagh_dead_brutal_damage"):
     c.true("UnitProfile no longer carries %s" % _field, not hasattr(UnitProfile, _field))
+# `krumpin_time` is back as a NAME: the 2026-09 Meganobz datasheet prints a new
+# Krumpin' Time (+1 to hit in the Fight phase while riled up, game/krumpin_time.py).
+# What must stay gone is the old one's Feel No Pain - pinned below, and here at
+# the source: the Feel No Pain fold does not read the flag.
+c.true("the Feel No Pain fold no longer reads krumpin_time",
+       "krumpin_time" not in inspect.getsource(feel_no_pain))
 _mega = unit("Meganobz")
 riled_up.grant(_mega, 9)
 c.eq("a riled-up Meganob has no Feel No Pain of the old Krumpin' Time",

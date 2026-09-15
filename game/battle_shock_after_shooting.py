@@ -45,8 +45,8 @@ def any_target(_squad):
 
 def excluding_monsters_and_vehicles(squad):
     """Panicked Quarry's one extra clause. The exact complement of
-    is_monster_or_vehicle_unit(), the same pair Monster Hunters and Grim
-    Reapers use to divide the board between them."""
+    is_monster_or_vehicle_unit(), the test Grim Reapers (and the pre-codex
+    Monster Hunters) divide the board with."""
     return not is_monster_or_vehicle_unit(squad)
 
 

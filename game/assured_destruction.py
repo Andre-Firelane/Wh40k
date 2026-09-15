@@ -13,7 +13,8 @@ plus a phase restriction, so all three halves plug into machinery that already
 exists and nothing here re-derives an offer:
 
   * the HIT half joins game/shooting.py's _hit_reroll_reason(), which already
-    offers this exact choice for Beast Snagga Boyz' Monster Hunters - and
+    offers this exact choice for Grim Reapers (and did for the pre-codex
+    Monster Hunters) - and
     offers BOTH scopes (failures only / the whole roll) as a real decision,
     per the user's own instruction there;
   * the WOUND half joins _wound_reroll_reason()/_wound_reroll_is_full(),

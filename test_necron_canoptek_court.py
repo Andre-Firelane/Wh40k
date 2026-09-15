@@ -1384,7 +1384,9 @@ def _source_name(node):
     return node.attr if isinstance(node, ast.Attribute) else getattr(node, "id", None)
 
 
-c.true("the sweep is live - it found the engine's grants (%d)" % len(GAIN_CALLS), len(GAIN_CALLS) >= 7)
+# Six since the 2026-09 Ork codex retired the pre-codex Thievin' Scavengers
+# CP roll (game/thievin_scavengers.py secures an objective instead).
+c.true("the sweep is live - it found the engine's grants (%d)" % len(GAIN_CALLS), len(GAIN_CALLS) >= 6)
 c.eq("every gain_cp() call names its source",
      [(p, ln) for p, ln, s in GAIN_CALLS if s is None], [])
 c.eq("...the Secondary Mission discard is a MISSION grant",

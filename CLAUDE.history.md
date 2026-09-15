@@ -9514,3 +9514,43 @@ Armee-Wrapper im Scratchpad); `verify_rules_vs_engine.py` 173 und `CORPUS_AHEAD`
 Module nannten (`measure_ard_as_nails.py` in der Werkzeugliste, die KI-Liste mit Unbridled Carnage /
 'Ere We Go / 'Ard as Nails, der Übergangssatz „bis E2", die fünf Erwähnungen der gelöschten
 `test_ere_we_go.py`-Flake, und der `fight_after_death`-Extraktionseintrag).
+
+## 2026-09-15 — Orks E3a: die fünf Mob-Datenblätter und ihre neun Fähigkeiten
+
+User: *"weiter mit etappe Als Nächstes käme Etappe E3a Orks aus der anderesn session"*. Umfang laut
+Plan: Boyz, Beast Snagga Boyz, Stormboyz, Gretchin, Meganobz; Ammo Runts, Tide of Muscle, Never Too
+Busy to Fight, Mobbed, Rokkit Charge, Krumpin' Time, Arrogant Invulnerability, Downtrodden, Thievin'
+Scavengers; die Mechanismen Bruchteil-Transportkosten, Engaged-Aktions-Haken, AP-Verschlechterung
+und Battle-Shock-Strafe am Charge-Ende; Stilllegung von Runtherd, Grot-Smacka, Boyz-Bodyguard,
+Monster Hunters und dem alten Thievin'-CP-Wurf. Teil 1 (`f1da460`) und Teil 2a (`c919ef9`) waren
+committet; 2b wurde in dieser Sitzung gebaut, über eine Kontext-Verdichtung hinweg.
+User-Lesarten: Rokkit Charge +1 A/S je Waffe; Downtrodden ⌈n/2⌉; Mobbed −2 ersetzt −1 ab 13
+Modellen; „+1 AP" verbessert, „-1 AP" verschlechtert.
+
+**Unterwegs gefunden:**
+- Ein Patch-Skript brach an einem nicht eindeutigen Anker in `game/weapons.py` ab, nachdem es die
+  Patches davor schon geschrieben hatte. Die Folgeskripte prüfen alle Anker, bevor sie irgendetwas
+  schreiben.
+- Der Rückstands-Guard vor dem Commit schlug auf CLAUDE*.md an (die Doku nennt den Marker) →
+  `":!*.md"` ausgenommen.
+- Zwei fremde Pins zu Recht rot: `test_necron_canoptek_court.py` verlangte mindestens sieben
+  `gain_cp(`-Aufrufstellen, und der alte Thievin'-Wurf war eine davon (→ 6);
+  `test_ork_army_rules.py` verlangte, dass `krumpin_time.py` nicht existiert (→ „`feel_no_pain.py`
+  kennt Krumpin' Time nicht").
+- Das Rokkit-Charge-Verdikt schien sich zu widersprechen: die Kopfrechnung nahm 10 Stormboyz an, der
+  Default sind 5. Label korrigiert, dazu ein Negativfall gegen 10 Gretchin.
+- Sonden: 49; zwei bissen zuerst nicht — die Tide-of-Muscle-Mutation (die Kette reicht eine Kopie,
+  also ein direkter Modultest dazu) und §8s Namensliste (der Thievin'-Sweep nachgetragen). Mit
+  `--only` nachgeprobt, alle beißen; `git grep "AB-PROBE"` außerhalb der Sondendateien leer.
+- Ein paralleler Bash-Aufruf lief im falschen Arbeitsverzeichnis und wurde mit explizitem `cd`
+  wiederholt.
+
+**Verifiziert:** `test_ork_mobs.py` 134/134; volle Regression 236 Suiten, ~22885 Prüfungen, 235 grün /
+0 rot / 1 bekannt; `run_tests.py --smoke` grün; `selfplay.py map2 1500` Orks gegen Necrons in beiden
+Sitzordnungen exit 0; `verify_ork_mobs.py` 10/10, neutralisiert 8/8; `verify_rules_vs_engine.py`
+173 → 133, `CORPUS_AHEAD` 12; `measure_crowded_movement.py` gedrängt 65 % / 217.2", isoliert
+87 % / 292.2".
+
+**CLAUDE.md nachgezogen:** neuer Abschnitt `## Ork-Mobs`; die Ork-Liste (14/101/2005), die
+Fraktionszeile, die Übergangszahlen im Korpus-Abschnitt, und fünf Stellen, die Monster Hunters bzw.
+Grot-Smacka als lebend nannten.

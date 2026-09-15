@@ -164,7 +164,15 @@ class UnitProfile:
     da_boss_is_watchin = False  # War Horde Enhancement: once per battle per army, a Movement-phase panel button makes the bearer's unit riled up - see game/enh_da_boss_is_watchin.py
     kunnin_but_brutal = False  # War Horde Enhancement: Falling Back does not stop the unit shooting or charging - game/move_exceptions.py's two Fall Back folds; see game/enh_kunnin_but_brutal.py
     follow_me_ladz = False  # War Horde Enhancement: +2" Move for the bearer's unit - game/coldstar.py's effective_movement_in(); see game/enh_follow_me_ladz.py
-    thievin_scavengers = False  # Gretchin datasheet's own "Thievin' Scavengers" ability (user-supplied, not a core rule): at the start of your Movement phase, roll 1D6 per objective you control with a qualifying unit in range, gain 1CP if any roll is 4+ - see game/thievin_scavengers.py. User: "diese Ability wird noch öfters kommen" - a shared flag (same reuse pattern as `fieldcraft`), not Gretchin-exclusive
+    thievin_scavengers = False  # Gretchin's Thievin' Scavengers (2026-09 codex): at the end of your Movement phase, an objective this unit is controlling becomes secured (rule 14.03) - see game/thievin_scavengers.py
+    ammo_runts = False  # Boyz' Ammo Runts (2026-09 codex): once per battle per unit, +1 to hit for its ranged attacks when selected to shoot - see game/ork_ammo_runts.py
+    tide_of_muscle = False  # Boyz' Tide of Muscle: [LETHAL HITS] on its melee attacks in a turn it made a charge move - see game/tide_of_muscle.py
+    never_too_busy_to_fight = False  # Boyz' Never Too Busy to Fight: being engaged does not stop it starting an action (rule 16.01) - read by game/actions.py's start_eligibility()
+    mobbed = False  # Beast Snagga Boyz' Mobbed: enemy MONSTER/VEHICLE units engaged when it ends a charge move take a Battle-Shock test at -1 (-2 at 13+ models) - see game/mobbed.py
+    rokkit_charge = False  # Stormboyz' Rokkit Charge: when selected to fight after charging, +1 A/S and [HAZARDOUS] on its melee attacks - see game/rokkit_charge.py
+    krumpin_time = False  # Meganobz' Krumpin' Time: +1 to hit in the Fight phase while riled up - see game/krumpin_time.py
+    arrogant_invulnerability = False  # Meganobz' Arrogant Invulnerability: attacks that target this unit have -1 AP - see game/arrogant_invulnerability.py
+    downtrodden = False  # Gretchin's Downtrodden: for transport capacity, each 2 such models (rounding up) take up the space of 1 - see game/transport.py's squad_capacity_cost()
     explosives = False  # the EXPLOSIVES keyword - matters for the Explosives stratagem (15.05)
     grenades = False  # the GRENADES keyword - same as explosives for 15.05's "EXPLOSIVES/GRENADES" target
     deadly_demise = None  # Deadly Demise X value (rule 24.08), None = no ability
@@ -235,7 +243,6 @@ class UnitProfile:
     beast_snagga = False  # the BEAST SNAGGA keyword - matters for Kill Rig's transport_requires ("11 BEAST SNAGGA INFANTRY models"), see UnitProfile.transport_requires
     spirit_of_gork = False  # Kill Rig's own "Spirit of Gork (Psychic)" ability (user-supplied, not a core rule): at the start of the Fight phase, buff one friendly ORKS unit within 12" - see game/spirit_of_gork.py
     ferocious_rage = False  # Beastboss's own "Ferocious Rage" ability (user-supplied, not a core rule): each time this model makes a Charge move, until the end of the turn, melee weapons it is equipped with have [DEVASTATING WOUNDS] - per MODEL, not per unit, which matters once it is leading one (19.01); see game/ferocious_rage.py
-    monster_hunters = False  # Beast Snagga Boyz' own "Monster Hunters" ability (user-supplied, not a core rule): each time a model with this ability makes an attack (ranged or melee) that targets a MONSTER or VEHICLE unit, you can re-roll the Hit roll - same target test as `tank_hunters` above, but a re-roll rather than a modifier, so it hooks the hit-roll STEP instead of _hit_modifiers(); see game/monster_hunters.py
     mega_armour = False  # the MEGA ARMOUR keyword - matters for a TRANSPORT's capacity math ("each MEGA ARMOUR model takes up the space of 2 models", rule 18.01/Trukk's own printed exception) - see game/transport.py's _model_capacity_cost()
     coldstar_commander = False  # Commander in Coldstar Battlesuit's own "Coldstar Commander" ability (user-supplied, not a core rule): while this model is LEADING a unit (19.01), models in that unit have a Move characteristic of 12" and their ranged weapons have [ASSAULT] - a leader ability granted to the whole attached unit, so read with squad_has_coldstar_commander() rather than unit_wide_ability(); see game/coldstar.py
     might_is_right = False  # Warboss's own "Might is Right" ability (user-supplied, not a core rule): while this model is LEADING a unit (19.01), each time a model in that unit makes a melee attack, add 1 to the Hit roll - a leader ability granted to the whole attached unit, so read with squad_has_might_is_right() rather than unit_wide_ability(); see game/fight.py's _hit_modifiers()
@@ -509,6 +516,9 @@ class BoyzProfile(UnitProfile):
     explosives = True  # the EXPLOSIVES keyword (15.05)
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
     orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
+    ammo_runts = True  # this datasheet's Ammo Runts - see game/ork_ammo_runts.py; inherited by BoyzNobProfile
+    tide_of_muscle = True  # this datasheet's Tide of Muscle - see game/tide_of_muscle.py
+    never_too_busy_to_fight = True  # this datasheet's Never Too Busy to Fight - see game/never_too_busy_to_fight.py
 
 
 class BoyzNobProfile(BoyzProfile):
@@ -587,6 +597,7 @@ class StormboyProfile(UnitProfile):
     explosives = True  # the EXPLOSIVES keyword (2026-09 codex; it printed GRENADES before). Full Throttle is gone from this datasheet, so `full_throttle` is not set
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note; also inherited by StormboyzNobProfile below
     orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment); also inherited by StormboyzNobProfile below
+    rokkit_charge = True  # this datasheet's Rokkit Charge - see game/rokkit_charge.py; inherited by StormboyzNobProfile
 
 
 class StormboyzNobProfile(StormboyProfile):
@@ -683,6 +694,7 @@ class GretchinProfile(UnitProfile):
     waaagh = True  # "Rules: Waaagh!"
     orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
     thievin_scavengers = True  # this datasheet's own ability, see game/thievin_scavengers.py
+    downtrodden = True  # this datasheet's Downtrodden - see game/transport.py's squad_capacity_cost()
 
 
 class WarbossProfile(UnitProfile):
@@ -728,8 +740,8 @@ class MeganobzProfile(UnitProfile):
     20/25.4 ~= 0.79" (same mm-to-inch conversion used everywhere else in
     this file). WS/BS aren't in the M/T/Sv/W/Ld/OC table (same convention
     as every other datasheet so far) - read off the weapon tables: Kustom
-    shoota's own BS5+ and Power klaw's own WS4+ both match this model's own
-    values, so neither weapon needs a per-weapon override."""
+    Shoota's BS5+ and Power Klaw's WS3+ match this model's own values; the
+    Killsaw row carries its own WS4+."""
     name = "Meganob"
     base_radius_in = 0.79
     movement_in = 5
@@ -745,6 +757,8 @@ class MeganobzProfile(UnitProfile):
     mega_armour = True  # the MEGA ARMOUR keyword - see UnitProfile.mega_armour's own note
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
     orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
+    krumpin_time = True  # this datasheet's Krumpin' Time - see game/krumpin_time.py
+    arrogant_invulnerability = True  # this datasheet's Arrogant Invulnerability - see game/arrogant_invulnerability.py
 
 
 class WarbossMegaArmourProfile(UnitProfile):
@@ -919,8 +933,8 @@ class BeastSnaggaBoyProfile(UnitProfile):
 
     The M/T/Sv/W/Ld/OC line is numerically identical to BoyzProfile's, but
     this is deliberately a separate class rather than a subclass: the two
-    datasheets share no ability at all (this one has Feel No Pain 6+ and
-    Monster Hunters where Boyz has Get Da Good Bitz/Fieldcraft), so the
+    datasheets share no ability at all (Mobbed here; Ammo Runts, Tide of
+    Muscle and Never Too Busy to Fight there, 2026-09 codex), so the
     shared numbers are a coincidence of the stat line, not a relationship
     worth encoding.
 
@@ -944,6 +958,7 @@ class BeastSnaggaBoyProfile(UnitProfile):
     beast_snagga = True  # the BEAST SNAGGA keyword - what makes this unit eligible for a Kill Rig's transport, see UnitProfile.transport_requires
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
     orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
+    mobbed = True  # this datasheet's Mobbed - see game/mobbed.py; inherited by BeastSnaggaNobProfile
 
 
 class BattlewagonProfile(UnitProfile):

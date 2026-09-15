@@ -280,8 +280,8 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
 8. **Kandidaten müssen ALLE Bedingungen kennen, die der Confirm prüft.** Dreimal aufgetreten
    (Gelände, Engagement Range, Brettkante): ein einziger schlechter Slot lässt die GANZE Platzierung
    scheitern, weil `confirm_setup()` am fertigen Trupp urteilt.
-9. **Der Trichter ist nicht immer der, der so aussieht.** `_finish_hit_roll()` wird vom
-   Monster-Hunters-Zweig umgangen, `_apply_feel_no_pain()` hat nur einen Aufrufer,
+9. **Der Trichter ist nicht immer der, der so aussieht.** `_finish_hit_roll()` wurde vom
+   Monster-Hunters-Zweig umgangen (seit Orks E3a entfallen), `_apply_feel_no_pain()` hat nur einen Aufrufer,
    `choose_target_squad()` wird vom Ein-Ziel-Auto-Pick übersprungen, `cancel()` umging die
    13.09-Buchführung. Vor dem Einhängen: alle Aufrufer zählen.
 9b. **Eine KETTE darf nicht neu lesen, was ihre eigenen Glieder löschen können.** Wird ein
@@ -3340,7 +3340,7 @@ zu machen (Dict-Index, `min()` auf leerer Knopfliste) — beide degradieren jetz
 **Im ECHTEN Spiel belegt** (`verify_dice_panel_buttons.py`): gezeichnet `accept / failures 9 /
 whole 24`, ein Klick irgendwohin lässt den Wurf liegen, der Druck auf RE-ROLL FAILURES wirft 9 Würfel
 ohne einen einzigen "Keep result"-Prompt; `--neutralize` → kein Reroll-Knopf, Klick bestätigt,
-Prompt öffnet. GESTELLT: der Schuss (live `_begin_resolution()`), Monster Hunters als Quelle, drei
+Prompt öffnet. GESTELLT: der Schuss (live `_begin_resolution()`), Grim Reapers (bis Orks E3a Monster Hunters) als Quelle, drei
 Würfel auf 1, ein offener Mensch-Prompt beantwortet (selfplay beantwortet keinen — offen auf 2251
 von 2500 Frames) und eine Notice weggeklickt. **Harness-Falle:** mit einem Ein-Würfel-Schützen sind
 "failures" und "all" derselbe Würfel — die Sonde nimmt den größten Pool.
@@ -3352,7 +3352,7 @@ sollte es keine reroll option geben. man darf rerolls nicht rerollen."*
 
 - **Der Knopf meinte nicht den Würfel auf dem Tisch**, sondern die 6 übrigen Fehlschläge des Wurfs
   DAVOR. `shooting.py` warf die automatischen 1er einer Quelle (Forward Observers u. a.) ZUERST und
-  fragte das optionale Re-roll ([TWIN-LINKED], Monster Hunters …) erst DANACH — also landete die
+  fragte das optionale Re-roll ([TWIN-LINKED], damals Monster Hunters …) erst DANACH — also landete die
   Frage auf dem 1er-Re-roll. Die Engine hat nie einen Würfel zweimal geworfen, aber die Frage stand
   am falschen Wurf, und mit dem Panel wurde das sichtbar.
 - **Gefragt wird jetzt auf dem Wurf, wie er GEWORFEN wurde.** "Re-roll failures" zählt die 1er mit
@@ -4526,7 +4526,7 @@ dazukommen.
   Ethereal steht weiter allein, weil der User es so gesagt hat. **Die vierte hat VIER
   Anbindungen**, alle vier nachgereicht (User: "die charactere sind keinen squads zugeordnet") —
   siehe `### Die VIERTE T'au-Liste`.
-- **Orks — 14 Einheiten, 103 Modelle, 1935 pts**. Attached: Warboss + Painboy im 20er-Boyz-Mob,
+- **Orks — 14 Einheiten, 101 Modelle, 2005 pts** (seit E3a). Attached: Warboss + Painboy (SUPPORT) im 20er-Boyz-Mob,
   Beastboss in Beast Snagga Boyz (im Kill Rig), Warboss in Mega Armour bei den Meganobz (im
   Battlewagon). Stormboyz und Deffkoptas in Reserve.
 - **Death Guard — 16 Listeneinträge, 14 Einheiten nach zwei Anbindungen, 49 Modelle, 2020 pts**,
@@ -7531,7 +7531,7 @@ nicht**. Genau dort saß der Fehler, und dort saßen dreizehn weitere.
 benannt statt still entfernt. Ebenso die sieben reinen Namensdrifts (`Grot-Smacka` für "Runtherd
 tools", `Spiked Wheel` für "Spiked wheels", `- Overcharge` für "– supercharge", `Plasma Gun` für
 "plasma gun – standard", und 5× `Missile Launcher - Sunburst Blast`, wo "blast" das KEYWORD ist) —
-bei allen stimmen die Zahlen exakt.
+bei allen stimmen die Zahlen exakt. `Grot-Smacka` ist mit dem Runtherd in Orks E3a entfallen.
 
 ### Getestet
 
@@ -8198,7 +8198,8 @@ Spiellänge definieren.
   Deffkoptas, Flash Gitz, Tankbustas, Meganobz, Beast Snagga Boyz, Beastboss, Warboss (Fuß + Mega
   Armour), Painboy. Armeeregel Waaagh! (seit E1 der 2026-09-Codex: riled up + War Cry, siehe
   `## Die Ork-Armeeregel`), Detachment "War Horde" (seit E2 Codex-Stand: Get Stuck In, vier Enhancements,
-  sechs Stratagems, siehe `## War Horde`). Komplette
+  sechs Stratagems, siehe `## War Horde`); seit E3a stehen Boyz, Beast Snagga Boyz, Stormboyz,
+  Gretchin und Meganobz auf Codex-Stand (siehe `## Ork-Mobs`). Komplette
   Punkteliste (58 Einträge).
 - **Aeldari** — Guardian Defenders, Storm Guardians, Striking Scorpions, Howling Banshees, Warp
   Spiders, Dire Avengers, Fire Dragons, Dark Reapers, Shining Spears, Windriders, Warlock Skyrunners,
@@ -8563,7 +8564,8 @@ Spiellänge definieren.
       VIRULENCE. Vollständig ausgeschrieben, Inertheit gepinnt — faktisch setzt die KI **fünf von
       sechs** ein.
     - **GRIM REAPERS ist der exakte Spiegel von Monster Hunters** und hängt an derselben Naht;
-      ihre Ziel-Tests sind Komplemente, sie können nie beide auf einen Angriff wirken.
+      ihre Ziel-Tests waren Komplemente. Monster Hunters ist mit Orks E3a entfallen; der
+      gemeinsame Schritt heißt jetzt `hit_optional_reroll`.
     - **Drei Reihenfolge-Fehler in `main.py`, alle nur vom END-TO-END-Lauf gefunden**: Listener
       bzw. Controller wurden vor ihren Abhängigkeiten registriert (`UnboundLocalError` beim ersten
       echten Start). Keine Suite konnte das sehen — sie treiben die Controller direkt. Seither
@@ -9004,12 +9006,12 @@ byte-identisch (In-Memory-Vergleich über 255 Dateien, 0 Differenzen). Plan und 
   `Detachment.force_dispositions` ist ein TUPEL, `force_disposition` eine Property auf den ersten
   Eintrag, `force_dispositions.from_printed_list()` liest die Zeile, und `detachments.py` prüft die
   Deklaration einer Liste gegen die VEREINIGUNG. Die Ork-Liste bleibt bei Take and Hold.
-- **ÜBERGANG, bis die Datenblatt-Etappen landen:** der Korpus ist den 17 gebauten Ork-Blättern
-  VORAUS. `test_weapon_characteristics.py` führt sie in `CORPUS_AHEAD` — ihre Abweichungen werden
+- **ÜBERGANG, bis die Datenblatt-Etappen landen:** der Korpus ist den gebauten Ork-Blättern
+  VORAUS (E0: alle 17, seit E3a noch **12**). `test_weapon_characteristics.py` führt sie in `CORPUS_AHEAD` — ihre Abweichungen werden
   GESAMMELT statt gefailt, und die Menge ist dreifach bewacht (nur `orks`; Anzahl ==
   `EXPECTED_AHEAD`; jedes gelistete Blatt MUSS noch abweichen, sonst raus). Jede Datenblatt-Etappe
   senkt die Zahl, die letzte löscht den Block samt drei Sonden. `verify_rules_vs_engine.py` meldet
-  bis dahin **173 statt 70** Differenzen (106 Ork-Zeilen). Seit E2 spielt die Engine
+  bis dahin mehr Differenzen: E0 **173** (106 Ork-Zeilen), seit E3a **133** (66). Seit E2 spielt die Engine
   denselben War-Horde-Text, den der Army-Rules-Leser zeigt.
 - **Getestet:** `test_datasheet_rules.py` → **145/145** (neu §6: eine COMMITTETE, ERFUNDENE Fixture
   `testdata/wahapedia_new_layout_blocks.html` — nur Markup, kein GW-Text, weil `.cache/`
@@ -9253,6 +9255,89 @@ Zugende löscht `charged_this_turn` — ohne das blieben Da Boss und Mow 'Em Dow
 Sonde MISST die Ablehnungen statt sie zu erzählen (Da Boss: jede Nicht-Träger-Einheit „Enhancement
 not active"). `--neutralize` entfernt Listener und Registry-Adds per Import-Hook und stellt den
 Vor-Fix-Sweep her.
+
+## Ork-Mobs (2026-09-Codex): Boyz, Beast Snagga Boyz, Stormboyz, Gretchin, Meganobz — Etappe E3a
+
+Plan: `C:\Users\Andre\.claude\plans\transient-munching-boot.md`. Drei Commits: `f1da460`
+(Mehrprofilwaffen, Hunter-Profile, bedingte Keywords), `c919ef9` (die fünf Datenblätter) und die
+neun Fähigkeiten. `armies/orks.json` bleibt minimal lauffähig: **14 Einheiten, 101 Modelle, 2005 pts**.
+
+**Datenblätter (Teil 2a):** Zusammensetzungen, Wargear, Punkte, neue Waffenzeilen (Kombi, Kustom
+Shoota, Burna, Rokkit Launcha, Killsaw, Thump Gun, Scavenged Shivs; Beast Snagga Choppa als
+Standard/Hunter-Paar). Boss Nob → Nob; der Painboy ist SUPPORT (die SUPPORTED-BY-Zeile der Boyz).
+Close-Range Dakkas KI-Zählung beachtet 24.07. **Entfallen:** Runtherd samt Toughness-Override und
+Grot-Smacka; die Zwei-Leader-Erlaubnis des Boyz-Bodyguards (`can_attach()` kennt diese Ausnahmeform
+nicht mehr — Kroot Carnivores drucken ein Bodyguard, es ist nicht engine-verdrahtet).
+
+**Die neun Fähigkeiten (Teil 2b):**
+
+| Fähigkeit | Träger | Modul | Naht |
+|---|---|---|---|
+| Ammo Runts | Boyz | `ork_ammo_runts.py` | Angebot in `start_shooting()`, +1 Hit in den Schuss-Modifikatoren, einmal pro Schlacht |
+| Tide of Muscle | Boyz | `tide_of_muscle.py` | [LETHAL HITS] auf Nahkampfwaffen nach eigenem Charge, Fight-Adjuster-Kette |
+| Never Too Busy to Fight | Boyz | `never_too_busy_to_fight.py` | hebt 16.01s Engaged-Sperre in `actions.py` |
+| Mobbed | Beast Snagga Boyz | `mobbed.py` | `on_charge_move_finished` + Würfel-Queue |
+| Rokkit Charge | Stormboyz | `rokkit_charge.py` | Angebot in `_start_fighting()`, Fight-Adjuster-Kette |
+| Krumpin' Time | Meganobz | `krumpin_time.py` | +1 Hit im Nahkampf, solange riled up |
+| Arrogant Invulnerability | Meganobz | `arrogant_invulnerability.py` | −1 AP in `save_thresholds()` |
+| Downtrodden | Gretchin | `transport.squad_capacity_cost()` | Transportkapazität ⌈n/2⌉ |
+| Thievin' Scavengers | Gretchin | `thievin_scavengers.py` | Ende der Movement-Phase, 14.03 Secured |
+
+- **Lesarten (User-Entscheidungen):** Rokkit Charge gibt +1 A und +1 S PRO WAFFE (eine Notation
+  bekommt `bonus + 1`) plus [HAZARDOUS]; Downtrodden zählt ⌈n/2⌉ (11 Gretchin = 6 Plätze); Mobbed −2
+  ERSETZT −1 ab 13 lebenden Modellen; „+1 AP" verbessert, „-1 AP" verschlechtert.
+- **`game/ap_worsening.py`, Extraktion am dritten Konsumenten** (Ramshackle, Enforcer Commander,
+  Arrogant Invulnerability): `min(0, ap + 1)`, jede Quelle ein eigener Schritt, zwei komponieren zu −2.
+  Arrogant Invulnerability fragt 19.04 über den Squad des zugeteilten Modells — ein Warboss in Mega
+  Armour in den Meganobz ist gedeckt.
+- **Downtrodden hat ZWEI Leser**, 18.02 (`embarked_model_count`, `can_embark`) UND 18.01
+  (`formations.transport_capacity_used`/`embark_errors`) — die Kill-Rig-Lehre aus Necron E8. 20 Gretchin
+  passen in einen Trukk, 10 Boyz + 10 Gretchin nicht.
+- **Mobbed** gibt jeder engagierten feindlichen MONSTER/VEHICLE-Einheit einen Battle-Shock-Test über
+  `start_forced_roll(penalty=)`; die Queue wartet einen offenen Wurf ab (`rolling_squad`/
+  `pending_values`) und wird aus `main.py`s Würfel-Ack NACH dem eigenen Battle-Shock-Ack gedrainiert.
+  §21 führt `mobbed` namentlich (ein weiterer Test, den Insane Bravery nicht erreicht).
+- **Rokkit Charge:** Mensch Prompt, KI `agent_driver.rokkit_charge_verdict()` — Gewinn (beste
+  Zusatzwunden × Punkte je Wunde des Ziels) gegen Verlust (Hazard-Fehlschläge × Punkte je Wunde der
+  eigenen Einheit); 5 Stormboyz gegen ein Strike Team ja, gegen 10 Gretchin nein. Der Wunden-Tausch
+  teilt `_melee_wounds_with_grant()` mit `_boosted_melee_wounds` (Waffen tauschen, `finally` zurück).
+- **Ammo Runts:** `ammo_runts_used` (Schlacht) und `ammo_runts_active` (Phase) stehen in `SQUAD_FLAGS`,
+  ebenso `rokkit_charge_active`; die KI nimmt Ammo Runts sofort, der Mensch bekommt „Use Ammo Runts" /
+  „Save it for later".
+- **Thievin' Scavengers ist neu geschrieben:** kein Wurf, kein CP, kein Controller
+  (`THIEVIN_SCAVENGERS_ROLL` weg). `secure_at_end_of_movement()` läuft im
+  `phase_before == PHASE_MOVEMENT`-Block NACH `update_control()` mit `mover_before`; §8 führt ihn in
+  `_END_OF_PHASE_OFFERS`. „Controlling" sind die drei Filter von `level_of_control()` (Footprint,
+  effektive OC > 0, nicht geschockt), am eigenen Trupp gefragt.
+- **Entfallen in 2b:** Monster Hunters (Modul und Profil-Feld; die Test-Labels zeigen auf Grim Reapers,
+  der Reroll-Schritt heißt `hit_optional_reroll`) und der alte Thievin'-CP-Wurf. Die
+  Krumpin'-Time-FNP aus E1 bleibt weg (Quell-Pin in `test_ork_army_rules.py`).
+
+**Getestet:** neu `test_ork_mobs.py` (**134/134**, zwölf Abschnitte — jede Fähigkeit durch ihren
+echten Controller, Mobbed mit echtem `BattleShockController`, Downtrodden über `embark_errors`,
+Thievin' auf map2s Central Objective samt drei Negativen, Stilllegungen, AST-Pins) und
+`ab_ork_mobs.py` (**49 Sonden, alle beißend**). **Zwei bissen zuerst nicht, beide Befunde über den
+TEST:** die Tide-of-Muscle-Mutation (die Kette reicht eine KOPIE, jetzt zusätzlich ein direkter
+Modultest) und der Thievin'-Sweep fehlte in §8s Namensliste. Volle Regression **236 Suiten, ~22885
+Prüfungen, 235 grün / 0 rot / 1 bekannt**, `run_tests.py --smoke` grün, `selfplay.py map2 1500` Orks
+gegen Necrons in beiden Sitzordnungen exit 0. `verify_rules_vs_engine.py` **173 → 133** (66
+Ork-Zeilen, keine für die fünf Blätter), `CORPUS_AHEAD` **17 → 12**. `measure_crowded_movement.py`:
+gedrängt **65 % / 217.2"**, isoliert **87 % / 292.2"**.
+
+**Im ECHTEN Spiel belegt** (`verify_ork_mobs.py map2 3000`, Orks als Player 1; 10/10, unter
+`--neutralize` 8/8 Abwesenheitsprüfungen):
+
+| | gefixt | `--neutralize` |
+|---|---|---|
+| Ammo Runts / Rokkit Charge an den Live-Controllern, Mobbed am Charge-Haken | ja | nein |
+| Thievin'-Sweep an Player 1s Movement-Grenze | Frame 150, `Objective West` gesichert | kein Sweep |
+| Mobbed über `main()`s Listener und Ack | `Battle-Shock Roll - Mobbed (Ld 7+, -1 to the test)` | kein Wurf |
+| Ammo-Runts-Prompt | `Use Ammo Runts` / `Save it for later` | keiner |
+
+GESTELLT: Orks als Player 1, die Phasen, Gretchin auf einem feindfreien Objective, eine gebaute
+Beast-Snagga-Einheit neben einer feindlichen MONSTER/VEHICLE (die Liste setzt ihre einzige in einen
+Kill Rig) und der „Charge beendet"-Moment. `--neutralize` nimmt die Nähte per Import-Hook zurück, die
+Dateien auf der Platte bleiben unberührt.
 
 ## KI-Architektur
 
@@ -14524,7 +14609,7 @@ falsch; es nimmt jetzt ein `reason`.
 **Getestet:** neu `test_reroll_scope.py` (**111/111**, sechs Abschnitte — es fährt alle VIER
 Aufrufstellen für alle SIEBEN Labels und prüft die tatsächlich angebotene OPTIONSLISTE; vorher pinnte
 KEIN Test die Labels, nur `is_ones_or_whole()`). Die tragende Gegenprobe: eine Quelle OHNE 1er-Klausel
-(Monster Hunters) bekommt weiterhin „Keep result" statt „1s only" — ohne sie bestünde der Abschnitt
+(Grim Reapers, bis Orks E3a Monster Hunters) bekommt weiterhin „Keep result" statt „1s only" — ohne sie bestünde der Abschnitt
 auch, wenn jede Unterscheidung gelöscht würde. Dazu ein AST-Quell-Wächter auf das INNERSTE
 umschließende `if` (die erste Fassung meldete die Wund-Zweige falsch, weil das äußere
 `if is_ones_or_whole` den Fails-Eintrag legitim umschließt). Neu `ab_reroll_failures_option.py`

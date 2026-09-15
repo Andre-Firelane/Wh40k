@@ -22,7 +22,6 @@ SNAP_SHOT_HIT_ROLL = "snap_shot_hit"
 # rule - see game/thievin_scavengers.py): not on rule 15.02's re-rollable
 # list either (same reasoning as battle-shock rolls above), so likewise
 # deliberately left out of command_reroll.py's REROLLABLE_KINDS.
-THIEVIN_SCAVENGERS_ROLL = "thievin_scavengers"
 
 REROLL_ANIMATION_DURATION = 0.4  # seconds - how long DicePanel flickers a re-rolled die before settling
 

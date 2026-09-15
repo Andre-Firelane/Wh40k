@@ -1,7 +1,6 @@
 """Kill Rig's own "Spirit of Gork (Psychic)" ability, as supplied by the
 user (not a rule from the generic 40k core rulebook, so it lives in its own
-module - same reasoning as game/ferocious_rage.py for the Beastboss's and
-game/monster_hunters.py for Beast Snagga Boyz').
+module - same reasoning as game/ferocious_rage.py for the Beastboss's).
 
 RULE: At the start of the Fight phase, you can select one friendly ORKS unit
 within 12" of this model and roll one D6:

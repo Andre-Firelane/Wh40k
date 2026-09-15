@@ -51,6 +51,22 @@ def _model_capacity_cost(model):
     return 1
 
 
+def squad_capacity_cost(squad):
+    """Rule 18.01 for a whole UNIT - the one answer every capacity check reads.
+
+    Per model (_model_capacity_cost() above) except for the Gretchin's
+    Downtrodden (2026-09 codex): "For the purposes of transport capacity, each
+    2 Gretchin models (rounding up) take up the space of 1 model." A FRACTION
+    of a slot per model cannot be summed model by model and then rounded
+    correctly, so those models are counted together: ceil(n / 2). Ten Gretchin
+    take 5, eleven take 6. fits_pools() still counts per model - no
+    transport_pools line accepts a Downtrodden model."""
+    downtrodden = sum(1 for m in squad.models if getattr(m.profile, "downtrodden", False))
+    others = sum(_model_capacity_cost(m) for m in squad.models
+                 if not getattr(m.profile, "downtrodden", False))
+    return others + (downtrodden + 1) // 2
+
+
 def fits_pools(squad, pools, already_embarked=()):
     """Rule 18.02 for a capacity line printed as SEVERAL SUB-POOLS.
 
@@ -193,7 +209,7 @@ class TransportController:
         return [s for s in self.game_state.embarked_squads if s.embarked_in is transport_token]
 
     def embarked_model_count(self, transport_token):
-        return sum(_model_capacity_cost(m) for s in self.embarked_squads_in(transport_token) for m in s.models)
+        return sum(squad_capacity_cost(s) for s in self.embarked_squads_in(transport_token))
 
     def remaining_capacity(self, transport_token):
         return transport_token.profile.transport_capacity - self.embarked_model_count(transport_token)
@@ -268,7 +284,7 @@ class TransportController:
         reach = EMBARK_RANGE_IN if range_in is None else range_in
         if not all(edge_distance(m, transport_token) <= reach for m in squad.models):
             return False
-        return sum(_model_capacity_cost(m) for m in squad.models) <= self.remaining_capacity(transport_token)
+        return squad_capacity_cost(squad) <= self.remaining_capacity(transport_token)
 
     def embark(self, squad, transport_token, require_move=True, range_in=None):
         if not self.can_embark(squad, transport_token, require_move=require_move,

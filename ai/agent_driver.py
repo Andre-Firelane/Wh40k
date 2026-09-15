@@ -11134,25 +11134,77 @@ def _boosted_melee_wounds(squad, target):
     copies are swapped in, measured, and swapped back in a finally. Reusing
     that function rather than re-deriving "+1 Strength" also picks up the AP
     half of the grant for free, which a hand-rolled version would miss."""
-    was_active = getattr(squad, "hungry_void_active", False)
+    return _melee_wounds_with_grant(squad, target, "hungry_void_active",
+                                    protocol_hungry_void.adjusted_weapon)
+
+
+def _melee_wounds_with_grant(squad, target, flag, adjust):
+    """`squad`'s expected melee output against `target` AS IF a phase grant
+    (Squad flag `flag`, adjuster `adjust`) were up, without buying it. The
+    adjusted weapons are swapped in and back in a finally - see
+    _boosted_melee_wounds() for why a flag alone measures nothing. Second
+    consumer: Stormboyz' Rokkit Charge."""
+    was_active = getattr(squad, flag, False)
     originals = {}
     try:
-        squad.hungry_void_active = True
+        setattr(squad, flag, True)
         for model in squad.models:
             if model.is_dead():
                 continue
             originals[id(model)] = model.weapons
             model.weapons = [
-                protocol_hungry_void.adjusted_weapon(weapon, squad)
-                if weapon.weapon_type != RANGED_WEAPON else weapon
+                adjust(weapon, squad) if weapon.weapon_type != RANGED_WEAPON else weapon
                 for weapon in model.weapons
             ]
         return expected_wounds_against(squad, target, melee=True) or 0.0
     finally:
-        squad.hungry_void_active = was_active
+        setattr(squad, flag, was_active)
         for model in squad.models:
             if id(model) in originals:
                 model.weapons = originals[id(model)]
+
+
+def _points_per_wound(squad):
+    """What one of this unit's wounds is worth in points - the unit's cost over
+    its starting wounds (living and destroyed models). 1.0 when unpriced."""
+    points = getattr(squad, "points", None)
+    models = list(squad.models) + list(getattr(squad, "destroyed_models", None) or [])
+    wounds = sum(m.profile.wounds for m in models)
+    if not points or wounds <= 0:
+        return 1.0
+    return points / wounds
+
+
+def rokkit_charge_verdict(squad, fight_controller):
+    """Stormboyz' Rokkit Charge, decided deterministically (0 API calls).
+
+    A trade priced in POINTS. The gain: the expected extra melee wounds the
+    grant adds against the best engaged target - the same weapon-swap A/B
+    Hungry Void uses, through game/rokkit_charge.py's own adjusted_weapon(), so
+    +1 Strength is worth exactly where it crosses the target's Toughness. The
+    cost: its [HAZARDOUS] tests - one per living model that swings a melee
+    weapon, each failing on 1-2 (rule 06.03, game/hazard.py) for one mortal
+    wound, or three on an all-MONSTER/VEHICLE unit. Bought when the gain is
+    worth more than the expected loss."""
+    from game import hazard, rokkit_charge
+    from game.squad import is_monster_or_vehicle_unit
+    if fight_controller is None or squad is None:
+        return False
+    targets = fight_controller.engaged_enemy_squads(squad)
+    if not targets:
+        return False
+    gain = 0.0
+    for target in targets:
+        plain = expected_wounds_against(squad, target, melee=True) or 0.0
+        boosted = _melee_wounds_with_grant(squad, target, "rokkit_charge_active",
+                                           rokkit_charge.adjusted_weapon)
+        gain = max(gain, (boosted - plain) * _points_per_wound(target))
+    swingers = sum(1 for m in squad.models if not m.is_dead()
+                   and any(w.weapon_type != RANGED_WEAPON for w in m.weapons))
+    per_fail = (hazard.MORTAL_WOUNDS_ON_FAIL_MONSTER_VEHICLE if is_monster_or_vehicle_unit(squad)
+                else hazard.MORTAL_WOUNDS_ON_FAIL)
+    loss = swingers * (hazard.HAZARD_FAILURE_THRESHOLD / 6.0) * per_fail * _points_per_wound(squad)
+    return gain > loss
 
 
 def _handle_hungry_void(player, all_tokens, fight_controller, hungry_void_controller,

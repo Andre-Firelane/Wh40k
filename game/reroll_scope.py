@@ -6,7 +6,7 @@ one of them had a name:
   FAILURES-OR-WHOLE - the ordinary shape. The ability says "you can re-roll the
   Hit/Wound roll", so the player picks between re-rolling just the failures
   (never a loss) and the whole roll (can lose successes, but is the only way to
-  improve a roll whose failures are few). Monster Hunters, [TWIN-LINKED],
+  improve a roll whose failures are few). Grim Reapers, [TWIN-LINKED],
   Breach and Clear, Sunforge, Assured Destruction, Storm of Silence.
 
   ONES-OR-WHOLE - the shape this module names. The ability has TWO clauses:

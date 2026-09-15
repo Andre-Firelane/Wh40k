@@ -1,7 +1,6 @@
 """Flash Gitz' own "Gun-crazy Show-offs" ability, as supplied by the user
 (not a rule from the generic 40k core rulebook, so it lives in its own module
-- same reasoning as game/spirit_of_gork.py for the Kill Rig's and
-game/monster_hunters.py for Beast Snagga Boyz').
+- same reasoning as game/spirit_of_gork.py for the Kill Rig's).
 
 RULE: Each time a model in this unit targets the closest eligible target with
 its Snazzgun, until the end of the phase, that weapon has an Attacks

@@ -138,6 +138,11 @@ SQUAD_FLAGS = (
     "mow_em_down_active",
     "fungus_fuel_injection_active",
     "close_range_dakka_active",
+    # The 2026-09 Ork datasheets: Ammo Runts' once-per-battle spend and its
+    # phase grant, and Rokkit Charge's grant.
+    "ammo_runts_used",
+    "ammo_runts_active",
+    "rokkit_charge_active",
     # War Horde's Da Boss is Watchin': once per battle per army, a spend.
     "da_boss_is_watchin_used",
     "flickerjump_active",

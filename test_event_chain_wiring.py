@@ -598,6 +598,11 @@ _END_OF_PHASE_OFFERS = (
     # Overflight is handed phase_before/mover_before instead of reading either.
     "_skyborne.offer_at_end_of_fight_phase(",
     "overflight_controller.offer_at_end_of_phase(",
+    # Not an offer, but a call that takes the PLAYER at this seam: Gretchin's
+    # Thievin' Scavengers (2026-09 Ork codex) secures for the player whose
+    # Movement phase just ended. Added when an A/B probe handed it the flipped
+    # turn_owner and this section did not notice.
+    "thievin_scavengers.secure_at_end_of_movement(",
 )
 for _call in _END_OF_PHASE_OFFERS:
     ck.true("%s is still made at this seam" % _call.split("(")[0], _call in _TAIL)
@@ -1999,6 +2004,7 @@ _KNOWN_TRIGGERS = sorted([
     "fall_back",                     # 09.07 Desperate Escape
     "grav_inhibitor_field",
     "kauyon_photon_grenades",
+    "mobbed",                        # Beast Snagga Boyz (2026-09 Ork codex)
     "mortal_wound_abilities",        # Kroot Linebreakers
     "neocapacitor_shields",
     "presentiment_of_dread",

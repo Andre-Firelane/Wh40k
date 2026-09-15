@@ -47,7 +47,7 @@ Disembark locks already do.
 """
 
 from game.squad import ENGAGEMENT_RANGE_IN, edge_distance
-from game import titanic
+from game import never_too_busy_to_fight, titanic
 
 
 class ActionDefinition:
@@ -157,7 +157,11 @@ def start_eligibility(squad, tokens, movement_controller=None, started_this_turn
     # profile flag: this used to read `_flag(profile, "titanic")`, a field
     # UnitProfile does not declare, so it was unconditionally False - see
     # game/titanic.py.
-    if not titanic.is_titanic_unit(squad) and _is_engaged(squad, tokens):
+    # Boyz' Never Too Busy to Fight lifts the same clause for its own unit
+    # (game/never_too_busy_to_fight.py) - only this one.
+    if (not titanic.is_titanic_unit(squad)
+            and not never_too_busy_to_fight.applies(squad)
+            and _is_engaged(squad, tokens)):
         return False, "engaged"
     if squad.fell_back_this_turn:
         return False, "Fell Back this turn"

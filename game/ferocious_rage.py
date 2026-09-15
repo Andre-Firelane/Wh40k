@@ -1,7 +1,6 @@
 """Beastboss's own "Ferocious Rage" ability, as supplied by the user (not a
 rule from the generic 40k core rulebook, so it lives in its own module -
-same reasoning as game/monster_hunters.py for Beast Snagga Boyz' and
-game/sunforge.py for the Crisis Sunforge Battlesuits').
+same reasoning as game/sunforge.py for the Crisis Sunforge Battlesuits').
 
 RULE: Each time this model makes a Charge move, until the end of the turn,
 melee weapons it is equipped with have the [DEVASTATING WOUNDS] ability.
