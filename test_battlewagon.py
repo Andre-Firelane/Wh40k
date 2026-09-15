@@ -70,8 +70,11 @@ c.eq("tracks needs no WS override (matches the model's 4+)", tracks.weapon_skill
 from game.weapons import DeffRollaProfile, GrabbinKlawProfile, LobbaProfile  # noqa: E402
 
 big_shoota, wreckin = BigShootaProfile(), WreckinBallProfile()
+# The shared class follows the Boyz' 2026-09 codex row (S4) now; the
+# Battlewagon's own page is still ahead of the engine (test_weapon_characteristics'
+# CORPUS_AHEAD) until its datasheet stage.
 c.eq("Big shoota reuses the Trukk's class", (big_shoota.range_in, big_shoota.attacks, big_shoota.strength,
-                                             big_shoota.rapid_fire), (36, 3, 5, 2))
+                                             big_shoota.rapid_fire), (36, 3, 4, 2))
 c.eq("Wreckin' ball reuses the Trukk's class too",
      (wreckin.attacks, wreckin.strength, wreckin.ap, wreckin.extra_attacks), (1, 10, 0, True))
 c.true("Wreckin' ball's WS4+ matches this model, so it needs no override",
@@ -266,7 +269,7 @@ EXPECTED = {
     FLASH_GITZ: {"Kaptin": "Flash GItz", "Flash Git": "Flash GItz"},
     BATTLEWAGON: {"Battlewagon": "Ork Battle Wagon"},
     # Regression: the units these new keys could collide with by substring.
-    BOYZ: {"Boss Nob": "Ork Boy", "Boy": "Ork Boy"},
+    BOYZ: {"Nob": "Ork Boy", "Boy": "Ork Boy"},
     WARBOSS: {"Warboss": "Ork Warboss"},
     WARBOSS_MEGA_ARMOUR: {"Warboss in Mega Armour": "Ork Warboss in Megaarmor"},
 }

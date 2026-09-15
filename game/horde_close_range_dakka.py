@@ -67,8 +67,15 @@ def has_ranged_weapons(squad):
 
 def expected_extra_dice(squad, enemy_models):
     """Dice the grant adds if the unit shot now: one per ranged weapon of a
-    living model with a living enemy model inside that weapon's half range."""
+    living model with a living enemy model inside that weapon's half range -
+    counting, per model, only the weapons it could fire TOGETHER.
+
+    Rule 24.07: a model that is not a MONSTER or VEHICLE fires either its
+    [CLOSE-QUARTERS] weapons or its others, never both. The 2026-09 codex
+    Boy carries a Shoota AND a close-quarters Slugga, and summing both counted
+    nearly two dice per Boy where he can add one."""
     from game import weapon_range
+    from game.shooting import is_close_quarters
     from game.squad import edge_distance
     enemies = [m for m in enemy_models or () if not m.is_dead()]
     if squad is None or not enemies:
@@ -77,12 +84,17 @@ def expected_extra_dice(squad, enemy_models):
     for model in squad.models:
         if model.is_dead():
             continue
+        sides = {True: 0, False: 0}
         for weapon in model.weapons:
             if getattr(weapon, "weapon_type", None) != RANGED:
                 continue
             half = weapon_range.half_range_in(model, weapon)
             if any(edge_distance(model, enemy) <= half for enemy in enemies):
-                extra += CLOSE_RANGE_DAKKA_RAPID_FIRE
+                sides[bool(is_close_quarters(weapon, squad))] += CLOSE_RANGE_DAKKA_RAPID_FIRE
+        if model.profile.monster or model.profile.vehicle:
+            extra += sides[True] + sides[False]
+        else:
+            extra += max(sides.values())
     return extra
 
 

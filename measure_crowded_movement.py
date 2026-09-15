@@ -102,9 +102,9 @@ from game import attached_units, config, line_of_sight, maps, squad as squad_mod
 from game.factions import build_squad
 from game.factions.orks import (
     BATTLEWAGON, BATTLEWAGON_ADD_BIG_SHOOTAS, BATTLEWAGON_ADD_ZZAP_GUN,
-    BEAST_SNAGGA_BOYZ, BEASTBOSS, BOYZ, BOYZ_BIG_CHOPPA_TO_POWER_KLAW,
+    BEAST_SNAGGA_BOYZ, BEASTBOSS, BOYZ, BOYZ_NOB_TO_POWER_KLAW,
     DEFF_DREAD, DEFFKOPTAS, FLASH_GITZ, GRETCHIN, KILL_RIG, MEGANOBZ, PAINBOY,
-    STORMBOYZ, STORMBOYZ_CHOPPA_TO_POWER_KLAW, TANKBUSTAS, WARBIKERS,
+    STORMBOYZ, STORMBOYZ_NOB_TO_POWER_KLAW, TANKBUSTAS, WARBIKERS,
     WARBIKERS_ADD_POWER_KLAW, WARBOSS, WARBOSS_ADD_ATTACK_SQUIG,
     WARBOSS_MEGA_ARMOUR,
 )
@@ -149,11 +149,13 @@ def movers(state):
                                  BATTLEWAGON_ADD_ZZAP_GUN: 1}}))
     add("Meganobz + Warboss", attached_units.attach(
         build_squad(WARBOSS_MEGA_ARMOUR, owner="Player 2", name="Warboss in Mega Armour"),
-        build_squad(MEGANOBZ, owner="Player 2", composition_index=1, name="Meganobz"),
+        # composition_index 3 is the 6-model build since the 2026-09 codex
+        # (2/3/5/6); index 1 would now be 3 models.
+        build_squad(MEGANOBZ, owner="Player 2", composition_index=3, name="Meganobz"),
         game_state=state))
 
     mob = build_squad(BOYZ, owner="Player 2", composition_index=1,
-                      choices={"Boss Nob": {BOYZ_BIG_CHOPPA_TO_POWER_KLAW: 1}},
+                      choices={"Nob": {BOYZ_NOB_TO_POWER_KLAW: 1}},
                       name="Boyz")
     mob = attached_units.attach(build_squad(
         WARBOSS, owner="Player 2", name="Warboss",
@@ -171,7 +173,7 @@ def movers(state):
             name=f"Warbikers {index}", unit_index=index))
     add("Stormboyz", build_squad(
         STORMBOYZ, owner="Player 2", composition_index=1,
-        choices={"Boss Nob": {STORMBOYZ_CHOPPA_TO_POWER_KLAW: 1}}, name="Stormboyz"))
+        choices={"Nob": {STORMBOYZ_NOB_TO_POWER_KLAW: 1}}, name="Stormboyz"))
     add("Deff Dread", build_squad(DEFF_DREAD, owner="Player 2", name="Deff Dread"))
     add("Deffkoptas", build_squad(
         DEFFKOPTAS, owner="Player 2", composition_index=1, name="Deffkoptas"))

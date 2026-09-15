@@ -16,7 +16,13 @@ test_ork_wargear.py; here they only have to be present and free.
 
 Builds the roster the same way main() does, rather than driving main()
 itself: that keeps the check about WHAT the army is, independent of
-deployment, which the Pre-game Sequence now owns.
+deployment, which the Pre-game Sequence now owns. Because a suite that builds
+its own roster stays green while checking the wrong army, section 6 also
+compares that hand-built roster against armies/orks.json's own build.
+
+The Boyz, Beast Snagga Boyz, Stormboyz, Gretchin and Meganobz lines follow the
+2026-09 codex datasheets (rules/orks/*.md): "Nob" model lines, no Runtherd,
+Meganobz priced at 2/3/5/6 models, and a Painboy that attaches as SUPPORT.
 """
 
 from testkit import Checks, GameState, build_squad
@@ -26,9 +32,9 @@ from game import pregame
 from game.factions.orks import (
     BATTLEWAGON, BATTLEWAGON_ADD_BIG_SHOOTAS, BATTLEWAGON_ADD_ZZAP_GUN, BATTLEWAGON_ARD_CASE,
     FLASH_GITZ_AMMO_RUNT, WARBOSS_ADD_ATTACK_SQUIG,
-    BEAST_SNAGGA_BOYZ, BEASTBOSS, BOYZ, BOYZ_BIG_CHOPPA_TO_POWER_KLAW, DEFF_DREAD, DEFFKOPTAS,
+    BEAST_SNAGGA_BOYZ, BEASTBOSS, BOYZ, BOYZ_NOB_TO_POWER_KLAW, DEFF_DREAD, DEFFKOPTAS,
     FLASH_GITZ, GRETCHIN, KILL_RIG, MEGANOBZ, PAINBOY, PAINBOY_GROT_ORDERLY,
-    STORMBOYZ, STORMBOYZ_CHOPPA_TO_POWER_KLAW,
+    STORMBOYZ, STORMBOYZ_NOB_TO_POWER_KLAW,
     TANKBUSTAS, TANKBUSTAS_ADD_ROKKIT_LAUNCHA, TANKBUSTAS_BOSS_NOB_ADD_SMASH_HAMMER,
     TRUKK, WARBIKERS, WARBIKERS_ADD_POWER_KLAW, WARBOSS, WARBOSS_MEGA_ARMOUR,
 )
@@ -87,23 +93,33 @@ c.eq("Warboss in Mega Armour points", warboss_mega.points, 80)  # matches the li
 # ---------------------------------------------------------------------------
 
 bsb = build(BEAST_SNAGGA_BOYZ)
+# The Nob's PROFILE keeps its datasheet-qualified name (game/sprites.py keys
+# its art on it), while its model line is plain "Nob" - line_counts() reads
+# the profile.
 c.eq("Beast Snagga Boyz composition", line_counts(bsb),
      {"Beast Snagga Nob": 1, "Beast Snagga Boy": 9})
 c.eq("Nob weapons", weapons(bsb.models[0]), ["Power Snappa", "Slugga"])
-c.eq("Boy weapons", weapons(bsb.models[1]), ["Choppa", "Slugga"])
+c.eq("Boy weapons", weapons(bsb.models[1]), ["Choppa - Standard", "Slugga"])
 
-# One 20-strong mob (composition_index=1), not two 10s - and the size is
-# load-bearing, see section 4: only a Starting Strength of 20 may take a
-# second Leader.
-boyz = build(BOYZ, composition_index=1, choices={"Boss Nob": {BOYZ_BIG_CHOPPA_TO_POWER_KLAW: 1}},
+# One 20-strong mob (composition_index=1), not two 10s. The size used to be
+# load-bearing (Bodyguard: only a Starting Strength of 20 took a second
+# Leader); the 2026-09 codex dropped Bodyguard and made the Painboy a SUPPORT
+# unit, so section 4 now pins that the Warboss + Painboy pair attaches at
+# either size.
+boyz = build(BOYZ, composition_index=1, choices={"Nob": {BOYZ_NOB_TO_POWER_KLAW: 1}},
              unit_index=1)
-c.eq("Boyz is the 20-model build", line_counts(boyz), {"Boss Nob": 1, "Boy": 19})
-c.eq("Boyz Boss Nob has the Power Klaw", weapons(boyz.models[0]), ["Power Klaw", "Slugga"])
-c.eq("Boyz rank and file", weapons(boyz.models[1]), ["Choppa", "Slugga"])
-c.eq("Boyz points", boyz.points, 160)  # the list says 170 - see main.py's note
+c.eq("Boyz is the 20-model build", line_counts(boyz), {"Nob": 2, "Boy": 18})
+c.eq("one Boyz Nob has the Power Klaw", weapons(boyz.models[0]),
+     ["Kombi-skorcha - Shoota", "Power Klaw"])
+c.eq("...and only one: the other Nob keeps its Kustom Choppa", weapons(boyz.models[1]),
+     ["Kombi-skorcha - Shoota", "Kustom Choppa"])
+c.eq("Boyz rank and file", weapons(boyz.models[2]), ["Choppa", "Shoota", "Slugga"])
+c.eq("Boyz points", boyz.points, 180)  # the 2026-09 codex's 20-model price
 # The 10-model build stays reachable, which is what makes the new size an
 # added composition rather than a replaced one.
-c.eq("the 10-model composition still builds", len(build(BOYZ, name="small mob").models), 10)
+small_mob = build(BOYZ, name="small mob")
+c.eq("the 10-model composition still builds", len(small_mob.models), 10)
+c.eq("...as 1 Nob and 9 Boys", line_counts(small_mob), {"Nob": 1, "Boy": 9})
 
 flash = build(FLASH_GITZ, composition_index=1, gear={"Kaptin": [FLASH_GITZ_AMMO_RUNT]})
 c.eq("Flash Gitz is the 10-model build", line_counts(flash), {"Kaptin": 1, "Flash Git": 9})
@@ -114,20 +130,25 @@ c.eq("exactly one model carries the Ammo Runt",
 c.eq("...and it is free (the published list prices no wargear here)",
      flash.points, build(FLASH_GITZ, name="bare gitz", composition_index=1).points)
 
+# The codex took the Runtherd out of this datasheet (it is a SUPPORT unit of
+# its own now), so each unit is ten Gretchin and nothing else.
 for idx in (1, 2):
     grots = build(GRETCHIN, unit_index=idx)
-    c.eq(f"Gretchin {idx} composition", line_counts(grots), {"Gretchin": 10, "Runtherd": 1})
-    c.eq(f"Gretchin {idx} rank and file", weapons(grots.models[0]),
-         ["Close Combat Weapon", "Grot Blasta"])
-    c.eq(f"Gretchin {idx} Runtherd", weapons(grots.models[10]), ["Grot-Smacka", "Slugga"])
+    c.eq(f"Gretchin {idx} composition - no Runtherd", line_counts(grots), {"Gretchin": 10})
+    c.true(f"Gretchin {idx}: every model carries the same loadout",
+           all(weapons(m) == weapons(grots.models[0]) for m in grots.models))
+    c.eq(f"Gretchin {idx} weapons", weapons(grots.models[0]),
+         ["Grot Blasta", "Scavenged Shivs"])
+    c.eq(f"Gretchin {idx} points", grots.points, 45)
 
-mega = build(MEGANOBZ, composition_index=1)
+# composition_index 3: the codex prices 2, 3, 5 and 6 Meganobz, in that order.
+mega = build(MEGANOBZ, composition_index=3)
 c.eq("Meganobz is the 6-model build", len(mega.models), 6)
-c.eq("Meganobz weapons", weapons(mega.models[0]), ["Kustom Shoota", "Power Klaw"])
+c.eq("Meganobz weapons", weapons(mega.models[0]), ["Kustom Shoota - Aimed", "Power Klaw"])
 
-storm = build(STORMBOYZ, composition_index=1, choices={"Boss Nob": {STORMBOYZ_CHOPPA_TO_POWER_KLAW: 1}})
-c.eq("Stormboyz is the 10-model build", line_counts(storm), {"Boss Nob": 1, "Stormboy": 9})
-c.eq("Stormboyz Boss Nob has the Power Klaw", weapons(storm.models[0]), ["Power Klaw", "Slugga"])
+storm = build(STORMBOYZ, composition_index=1, choices={"Nob": {STORMBOYZ_NOB_TO_POWER_KLAW: 1}})
+c.eq("Stormboyz is the 10-model build", line_counts(storm), {"Nob": 1, "Stormboy": 9})
+c.eq("Stormboyz Nob has the Power Klaw", weapons(storm.models[0]), ["Power Klaw", "Slugga"])
 
 tank = build(TANKBUSTAS, choices={
     "Boss Nob": {TANKBUSTAS_BOSS_NOB_ADD_SMASH_HAMMER: 1},
@@ -190,57 +211,73 @@ c.eq("Kill Rig weapons", sorted(w.name for w in rig.models[0].weapons),
 
 
 # ---------------------------------------------------------------------------
-# 4. The three attached units (19.01), including the two-Leader mob
+# 4. The three attached units (19.01), including the Leader + Support mob
 # ---------------------------------------------------------------------------
 
 state = GameState()
 bsb_unit = attached_units.attach(build(BEASTBOSS), build(BEAST_SNAGGA_BOYZ), game_state=state)
 c.eq("Beastboss + Beast Snagga Boyz is one 11-model unit", len(bsb_unit.models), 11)
-c.eq("...and its points are the sum", bsb_unit.points, 80 + 90)
+c.eq("...and its points are the sum", bsb_unit.points, 80 + 85)  # 85: the codex's 10-model price
 
 mega_unit = attached_units.attach(build(WARBOSS_MEGA_ARMOUR),
-                                  build(MEGANOBZ, composition_index=1), game_state=state)
+                                  build(MEGANOBZ, composition_index=3), game_state=state)
 c.eq("Warboss in Mega Armour + Meganobz is one 7-model unit", len(mega_unit.models), 7)
+
 
 def boyz20(name="mob"):
     return build(BOYZ, name=name, composition_index=1,
-                 choices={"Boss Nob": {BOYZ_BIG_CHOPPA_TO_POWER_KLAW: 1}})
+                 choices={"Nob": {BOYZ_NOB_TO_POWER_KLAW: 1}})
 
+
+def boyz10(name="mob 10"):
+    return build(BOYZ, name=name, choices={"Nob": {BOYZ_NOB_TO_POWER_KLAW: 1}})
+
+
+# The mob's two characters fill two DIFFERENT 19.01 slots now: the Warboss
+# leads, the Painboy supports (the codex Boyz sheet names PAINBOY under
+# SUPPORTED BY). That is plain 19.01, where it used to need Boyz' own
+# "Bodyguard" exception to seat two Leaders.
+c.eq("the Warboss attaches as a Leader",
+     attached_units.attachment_role(build(WARBOSS, name="wb role")), attached_units.LEADER)
+c.eq("the Painboy attaches as a Support unit",
+     attached_units.attachment_role(build(PAINBOY, name="doc role")), attached_units.SUPPORT)
+c.true("no Boyz model carries Bodyguard any more (the two-leader flag is retired)",
+       not any(hasattr(m.profile, "bodyguard_two_leaders") for m in boyz20("mob bg").models))
 
 boyz_unit = attached_units.attach(build(WARBOSS), boyz20("mob A"), game_state=state)
 c.eq("Warboss + 20 Boyz is one 21-model unit", len(boyz_unit.models), 21)
-# Boyz' "Bodyguard" ability: a SECOND Leader, allowed only because the mob
-# has a Starting Strength of 20 and one of the two is a WARBOSS.
-c.eq("...and the Painboy may join it as a second Leader",
+c.eq("...and the Painboy may join it as its Support unit",
      attached_units.can_attach(build(PAINBOY, name="doc A"), boyz_unit), [])
 boyz_unit = attached_units.attach(build(PAINBOY, name="doc A2"), boyz_unit, game_state=state)
 c.eq("Warboss + Painboy + 20 Boyz is one 22-model unit", len(boyz_unit.models), 22)
 c.eq("...and it is one unit with three components",
      len(attached_units.components(boyz_unit)), 3)
 
-# Each of the ability's own conditions, isolated - every one of these fails
-# ONLY on the clause named, with the others satisfied.
-small = attached_units.attach(build(WARBOSS, name="wb small"),
-                              build(BOYZ, name="mob 10",
-                                    choices={"Boss Nob": {BOYZ_BIG_CHOPPA_TO_POWER_KLAW: 1}}),
-                              game_state=GameState())
-c.true("a 10-model mob may NOT take a second Leader (Starting Strength 20 only)",
-       attached_units.can_attach(build(PAINBOY, name="doc B"), small))
-no_boss = attached_units.attach(build(PAINBOY, name="doc C"), boyz20("mob C"),
-                                game_state=GameState())
-c.true("two Leaders with NO Warboss among them is refused",
-       attached_units.can_attach(build(PAINBOY, name="doc D"), no_boss))
-c.eq("...while the same mob still accepts the Warboss himself",
-     attached_units.can_attach(build(WARBOSS, name="wb C"), no_boss), [])
+# Each of 19.01's own limits, isolated - every refusal below fails ONLY on the
+# slot named, with the other slot free.
+small = attached_units.attach(build(WARBOSS, name="wb small"), boyz10(), game_state=GameState())
+c.eq("a 10-model mob takes the Painboy too (no Starting Strength clause any more)",
+     attached_units.can_attach(build(PAINBOY, name="doc B"), small), [])
+led = attached_units.attach(build(WARBOSS, name="wb C"), boyz20("mob C"), game_state=GameState())
+c.true("a SECOND Leader is refused, even on a 20-model mob with a Warboss (Bodyguard is gone)",
+       attached_units.can_attach(build(WARBOSS, name="wb D"), led))
+supported = attached_units.attach(build(PAINBOY, name="doc C"), boyz20("mob D"),
+                                  game_state=GameState())
+c.true("a SECOND Support unit is refused",
+       attached_units.can_attach(build(PAINBOY, name="doc D"), supported))
+c.eq("...while the same mob still accepts the Warboss as its Leader",
+     attached_units.can_attach(build(WARBOSS, name="wb E"), supported), [])
 three = attached_units.attach(build(PAINBOY, name="doc E"),
-                              attached_units.attach(build(WARBOSS, name="wb E"), boyz20("mob E"),
+                              attached_units.attach(build(WARBOSS, name="wb F"), boyz20("mob E"),
                                                     game_state=GameState()),
                               game_state=GameState())
-c.true("a THIRD Leader is refused (\"up to two\")",
+c.true("a THIRD character is refused - as a Support unit",
        attached_units.can_attach(build(PAINBOY, name="doc F"), three))
-# A/B: nothing about this widens the rule for a datasheet without the ability.
+c.true("...and as a Leader",
+       attached_units.can_attach(build(WARBOSS, name="wb G"), three))
+# A/B: a datasheet that never had Bodyguard behaves the same way.
 big_bsb = attached_units.attach(build(WARBOSS_MEGA_ARMOUR, name="wbma X"),
-                                build(MEGANOBZ, name="meg X", composition_index=1),
+                                build(MEGANOBZ, name="meg X", composition_index=3),
                                 game_state=GameState())
 c.true("a datasheet without Bodyguard still allows only one Leader",
        attached_units.can_attach(build(WARBOSS_MEGA_ARMOUR, name="wbma Y"), big_bsb))
@@ -299,7 +336,7 @@ c.eq("...and is refused by any other transport",
 # all (see TRANSPORT_PASSENGER_PRIORITY) and so is turned away regardless of any
 # hint. Plain Boyz are the real case - a Trukk's second choice, and the exact
 # unit that would otherwise be swallowed.
-plain_boyz = build(BOYZ, choices={"Boss Nob": {BOYZ_BIG_CHOPPA_TO_POWER_KLAW: 1}})
+plain_boyz = boyz10("plain mob")
 c.true("A/B: unhinted, a Trukk would happily take a Boyz mob",
        _transport_affinity(plain_boyz, trukk_token, {}) is not None)
 c.eq("...but hinted at the Battlewagon, that same Trukk refuses it",
@@ -324,7 +361,7 @@ ROSTER = [
             build(WARBOSS, name="roster boss",
                   choices={"Warboss": {WARBOSS_ADD_ATTACK_SQUIG: 1}}),
             build(BOYZ, name="roster mob", composition_index=1,
-                  choices={"Boss Nob": {BOYZ_BIG_CHOPPA_TO_POWER_KLAW: 1}}, unit_index=1),
+                  choices={"Nob": {BOYZ_NOB_TO_POWER_KLAW: 1}}, unit_index=1),
             game_state=GameState()),
         game_state=GameState()),
     build(BATTLEWAGON, gear={"Battlewagon": [BATTLEWAGON_ARD_CASE]},
@@ -335,9 +372,9 @@ ROSTER = [
     build(GRETCHIN, unit_index=1),
     build(GRETCHIN, unit_index=2),
     build(KILL_RIG),
-    attached_units.attach(build(WARBOSS_MEGA_ARMOUR), build(MEGANOBZ, composition_index=1),
+    attached_units.attach(build(WARBOSS_MEGA_ARMOUR), build(MEGANOBZ, composition_index=3),
                           game_state=GameState()),
-    build(STORMBOYZ, composition_index=1, choices={"Boss Nob": {STORMBOYZ_CHOPPA_TO_POWER_KLAW: 1}}),
+    build(STORMBOYZ, composition_index=1, choices={"Nob": {STORMBOYZ_NOB_TO_POWER_KLAW: 1}}),
     build(TANKBUSTAS, choices={
         "Boss Nob": {TANKBUSTAS_BOSS_NOB_ADD_SMASH_HAMMER: 1},
         "Tankbusta": {TANKBUSTAS_ADD_ROKKIT_LAUNCHA: 1},
@@ -349,10 +386,30 @@ ROSTER = [
 ]
 c.eq("the army is 14 units after attaching", len(ROSTER), 14)
 c.true("every unit is priced", all(s.points is not None for s in ROSTER))
-# The engine's own total, from this project's transcribed published list. The
-# user's list totals higher unit by unit (a newer revision) - recorded in
-# main.py's own note, with the transcribed data left as the source of truth.
-c.eq("engine total", sum(s.points for s in ROSTER), 1935)
-c.eq("model count", sum(len(s.models) for s in ROSTER), 103)
+# The engine's own total, from this project's transcribed points (the 2026-09
+# codex POINTS tables for the rebuilt Ork datasheets). The user's list totals
+# differently unit by unit - recorded in main.py's own note, with the
+# transcribed data left as the source of truth.
+c.eq("engine total", sum(s.points for s in ROSTER), 2005)
+c.eq("model count", sum(len(s.models) for s in ROSTER), 101)
+
+# The hand-built roster above is only worth checking if it IS the shipped
+# list: a suite that builds its own roster stays green while testing the wrong
+# army. So the same shape is asked of armies/orks.json's own build - unit for
+# unit, by model lines and points, since the squad names differ.
+from game import army_lists  # noqa: E402
+
+shipped = []
+army_lists.get("orks").build("Player 2", lambda squad, *a, **k: shipped.append(squad),
+                             state=GameState())
+
+
+def shape(squad):
+    return (tuple(sorted(line_counts(squad).items())), squad.points)
+
+
+c.eq("armies/orks.json builds the same 14 units", len(shipped), 14)
+c.eq("...and the hand-built roster matches it unit for unit",
+     sorted(shape(s) for s in ROSTER), sorted(shape(s) for s in shipped))
 
 c.finish()

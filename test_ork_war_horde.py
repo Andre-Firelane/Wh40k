@@ -538,8 +538,12 @@ with settings_as(**WH):
     c.true("offered for an ORKS unit that may shoot", CTRL.can_use(A))
     c.eq("(live) the Slugga has no [RAPID FIRE] - no extra dice in half range",
          extra_attack_dice(_w, T, None, False, {}, _pairs), 0)
-    c.eq("the AI's count: one die per ranged weapon inside half range",
-         crd.expected_extra_dice(A, T.models), len(_pairs))
+    # A Boy carries a Shoota AND a close-quarters Slugga (2026-09 codex) and
+    # may fire only one side of the two (rule 24.07), so the count is one die
+    # per model that shoots, not one per weapon it carries.
+    c.eq("the AI's count: one die per model inside half range, never both sides of 24.07",
+         crd.expected_extra_dice(A, T.models),
+         len([m for m in A.models if any(w.weapon_type == "ranged" for w in m.weapons)]))
     c.true("...bought", CTRL.use(A))
     _adj = crd.adjusted_weapon(_w, A)
     c.eq("...[RAPID FIRE 1]", _adj.rapid_fire, 1)

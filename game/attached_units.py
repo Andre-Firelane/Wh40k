@@ -206,66 +206,10 @@ def bodyguard_models(squad, alive_only=True):
     return out
 
 
-BODYGUARD_TWO_LEADERS_STRENGTH = 20  # "a Starting Strength of 20"
-
-
-def _warboss_unit(squad):
-    """Whether this leader unit is "a WARBOSS model" - read off the datasheet
-    keyword line, since WARBOSS is not one of the handful of keywords modeled
-    as a UnitProfile flag (see unit_has_datasheet_keyword())."""
-    return unit_has_datasheet_keyword(squad, "WARBOSS")
-
-
-def _bodyguard_allows_second_leader(bodyguard_squad, incoming, already):
-    """Boyz'/Kroot Carnivores' "Bodyguard" ability, which is exactly the
-    "unless otherwise stated" escape hatch rule 19.01 leaves open:
-
-        "If this unit has a Starting Strength of 20, you can attach up to two
-         Leader units to it instead of one (but only if one of those is a
-         WARBOSS model)."
-
-    Three conditions, each read where the rule points:
-
-    * the ability belongs to the BODYGUARD unit, so it is read off the
-      bodyguard components only. unit_wide_ability() would be wrong here and
-      not subtly: by the time a SECOND leader is offered the unit already
-      contains the first, who does not have the ability - the same trap 19.04
-      exists to avoid, and the reason every squad_has_*() predicate in this
-      codebase stopped being a plain all().
-    * "a Starting Strength of 20" likewise means the bodyguard unit's own,
-      not the merged unit's - attach() re-derives Squad.starting_model_count
-      across every component, so that number is already 21 once one leader is
-      on board.
-    * "only if one of those is a WARBOSS": satisfied by either the leader
-      already attached or the one arriving now.
-
-    Only ever WIDENS what is legal, so a datasheet without the ability behaves
-    exactly as before. This used to be refused outright on the grounds that
-    abilities_text is display-only - correct while nothing needed it, but the
-    fix for that is a real flag (UnitProfile.bodyguard_two_leaders), not a
-    permanent refusal.
-
-    NOTE the ability's second sentence - the attached Leaders becoming
-    separate units again if the mob is destroyed - is still not implemented;
-    it needs a runtime split of an attached unit, which nothing else in 19.x
-    asks for. Documented gap, unchanged by this.
-    """
-    bodyguards = bodyguard_models(bodyguard_squad, alive_only=False)
-    if not bodyguards or not all(m.profile.bodyguard_two_leaders for m in bodyguards):
-        return False
-    if len(bodyguards) != BODYGUARD_TWO_LEADERS_STRENGTH:
-        return False
-    if len(already) >= 2:  # "up to two", not more
-        return False
-    if not (_warboss_unit(incoming) or any(_warboss_unit(c) for c in already)):
-        return False
-    return True
-
-
 def _warlocks_unit(squad):
     """Whether this leader unit is "a WARLOCKS unit" - read off the datasheet
-    keyword line, like _warboss_unit() and for the same reason (WARLOCKS is
-    not one of the handful of keywords modeled as a UnitProfile flag)."""
+    keyword line (see unit_has_datasheet_keyword()), since WARLOCKS is not
+    one of the handful of keywords modeled as a UnitProfile flag."""
     return unit_has_datasheet_keyword(squad, "WARLOCKS")
 
 
@@ -277,15 +221,12 @@ def _leader_allows_joining_led_unit(incoming, already):
          model to a unit, even if one WARLOCKS unit has already been attached
          to it."
 
-    THE MIRROR IMAGE of _bodyguard_allows_second_leader() above, and the
-    difference is which datasheet the permission is printed on:
-
-      * Boyz'/Kroot Carnivores' "Bodyguard" says "TWO leaders may attach to
-        ME", so it is read off the BODYGUARD unit, and its condition is about
-        what the arriving leader is (a WARBOSS).
-      * this says "I may attach even if something is already there", so it is
-        read off the INCOMING LEADER, and its condition is about what is
-        ALREADY attached (a WARLOCKS unit).
+    It is read off the INCOMING LEADER ("I may attach even if something is
+    already there"), and its condition is about what is ALREADY attached (a
+    WARLOCKS unit). The Ork Boyz' pre-codex "Bodyguard" was its mirror (printed
+    on the bodyguard, asking about the arriving leader) and left with the
+    2026-09 codex; Kroot Carnivores print a Bodyguard of their own that is not
+    engine-wired (see game/factions/tau_empire.py).
 
     Getting that direction wrong would grant the permission to the wrong
     datasheet: this clause is Eldrad's, and it is what lets HIM be the second
@@ -389,11 +330,11 @@ def can_attach(leader_squad, bodyguard_squad):
 
     # "Unless otherwise stated, each bodyguard unit can only have one leader
     # unit and one support unit attached to it" (19.01). The exception the rule
-    # leaves room for is real and is printed on FIVE datasheets here, in THREE
-    # shapes: Boyz' and Kroot Carnivores' "Bodyguard" grants it from the
-    # bodyguard side, Eldrad Ulthran's LEADER line from the incoming-leader
-    # side, and Warlock Conclave's LEADER ability is not an attachment at all
-    # but a JOIN that states its own limit.
+    # leaves room for is engine-wired in TWO shapes: Eldrad Ulthran's LEADER
+    # line grants it from the incoming-leader side, and Warlock Conclave's
+    # LEADER ability is not an attachment at all but a JOIN that states its
+    # own limit. (The Ork Boyz' bodyguard-side "Bodyguard" left with the
+    # 2026-09 codex; Kroot Carnivores' is printed and not engine-wired.)
     # Each helper carries its own conditions and why the direction matters.
     if role is not None:
         # components(), NOT leader_components(): that helper answers "which
@@ -409,8 +350,7 @@ def can_attach(leader_squad, bodyguard_squad):
         # the same components by the same role, one helper earlier.
         already = [c for c in components(bodyguard_squad) if c.role == role]
         if already and not (role == LEADER and (
-                _bodyguard_allows_second_leader(bodyguard_squad, leader_squad, already)
-                or _leader_allows_joining_led_unit(leader_squad, already)
+                _leader_allows_joining_led_unit(leader_squad, already)
                 or _join_not_bound_by_leader_slot(leader_squad, already))):
             label = {LEADER: "leader", SUPPORT: "support"}.get(role, "retinue")
             errors.append(

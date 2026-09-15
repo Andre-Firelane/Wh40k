@@ -62,14 +62,19 @@ c.eq("choppa AP", choppa.ap, -1)
 c.eq("choppa damage", choppa.damage, 1)
 c.eq("choppa needs no WS override", choppa.weapon_skill, None)
 
-# Third same-named Choppa in the file - the reuse was correctly NOT made.
+# The same printed name on three datasheets. Since the 2026-09 codex the Boyz'
+# Choppa and the Beast Snagga Boyz' "Choppa - Standard" print the same numbers
+# (so the second is the first renamed); the Flash Gitz' still prints one more
+# Attack, so that reuse is still correctly NOT made.
 boyz_choppa = next(w for w in build(BOYZ).models[1].weapons if w.name == "Choppa")
-bsb_choppa = next(w for w in build(BEAST_SNAGGA_BOYZ).models[1].weapons if w.name == "Choppa")
-c.eq("Boyz' Choppa is still A3/S4", (boyz_choppa.attacks, boyz_choppa.strength), (3, 4))
-c.eq("Beast Snagga's Choppa is still A3/S5", (bsb_choppa.attacks, bsb_choppa.strength), (3, 5))
+bsb_choppa = next(w for w in build(BEAST_SNAGGA_BOYZ).models[1].weapons if w.name == "Choppa - Standard")
+c.eq("Boyz' Choppa is A3/S5 (2026-09 codex)", (boyz_choppa.attacks, boyz_choppa.strength), (3, 5))
+c.eq("Beast Snagga's Choppa - Standard is A3/S5", (bsb_choppa.attacks, bsb_choppa.strength), (3, 5))
 c.eq("Flash Gitz' Choppa is A4/S5", (choppa.attacks, choppa.strength), (4, 5))
-c.true("all three are different classes",
-       len({type(boyz_choppa), type(bsb_choppa), type(choppa)}) == 3)
+c.true("the Flash Gitz' Choppa is a class of its own",
+       type(choppa) not in (type(boyz_choppa), type(bsb_choppa)))
+c.true("...while Beast Snagga's is the Boyz' row renamed (a subclass)",
+       issubclass(type(bsb_choppa), type(boyz_choppa)))
 
 # The Kaptin's loadout is identical to the rank and file - the datasheet
 # prints no upgrade at all, which is unusual enough to pin down.

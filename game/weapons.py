@@ -277,9 +277,10 @@ class CloseCombatWeaponProfile(WeaponProfile):
 # --- Boyz (Orks) datasheet, see game/factions/orks.py ---
 
 class ShootaProfile(WeaponProfile):
-    """Unselected Profiles alternate for the rank-and-file Boy (not part of
-    the datasheet's own default loadout, see BOYZ's Slugga+Choppa build in
-    game/factions/orks.py)."""
+    """The Boy's Shoota (2026-09 Ork codex): 18" A2 BS5+ S4 AP0 D1,
+    [LETHAL HITS: non-MONSTER/VEHICLE], [RAPID FIRE 1]. The same printed row
+    is the first profile of a Kombi-rokkit, a Kombi-skorcha and a Meganob's
+    Kombi-weapon, under those weapons' own names - see the Kombi block below."""
     name = "Shoota"
     weapon_type = RANGED
     range_in = 18
@@ -288,6 +289,7 @@ class ShootaProfile(WeaponProfile):
     ap = 0
     damage = 1
     rapid_fire = 1
+    conditional_keywords = (("lethal_hits", True, NON_MONSTER_VEHICLE_TARGETS),)
 
 
 class KombiWeaponProfile(WeaponProfile):
@@ -315,25 +317,31 @@ class SluggaProfile(WeaponProfile):
     strength = 4
     ap = 0
     damage = 1
-    pistol = True  # the [PISTOL] keyword, rule 24.27 - printed keyword is "Pistol", not "Close-Quarters" (is_close_quarters() treats both the same, see WeaponProfile's own note)
+    close_quarters = True  # printed CLOSE-QUARTERS since the 2026-09 Ork codex (it printed Pistol before; is_close_quarters() reads both)
+    conditional_keywords = (("lethal_hits", True, NON_MONSTER_VEHICLE_TARGETS),)
 
 
 class BigChoppaProfile(WeaponProfile):
+    """A Boyz Nob's Big Choppa (2026-09 Ork codex): A4 WS3+ S7 AP-1 D2, [CLEAVE 2]."""
     name = "Big Choppa"
     weapon_type = MELEE
     range_in = 2  # melee "range" is engagement range, not a distinct weapon stat
-    attacks = 3
+    attacks = 4
     strength = 7
     ap = -1
     damage = 2
+    cleave = 2
 
 
 class ChoppaProfile(WeaponProfile):
+    """Boyz' and Stormboyz' Choppa (2026-09 Ork codex): A3 WS3+ S5 AP-1 D1.
+    Beast Snagga Boyz print the same numbers as "Choppa - Standard", the first
+    of two profiles - see BeastSnaggaChoppaProfile."""
     name = "Choppa"
     weapon_type = MELEE
     range_in = 2
     attacks = 3
-    strength = 4
+    strength = 5
     ap = -1
     damage = 1
 
@@ -359,22 +367,16 @@ class OrkCloseCombatWeaponProfile(WeaponProfile):
 
 
 class PowerKlawProfile(WeaponProfile):
-    """Boyz's own "Power klaw" Unselected Profiles alternate (A3 WS4+ S9
-    AP-2 D2) - was deliberately left unbuilt for a while (WeaponProfile had
-    a per-weapon `ballistic_skill` override but no equivalent WS one, and
-    Power klaw's WS4+ is worse than a Boss Nob's own WS3+) until an actual
-    army list selected it for real (Boyz/Stormboyz/Warbikers Boss Nobs),
-    which is when the missing weapon_skill override field/fight.py's
-    effective_weapon_skill() were added. Named generically (not
-    "Boyz..."/"Stormboyz..."/"Warbikers...") since it's the same printed
-    wargear item reused as-is across all three of those datasheets'
-    Boss Nob upgrade options."""
+    """The Power Klaw Boyz, Stormboyz and Meganobz print in the 2026-09 Ork
+    codex: A3 WS3+ S10 AP-2 D2 (it was A3 WS4+ S9 before). The WS3+ is carried
+    on the weapon because the Meganob's own WS is read off its Killsaw's 4+ row
+    - see MeganobzProfile. Warbikers still field it until their codex stage."""
     name = "Power Klaw"
     weapon_type = MELEE
     range_in = 2
     attacks = 3
-    weapon_skill = "4+"
-    strength = 9
+    weapon_skill = "3+"
+    strength = 10
     ap = -2
     damage = 2
 
@@ -397,14 +399,19 @@ class TwinDakkagunProfile(WeaponProfile):
 # --- Trukk (Orks) datasheet, see game/factions/orks.py ---
 
 class BigShootaProfile(WeaponProfile):
+    """The Boyz' Big Shoota (2026-09 Ork codex): 36" A3 BS5+ S4 AP0 D1,
+    [LETHAL HITS: non-MONSTER/VEHICLE], [RAPID FIRE 2] (it printed S5 and no
+    Lethal Hits before). The vehicles that carry one keep reading this class
+    until their own codex stage."""
     name = "Big Shoota"
     weapon_type = RANGED
     range_in = 36
     attacks = 3
-    strength = 5
+    strength = 4
     ap = 0
     damage = 1
     rapid_fire = 2
+    conditional_keywords = (("lethal_hits", True, NON_MONSTER_VEHICLE_TARGETS),)
 
 
 class SpikedWheelProfile(WeaponProfile):
@@ -435,6 +442,7 @@ class WreckinBallProfile(WeaponProfile):
 # --- Gretchin (Orks) datasheet, see game/factions/orks.py ---
 
 class GrotBlastaProfile(WeaponProfile):
+    """Gretchin (2026-09 Ork codex): 12" A1 BS4+ S3 AP0 D1, [CLOSE-QUARTERS]."""
     name = "Grot Blasta"
     weapon_type = RANGED
     range_in = 12
@@ -442,30 +450,18 @@ class GrotBlastaProfile(WeaponProfile):
     strength = 3
     ap = 0
     damage = 1
-    pistol = True
+    close_quarters = True
 
 
-class GretchinCloseCombatWeaponProfile(WeaponProfile):
-    """Gretchin's own "Close combat weapon" (A1 WS5+ S2 AP0 D1) - a
-    distinct, much weaker class from both the generic CloseCombatWeaponProfile
-    (A1 S4) and OrkCloseCombatWeaponProfile (A2 S4), same "same printed
-    name, different stats, needs its own class" reasoning as
-    TauCloseCombatWeaponProfile."""
-    name = "Close Combat Weapon"
+class ScavengedShivsProfile(WeaponProfile):
+    """Gretchin (2026-09 Ork codex): Scavenged Shivs, A1 WS5+ S2 AP0 D1. The
+    same numbers the datasheet printed as "Close combat weapon" before - the
+    codex renamed the row."""
+    name = "Scavenged Shivs"
     weapon_type = MELEE
     range_in = 2
     attacks = 1
     strength = 2
-    ap = 0
-    damage = 1
-
-
-class GrotSmackaProfile(WeaponProfile):
-    name = "Grot-Smacka"
-    weapon_type = MELEE
-    range_in = 2
-    attacks = 3
-    strength = 5
     ap = 0
     damage = 1
 
@@ -512,10 +508,9 @@ class AttackSquigProfile(WeaponProfile):
 
 class WarbossBigChoppaProfile(WeaponProfile):
     """Warboss's own "Big choppa" (A5 S8 AP-1 D2) - a distinct, stronger
-    stat line from Boyz' own Big Choppa (BigChoppaProfile: A3 S7 AP-1 D2),
-    same "same printed name, different numbers per datasheet" pattern as
-    GretchinCloseCombatWeaponProfile vs CloseCombatWeaponProfile. Named
-    distinctly (not reusing BigChoppaProfile) for that reason."""
+    stat line from the Boyz Nob's Big Choppa (BigChoppaProfile: A4 S7 AP-1 D2
+    [CLEAVE 2] since the 2026-09 codex) - same printed name, different
+    numbers, so it is named distinctly rather than reusing BigChoppaProfile."""
     name = "Big Choppa"
     weapon_type = MELEE
     range_in = 2
@@ -550,6 +545,10 @@ class WarbossPowerKlawProfile(WeaponProfile):
 # (Boyz/Stormboyz/Warbikers' shared Boss Nob upgrade), reused as-is.
 
 class KustomShootaProfile(WeaponProfile):
+    """A Boyz Nob's Kustom Shoota (2026-09 Ork codex): 18" A4 BS5+ S4 AP0 D1,
+    [LETHAL HITS: non-MONSTER/VEHICLE], [RAPID FIRE 2]. One profile. A Meganob's
+    Kustom Shoota prints the same numbers as its "Aimed" profile and adds a
+    second - see KustomShootaAimedProfile."""
     name = "Kustom Shoota"
     weapon_type = RANGED
     range_in = 18
@@ -558,36 +557,159 @@ class KustomShootaProfile(WeaponProfile):
     ap = 0
     damage = 1
     rapid_fire = 2
+    conditional_keywords = (("lethal_hits", True, NON_MONSTER_VEHICLE_TARGETS),)
+
+
+class KustomShootaPointBlankProfile(WeaponProfile):
+    """A Meganob's Kustom Shoota - Point Blank: 6" A D3+3, no Hit roll
+    ([TORRENT]), S4 AP0 D1, [CLOSE-QUARTERS]. The profile that lets an engaged
+    Meganob shoot at all (rule 10.06). `attacks` is the dice's mean, the
+    grouping/preview placeholder every notation weapon here carries."""
+    name = "Kustom Shoota - Point Blank"
+    weapon_type = RANGED
+    range_in = 6
+    attacks = 5
+    attacks_notation = D3(3)
+    strength = 4
+    ap = 0
+    damage = 1
+    close_quarters = True
+    torrent = True
+
+
+class KustomShootaAimedProfile(KustomShootaProfile):
+    """A Meganob's Kustom Shoota - Aimed: the Boyz Nob's Kustom Shoota under a
+    profile name, with Point Blank as its second profile (rule 04.01.03)."""
+    name = "Kustom Shoota - Aimed"
+    overcharge_profile = KustomShootaPointBlankProfile
 
 
 class KillsawProfile(WeaponProfile):
-    """Meganobz's own "Unselected Profiles" alternate (A2 WS4+ S12 AP-3 D2)
-    - not wired as a wargear option yet (no swap-rule text given), same
-    documented gap as every other datasheet's own Unselected Profiles."""
+    """Meganobz (2026-09 Ork codex): Killsaw, A3 WS4+ S10 AP-2 D3."""
     name = "Killsaw"
     weapon_type = MELEE
     range_in = 2
-    attacks = 2
+    attacks = 3
     weapon_skill = "4+"
-    strength = 12
-    ap = -3
-    damage = 2
+    strength = 10
+    ap = -2
+    damage = 3
 
 
-class TwinKillsawProfile(WeaponProfile):
-    """Meganobz's own "Unselected Profiles" alternate - identical stat line
-    to KillsawProfile above but [TWIN-LINKED], same "same weapon, one more
-    keyword" relationship as e.g. TwinDakkagunProfile has to a plain dakka
-    weapon elsewhere in this file."""
-    name = "Twin Killsaw"
+class TwinKillsawProfile(KillsawProfile):
+    """Meganobz (2026-09 Ork codex): Twin Killsaws - the Killsaw's numbers,
+    [TWIN-LINKED]."""
+    name = "Twin Killsaws"
+    twin_linked = True
+
+
+# --- Kombi weapons, Burna, Rokkit Launcha, Kustom Choppa (2026-09 Ork codex) ---
+# Every Kombi weapon is ONE carried weapon with several profiles (rule 04.01.03),
+# the profiles chained through `overcharge_profile` in the printed order. Rows
+# with the same numbers as a weapon above and a different printed name are a
+# subclass that only renames it, so the two cannot drift apart.
+
+class KombiWeaponPointBlankProfile(WeaponProfile):
+    """Meganob's Kombi-weapon - Point Blank: 12" A3, no Hit roll, S5 AP0 D1, [BLAST 1]."""
+    name = "Kombi-weapon - Point Blank"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 3
+    strength = 5
+    ap = 0
+    damage = 1
+    blast = 1
+    torrent = True
+
+
+class KombiWeaponKillShotProfile(WeaponProfile):
+    """Meganob's Kombi-weapon - Kill Shot: 24" A1 BS5+ S10 AP-2 D3."""
+    name = "Kombi-weapon - Kill Shot"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 1
+    strength = 10
+    ap = -2
+    damage = 3
+    overcharge_profile = KombiWeaponPointBlankProfile
+
+
+class KombiWeaponShootaProfile(ShootaProfile):
+    """Meganob's Kombi-weapon - Shoota: the Shoota's row, first of three profiles."""
+    name = "Kombi-weapon - Shoota"
+    overcharge_profile = KombiWeaponKillShotProfile
+
+
+class KombiRokkitShootaProfile(ShootaProfile):
+    """Boyz Nob's Kombi-rokkit - Shoota: the Shoota's row, second profile."""
+    name = "Kombi-rokkit - Shoota"
+
+
+class KombiRokkitBustaRokkitProfile(KombiWeaponKillShotProfile):
+    """Boyz Nob's Kombi-rokkit - Busta Rokkit: the Kill Shot's numbers, printed
+    first on this weapon."""
+    name = "Kombi-rokkit - Busta Rokkit"
+    overcharge_profile = KombiRokkitShootaProfile
+
+
+class KombiSkorchaSkorchaProfile(KombiWeaponPointBlankProfile):
+    """Boyz Nob's Kombi-skorcha - Skorcha: the Point Blank's numbers."""
+    name = "Kombi-skorcha - Skorcha"
+
+
+class KombiSkorchaShootaProfile(ShootaProfile):
+    """Boyz Nob's Kombi-skorcha - Shoota: the Shoota's row, first of two profiles."""
+    name = "Kombi-skorcha - Shoota"
+    overcharge_profile = KombiSkorchaSkorchaProfile
+
+
+class BurnaProfile(WeaponProfile):
+    """Boyz (2026-09 Ork codex): Burna, 12" A3, no Hit roll, S4 AP0 D1, [BLAST 1]."""
+    name = "Burna"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 3
+    strength = 4
+    ap = 0
+    damage = 1
+    blast = 1
+    torrent = True
+
+
+class RokkitLaunchaBustaProfile(WeaponProfile):
+    """Boyz' Rokkit Launcha - Busta: 24" A2 BS5+ S10 AP-2 D3. Not Tankbustas'
+    RokkitLunchaProfile, which prints other numbers under the bare name."""
+    name = "Rokkit Launcha - Busta"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 2
+    strength = 10
+    ap = -2
+    damage = 3
+
+
+class RokkitLaunchaBlastaProfile(WeaponProfile):
+    """Boyz' Rokkit Launcha - Blasta: 24" A2 BS5+ S4 AP0 D1, [BLAST 2]; first of two profiles."""
+    name = "Rokkit Launcha - Blasta"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 2
+    strength = 4
+    ap = 0
+    damage = 1
+    blast = 2
+    overcharge_profile = RokkitLaunchaBustaProfile
+
+
+class KustomChoppaProfile(WeaponProfile):
+    """Boyz' and Stormboyz' Nob (2026-09 Ork codex): Kustom Choppa, A4 WS3+ S5 AP-2 D2."""
+    name = "Kustom Choppa"
     weapon_type = MELEE
     range_in = 2
-    attacks = 2
-    weapon_skill = "4+"
-    strength = 12
-    ap = -3
+    attacks = 4
+    strength = 5
+    ap = -2
     damage = 2
-    twin_linked = True
 
 
 # --- Warboss in Mega Armour (Orks) datasheet, see game/factions/orks.py ---
@@ -635,10 +757,9 @@ class RokkitLunchaProfile(WeaponProfile):
 
 
 class TankbustaChoppaProfile(WeaponProfile):
-    """Tankbustas' own Boss Nob's "Choppa" (A4 S5 AP-1 D1) - a distinct,
-    stronger stat line from Boyz' own ChoppaProfile (A3 S4 AP-1 D1), same
-    "same printed name, different numbers per datasheet" pattern as
-    GretchinCloseCombatWeaponProfile vs CloseCombatWeaponProfile."""
+    """Tankbustas' own Boss Nob's "Choppa" (A4 S5 AP-1 D1) - one Attack more
+    than the Boyz' ChoppaProfile (A3 S5 AP-1 D1 since the 2026-09 codex):
+    same printed name, different numbers, so a class of its own."""
     name = "Choppa"
     weapon_type = MELEE
     range_in = 2
@@ -652,7 +773,7 @@ class TankbustaCloseCombatWeaponProfile(WeaponProfile):
     """Tankbustas' own "Close combat weapon" (A3 S5 AP0 D1) - a distinct
     stat line from both the generic CloseCombatWeaponProfile (A1 S4) and
     OrkCloseCombatWeaponProfile (A2 S4), same "same printed name, needs its
-    own class" reasoning as GretchinCloseCombatWeaponProfile."""
+    own class" reasoning as TankbustaChoppaProfile."""
     name = "Close Combat Weapon"
     weapon_type = MELEE
     range_in = 2
@@ -789,70 +910,58 @@ class SkorchaProfile(WeaponProfile):
 
 
 # --- Beast Snagga Boyz (Orks) datasheet, see game/factions/orks.py ---
-# "Slugga" is NOT a new class - the printed stat line (range 12", A1, BS5+,
-# S4, AP0, D1, Pistol) is word-for-word identical to SluggaProfile above
-# (Boyz' own weapon), reused as-is. The other three all LOOK like weapons
-# this file already has and are not: this datasheet's Choppa is S5 where
-# Boyz' ChoppaProfile is S4, its Close combat weapon is S5 where
-# OrkCloseCombatWeaponProfile is S4, and Power snappa is A4 where the
-# otherwise identical BigChoppaProfile is A3. Same "same printed name,
-# different numbers, needs its own class" reasoning as
-# GretchinCloseCombatWeaponProfile/TankbustaCloseCombatWeaponProfile.
+# "Slugga" is NOT a new class - the printed row is word-for-word SluggaProfile
+# above (Boyz' own weapon), reused as-is. Since the 2026-09 codex the Beast
+# Snagga Choppa's first profile prints the Boyz' Choppa numbers as well (so it
+# is that class renamed, BeastSnaggaChoppaProfile), while the Power Snappa and
+# the Thump Gun print rows no other datasheet has.
 
 class PowerSnappaProfile(WeaponProfile):
-    """Beast Snagga Boyz' Nob weapon (A4 WS3+ S7 AP-1 D2). One Attack more
-    than BigChoppaProfile (A3), which is otherwise the same line - hence a
-    class of its own rather than a reuse."""
+    """Beast Snagga Boyz' Nob (2026-09 Ork codex): Power Snappa, A3 WS3+ S8
+    AP-2 D2, [ANTI-MONSTER/VEHICLE 4+]."""
     name = "Power Snappa"
     weapon_type = MELEE
     range_in = 2
-    attacks = 4
-    strength = 7
-    ap = -1
+    attacks = 3
+    strength = 8
+    ap = -2
     damage = 2
+    anti = (("MONSTER", 4), ("VEHICLE", 4))
 
 
-class BeastSnaggaChoppaProfile(WeaponProfile):
-    """Beast Snagga Boyz' rank-and-file melee weapon (A3 WS3+ S5 AP-1 D1) -
-    a Choppa with S5, where Boyz' own ChoppaProfile is S4."""
-    name = "Choppa"
+class BeastSnaggaChoppaHunterProfile(WeaponProfile):
+    """Beast Snagga Boyz' Choppa - Hunter: A3 WS3+ S6 AP-2 D1, HUNTER:
+    MONSTER/VEHICLE - it may only be used against a unit with one of those
+    keywords (rule 04.01.03)."""
+    name = "Choppa - Hunter"
     weapon_type = MELEE
     range_in = 2
     attacks = 3
-    strength = 5
-    ap = -1
+    strength = 6
+    ap = -2
     damage = 1
+    hunter_keywords = MONSTER_OR_VEHICLE_TARGETS
+
+
+class BeastSnaggaChoppaProfile(ChoppaProfile):
+    """Beast Snagga Boyz' Choppa - Standard: the Boyz' Choppa row under a
+    profile name, with the Hunter profile as its second."""
+    name = "Choppa - Standard"
+    overcharge_profile = BeastSnaggaChoppaHunterProfile
 
 
 class ThumpGunProfile(WeaponProfile):
-    """Beast Snagga Boyz' one ranged alternate (18", A D3, BS5+, S6, AP0,
-    D2, [BLAST]) - carried by the one Beast Snagga Boy who swaps away his
-    Slugga and Choppa for it. `attacks_notation` makes the printed "D3"
-    Attacks a real, visible dice roll (see WeaponProfile.attacks_notation's
-    own note), same as TauFlamerProfile's/Kopta Rokkits' own."""
+    """Beast Snagga Boyz (2026-09 Ork codex): Thump Gun, 18" A3 BS5+ S6 AP0
+    D2, [ANTI-MONSTER/VEHICLE 4+] - an ADDITION now ("can be equipped with"),
+    no longer a swap for the Slugga and Choppa."""
     name = "Thump Gun"
     weapon_type = RANGED
     range_in = 18
-    attacks = 1
-    attacks_notation = D3()
+    attacks = 3
     strength = 6
     ap = 0
     damage = 2
-    blast = 1  # plain [BLAST] (no explicit X) is X=1, see WeaponProfile.blast
-
-
-class BeastSnaggaCloseCombatWeaponProfile(WeaponProfile):
-    """The melee weapon the thump gun's carrier keeps instead of a Choppa
-    (A2 WS3+ S5 AP0 D1) - S5, where the otherwise identical
-    OrkCloseCombatWeaponProfile is S4, and A2 where
-    TankbustaCloseCombatWeaponProfile is A3."""
-    name = "Close Combat Weapon"
-    weapon_type = MELEE
-    range_in = 2
-    attacks = 2
-    strength = 5
-    ap = 0
-    damage = 1
+    anti = (("MONSTER", 4), ("VEHICLE", 4))
 
 
 # --- Beastboss (Orks) datasheet, see game/factions/orks.py ---

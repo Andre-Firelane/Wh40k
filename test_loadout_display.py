@@ -21,7 +21,7 @@ from game.dice import DiceManager
 from game.factions import build_squad
 from game.factions.orks import (
     BOYZ,
-    BOYZ_BIG_CHOPPA_TO_POWER_KLAW,
+    BOYZ_NOB_TO_POWER_KLAW,
     GRETCHIN,
     MEGANOBZ,
     TRUKK,
@@ -55,7 +55,7 @@ def section(title):
 def test_loadout_text():
     section("game/loadout.py")
     boyz = build_squad(
-        BOYZ, "Player 2", choices={"Boss Nob": {BOYZ_BIG_CHOPPA_TO_POWER_KLAW: 1}},
+        BOYZ, "Player 2", choices={"Nob": {BOYZ_NOB_TO_POWER_KLAW: 1}},
         name="2 Boyz 1",
     )
     lines = loadout.loadout_lines(boyz)
@@ -135,10 +135,12 @@ def _scene_with_two_transports():
     trukk2.models[0].weapons.append(BigShootaProfile())
 
     boyz = build_squad(
-        BOYZ, "Player 2", choices={"Boss Nob": {BOYZ_BIG_CHOPPA_TO_POWER_KLAW: 1}},
+        BOYZ, "Player 2", choices={"Nob": {BOYZ_NOB_TO_POWER_KLAW: 1}},
         name="2 Boyz 1",
     )
-    meganobz = build_squad(MEGANOBZ, "Player 2", composition_index=1, name="2 Meganobz 1")
+    # The 6-model build (index 3 since the 2026-09 codex prices 2/3/5/6): its
+    # 12 MEGA ARMOUR slots are what fill Trukk 1 below.
+    meganobz = build_squad(MEGANOBZ, "Player 2", composition_index=3, name="2 Meganobz 1")
 
     units = [trukk1, trukk2, boyz, meganobz]
     ctrl.start(

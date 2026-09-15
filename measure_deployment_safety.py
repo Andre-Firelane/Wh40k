@@ -23,11 +23,11 @@ from game.dice import DiceManager
 from game.factions import build_squad
 from game.factions.orks import (
     BOYZ,
-    BOYZ_BIG_CHOPPA_TO_POWER_KLAW,
+    BOYZ_NOB_TO_POWER_KLAW,
     DEFF_DREAD,
     GRETCHIN,
     STORMBOYZ,
-    STORMBOYZ_CHOPPA_TO_POWER_KLAW,
+    STORMBOYZ_NOB_TO_POWER_KLAW,
     TANKBUSTAS,
     TRUKK,
     WARBIKERS,
@@ -50,10 +50,10 @@ def _army(owner):
         return [
             build_squad(GRETCHIN, owner, name="2 Gretchin 1"),
             build_squad(STORMBOYZ, owner, composition_index=1,
-                        choices={"Boss Nob": {STORMBOYZ_CHOPPA_TO_POWER_KLAW: 1}}, name="2 Stormboyz 1"),
+                        choices={"Nob": {STORMBOYZ_NOB_TO_POWER_KLAW: 1}}, name="2 Stormboyz 1"),
             build_squad(WARBIKERS, owner, composition_index=0,
                         choices={"Boss Nob on Warbike": {WARBIKERS_ADD_POWER_KLAW: 1}}, name="2 Warbikers 1"),
-            build_squad(BOYZ, owner, choices={"Boss Nob": {BOYZ_BIG_CHOPPA_TO_POWER_KLAW: 1}}, name="2 Boyz 1"),
+            build_squad(BOYZ, owner, choices={"Nob": {BOYZ_NOB_TO_POWER_KLAW: 1}}, name="2 Boyz 1"),
             build_squad(DEFF_DREAD, owner, name="2 Deff Dread 1"),
             build_squad(TRUKK, owner, name="2 Trukk 1"),
             build_squad(TANKBUSTAS, owner, name="2 Tankbustas 1"),

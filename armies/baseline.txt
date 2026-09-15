@@ -359,37 +359,36 @@
   components: -
   Kill Rig x1 (100,85,65) ['Eavy Lobba, Butcha Boyz, Savage Horns and Hooves, Saw Blades, Stikka Kannon, Wurrtower] {}
   enhancements: -
-1 Beast Snagga Boyz 1 + Beastboss | embark | via=1 Kill Rig 1 | pts=170 | models=11
+1 Beast Snagga Boyz 1 + Beastboss | embark | via=1 Kill Rig 1 | pts=165 | models=11
   components: Beast Snagga Boyz/bodyguard, Beastboss/leader
   Beast Snagga Nob x1 (120,145,55) [Power Snappa, Slugga] {}
-  Beast Snagga Boy x9 (120,145,55) [Choppa, Slugga] {}
+  Beast Snagga Boy x9 (120,145,55) [Choppa - Standard, Slugga] {}
   Beastboss x1 (185,80,45) [Beast Snagga Klaw, Beastchoppa, Shoota] {}
   enhancements: -
 1 Battlewagon 1 | deploy | pts=160 | models=1
   components: -
   Battlewagon x1 (75,95,55) [Big Shoota, Big Shoota, Big Shoota, Big Shoota, Tracks and Wheels, Zzap Gun] {'Ard Case}
   enhancements: -
-1 Meganobz 1 + Warboss in Mega Armour | embark | via=1 Battlewagon 1 | pts=260 | models=7
+1 Meganobz 1 + Warboss in Mega Armour | embark | via=1 Battlewagon 1 | pts=305 | models=7
   components: Meganobz/bodyguard, Warboss in Mega Armour/leader
-  Meganob x6 (120,100,130) [Kustom Shoota, Power Klaw] {}
+  Meganob x6 (120,100,130) [Kustom Shoota - Aimed, Power Klaw] {}
   Warboss in Mega Armour x1 (170,60,60) ['Uge Choppa, Big Shoota] {}
   enhancements: -
-1 Boyz 1 + Warboss + Painboy | deploy | pts=335 | models=22
-  components: Boyz/bodyguard, Warboss/leader, Painboy/leader
-  Boss Nob x1 (70,140,60) [Power Klaw, Slugga] {}
-  Boy x19 (70,140,60) [Choppa, Slugga] {}
+1 Boyz 1 + Warboss + Painboy | deploy | pts=355 | models=22
+  components: Boyz/bodyguard, Warboss/leader, Painboy/support
+  Nob x1 (70,140,60) [Kombi-skorcha - Shoota, Power Klaw] {}
+  Nob x1 (70,140,60) [Kombi-skorcha - Shoota, Kustom Choppa] {}
+  Boy x18 (70,140,60) [Choppa, Shoota, Slugga] {}
   Warboss x1 (170,60,60) [Attack Squig, Big Choppa, Kombi-weapon, Twin Slugga] {}
   Painboy x1 (150,65,105) ['Urty Syringe, Power Klaw] {Grot Orderly}
   enhancements: -
-1 Gretchin 1 | deploy | pts=45 | models=11
+1 Gretchin 1 | deploy | pts=45 | models=10
   components: -
-  Gretchin x10 (140,110,70) [Close Combat Weapon, Grot Blasta] {}
-  Runtherd x1 (140,110,70) [Grot-Smacka, Slugga] {}
+  Gretchin x10 (140,110,70) [Grot Blasta, Scavenged Shivs] {}
   enhancements: -
-1 Gretchin 2 | deploy | pts=45 | models=11
+1 Gretchin 2 | deploy | pts=45 | models=10
   components: -
-  Gretchin x10 (140,110,70) [Close Combat Weapon, Grot Blasta] {}
-  Runtherd x1 (140,110,70) [Grot-Smacka, Slugga] {}
+  Gretchin x10 (140,110,70) [Grot Blasta, Scavenged Shivs] {}
   enhancements: -
 1 Warbikers 1 | deploy | pts=60 | models=3
   components: -
@@ -401,9 +400,9 @@
   Boss Nob on Warbike x1 (150,130,60) [Close Combat Weapon, Power Klaw, Twin Dakkagun] {}
   Warbiker x2 (150,130,60) [Close Combat Weapon, Twin Dakkagun] {}
   enhancements: -
-1 Stormboyz 1 | deploy | pts=130 | models=10
+1 Stormboyz 1 | deploy | pts=140 | models=10
   components: -
-  Boss Nob x1 (110,150,70) [Power Klaw, Slugga] {}
+  Nob x1 (110,150,70) [Power Klaw, Slugga] {}
   Stormboy x9 (110,150,70) [Choppa, Slugga] {}
   enhancements: -
 1 Deff Dread 1 | deploy | pts=110 | models=1
@@ -431,37 +430,36 @@
   components: -
   Kill Rig x1 (100,85,65) ['Eavy Lobba, Butcha Boyz, Savage Horns and Hooves, Saw Blades, Stikka Kannon, Wurrtower] {}
   enhancements: -
-2 Beast Snagga Boyz 1 + Beastboss | embark | via=2 Kill Rig 1 | pts=170 | models=11
+2 Beast Snagga Boyz 1 + Beastboss | embark | via=2 Kill Rig 1 | pts=165 | models=11
   components: Beast Snagga Boyz/bodyguard, Beastboss/leader
   Beast Snagga Nob x1 (120,145,55) [Power Snappa, Slugga] {}
-  Beast Snagga Boy x9 (120,145,55) [Choppa, Slugga] {}
+  Beast Snagga Boy x9 (120,145,55) [Choppa - Standard, Slugga] {}
   Beastboss x1 (185,80,45) [Beast Snagga Klaw, Beastchoppa, Shoota] {}
   enhancements: -
 2 Battlewagon 1 | deploy | pts=160 | models=1
   components: -
   Battlewagon x1 (75,95,55) [Big Shoota, Big Shoota, Big Shoota, Big Shoota, Tracks and Wheels, Zzap Gun] {'Ard Case}
   enhancements: -
-2 Meganobz 1 + Warboss in Mega Armour | embark | via=2 Battlewagon 1 | pts=260 | models=7
+2 Meganobz 1 + Warboss in Mega Armour | embark | via=2 Battlewagon 1 | pts=305 | models=7
   components: Meganobz/bodyguard, Warboss in Mega Armour/leader
-  Meganob x6 (120,100,130) [Kustom Shoota, Power Klaw] {}
+  Meganob x6 (120,100,130) [Kustom Shoota - Aimed, Power Klaw] {}
   Warboss in Mega Armour x1 (170,60,60) ['Uge Choppa, Big Shoota] {}
   enhancements: -
-2 Boyz 1 + Warboss + Painboy | deploy | pts=335 | models=22
-  components: Boyz/bodyguard, Warboss/leader, Painboy/leader
-  Boss Nob x1 (70,140,60) [Power Klaw, Slugga] {}
-  Boy x19 (70,140,60) [Choppa, Slugga] {}
+2 Boyz 1 + Warboss + Painboy | deploy | pts=355 | models=22
+  components: Boyz/bodyguard, Warboss/leader, Painboy/support
+  Nob x1 (70,140,60) [Kombi-skorcha - Shoota, Power Klaw] {}
+  Nob x1 (70,140,60) [Kombi-skorcha - Shoota, Kustom Choppa] {}
+  Boy x18 (70,140,60) [Choppa, Shoota, Slugga] {}
   Warboss x1 (170,60,60) [Attack Squig, Big Choppa, Kombi-weapon, Twin Slugga] {}
   Painboy x1 (150,65,105) ['Urty Syringe, Power Klaw] {Grot Orderly}
   enhancements: -
-2 Gretchin 1 | deploy | pts=45 | models=11
+2 Gretchin 1 | deploy | pts=45 | models=10
   components: -
-  Gretchin x10 (140,110,70) [Close Combat Weapon, Grot Blasta] {}
-  Runtherd x1 (140,110,70) [Grot-Smacka, Slugga] {}
+  Gretchin x10 (140,110,70) [Grot Blasta, Scavenged Shivs] {}
   enhancements: -
-2 Gretchin 2 | deploy | pts=45 | models=11
+2 Gretchin 2 | deploy | pts=45 | models=10
   components: -
-  Gretchin x10 (140,110,70) [Close Combat Weapon, Grot Blasta] {}
-  Runtherd x1 (140,110,70) [Grot-Smacka, Slugga] {}
+  Gretchin x10 (140,110,70) [Grot Blasta, Scavenged Shivs] {}
   enhancements: -
 2 Warbikers 1 | deploy | pts=60 | models=3
   components: -
@@ -473,9 +471,9 @@
   Boss Nob on Warbike x1 (150,130,60) [Close Combat Weapon, Power Klaw, Twin Dakkagun] {}
   Warbiker x2 (150,130,60) [Close Combat Weapon, Twin Dakkagun] {}
   enhancements: -
-2 Stormboyz 1 | deploy | pts=130 | models=10
+2 Stormboyz 1 | deploy | pts=140 | models=10
   components: -
-  Boss Nob x1 (110,150,70) [Power Klaw, Slugga] {}
+  Nob x1 (110,150,70) [Power Klaw, Slugga] {}
   Stormboy x9 (110,150,70) [Choppa, Slugga] {}
   enhancements: -
 2 Deff Dread 1 | deploy | pts=110 | models=1

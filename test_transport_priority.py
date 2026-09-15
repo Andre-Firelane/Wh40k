@@ -28,9 +28,9 @@ from game import attached_units, formations, pregame
 from game.factions import build_squad
 from game.factions.orks import (
     BATTLEWAGON, BATTLEWAGON_ADD_BIG_SHOOTAS, BATTLEWAGON_ADD_ZZAP_GUN, BATTLEWAGON_ARD_CASE,
-    BEAST_SNAGGA_BOYZ, BEASTBOSS, BOYZ, BOYZ_BIG_CHOPPA_TO_POWER_KLAW, DEFF_DREAD, FLASH_GITZ,
+    BEAST_SNAGGA_BOYZ, BEASTBOSS, BOYZ, BOYZ_NOB_TO_POWER_KLAW, DEFF_DREAD, FLASH_GITZ,
     FLASH_GITZ_AMMO_RUNT, GRETCHIN, KILL_RIG, MEGANOBZ, STORMBOYZ,
-    STORMBOYZ_CHOPPA_TO_POWER_KLAW, TANKBUSTAS, TANKBUSTAS_ADD_ROKKIT_LAUNCHA,
+    STORMBOYZ_NOB_TO_POWER_KLAW, TANKBUSTAS, TANKBUSTAS_ADD_ROKKIT_LAUNCHA,
     TANKBUSTAS_BOSS_NOB_ADD_SMASH_HAMMER, TRUKK, WARBIKERS, WARBIKERS_ADD_POWER_KLAW,
     WARBOSS, WARBOSS_ADD_ATTACK_SQUIG, WARBOSS_MEGA_ARMOUR,
 )
@@ -74,17 +74,19 @@ def ork_army():
 
     meganobz = attached_units.attach(
         mk(WARBOSS_MEGA_ARMOUR, "2 Warboss in Mega Armour 1"),
-        mk(MEGANOBZ, "2 Meganobz 1", composition_index=1), game_state=state,
+        # The 6-model build - composition_index 3 since the 2026-09 codex
+        # prices 2/3/5/6 models.
+        mk(MEGANOBZ, "2 Meganobz 1", composition_index=3), game_state=state,
     )
     reg(meganobz, battlewagon.models[0])
 
     boyz1 = attached_units.attach(
         mk(WARBOSS, "2 Warboss 1", choices={"Warboss": {WARBOSS_ADD_ATTACK_SQUIG: 1}}),
-        mk(BOYZ, "2 Boyz 1", choices={"Boss Nob": {BOYZ_BIG_CHOPPA_TO_POWER_KLAW: 1}}),
+        mk(BOYZ, "2 Boyz 1", choices={"Nob": {BOYZ_NOB_TO_POWER_KLAW: 1}}),
         game_state=state,
     )
     reg(boyz1)
-    reg(mk(BOYZ, "2 Boyz 2", choices={"Boss Nob": {BOYZ_BIG_CHOPPA_TO_POWER_KLAW: 1}}))
+    reg(mk(BOYZ, "2 Boyz 2", choices={"Nob": {BOYZ_NOB_TO_POWER_KLAW: 1}}))
 
     for i in (1, 2):
         trukk = mk(TRUKK, f"2 Trukk {i}")
@@ -96,7 +98,7 @@ def ork_army():
         reg(mk(WARBIKERS, f"2 Warbikers {i}", composition_index=0,
                choices={"Boss Nob on Warbike": {WARBIKERS_ADD_POWER_KLAW: 1}}))
     reg(mk(STORMBOYZ, "2 Stormboyz 1", composition_index=1,
-           choices={"Boss Nob": {STORMBOYZ_CHOPPA_TO_POWER_KLAW: 1}}))
+           choices={"Nob": {STORMBOYZ_NOB_TO_POWER_KLAW: 1}}))
     reg(mk(DEFF_DREAD, "2 Deff Dread 1"))
     reg(mk(FLASH_GITZ, "2 Flash Gitz 1", composition_index=1,
            gear={"Kaptin": [FLASH_GITZ_AMMO_RUNT]}))
@@ -130,7 +132,8 @@ c.eq("four transports on this roster", sorted(transports),
      ["2 Battlewagon 1", "2 Kill Rig 1", "2 Trukk 1", "2 Trukk 2"])
 c.eq("Trukk capacity", transports["2 Trukk 1"].profile.transport_capacity, 12)
 c.eq("Battlewagon capacity", transports["2 Battlewagon 1"].profile.transport_capacity, 22)
-c.eq("Gretchin is 11 models", len(squads["2 Gretchin 1"].models), 11)
+# 10 since the 2026-09 codex took the Runtherd out of this datasheet.
+c.eq("Gretchin is 10 models", len(squads["2 Gretchin 1"].models), 10)
 c.eq("Boyz 1 carries the Warboss (19.01)",
      bool(attached_units.leader_components(squads["2 Boyz 1 + Warboss"])), True)
 c.eq("Boyz 2 carries no character",

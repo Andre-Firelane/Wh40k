@@ -1,5 +1,8 @@
 """The Orks points list, transcribed verbatim from the official army app's
-"Unit Costs" screen (user-supplied paste, 2026-07-29).
+"Unit Costs" screen (user-supplied paste, 2026-07-29). The entries of the
+datasheets rebuilt for the 2026-09 codex (Boyz, Beast Snagga Boyz, Stormboyz,
+Gretchin, Meganobz so far) follow the POINTS table of their rules/orks/*.md
+page instead, and say so where they stand.
 
 All 58 entries, not just the five units game/factions/orks.py has datasheets
 for - same reasoning as game/factions/tau_empire_points.py, which this
@@ -9,15 +12,9 @@ explained in game/factions/points.py.
 
 Two things this list does that the T'au one doesn't:
 
-- Gretchin is priced by COMPOSITION rather than by a bare model count ("10
-  Gretchin 45 pts / 1 Runtherd, 10 Gretchin 45 pts / 20 Gretchin 80 pts / 1
-  Runtherd, 20 Gretchin 85 pts / 2 Runtherd, 20 Gretchin 90 pts"). A flat
-  {model_count: points} table still captures it losslessly because every one
-  of those five builds has a distinct TOTAL model count (10, 11, 20, 21,
-  22) - so the two 45-pt builds stay distinguishable even though they cost
-  the same. Worth stating explicitly: this holds for this entry, it is not a
-  general guarantee, and a future entry pricing two same-sized builds
-  differently would need composition-aware tiers instead.
+- Gretchin USED to be priced by composition (with and without Runtherds);
+  the 2026-09 codex prints 10 and 20 Gretchin only, the Runtherd being a
+  separate SUPPORT unit now.
 - Two entries attach as SUPPORT rather than LEADER (Bannernob, Painboy) -
   see UnitPoints' own `supports` field.
 
@@ -40,7 +37,11 @@ ORKS_POINTS = {
     "Battlewagon": flat_points({1: 145}, wargear={"'ard case": 15}),
     "Beastboss": flat_points({1: 80}, leads=("Beast Snagga Boyz",)),
     "Beastboss on Squigosaur": flat_points({1: 95}, leads=("Squighog Boyz",)),
-    "Beast Snagga Boyz": flat_points({10: 90, 20: 170}),
+    # 2026-09 codex (rules/orks/Beast Snagga Boyz.md).
+    "Beast Snagga Boyz": UnitPoints([
+        PointsTier({10: 85, 20: 170}, to_unit=3),
+        PointsTier({10: 95, 20: 180}, from_unit=4),
+    ]),
     "Bigboss": flat_points({1: 55}, leads=_LEADS_BOYZ_MOBS),
     "Big'ed Bossbunka": flat_points({1: 135}),
     "Big Mek": flat_points({1: 70}, leads=_LEADS_MEK_UNITS),
@@ -56,9 +57,10 @@ ORKS_POINTS = {
     "Blitza-Bommer": flat_points({1: 105}),
     "Boomdakka Snazzwagon": flat_points({1: 70}),
     "Boss Snikrot": flat_points({1: 75}, leads=("Kommandos",)),
+    # 2026-09 codex (rules/orks/Boyz.md).
     "Boyz": UnitPoints([
-        PointsTier({10: 75, 20: 160}, to_unit=3),
-        PointsTier({10: 85, 20: 170}, from_unit=4),
+        PointsTier({10: 90, 20: 180}, to_unit=3),
+        PointsTier({10: 100, 20: 190}, from_unit=4),
     ]),
     "Breaka Boyz": UnitPoints([
         PointsTier({6: 125}, to_unit=2),
@@ -87,10 +89,8 @@ ORKS_POINTS = {
         PointsTier({1: 255}, to_unit=2),
         PointsTier({1: 275}, from_unit=3),
     ]),
-    # Keyed by total model count - see this module's docstring on why that is
-    # lossless here: 10 Gretchin and 1 Runtherd + 10 Gretchin both cost 45,
-    # but come to 10 and 11 models respectively.
-    "Gretchin": flat_points({10: 45, 11: 45, 20: 80, 21: 85, 22: 90}),
+    # 2026-09 codex (rules/orks/Gretchin.md).
+    "Gretchin": flat_points({10: 45, 20: 80}),
     "Hunta Rig": flat_points({1: 125}),
     "Killa Kans": UnitPoints([
         PointsTier({3: 120, 6: 240}, to_unit=2),
@@ -103,10 +103,13 @@ ORKS_POINTS = {
         PointsTier({5: 50, 10: 100}, to_unit=2),
         PointsTier({5: 60, 10: 110}, from_unit=3),
     ]),
+    # 2026-09 codex (rules/orks/Meganobz.md): "WARGEAR OPTIONS per Twin Killsaws
+    # 5 / per Killsaw 5" - the default loadout carries neither, so charging per
+    # swap taken and per weapon in the unit agree.
     "Meganobz": UnitPoints([
-        PointsTier({2: 60, 3: 90, 5: 150, 6: 180}, to_unit=2),
-        PointsTier({2: 80, 3: 110, 5: 170, 6: 200}, from_unit=3),
-    ]),
+        PointsTier({2: 75, 3: 110, 5: 185, 6: 225}, to_unit=2),
+        PointsTier({2: 115, 3: 150, 5: 225, 6: 265}, from_unit=3),
+    ], wargear={"Killsaw": 5, "Twin Killsaws": 5}),
     "Megatrakk Scrapjet": flat_points({1: 75}),
     "Mek": flat_points({1: 55}, leads=("Boyz", "Lootas", "Mek Gunz", "Nobz", "Tankbustas")),
     "Mek Gunz": UnitPoints([
@@ -133,7 +136,8 @@ ORKS_POINTS = {
         PointsTier({1: 600}, to_unit=1),
         PointsTier({1: 700}, from_unit=2),
     ]),
-    "Stormboyz": flat_points({5: 65, 10: 130}),
+    # 2026-09 codex (rules/orks/Stormboyz.md).
+    "Stormboyz": flat_points({5: 70, 10: 140}),
     "Tankbustas": UnitPoints([
         PointsTier({6: 125}, to_unit=2),
         PointsTier({6: 135}, from_unit=3),

@@ -144,11 +144,12 @@ class PlainGun(WeaponProfile):
 # =============================================================== 1. the tiers
 print("\n1) tier boundaries, read from the rule text (6+ -> 1, 11+ -> 2)")
 
-# Gretchin's largest composition is 11 models, which lands exactly on the
-# upper boundary - both boundaries (5/6 and 10/11) are therefore real counts,
-# not approximations.
+# trim() cuts a real unit to the exact count, so both boundaries (5/6 and
+# 10/11) are real counts, not approximations. composition_index=1 is the
+# 20-model build: since the 2026-09 codex took the Runtherd out of the unit,
+# the 10-model build is one model short of the upper boundary.
 for n, expected in ((1, 0), (5, 0), (6, 1), (7, 1), (10, 1), (11, 2)):
-    squad = trim(build_squad(GRETCHIN, "Player 2", name=f"g{n}"), n)
+    squad = trim(build_squad(GRETCHIN, "Player 2", name=f"g{n}", composition_index=1), n)
     check(f"{n} models -> [SUSTAINED HITS {expected}]", sustained_hits_for_target(squad) == expected,
           f"got {sustained_hits_for_target(squad)}")
 
@@ -161,7 +162,7 @@ check("no target at all -> nothing", sustained_hits_for_target(None) == 0)
 # Dead models are only stripped from Squad.models once per frame, so a unit
 # being shot to pieces mid-activation would otherwise keep its higher tier for
 # the rest of that activation.
-dying = trim(build_squad(GRETCHIN, "Player 2", name="dying"), 11)
+dying = trim(build_squad(GRETCHIN, "Player 2", name="dying", composition_index=1), 11)
 check("11 models is the top tier", sustained_hits_for_target(dying) == 2)
 dying.models[0].current_wounds = 0
 check("one dead model drops it to 10 alive -> tier 1", sustained_hits_for_target(dying) == 1,
@@ -182,7 +183,7 @@ check("rule 19.01: joining a character pushes it to tier 2", sustained_hits_for_
 print("\n2) the weapon adjustment (grant, never overwrite, never mutate)")
 
 crisis = place(build_squad(CRISIS_STARSCYTHE, "Player 1", name="crisis"), row(20, 20, 3))
-big = place(trim(build_squad(GRETCHIN, "Player 2", name="big"), 11), row(20, 30, 11))
+big = place(trim(build_squad(GRETCHIN, "Player 2", name="big", composition_index=1), 11), row(20, 30, 11))
 small = place(trim(build_squad(GRETCHIN, "Player 2", name="small"), 4), row(40, 30, 4))
 six = place(trim(build_squad(GRETCHIN, "Player 2", name="six"), 6), row(50, 30, 6))
 
@@ -225,7 +226,9 @@ def shooting_scene(shooter_sheet, target_sheet, target_models, cp=3):
     hit -> wound."""
     st = GameState()
     shooter = build_squad(shooter_sheet, "Player 1", name="1 Shooter 1")
-    target = trim(build_squad(target_sheet, "Player 2", name="2 Target 1", composition_index=0), target_models)
+    # composition_index=1 (20 models): the 11-model top-tier scenes need more
+    # than the 10-model build has since the Runtherd left the Gretchin unit.
+    target = trim(build_squad(target_sheet, "Player 2", name="2 Target 1", composition_index=1), target_models)
     for i, mdl in enumerate(shooter.models):
         mdl.x_in, mdl.y_in = 20.0 + i * 1.5, 20.0
         mdl.weapons = [PlainGun()]

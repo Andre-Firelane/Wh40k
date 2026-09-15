@@ -170,13 +170,11 @@ check("the led unit has no Might is Right of its own before attaching",
       squad_has_might_is_right(boys), False)
 attached_units.attach(boss_squad, boys)
 check("merged unit size (10 + 1)", len(boys.models), 11)
-check("merged points (90 + 80)", boys.points, 170)
+check("merged points (85 + 80, the 2026-09 Beast Snagga Boyz price)", boys.points, 165)
 check('"Beastboss" reuses Might is Right, so the mob gets +1 to hit',
       squad_has_might_is_right(boys), True)
-check("the mob keeps its own Monster Hunters",
-      any(m.profile.monster_hunters for m in boys.models), True)
-check("and the Beastboss did NOT hand it Monster Hunters",
-      all(m.profile.monster_hunters for m in boys.models), False)
+check("the mob has no Monster Hunters - the 2026-09 codex dropped it",
+      any(getattr(m.profile, "monster_hunters", False) for m in boys.models), False)
 
 # 19.04: the leader ability lasts exactly as long as the leader model does.
 boss_in_unit = next(m for m in boys.models if m.profile.ferocious_rage)

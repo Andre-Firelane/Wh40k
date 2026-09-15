@@ -101,7 +101,8 @@ class Blocker:
 
 def scene(shooter_sheet=BOYZ, gun=PlainGun, gap=6.0, cp=3, second_shooter=False):
     """Two (or three) squads in the Shooting phase, all unengaged, the
-    shooter(s) carrying GRENADES and a gun that reaches."""
+    shooter(s) carrying EXPLOSIVES (Boyz since the 2026-09 codex; the gate
+    reads either keyword) and a gun that reaches."""
     st = GameState()
     shooter = build_squad(shooter_sheet, "Player 1", name="1 Shooter 1")
     target = build_squad(GRETCHIN, "Player 2", name="2 Target 1")
@@ -114,7 +115,13 @@ def scene(shooter_sheet=BOYZ, gun=PlainGun, gap=6.0, cp=3, second_shooter=False)
     tk.line_up(shooter, y=20.0)
     tk.line_up(target, y=20.0 + gap)
     if second is not None:
-        tk.line_up(second, x=40.0, y=20.0)
+        # x=38, not 40: the 2026-09 codex took the Runtherd out of the target
+        # Gretchin, so the target row is one model (1.4") shorter, and at x=40
+        # the second mob's nearest model stood 8.40" from it - outside the 8"
+        # the TARGET line's reachable-target clause asks for, so it was refused
+        # for a reason that has nothing to do with having shot. At 38 it is
+        # 6.94" edge to edge, still well clear of the first mob and of 03.04.
+        tk.line_up(second, x=38.0, y=20.0)
     for squad in squads:
         for model in squad.models:
             model.weapons = [gun()]

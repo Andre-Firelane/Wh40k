@@ -307,7 +307,11 @@ def wound_log_line(afflicted):
     sc["turn"].battle_round = 1
     NurglesGiftController(turn_tracker=sc["turn"], plague_choice=PlagueChoice()).refresh(
         sc["state"].tokens)
-    script(*([6] * 200))   # 6s so every hit lands and a Wound roll actually happens
+    # 5s, not 6s: every hit lands on the Shoota's BS 5+ WITHOUT being a
+    # critical. The 2026-09 codex Shoota prints [LETHAL HITS] against
+    # non-MONSTER/VEHICLE targets, so a 6 auto-wounds and skips the very Wound
+    # roll this reads - the "clean run really shot" line went red for that.
+    script(*([5] * 200))
     sc["shooting"].start_shooting(sc["attacker"])
     sc["shooting"].choose_target_squad(target)
     sc["shooting"].choose_weapon(sorted(sc["shooting"].remaining_weapon_types)[0])

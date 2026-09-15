@@ -1795,8 +1795,7 @@ _SUPPORT_PLATFORM_SHARED_ABILITIES = [
     'two squads, so the declaration step checks the pending join as well.',
     'Support Weapon: each time an attack targets this model\'s unit, if that unit '
     'contains one or more other models, until that attack is resolved this model has '
-    'Toughness 3 - folded into game/squad.py\'s attached_unit_toughness(), beside the '
-    'Gretchin Runtherd override that answers the same question. A platform standing '
+    'Toughness 3 - folded into game/squad.py\'s attached_unit_toughness(). A platform standing '
     'alone keeps its printed T6, unprompted.',
 ]
 

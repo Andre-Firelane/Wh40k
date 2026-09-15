@@ -254,8 +254,9 @@ head("4. Regaining Coherency: the owner chooses, and keeps its characters")
 def boyz_scene(positions):
     """A Boyz mob with its Warboss attached (19.01), cut down to as many models
     as there are positions. `positions` is read in model order: index 0 is the
-    Boss Nob, the LAST one is the Warboss, everything between is rank and
-    file - so a scene decides for itself where its characters stand."""
+    Nob (the log's Boss Nob - the 2026-09 codex renamed the model line), the
+    LAST one is the Warboss, everything between is rank and file - so a scene
+    decides for itself where its characters stand."""
     st = GameState()
     m.build(st)
     b = build_squad(BOYZ, "Player 2", name="2 Boyz 1")
@@ -278,7 +279,7 @@ REPORTED = [(30.0, 20.0), (31.0, 20.5), (35.57, 22.44), (32.73, 25.32),
             (30.5, 21.4), (31.6, 21.6)]
 st, boyz = boyz_scene(REPORTED)
 names = [mo.profile.name for mo in boyz.models]
-ok("scene has both characters in it", "Boss Nob" in names and "Warboss" in names)
+ok("scene has both characters in it", "Nob" in names and "Warboss" in names)
 ok("and it is split 4 + 1 + 1 as reported",
    sorted(len(g) for g in connected_groups(boyz.models)) == [1, 1, 4])
 ok("with both characters inside the body, so the stragglers are plain Boyz",
@@ -300,7 +301,7 @@ print(f"    removed: {removed}   survivors: {survivors}")
 ok("the AI resolves it itself - the enforcer is no longer waiting", enf.pending_squad is None)
 ok("the unit is coherent again", not boyz.check_coherency())
 ok("it gave up plain Boyz, not its characters", removed and set(removed) == {"Boy"})
-ok("the Boss Nob survives (the log destroyed it)", "Boss Nob" in survivors)
+ok("the Nob survives (the log destroyed it, as the Boss Nob)", "Nob" in survivors)
 ok("the Warboss survives (the log destroyed it)", "Warboss" in survivors)
 
 # A/B: the pre-fix path is "nobody answers", which is exactly what _is_blocked()

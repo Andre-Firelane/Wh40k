@@ -41,7 +41,7 @@ from ai import agent_driver
 from game import config, maps, squad as squad_module
 from game.factions import build_squad
 from game.factions.orks import (
-    BATTLEWAGON, BOYZ, BOYZ_BIG_CHOPPA_TO_POWER_KLAW, DEFF_DREAD, FLASH_GITZ,
+    BATTLEWAGON, BOYZ, BOYZ_NOB_TO_POWER_KLAW, DEFF_DREAD, FLASH_GITZ,
     GRETCHIN, KILL_RIG, MEGANOBZ, STORMBOYZ, TANKBUSTAS, TRUKK, WARBIKERS,
     WARBIKERS_ADD_POWER_KLAW, WARBOSS,
 )
@@ -70,8 +70,8 @@ def units():
             WARBIKERS, "Player 2", composition_index=0,
             choices={"Boss Nob on Warbike": {WARBIKERS_ADD_POWER_KLAW: 1}}, name="Warbikers")),
         ("Boyz x10", build_squad(
-            BOYZ, "Player 2", choices={"Boss Nob": {BOYZ_BIG_CHOPPA_TO_POWER_KLAW: 1}}, name="Boyz")),
-        ("Gretchin x11", build_squad(GRETCHIN, "Player 2", name="Gretchin")),
+            BOYZ, "Player 2", choices={"Nob": {BOYZ_NOB_TO_POWER_KLAW: 1}}, name="Boyz")),
+        ("Gretchin x10", build_squad(GRETCHIN, "Player 2", name="Gretchin")),
         ("Tankbustas", build_squad(TANKBUSTAS, "Player 2", name="Tankbustas")),
         ("Stormboyz", build_squad(STORMBOYZ, "Player 2", composition_index=1, name="Stormboyz")),
         ("Flash Gitz", build_squad(FLASH_GITZ, "Player 2", name="Flash Gitz")),

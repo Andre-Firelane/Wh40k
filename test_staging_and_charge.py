@@ -30,7 +30,7 @@ from testkit import Checks, GameState, build_squad
 
 from game import attached_units, config, maps
 from game.factions.orks import (
-    BOYZ, BOYZ_BIG_CHOPPA_TO_POWER_KLAW, PAINBOY, WARBOSS,
+    BOYZ, BOYZ_NOB_TO_POWER_KLAW, PAINBOY, WARBOSS,
 )
 from game.factions.tau_empire import (
     GHOSTKEEL_BATTLESUIT, PATHFINDER_TEAM, RIPTIDE_BATTLESUIT, STRIKE_TEAM,
@@ -65,7 +65,7 @@ def scene():
     state = GameState()
     maps.apply_to_config(maps.get("map3")).build(state)
     mob = build_squad(BOYZ, owner="Player 2", composition_index=1,
-                      choices={"Boss Nob": {BOYZ_BIG_CHOPPA_TO_POWER_KLAW: 1}},
+                      choices={"Nob": {BOYZ_NOB_TO_POWER_KLAW: 1}},
                       name="2 Boyz 1")
     mob = attached_units.attach(build_squad(WARBOSS, owner="Player 2", name="2 Warboss 1"),
                                 mob, game_state=state)

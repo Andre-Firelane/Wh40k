@@ -67,11 +67,13 @@ c.eq("points (flat 90)", p.points, 90)
 c.eq("base radius (32mm assumption)", round(m.radius_in, 2), 0.63)
 
 # WS: not in the supplied M/T/Sv/W/Ld/OC table - derived from the weapon
-# tables. The syringe's printed 3+ IS the model's own, the klaw's 4+ is the
-# real per-weapon override, so only one of the two carries a weapon_skill.
+# tables. The syringe's printed 3+ IS the model's own. The Power Klaw class is
+# shared with Boyz/Stormboyz/Meganobz and follows their 2026-09 codex row
+# (WS3+, carried on the weapon); the Painboy's own page is still ahead of the
+# engine until its datasheet stage.
 c.eq("model WS from the syringe's printed 3+", m.profile.weapon_skill, "3+")
 c.eq("syringe defers WS to the model", UrtySyringeProfile.weapon_skill, None)
-c.eq("power klaw overrides WS to 4+", PowerKlawProfile.weapon_skill, "4+")
+c.eq("the shared power klaw carries the codex's WS3+", PowerKlawProfile.weapon_skill, "3+")
 
 names = [w.name for w in m.weapons]
 c.eq("loadout", names, ["'Urty Syringe", "Power Klaw"])
@@ -82,7 +84,7 @@ c.eq("syringe [ANTI-INFANTRY 4+]", syringe.anti, ("INFANTRY", 4))
 c.true("syringe [EXTRA ATTACKS]", syringe.extra_attacks)
 c.true("syringe [PRECISION]", syringe.precision)
 c.true("syringe carries the Hold Still hook", syringe.hold_still)
-c.eq("klaw A/S/AP/D", (klaw.attacks, klaw.strength, klaw.ap, klaw.damage), (3, 9, -2, 2))
+c.eq("klaw A/S/AP/D (the shared codex row)", (klaw.attacks, klaw.strength, klaw.ap, klaw.damage), (3, 10, -2, 2))
 c.eq("klaw does NOT carry the Hold Still hook", klaw.hold_still, False)
 
 # Grot Orderly is Gear (grants an ability, swaps no weapon), and optional.
@@ -470,14 +472,15 @@ c.true("Painboy may NOT lead a Deff Dread",
        bool(attached_units.can_attach(painboy(), build(DEFF_DREAD, "Player 2", name="DD"))))
 c.true("Painboy may NOT lead an enemy unit",
        bool(attached_units.can_attach(painboy(), build(BOYZ, "Player 1", name="Enemy Boyz"))))
-c.eq("attachment role reads the printed 'Abilities (Leader)' heading",
-     attached_units.attachment_role(painboy()), attached_units.LEADER)
+c.eq("attachment role is SUPPORT - the 2026-09 Boyz sheet lists PAINBOY under SUPPORTED BY",
+     attached_units.attachment_role(painboy()), attached_units.SUPPORT)
 c.true("the pairing list resolves (falls back to the points entry)",
        "Boyz" in attached_units.leadable_unit_names(painboy()))
 c.true("a T'au unit is not on it",
        "Strike Team" not in attached_units.leadable_unit_names(painboy()))
 
-# 19.01's one-leader-per-bodyguard rule, given the Leader reading above.
+# 19.01: one leader AND one support per bodyguard unit - a Support Painboy
+# joins a mob that already has its Warboss.
 state_two = GameState()
 mob_two = build(BOYZ, "Player 2", name="Boyz Two")
 for model in mob_two.models:
@@ -486,7 +489,7 @@ boss = build(WARBOSS, "Player 2", name="Warboss 1")
 for model in boss.models:
     state_two.add_token(model)
 with_boss = attached_units.attach(boss, mob_two, game_state=state_two)
-c.true("a mob that already has a Warboss cannot also take a Painboy (19.01)",
-       bool(attached_units.can_attach(painboy(), with_boss)))
+c.eq("a mob that already has a Warboss can also take a Painboy (19.01: one leader, one support)",
+     attached_units.can_attach(painboy(), with_boss), [])
 
 c.finish()

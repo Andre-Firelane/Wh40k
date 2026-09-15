@@ -263,7 +263,6 @@ SQUAD_SPRITE_KEYS = {
     # Same fallback note as Boyz above - no separate Boss Nob art.
     "Stormboyz": "Ork Stormboyz",
     "Trukk": "Ork Trukk",
-    # Same fallback note as Boyz above - no separate Runtherd art.
     "Gretchin": "Gretchins",
     # "Warboss in Mega Armour" MUST be listed before the plain "Warboss"
     # entry below - its own datasheet name contains "Warboss" as a

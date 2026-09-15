@@ -391,22 +391,10 @@ def attached_unit_toughness(squad):
     the Leader/Support profile flags directly otherwise - so a hand-built
     squad (tests, and every squad predating this module) still behaves.
 
-    Gretchin's own "Runtherd" ability (user-supplied, not a core rule):
-    "each time an attack targets this unit, if it contains one or more
-    Gretchin models, ... Runtherd models in this unit have a Toughness
-    characteristic of 2" - modeled as a per-model effective-toughness
-    override right here, rather than a separate function, since it's the
-    exact same "what T does this attack actually resolve against" question
-    this function already answers (and it needs to interact correctly with
-    the SAME bodyguard/leader pooling logic above: once every Gretchin
-    model is dead, `has_gretchin` goes False and a Runtherd's own real T
-    applies again, unprompted).
-
     The DEATH GUARD army rule Nurgle's Gift lands here too: "while an enemy
     unit is Afflicted, subtract 1 from the Toughness characteristic of models
     in that unit". Applied to the POOLED result rather than per model, which
-    is the same number either way (max(t) - 1 == max(t - 1)) and keeps the
-    Gretchin override above meaning exactly what it did. Clamped at 1, and
+    is the same number either way (max(t) - 1 == max(t - 1)). Clamped at 1, and
     read off Squad.afflicted rather than measured, for the reasons
     game/nurgles_gift.py's docstring gives - this function has nine callers
     and runs once per weapon group per attack.
@@ -420,21 +408,18 @@ def attached_unit_toughness(squad):
         alive = squad.models
     bodyguards = [m for m in attached_units.bodyguard_models(squad) if m in alive]
     pool = bodyguards if bodyguards else alive
-    has_gretchin = any(m.profile.gretchin for m in alive)
     # Support Weapon Platforms' "Support Weapon": "each time an attack targets
     # this model's unit, IF THAT UNIT CONTAINS ONE OR MORE OTHER MODELS, until
     # that attack is resolved, this model has a Toughness characteristic of 3."
-    # The same question the Runtherd override answers, so the same place - and
-    # the same self-cancelling shape: a platform standing alone is not "in a
-    # unit with other models", so its printed T6 applies unprompted.
+    # A "what T does this attack resolve against" question, so it lives here,
+    # and it cancels itself: a platform standing alone is not "in a unit with
+    # other models", so its printed T6 applies unprompted.
     #
     # Counted over ALIVE models, so a platform whose Guardians have all been
-    # killed goes back to T6 in the same frame - the mirror of has_gretchin.
+    # killed goes back to T6 in the same frame.
     has_other_models = len(alive) > 1
 
     def _effective_toughness(model):
-        if has_gretchin and model.profile.runtherd_shares_gretchin_toughness:
-            return 2
         if has_other_models and model.profile.support_weapon_toughness:
             return SUPPORT_WEAPON_TOUGHNESS
         return model.profile.toughness
@@ -510,8 +495,8 @@ def _group_weakness(models):
     right way round: a 1-wound model is the weaker, more expendable one.
     Measured to flip Strike Team (Shas'ui 2W), Breacher Team, Boyz,
     Stormboyz and Warbikers (Boss Nob 2W/2W/4W); Gretchin already came out
-    right by accident, because the Runtherd's better save broke the tie
-    first.
+    right by accident, because the (pre-codex) Runtherd's better save broke
+    the tie first.
 
     Where the leader shares its squad's W AND Sv it shares its allocation
     GROUP, so no group ordering can help - that half is the defending

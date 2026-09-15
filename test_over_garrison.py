@@ -46,9 +46,12 @@ P2_UNITS = {
     "2 Boyz 1 + Warboss": (orks.BOYZ, [
         (24.54, 4.74), (28.06, 5.30), (22.93, 5.67), (27.95, 7.28), (25.40, 7.15),
         (26.86, 8.19), (29.02, 4.48), (21.32, 4.74), (28.94, 6.50), (28.58, 8.37)]),
+    # Ten coordinates where the log has eleven: the last one was the unit's
+    # Runtherd, whom the 2026-09 codex made a unit of its own. scene() used to
+    # drop it silently (zip() against a 10-model unit); now the table says so.
     "2 Gretchin 2": (orks.GRETCHIN, [
         (25.9, 10.4), (24.5, 10.0), (27.2, 10.8), (24.0, 11.2), (27.9, 9.6),
-        (23.3, 9.8), (28.6, 11.0), (26.5, 11.6), (25.2, 8.9), (29.2, 10.2), (22.6, 10.6)]),
+        (23.3, 9.8), (28.6, 11.0), (26.5, 11.6), (25.2, 8.9), (29.2, 10.2)]),
     "2 Kill Rig 1": (orks.KILL_RIG, [(32.30, 6.42)]),
     "2 Tankbustas 1": (orks.TANKBUSTAS, [
         (32.24, 17.62), (32.88, 12.57), (31.58, 13.32), (30.94, 18.37),
@@ -276,16 +279,25 @@ c.eq("...while the keeper stays", plan["unit_plans"]["2 Gretchin 2"]["role"], "h
 # THE BAR IS REAL, not a formality: a threat big enough to out-control the
 # keeper keeps a SECOND unit there. Without this the rule above would be
 # indistinguishable from "always keep exactly one".
+#
+# The threat has to sit BETWEEN the keeper alone and the keeper plus one more
+# unit, or "keeps a second, frees the rest" has nothing to measure. This used
+# to be two 10-model Kroot units (OC 40), sized against the pre-codex Gretchin.
+# Since the 2026-09 codex a Gretchin is OC 1 and the Runtherd is gone, so the
+# keeper is OC 10, and 40 out-controls the Gretchin AND the Boyz (OC 20)
+# together - nothing was freed at all. One Kroot unit (OC 20) is back inside
+# the window, and the second scene check below says so rather than assuming it.
 state, turn, squads = scene(extra_p1=[
     ("1 Kroot Carnivores 1", tau_empire.KROOT_CARNIVORES,
-     [(26.0 + 0.9 * i, 18.0) for i in range(10)]),
-    ("1 Kroot Carnivores 2", tau_empire.KROOT_CARNIVORES,
-     [(26.0 + 0.9 * i, 19.5) for i in range(10)])])
+     [(26.0 + 0.9 * i, 18.0) for i in range(10)])])
 threat_oc = dict((o.name, t) for o, t
                  in agent_driver._held_objectives(state, "Player 2")).get(HOME, -1)
 gretchin_oc = sum(effective_oc(m) for m in squads["2 Gretchin 2"].models)
+boyz_oc = sum(effective_oc(m) for m in squads["2 Boyz 1 + Warboss"].models)
 c.true("scene check: the threat now out-controls the keeper alone",
        threat_oc > gretchin_oc)
+c.true("scene check: ...but not the keeper plus one more unit, so there is a rest to free",
+       gretchin_oc + boyz_oc > threat_oc)
 plan, log = validate(state, turn, reported_plan())
 c.eq("a bigger threat keeps a second unit on the objective",
      plan["unit_plans"]["2 Boyz 1 + Warboss"]["role"], "hold")

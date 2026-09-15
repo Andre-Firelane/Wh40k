@@ -131,7 +131,13 @@ EXPECTED = {
     # the army gets DEARER by 20 despite losing an entry: 250 for the Avatar
     # against the 230 the two departing entries cost between them.
     "aeldari": (11, 71, 1910),   # 19 list entries, SIX attachments merged
-    "orks": (14, 103, 1935),     # 17 list entries, three attachments merged
+    # 2026-09 Ork codex: the DATASHEETS were rebuilt, the list was not. Both
+    # Gretchin units lost their Runtherd (10 models each, not 11 - so 103 ->
+    # 101), and four merged units moved price, measured per unit against the
+    # previous build: Meganobz + Warboss in Mega Armour +45, Boyz + Warboss +
+    # Painboy +20, Stormboyz +10, Beast Snagga Boyz + Beastboss -5, which is
+    # 1935 + 70 = 2005.
+    "orks": (14, 101, 2005),     # 17 list entries, three attachments merged
     "necrons": (9, 68, 2020),    # 15 list entries, SIX attachments merged
     # Replaced wholesale on 2026-08-30 by the list the user supplied: out go
     # the Ghostkeel, the Strike Team, the Coldstar + Starscythes and Farsight +

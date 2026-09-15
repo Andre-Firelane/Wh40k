@@ -20,7 +20,7 @@ from testkit import Checks, GameState, PHASES, TurnTracker, build_squad
 from game import attached_units, config, maps, scene_io
 from game.command_points import CommandPointManager
 from game.factions.orks import (
-    BEAST_SNAGGA_BOYZ, BEASTBOSS, BOYZ, BOYZ_BIG_CHOPPA_TO_POWER_KLAW,
+    BEAST_SNAGGA_BOYZ, BEASTBOSS, BOYZ, BOYZ_NOB_TO_POWER_KLAW,
     DEFFKOPTAS, GRETCHIN, KILL_RIG, PAINBOY, WARBOSS,
 )
 
@@ -46,7 +46,7 @@ def scene():
     battle_map.build(state)
 
     mob = build_squad(BOYZ, owner="Player 2", composition_index=1,
-                      choices={"Boss Nob": {BOYZ_BIG_CHOPPA_TO_POWER_KLAW: 1}},
+                      choices={"Nob": {BOYZ_NOB_TO_POWER_KLAW: 1}},
                       name="2 Boyz 1")
     mob = attached_units.attach(build_squad(WARBOSS, owner="Player 2", name="2 Warboss 1"),
                                 mob, game_state=state)

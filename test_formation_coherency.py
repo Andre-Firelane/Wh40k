@@ -71,8 +71,10 @@ KROOT_POS = [(29.53, 27.34), (29.40, 28.84), (28.17, 27.98), (30.76, 28.20),
 
 def reported_pile_in():
     st = GameState(); m.build(st)
+    # composition_index=3 is the 6-model build: the 2026-09 codex prices
+    # Meganobz at 2/3/5/6 models, so index 1 is only 3 of the log's six.
     nobz = place(build_squad(MEGANOBZ, "Player 2", name="2 Meganobz 1",
-                             composition_index=1), MEGANOBZ_POS)
+                             composition_index=3), MEGANOBZ_POS)
     kroot = place(build_squad(KROOT_CARNIVORES, "Player 1",
                               name="1 Kroot Carnivores 1"), KROOT_POS)
     tokens = list(nobz.models) + list(kroot.models)
@@ -194,7 +196,7 @@ def spread_trail(positions, datasheet, comp, target, turns=4, legacy=False):
 
 print("\n3) a stretched squad closes up over successive moves")
 for label, pos, ds, comp, target in (
-        ("Meganobz x6 (post-charge)", MEGANOBZ_POS, MEGANOBZ, 1, (20.0, 34.0)),
+        ("Meganobz x6 (post-charge)", MEGANOBZ_POS, MEGANOBZ, 3, (20.0, 34.0)),
         ("Boyz x10 (strung out)", STRETCHED_BOYZ, BOYZ, 0, (32.0, 34.0))):
     trail, coh = spread_trail(pos, ds, comp, target)
     old, _ = spread_trail(pos, ds, comp, target, legacy=True)
@@ -213,7 +215,7 @@ for label, pos, ds, comp, target in (
 # well inside rule 09.02's limit, with neighbours nearly touching. The stretch
 # is picked up later, by charges and moves.
 print("\n4) how wide a squad actually leaves its transport")
-for label, ds, comp, pos in (("Meganobz x6", MEGANOBZ, 1, (33.70, 20.89)),
+for label, ds, comp, pos in (("Meganobz x6", MEGANOBZ, 3, (33.70, 20.89)),
                              ("Boyz x10", BOYZ, 0, (11.50, 20.50))):
     st = GameState(); m.build(st)
     trukk = build_squad(TRUKK, "Player 2", name="2 Trukk 1")

@@ -286,7 +286,7 @@ def main():
                     if char not in values:
                         continue
                     # A trailing "*" marks a characteristic a datasheet ability
-                    # modifies (the Runtherd's T5*); the number itself is the
+                    # modifies (a printed T5*, say); the number itself is the
                     # comparison.
                     want = values[char].strip().rstrip("*")
                     got = mine[char]

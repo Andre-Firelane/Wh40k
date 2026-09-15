@@ -67,7 +67,7 @@ class UnitProfile:
     psychic_guidance = False  # Wraithguard's/Wraithblades' own ability: while within 12" of a friendly AELDARI PSYKER model, Ld becomes 6+ and every attack gets +1 to Hit - see game/psychic_guidance.py
     psychic_guidance_characteristics = False  # the Wraithlord's variant of the same printed name: Ld becomes 6+ and the BS/WS characteristics of this model's weapons improve by 1, rather than the Hit ROLL being modified - see game/psychic_guidance.py
     malevolent_souls = False  # Wraithblades' own ability: a model destroyed by a MELEE attack that has not fought this phase stays up on a 3+, strikes back, and is then removed - see game/malevolent_souls.py
-    support_weapon_toughness = False  # Support Weapon Platforms' "Support Weapon": while the model's unit contains one or more OTHER models, it has Toughness 3 - folded into game/squad.py's attached_unit_toughness(), next to the Gretchin Runtherd override that answers the same question
+    support_weapon_toughness = False  # Support Weapon Platforms' "Support Weapon": while the model's unit contains one or more OTHER models, it has Toughness 3 - folded into game/squad.py's attached_unit_toughness(), a "what Toughness does this attack resolve against" question
     cannot_embark = False  # "cannot embark within a TRANSPORT" printed on the model itself (Support Weapon Platforms, and any unit one has joined) - read by game/transport.py
     structural_collapse = False  # the D-cannon Platform's own ability: re-roll a Damage roll of 1 with its D-cannon - see game/structural_collapse.py
     monofilament_snare = False  # the Shadow Weaver Platform's own ability: a hit enemy unit is snared and bleeds mortal wounds when it moves - see game/monofilament_snare.py
@@ -164,8 +164,6 @@ class UnitProfile:
     da_boss_is_watchin = False  # War Horde Enhancement: once per battle per army, a Movement-phase panel button makes the bearer's unit riled up - see game/enh_da_boss_is_watchin.py
     kunnin_but_brutal = False  # War Horde Enhancement: Falling Back does not stop the unit shooting or charging - game/move_exceptions.py's two Fall Back folds; see game/enh_kunnin_but_brutal.py
     follow_me_ladz = False  # War Horde Enhancement: +2" Move for the bearer's unit - game/coldstar.py's effective_movement_in(); see game/enh_follow_me_ladz.py
-    gretchin = False  # the GRETCHIN keyword - matters for the Runtherd ability's "if it contains one or more Gretchin models" check, see UnitProfile.runtherd_shares_gretchin_toughness/squad.py's attached_unit_toughness()
-    runtherd_shares_gretchin_toughness = False  # Gretchin datasheet's own "Runtherd" ability (user-supplied, not a core rule, confusingly named the same as the model line it affects): while its unit contains 1+ living Gretchin models, this model's own Toughness counts as 2 for wound-roll purposes - see squad.py's attached_unit_toughness()
     thievin_scavengers = False  # Gretchin datasheet's own "Thievin' Scavengers" ability (user-supplied, not a core rule): at the start of your Movement phase, roll 1D6 per objective you control with a qualifying unit in range, gain 1CP if any roll is 4+ - see game/thievin_scavengers.py. User: "diese Ability wird noch öfters kommen" - a shared flag (same reuse pattern as `fieldcraft`), not Gretchin-exclusive
     explosives = False  # the EXPLOSIVES keyword - matters for the Explosives stratagem (15.05)
     grenades = False  # the GRENADES keyword - same as explosives for 15.05's "EXPLOSIVES/GRENADES" target
@@ -226,8 +224,7 @@ class UnitProfile:
     full_throttle = False  # Stormboyz' "Full Throttle" ability (user-supplied, not a core rule): this unit remains eligible to declare a charge in a turn it Advanced or Fell Back - see squad_has_full_throttle(), game/charge.py's can_declare_charge()
     grot_riggers = False  # Trukk's "Grot Riggers" ability (user-supplied, not a core rule): at the start of its controller's Command phase, this model regains 1 lost wound - see game/grot_riggers.py
     waaagh = False  # the Orks army rule "Waaagh!" (2026-09 codex): this unit can re-roll Advance rolls and can become riled up - see game/waaagh.py and game/riled_up.py. Pinned against every printed FACTION line by test_ork_army_rules.py
-    bodyguard_two_leaders = False  # Boyz'/Kroot Carnivores' own "Bodyguard" ability (user-supplied datasheet text): if THIS unit has a Starting Strength of 20, up to TWO Leader units may be attached to it instead of one, provided one of them is a WARBOSS model - rule 19.01's own "unless otherwise stated" escape hatch. Read by game/attached_units.py's can_attach()
-    joins_warlock_led_unit = False  # Eldrad Ulthran's own LEADER line: he may be attached to a unit even if one WARLOCKS unit is already attached to it. The MIRROR of bodyguard_two_leaders above - that one is printed on the bodyguard and asks what is arriving, this one is printed on the arriving leader and asks what is already there. Read by game/attached_units.py's can_attach(); it is what finally makes game/protect.py reachable
+    joins_warlock_led_unit = False  # Eldrad Ulthran's own LEADER line: he may be attached to a unit even if one WARLOCKS unit is already attached to it. Printed on the arriving leader, asking what is already there. Read by game/attached_units.py's can_attach(); it is what finally makes game/protect.py reachable
     joins_without_leader_slot = False  # Warlock Conclave's LEADER ability is printed as a JOIN with its OWN restriction ("a unit cannot have more than one WARLOCK CONCLAVE unit joined to it") rather than as an ordinary attachment, so 19.01's one-leader-per-bodyguard default is not what limits it. Read by game/attached_units.py's can_attach(); the direction matters and is asymmetric on purpose - see _join_not_bound_by_leader_slot() there
     doks_toolz = False  # Painboy's own "Dok's Toolz" ability (user-supplied, not a core rule): while this model is LEADING a unit (19.01), models in that unit have the Feel No Pain 5+ ability - see game/doks_toolz.py, read through game/feel_no_pain.py's current_feel_no_pain()
     tank_hunters = False  # Tankbustas' own "Tank Hunters" ability (user-supplied, not a core rule): each time a model with this ability makes an attack (ranged or melee) that targets a MONSTER or VEHICLE unit, add 1 to the Hit roll and add 1 to the Wound roll - see game/shooting.py's/game/fight.py's own _hit_modifiers()/_wound_modifiers()
@@ -494,12 +491,10 @@ class MonsterProfile(UnitProfile):
 
 
 class BoyzProfile(UnitProfile):
-    """Datasheet: Boyz (Orks), see game/factions/orks.py. Keywords line
-    (user-supplied): Battleline, Infantry, Mob, Grenades, Boyz - `grenades`
-    is the GRENADES keyword (same target as `explosives` for rule 15.05's
-    EXPLOSIVES/GRENADES check, see FireWarriorProfile's own note), not
-    `explosives` - this datasheet's own printed keyword is Grenades, not
-    Explosives."""
+    """Datasheet: Boyz (Orks), see game/factions/orks.py - the 2026-09 codex
+    row "Boy": M6" T5 Sv5+ W1 Ld7+ OC2 on a 32mm base. KEYWORDS: INFANTRY;
+    BATTLELINE; EXPLOSIVES; MOB. WS/BS are read off the weapon rows (Choppa
+    WS3+, Shoota BS5+). The codex dropped Get Da Good Bitz and Bodyguard."""
     name = "Boy"
     base_radius_in = 0.63  # 32mm base - user-confirmed official current size (was previously just assumed "same size class as InfantryProfile"; the math already matched exactly, so no value change, just upgraded from assumption to fact)
     movement_in = 6
@@ -511,32 +506,15 @@ class BoyzProfile(UnitProfile):
     armor_save = "5+"
     oc = 2
     infantry = True
-    grenades = True  # the GRENADES keyword - Boyz datasheet keyword
-    fieldcraft = True  # "Get Da Good Bitz" - word-for-word the same sticky-objective rule as Kroot Carnivores' Fieldcraft, see UnitProfile's own note and game/fieldcraft.py
+    explosives = True  # the EXPLOSIVES keyword (15.05)
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
     orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
-    bodyguard_two_leaders = True  # this datasheet's own "Bodyguard" ability - see UnitProfile.bodyguard_two_leaders' own note and game/attached_units.py's can_attach()
 
 
-class BossNobProfile(UnitProfile):
-    """Datasheet: Boyz (Orks) - the Boss Nob is the squad's tougher leader
-    model (2 wounds instead of 1), otherwise identical to a Boy."""
-    name = "Boss Nob"
-    base_radius_in = 0.63  # 32mm base - user-confirmed official current size, see BoyzProfile's own note
-    movement_in = 6
-    weapon_skill = "3+"
-    ballistic_skill = "5+"
-    toughness = 5
-    wounds = 2
-    leadership = "7+"
-    armor_save = "5+"
-    oc = 2
-    infantry = True
-    grenades = True  # the GRENADES keyword - Boyz datasheet keyword
-    fieldcraft = True  # "Get Da Good Bitz" - see BoyzProfile's own note
-    waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
-    orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
-    bodyguard_two_leaders = True  # this datasheet's own "Bodyguard" ability - see UnitProfile.bodyguard_two_leaders' own note and game/attached_units.py's can_attach()
+class BoyzNobProfile(BoyzProfile):
+    """Datasheet: Boyz (Orks) - the codex row "Nob": a Boy with W3."""
+    name = "Nob"
+    wounds = 3
     squad_leader = True  # cosmetic leader highlight, same convention as every other datasheet's sergeant/leader model (Shas'ui/Shas'vre/Long-quill...)
 
 
@@ -606,21 +584,17 @@ class StormboyProfile(UnitProfile):
     fly = True  # the FLY keyword, rule 21.03 (Take to the Skies)
     jump_pack = True  # the JUMP PACK keyword
     deep_strike = True  # "Rules: Deep Strike", rule 24.09
-    grenades = True  # the GRENADES keyword
-    full_throttle = True  # this datasheet's own ability, see squad_has_full_throttle()/game/charge.py
-    waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note; also inherited by StormboyzBossNobProfile below
-    orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment); also inherited by StormboyzBossNobProfile below
+    explosives = True  # the EXPLOSIVES keyword (2026-09 codex; it printed GRENADES before). Full Throttle is gone from this datasheet, so `full_throttle` is not set
+    waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note; also inherited by StormboyzNobProfile below
+    orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment); also inherited by StormboyzNobProfile below
 
 
-class StormboyzBossNobProfile(StormboyProfile):
-    """Datasheet: Stormboyz (Orks) - the Boss Nob is the squad's tougher
-    leader model (2 wounds instead of 1), otherwise identical to a
-    Stormboy. Distinct class from Boyz's own BossNobProfile - same printed
-    name, but a different M/OC (12"/1 here vs 6"/2 for Boyz), same reasoning
-    as e.g. TauCloseCombatWeaponProfile needing its own class despite
-    sharing a name with the generic CloseCombatWeaponProfile."""
-    name = "Boss Nob"
-    wounds = 2
+class StormboyzNobProfile(StormboyProfile):
+    """Datasheet: Stormboyz (Orks) - the codex row "Nob": a Stormboy with W3.
+    Its own class rather than Boyz' Nob: same printed name, M12"/OC1 here
+    against M6"/OC2 there."""
+    name = "Nob"
+    wounds = 3
     squad_leader = True  # cosmetic leader highlight, same convention as every other datasheet's sergeant/leader model
 
 
@@ -690,22 +664,12 @@ class TrukkProfile(UnitProfile):
 
 
 class GretchinProfile(UnitProfile):
-    """Datasheet: Gretchin (Orks), see game/factions/orks.py. Keywords line
-    (user-supplied): Infantry, Gretchin, Grots (Faction: Orks dropped, same
-    reasoning as every other datasheet's Faction keyword) - applies to the
-    whole unit, Runtherd included (see RuntherdProfile below), same
-    convention as Boyz' Boss Nob carrying the BOYZ keyword. GROTS has no
-    field of its own - purely descriptive, like Warbikers' MOUNTED. Rules:
-    Waaagh! - see UnitProfile.waaagh's own note.
-    `gretchin` is set ONLY here, not on RuntherdProfile - it's the engine's
-    proxy for "a real rank-and-file Gretchin model", read by the Runtherd
-    ability's "if it contains one or more Gretchin models" check (see
-    RuntherdProfile.runtherd_shares_gretchin_toughness's own note); the
-    printed GRETCHIN keyword itself is purely descriptive text on both
-    model lines, a separate, inconsequential thing from this proxy flag.
-    base_radius_in: not given by the user this time - assumed 0.5" (25mm,
-    UnitProfile's own untouched default), matching a real Gretchin's
-    actual small base size; purely cosmetic, no rules citation."""
+    """Datasheet: Gretchin (Orks), see game/factions/orks.py - 2026-09 codex:
+    M6" T2 Sv6+ W1 Ld8+ OC1 on a 25mm base (UnitProfile's default radius).
+    KEYWORDS: INFANTRY; GROTS. WS/BS off the weapon rows (Scavenged Shivs
+    WS5+, Grot Blasta BS4+). The Runtherd is no longer part of this datasheet
+    (the codex lists RUNTHERD as a separate SUPPORT unit), so its model line,
+    profile and toughness override are gone."""
     name = "Gretchin"
     movement_in = 6
     weapon_skill = "5+"
@@ -713,38 +677,12 @@ class GretchinProfile(UnitProfile):
     toughness = 2
     wounds = 1
     leadership = "8+"
-    armor_save = "7+"
-    oc = 2
-    infantry = True
-    gretchin = True  # see this class's own docstring for why only here, not RuntherdProfile
-    waaagh = True  # "Rules: Waaagh!"
-    orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
-    thievin_scavengers = True  # this datasheet's own ability, see game/thievin_scavengers.py
-
-
-class RuntherdProfile(UnitProfile):
-    """Datasheet: Gretchin (Orks) - the Runtherd is the squad's tougher
-    leader model, distinct stat line from Gretchin (unlike e.g. Boyz' Boss
-    Nob, which only differs in wounds).
-    base_radius_in: not given by the user this time - assumed 0.63" (32mm,
-    same size class as BoyzProfile), matching a normal Ork-sized model;
-    purely cosmetic, no rules citation."""
-    name = "Runtherd"
-    base_radius_in = 0.63
-    movement_in = 6
-    weapon_skill = "3+"
-    ballistic_skill = "5+"
-    toughness = 5
-    wounds = 2
-    leadership = "7+"
-    armor_save = "5+"
+    armor_save = "6+"
     oc = 1
     infantry = True
     waaagh = True  # "Rules: Waaagh!"
     orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
     thievin_scavengers = True  # this datasheet's own ability, see game/thievin_scavengers.py
-    runtherd_shares_gretchin_toughness = True  # this datasheet's own "Runtherd" ability - see UnitProfile's own note and squad.py's attached_unit_toughness()
-    squad_leader = True  # cosmetic leader highlight, same convention as every other datasheet's sergeant/leader model
 
 
 class WarbossProfile(UnitProfile):
@@ -795,7 +733,7 @@ class MeganobzProfile(UnitProfile):
     name = "Meganob"
     base_radius_in = 0.79
     movement_in = 5
-    weapon_skill = "4+"
+    weapon_skill = "3+"  # the Power Klaw's WS3+ (2026-09 codex); the Killsaw row carries its own 4+
     ballistic_skill = "5+"
     toughness = 6
     wounds = 3
@@ -803,7 +741,7 @@ class MeganobzProfile(UnitProfile):
     armor_save = "2+"
     oc = 1
     infantry = True  # the INFANTRY keyword - Meganobz datasheet keyword
-    grenades = True  # the GRENADES keyword - Meganobz datasheet keyword
+    explosives = True  # the EXPLOSIVES keyword - Meganobz datasheet keyword (2026-09 codex; it printed GRENADES before)
     mega_armour = True  # the MEGA ARMOUR keyword - see UnitProfile.mega_armour's own note
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
     orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
@@ -1004,8 +942,6 @@ class BeastSnaggaBoyProfile(UnitProfile):
     oc = 2
     infantry = True  # the INFANTRY keyword - Beast Snagga Boyz datasheet keyword
     beast_snagga = True  # the BEAST SNAGGA keyword - what makes this unit eligible for a Kill Rig's transport, see UnitProfile.transport_requires
-    feel_no_pain = "6+"  # "Rules: Feel No Pain 6+" - rule 24.12, an existing generic field, no new code needed
-    monster_hunters = True  # this datasheet's own "Monster Hunters" ability - see UnitProfile.monster_hunters's own note and game/monster_hunters.py
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
     orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
 
@@ -1102,33 +1038,23 @@ class PainboyProfile(UnitProfile):
     """Datasheet: Painboy (Orks), see game/factions/orks.py. Keywords line
     (user-supplied): Character, Infantry, Painboy (Faction: Orks dropped,
     same reasoning as every other datasheet's Faction keyword). A standalone
-    single-model Leader datasheet, like both Warboss datasheets and the
-    Beastboss.
+    single-model character datasheet.
 
-    base_radius_in: NOT supplied by the user this time - assumed 0.63" (32mm,
-    the size every Ork Boy-sized model in this module uses, and what a
-    Character on foot of this size class takes). Flag if a specific mm figure
-    is wanted; it is the same standing assumption GretchinProfile carries.
+    base_radius_in: NOT supplied by the user - assumed 0.63" (32mm, the size
+    every Ork Boy-sized model in this module uses). Flag if a specific mm
+    figure is wanted.
 
     WS/BS aren't in the M/T/Sv/W/Ld/OC table (same convention as every other
-    datasheet) - read off the weapon tables, and here they agree with the
-    project's usual reading: the 'Urty syringe prints WS3+ and the Power klaw
-    WS4+, so 3+ is this model's own value and the klaw's 4+ is the genuine
-    per-weapon override (PowerKlawProfile already carries it). BS is never
-    read at all - this datasheet has no ranged weapon - so it keeps the
-    UnitProfile default rather than inventing a number.
+    datasheet) - read off the weapon tables: the 'Urty syringe prints WS3+, so
+    3+ is this model's own value. BS is never read at all - this datasheet
+    has no ranged weapon - so it keeps the UnitProfile default. Its Power Klaw
+    is the class shared with Boyz, Stormboyz and Meganobz and follows their
+    2026-09 codex row until this datasheet's own stage refreshes the Painboy.
 
-    On `leader` vs `support`: the datasheet text supplied for this unit is
-    headed "Abilities (Leader)" and its ability is literally named "Leader",
-    so this profile sets `leader`. NOTE that game/factions/orks_points.py's
-    transcription of the official points list files this unit under SUPPORT
-    instead (alongside Bannernob). The two differ in what rule 19.01 allows:
-    as a Leader it cannot join a mob that already has a Warboss attached; as
-    Support it could. game/attached_units.py's leadable_unit_names() handles
-    the mismatch gracefully either way - with `leads` empty it falls back to
-    the points entry's `supports` tuple, which is this datasheet's own list
-    plus Breaka Boyz (a unit with no datasheet in this engine), so no legal
-    pairing is lost and none that matters is gained."""
+    `support`, not `leader`: the 2026-09 Boyz datasheet lists PAINBOY under
+    SUPPORTED BY, and game/factions/orks_points.py's entry agrees. As Support
+    it joins a mob that already has its Warboss (rule 19.01: one leader and
+    one support per bodyguard unit)."""
     name = "Painboy"
     base_radius_in = 0.63
     movement_in = 6
@@ -1140,7 +1066,7 @@ class PainboyProfile(UnitProfile):
     oc = 1
     character = True  # the CHARACTER keyword
     infantry = True  # the INFANTRY keyword
-    leader = True  # the Leader core ability (24.22) - see the docstring above on leader-vs-support, and game/attached_units.py's can_attach()
+    support = True  # SUPPORTED BY on the 2026-09 Boyz datasheet names PAINBOY - so a mob can take a Warboss (leader) AND a Painboy (support), rule 19.01, now that Bodyguard is gone
     doks_toolz = True  # this datasheet's own "Dok's Toolz" ability - see UnitProfile.doks_toolz's own note and game/doks_toolz.py
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
     orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
@@ -1249,16 +1175,14 @@ class BeastbossProfile(UnitProfile):
 
 
 class BeastSnaggaNobProfile(BeastSnaggaBoyProfile):
-    """Datasheet: Beast Snagga Boyz (Orks) - the Beast Snagga Nob is the
-    squad's tougher leader model (2 wounds instead of 1), otherwise sharing
-    BeastSnaggaBoyProfile's exact stat line and abilities; only its weapon
-    loadout differs (Power snappa instead of a Choppa). Subclassed here,
-    unlike BeastSnaggaBoyProfile's own deliberate non-relationship to
-    BoyzProfile above, because these two genuinely ARE the same datasheet's
-    two model lines - same relationship as TankbustaBossNobProfile to
-    TankbustaProfile."""
+    """Datasheet: Beast Snagga Boyz (Orks) - the codex row "Nob": W3 and a 6+
+    invulnerable save, otherwise the Beast Snagga Boy's line. The profile keeps
+    its datasheet-qualified name because game/sprites.py's MODEL_SPRITE_KEYS
+    is keyed on the profile name, and a bare "Nob" would hand the Beast Snagga
+    Nob's art to every Boyz and Stormboyz Nob."""
     name = "Beast Snagga Nob"
-    wounds = 2
+    wounds = 3
+    invulnerable_save = "6+"
     squad_leader = True  # cosmetic leader highlight, same convention as every other datasheet's sergeant/leader model
 
 

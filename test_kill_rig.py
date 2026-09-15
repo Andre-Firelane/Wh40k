@@ -216,10 +216,10 @@ def gork_scene(distances, auto=True, owner="Player 2", comps=None):
 
 # The Kill Rig itself is 145 pts and its own unit IS eligible (the rule does
 # not exclude it), so a friend only wins the ranking by costing more - hence
-# the 6-model Meganobz build (180 pts) rather than a cheap mob.
+# the 6-model Meganobz build (225 pts) rather than a cheap mob.
 near = gork_scene([
-    (BEAST_SNAGGA_BOYZ, 5.0, "BSB near"),      # 90 pts
-    (STORMBOYZ, 8.0, "Stormboyz near"),        # 65 pts (5-model build)
+    (BEAST_SNAGGA_BOYZ, 5.0, "BSB near"),      # 85 pts
+    (STORMBOYZ, 8.0, "Stormboyz near"),        # 70 pts (5-model build)
     (GRETCHIN, 30.0, "Grots far"),             # out of range
 ])
 targets = near["ctrl"].eligible_targets(near["rig"])
@@ -243,7 +243,7 @@ c.eq("with no other unit in range, only itself is eligible",
      [t.name for t in alone_targets], ["Kill Rig 1"])
 c.eq("...so it falls back to buffing itself",
      alone["ctrl"].strongest(alone_targets, caster=alone["rig"]).name, "Kill Rig 1")
-richer = gork_scene([(MEGANOBZ, 5.0, "Meganobz near")], comps={"Meganobz near": 1})
+richer = gork_scene([(MEGANOBZ, 5.0, "Meganobz near")], comps={"Meganobz near": 3})
 c.eq("a friend worth more than the caster wins the ranking",
      richer["ctrl"].strongest(richer["ctrl"].eligible_targets(richer["rig"])).name,
      "Meganobz near")
@@ -285,8 +285,8 @@ c.eq("a unit with no published points sorts last",
 # Both friends cost LESS than the Kill Rig's own 145 pts on purpose: a pick
 # that ranked the caster in would take the rig itself here, so this scene
 # actually discriminates the "strongest OTHER unit" rule.
-auto = gork_scene([(BEAST_SNAGGA_BOYZ, 5.0, "Strong"),   # 90 pts
-                   (STORMBOYZ, 6.0, "Weak")],            # 65 pts
+auto = gork_scene([(BEAST_SNAGGA_BOYZ, 5.0, "Strong"),   # 85 pts
+                   (STORMBOYZ, 6.0, "Weak")],            # 70 pts
                   auto=True)
 script(4)  # a 2-5 result
 took = auto["ctrl"].start_of_fight_phase([auto["rig"]])
@@ -304,7 +304,7 @@ c.eq("a 2-5 grants no [LETHAL HITS]", getattr(strong, "spirit_of_gork_lethal", F
 c.true("and it is logged", auto["log"].has("Spirit of Gork"))
 
 # A 6 grants both halves.
-six = gork_scene([(MEGANOBZ, 5.0, "Strong")], auto=True, comps={"Strong": 1})
+six = gork_scene([(MEGANOBZ, 5.0, "Strong")], auto=True, comps={"Strong": 3})
 script(6)
 six["ctrl"].start_of_fight_phase([six["rig"]])
 six["dice"].acknowledge()
@@ -314,7 +314,7 @@ c.eq("a 6 grants +1 Strength", tgt.spirit_of_gork_strength, True)
 c.eq("...and [LETHAL HITS]", tgt.spirit_of_gork_lethal, True)
 
 # A 1 backfires onto the Kill Rig, via a second D3 roll.
-one = gork_scene([(MEGANOBZ, 5.0, "Strong")], auto=True, comps={"Strong": 1})
+one = gork_scene([(MEGANOBZ, 5.0, "Strong")], auto=True, comps={"Strong": 3})
 script(1, 3)  # the D6 comes up 1, then the D3 comes up 3
 one["ctrl"].start_of_fight_phase([one["rig"]])
 one["dice"].acknowledge()
@@ -329,7 +329,7 @@ c.eq("and the target got nothing",
 c.true("the backlash is logged", one["log"].has("backlash"))
 
 # Once per phase per Kill Rig.
-again = gork_scene([(MEGANOBZ, 5.0, "Strong")], auto=True, comps={"Strong": 1})
+again = gork_scene([(MEGANOBZ, 5.0, "Strong")], auto=True, comps={"Strong": 3})
 script(4)
 again["ctrl"].start_of_fight_phase([again["rig"]])
 again["dice"].acknowledge()
@@ -351,7 +351,7 @@ c.eq("...and re-arms the once-per-phase counter",
 # ---------------------------------------------------------------------------
 
 human = gork_scene([(MEGANOBZ, 5.0, "Strong"), (STORMBOYZ, 6.0, "Weak")],
-                   auto=False, owner="Player 1", comps={"Strong": 1})
+                   auto=False, owner="Player 1", comps={"Strong": 3})
 human["ctrl"].auto_players = set()
 took = human["ctrl"].start_of_fight_phase([human["rig"]])
 labels = options_of(human["decision"])
@@ -368,7 +368,7 @@ human["ctrl"].on_dice_acknowledged()
 c.eq("and the chosen unit is buffed",
      next(f for f in human["friends"] if f.name == "Strong").spirit_of_gork_strength, True)
 
-declined = gork_scene([(MEGANOBZ, 5.0, "Strong")], auto=False, owner="Player 1", comps={"Strong": 1})
+declined = gork_scene([(MEGANOBZ, 5.0, "Strong")], auto=False, owner="Player 1", comps={"Strong": 3})
 declined["ctrl"].auto_players = set()
 declined["ctrl"].start_of_fight_phase([declined["rig"]])
 pick_option(declined["decision"], "Decline")

@@ -285,14 +285,14 @@ print(f"\n{checks - len(failed)}/{checks} checks passed")
 # back to the start. See _advance_model_toward().
 print("\n5) a model whose target is occupied advances as far as it legally can")
 
-from game.factions.orks import BOYZ_BIG_CHOPPA_TO_POWER_KLAW, PAINBOY, WARBOSS
+from game.factions.orks import BOYZ_NOB_TO_POWER_KLAW, PAINBOY, WARBOSS
 from game import attached_units
 from game.squad import min_model_movement
 from game.turn import PHASES, PHASE_MOVEMENT
 
 st = fresh_state()
 mob = build_squad(BOYZ, "Player 2", composition_index=1,
-                  choices={"Boss Nob": {BOYZ_BIG_CHOPPA_TO_POWER_KLAW: 1}}, name="2 Boyz 1")
+                  choices={"Nob": {BOYZ_NOB_TO_POWER_KLAW: 1}}, name="2 Boyz 1")
 mob = attached_units.attach(build_squad(WARBOSS, "Player 2", name="2 Warboss 1"), mob, game_state=st)
 mob = attached_units.attach(build_squad(PAINBOY, "Player 2", name="2 Painboy 1"), mob, game_state=st)
 # A deep block, and a DIAGONAL destination. Both matter: packed tight, the

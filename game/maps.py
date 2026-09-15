@@ -273,7 +273,7 @@ MAP1 = BattleMap(
             # 10x Gretchin, on the P2 Home Objective (x 14.25-25.75, y 9.5-16.5)
             (16.50, 11.30), (17.75, 11.30), (19.00, 11.30), (20.25, 11.30), (21.50, 11.30),
             (16.50, 13.30), (17.75, 13.30), (19.00, 13.30), (20.25, 13.30), (21.50, 13.30),
-            (23.00, 12.30),  # Runtherd
+            (23.00, 12.30),  # spare slot: the pre-codex Runtherd's (Gretchin are 10 models)
         ],
         # 10x Stormboyz (Boss Nob first), forward near the NW ruin. User
         # report: the original two-row layout put 3 of the 10 models
@@ -583,7 +583,7 @@ MAP2 = BattleMap(
         gretchin=[
             (25.50, 7.00), (26.75, 7.00), (28.00, 7.00), (29.25, 7.00), (30.50, 7.00),
             (25.50, 5.00), (26.75, 5.00), (28.00, 5.00), (29.25, 5.00), (30.50, 5.00),
-            (25.50, 3.00),  # Runtherd
+            (25.50, 3.00),  # spare slot: the pre-codex Runtherd's (Gretchin are 10 models)
         ],
         stormboyz=[
             (2.50, 10.50), (4.00, 10.50), (5.50, 10.50), (7.00, 10.50), (8.50, 10.50),

@@ -15,19 +15,11 @@ Battlewagon - every
 one of their UnitProfile classes sets `waaagh = True` (user: "ALLE bisher
 angelegten Ork einheiten haben die Waaagh! ability").
 
-Beast Snagga Boyz is the newest, and the first datasheet in this module
-whose ability needed a RE-ROLL hook rather than a modifier hook: Monster
-Hunters ("you can re-roll the Hit roll" against a MONSTER/VEHICLE target)
-reads the same target condition as Tankbustas' Tank Hunters, but a re-roll
-cannot be expressed as a Modifier - it needs the dice already read - so it
-hooks the hit-roll STEP in BOTH game/shooting.py and game/fight.py (its
-text says "makes an attack", not "makes a ranged attack"). See
-game/monster_hunters.py's own docstring, including why it re-rolls the
-whole roll rather than just the misses. Its Feel No Pain 6+ needed no code
-at all (`feel_no_pain` is an existing generic UnitProfile field, rule
-24.12). Its one wargear option is also what generalised
-WargearOption.replaces to accept several weapons at once - the thump gun
-carrier gives up its Slugga AND its Choppa - see that class's own note.
+Beast Snagga Boyz (2026-09 codex) carry this module's first HUNTER weapon:
+the Choppa prints a Standard and a Hunter profile (rule 04.01.03), the Hunter
+one usable only against MONSTER/VEHICLE targets (game/weapon_profiles.py). The
+codex dropped Monster Hunters and the unit's Feel No Pain; its Thump Gun is an
+ADDITION per 10 models, not a swap.
 
 Beastboss is its Leader, and the first Ork Leader datasheet here with NO
 deferred ability: its "Beastboss" rule is word-for-word the Warbosses' own
@@ -184,11 +176,7 @@ are retired. Every Ork UnitProfile here sets an `orks` flag (see
 UnitProfile.orks' own note) so the rule has something to check, since there is
 no generic per-model Faction tracking to read instead.
 
-Gretchin's own "Runtherd" ability is engine-wired directly inside
-game/squad.py's attached_unit_toughness() (see that function's own note) -
-the exact same "what T does an attack against this mixed unit resolve
-against" question it already answered for real Attached Units, just with
-one more case. Thievin' Scavengers is engine-wired too (game/
+Gretchin's Thievin' Scavengers is engine-wired (game/
 thievin_scavengers.py - ThievinScavengersController, called from main.py's
 own start-of-Movement-phase block, with a real visible DiceManager roll per
 user instruction) - the first datasheet ability in this engine that grants
@@ -206,25 +194,27 @@ from game.factions.detachment import Enhancement
 from game.factions.orks_points import ORKS_POINTS
 from game.units import (
     BattlewagonProfile, BeastbossProfile, FlashGitzKaptinProfile, FlashGitzProfile, KillRigProfile,
-    BeastSnaggaBoyProfile, BeastSnaggaNobProfile, BossNobOnWarbikeProfile, BossNobProfile, BoyzProfile,
+    BeastSnaggaBoyProfile, BeastSnaggaNobProfile, BossNobOnWarbikeProfile, BoyzNobProfile, BoyzProfile,
     DeffDreadProfile, DeffkoptaProfile, GretchinProfile,
-    MeganobzProfile, PainboyProfile, RuntherdProfile, StormboyProfile, StormboyzBossNobProfile, TankbustaBossNobProfile,
+    MeganobzProfile, PainboyProfile, StormboyProfile, StormboyzNobProfile, TankbustaBossNobProfile,
     TankbustaProfile, TrukkProfile, WarbikerProfile, WarbossMegaArmourProfile, WarbossProfile,
 )
 from game.weapons import (
-    BeastchoppaProfile, BeastSnaggaChoppaProfile, BeastSnaggaCloseCombatWeaponProfile, BeastSnaggaKlawProfile,
+    BeastchoppaProfile, BeastSnaggaChoppaProfile, BeastSnaggaKlawProfile,
     ButchaBoyzProfile, DeffRollaProfile, EavyLobbaProfile, FlashGitzChoppaProfile, GrabbinKlawProfile,
     LobbaProfile, SavageHornsAndHoovesProfile, TracksAndWheelsProfile, WreckinBallProfile,
     AttackSquigProfile, ZzapGunProfile,
     SawBladesProfile, SnazzgunProfile,
     ShootaProfile, StikkaKannonProfile, WurrtowerProfile,
-    BigChoppaProfile, BigShootaProfile, ChoppaProfile, DreadKlawProfile, GretchinCloseCombatWeaponProfile,
-    GrotBlastaProfile, GrotSmackaProfile, KombiWeaponProfile, KoptaRokkitsProfile, KustomShootaProfile,
-    OrkCloseCombatWeaponProfile, PowerKlawProfile, PowerSnappaProfile, RokkitLunchaProfile, RokkitPistolProfile,
-    SluggaProfile,
+    BigChoppaProfile, BigShootaProfile, BurnaProfile, ChoppaProfile, DreadKlawProfile,
+    GrotBlastaProfile, KillsawProfile, KombiRokkitBustaRokkitProfile, KombiSkorchaShootaProfile,
+    KombiWeaponProfile, KombiWeaponShootaProfile, KoptaRokkitsProfile, KustomChoppaProfile,
+    KustomShootaAimedProfile, KustomShootaProfile,
+    OrkCloseCombatWeaponProfile, PowerKlawProfile, PowerSnappaProfile, RokkitLaunchaBlastaProfile,
+    RokkitLunchaProfile, RokkitPistolProfile, ScavengedShivsProfile, SluggaProfile,
     SmashHammerProfile, SpikedWheelProfile, SpinninBladesProfile, StompyFeetProfile, TankbustaChoppaProfile,
-    TankbustaCloseCombatWeaponProfile, ThumpGunProfile, TwinDakkagunProfile, TwinSluggaProfile, UgeChoppaProfile,
-    UrtySyringeProfile,
+    TankbustaCloseCombatWeaponProfile, ThumpGunProfile, TwinDakkagunProfile, TwinKillsawProfile,
+    TwinSluggaProfile, UgeChoppaProfile, UrtySyringeProfile,
     WarbossBigChoppaProfile,
 )
 
@@ -265,71 +255,65 @@ WAR_HORDE = ORKS.add_detachment(Detachment(
     # detachment's.
 ))
 
-_BOSS_NOB_LOADOUT = [SluggaProfile, BigChoppaProfile]
-_BOY_LOADOUT = [SluggaProfile, ChoppaProfile]
+_NOB_LOADOUT = [KustomChoppaProfile, KombiSkorchaShootaProfile]
+_BOY_LOADOUT = [ChoppaProfile, ShootaProfile, SluggaProfile]
 
-BOYZ_BIG_CHOPPA_TO_POWER_KLAW = "Big Choppa -> Power Klaw"
+BOYZ_NOB_TO_BIG_CHOPPA = "Kustom Choppa + Kombi-skorcha -> Big Choppa"
+BOYZ_NOB_TO_POWER_KLAW = "Kustom Choppa -> Power Klaw"
+BOYZ_NOB_TO_KOMBI_ROKKIT = "Kombi-skorcha -> Kombi-rokkit"
+BOYZ_NOB_TO_KUSTOM_SHOOTA = "Kombi-skorcha -> Kustom Shoota"
+BOYZ_BIG_SHOOTA = "Shoota -> Big Shoota"
+BOYZ_ROKKIT_LAUNCHA = "Shoota -> Rokkit Launcha"
+BOYZ_BURNA = "Shoota -> Burna"
 
 BOYZ = ORKS.add_datasheet(Datasheet(
     "Boyz",
-    keywords=("BATTLELINE", "INFANTRY", "MOB", "GRENADES", "BOYZ"),
-    # Both printed sizes, same pattern as WARBIKERS below.
-    # composition_index=0 is the 10-model build, 1 the 20-model one - the
-    # latter added when an actual army list fielded it, and it is not merely
-    # a bigger mob: the "Bodyguard" ability's two-Leader exception is written
-    # against "a Starting Strength of 20", so the 20-model build is the only
-    # one that can ever take a Warboss AND a second Leader (see
-    # game/attached_units.py's can_attach()).
+    keywords=("INFANTRY", "BATTLELINE", "EXPLOSIVES", "MOB"),
+    # 2026-09 codex (rules/orks/Boyz.md): "1-2 Nob models, 9-18 Boy models",
+    # priced at 10 and 20 models - so the two builds are 1 Nob + 9 Boys and
+    # 2 Nobs + 18 Boys. composition_index 0 is the 10-model build.
     composition_options=[
         [
-            ModelLine(BossNobProfile, 1, _BOSS_NOB_LOADOUT, name="Boss Nob"),
+            ModelLine(BoyzNobProfile, 1, _NOB_LOADOUT, name="Nob"),
             ModelLine(BoyzProfile, 9, _BOY_LOADOUT, name="Boy"),
         ],
         [
-            ModelLine(BossNobProfile, 1, _BOSS_NOB_LOADOUT, name="Boss Nob"),
-            ModelLine(BoyzProfile, 19, _BOY_LOADOUT, name="Boy"),
+            ModelLine(BoyzNobProfile, 2, _NOB_LOADOUT, name="Nob"),
+            ModelLine(BoyzProfile, 18, _BOY_LOADOUT, name="Boy"),
         ],
     ],
-    # Real wargear choice, user-supplied separately from the datasheet
-    # itself (an army list build: "1x Boss Nob: Power klaw, Slugga") - now
-    # a real WargearOption, since PowerKlawProfile exists (see
-    # game/weapons.py's own note on why it was deferred until an actual
-    # list selected it).
+    # The printed Wargear Options, in order. The three "for every 10 models"
+    # Boy options each give up the Shoota, so they share build_squad()'s
+    # cursor - which keeps them on different models but does not make them
+    # EXCLUSIVE: a 10-model build can take all three where the sheet allows
+    # one of them per 10 models. The same named limitation as Kroot
+    # Farstalkers' two special rifles (WargearOption has no "one of").
     wargear_options=[
-        WargearOption("Boss Nob", replaces=BigChoppaProfile, with_weapons=[PowerKlawProfile], max_models=1, name=BOYZ_BIG_CHOPPA_TO_POWER_KLAW),
+        WargearOption("Nob", replaces=(KustomChoppaProfile, KombiSkorchaShootaProfile),
+                      with_weapons=[BigChoppaProfile], name=BOYZ_NOB_TO_BIG_CHOPPA),
+        WargearOption("Nob", replaces=KustomChoppaProfile, with_weapons=[PowerKlawProfile],
+                      name=BOYZ_NOB_TO_POWER_KLAW),
+        WargearOption("Nob", replaces=KombiSkorchaShootaProfile, with_weapons=[KombiRokkitBustaRokkitProfile],
+                      name=BOYZ_NOB_TO_KOMBI_ROKKIT),
+        WargearOption("Nob", replaces=KombiSkorchaShootaProfile, with_weapons=[KustomShootaProfile],
+                      name=BOYZ_NOB_TO_KUSTOM_SHOOTA),
+        WargearOption("Boy", replaces=ShootaProfile, with_weapons=[BigShootaProfile], per_models=10,
+                      name=BOYZ_BIG_SHOOTA),
+        WargearOption("Boy", replaces=ShootaProfile, with_weapons=[RokkitLaunchaBlastaProfile], per_models=10,
+                      name=BOYZ_ROKKIT_LAUNCHA),
+        WargearOption("Boy", replaces=ShootaProfile, with_weapons=[BurnaProfile], per_models=10,
+                      name=BOYZ_BURNA),
     ],
-    # Unselected Profiles (user-supplied reference block): Boy w/ Shoota,
-    # Boy w/ Kombi-weapon, Boy w/ Slugga (base stat line only, no wargear-
-    # swap rule text given - see game/weapons.py's ShootaProfile/
-    # KombiWeaponProfile), plus Close combat weapon (x2) (now a real class,
-    # OrkCloseCombatWeaponProfile - see WARBIKERS below, which needs the
-    # identical stat line for its own actual default loadout). No
-    # wargear-swap rule text given for the Boy's own alternates, so still a
-    # documented gap for those specifically.
-    # Official list: 10 models 75 pts / 20 models 160 pts for your 1st to 3rd
-    # Boyz unit, 85/170 from the 4th on - both now reachable, see
-    # composition_options above. The Power Klaw swap is free on the list.
     points=ORKS_POINTS["Boyz"],
     abilities_text=[
-        'Get Da Good Bitz: At the end of your Command phase, if this unit is within range of an '
-        'objective marker you control, that objective marker remains under your control, even if '
-        'you have no models within range of it, until your opponent controls it at the start or '
-        'end of any turn.',
-        'Bodyguard: If this unit has a Starting Strength of 20, you can attach up to two Leader '
-        'units to it instead of one (but only if one of those is a WARBOSS model). If you do, and '
-        'this unit is destroyed, the Leader units attached to it become separate units with their '
-        'original Starting Strengths.',
+        "Ammo Runts (Once per battle, per unit): In your Shooting phase, when this unit is selected to "
+        "shoot, you can use this ability. If you do, this unit's ranged attacks have +1 to hit rolls.",
+        "Tide of Muscle: In the Fight phase, if this unit made a charge move this turn, this unit's melee "
+        "attacks have [Lethal Hits].",
+        "Never Too Busy to Fight: Being engaged does not prevent this unit from being eligible to start "
+        "an action.",
     ],
 ))
-# Get Da Good Bitz is engine-wired (see game/squad.py's
-# squad_has_get_da_good_bitz()). Bodyguard's FIRST sentence is now wired too -
-# BoyzProfile/BossNobProfile carry `bodyguard_two_leaders`, which
-# game/attached_units.py's can_attach() reads (it used to be purely
-# descriptive, which was fine only while no army list wanted two Leaders on
-# one mob). Its SECOND sentence - the attached Leaders splitting back into
-# separate units when the mob is destroyed - is still NOT wired: that needs a
-# runtime split of an attached unit, which rule 19.04 itself never asks for
-# anywhere else, so it stays the documented gap it always was.
 
 _WARBIKER_LOADOUT = [OrkCloseCombatWeaponProfile, TwinDakkagunProfile]
 
@@ -383,40 +367,35 @@ WARBIKERS = ORKS.add_datasheet(Datasheet(
     ],
 ))
 
-_STORMBOY_LOADOUT = [SluggaProfile, ChoppaProfile]
+_STORMBOYZ_NOB_LOADOUT = [KustomChoppaProfile, SluggaProfile]
+_STORMBOY_LOADOUT = [ChoppaProfile, SluggaProfile]
 
-STORMBOYZ_CHOPPA_TO_POWER_KLAW = "Choppa -> Power Klaw"
+STORMBOYZ_NOB_TO_POWER_KLAW = "Kustom Choppa -> Power Klaw"
 
-# Two composition sizes, same pattern as Warbikers above - the original
-# 5-model build (1 Boss Nob + 4 Stormboy) plus a larger 10-model one,
-# user-supplied separately via an actual army list ("10x Stormboyz... 1x
-# Boss Nob + 9x Stormboy"). composition_index=0 is the original 5-model
-# build, 1 is this new 10-model one.
 STORMBOYZ = ORKS.add_datasheet(Datasheet(
     "Stormboyz",
-    keywords=("INFANTRY", "JUMP PACK", "FLY", "GRENADES", "STORMBOYZ"),
+    keywords=("INFANTRY", "EXPLOSIVES", "FLY", "JUMP PACK"),
+    # 2026-09 codex (rules/orks/Stormboyz.md): "1 Nob model, 4-9 Stormboy
+    # models", priced at 5 and 10 models. CORE: Deep Strike is the profile's
+    # `deep_strike`.
     composition_options=[
         [
-            ModelLine(StormboyzBossNobProfile, 1, _STORMBOY_LOADOUT, name="Boss Nob"),
+            ModelLine(StormboyzNobProfile, 1, _STORMBOYZ_NOB_LOADOUT, name="Nob"),
             ModelLine(StormboyProfile, 4, _STORMBOY_LOADOUT, name="Stormboy"),
         ],
         [
-            ModelLine(StormboyzBossNobProfile, 1, _STORMBOY_LOADOUT, name="Boss Nob"),
+            ModelLine(StormboyzNobProfile, 1, _STORMBOYZ_NOB_LOADOUT, name="Nob"),
             ModelLine(StormboyProfile, 9, _STORMBOY_LOADOUT, name="Stormboy"),
         ],
     ],
-    # Real wargear choice, user-supplied separately from the datasheet
-    # itself (an army list build: "1x Boss Nob: Slugga, Power klaw") - same
-    # pattern as Boyz's own Big-Choppa-to-Power-Klaw option above.
     wargear_options=[
-        WargearOption("Boss Nob", replaces=ChoppaProfile, with_weapons=[PowerKlawProfile], max_models=1, name=STORMBOYZ_CHOPPA_TO_POWER_KLAW),
+        WargearOption("Nob", replaces=KustomChoppaProfile, with_weapons=[PowerKlawProfile], max_models=1,
+                      name=STORMBOYZ_NOB_TO_POWER_KLAW),
     ],
-    # Official list: 5 models 65 pts / 10 models 130 pts, no per-copy tiering -
-    # both sizes modeled above, so either composition_index prices correctly.
     points=ORKS_POINTS["Stormboyz"],
     abilities_text=[
-        'Full Throttle: This unit is eligible to declare a charge in a turn in which it Advanced or '
-        'Fell Back.',
+        "Rokkit Charge: When this unit is selected to fight, if this unit made a charge move this turn, you "
+        "can use this ability. If you do, this unit's melee attacks have: +1 A and S; [Hazardous].",
     ],
 ))
 
@@ -446,34 +425,23 @@ TRUKK = ORKS.add_datasheet(Datasheet(
     ],
 ))
 
-_GRETCHIN_LOADOUT = [GretchinCloseCombatWeaponProfile, GrotBlastaProfile]
-_RUNTHERD_LOADOUT = [GrotSmackaProfile, SluggaProfile]
+_GRETCHIN_LOADOUT = [ScavengedShivsProfile, GrotBlastaProfile]
 
 GRETCHIN = ORKS.add_datasheet(Datasheet(
     "Gretchin",
-    keywords=("INFANTRY", "GRETCHIN", "GROTS"),
-    model_lines=[
-        ModelLine(GretchinProfile, 10, _GRETCHIN_LOADOUT, name="Gretchin"),
-        ModelLine(RuntherdProfile, 1, _RUNTHERD_LOADOUT, name="Runtherd"),
+    keywords=("INFANTRY", "GROTS"),
+    # 2026-09 codex (rules/orks/Gretchin.md): "10-20 Gretchin models", priced
+    # at 10 and 20. The Runtherd is a SUPPORT unit of its own now.
+    composition_options=[
+        [ModelLine(GretchinProfile, 10, _GRETCHIN_LOADOUT, name="Gretchin")],
+        [ModelLine(GretchinProfile, 20, _GRETCHIN_LOADOUT, name="Gretchin")],
     ],
-    # Unselected Profiles (user-supplied reference block): just restates
-    # both model lines' own base stats/weapons - no new classes needed,
-    # nothing left unused.
-    # Official list: this is the one entry priced per COMPOSITION rather than
-    # per bare model count ("10 Gretchin 45 / 1 Runtherd, 10 Gretchin 45 / 20
-    # Gretchin 80 / 1 Runtherd, 20 Gretchin 85 / 2 Runtherd, 20 Gretchin 90")
-    # - see game/factions/orks_points.py on why a model-count table still
-    # captures that exactly. The composition modeled here is 10 Gretchin + 1
-    # Runtherd = 11 models = 45 pts.
     points=ORKS_POINTS["Gretchin"],
     abilities_text=[
-        'Runtherd: Each time an attack targets this unit, if it contains one or more Gretchin '
-        'models, until that attack is resolved, Runtherd models in this unit have a Toughness '
-        'characteristic of 2.',
-        "Thievin' Scavengers: At the start of your Movement phase, roll one D6 for each objective "
-        'marker you control that has one or more units from your army with this ability within '
-        'range of it (excluding Battle-shocked units). If one or more of those rolls is a 4+, you '
-        'gain 1CP.',
+        "Downtrodden: For the purposes of transport capacity, each 2 Gretchin models (rounding up) take up "
+        "the space of 1 model.",
+        "Thievin' Scavengers: At the end of your Movement phase, if this unit is controlling an objective, "
+        "that objective is secured.",
     ],
 ))
 
@@ -521,45 +489,40 @@ WARBOSS = ORKS.add_datasheet(Datasheet(
 # (see game/waaagh.py). Invulnerable Save (5+) is just
 # WarbossProfile.invulnerable_save, no new code needed.
 
-_MEGANOB_LOADOUT = [KustomShootaProfile, PowerKlawProfile]
+_MEGANOB_LOADOUT = [KustomShootaAimedProfile, PowerKlawProfile]
+
+MEGANOBZ_POWER_KLAW_TO_KILLSAW = "Power Klaw -> Killsaw"
+MEGANOBZ_KUSTOM_SHOOTA_TO_KOMBI_WEAPON = "Kustom Shoota -> Kombi-weapon"
+MEGANOBZ_TO_TWIN_KILLSAWS = "Power Klaw + Kustom Shoota -> Twin Killsaws"
 
 MEGANOBZ = ORKS.add_datasheet(Datasheet(
     "Meganobz",
-    keywords=("INFANTRY", "GRENADES", "MEGANOBZ", "MEGA ARMOUR"),
-    # Two composition sizes, same pattern as Warbikers/Stormboyz's own
-    # 2-size handling - the original 2-model build plus a larger 6-model
-    # one, user-supplied separately via an actual army list ("6x Meganobz:
-    # 6 with Kustom shoota, Power klaw"). composition_index=0 is the
-    # original 2-model build, 1 is this new 6-model one. No separate Boss
-    # Nob/leader ModelLine on this datasheet (unlike Boyz/Stormboyz/
-    # Warbikers) - every model shares MeganobzProfile's exact stat line and
-    # loadout regardless of unit size.
+    keywords=("INFANTRY", "EXPLOSIVES", "MEGA ARMOUR"),
+    # 2026-09 codex (rules/orks/Meganobz.md): "2-6 Meganob models", priced at
+    # 2, 3, 5 and 6 - the four composition_options in that order, so index 3
+    # is the 6-model build.
     composition_options=[
-        [ModelLine(MeganobzProfile, 2, _MEGANOB_LOADOUT, name="Meganob")],
-        [ModelLine(MeganobzProfile, 6, _MEGANOB_LOADOUT, name="Meganob")],
+        [ModelLine(MeganobzProfile, count, _MEGANOB_LOADOUT, name="Meganob")] for count in (2, 3, 5, 6)
     ],
-    # Unselected Profiles (user-supplied reference block): Kombi-weapon (x2)
-    # - not a new class, identical stat line to KombiWeaponProfile (Boyz'
-    # own Unselected Profiles entry, already reused as-is by Warboss);
-    # Killsaw (x3)/Twin killsaw - now real classes (KillsawProfile/
-    # TwinKillsawProfile, see game/weapons.py), Power klaw (x3) reuses the
-    # existing PowerKlawProfile (identical A3 WS4+ S9 AP-2 D2 stat line to
-    # Boyz/Stormboyz/Warbikers' shared Boss Nob upgrade). No wargear-swap
-    # rule text given for any of these, so no wargear_options yet - same
-    # documented gap as every other datasheet's own Unselected Profiles.
-    # Official list: 2/3/5/6-model sizes (60/90/150/180 pts for your
-    # 1st-2nd unit, 80/110/170/200 from the 3rd on) - only 2 and 6 are
-    # modeled above (the two sizes an actual list has needed so far), 3/5
-    # remain priced but unreachable, same "some sizes modeled, the rest
-    # priced but unbuilt" pattern as Boyz'/Kroot Carnivores' own larger
-    # composition.
+    # "Any number of models can each..." - no cap. The Twin Killsaws option
+    # gives up both weapons the other two options each give up one of, so all
+    # three share build_squad()'s cursor and never land on the same model.
+    wargear_options=[
+        WargearOption("Meganob", replaces=PowerKlawProfile, with_weapons=[KillsawProfile],
+                      name=MEGANOBZ_POWER_KLAW_TO_KILLSAW,
+                      points=ORKS_POINTS["Meganobz"].wargear["Killsaw"]),
+        WargearOption("Meganob", replaces=KustomShootaAimedProfile, with_weapons=[KombiWeaponShootaProfile],
+                      name=MEGANOBZ_KUSTOM_SHOOTA_TO_KOMBI_WEAPON),
+        WargearOption("Meganob", replaces=(PowerKlawProfile, KustomShootaAimedProfile),
+                      with_weapons=[TwinKillsawProfile], name=MEGANOBZ_TO_TWIN_KILLSAWS,
+                      points=ORKS_POINTS["Meganobz"].wargear["Twin Killsaws"]),
+    ],
     points=ORKS_POINTS["Meganobz"],
     abilities_text=[
-        "Krumpin' Time: NOT ENGINE-WIRED - retired with the old Waaagh! (2026-09 codex).",
+        "Arrogant Invulnerability: Attacks that target this unit have -1 AP.",
+        "Krumpin' Time: In the Fight phase, if this unit is riled up, this unit has +1 to hit rolls.",
     ],
 ))
-# Krumpin' Time was retired with the old Waaagh! - see this module's own
-# docstring.
 
 _WARBOSS_MEGA_ARMOUR_LOADOUT = [BigShootaProfile, UgeChoppaProfile]
 
@@ -717,11 +680,9 @@ DEFF_DREAD = ORKS.add_datasheet(Datasheet(
 # DeffDreadProfile.invulnerable_save, no new code needed.
 
 _BEAST_SNAGGA_NOB_LOADOUT = [PowerSnappaProfile, SluggaProfile]
-# BeastSnaggaChoppaProfile, NOT Boyz' own ChoppaProfile - this datasheet's
-# printed Choppa is S5 where Boyz' is S4 (see game/weapons.py's own note).
 _BEAST_SNAGGA_BOY_LOADOUT = [BeastSnaggaChoppaProfile, SluggaProfile]
 
-BEAST_SNAGGA_BOYZ_THUMP_GUN = "Slugga + Choppa -> Thump Gun"
+BEAST_SNAGGA_BOYZ_THUMP_GUN = "+ Thump Gun"
 FLASH_GITZ_AMMO_RUNT = "Ammo Runt"
 
 
@@ -731,68 +692,35 @@ def _apply_ammo_runt(token):
     resolved at shooting time, see game/ammo_runt.py."""
     token.ammo_runt = True
 
+
 BEAST_SNAGGA_BOYZ = ORKS.add_datasheet(Datasheet(
     "Beast Snagga Boyz",
-    keywords=("BATTLELINE", "INFANTRY", "MOB", "BEAST SNAGGA", "BEAST SNAGGA BOYZ"),
-    model_lines=[
-        ModelLine(BeastSnaggaNobProfile, 1, _BEAST_SNAGGA_NOB_LOADOUT, name="Beast Snagga Nob"),
-        ModelLine(BeastSnaggaBoyProfile, 9, _BEAST_SNAGGA_BOY_LOADOUT, name="Beast Snagga Boy"),
+    keywords=("INFANTRY", "BATTLELINE", "BEAST SNAGGA", "MOB"),
+    # 2026-09 codex (rules/orks/Beast Snagga Boyz.md): "1-2 Nob models, 9-18
+    # Beast Snagga Boy models", priced at 10 and 20 - Boyz' shape exactly.
+    composition_options=[
+        [
+            ModelLine(BeastSnaggaNobProfile, 1, _BEAST_SNAGGA_NOB_LOADOUT, name="Nob"),
+            ModelLine(BeastSnaggaBoyProfile, 9, _BEAST_SNAGGA_BOY_LOADOUT, name="Beast Snagga Boy"),
+        ],
+        [
+            ModelLine(BeastSnaggaNobProfile, 2, _BEAST_SNAGGA_NOB_LOADOUT, name="Nob"),
+            ModelLine(BeastSnaggaBoyProfile, 18, _BEAST_SNAGGA_BOY_LOADOUT, name="Beast Snagga Boy"),
+        ],
     ],
-    # The second user-supplied stat block (a lone "Beast Snagga Boy" with
-    # Thump gun + Close combat weapon instead of Slugga + Choppa) is modeled
-    # as a real wargear option rather than a second composition: it shares
-    # this datasheet's exact stat line and only its weapons differ, which is
-    # what a WargearOption is. The alternate block prints NEITHER a Slugga
-    # nor a Choppa, so both are given up at once - hence the two-weapon
-    # `replaces` (see WargearOption's own note on why that form exists, and
-    # how it differs from Tankbustas' "replace-then-re-add" shape).
-    #
-    # ASSUMPTION, flagged: no "Wargear Options" rule text was supplied for
-    # this datasheet, so the cap is inferred rather than quoted.
-    # per_models=10 encodes the conventional wording for exactly this kind
-    # of upgrade ("for every 10 models in this unit, 1 model can be equipped
-    # with..."), which is also what the published points list points to - it
-    # carries no per-thump-gun cost, i.e. a fixed allowance rather than a
-    # paid per-model upgrade. For the 10-model composition modeled here it
-    # resolves to 1 either way; per_models is preferred over a flat
-    # max_models=1 only because it stays right if the 20-model build is ever
-    # modeled.
+    # "For every 10 models in this unit, 1 Beast Snagga Boy model can be
+    # equipped with 1 Thump Gun" - an addition, the Choppa and Slugga stay.
     wargear_options=[
-        WargearOption(
-            "Beast Snagga Boy", replaces=(SluggaProfile, BeastSnaggaChoppaProfile),
-            with_weapons=[ThumpGunProfile, BeastSnaggaCloseCombatWeaponProfile],
-            per_models=10, name=BEAST_SNAGGA_BOYZ_THUMP_GUN,
-        ),
+        WargearOption("Beast Snagga Boy", replaces=None, with_weapons=[ThumpGunProfile], per_models=10,
+                      name=BEAST_SNAGGA_BOYZ_THUMP_GUN),
     ],
-    # Official list: 10 models 90 pts / 20 models 170 pts, no per-copy
-    # tiering. Only the 10-model build is modeled here (model_lines, not
-    # composition_options), so the 20-model price is carried but not yet
-    # reachable - same "one size modeled, the rest priced but unbuilt"
-    # pattern as Boyz'/Deffkoptas' own larger composition. The thump gun
-    # swap is free on the list.
     points=ORKS_POINTS["Beast Snagga Boyz"],
     abilities_text=[
-        'Monster Hunters: Each time a model in this unit makes an attack that targets a MONSTER or '
-        'VEHICLE unit, you can re-roll the Hit roll.',
-        'Feel No Pain 6+: Each time an attack is allocated to this model, roll one D6: on a 6, that '
-        'attack is ignored.',
+        "Mobbed: When this unit ends a charge move, each enemy MONSTER/VEHICLE unit engaged with this unit "
+        "makes a battle-shock roll: with -1 to that battle-shock roll, or with -2 to that battle-shock roll "
+        "if this unit has 13+ models.",
     ],
 ))
-# Monster Hunters IS engine-wired - see game/monster_hunters.py, hooked into
-# BOTH game/shooting.py's and game/fight.py's own hit-roll step (its text
-# says "makes an attack", not "makes a ranged attack" - the same both-phases
-# reasoning as Tankbustas' own Tank Hunters). Note it re-rolls the WHOLE Hit
-# roll rather than just the misses, on the same literal reading of "you can
-# re-roll the Hit roll" that decided Breach and Clear/Sunforge - see that
-# module's docstring. Feel No Pain 6+ needs no new code at all -
-# `feel_no_pain` is an existing generic UnitProfile field (rule 24.12),
-# already read wherever damage is allocated. This datasheet's `waaagh` flag
-# is set on both its profiles like every other Ork unit here.
-#
-# NOTE: this datasheet is NOT in any demo army yet (main.py) - same status as
-# the T'au Riptide/Pathfinder Team when each was first added. It also has no
-# sprite in Sprites/, so it renders as a plain token (missing art is fine by
-# this project's convention, see game/sprites.py).
 
 _BEASTBOSS_LOADOUT = [BeastSnaggaKlawProfile, BeastchoppaProfile, ShootaProfile]
 

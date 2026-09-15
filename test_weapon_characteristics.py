@@ -83,13 +83,12 @@ VALUE_EXCEPTIONS = {}   # empty, and that is the point - see the docstring
 # stage deletes this block and its three A/B probes.
 CORPUS_AHEAD = {
     "orks": {
-        "Battlewagon", "Beast Snagga Boyz", "Beastboss", "Boyz", "Deff Dread",
-        "Deffkoptas", "Flash Gitz", "Gretchin", "Kill Rig", "Meganobz", "Painboy",
-        "Stormboyz", "Tankbustas", "Trukk", "Warbikers", "Warboss",
+        "Battlewagon", "Beastboss", "Deff Dread", "Deffkoptas", "Flash Gitz",
+        "Kill Rig", "Painboy", "Tankbustas", "Trukk", "Warbikers", "Warboss",
         "Warboss in Mega Armour",
     },
 }
-EXPECTED_AHEAD = 17
+EXPECTED_AHEAD = 12
 
 _AHEAD_KEYS = {(folder, normalise_name(name))
                for folder, names in CORPUS_AHEAD.items() for name in names}
