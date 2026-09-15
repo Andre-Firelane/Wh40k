@@ -9836,11 +9836,61 @@ def _choose_shooting_target_and_weapon(agent, memory, player, all_tokens, shooti
             return True
         weapons = shooting_controller.weapon_eligibility()
         if weapons:
-            shooting_controller.choose_weapon(weapons[0][0])
+            _choose_weapon_group(shooting_controller, weapons[0][0])
         # choose_weapon() just kicked off the hit roll - leave it pending,
         # the human clicks through hit/wound/save/damage from here on,
         # exactly like any other shot (see take_one_action()'s docstring).
     return True
+
+
+def _profile_value(model, weapon, skill, d_profile):
+    """Expected wounds one (model, profile) pair inflicts. [TORRENT] makes no
+    Hit roll (24.37), but observation.expected_wounds() always applies one and
+    reads a printed "N/A" as 4+ - valued that way, a Kombi-weapon's Point Blank
+    torrent would lose to a Kill Shot it should beat. So a torrent profile is
+    valued at 2+ and divided back out of the best a D6 can do (5/6)."""
+    if getattr(weapon, "torrent", False):
+        return observation.expected_wounds(weapon, weapon.attacks, "2+", d_profile) * 6.0 / 5.0
+    return observation.expected_wounds(weapon, weapon.attacks, skill, d_profile)
+
+
+def _best_profile_index(controller, weapon_key, melee=False):
+    """Which profile of a multi-profile weapon group to fire at the chosen
+    target (rule 04.01.03), deterministically - no API call.
+
+    Each profile the controller offers is valued by the expected wounds its
+    pairs inflict on the target's first model, and the best wins; the first
+    profile wins a tie. A [HAZARDOUS] profile is never picked: its price is a
+    model, and nothing in this valuation weighs that. None when there is no
+    choice at all (one profile, or a controller that cannot say)."""
+    options_for = getattr(controller, "profile_options", None)
+    pairs_for = getattr(controller, "profile_pairs", None)
+    target = getattr(controller, "target_squad", None)
+    if options_for is None or pairs_for is None or target is None or not target.models:
+        return None
+    options = options_for(weapon_key)
+    if len(options) < 2:
+        return None
+    d_profile = target.models[0].profile
+    skill_of = fight_module.effective_weapon_skill if melee else shooting_module.effective_ballistic_skill
+    best_index, best_value = None, None
+    for index, _label, hazardous, _eligible, _total in options:
+        if hazardous:
+            continue
+        value = sum(_profile_value(m, w, skill_of(m, w), d_profile) for m, w in pairs_for(weapon_key, index))
+        if best_value is None or value > best_value:
+            best_index, best_value = index, value
+    return best_index
+
+
+def _choose_weapon_group(controller, weapon_key, melee=False):
+    """choose_weapon() with the best profile for a multi-profile group, and
+    exactly the old call for everything else."""
+    index = _best_profile_index(controller, weapon_key, melee=melee)
+    if index is None:
+        controller.choose_weapon(weapon_key)
+    else:
+        controller.choose_weapon(weapon_key, profile=index)
 
 
 def _handle_shooting(agent, memory, player, all_tokens, shooting_controller, explosives_controller, on_thinking, greater_good_controller=None, plan=None, charge_controller=None, arrokon_controller=None, conquering_tyrant_controller=None, game_log=None, cynosure_controller=None, solar_pulse_controller=None, close_range_dakka_controller=None):
@@ -9893,7 +9943,7 @@ def _handle_shooting(agent, memory, player, all_tokens, shooting_controller, exp
     ):
         weapons = shooting_controller.weapon_eligibility()
         if weapons:
-            shooting_controller.choose_weapon(weapons[0][0])
+            _choose_weapon_group(shooting_controller, weapons[0][0])
         else:
             # Nothing left that can reach the chosen target - end the
             # activation rather than returning True forever without progress.
@@ -11934,7 +11984,7 @@ def _choose_melee_weapon(agent, player, all_tokens, fight_controller, squad, wea
     best = valued[0]
     rivals = _melee_group_rivals(best[2], valued[1:])
     if not rivals:
-        fight_controller.choose_weapon(best[0])
+        _choose_weapon_group(fight_controller, best[0], melee=True)
         return
 
     contenders = [best] + rivals
@@ -11952,7 +12002,7 @@ def _choose_melee_weapon(agent, player, all_tokens, fight_controller, squad, wea
     ]
     chosen = _choose(agent, all_tokens, fight_controller.turn_tracker, options, player, on_thinking)
     key = next((k for k, label, _p, _v in contenders if label == chosen["weapon"]), best[0])
-    fight_controller.choose_weapon(key)
+    _choose_weapon_group(fight_controller, key, melee=True)
 
 
 def _defender_is_deciding(fight_controller):

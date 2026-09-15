@@ -81,10 +81,12 @@ GATE_OLD = """    return weapon.close_quarters or weapon.pistol"""
 # Close-Quarters option at all, _weapon_eligible_for_type() decides which of
 # its weapons may then fire. The report is BOTH, and either alone leaves the
 # squad half-armed.
-TYPES_NEW = ("    has_close_quarters = any(is_close_quarters(w, squad) "
-             "for plist in groups.values() for _, w in plist)")
-TYPES_OLD = ("    has_close_quarters = any((w.close_quarters or w.pistol) "
-             "for plist in groups.values() for _, w in plist)")
+TYPES_NEW = ("    has_close_quarters = any(is_close_quarters(p, squad) "
+             "for plist in groups.values() for _, w in plist\n"
+             "                             for p in weapon_profiles.profiles(w))")
+TYPES_OLD = ("    has_close_quarters = any((p.close_quarters or p.pistol) "
+             "for plist in groups.values() for _, w in plist\n"
+             "                             for p in weapon_profiles.profiles(w))")
 
 ELIGIBLE_NEW = ("        return True if is_monster_or_vehicle_unit(squad) "
                 "else is_close_quarters(weapon, squad)")

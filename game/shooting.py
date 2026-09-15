@@ -33,7 +33,7 @@ from game.fire_support import FIRE_SUPPORT_LABEL
 from game.hand_of_asuryan import hand_of_asuryan_adjusted_weapon
 from game.notation_reroll import DamageRerollOffer
 from game.weapons import NON_MONSTER_VEHICLE, anti_entries
-from game import conditional_devastating_wounds
+from game import conditional_keywords, weapon_profiles
 from game import corsair_abilities
 from game import reavers_of_the_void
 from game import structural_collapse
@@ -161,43 +161,12 @@ def _resolve_roll(roll, threshold, crit_threshold=6):
     return "fail"
 
 
-_KEYWORD_FIELDS = {
-    "INFANTRY": "infantry", "BEASTS": "beasts", "SWARM": "swarm", "MOBILE": "mobile",
-    "CHARACTER": "character", "MONSTER": "monster", "VEHICLE": "vehicle",
-    # The Visarch's mythic stance prints [ANTI-EPIC HERO 2+] - the first
-    # weapon here to name that keyword, and the profile flag already
-    # existed for rule 15.03 (Epic Challenge).
-    "EPIC HERO": "epic_hero",
-}
+# "Does this unit have keyword X" lives in game/unit_keywords.py since the
+# Ork codex's conditional weapon abilities became its second consumer;
+# re-exported under the old private names so no call site here moved.
+from game.unit_keywords import KEYWORD_FIELDS as _KEYWORD_FIELDS  # noqa: E402
+from game.unit_keywords import unit_has_keyword as _unit_has_keyword  # noqa: E402
 
-
-def _unit_has_keyword(squad, keyword):
-    """Whether ANY model in squad has the named keyword - used by rule
-    24.03's [ANTI-X Y+]. Only the keywords we actually model as UnitProfile
-    fields are recognized (see the Boyz entry in CLAUDE.md's Später-Liste
-    for why there's no generic keyword system yet); an unrecognized keyword
-    (e.g. PSYKER) never matches.
-
-    Rule 19.03 (Keywords in Attached Units): "An attached unit has all of
-    the keywords of all of its component units" - e.g. a Leader model with
-    PSYKER gives the whole attached unit the PSYKER keyword even though its
-    bodyguard models don't have it, so [ANTI-PSYKER] still triggers against
-    that unit regardless of which specific model the wound is allocated to.
-    any(), not all(): for an ordinary (non-attached) unit every model
-    shares the same keywords anyway, so this is behaviorally identical to
-    the old all()-based check there - the difference only matters once a
-    squad actually mixes profiles (an attached unit, rule 19.01)."""
-    if keyword == NON_MONSTER_VEHICLE:
-        # The NEGATED form, which no keyword field can express - the
-        # Stonesinger prints [ANTI-non-MONSTER/VEHICLE X+]. Answered as the
-        # exact complement of is_monster_or_vehicle_unit(), which is the
-        # same pair Monster Hunters and Grim Reapers already use to divide
-        # the board between them.
-        return not is_monster_or_vehicle_unit(squad)
-    field = _KEYWORD_FIELDS.get(keyword)
-    if field is None:
-        return False
-    return any(getattr(m.profile, field, False) for m in squad.models)
 
 
 #: Rule 24.03's [ANTI-X Y+] as a uniform sequence of (keyword, threshold).
@@ -526,10 +495,37 @@ def _attack_key(model, weapon):
             # MODEL, so a mixed attached unit must not share a group. Seventh
             # instance of the one-representative fix; (False, False) for every
             # player not fielding that detachment, so no existing group splits.
-            necron_detachments.attack_key(model))
+            necron_detachments.attack_key(model),
+            # Rule 04.01.03: two weapons whose FIRST profiles coincide can
+            # differ in the rest (a Boy's Shoota and his Nob's Kombi-skorcha
+            # both print 18" A2 S4) - grouped together, picking the Skorcha
+            # would strand the Shootas. () for every single-profile weapon, so
+            # no existing group splits. See game/weapon_profiles.py.
+            weapon_profiles.chain_key(weapon))
 
 
 def _weapon_eligible_for_type(weapon, shooting_type, squad):
+    """Whether ANY profile of this weapon may fire under `shooting_type`.
+
+    Rule 04.01.03 makes the PROFILE, not the weapon, what fires: Meganobz'
+    Kustom Shoota is 18" "Aimed" and 6" [CLOSE-QUARTERS] "Point Blank", and
+    only the second may shoot while engaged. Asked of the carried weapon
+    alone, the unit could never select it in Close-Quarters shooting. See
+    game/weapon_profiles.py."""
+    return any(_profile_eligible_for_type(p, shooting_type, squad)
+               for p in weapon_profiles.profiles(weapon))
+
+
+def _firing_profiles(weapon, shooting_type, squad, target_squad):
+    """The profiles of this weapon that may fire at `target_squad` under
+    `shooting_type`: allowed by the type (10.05/10.06) and, for a Hunter
+    profile, by the target's keywords (04.01.03)."""
+    return [p for p in weapon_profiles.profiles(weapon)
+            if (shooting_type is None or _profile_eligible_for_type(p, shooting_type, squad))
+            and weapon_profiles.hunter_allows(p, target_squad)]
+
+
+def _profile_eligible_for_type(weapon, shooting_type, squad):
     """Rule 10.05/10.06: Assault shooting only uses [ASSAULT] weapons;
     Close-Quarters shooting only uses [CLOSE-QUARTERS] weapons unless the
     unit is a MONSTER/VEHICLE unit (which can use any weapon, at a hit
@@ -568,7 +564,24 @@ def _side_locked_out(model, weapon, shooting_type, side_lock):
     if model.profile.monster or model.profile.vehicle:
         return False
     locked = side_lock.get(model)
-    return locked is not None and locked != _weapon_side(weapon, getattr(model, "squad", None))
+    if locked is None:
+        return False
+    # Rule 04.01.03: a weapon is only locked out if EVERY profile it could fire
+    # with is on the other side - a Meganob that fired a [CLOSE-QUARTERS] Point
+    # Blank keeps that profile, not its 18" Aimed one.
+    squad = getattr(model, "squad", None)
+    return all(locked != _weapon_side(profile, squad) for profile in weapon_profiles.profiles(weapon))
+
+
+def _profile_side_locked(model, profile, shooting_type, side_lock):
+    """_side_locked_out() for ONE profile - the question a SELECTED profile
+    has to answer, where _side_locked_out() answers it for the whole weapon."""
+    if shooting_type == CLOSE_QUARTERS_SHOOTING:
+        return False
+    if model.profile.monster or model.profile.vehicle:
+        return False
+    locked = side_lock.get(model)
+    return locked is not None and locked != _weapon_side(profile, getattr(model, "squad", None))
 
 
 def _attack_groups(squad, shooting_type=None, side_lock=None, one_shot_used=None):
@@ -603,9 +616,9 @@ def _overcharge_instance(weapon):
     same "never share weapon instances" invariant ModelLine's own docstring
     documents. The tag exists purely for rule 24.26's [ONE SHOT] ledger, which
     is keyed by weapon instance - see _finish_group()."""
-    instance = weapon.overcharge_profile()
-    instance.overcharge_of_id = id(weapon)
-    return instance
+    # Built once and cached per carried instance by game/weapon_profiles.py,
+    # so the rule-10.02 reach snapshot can hold an answer for it.
+    return weapon_profiles.profiles(weapon)[1]
 
 
 def _group_label(pairs):
@@ -645,13 +658,18 @@ def available_shooting_types(squad, all_tokens, movement_controller=None):
     advanced = movement_controller is not None and squad in movement_controller.advanced_squad_ids
 
     groups = _attack_groups(squad)  # unfiltered - just checking which weapon keywords exist at all
-    has_assault = any(weapon_has_assault(w, squad) for plist in groups.values() for _, w in plist)
+    # Every PROFILE counts (rule 04.01.03) - Meganobz can Close-Quarters shoot
+    # because their Kustom Shoota's second profile is [CLOSE-QUARTERS].
+    has_assault = any(weapon_has_assault(p, squad) for plist in groups.values() for _, w in plist
+                      for p in weapon_profiles.profiles(w))
     # is_close_quarters(w, squad), not w.pistol: Blades of Asuryan grants
     # [PISTOL] to the whole unit, and THIS is the gate that decides whether
     # an engaged unit may shoot at all - the one thing the grant is bought
     # for. See is_close_quarters()'s own docstring for the report.
-    has_close_quarters = any(is_close_quarters(w, squad) for plist in groups.values() for _, w in plist)
-    has_indirect_fire = any(w.indirect_fire for plist in groups.values() for _, w in plist)
+    has_close_quarters = any(is_close_quarters(p, squad) for plist in groups.values() for _, w in plist
+                             for p in weapon_profiles.profiles(w))
+    has_indirect_fire = any(p.indirect_fire for plist in groups.values() for _, w in plist
+                            for p in weapon_profiles.profiles(w))
 
     # Guardian Battlehost's Time to Strike and Windrider Host's Wind of Blades
     # both say "your unit is eligible to shoot ... in a turn in which it
@@ -860,7 +878,7 @@ class ShootingController:
         # split-fire
         self.assignment_queue = []   # [(model, weapon), ...] still needing a target
         self.assignments = {}        # (attack_key, target_squad) -> [(model, weapon), ...]
-        self.assignment_overcharge = False  # alternate firing mode armed for the NEXT assignment - see toggle_assignment_overcharge()
+        self.assignment_profile = 0  # which of the front pair's armable profiles (rule 04.01.03) is armed for the NEXT assignment - see toggle_assignment_overcharge(); assignment_overcharge is its old bool view
         self.resolved_groups = []    # queued {"weapon_key", "weapon_label", "target_squad", "pairs"} dicts
 
         self.current_group = None    # the group currently being rolled
@@ -1517,10 +1535,11 @@ class ShootingController:
         return any(
             self._is_valid_target_squad(target_squad, all_tokens, attacking_squad=squad, shooting_type=shooting_type)
             and any(
-                _model_can_reach(model, weapon, target_squad, self.obstacles,
+                _model_can_reach(model, profile, target_squad, self.obstacles,
                                  self._detectable_models(target_squad, squad),
                                  all_tokens, shooting_type, self.terrain_areas)
                 for model, weapon in pairs
+                for profile in _firing_profiles(weapon, shooting_type, squad, target_squad)
             )
             for target_squad in candidate_squads
         )
@@ -1637,14 +1656,19 @@ class ShootingController:
         # selected later, which is a separate question from "could this
         # weapon reach this target at the moment the target was picked".
         for pairs in _attack_groups(self.active_squad, self.shooting_type).values():
-            for model, weapon in pairs:
-                key = (model, id(weapon), target_squad)
-                if key not in self._reach_snapshot:
-                    self._reach_snapshot[key] = _model_can_reach(
-                        model, weapon, target_squad, self.obstacles,
-                        self._detectable_models(target_squad, self.active_squad),
-                        self.all_tokens, self.shooting_type, self.terrain_areas,
-                    )
+            for model, carried in pairs:
+                # Every PROFILE, not only the carried one: rule 04.01.03's
+                # profiles can differ in Range (a Kombi-weapon's 24" Kill Shot
+                # and 12" Point Blank), and game/weapon_profiles.py hands back
+                # stable instances, so _can_reach() finds these entries again.
+                for weapon in weapon_profiles.profiles(carried):
+                    key = (model, id(weapon), target_squad)
+                    if key not in self._reach_snapshot:
+                        self._reach_snapshot[key] = _model_can_reach(
+                            model, weapon, target_squad, self.obstacles,
+                            self._detectable_models(target_squad, self.active_squad),
+                            self.all_tokens, self.shooting_type, self.terrain_areas,
+                        )
 
     def _can_reach(self, model, weapon, target_squad):
         """_model_can_reach() as it was answered when this target was
@@ -1706,9 +1730,10 @@ class ShootingController:
             def check(squad):
                 visible = self._detectable_models(squad, self.active_squad)
                 return self._is_valid_target_squad(squad, all_tokens) and any(
-                    _model_can_reach(model, weapon, squad, self.obstacles, visible,
+                    _model_can_reach(model, profile, squad, self.obstacles, visible,
                                      all_tokens, self.shooting_type, self.terrain_areas)
                     for model, weapon in pairs
+                    for profile in _firing_profiles(weapon, self.shooting_type, self.active_squad, squad)
                 )
 
             return {
@@ -1717,11 +1742,15 @@ class ShootingController:
             }
 
         if self.state == ASSIGNING and self.assignment_queue:
-            model, weapon = self.assignment_queue[0]
+            model, carried = self.assignment_queue[0]
+            # The ARMED profile (rule 04.01.03) - a Hunter one highlights only
+            # the targets it may be assigned to.
+            weapon = self._armed_assignment_profile(model, carried)
             cache = {}
 
             def check(squad):
-                return self._is_valid_target_squad(squad, all_tokens) and _model_can_reach(
+                return (self._is_valid_target_squad(squad, all_tokens)
+                        and weapon_profiles.hunter_allows(weapon, squad)) and _model_can_reach(
                     model, weapon, squad, self.obstacles,
                     self._detectable_models(squad, self.active_squad),
                     all_tokens, self.shooting_type, self.terrain_areas
@@ -1765,14 +1794,124 @@ class ShootingController:
         result = []
         for key in self.remaining_weapon_types:
             pairs = groups.get(key, [])
-            eligible = sum(1 for m, w in pairs if self._can_reach(m, w, self.target_squad))
-            overcharge_cls = pairs[0][1].overcharge_profile if pairs else None
-            overcharge_label = overcharge_cls().name if overcharge_cls is not None else None
-            result.append((key, _group_label(pairs), eligible, len(pairs), overcharge_label))
+            # Rule 04.01.03: the entry is the group's FIRST SELECTABLE profile -
+            # normally the carried one, but not when the shooting type or a
+            # Hunter restriction rules it out (Close-Quarters shooting offers a
+            # Meganob's Kustom Shoota as its Point Blank). overcharge_label is
+            # the second selectable profile, kept for its existing readers;
+            # profile_options() lists them all.
+            options = self._profile_options_for(pairs)
+            if options:
+                _index, label, _hazardous, eligible, _total = options[0]
+            else:
+                label, eligible = _group_label(pairs), 0
+            overcharge_label = options[1][1] if len(options) > 1 else None
+            result.append((key, label, eligible, len(pairs), overcharge_label))
 
         self._weapon_eligibility_cache_key = cache_key
         self._weapon_eligibility_cache_result = result
         return result
+
+    # --- rule 04.01.03: a weapon's profiles ---------------------------------
+
+    def _profile_pairs(self, pairs, index):
+        """(model, profile instance) for every pair of a group whose weapon HAS
+        profile `index` and may fire it: allowed by the shooting type, by rule
+        24.07's side lock, and - against the chosen target - by a Hunter
+        restriction."""
+        out = []
+        for model, weapon in pairs:
+            chain = weapon_profiles.profiles(weapon)
+            if index >= len(chain):
+                continue
+            profile = chain[index]
+            if self.shooting_type is not None and not _profile_eligible_for_type(
+                    profile, self.shooting_type, self.active_squad):
+                continue
+            if _profile_side_locked(model, profile, self.shooting_type, self._weapon_side_lock):
+                continue
+            if not weapon_profiles.hunter_allows(profile, self.target_squad):
+                continue
+            out.append((model, profile))
+        return out
+
+    def _profile_options_for(self, pairs):
+        """[(profile index, label, hazardous, eligible, total), ...] - one entry
+        per profile at least one pair of this group may fire at the chosen
+        target. A single-profile group gives exactly one entry, with the same
+        label and eligible count this screen always showed."""
+        if self.target_squad is None:
+            return []
+        longest = max((len(weapon_profiles.profiles(w)) for _, w in pairs), default=0)
+        options = []
+        for index in range(longest):
+            profile_pairs = self._profile_pairs(pairs, index)
+            if not profile_pairs:
+                continue
+            eligible = sum(1 for m, w in profile_pairs if self._can_reach(m, w, self.target_squad))
+            options.append((index, _group_label(profile_pairs),
+                            any(w.hazardous for _, w in profile_pairs), eligible, len(profile_pairs)))
+        return options
+
+    def profile_options(self, weapon_key):
+        """Every profile the group `weapon_key` may fire at the chosen target -
+        what the weapon-choice screen draws a button for, and what the AI
+        values (rule 04.01.03)."""
+        if self.active_squad is None or self.target_squad is None:
+            return []
+        groups = _attack_groups(self.active_squad, self.shooting_type, self._weapon_side_lock, self.one_shot_used)
+        return self._profile_options_for(groups.get(weapon_key, []))
+
+    def profile_pairs(self, weapon_key, index):
+        """The (model, profile) pairs that would fire if `index` were chosen
+        for `weapon_key`, already filtered by reach - for the AI's valuation."""
+        if self.active_squad is None or self.target_squad is None:
+            return []
+        groups = _attack_groups(self.active_squad, self.shooting_type, self._weapon_side_lock, self.one_shot_used)
+        return [(m, w) for m, w in self._profile_pairs(groups.get(weapon_key, []), index)
+                if self._can_reach(m, w, self.target_squad)]
+
+    def _assignment_profiles(self, model, weapon):
+        """Split Fire's armable profiles for one queued model and weapon: those
+        the shooting type allows and 24.07's side lock leaves open. The target
+        is not picked yet, so a Hunter profile may be armed and bounces in
+        assign_current() off a target without its keywords."""
+        return [p for p in weapon_profiles.profiles(weapon)
+                if (self.shooting_type is None
+                    or _profile_eligible_for_type(p, self.shooting_type, self.active_squad))
+                and not _profile_side_locked(model, p, self.shooting_type, self._weapon_side_lock)]
+
+    def _armed_assignment_profile(self, model, weapon):
+        options = self._assignment_profiles(model, weapon)
+        if not options:
+            return weapon
+        index = self.assignment_profile
+        return options[index] if 0 <= index < len(options) else options[0]
+
+    def armed_assignment_profile(self):
+        """The profile the NEXT Split Fire assignment would fire, or None."""
+        current = self.current_assignment()
+        if current is None:
+            return None
+        return self._armed_assignment_profile(*current)
+
+    def assignment_profile_names(self):
+        """The armable profile names of the pair awaiting a target, in order."""
+        current = self.current_assignment()
+        if current is None:
+            return []
+        return [p.name for p in self._assignment_profiles(*current)]
+
+    @property
+    def assignment_overcharge(self):
+        """The old two-mode view of `assignment_profile`: True while anything
+        but the first armable profile is armed. Kept because Split Fire's
+        readers and tests speak in it; the state is the index."""
+        return getattr(self, "assignment_profile", 0) != 0
+
+    @assignment_overcharge.setter
+    def assignment_overcharge(self, value):
+        self.assignment_profile = 1 if value else 0
 
     def choose_target_squad(self, target_squad):
         if self.state != CHOOSING_TARGET or self.split_fire:
@@ -1850,7 +1989,7 @@ class ShootingController:
             return
         self._finish_squad()
 
-    def choose_weapon(self, weapon_key, overcharge=False):
+    def choose_weapon(self, weapon_key, overcharge=False, profile=None):
         """overcharge=True fires this weapon group in its alternate
         high-power mode instead (e.g. Ghostkeel's Cyclic Ion Raker
         Overcharge) - only meaningful when weapon_eligibility() reported
@@ -1864,11 +2003,25 @@ class ShootingController:
         if self.state != CHOOSING_WEAPON or weapon_key not in self.remaining_weapon_types:
             return
         groups = _attack_groups(self.active_squad, self.shooting_type, self._weapon_side_lock, self.one_shot_used)
-        pairs = [(m, w) for m, w in groups.get(weapon_key, []) if self._can_reach(m, w, self.target_squad)]
-        if overcharge:
-            pairs = [(m, _overcharge_instance(w)) for m, w in pairs if w.overcharge_profile is not None]
-            if not pairs:
-                return
+        group = groups.get(weapon_key, [])
+        # Rule 04.01.03: `profile` is an index into the weapon's profile chain;
+        # None means the group's first selectable one, and overcharge=True the
+        # second (the two-mode spelling every existing caller uses).
+        options = self._profile_options_for(group)
+        explicit = overcharge or profile is not None
+        if profile is None:
+            if overcharge:
+                if len(options) < 2:
+                    return
+                profile = options[1][0]
+            else:
+                profile = options[0][0] if options else 0
+        elif profile not in [option[0] for option in options]:
+            return
+        pairs = [(m, w) for m, w in self._profile_pairs(group, profile)
+                 if self._can_reach(m, w, self.target_squad)]
+        if explicit and not pairs:
+            return
         # _group_label() reads each pair's own weapon.name, so this already
         # says e.g. "Cyclic Ion Raker - Overcharge" once pairs holds the
         # swapped-in overcharge instances - no separate "(Overcharge)"
@@ -1899,8 +2052,8 @@ class ShootingController:
         current = self.current_assignment()
         if current is None:
             return None
-        overcharge_cls = current[1].overcharge_profile
-        return overcharge_cls().name if overcharge_cls is not None else None
+        options = self._assignment_profiles(*current)
+        return options[1].name if len(options) > 1 else None
 
     def toggle_assignment_overcharge(self):
         """Arms/disarms the alternate firing mode for the NEXT Split Fire
@@ -1912,9 +2065,12 @@ class ShootingController:
         next model's weapon would risk wounds the player never asked for."""
         if self.state != ASSIGNING or self.current_assignment_overcharge_label() is None:
             return
-        self.assignment_overcharge = not self.assignment_overcharge
+        # Rule 04.01.03 allows more than two profiles (a Meganob's Kombi-weapon
+        # has three), so this CYCLES through them rather than flipping a bool.
+        options = self._assignment_profiles(*self.current_assignment())
+        self.assignment_profile = (self.assignment_profile + 1) % len(options)
 
-    def assign_current(self, target_squad, overcharge=None):
+    def assign_current(self, target_squad, overcharge=None, profile=None):
         """`overcharge=True` fires this one model+weapon in its alternate
         high-power mode (see choose_weapon()'s own docstring); None means "use
         whatever toggle_assignment_overcharge() has armed".
@@ -1943,13 +2099,21 @@ class ShootingController:
         # that gates the assignment itself) freezes exactly the state the
         # assignment was made under - see _snapshot_target_state().
         self._snapshot_target_state(target_squad)
-        if overcharge is None:
-            overcharge = self.assignment_overcharge
         model, weapon = self.assignment_queue.pop(0)
-        fire_weapon = weapon
-        if overcharge and weapon.overcharge_profile is not None:
-            fire_weapon = _overcharge_instance(weapon)
-        if not self._can_reach(model, fire_weapon, target_squad):
+        options = self._assignment_profiles(model, weapon)
+        if profile is not None:
+            chain = weapon_profiles.profiles(weapon)
+            fire_weapon = chain[profile] if 0 <= profile < len(chain) and chain[profile] in options else None
+        else:
+            index = self.assignment_profile if overcharge is None else (1 if overcharge else 0)
+            if 0 <= index < len(options):
+                fire_weapon = options[index]
+            else:
+                fire_weapon = options[0] if options else None
+        # A Hunter profile (rule 04.01.03) bounces off a target without its
+        # keywords exactly as an out-of-range weapon does.
+        if (fire_weapon is None or not self._can_reach(model, fire_weapon, target_squad)
+                or not weapon_profiles.hunter_allows(fire_weapon, target_squad)):
             self.assignment_queue.insert(0, (model, weapon))
             return
         self.assignment_overcharge = False
@@ -2024,16 +2188,16 @@ class ShootingController:
         (see _snapshot_target_state()); anything not yet selected has no
         snapshot and is computed live either way.
 
-        Asked of the STANDARD-mode instance, which is exact as long as no
-        alternate firing mode changes Range - verified: every
-        overcharge_profile in game/weapons.py keeps its weapon's range. If one
-        ever reaches further than its standard mode, this needs to ask about
-        both, or it would drop a weapon that could still reach on Overcharge."""
+        Asked of EVERY profile the weapon could fire with (rule 04.01.03): the
+        Ork codex prints profiles that differ in Range (a Kombi-weapon's 24"
+        Kill Shot and 12" Point Blank), so asking the first one alone would
+        drop a weapon that still reaches on another."""
         for squad in {t.squad for t in self.all_tokens if t.squad is not None}:
             ok = valid_cache.get(squad)
             if ok is None:
                 ok = valid_cache[squad] = self._is_valid_target_squad(squad, self.all_tokens)
-            if ok and self._can_reach(model, weapon, squad):
+            if ok and any(self._can_reach(model, profile, squad) and weapon_profiles.hunter_allows(profile, squad)
+                          for profile in self._assignment_profiles(model, weapon)):
                 return True
         return False
 
@@ -3491,11 +3655,13 @@ class ShootingController:
         if self.fury_of_the_void is not None:
             weapon = self.fury_of_the_void.adjusted_weapon(
                 weapon, self.active_squad, target_squad)
-        # The Leystalker's Long Rifle prints [DEVASTATING WOUNDS] restricted to
-        # non-MONSTER/VEHICLE targets. Applied here rather than as a flat flag,
-        # because both the wound step and _crit_note() read it off the weapon
-        # this chain returns - see game/conditional_devastating_wounds.py.
-        weapon = conditional_devastating_wounds.adjusted_weapon(weapon, target_squad)
+        # Rule 24.01's conditional abilities - "[LETHAL HITS:
+        # non-MONSTER/VEHICLE]" on nearly every Ork gun, "[DEVASTATING WOUNDS:
+        # non-MONSTER/VEHICLE]" on the Leystalker's Long Rifle. Granted against
+        # the real target, because the hit and wound steps, _crit_note() and
+        # extra_attack_dice() read them off the weapon this chain returns - see
+        # game/conditional_keywords.py.
+        weapon = conditional_keywords.adjusted_weapon(weapon, target_squad)
         # Canoptek Court's Cynosure of Eradication: [DEVASTATING WOUNDS] on the
         # weapons of CRYPTEK/CANOPTEK MODELS of the unit it was bought for. Per
         # model, read off the group's representative - exact, because

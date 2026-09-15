@@ -231,7 +231,7 @@ PROBES = [
      [(FI, "        weapon = enh_headwoppas_killchoppa.adjusted_weapon(weapon, pairs[0][0] if pairs else None)",
        "        pass" + MARK)], (WH,)),
     ("the bearer shares its melee group",
-     [(FI, "            enh_headwoppas_killchoppa.attack_key(model))", "            False)" + MARK)], (WH,)),
+     [(FI, "            enh_headwoppas_killchoppa.attack_key(model),", "            False," + MARK)], (WH,)),
     ("the Move characteristic drops Follow Me Ladz",
      [(CS, "    total += enh_follow_me_ladz.move_bonus_for(squad)", "    pass" + MARK)], (WH,)),
     ("Kunnin' But Brutal loses its SHOOT half",

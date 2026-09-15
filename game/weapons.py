@@ -1,4 +1,5 @@
 from game.dice_notation import D3, D6, describe
+from game.keyword_condition import MONSTER_OR_VEHICLE_TARGETS, NON_MONSTER_VEHICLE_TARGETS  # noqa: F401 - the two printed conditions, used by the weapon classes below
 
 #: A sentinel keyword for the NEGATED form of [ANTI-X], which no ordinary
 #: keyword entry can express: the Stonesinger prints "ANTI-non-MONSTER/VEHICLE
@@ -40,7 +41,8 @@ class WeaponProfile:
     blast = 0               # the [BLAST]/[BLAST X] keyword value (X; plain [BLAST] is X=1) - rule 24.05
     cleave = 0              # the [CLEAVE X] keyword value (X) - rule 24.06
     devastating_wounds = False  # the [DEVASTATING WOUNDS] keyword - rule 24.10
-    devastating_wounds_vs_non_monster_vehicle = False  # the CONDITIONAL form, printed as "DEVASTATING WOUNDS: non-MONSTER/VEHICLE" on the Leystalker's Long Rifle - granted against the real target in game/conditional_devastating_wounds.py, never as the flat flag above
+    conditional_keywords = ()  # rule 24.01's CONDITIONAL abilities, e.g. "[LETHAL HITS: non-MONSTER/VEHICLE]": a tuple of (attribute, value, game/keyword_condition.py's KeywordCondition). Granted against the real target by game/conditional_keywords.py in BOTH adjuster chains - never set the flat flag for one of these, or it applies against exactly the targets the printed line excludes
+    hunter_keywords = None  # rule 04.01.03: a HUNTER profile ("HUNTER: MONSTER/VEHICLE") can only target units with those keywords - a KeywordCondition, or None. Read by game/weapon_profiles.py's hunter_allows()
     extra_attacks = False   # the [EXTRA ATTACKS] keyword - rule 24.11 (melee only)
     hazardous = False       # the [HAZARDOUS] keyword - rule 24.15
     heavy = False           # the [HEAVY] keyword - rule 24.16 (ranged only, Shooting phase)
@@ -124,7 +126,6 @@ _FLAG_KEYWORDS = (
     ("assault", "ASSAULT"),
     ("close_quarters", "CLOSE-QUARTERS"),
     ("devastating_wounds", "DEVASTATING WOUNDS"),
-    ("devastating_wounds_vs_non_monster_vehicle", "DEVASTATING WOUNDS: non-MONSTER/VEHICLE"),
     ("extra_attacks", "EXTRA ATTACKS"),
     ("hazardous", "HAZARDOUS"),
     ("heavy", "HEAVY"),
@@ -139,6 +140,42 @@ _FLAG_KEYWORDS = (
     ("torrent", "TORRENT"),
     ("twin_linked", "TWIN-LINKED"),
 )
+
+
+def spell_keyword(attribute, value=True):
+    """How one keyword ATTRIBUTE is printed: ("lethal_hits", True) ->
+    "LETHAL HITS", ("sustained_hits", 2) -> "SUSTAINED HITS 2". The spelling
+    printed_keywords() uses for a conditional entry (rule 24.01), which can
+    name a flag or a valued keyword."""
+    for flag_attribute, spelling in _FLAG_KEYWORDS:
+        if flag_attribute == attribute:
+            return spelling
+    if attribute == "blast":
+        return "BLAST" if value == 1 else "BLAST %d" % value
+    valued = {"cleave": "CLEAVE", "melta": "MELTA", "rapid_fire": "RAPID FIRE",
+              "sustained_hits": "SUSTAINED HITS"}
+    if attribute in valued:
+        return "%s %d" % (valued[attribute], value)
+    return attribute.upper().replace("_", " ")
+
+
+def _printed_anti(weapon):
+    """[ANTI-X Y+] entries as printed. The 2026-09 Ork codex prints MONSTER
+    and VEHICLE at one threshold as ONE keyword - "ANTI-MONSTER/VEHICLE 4+" -
+    where this engine holds two entries (rule 24.03's best-threshold fold
+    needs them apart), so that pair is joined back here. Any other entry
+    prints on its own."""
+    thresholds = {}
+    for keyword, threshold in anti_entries(weapon):
+        thresholds.setdefault(threshold, []).append(keyword)
+    printed = []
+    for threshold, keywords in thresholds.items():
+        if "MONSTER" in keywords and "VEHICLE" in keywords:
+            printed.append("ANTI-MONSTER/VEHICLE %d+" % threshold)
+            keywords = [k for k in keywords if k not in ("MONSTER", "VEHICLE")]
+        for keyword in keywords:
+            printed.append("ANTI-%s %d+" % (keyword, threshold))
+    return printed
 
 
 def printed_keywords(weapon):
@@ -177,9 +214,16 @@ def printed_keywords(weapon):
     unmodeled where its weapon is defined, and printing them would promise a
     rule that no code enforces.
     """
-    printed = []
-    for keyword, threshold in anti_entries(weapon):
-        printed.append("ANTI-%s %d+" % (keyword, threshold))
+    printed = _printed_anti(weapon)
+    # Rule 24.01's conditional abilities print the keyword, a colon and the
+    # condition: "LETHAL HITS: non-MONSTER/VEHICLE". Rule 04.01.03's Hunter
+    # restriction prints as "HUNTER: MONSTER/VEHICLE" - the corpus reads it
+    # into the profile's keyword column, and so does this.
+    for attribute, value, condition in getattr(weapon, "conditional_keywords", ()) or ():
+        printed.append("%s: %s" % (spell_keyword(attribute, value), condition.spelled))
+    hunter = getattr(weapon, "hunter_keywords", None)
+    if hunter is not None:
+        printed.append("HUNTER: %s" % hunter.spelled)
     for attribute, spelling in _FLAG_KEYWORDS:
         if getattr(weapon, attribute, False):
             printed.append(spelling)
@@ -7037,9 +7081,10 @@ class ExoditeLongRifleProfile(WeaponProfile):
 
     So `devastating_wounds` itself stays False and the grant is applied in the
     adjuster chain against the actual target - see
-    game/conditional_devastating_wounds.py. Setting the flat flag instead would
-    hand it [DEVASTATING WOUNDS] against exactly the targets the printed line
-    excludes."""
+    game/conditional_keywords.py (rule 24.01), which this rifle's own module
+    became when the 2026-09 Ork codex printed the same shape on nearly every
+    gun. Setting the flat flag instead would hand it [DEVASTATING WOUNDS]
+    against exactly the targets the printed line excludes."""
     name = "Long Rifle"
     weapon_type = RANGED
     range_in = 36
@@ -7049,7 +7094,7 @@ class ExoditeLongRifleProfile(WeaponProfile):
     ap = -2
     damage = 3
     precision = True
-    devastating_wounds_vs_non_monster_vehicle = True
+    conditional_keywords = (("devastating_wounds", True, NON_MONSTER_VEHICLE_TARGETS),)
 
 
 class HuntingBladesProfile(WeaponProfile):

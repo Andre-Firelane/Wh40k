@@ -7,6 +7,7 @@ from game.ui import stat_table
 from game.ui.text_utils import draw_wrapped_text, wrap_text, wrapped_text_height
 from game.dice_notation import describe as describe_dice_notation
 from game.weapons import MELEE, printed_keywords
+from game import weapon_profiles
 
 BOX_BG_COLOR = (25, 25, 25)
 BOX_BORDER_COLOR = (255, 215, 0)
@@ -179,8 +180,13 @@ class UnitDatacardOverlay:
         on four fixtures at once. One gatherer, two readers (error class 10)."""
         return dict(
             stat_rows=token.profile.stat_rows(token.current_wounds),
-            ranged_weapons=[w for w in token.weapons if w.weapon_type != MELEE],
-            melee_weapons=[w for w in token.weapons if w.weapon_type == MELEE],
+            # Rule 04.01.03: every PROFILE is a printed row of its own (a
+            # Kombi-weapon's Shoota, Kill Shot and Point Blank; a Choppa's
+            # Standard and Hunter), so each gets its row.
+            ranged_weapons=[p for w in token.weapons if w.weapon_type != MELEE
+                            for p in weapon_profiles.profiles(w)],
+            melee_weapons=[p for w in token.weapons if w.weapon_type == MELEE
+                           for p in weapon_profiles.profiles(w)],
             cargo_lines=self._cargo_lines(token, transport_controller),
             attached_lines=self._attached_lines(token),
             enhancement_lines=self._enhancement_lines(token),

@@ -7,6 +7,7 @@ from game import damaged_attacks, triarch_auras
 from game import aux_experimental_modifications, awakened_dynasty, nekrosor_ammentar, swift_demise, montka_pinpoint_counter_offensive, destroyer_cult, destroyer_hive, dlc_grim_reapers, gift_of_contagion, guardian_protocols, protocol_hungry_void, implacable_eradication, mechanical_augmentation, monster_hunters, plagues, plasmacyte, reroll_scope
 from game import way_of_the_short_blade
 from game import strength_over_toughness
+from game import conditional_keywords, weapon_profiles
 from game.damage_resolution import DamageAllocationSession, DevastatingWoundAllocationSession, MortalWoundAllocationSession, displayed_save_threshold, save_heading, save_is_impossible, AUTO_FAILED_SAVE
 from game.dice import ATTACKS_ROLL, HIT_ROLL, SAVE_ROLL, WOUND_ROLL
 from game.dice_notation import DiceNotationRoll, describe as describe_dice_notation
@@ -157,7 +158,11 @@ def _melee_attack_key(model, weapon):
             necron_detachments.attack_key(model),
             # War Horde's Headwoppa's Killchoppa is per BEARER as well - see
             # game/enh_headwoppas_killchoppa.py.
-            enh_headwoppas_killchoppa.attack_key(model))
+            enh_headwoppas_killchoppa.attack_key(model),
+            # Rule 04.01.03: a weapon's profile chain - see shooting.py's
+            # _attack_key() and game/weapon_profiles.py. () for every
+            # single-profile weapon, so no existing group splits.
+            weapon_profiles.chain_key(weapon))
 
 
 def _melee_group_label(pairs):
@@ -333,6 +338,7 @@ class FightController:
         self._pending_hit_reroll = None  # Monster Hunters: context dict while pending_step == "hit_monster_hunters_reroll"
         self._pending_ones_reroll = None  # a two-clause source's automatic re-roll of 1s: context dict while pending_step == "hit_reroll_ones"/"wound_reroll_ones"
         self.one_shot_used = set()  # rule 24.26: (model.id, id(weapon)) pairs already fought with - persists for the whole battle, never reset
+        self.assignment_profile = 0  # Split Fire: which profile (rule 04.01.03) of the front pair's weapon is armed for the NEXT assignment - see toggle_assignment_profile()
         self.mortal_wound_session = None  # MortalWoundAllocationSession while pending_step == "hazard_wounds"
         self.hold_still_session = None  # MortalWoundAllocationSession while pending_step == "hold_still_wounds" - Painboy's "Hold Still and Say 'Aargh!'", see game/hold_still.py
         self._hold_still_crits = 0  # critical WOUNDS of the current group that trigger that ability. Kept separate from _devastating_crits because they are NOT removed from the normal wound pool - see game/hold_still.py's own note on how the two differ.
@@ -893,6 +899,7 @@ class FightController:
         self.assignment_queue = [pair for plist in groups.values() for pair in plist]
         self.assignments = {}
         self.state = ASSIGNING
+        self.assignment_profile = 0
         # Drops the models that are out of Engagement Range before the player
         # is ever asked about them, and ends the activation outright if that
         # leaves nothing to assign - see _advance_assignment().
@@ -902,21 +909,30 @@ class FightController:
         """(model, weapon) awaiting a target during split-fire assignment, or None."""
         return self.assignment_queue[0] if self.assignment_queue else None
 
-    def assign_current(self, target_squad):
+    def assign_current(self, target_squad, profile=None):
         if self.state != ASSIGNING or not self.assignment_queue or target_squad is None:
             return
         self._snapshot_engagement(target_squad)
         model, weapon = self.assignment_queue.pop(0)
+        chain = weapon_profiles.profiles(weapon)
+        index = self.assignment_profile if profile is None else profile
+        fire_weapon = chain[index] if 0 <= index < len(chain) else chain[0]
         if not self._engaged_with(model, target_squad):
             self.assignment_queue.insert(0, (model, weapon))
             return
+        # A Hunter profile (rule 04.01.03) bounces off a target without its
+        # keywords, exactly as a model out of Engagement Range does.
+        if not weapon_profiles.hunter_allows(fire_weapon, target_squad):
+            self.assignment_queue.insert(0, (model, weapon))
+            return
+        self.assignment_profile = 0
 
-        key = (_melee_attack_key(model, weapon), target_squad)
-        self.assignments.setdefault(key, []).append((model, weapon))
+        key = (_melee_attack_key(model, fire_weapon), target_squad)
+        self.assignments.setdefault(key, []).append((model, fire_weapon))
         # Offered only once the assignment has actually landed (the engagement
         # check above can bounce it) - see _offer_target_reactions().
         self._offer_target_reactions(target_squad)
-        self._lock_other_melee_weapon(model, weapon)
+        self._lock_other_melee_weapon(model, fire_weapon)
         # Rule 24.11: that lock may now rule out other still-queued pairs
         # for the same model (its other non-[EXTRA ATTACKS] weapons) - drop
         # them instead of letting the player assign a target for a weapon
@@ -947,6 +963,7 @@ class FightController:
         if self.state != ASSIGNING or not self.assignment_queue:
             return
         model, weapon = self.assignment_queue.pop(0)
+        self.assignment_profile = 0
         self._log(f"{self.fighting_squad.name}: {model.profile.name} does not attack with its {weapon.name}.")
         self._advance_assignment()
 
@@ -1087,12 +1104,98 @@ class FightController:
             return
         self._finish_current_fight()
 
-    def choose_weapon(self, weapon_key):
+    # --- rule 04.01.03: a weapon's profiles ---------------------------------
+    # The melee twin of shooting.py's helpers of the same names. Until the
+    # 2026-09 Ork codex this controller read no second profile at all, so the
+    # Visarch's three stances could never be selected in a fight.
+
+    def _profile_pairs(self, pairs, index):
+        """(model, profile) for every pair whose weapon HAS profile `index` and
+        may use it against the chosen target (a Hunter profile only against a
+        target with its keywords)."""
+        out = []
+        for model, weapon in pairs:
+            chain = weapon_profiles.profiles(weapon)
+            if index >= len(chain):
+                continue
+            if not weapon_profiles.hunter_allows(chain[index], self.target_squad):
+                continue
+            out.append((model, chain[index]))
+        return out
+
+    def _profile_options_for(self, pairs):
+        """[(profile index, label, hazardous, eligible, total), ...] against the
+        chosen target - one entry for a single-profile group."""
+        if self.target_squad is None:
+            return []
+        longest = max((len(weapon_profiles.profiles(w)) for _, w in pairs), default=0)
+        options = []
+        for index in range(longest):
+            profile_pairs = self._profile_pairs(pairs, index)
+            if not profile_pairs:
+                continue
+            eligible = sum(1 for m, _w in profile_pairs if self._engaged_with(m, self.target_squad))
+            options.append((index, _melee_group_label(profile_pairs),
+                            any(w.hazardous for _, w in profile_pairs), eligible, len(profile_pairs)))
+        return options
+
+    def profile_options(self, weapon_key):
+        """Every profile the group may swing at the chosen target."""
+        if self.fighting_squad is None or self.target_squad is None:
+            return []
+        groups = _melee_attack_groups(self.fighting_squad, self._used_other_melee_weapon, self.one_shot_used)
+        return self._profile_options_for(groups.get(weapon_key, []))
+
+    def profile_pairs(self, weapon_key, index):
+        """The (model, profile) pairs that would swing if `index` were chosen,
+        filtered by the activation's Engagement Range snapshot."""
+        if self.fighting_squad is None or self.target_squad is None:
+            return []
+        groups = _melee_attack_groups(self.fighting_squad, self._used_other_melee_weapon, self.one_shot_used)
+        return [(m, w) for m, w in self._profile_pairs(groups.get(weapon_key, []), index)
+                if self._engaged_with(m, self.target_squad)]
+
+    def assignment_profile_names(self):
+        current = self.current_assignment()
+        if current is None:
+            return []
+        return [p.name for p in weapon_profiles.profiles(current[1])]
+
+    def armed_assignment_profile(self):
+        """The profile the NEXT Split Fire assignment would use, or None."""
+        current = self.current_assignment()
+        if current is None:
+            return None
+        chain = weapon_profiles.profiles(current[1])
+        index = self.assignment_profile
+        return chain[index] if 0 <= index < len(chain) else chain[0]
+
+    def toggle_assignment_profile(self):
+        """Cycle the armed profile for the next assignment - the target is
+        clicked on the battlefield, so the profile cannot be a second button
+        beside it. Disarmed after every assignment, like shooting's."""
+        current = self.current_assignment()
+        if self.state != ASSIGNING or current is None:
+            return
+        count = len(weapon_profiles.profiles(current[1]))
+        if count < 2:
+            return
+        self.assignment_profile = (self.assignment_profile + 1) % count
+
+    def choose_weapon(self, weapon_key, profile=None):
         if self.state != CHOOSING_WEAPON or weapon_key not in self.remaining_weapon_types:
             return
         groups = _melee_attack_groups(self.fighting_squad, self._used_other_melee_weapon, self.one_shot_used)
+        group = groups.get(weapon_key, [])
+        # `profile` is an index into the weapon's profile chain (rule
+        # 04.01.03); None means the group's first one this target allows.
+        options = self._profile_options_for(group)
+        if profile is None:
+            profile = options[0][0] if options else 0
+        elif profile not in [option[0] for option in options]:
+            return
         pairs = [
-            (m, w) for m, w in groups.get(weapon_key, [])
+            (m, w) for m, w in self._profile_pairs(group, profile)
             if self._engaged_with(m, self.target_squad)
         ]
         for model, weapon in pairs:
@@ -1485,6 +1588,11 @@ class FightController:
         hit roll's CRITICAL threshold rather than granting a keyword, and
         _crit_note()/the hit step both read that from crit_hit_threshold()."""
         weapon = pairs[0][1]
+        # Rule 24.01's conditional abilities against the real target - the
+        # melee twin of shooting.py's link (the 2026-09 codex prints them on
+        # melee rows too, e.g. "SUSTAINED HITS 2: MONSTER/VEHICLE").
+        weapon = conditional_keywords.adjusted_weapon(
+            weapon, target_squad if target_squad is not None else self.target_squad)
         weapon = get_stuck_in_adjusted_weapon(weapon, pairs)
         weapon = ferocious_rage_adjusted_weapon(
             weapon, pairs, self.charge_controller, self.fighting_squad,
@@ -2926,7 +3034,9 @@ class FightController:
         if pairs:
             for model, weapon in pairs:
                 if weapon.one_shot:
-                    self.one_shot_used.add((model.id, id(weapon)))
+                    # A profile instance (rule 04.01.03) stands in for the
+                    # weapon in model.weapons - mark THAT one, as shooting does.
+                    self.one_shot_used.add((model.id, weapon.overcharge_of_id or id(weapon)))
         self.current_group = None
 
         # Back to the fighting player's decisions (pick the next weapon, or stop fighting).

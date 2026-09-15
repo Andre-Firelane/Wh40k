@@ -1936,9 +1936,12 @@ class ActionPanel:
     def _draw_fight_assigning(self, surface, rect, button_width, fight_controller, epic_challenge_controller=None):
         current = fight_controller.current_assignment()
         remaining = len(fight_controller.assignment_queue)
+        armed_profile = (fight_controller.armed_assignment_profile()
+                         if hasattr(fight_controller, "armed_assignment_profile") else None)
         if current is not None:
             model, weapon = current
-            hint = f"Choose a target for {model.profile.name} ({weapon.name}) - {remaining} left to assign."
+            mode = armed_profile.name if armed_profile is not None else weapon.name
+            hint = f"Choose a target for {model.profile.name} ({mode}) - {remaining} left to assign."
         else:
             hint = "All weapons assigned."
 
@@ -1946,6 +1949,19 @@ class ActionPanel:
         text_y = self._maybe_draw_epic_challenge_button(
             surface, rect, button_width, text_y, fight_controller, epic_challenge_controller,
         )
+
+        # Rule 04.01.03: a weapon with several profiles arms one before its
+        # target is clicked - the same toggle shooting's split fire has.
+        if (current is not None and armed_profile is not None
+                and len(fight_controller.assignment_profile_names()) > 1):
+            text_y += 6
+            hazardous = bool(armed_profile.hazardous)
+            mode_label = f"Mode: {armed_profile.name}" + (" [HAZARDOUS]" if hazardous else "")
+            mode_rect = pygame.Rect(rect.x + BUTTON_MARGIN, text_y, button_width, BUTTON_HEIGHT)
+            mode_rect = self._draw_button(surface, mode_rect, mode_label,
+                                          accent="danger" if hazardous else None)
+            self._buttons.append((mode_rect, fight_controller.toggle_assignment_profile))
+            text_y = mode_rect.bottom + BUTTON_GAP
 
         # Same rule 04.01 basis as the shooting panel's pair above.
         if current is not None:
@@ -1977,6 +1993,19 @@ class ActionPanel:
             weapon_rect = self._draw_button(surface, weapon_rect, label)
             self._buttons.append((weapon_rect, lambda w=weapon_key: fight_controller.choose_weapon(w)))
             button_y += weapon_rect.height + BUTTON_GAP
+            # Rule 04.01.03: a further profile of this weapon (a Choppa's
+            # Hunter profile, offered only against a target it may attack).
+            extra = (fight_controller.profile_options(weapon_key)[1:]
+                     if hasattr(fight_controller, "profile_options") else [])
+            for index, profile_label, hazardous, p_eligible, p_total in extra:
+                suffix = " [HAZARDOUS]" if hazardous else ""
+                profile_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
+                profile_rect = self._draw_button(
+                    surface, profile_rect, f"{profile_label}{suffix} ({p_eligible}/{p_total})",
+                    accent="danger" if hazardous else None)
+                self._buttons.append(
+                    (profile_rect, lambda w=weapon_key, i=index: fight_controller.choose_weapon(w, profile=i)))
+                button_y += profile_rect.height + BUTTON_GAP
 
         stop_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
         stop_rect = self._draw_button(surface, stop_rect, "Stop Fighting")
@@ -2045,11 +2074,26 @@ class ActionPanel:
             button_y += weapon_rect.height + BUTTON_GAP
 
             if overcharge_label is not None:
-                button_text = f"{overcharge_label} [HAZARDOUS] ({eligible}/{total})"
-                overcharge_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
-                overcharge_rect = self._draw_button(surface, overcharge_rect, button_text, accent="danger")
-                self._buttons.append((overcharge_rect, lambda w=weapon_key: shooting_controller.choose_weapon(w, overcharge=True)))
-                button_y += overcharge_rect.height + BUTTON_GAP
+                # Rule 04.01.03: every FURTHER profile of this weapon gets its
+                # own button (the first is the one above) - a Meganob's
+                # Kombi-weapon has three. Only a [HAZARDOUS] profile says so and
+                # wears the danger accent; a Kill Shot costs the unit nothing.
+                if hasattr(shooting_controller, "profile_options"):
+                    extra = shooting_controller.profile_options(weapon_key)[1:]
+                else:
+                    extra = [(None, overcharge_label, True, eligible, total)]
+                for index, profile_label, hazardous, p_eligible, p_total in extra:
+                    suffix = " [HAZARDOUS]" if hazardous else ""
+                    button_text = f"{profile_label}{suffix} ({p_eligible}/{p_total})"
+                    overcharge_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
+                    overcharge_rect = self._draw_button(
+                        surface, overcharge_rect, button_text, accent="danger" if hazardous else None)
+                    if index is None:
+                        callback = lambda w=weapon_key: shooting_controller.choose_weapon(w, overcharge=True)
+                    else:
+                        callback = lambda w=weapon_key, i=index: shooting_controller.choose_weapon(w, profile=i)
+                    self._buttons.append((overcharge_rect, callback))
+                    button_y += overcharge_rect.height + BUTTON_GAP
 
         stop_rect = pygame.Rect(rect.x + BUTTON_MARGIN, button_y, button_width, BUTTON_HEIGHT)
         stop_rect = self._draw_button(surface, stop_rect, "Stop Shooting")
@@ -2065,9 +2109,15 @@ class ActionPanel:
         remaining = len(shooting_controller.assignment_queue)
         overcharge_label = shooting_controller.current_assignment_overcharge_label()
         armed = shooting_controller.assignment_overcharge
+        # The ARMED profile (rule 04.01.03), where the controller can name it.
+        armed_profile = (shooting_controller.armed_assignment_profile()
+                         if hasattr(shooting_controller, "armed_assignment_profile") else None)
         if current is not None:
             model, weapon = current
-            mode = overcharge_label if (overcharge_label is not None and armed) else weapon.name
+            if armed_profile is not None:
+                mode = armed_profile.name
+            else:
+                mode = overcharge_label if (overcharge_label is not None and armed) else weapon.name
             hint = f"Choose a target for {model.profile.name} ({mode}) - {remaining} left to assign."
         else:
             hint = "All weapons assigned."
@@ -2081,10 +2131,18 @@ class ActionPanel:
         # assignment (see toggle_assignment_overcharge()).
         if current is not None and overcharge_label is not None:
             text_y += 6
-            mode_label = f"Mode: {overcharge_label} [HAZARDOUS]" if armed else f"Mode: {current[1].name}"
+            if armed_profile is not None:
+                # A [HAZARDOUS] profile says so and wears the danger accent;
+                # any other armed profile - a Kombi-weapon's Kill Shot - does not.
+                hazardous = bool(armed_profile.hazardous)
+                mode_label = f"Mode: {armed_profile.name}" + (" [HAZARDOUS]" if hazardous else "")
+                mode_accent = "danger" if hazardous else None
+            else:
+                mode_label = f"Mode: {overcharge_label} [HAZARDOUS]" if armed else f"Mode: {current[1].name}"
+                mode_accent = "danger" if armed else None
             mode_rect = pygame.Rect(rect.x + BUTTON_MARGIN, text_y, button_width, BUTTON_HEIGHT)
             mode_rect = self._draw_button(
-                surface, mode_rect, mode_label, accent="danger" if armed else None,
+                surface, mode_rect, mode_label, accent=mode_accent,
             )
             self._buttons.append((mode_rect, shooting_controller.toggle_assignment_overcharge))
             text_y = mode_rect.bottom + BUTTON_GAP

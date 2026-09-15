@@ -26,7 +26,7 @@ import testkit as tk
 from testkit import Checks
 
 from game import (agile_reach, attached_units, blade_of_the_clans,
-                  conditional_devastating_wounds, cornered_prey, drakolithe,
+                  conditional_keywords, cornered_prey, drakolithe,
                   drakolithe_tokens, elemental_ensnarement, monofilament_web,
                   panicked_quarry, sprites)
 from game.coldstar import effective_movement_in
@@ -163,17 +163,18 @@ checks.eq("the sentinel is a keyword like any other, so the machinery is unchang
 # CONDITIONAL [DEVASTATING WOUNDS] - the half a flat flag would get backwards.
 checks.true("the Long Rifle does NOT print the flat keyword",
             not lr.devastating_wounds)
-checks.true("...but declares the conditional one",
-            lr.devastating_wounds_vs_non_monster_vehicle)
+checks.true("...but declares the conditional one (rule 24.01, game/conditional_keywords.py)",
+            [(a, v, c.spelled) for a, v, c in lr.conditional_keywords]
+            == [("devastating_wounds", True, "non-MONSTER/VEHICLE")])
 checks.true("against INFANTRY it is granted",
-            conditional_devastating_wounds.adjusted_weapon(lr, infantry).devastating_wounds)
+            conditional_keywords.adjusted_weapon(lr, infantry).devastating_wounds)
 checks.true("against a VEHICLE it is NOT - which is exactly what a flat flag "
             "would have got backwards",
-            not conditional_devastating_wounds.adjusted_weapon(lr, vehicle).devastating_wounds)
+            not conditional_keywords.adjusted_weapon(lr, vehicle).devastating_wounds)
 checks.true("...and the untouched case returns the SAME object",
-            conditional_devastating_wounds.adjusted_weapon(lr, vehicle) is lr)
+            conditional_keywords.adjusted_weapon(lr, vehicle) is lr)
 checks.true("...while the granted one is a copy that never mutates the shared profile",
-            conditional_devastating_wounds.adjusted_weapon(lr, infantry) is not lr
+            conditional_keywords.adjusted_weapon(lr, infantry) is not lr
             and not ExoditeLongRifleProfile().devastating_wounds)
 # ...and end to end through the real adjuster chain.
 dscene = tk.shooting_scene(ae.LEYSTALKER, ae.GUARDIAN_DEFENDERS, attacker_owner="Player 2")

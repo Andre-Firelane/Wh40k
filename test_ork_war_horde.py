@@ -288,8 +288,18 @@ with settings_as(**WH):
          woppa.adjusted_weapon(melee_of(_w_boy), _w_boy).ap, melee_of(_w_boy).ap)
     _slugga = ranged_of(W1_BOSS)
     c.true("...and a ranged weapon is never touched", woppa.adjusted_weapon(_slugga, W1_BOSS) is _slugga)
-    c.eq("the bearer carries its own melee grouping term", _melee_attack_key(W1_BOSS, _w_choppa)[-1], True)
-    c.eq("...a Boy does not", _melee_attack_key(_w_boy, melee_of(_w_boy))[-1], False)
+    # Asked by VALUE, not by tuple position: rule 04.01.03 appended a profile
+    # chain term after this one, and a [-1] pin went red on a key that was right.
+    _term = object()
+    _real_term = woppa.attack_key
+    woppa.attack_key = lambda model: _term
+    try:
+        _in_key = _term in _melee_attack_key(W1_BOSS, _w_choppa)
+    finally:
+        woppa.attack_key = _real_term
+    c.true("the melee grouping key carries the Killchoppa term", _in_key)
+    c.eq("the bearer carries its own melee grouping term", woppa.attack_key(W1_BOSS), True)
+    c.eq("...a Boy does not", woppa.attack_key(_w_boy), False)
     _fc = FightController(dice_manager=DiceManager(), turn_tracker=tracker(PHASE_FIGHT),
                           all_tokens=list(W1.models), decision_manager=DecisionManager(), game_log=tk.Log())
     _fc.fighting_squad = W1

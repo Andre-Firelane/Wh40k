@@ -208,12 +208,23 @@ print("--- 5. every weapon's KEYWORDS match its printed row ---")
 # "BLAST" and "BLAST 1" are the same printed keyword - plain [BLAST] is X=1
 # (WeaponProfile.blast says so), and the corpus spells it both ways (52 rows
 # bare, one with the 1). A spelling, not a difference.
+#
+# "ANTI-MONSTER/VEHICLE 4+" and "ANTI-MONSTER 4+, ANTI-VEHICLE 4+" are the same
+# two rules spelled two ways - the corpus uses both, and printed_keywords()
+# merges a pair at one threshold. Both sides are expanded to the separate
+# entries, so the comparison is about the rules and not the spelling. An
+# "anti-non-X" keyword is ONE condition (rule 24.01's FAQ), never split.
 def keyword_set(cell):
     out = set()
     for keyword in cell.split(","):
         keyword = keyword.strip().lower()
         if keyword == "blast 1":
             keyword = "blast"
+        if keyword.startswith("anti-") and not keyword.startswith("anti-non-") and "/" in keyword:
+            names, _, threshold = keyword[len("anti-"):].partition(" ")
+            for name in names.split("/"):
+                out.add("anti-%s %s" % (name, threshold))
+            continue
         if keyword:
             out.add(keyword)
     return out
@@ -226,11 +237,6 @@ KEYWORD_EXCEPTIONS = {
     # engine actually enforces, and printing these would promise a rule no
     # code applies.
     "Prism Cannon - Focused Lances": "printed 'linked fire'; NOT engine-wired",
-    # One printed keyword naming two target keywords at once. The engine models
-    # it as the two separate [ANTI-X] entries it is, which resolves
-    # identically (best threshold wins, and both are 3+) - so this is how it is
-    # SPELLED, not what it does.
-    "Song of Waning": "printed 'anti-MONSTER/VEHICLE 3+'; engine holds the two entries separately",
 }
 
 keyword_compared = 0
@@ -315,9 +321,13 @@ print("--- 7. how printed_keywords spells them ---")
 
 # The valued keywords are the ones whose printed form is not a constant, so
 # each is pinned at the point where it could be spelled wrong.
-checks.eq("ANTI-X reads its threshold, and a weapon carrying two prints two",
+checks.eq("ANTI-X reads its threshold, and a pair at ONE threshold prints merged, as the sheet does",
           printed_keywords(_wp.BeastSnaggaKlawProfile),
-          ["ANTI-MONSTER 4+", "ANTI-VEHICLE 4+"])
+          ["ANTI-MONSTER/VEHICLE 4+"])
+checks.eq("...and the comparison expands that merged spelling back into both rules",
+          keyword_set("anti-MONSTER/VEHICLE 4+"), {"anti-monster 4+", "anti-vehicle 4+"})
+checks.eq("...but an anti-non-X keyword is ONE condition and is never split",
+          keyword_set("lethal hits: non-MONSTER/VEHICLE"), {"lethal hits: non-monster/vehicle"})
 checks.eq("a dice [SUSTAINED HITS X] prints the DIE, not the placeholder int",
           [k for k in printed_keywords(_wp.WailingDoomProfile) if k.startswith("SUSTAINED")],
           ["SUSTAINED HITS D3"])

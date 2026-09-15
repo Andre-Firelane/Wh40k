@@ -56,27 +56,23 @@ PROBES = [
 
     ("printed_keywords returns nothing for every weapon",
      "test_unit_datacard.py", "game/weapons.py",
-     [("    printed = []\n"
-       "    for keyword, threshold in anti_entries(weapon):",
+     [("    printed = _printed_anti(weapon)\n",
        "    return []\n"
-       "    printed = []\n"
-       "    for keyword, threshold in anti_entries(weapon):")]),
+       "    printed = _printed_anti(weapon)\n")]),
 
     ("...and the corpus sweep notices that too",
      "test_weapon_characteristics.py", "game/weapons.py",
-     [("    printed = []\n"
-       "    for keyword, threshold in anti_entries(weapon):",
+     [("    printed = _printed_anti(weapon)\n",
        "    return []\n"
-       "    printed = []\n"
-       "    for keyword, threshold in anti_entries(weapon):")]),
+       "    printed = _printed_anti(weapon)\n")]),
 
     # --- the spelling ------------------------------------------------------
     ("[ANTI-X Y+] is dropped from the printed list",
      "test_weapon_characteristics.py", "game/weapons.py",
      [("    for keyword, threshold in anti_entries(weapon):\n"
-       '        printed.append("ANTI-%s %d+" % (keyword, threshold))',
+       "        thresholds.setdefault(threshold, []).append(keyword)",
        "    for keyword, threshold in ():\n"
-       '        printed.append("ANTI-%s %d+" % (keyword, threshold))')]),
+       "        thresholds.setdefault(threshold, []).append(keyword)")]),
 
     ("a dice [SUSTAINED HITS X] prints its grouping placeholder instead",
      "test_weapon_characteristics.py", "game/weapons.py",
