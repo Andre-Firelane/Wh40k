@@ -9589,3 +9589,46 @@ unverändert.
 
 **CLAUDE.md nachgezogen:** neuer Abschnitt `## Ork-Charaktere`; Rezept (§28, die `grot_orderly`-Ausnahme),
 Ork-Liste 2025, Fraktionszeile, Übergangszahlen, KI-Liste der deterministischen Antworten, Return-Placement-Zeile.
+
+## 2026-09-16 — Orks E3c: Flash Gitz und Tankbustas
+
+User: *"mit den orks weiter machen."* Umfang laut Plan: Finderz Keeperz, Rokkit Barrage, Bomb Squigs,
+Pulsa Rokkit; Gun Crazy Show-offs, der alte Ammo Runt und das Ork-`tank_hunters`-Flag stillgelegt;
+Tests, Sonden, Live-Verify, Doku; danach Commit, Push, Bericht, Stopp. Die Arbeit lief über eine
+Kontextgrenze hinweg (Zusammenfassung dazwischen).
+
+**Gebaut:** vier Module (`finderz_keeperz`, `rokkit_barrage`, `bomb_squigs`, `pulsa_rokkit`), die
+Extraktion `objectives.attacker_or_target_within_range_of_objective()`, `weapon_profiles.valued_profiles()`
+für die drei KI-Leser, `agent_driver.battle_shock_target_choice()`, die zwei Datenblätter samt Waffen
+und Punkten.
+
+**Unterwegs gefunden:**
+- Ein Bash-Heredoc für den Ork-Datenblatt-Patch scheiterte am Parsen → Skript per Write (Fehlerklasse 21);
+  ein späterer Anker mit `\n` traf über ein Heredoc nicht und ging per Edit.
+- Der Pulsa-Rokkit-Controller stand zuerst VOR `_best_damage_target` in `main()` (Fehlerklasse 23) —
+  vor dem ersten Start umgesetzt.
+- `import main` scheiterte an der alten `armies/orks.json` (Kaptin-Gear, Boss-Nob-Zeile) → minimal.
+- **Die Flash Gitz kippten in der Aufstellung auf assault**, weil die KI-Leser nur das getragene
+  Cutta-Profil lasen → `valued_profiles()`. Mitbewegt und nachgezogen: Fuegans Reichweite, die
+  Void-Dragon-Ratio, die Ork-Home-Garnison (jetzt Tankbustas auf map1-3 — als Entscheidung zur
+  Bestätigung im Bericht).
+- Zwölf Suiten rot, alle zu Recht; `test_target_priority.py` §8 pinnte die stillgelegten Tank Hunters
+  und ist auf die Hunter-Profile umgeschrieben, drei Kalibrierungen wegen der stärkeren Launchas.
+- **Beim Lesen für die neue Suite:** eine fertige Ein-Modell-Session blieb in Bomb Squigs' Slot und
+  hätte den zweiten Token für immer gesperrt → `_inflict()` räumt ab.
+- In der Suite überlappten Nob- und Tankbusta-Basen bei `line_up()`s 1.4" — der echte
+  `confirm_move()` lehnte ab; zwei Reihen à 1.8".
+- `ab_ork_specialists.py`: drei Sonden bissen zuerst nicht (zwei KI-Pick-Prüfungen maskiert durch
+  Punkte bzw. Namensreihenfolge, eine Sonde gegen §10, das die Richtung nicht prüft).
+- `fetch_datasheet_rules.py --offline` änderte nur das Abrufdatum in `rules/README.md` → verworfen.
+
+**Verifiziert:** `test_ork_specialists.py` 164/164; `ab_ork_specialists.py` 57 Sonden, 64 Läufe, alle
+beißen, kein `AB-PROBE`-Rest; die umgestellte Sonde in `ab_ork_mobs.py` beißt; volle Regression 235
+Suiten, ~22987 Prüfungen, 234 grün / 0 rot / 1 bekannt; `--smoke` grün; `selfplay.py map2 1500` beide
+Sitzordnungen exit 0; `verify_ork_specialists.py` 14/14, neutralisiert 6/6; `verify_rules_vs_engine.py`
+115 → 100; `CORPUS_AHEAD` 8 → 6; `measure_crowded_movement.py` gedrängt 65 % → 62 %, isoliert
+unverändert 87 %.
+
+**CLAUDE.md nachgezogen:** neuer Abschnitt `## Ork-Spezialisten`; Ork-Liste 2105, Fraktionszeile,
+Übergangszahlen, Death-Guard-Tank-Hunters-Zeile, Home-Garnisons-Messzeile, KI-Liste der
+deterministischen Antworten, Bewertungs-Bullet (`valued_profiles()`).

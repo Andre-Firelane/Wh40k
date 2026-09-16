@@ -9,11 +9,11 @@ the config, and the Ork army is still built, still fielded and still played by
 the AI whenever that flag is passed. See test_player2_necron_army.py for the
 list that turns up by default.
 
-Every item on that list is modeled, including the two whose rules arrived
-after the datasheets did (the Battlewagon's Zzap gun and the Flash Gitz' Ammo
-Runt) - those have their own suite in test_ork_wargear.py; here they only have
-to be present and free. The Warboss's Attack Squig and the Painboy's Grot
-Orderly went with the pre-codex character sheets.
+Every item on that list is modeled, including the one whose rules arrived
+after the datasheet did (the Battlewagon's Zzap gun) - it has its own suite in
+test_ork_wargear.py; here it only has to be present. The Warboss's Attack Squig,
+the Painboy's Grot Orderly and the Flash Gitz' Ammo Runt went with the
+pre-codex sheets.
 
 Builds the roster the same way main() does, rather than driving main()
 itself: that keeps the check about WHAT the army is, independent of
@@ -26,6 +26,9 @@ The Boyz, Beast Snagga Boyz, Stormboyz, Gretchin and Meganobz lines follow the
 Meganobz priced at 2/3/5/6 models, and a Painboy that attaches as SUPPORT.
 The four characters (Warboss, Warboss in Mega Armour, Beastboss, Painboy)
 follow it too since the Ork characters stage; test_ork_characters.py owns them.
+Flash Gitz and Tankbustas since the specialists stage (test_ork_specialists.py),
+fielded without wargear choices - armies/orks.json is kept minimal until the
+user's app export replaces it.
 """
 
 from testkit import Checks, GameState, build_squad
@@ -34,11 +37,10 @@ from game import attached_units
 from game import pregame
 from game.factions.orks import (
     BATTLEWAGON, BATTLEWAGON_ADD_BIG_SHOOTAS, BATTLEWAGON_ADD_ZZAP_GUN, BATTLEWAGON_ARD_CASE,
-    FLASH_GITZ_AMMO_RUNT,
     BEAST_SNAGGA_BOYZ, BEASTBOSS, BOYZ, BOYZ_NOB_TO_POWER_KLAW, DEFF_DREAD, DEFFKOPTAS,
     FLASH_GITZ, GRETCHIN, KILL_RIG, MEGANOBZ, PAINBOY,
     STORMBOYZ, STORMBOYZ_NOB_TO_POWER_KLAW,
-    TANKBUSTAS, TANKBUSTAS_ADD_ROKKIT_LAUNCHA, TANKBUSTAS_BOSS_NOB_ADD_SMASH_HAMMER,
+    TANKBUSTAS,
     TRUKK, WARBIKERS, WARBIKERS_ADD_POWER_KLAW, WARBOSS, WARBOSS_MEGA_ARMOUR,
 )
 
@@ -121,14 +123,11 @@ small_mob = build(BOYZ, name="small mob")
 c.eq("the 10-model composition still builds", len(small_mob.models), 10)
 c.eq("...as 1 Nob and 9 Boys", line_counts(small_mob), {"Nob": 1, "Boy": 9})
 
-flash = build(FLASH_GITZ, composition_index=1, gear={"Kaptin": [FLASH_GITZ_AMMO_RUNT]})
+flash = build(FLASH_GITZ, composition_index=1)
 c.eq("Flash Gitz is the 10-model build", line_counts(flash), {"Kaptin": 1, "Flash Git": 9})
-c.eq("Kaptin weapons", weapons(flash.models[0]), ["Choppa", "Snazzgun"])
-c.eq("Flash Git weapons", weapons(flash.models[1]), ["Choppa", "Snazzgun"])
-c.eq("exactly one model carries the Ammo Runt",
-     sum(1 for m in flash.models if m.ammo_runt), 1)
-c.eq("...and it is free (the published list prices no wargear here)",
-     flash.points, build(FLASH_GITZ, name="bare gitz", composition_index=1).points)
+c.eq("Kaptin weapons", weapons(flash.models[0]), ["Choppa", "Snazzgun - Cutta"])
+c.eq("Flash Git weapons", weapons(flash.models[1]), ["Choppa", "Snazzgun - Cutta"])
+c.eq("Flash Gitz points (10 models, codex)", flash.points, 210)
 
 # The codex took the Runtherd out of this datasheet (it is a SUPPORT unit of
 # its own now), so each unit is ten Gretchin and nothing else.
@@ -150,15 +149,11 @@ storm = build(STORMBOYZ, composition_index=1, choices={"Nob": {STORMBOYZ_NOB_TO_
 c.eq("Stormboyz is the 10-model build", line_counts(storm), {"Nob": 1, "Stormboy": 9})
 c.eq("Stormboyz Nob has the Power Klaw", weapons(storm.models[0]), ["Power Klaw", "Slugga"])
 
-tank = build(TANKBUSTAS, choices={
-    "Boss Nob": {TANKBUSTAS_BOSS_NOB_ADD_SMASH_HAMMER: 1},
-    "Tankbusta": {TANKBUSTAS_ADD_ROKKIT_LAUNCHA: 1},
-})
-c.eq("Tankbustas composition", line_counts(tank), {"Boss Nob": 1, "Tankbusta": 5})
-c.eq("Boss Nob has the Smash Hammer", weapons(tank.models[0]),
-     ["Choppa", "Rokkit Pistol", "Smash Hammer"])
-doubles = [m for m in tank.models if sum(1 for w in m.weapons if w.name == "Rokkit Launcha") == 2]
-c.eq("exactly one Tankbusta has two Rokkit Launchas", len(doubles), 1)
+tank = build(TANKBUSTAS)
+c.eq("Tankbustas composition", line_counts(tank), {"Nob": 1, "Tankbusta": 5})
+c.eq("the Nob's weapons", weapons(tank.models[0]), ["Choppa", "Rokkit Pistol", "Rokkit Pistol"])
+c.eq("a Tankbusta's weapons", weapons(tank.models[1]), ["Busta Rokkit Launcha - Standard", "Gitstikka"])
+c.eq("Tankbustas points (codex)", tank.points, 145)
 
 for idx in (1, 2):
     bikes = build(WARBIKERS, composition_index=0,
@@ -367,17 +362,14 @@ ROSTER = [
           choices={"Battlewagon": {BATTLEWAGON_ADD_BIG_SHOOTAS: 1, BATTLEWAGON_ADD_ZZAP_GUN: 1}}),
     build(DEFF_DREAD),
     build(DEFFKOPTAS, composition_index=1),
-    build(FLASH_GITZ, composition_index=1, gear={"Kaptin": [FLASH_GITZ_AMMO_RUNT]}),
+    build(FLASH_GITZ, composition_index=1),
     build(GRETCHIN, unit_index=1),
     build(GRETCHIN, unit_index=2),
     build(KILL_RIG),
     attached_units.attach(build(WARBOSS_MEGA_ARMOUR), build(MEGANOBZ, composition_index=3),
                           game_state=GameState()),
     build(STORMBOYZ, composition_index=1, choices={"Nob": {STORMBOYZ_NOB_TO_POWER_KLAW: 1}}),
-    build(TANKBUSTAS, choices={
-        "Boss Nob": {TANKBUSTAS_BOSS_NOB_ADD_SMASH_HAMMER: 1},
-        "Tankbusta": {TANKBUSTAS_ADD_ROKKIT_LAUNCHA: 1},
-    }),
+    build(TANKBUSTAS),
     build(WARBIKERS, composition_index=0,
           choices={"Boss Nob on Warbike": {WARBIKERS_ADD_POWER_KLAW: 1}}, unit_index=1),
     build(WARBIKERS, composition_index=0,
@@ -389,7 +381,7 @@ c.true("every unit is priced", all(s.points is not None for s in ROSTER))
 # codex POINTS tables for the rebuilt Ork datasheets). The user's list totals
 # differently unit by unit - recorded in main.py's own note, with the
 # transcribed data left as the source of truth.
-c.eq("engine total", sum(s.points for s in ROSTER), 2025)
+c.eq("engine total", sum(s.points for s in ROSTER), 2105)
 c.eq("model count", sum(len(s.models) for s in ROSTER), 101)
 
 # The hand-built roster above is only worth checking if it IS the shipped

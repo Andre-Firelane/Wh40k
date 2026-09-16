@@ -85,7 +85,7 @@ of a ratio are computed the same way and most of what is missing cancels.
 """
 
 from game.damage_estimate import expected_wounds
-from game import weapon_range
+from game import weapon_profiles, weapon_range
 
 
 class _ReferenceDefender:
@@ -125,9 +125,13 @@ def model_output(model, melee, defender=REFERENCE_DEFENDER):
     skill = model.profile.weapon_skill if melee else model.profile.ballistic_skill
     total = 0.0
     best_selectable = 0.0
-    for weapon in model.weapons:
-        if getattr(weapon, "weapon_type", None) != want:
+    for carried in model.weapons:
+        if getattr(carried, "weapon_type", None) != want:
             continue
+        # A multi-profile weapon counts as the profile the AI would fire (rule
+        # 04.01.03, game/weapon_profiles.py's valued_profiles()).
+        weapon = max(weapon_profiles.valued_profiles(carried),
+                     key=lambda p: expected_wounds(p, p.attacks, skill, defender))
         value = expected_wounds(weapon, weapon.attacks, skill, defender)
         if melee and not weapon.extra_attacks:
             best_selectable = max(best_selectable, value)
@@ -221,7 +225,8 @@ def best_ranged_reach_in(squad):
         for weapon in model.weapons:
             if getattr(weapon, "weapon_type", None) != "ranged":
                 continue
-            best = max(best, weapon_range.effective_range_in(model, weapon))
+            for profile in weapon_profiles.valued_profiles(weapon):
+                best = max(best, weapon_range.effective_range_in(model, profile))
     return best
 
 

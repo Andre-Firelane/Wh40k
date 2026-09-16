@@ -10,6 +10,7 @@ from ai import observation as ai_observation
 from ai.agent_driver import AIMemory, take_one_action
 from ai.agent_driver import reactive_subroutines_destination, reactive_subroutines_move
 from ai.agent_driver import boss_motivation_choice, catch_dat_red_bit_verdict, hyperphasing_choice, hyperphasic_recall_verdict, rokkit_charge_verdict, war_cry_verdict
+from ai.agent_driver import battle_shock_target_choice
 from ai.claude_agent import ClaudeAgent
 # from ai.mock_agent import MockAgent  # free/offline alternative - no API key or network needed
 from game import attached_units, battle_focus, biomes, charge, config, consolidate, crushing_impact, enhancements, epic_challenge, explosives, fall_back, fight, firing_deck, greater_good, line_of_sight, maps, movement, overwatch, pregame, setup, shooting, starflare_ignition, status_effects, strands_of_fate
@@ -41,6 +42,9 @@ from game.boss_ammo_runt import BossAmmoRuntController
 from game.boss_motivation import IntimidatingMotivationController, KeepHuntinController
 from game.crude_surgery import CrudeSurgeryController
 from game.krushin_impetus import KrushinImpetusController
+from game.bomb_squigs import BombSquigsController
+from game.pulsa_rokkit import PulsaRokkitController
+from game.rokkit_barrage import RokkitBarrageController
 from game.mobbed import MobbedController
 from game.ork_ammo_runts import AmmoRuntsController
 from game.rokkit_charge import RokkitChargeController
@@ -129,7 +133,6 @@ from game.setup import SetupController
 from game.suppression import SuppressionController
 from game.stealth_drones import StealthDronesController
 from game.starflare_ignition import StarflareIgnitionController
-from game.ammo_runt import AmmoRuntController
 from game.reanimation_protocols import ReanimationProtocolsController
 from game.return_placement import ReturnPlacementController
 from game.technomancer import TechnomancerController
@@ -1087,15 +1090,6 @@ def main(map_key=None):
     stim_injectors_controller = StimInjectorsController(
         stratagem_controller, decision_manager=decision_manager, turn_tracker=turn_tracker, game_log=game_log,
     )
-    # Flash Gitz' Ammo Runt (user-supplied): offered when the unit is
-    # selected to shoot, once per battle. Handed to ShootingController the
-    # same way the Riptide's Nova Charge is - see game/ammo_runt.py. The
-    # auto_players shape (game/ai_mode.py): per explicit user
-    # instruction the AI uses it at the first opportunity instead of being
-    # asked, while a human running Orks keeps the choice.
-    ammo_runt_controller = AmmoRuntController(
-        decision_manager=decision_manager, game_log=game_log, auto_players=ai_players,
-    )
     # Boyz' Ammo Runts (2026-09 codex): offered at the same instant, a different
     # rule. The AI uses it at its first opportunity.
     ork_ammo_runts_controller = AmmoRuntsController(
@@ -1331,6 +1325,13 @@ def main(map_key=None):
     krushin_impetus_controller = KrushinImpetusController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
         game_state=state, auto_players=ai_players, target_pick=_best_damage_target,
+    )
+    # The Tankbustas' Bomb Squigs - the same mortal-wound machine, fed by a
+    # Normal move (game/bomb_squigs.py). "Visible" is the real line of sight.
+    bomb_squigs_controller = BombSquigsController(
+        dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
+        game_state=state, auto_players=ai_players, target_pick=_best_damage_target,
+        turn_tracker=turn_tracker, visible=_psychic_visible,
     )
     wraith_form_controller = WraithFormController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
@@ -1760,11 +1761,18 @@ def main(map_key=None):
     unmasking_suite_controller = UnmaskingSuiteController(
         game_state=state, decision_manager=decision_manager, game_log=game_log,
         auto_players=ai_players)
+    # The Tankbustas' Pulsa Rokkit (2026-09 Ork codex): offered when the unit is
+    # selected to shoot and read by ShootingController's adjuster chain - see
+    # game/pulsa_rokkit.py. The AI marks the unit its Tankbustas can hurt most.
+    pulsa_rokkit_controller = PulsaRokkitController(
+        decision_manager=decision_manager, turn_tracker=turn_tracker, game_log=game_log,
+        game_state=state, auto_players=ai_players, target_pick=_best_damage_target,
+    )
     shooting_controller = ShootingController(
         obstacles=state.obstacles, game_log=game_log, dice_manager=dice_manager, turn_tracker=turn_tracker,
         all_tokens=state.tokens, movement_controller=movement_controller, terrain_areas=state.terrain_areas,
         decision_manager=decision_manager, greater_good=greater_good_controller, suppression=suppression_controller,
-        ammo_runt=ammo_runt_controller, ork_ammo_runts=ork_ammo_runts_controller,
+        ork_ammo_runts=ork_ammo_runts_controller, pulsa_rokkit=pulsa_rokkit_controller,
         boss_ammo_runt=boss_ammo_runt_controller,
         advanced_scouting=advanced_scouting_controller,
         bounty_hunters=bounty_hunters_controller, oversight_drone=oversight_drone_controller,
@@ -1883,6 +1891,16 @@ def main(map_key=None):
         decision_manager=decision_manager, game_log=game_log)
     shooting_controller.on_squad_finished_shooting.append(
         panicked_quarry_controller.offer_after_shooting)
+    # The Tankbustas' Rokkit Barrage - the same machine's fourth carrier, and
+    # the first the AI plays: its choice between several hit units is
+    # ai/agent_driver.py's battle_shock_target_choice(), 0 API calls.
+    rokkit_barrage_controller = RokkitBarrageController(
+        battle_shock_controller=battle_shock_controller,
+        decision_manager=decision_manager, game_log=game_log, auto_players=ai_players,
+        target_pick=lambda squad, candidates: battle_shock_target_choice(
+            squad, candidates, state.objectives))
+    shooting_controller.on_squad_finished_shooting.append(
+        rokkit_barrage_controller.offer_after_shooting)
     # Kharseth's Fury of the Void - the per-WEAPON subset again, because only a
     # unit his Dread of the Deep Void hit is a legal choice.
     shooting_controller.on_squad_finished_shooting.append(
@@ -3121,6 +3139,8 @@ def main(map_key=None):
     movement_controller.on_move_finished.append(intimidating_motivation_controller.on_move_finished)
     movement_controller.on_move_started.append(keep_huntin_controller.on_move_started)
     movement_controller.on_move_finished.append(keep_huntin_controller.on_move_finished)
+    # The Tankbustas' Bomb Squigs: "when this unit ends a normal move".
+    movement_controller.on_move_finished.append(bomb_squigs_controller.on_move_finished)
 
     def _never_beaten_worth_it(attacker, defender):
         """The AI's rule (user decision): buy it when the incoming melee
@@ -4225,9 +4245,8 @@ def main(map_key=None):
         nova_charge_controller.reset_phase({t.squad for t in state.tokens if t.squad is not None})
         # Kill Rig's Spirit of Gork: "until the end of the phase".
         spirit_of_gork_controller.reset_phase({t.squad for t in state.tokens if t.squad is not None})
-        # Flash Gitz' Ammo Runt: same "until the end of the phase" grant. Its
-        # once-per-BATTLE record is deliberately not touched here.
-        ammo_runt_controller.reset_phase({t.squad for t in state.tokens if t.squad is not None})
+        # The Tankbustas' Pulsa Rokkit: its mark lasts the phase.
+        pulsa_rokkit_controller.reset_phase()
         # Boyz' Ammo Runts and Stormboyz' Rokkit Charge: phase grants. Ammo
         # Runts' once-per-battle spend is a separate flag and survives.
         ork_ammo_runts.reset_phase({t.squad for t in state.tokens if t.squad is not None})
@@ -5162,7 +5181,7 @@ def main(map_key=None):
         living_lightning_controller, matter_absorption_controller,
         crimson_harvest_controller, eater_plague_controller,
         kroot_linebreakers_controller, crushing_strides_controller,
-        krushin_impetus_controller,
+        krushin_impetus_controller, bomb_squigs_controller,
         # Isha's Fury, the Grenade Pack Flyover, the Grav-inhibitor Field and
         # Flickerjump - four more allocations belonging to the TARGET's owner.
         ishas_fury_controller, grenade_pack_controller,
@@ -5398,6 +5417,8 @@ def main(map_key=None):
             or eater_plague_controller.pending_damage_choice is not None
             or kroot_linebreakers_controller.pending_damage_choice is not None
             or krushin_impetus_controller.pending_damage_choice is not None
+            or bomb_squigs_controller.is_busy
+            or bomb_squigs_controller.pending_damage_choice is not None
             or crushing_strides_controller.pending_damage_choice is not None
             or malevolent_souls_controller.is_busy
             or systematic_vigour_controller.is_busy
@@ -6142,6 +6163,7 @@ def main(map_key=None):
         kroot_linebreakers_controller.on_dice_acknowledged()
         kroot_linebreakers_controller.resolve_pending_battle_shock()
         krushin_impetus_controller.on_dice_acknowledged()
+        bomb_squigs_controller.on_dice_acknowledged()
         wraith_form_controller.on_dice_acknowledged()
         internal_grenade_racks_controller.on_dice_acknowledged()
         self_destruction_controller.on_dice_acknowledged()
@@ -7250,6 +7272,14 @@ def main(map_key=None):
                     clicked = input_manager.token_at_event(state.tokens, board, event.pos)
                     if clicked is not None and clicked in krushin_impetus_controller.pending_damage_choice:
                         krushin_impetus_controller.choose_damage_model(clicked)
+            elif bomb_squigs_controller.pending_damage_choice is not None:
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in bomb_squigs_controller.pending_damage_choice:
+                        bomb_squigs_controller.choose_damage_model(clicked)
             elif crushing_strides_controller.pending_damage_choice is not None:
                 if (
                     event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
@@ -8385,6 +8415,7 @@ def main(map_key=None):
         renderer.draw_damage_choice_highlight(board_surface, board, eater_plague_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, kroot_linebreakers_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, krushin_impetus_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, bomb_squigs_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, crushing_strides_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, grenade_pack_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, grav_inhibitor_controller.pending_damage_choice)

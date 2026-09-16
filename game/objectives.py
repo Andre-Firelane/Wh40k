@@ -33,6 +33,21 @@ def is_within_range_of_objective(squad, objectives, range_in=OBJECTIVE_RANGE_IN)
     )
 
 
+def attacker_or_target_within_range_of_objective(attacking_squad, target_squad, objectives,
+                                                 range_in=OBJECTIVE_RANGE_IN):
+    """"This unit AND/OR the target unit is within range of an objective" - an
+    OR, and the whole condition of two printed rules: Guardian Battlehost's
+    Defend at All Costs and the Flash Gitz' Finderz Keeperz. Extracted at that
+    second consumer, so the two cannot come to disagree about which unit's
+    position counts or what "within range" is."""
+    if attacking_squad is None or not objectives:
+        return False
+    if is_within_range_of_objective(attacking_squad, objectives, range_in):
+        return True
+    return target_squad is not None and is_within_range_of_objective(
+        target_squad, objectives, range_in)
+
+
 def is_on_objective(squad, objectives):
     """Whether any model in squad is actually standing on (overlapping the
     terrain footprint of) an objective marker - the SAME footprint-overlap

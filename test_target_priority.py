@@ -42,7 +42,7 @@ from testkit import (Checks, DecisionManager, DiceManager, GameState, TurnTracke
 from ai import agent_driver, observation
 from game import maps
 from game.factions import orks, tau_empire
-from game import damage_estimate
+from game import damage_estimate, weapon_profiles
 from game import squad as squad_module
 from game.shooting import ShootingController
 from game.turn import PHASE_SHOOTING, PHASES
@@ -117,8 +117,10 @@ def is_vehicle(squad):
 
 c.eq("Tankbustas fielded at 6 models", len(TANKBUSTAS.models), 6)
 c.eq("Deffkoptas fielded at 6 models", len(DEFFKOPTAS.models), 6)
-c.true("Tankbustas carry S9 Rokkits",
-     any(w.strength == 9 for m in TANKBUSTAS.models for w in m.weapons
+# S10 since the 2026-09 Ork codex (the Busta Rokkit Launcha's Standard profile
+# and the Nob's Rokkit Pistols); the report's S9 Rokkit Launcha is retired.
+c.true("Tankbustas carry S10 Rokkits",
+     any(w.strength == 10 for m in TANKBUSTAS.models for w in m.weapons
          if w.weapon_type == "ranged"))
 c.true("Deffkoptas carry S9 Rokkits",
      any(w.strength == 9 for m in DEFFKOPTAS.models for w in m.weapons
@@ -166,8 +168,15 @@ for squad in (TANKBUSTAS, DEFFKOPTAS):
     old = old_merged_ranking(squad, FOES)
     c.eq(f"A/B {label}: the old merged list named no vehicle at all",
          [n for n, _ in old if any(v == n for v in vehicles)], [])
-    c.true(f"A/B {label}: the old merged list was all melee",
-         all(mode == "melee" for _n, mode in old))
+    # The codex Tankbustas' 24" launchers put one SHOOTING row into the old
+    # list (measured: Kroot melee, Strike Team melee, Stealth shooting); what
+    # the report was about - melee first, and no vehicle anywhere - holds.
+    if squad is TANKBUSTAS:
+        c.true(f"A/B {label}: the old merged list was led by melee",
+             bool(old) and old[0][1] == "melee")
+    else:
+        c.true(f"A/B {label}: the old merged list was all melee",
+             all(mode == "melee" for _n, mode in old))
 
     new = observation.ranked_targets(squad, FOES)
     c.true(f"{label}: the role is split into shoot/charge lists",
@@ -446,7 +455,12 @@ print(f"    Riptide {RIPTIDE_W}/{RIPTIDE_W} -> {full:.1f} pts   "
 c.true("a half-dead Riptide is worth more than a fresh one", half > full * 1.5)
 c.true("...and one on its last wound is worth its whole points value",
        abs(last - riptide.points) < 0.5)
-c.true("...with the damaged value rising monotonically", full < half < last)
+# Rising until the kill is certain, then flat at the Riptide's points: the
+# codex Tankbustas expect ~8.5 wounds against it, so at 7 wounds left the value
+# is already capped (measured 190.0 at 7/14 AND at 1/14). The strict middle
+# point is therefore taken where the kill is not yet certain.
+nearly_full = value_at(riptide, RIPTIDE_W - 2)
+c.true("...with the damaged value rising monotonically", full < nearly_full < half <= last)
 
 # A/B: without the fix the three numbers are the same.
 old_full = value_at(riptide, RIPTIDE_W, old=True)
@@ -491,8 +505,10 @@ def quoted_points(text):
 
 c.true("the shoot option names the wounded Riptide the most valuable shot",
        "most valuable" in hurt_hints["1 Riptide"])
+# 1.5x, not 2x: the quote is capped at the Riptide's 190 points, and the codex
+# launchers already take ~116 of them from a fresh one (measured 116 -> 190).
 c.true("...and the points it quotes rise as the Riptide is worn down",
-       quoted_points(hurt_hints["1 Riptide"]) > quoted_points(fresh_hints["1 Riptide"]) * 2)
+       quoted_points(hurt_hints["1 Riptide"]) > quoted_points(fresh_hints["1 Riptide"]) * 1.5)
 c.true("...while the Fire Warriors' quoted value does not move",
        abs(quoted_points(hurt_hints["1 Strike Team"])
            - quoted_points(fresh_hints["1 Strike Team"])) < 0.6)
@@ -525,20 +541,22 @@ c.true("nothing is destroyed by zero wounds",
 
 
 # ---------------------------------------------------------------------------
-# 8. The unit's own ANTI-TANK RULE was worth nothing to the estimate
+# 8. The unit's own ANTI-TANK WEAPON is worth something to the estimate
 #
 # Same report, third layer (user: "mal abgesehen von den remaining wounds,
 # haetten die panzaknacker auch auf den riptide schiessen sollen, auch wenn er
 # volle lebenspunkte gehabt haette... noch dazu haben sie anti tank regeln,
 # also die entscheidung war auf allen ebenen falsch").
 #
-# The points-per-wound conversion was right; its INPUT was not. Tankbustas'
-# Tank Hunters is +1 to Hit and +1 to Wound against a MONSTER or VEHICLE unit
-# - roughly double the output, and the entire reason the unit counts as
-# anti-tank - and expected_wounds() applied neither. So the estimate described
-# a Rokkit team as though its special rule did not exist, which is exactly the
-# half of "why is it shooting infantry" that section 7's wound fix does not
-# touch.
+# The section used to pin the pre-codex Tank Hunters rule (+1 to Hit and Wound
+# against a MONSTER or VEHICLE unit) reaching expected_wounds(). The 2026-09
+# Ork codex RETIRED that rule: the Tankbustas' anti-tank power is now a WEAPON
+# PROFILE - the Busta Rokkit Launcha's Hunter profile (A3 S12 AP-2 D3, only
+# against MONSTER/VEHICLE targets). The same question therefore moved one
+# level down: does the estimate read the profile the unit would fire at a
+# vehicle, or only the Standard profile the model carries first?
+# game/weapon_profiles.py's valued_profiles() is the answer, and the A/B below
+# runs the estimate with it reduced to "the carried profile only".
 #
 # The multi-damage half of the same question was ALREADY right and is pinned
 # here so it stays that way: D3 damage against 1-wound Fire Warriors is capped
@@ -546,13 +564,13 @@ c.true("nothing is destroyed by zero wounds",
 # ---------------------------------------------------------------------------
 
 print()
-print("8. the unit's own anti-tank rule")
+print("8. the unit's own anti-tank weapon")
 
 rok_squad = build_squad(orks.TANKBUSTAS, "Player 2", unit_index=1)
 rok_squad.name = "2 Tankbustas"
-shooter = rok_squad.models[0]
-rokkit = next(w for m in rok_squad.models for w in m.weapons
-              if w.weapon_type == "ranged" and w.damage > 1)
+shooter = next(m for m in rok_squad.models if m.profile.name == "Tankbusta")
+rokkit = next(w for w in shooter.weapons if w.weapon_type == "ranged" and w.damage > 1)
+hunter = next((p for p in weapon_profiles.profiles(rokkit) if weapon_profiles.is_hunter(p)), None)
 
 monsters = {
     "Riptide": build_squad(tau_empire.RIPTIDE_BATTLESUIT, "Player 1", unit_index=1),
@@ -565,61 +583,65 @@ infantry = {
     "Kroot": build_squad(tau_empire.KROOT_CARNIVORES, "Player 1", unit_index=1),
 }
 
-c.true("the scene: the squad actually has Tank Hunters",
-       shooter.profile.tank_hunters)
+c.true("the scene: the Tankbusta's rokkit prints a Hunter profile", hunter is not None)
 c.true("the scene: its rokkit is a multi-damage weapon", rokkit.damage > 1)
 c.true("the scene: the vehicles read as MONSTER/VEHICLE and the infantry does not",
        all(squad_module.is_monster_or_vehicle_unit(t) for t in monsters.values())
        and not any(squad_module.is_monster_or_vehicle_unit(t) for t in infantry.values()))
+c.true("the retired Tank Hunters rule is gone from the profile",
+       not hasattr(shooter.profile, "tank_hunters"))
 
 for name, target in monsters.items():
-    c.true(f"Tank Hunters improves both rolls against {name}",
-           damage_estimate.attack_modifiers(shooter, target) == (-1, -1))
-for name, target in infantry.items():
-    c.true(f"...and does nothing against {name}",
+    c.true(f"the estimate reads the Hunter profile against {name}",
+           hunter in weapon_profiles.valued_profiles(rokkit, target))
+    c.true(f"...and no hit/wound modifier is left over from Tank Hunters ({name})",
            damage_estimate.attack_modifiers(shooter, target) == (0, 0))
+for name, target in infantry.items():
+    c.true(f"...but never against {name}",
+           hunter not in weapon_profiles.valued_profiles(rokkit, target))
 
 
-def without_modifiers(fn):
-    """Run fn() with attack_modifiers() neutralised - the pre-change estimate."""
-    real = damage_estimate.attack_modifiers
-    damage_estimate.attack_modifiers = lambda m, d, melee=False: (0, 0)
+def carried_profile_only(fn):
+    """Run fn() with valued_profiles() reduced to the carried first profile -
+    the estimate before it learned about multi-profile weapons."""
+    real = weapon_profiles.valued_profiles
+    weapon_profiles.valued_profiles = lambda weapon, target_squad=None: weapon_profiles.profiles(weapon)[:1]
     try:
         return fn()
     finally:
-        damage_estimate.attack_modifiers = real
+        weapon_profiles.valued_profiles = real
 
 
 print(f"    {'target':16s} {'before':>8s} {'after':>8s}")
 for name, target in list(monsters.items()) + list(infantry.items()):
-    before = without_modifiers(lambda t=target: observation.damage_value(rok_squad, t))
+    before = carried_profile_only(lambda t=target: observation.damage_value(rok_squad, t))
     after = observation.damage_value(rok_squad, target)
     print(f"    {name:16s} {before:8.1f} {after:8.1f}")
     if name in monsters:
-        c.true(f"{name} is worth substantially more once the rule counts",
-               after > before * 1.8)
+        # Measured 1.40-1.42x: A3 S12 against A2 S10 on the same launchers.
+        c.true(f"{name} is worth substantially more once the Hunter profile counts",
+               after > before * 1.3)
     else:
-        c.true(f"{name} is untouched by an anti-VEHICLE rule",
+        c.true(f"{name} is untouched by a MONSTER/VEHICLE-only profile",
                abs(after - before) < 1e-9)
 
 # The decision the user watched go wrong: every vehicle ahead of every body.
+# (The codex Standard profile alone already ranks them so - measured 46.5 against
+# 37.8 - so this is pinned as the outcome, not as an A/B.)
 worst_vehicle = min(observation.damage_value(rok_squad, t) for t in monsters.values())
 best_infantry = max(observation.damage_value(rok_squad, t) for t in infantry.values())
-c.true("every MONSTER/VEHICLE now outranks every infantry squad for this unit",
+c.true("every MONSTER/VEHICLE outranks every infantry squad for this unit",
        worst_vehicle > best_infantry)
-c.true("...and it did NOT before, which is the reported bug",
-       without_modifiers(lambda: min(observation.damage_value(rok_squad, t)
-                                     for t in monsters.values()))
-       <= without_modifiers(lambda: max(observation.damage_value(rok_squad, t)
-                                        for t in infantry.values())))
 
-# A unit WITHOUT the rule must be completely unaffected by any of this.
-plain = build_squad(orks.FLASH_GITZ, "Player 2", unit_index=1)
-c.true("a squad without Tank Hunters gets no modifiers",
+# A unit whose weapons print one profile each must be completely unaffected.
+plain = build_squad(orks.DEFFKOPTAS, "Player 2", unit_index=1)
+c.true("the scene: every Deffkopta weapon prints a single profile",
+       all(len(weapon_profiles.profiles(w)) == 1 for m in plain.models for w in m.weapons))
+c.true("a squad of single-profile weapons gets no modifiers",
        damage_estimate.attack_modifiers(plain.models[0], monsters["Riptide"]) == (0, 0))
 c.true("...and its valuation is unchanged",
        abs(observation.damage_value(plain, monsters["Riptide"])
-           - without_modifiers(lambda: observation.damage_value(plain, monsters["Riptide"]))) < 1e-9)
+           - carried_profile_only(lambda: observation.damage_value(plain, monsters["Riptide"]))) < 1e-9)
 
 # The multi-damage half, pinned: D3 against 1-wound models is capped at 1.
 prof_inf, _ = damage_estimate.defender_soak(infantry["Strike Team"])

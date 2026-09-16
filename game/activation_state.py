@@ -133,7 +133,9 @@ SQUAD_FLAGS = (
     "neocapacitor_shielded",
     "spirit_of_gork_strength",
     "spirit_of_gork_lethal",
-    "ammo_runt_active",
+    # The Tankbustas' Bomb Squigs: tokens spent and the turn of the last use.
+    "bomb_squigs_used",
+    "bomb_squigs_turn",
     "hit_em_harder_active",
     "mow_em_down_active",
     "fungus_fuel_injection_active",

@@ -18,9 +18,10 @@ Two claims:
 
 The labels are the interesting half to test, because almost every keyword
 involved is a CONDITIONAL grant applied at resolution time - so the note has
-to be taken from the adjusted weapon, not the printed one. The Ammo Runt is
-the A/B for that: the same Flash Gitz, the same all-sixes hit roll, with and
-without the grant.
+to be taken from the adjusted weapon, not the printed one. The Snazzgun's
+Dakka profile is the A/B for that: it prints [LETHAL HITS: non-MONSTER/VEHICLE],
+so the same Flash Gitz with the same all-sixes hit roll gain it against a Strike
+Team and not against a Devilfish. (The pre-codex Ammo Runt played this part.)
 
 Real controllers and a real headless render throughout.
 """
@@ -40,7 +41,7 @@ from game.dice import DiceManager, HIT_ROLL
 from game.factions.aeldari import HOWLING_BANSHEES
 from game.factions.orks import BEAST_SNAGGA_BOYZ, BOYZ, FLASH_GITZ
 from game.factions.tau_empire import (
-    PATHFINDER_CARBINE_TO_RAIL_RIFLE, PATHFINDER_TEAM, STRIKE_TEAM,
+    DEVILFISH, PATHFINDER_CARBINE_TO_RAIL_RIFLE, PATHFINDER_TEAM, STRIKE_TEAM,
 )
 
 c = Checks("lethal hits + critical dice labels")
@@ -59,27 +60,28 @@ from game.ui.dice_panel import DicePanel      # noqa: E402
 print("--- 1. lethal hits ---")
 
 
-def snazzguns(ammo_runt):
-    """One Flash Gitz activation, every hit roll a natural 6 - so every hit
-    is critical and rule 24.23 (when the Ammo Runt grants it) applies to all
-    of them. Stopped right after the hit roll resolves, which is where the
-    wound roll is pending and its dice countable."""
+def snazzguns(target_sheet):
+    """One Flash Gitz activation with the Snazzgun's Dakka profile (index 1 of
+    Cutta, Dakka, Kill Shot), every hit roll a natural 6 - so every hit is
+    critical and rule 24.23 applies to all of them WHEN the conditional
+    [LETHAL HITS: non-MONSTER/VEHICLE] is granted against this target. Stopped
+    right after the hit roll resolves, which is where the wound roll is pending
+    and its dice countable."""
     tk.script(*([6] * 60))
-    scene = tk.shooting_scene(FLASH_GITZ, STRIKE_TEAM, gap=10.0)
-    scene["attacker"].ammo_runt_active = ammo_runt
+    scene = tk.shooting_scene(FLASH_GITZ, target_sheet, gap=10.0)
     sc = scene["shooting"]
     sc.start_shooting(scene["attacker"])
     sc.choose_target_squad(scene["target"])
     key = next(k for k, *rest in sc.weapon_eligibility() if "Snazzgun" in str(rest[0]))
-    sc.choose_weapon(key)
+    sc.choose_weapon(key, profile=1)
     hit_note = (scene["dice"].crit_threshold, scene["dice"].crit_labels)
     scene["dice"].acknowledge()
     sc.on_dice_acknowledged()
     return scene, hit_note
 
 
-with_runt, runt_hit_note = snazzguns(True)
-without, plain_hit_note = snazzguns(False)
+with_runt, runt_hit_note = snazzguns(STRIKE_TEAM)
+without, plain_hit_note = snazzguns(DEVILFISH)
 
 c.eq("[LETHAL HITS] no longer interrupts the activation with a prompt",
      with_runt["decision"].is_pending, False)

@@ -77,8 +77,8 @@ NEUTRALIZE_EDITS = (
      "        mobbed_controller.on_charge_move_finished)\n",
      "    pass\n"),
     ("        mobbed_controller.on_dice_acknowledged()\n", "        pass\n"),
-    ("        ammo_runt=ammo_runt_controller, ork_ammo_runts=ork_ammo_runts_controller,\n",
-     "        ammo_runt=ammo_runt_controller,\n"),
+    ("        ork_ammo_runts=ork_ammo_runts_controller, pulsa_rokkit=pulsa_rokkit_controller,\n",
+     "        pulsa_rokkit=pulsa_rokkit_controller,\n"),
     ("        rokkit_charge=RokkitChargeController(\n"
      "            decision_manager=decision_manager, game_log=game_log,\n"
      "            auto_players=ai_players,\n"

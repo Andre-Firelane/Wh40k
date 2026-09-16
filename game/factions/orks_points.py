@@ -1,7 +1,8 @@
 """The Orks points list, transcribed verbatim from the official army app's
 "Unit Costs" screen (user-supplied paste, 2026-07-29). The entries of the
 datasheets rebuilt for the 2026-09 codex (Boyz, Beast Snagga Boyz, Stormboyz,
-Gretchin, Meganobz, Warboss, Warboss in Mega Armour, Beastboss, Painboy so far) follow the POINTS table of their rules/orks/*.md
+Gretchin, Meganobz, Warboss, Warboss in Mega Armour, Beastboss, Painboy, Flash Gitz,
+Tankbustas so far) follow the POINTS table of their rules/orks/*.md
 page instead, and say so where they stand.
 
 All 58 entries, not just the five units game/factions/orks.py has datasheets
@@ -76,9 +77,10 @@ ORKS_POINTS = {
     ]),
     "Deffkilla Wartrike": flat_points({1: 70}, leads=("Warbikers",)),
     "Deffkoptas": flat_points({3: 75, 6: 140}),
+    # 2026-09 codex (rules/orks/Flash Gitz.md).
     "Flash Gitz": UnitPoints([
-        PointsTier({5: 75, 10: 150}, to_unit=2),
-        PointsTier({5: 85, 10: 160}, from_unit=3),
+        PointsTier({5: 105, 10: 210}, to_unit=2),
+        PointsTier({5: 135, 10: 240}, from_unit=3),
     ]),
     "Gargantuan Squiggoth": UnitPoints([
         PointsTier({1: 440}, to_unit=1),
@@ -140,9 +142,10 @@ ORKS_POINTS = {
     ]),
     # 2026-09 codex (rules/orks/Stormboyz.md).
     "Stormboyz": flat_points({5: 70, 10: 140}),
+    # 2026-09 codex (rules/orks/Tankbustas.md).
     "Tankbustas": UnitPoints([
-        PointsTier({6: 125}, to_unit=2),
-        PointsTier({6: 135}, from_unit=3),
+        PointsTier({6: 145}, to_unit=2),
+        PointsTier({6: 155}, from_unit=3),
     ]),
     "Trukk": UnitPoints([
         PointsTier({1: 55}, to_unit=3),

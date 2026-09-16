@@ -1,23 +1,22 @@
-"""The wargear items whose rules arrived after their datasheets:
-Battlewagon's Zzap gun (a dice-rolled Strength) and Flash Gitz' Ammo Runt.
-The Warboss's Attack Squig was a third, and went with the pre-codex Warboss
-(2026-09 Ork codex; test_ork_characters.py owns the new sheet).
+"""The wargear item whose rules arrived after its datasheet: the Battlewagon's
+Zzap gun (a dice-rolled Strength). The Warboss's Attack Squig and the Flash Gitz'
+Ammo Runt were two more, and went with their pre-codex sheets (2026-09 Ork codex;
+test_ork_characters.py and test_ork_specialists.py own the new ones).
 
 Run: python test_ork_wargear.py
 
 Built on testkit.py (see its docstring for the headless-harness traps).
 """
 
+import os
+
 from testkit import (
-    Checks, DecisionManager, Log, build, options_of, pick_option, script,
-    shooting_scene,
+    Checks, build, script, shooting_scene,
 )
 
-from game import ammo_runt as ar
 from game.dice_notation import describe as describe_dice
 from game.factions.orks import (
     BATTLEWAGON, BATTLEWAGON_ADD_BIG_SHOOTAS, BATTLEWAGON_ADD_ZZAP_GUN, BATTLEWAGON_ARD_CASE,
-    BOYZ, FLASH_GITZ, FLASH_GITZ_AMMO_RUNT,
 )
 from game.factions.tau_empire import DEVILFISH, STRIKE_TEAM
 from game.weapons import ZzapGunProfile
@@ -140,156 +139,10 @@ c.true("the Attack Squig profile is gone with the pre-codex Warboss",
 
 
 # ---------------------------------------------------------------------------
-# 4. Ammo Runt
+# 4. (The Flash Gitz' Ammo Runt was here; the 2026-09 codex dropped it.)
 # ---------------------------------------------------------------------------
 
-AR_GEAR = {"Kaptin": [FLASH_GITZ_AMMO_RUNT]}
-gitz = build(FLASH_GITZ, name="Flash Gitz", composition_index=1, gear=AR_GEAR)
-c.eq("exactly one model carries the Ammo Runt", sum(1 for m in gitz.models if m.ammo_runt), 1)
-c.eq("it is free (no published price to charge)", gitz.points,
-     build(FLASH_GITZ, name="FG2", composition_index=1).points)
-c.eq("unit predicate", ar.unit_has_ammo_runt(gitz), True)
-c.eq("a unit without one", ar.unit_has_ammo_runt(build(FLASH_GITZ, name="FG3", composition_index=1)), False)
-c.eq("...and a unit of something else entirely", ar.unit_has_ammo_runt(build(BOYZ, name="B")), False)
-
-dead = build(FLASH_GITZ, name="FG4", composition_index=1, gear=AR_GEAR)
-for m in dead.models:
-    m.current_wounds = 0
-c.eq("the wargear dies with its bearer (19.04)", ar.unit_has_ammo_runt(dead), False)
-
-dm = DecisionManager()
-log = Log()
-ctrl = ar.AmmoRuntController(decision_manager=dm, game_log=log)
-target = build(FLASH_GITZ, name="Gitz A", composition_index=1, gear=AR_GEAR)
-
-c.eq("offered for a unit that has one", ctrl.can_use(target), True)
-c.eq("not offered for a unit that has not", ctrl.can_use(build(BOYZ, name="B2")), False)
-c.true("the offer is raised", ctrl.offer(target))
-labels = options_of(dm)
-c.eq("two options - use it or keep it", len(labels), 2)
-c.true("declining is possible - it is a once-per-battle resource",
-       any("save it" in l.lower() for l in labels))
-c.eq("nothing is granted until a choice is made", target.ammo_runt_active, False)
-
-pick_option(dm, "Save it")
-c.eq("declining grants nothing", target.ammo_runt_active, False)
-c.eq("...and does NOT spend the once-per-battle use", ctrl.has_been_used(target), False)
-
-ctrl.offer(target)
-pick_option(dm, "Use the")
-c.eq("using it grants the ability", target.ammo_runt_active, True)
-c.eq("...spends the once-per-battle use", ctrl.has_been_used(target), True)
-c.true("...and is logged", log.has("Ammo Runt"))
-c.eq("a second offer is refused (once per battle)", ctrl.can_use(target), False)
-
-ctrl.reset_phase([target])
-c.eq('"until the end of the phase" is cleared', target.ammo_runt_active, False)
-c.eq("but the once-per-battle record is NOT", ctrl.has_been_used(target), True)
-c.eq("...so it still cannot be used again", ctrl.can_use(target), False)
-
-# The AI answers this one itself, at the first opportunity (user: "die ki soll
-# das bei der ersten gelegenheit deterministisch benutzen und gut").
-auto_dm = DecisionManager()
-auto_log = Log()
-auto = ar.AmmoRuntController(decision_manager=auto_dm, game_log=auto_log,
-                             auto_players=("Player 2",))
-ai_gitz = build(FLASH_GITZ, "Player 2", name="Gitz AI", composition_index=1, gear=AR_GEAR)
-c.true("the AI's offer resolves itself", auto.offer(ai_gitz))
-c.eq("...without ever asking", auto_dm.is_pending, False)
-c.eq("...and the ability is up immediately", ai_gitz.ammo_runt_active, True)
-c.eq("...spending the once-per-battle use", auto.has_been_used(ai_gitz), True)
-c.true("...and it is logged", auto_log.has("Ammo Runt"))
-
-# A/B: the SAME squad through a controller without auto_players asks instead -
-# so the block above proves auto_players, not something else about the scene.
-probe_dm = DecisionManager()
-probe = ar.AmmoRuntController(decision_manager=probe_dm, game_log=Log())
-probe_gitz = build(FLASH_GITZ, "Player 2", name="Gitz AB", composition_index=1, gear=AR_GEAR)
-probe.offer(probe_gitz)
-c.eq("without auto_players the same squad is asked", probe_dm.is_pending, True)
-c.eq("...and nothing is granted until it answers", probe_gitz.ammo_runt_active, False)
-
-# The split: a human running Orks keeps the choice and is still asked.
-human_gitz = build(FLASH_GITZ, "Player 1", name="Gitz Human", composition_index=1, gear=AR_GEAR)
-auto.offer(human_gitz)
-c.eq("a player outside auto_players is still asked", auto_dm.is_pending, True)
-c.eq("...and nothing is granted yet", human_gitz.ammo_runt_active, False)
-pick_option(auto_dm, "Save it")
-
-# "Once per battle" is not weakened by deciding automatically.
-auto.reset_phase([ai_gitz])
-c.eq("the grant still expires with the phase", ai_gitz.ammo_runt_active, False)
-c.eq("a later activation does NOT use it again", auto.offer(ai_gitz), False)
-c.eq("...and raises no prompt either", auto_dm.is_pending, False)
-
-# END TO END through the real activation hook: selected to shoot -> already up.
-e2e = shooting_scene(FLASH_GITZ, STRIKE_TEAM, gap=10.0,
-                     ammo_runt=ar.AmmoRuntController(decision_manager=DecisionManager(),
-                                                     game_log=Log(),
-                                                     auto_players=("Player 2",)))
-e2e["attacker"].models[0].ammo_runt = True
-e2e["shooting"].start_shooting(e2e["attacker"])
-c.eq("start_shooting() alone puts the ability up for the AI",
-     e2e["attacker"].ammo_runt_active, True)
-c.eq("...before a target has even been chosen", e2e["shooting"].target_squad, None)
-
-# The grant itself.
-git = gitz.models[1]
-snazz = next(w for w in git.weapons if w.name == "Snazzgun")
-choppa = next(w for w in git.weapons if w.name == "Choppa")
-
-
-class _Active:
-    ammo_runt_active = True
-
-
-class _Inactive:
-    ammo_runt_active = False
-
-
-boosted = ar.ammo_runt_adjusted_weapon(snazz, _Active())
-c.eq("a ranged weapon gains [LETHAL HITS]", boosted.lethal_hits, True)
-c.eq("the shared instance is never mutated", snazz.lethal_hits, False)
-c.true("melee is untouched - the rule says ranged weapons",
-       ar.ammo_runt_adjusted_weapon(choppa, _Active()) is choppa)
-c.true("without the grant nothing changes",
-       ar.ammo_runt_adjusted_weapon(snazz, _Inactive()) is snazz)
-
-
-# END TO END: [LETHAL HITS] shows up in the real shooting pipeline.
-def shoot_gitz(active):
-    scene = shooting_scene(FLASH_GITZ, STRIKE_TEAM, gap=10.0)
-    scene["attacker"].ammo_runt_active = active
-    sc = scene["shooting"]
-    sc.start_shooting(scene["attacker"])
-    sc.choose_target_squad(scene["target"])
-    key = next(k for k, *rest in sc.weapon_eligibility() if "Snazzgun" in str(rest[0]))
-    script(*([6] * 60))  # every hit critical
-    sc.choose_weapon(key)
-    sc.dice_manager.acknowledge()
-    sc.on_dice_acknowledged()
-    return scene
-
-
-with_runt = shoot_gitz(True)
-without = shoot_gitz(False)
-# Rule 24.23 is taken for every critical hit without asking (user: "das
-# koennen wir uns sparen") - so the tell is not a prompt any more, it is
-# that the critical hits skip the wound roll: with the Ammo Runt the wound
-# step gets strictly fewer dice than the hits that reached it.
-def wound_dice(scene):
-    """The wound roll is still pending at this point (the scene stops after
-    one acknowledgement), so it is read off the dice manager rather than out
-    of the log - the log line only appears once the roll resolves."""
-    return len(scene["dice"].pending_values or [])
-
-
-c.eq("no prompt interrupts the activation any more",
-     with_runt["decision"].is_pending, False)
-c.true("both runs reached the wound step", wound_dice(without) > 0)
-c.true("with the Ammo Runt the critical hits auto-wound instead of rolling",
-       wound_dice(with_runt) < wound_dice(without))
-c.eq("A/B: without it, the same all-6 hit roll rolls every hit to wound",
-     without["decision"].is_pending, False)
+c.true("game/ammo_runt.py is gone with the pre-codex Flash Gitz",
+       not os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), "game", "ammo_runt.py")))
 
 c.finish()

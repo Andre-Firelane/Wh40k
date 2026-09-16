@@ -4534,7 +4534,7 @@ dazukommen.
   Ethereal steht weiter allein, weil der User es so gesagt hat. **Die vierte hat VIER
   Anbindungen**, alle vier nachgereicht (User: "die charactere sind keinen squads zugeordnet") —
   siehe `### Die VIERTE T'au-Liste`.
-- **Orks — 14 Einheiten, 101 Modelle, 2025 pts** (seit E3b). Attached: Warboss + Painboy (SUPPORT) im 20er-Boyz-Mob,
+- **Orks — 14 Einheiten, 101 Modelle, 2105 pts** (seit E3c). Attached: Warboss + Painboy (SUPPORT) im 20er-Boyz-Mob,
   Beastboss in Beast Snagga Boyz (im Kill Rig), Warboss in Mega Armour bei den Meganobz (im
   Battlewagon). Stormboyz und Deffkoptas in Reserve.
 - **Death Guard — 16 Listeneinträge, 14 Einheiten nach zwei Anbindungen, 49 Modelle, 2020 pts**,
@@ -8208,7 +8208,8 @@ Spiellänge definieren.
   `## Die Ork-Armeeregel`), Detachment "War Horde" (seit E2 Codex-Stand: Get Stuck In, vier Enhancements,
   sechs Stratagems, siehe `## War Horde`); seit E3a stehen Boyz, Beast Snagga Boyz, Stormboyz,
   Gretchin und Meganobz auf Codex-Stand (siehe `## Ork-Mobs`), seit E3b auch Warboss, Warboss in
-  Mega Armour, Beastboss und Painboy (siehe `## Ork-Charaktere`). Komplette
+  Mega Armour, Beastboss und Painboy (siehe `## Ork-Charaktere`), seit E3c Flash Gitz und
+  Tankbustas (siehe `## Ork-Spezialisten`). Komplette
   Punkteliste (58 Einträge).
 - **Aeldari** — Guardian Defenders, Storm Guardians, Striking Scorpions, Howling Banshees, Warp
   Spiders, Dire Avengers, Fire Dragons, Dark Reapers, Shining Spears, Windriders, Warlock Skyrunners,
@@ -8530,7 +8531,8 @@ Spiellänge definieren.
     vierte ihrer Art nach Falcon und den Jetbikes): der Defiler druckt 160 mm (r 3.15") und spielt
     auf 2.1" wie Battlewagon/Falcon; der Plagueburst Crawler druckt **gar keine** Base (FRAME) und
     bekommt denselben Wert. Beide Zahlen stehen an der Zeile, damit niemand „korrigiert".
-  - **Tank Hunters existiert jetzt ZWEIMAL unter einem Namen.** Der Myphitic Blight-hauler druckt
+  - **Tank Hunters existierte ZWEIMAL unter einem Namen** (seit Orks E3c nur noch einmal: der
+    Ork-Codex hat die Tankbusta-Fassung durch Hunter-Profile ersetzt). Der Myphitic Blight-hauler druckt
     dieselben +1/+1 gegen MONSTER/VEHICLE wie die Tankbustas, aber mit „in your Shooting phase",
     das die Ork-Fassung nicht hat. Deshalb zwei Flags und ein `melee=`-Argument an
     `tank_hunters_modifiers()` — geteilt hätte der Blight-hauler den Bonus still auch mit seinem
@@ -9016,11 +9018,11 @@ byte-identisch (In-Memory-Vergleich über 255 Dateien, 0 Differenzen). Plan und 
   Eintrag, `force_dispositions.from_printed_list()` liest die Zeile, und `detachments.py` prüft die
   Deklaration einer Liste gegen die VEREINIGUNG. Die Ork-Liste bleibt bei Take and Hold.
 - **ÜBERGANG, bis die Datenblatt-Etappen landen:** der Korpus ist den gebauten Ork-Blättern
-  VORAUS (E0: alle 17, E3a 12, seit E3b noch **8**). `test_weapon_characteristics.py` führt sie in `CORPUS_AHEAD` — ihre Abweichungen werden
+  VORAUS (E0: alle 17, E3a 12, E3b 8, seit E3c noch **6**). `test_weapon_characteristics.py` führt sie in `CORPUS_AHEAD` — ihre Abweichungen werden
   GESAMMELT statt gefailt, und die Menge ist dreifach bewacht (nur `orks`; Anzahl ==
   `EXPECTED_AHEAD`; jedes gelistete Blatt MUSS noch abweichen, sonst raus). Jede Datenblatt-Etappe
   senkt die Zahl, die letzte löscht den Block samt drei Sonden. `verify_rules_vs_engine.py` meldet
-  bis dahin mehr Differenzen: E0 **173** (106 Ork-Zeilen), E3a **133** (66), seit E3b **115** (48). Seit E2 spielt die Engine
+  bis dahin mehr Differenzen: E0 **173** (106 Ork-Zeilen), E3a **133** (66), E3b **115** (48), seit E3c **100** (33). Seit E2 spielt die Engine
   denselben War-Horde-Text, den der Army-Rules-Leser zeigt.
 - **Getestet:** `test_datasheet_rules.py` → **145/145** (neu §6: eine COMMITTETE, ERFUNDENE Fixture
   `testdata/wahapedia_new_layout_blocks.html` — nur Markup, kein GW-Text, weil `.cache/`
@@ -9449,6 +9451,109 @@ GESTELLT: Orks als Player 1, die zwei Verluste und die Uhr (Player 2s Fight) vor
 `advance_turn_phase()`, die WMA-Einheit neben der Necron-Einheit samt „Charge beendet"-Moment, Phase
 und Auswahl für D/E. `--neutralize` nimmt die Nähte per Import-Hook zurück.
 
+## Ork-Spezialisten (2026-09-Codex): Flash Gitz, Tankbustas — Etappe E3c
+
+Plan: `C:\Users\Andre\.claude\plans\transient-munching-boot.md`. Gedruckter Text in
+`rules/orks/Flash Gitz.md` und `rules/orks/Tankbustas.md`, jedes Modul trägt ihn im Docstring.
+`armies/orks.json` bleibt minimal lauffähig: Flash Gitz 10er ohne Gear, Tankbustas im Default —
+**14 Einheiten, 101 Modelle, 2105 pts** (Flash Gitz 150 → 210, Tankbustas 125 → 145).
+
+**Datenblätter:**
+- **Flash Gitz:** Kaptin + 4 bzw. 9 Flash Gitz, W3 BS4+, Choppa (`ChoppaA4Profile`, geteilt mit dem
+  Tankbusta-Nob) und die Snazzgun als DREIPROFIL-Kette: Cutta (12" A1 S9 AP-3 D3+2 [HAZARDOUS]
+  [MELTA 2], das getragene erste Profil; `damage = 4` ist der Mittelwert-Platzhalter) → Dakka (24" A3
+  S6 AP-1 D2 [SUSTAINED HITS 1], [LETHAL HITS] nur gegen Nicht-MONSTER/VEHICLE) → Kill Shot (36" A2 S8
+  AP-2 D2 [HAZARDOUS]). 105/210, ab der dritten Einheit 135/240.
+- **Tankbustas:** Nob (W3, 40 mm, Choppa + zwei Rokkit Pistols) + 5 Tankbustas (W2, BS4+, Busta Rokkit
+  Launcha Standard A2 S10 → Hunter A3 S12 AP-2 D3 nur gegen MONSTER/VEHICLE, Gitstikka). Eine Pistole
+  des Nobs → Smash Hammer (ebenfalls Standard → Hunter); ein Tankbusta + Busta Rokkit Launcha ODER
+  Pulsa Rokkit (Gear, `Token.pulsa_rokkit`). **Benannte Grenze:** „one of the following" ist nicht
+  erzwungen — eine `WargearOption` kann kein Gear ausschließen (dieselbe Lücke wie Farstalker und
+  Broadside). 145, ab der dritten 155.
+
+| Fähigkeit | Träger | Modul | Naht |
+|---|---|---|---|
+| Finderz Keeperz | Flash Gitz | `finderz_keeperz.py` | +1 AP in `ShootingController._adjusted_weapon()`, wenn Einheit ODER Ziel in Objective-Reichweite; nie reaktiv |
+| Rokkit Barrage | Tankbustas | `rokkit_barrage.py` | vierter Träger von `battle_shock_after_shooting.py`, ohne Zielbeschränkung |
+| Bomb Squigs | Tankbustas | `bomb_squigs.py` | `MortalWoundOfferController` an `on_move_finished`, nur Kind `"normal"` |
+| Pulsa Rokkit | Tankbustas (Gear) | `pulsa_rokkit.py` | Angebot in `start_shooting()`, Marke je Phase, +1 AP und [LETHAL HITS] in der Kette |
+
+- **Finderz Keeperz** teilt „Einheit UND/ODER Ziel in Objective-Reichweite" mit Defend at All Costs:
+  `objectives.attacker_or_target_within_range_of_objective()` ist die Extraktion am zweiten
+  Konsumenten, `defend_at_all_costs.applies()` delegiert. „Diese Einheit" per 19.04
+  (`unit_wide_ability()`), ein unterstützender Painboy nimmt es nicht weg.
+- **Rokkit Barrage** ist der erste Träger der Basis, den die KI spielt: sie nimmt jetzt
+  `auto_players`/`target_pick` (Default leer, die drei Aeldari-Träger unverändert). KI-Antwort
+  `agent_driver.battle_shock_target_choice()`: nicht geschockt zuerst (ein BESTANDENER erzwungener
+  Test entschockt), dann in Objective-Reichweite, dann Punkte, dann Name. **Benannte, geteilte Grenze:**
+  `start_forced_roll()` startet nicht, solange ein anderer Battle-shock-Wurf offen ist — der Test
+  fällt dann still aus.
+- **Bomb Squigs:** zwei gespeicherte Ledger — `bomb_squigs_used` (zwei Token je EINHEIT) und
+  `bomb_squigs_turn` (1-basiert, weil der Save nur Truthy-Werte behält). Ein Token ist beim BENUTZEN
+  weg, auch wenn der D6 scheitert („removing one each time this ability is used"). D6 (3+) und D3 sind
+  zwei sichtbare Würfe. Mensch: Brett-Pick mit rotem Decline, das nichts kostet; KI wirft sofort, Ziel
+  `_best_damage_target`; „visible" ist main()s echte Sichtlinie (`_psychic_visible`).
+  - **Fund beim Lesen, behoben:** gegen ein EIN-Modell-Ziel ist die `MortalWoundAllocationSession`
+    im Konstruktor fertig und blieb im Slot — `why_not()` hätte danach „already being resolved"
+    gemeldet und der zweite Token wäre nie werfbar gewesen. `_inflict()` räumt eine fertige Session
+    sofort ab (eigene Sonde). Die anderen Leser des Slots prüfen `.done` bzw. `pending_fnp` selbst.
+- **Pulsa Rokkit:** `{id(unit): target}` je Phase (Reset im Per-Phasen-Block von `main.py`), nur
+  MONSTER/VEHICLE in 24", reaktiv nichts. Mensch Brett-Pick + Decline; die KI markiert immer
+  (`_best_damage_target`). Der Controller steht in `main()` direkt vor `ShootingController`, weil
+  `_best_damage_target` erst dort existiert — die erste Platzierung weiter oben wäre ein
+  `UnboundLocalError` gewesen (Fehlerklasse 23).
+- **`weapon_profiles.valued_profiles()` — die KI las Mehrprofilwaffen nur am GETRAGENEN Profil.**
+  `damage_estimate`, `combat_focus` und `deployment_ai` lasen `model.weapons`; gemessen kippten die
+  Flash Gitz in der Aufstellung von shooter auf assault (Reichweite 12", Ratio 0.70) — wegen eines
+  [HAZARDOUS]-Profils, das `_best_profile_index()` nie feuert. Jetzt: eine Ein-Profil-Waffe ist sie
+  selbst; sonst die nicht-hazardous Profile, ein Hunter-Profil nur gegen ein erlaubtes Ziel (ohne Ziel
+  keins); bleibt nichts, das erste Profil. Danach Flash Gitz 24" / Ratio 1.125. **Mitbewegt,
+  gemessen:** Fuegans Reichweite 24" (Searsong Lance 18" + Burning Lance 6"), Void-Dragon-Ratio
+  0.23 → 0.19 (Spear Sweep), Tankbustas gegen Fahrzeuge ×1.40-1.42 (A/B in
+  `test_target_priority.py` §8, das vorher die stillgelegten Tank Hunters pinnte).
+- **ENTSCHEIDUNG ZUR BESTÄTIGUNG: die Ork-Home-Garnison sind auf map1-3 jetzt die Tankbustas**
+  (24"-Launcha, oberstes shooter-Band), die Gretchin nur noch auf map4 (braucht 24.2"). Das folgt
+  der User-Regel „fernkampfeinheiten stark bevorzugen" und widerspricht der älteren „gretchins das
+  homeobjective halten"; `test_home_garrison.py` pinnt den gemessenen Stand.
+- **Stillgelegt:** Gun Crazy Show-offs, der alte Ammo Runt der Flash Gitz (`game/ammo_runt.py`,
+  `Token.ammo_runt`, `Squad.ammo_runt_active`, `FLASH_GITZ_AMMO_RUNT`), das Ork-`tank_hunters`-Flag
+  (`tank_hunters_modifiers()` liest nur noch den Blight-hauler, `fight.py` fragt nicht mehr),
+  `test_flash_gitz.py` und die Waffenklassen RokkitLuncha, TankbustaChoppa,
+  TankbustaCloseCombatWeapon, Snazzgun und FlashGitzChoppa.
+- **Nachgezogen:** `test_army_select.py` (2105), `test_crit_labels.py` (Dakka gegen Strike Team
+  bzw. Devilfish statt Ammo Runt), `test_dice_panel_header.py`, `test_event_chain_wiring.py` §21
+  (`rokkit_barrage` als zwölfter umgangener Battle-shock-Auslöser), `test_home_garrison.py`,
+  `test_ork_wargear.py`, `test_player2_army.py`, `test_report_20260824.py`, `test_target_priority.py`
+  (§8 neu, drei Kalibrierungen wegen der stärkeren Launchas), `test_transport_priority.py`,
+  `test_weapon_characteristics.py` (`CORPUS_AHEAD` 8 → 6), `test_wound_allocation.py` (die Tankbustas
+  sind jetzt der Fall mit zäherem Leader); Sondenanker in `ab_ork_mobs.py`/`verify_ork_mobs.py`.
+
+**Getestet:** neu `test_ork_specialists.py` (**164/164**, acht Abschnitte — jede Fähigkeit durch
+ihren echten Controller, Bomb Squigs auch über einen echten `MovementController`, Pulsa Rokkit und
+Finderz Keeperz durch die echte Adjuster-Kette) und `ab_ork_specialists.py` (**57 Sonden, 64
+Läufe, alle beißend, Restore byte-genau**). **Drei bissen zuerst nicht, alle Befunde über den TEST:**
+zwei KI-Pick-Prüfungen erwarteten eine Einheit, die zugleich die reichere bzw. die erste nach Name
+war (jetzt ist die richtige Antwort keins von beiden), und eine Sonde zielte auf §10, das nur Tor →
+auflösbar prüft. `verify_rules_vs_engine.py` **115 → 100** (33 Ork-Zeilen),
+`measure_crowded_movement.py` gedrängt **62 % / 210.2"** (vorher 65 % / 217.2", eine Welt, siehe
+`## Bewegungsqualität`), isoliert unverändert **87 % / 292.3"**. `selfplay.py map2 1500` Orks gegen
+Necrons in beiden Sitzordnungen exit 0.
+
+**Im ECHTEN Spiel belegt** (`verify_ork_specialists.py map2 4000`, Orks als Player 1; 14/14, unter
+`--neutralize` 6/6 Abwesenheitsprüfungen):
+
+| | gefixt | `--neutralize` |
+|---|---|---|
+| Pulsa Rokkit / Rokkit Barrage / Bomb Squigs am Live-Objekt | ja | nein |
+| Bomb Squigs über `main()`s Move-Listener | gefragt, Token weg, D6 → D3, 3 Wunden am Doomsday Ark | kein Prompt |
+| Pulsa Rokkit beim Schießen | gefragt, markiert, Launcha AP -2 → -3 + [LETHAL HITS], Marke nach der Phasengrenze weg | kein Prompt, AP -2 |
+| Rokkit Barrage über `on_squad_finished_shooting` | Test bei -1, von `main()`s Bestätigung aufgelöst | kein Test |
+
+GESTELLT: Orks als Player 1, eine gebaute Tankbustas-Einheit mit Pulsa Rokkit neben einer sichtbaren
+Player-2-Einheit, die Phasen, die Momente „Zug beendet"/„hat geschossen", die Antworten des Menschen
+und Bomb-Squigs-Würfel 6 und 3. Der Doomsday Ark ist ein Modell, eine 06.02-Wahl öffnet sich im Lauf
+also nicht — die Suite drainiert eine Mehr-Modell-Einheit.
+
 ## KI-Architektur
 
 `ai/agent_driver.py`, `ai/claude_agent.py`, `ai/observation.py`, `ai/planner_prompt.py`,
@@ -9524,7 +9629,8 @@ KI-Pfad.**
     Einheit behalten lassen, die der dritte nicht mehr wählen soll. Quell-Wächter prüft, dass es
     genau eine Definition und drei Leser gibt.
   - **Gemessen, nicht behauptet** (`measure_home_garrison.py`, A/B über `--neutralize`):
-    Aufstellung auf allen drei Karten Lychguard → **Immortals 1**; Orks (**Gretchin**) und
+    Aufstellung auf allen drei Karten Lychguard → **Immortals 1**; Orks (**Gretchin** — seit
+    Orks E3c auf map1-3 die Tankbustas, siehe `## Ork-Spezialisten`) und
     Aeldari (**Warlock Skyrunners**) unverändert, also trifft die Änderung genau die gemeldete
     Liste. Auf dem gemeldeten Brett findet der Turn-Plan-Pass **keinen Tausch mehr**. Im ECHTEN
     Selbstspiellauf: `2 Immortals 1 + Plasmancer (shooter) deployed at (30.0,6.0) (fully hidden,
@@ -9592,7 +9698,9 @@ KI-Pfad.**
   EINE Schätzung, gelesen von Bedrohungszahlen, Zielwahl, Reserve-Landeplatz, Nahkampf-Waffenwahl und
   drei Stratagem-Gates. Sie rechnet Punkte statt Anteile (ein Spezialist wird sonst auf Massen
   gelenkt), deckelt Überkill, liest RESTwunden, und berücksichtigt Modifikatoren, die nur vom
-  angreifenden Modell und der Zieleinheit abhängen (Tank Hunters, Guardian Drone).
+  angreifenden Modell und der Zieleinheit abhängen (Tank Hunters, Guardian Drone). Eine
+  MEHRPROFIL-Waffe liest sie über `weapon_profiles.valued_profiles()` als das Profil, das die KI
+  feuern würde (seit Orks E3c; vorher nur das getragene erste).
   **Bekannte Untererfassung, bewusst:** Re-rolls, [SUSTAINED HITS]/[LETHAL HITS]/[DEVASTATING WOUNDS],
   Deckung, Granaten und die meisten Fähigkeiten (Volley Fire, Waaagh!, Might is Right) fehlen — die
   Schätzung ist durchgehend eine UNTERGRENZE. Positionsabhängige Effekte bleiben draußen, weil sie
@@ -9612,7 +9720,8 @@ KI-Pfad.**
   Close-Range Dakka, Hit 'Em Harder, Mow 'Em Down als `_handle_*` ohne `agent`; Breakin' Heads und
   Orks Is Never Beaten über `auto_players` plus injiziertes Urteil), Ammo Runt, Boss' Ammo Runt, die
   zwei Boss-Motivationen (`boss_motivation_choice`), Catch Dat Red Bit (`catch_dat_red_bit_verdict`),
-  Krushin' Impetus' Zielwahl,
+  Krushin' Impetus' Zielwahl, Bomb Squigs (sofort, Ziel per Schadensranking), Pulsa Rokkit
+  (markiert immer), Rokkit Barrages Zielwahl (`battle_shock_target_choice`),
   Spirit of Gork — und die
   **gesamte Necron-Fraktion**: Reanimation Protocols samt Warriors-Reroll, Resurrection Orb,
   Technomancer, Matter Absorption, Living Lightning, Wraith Form und alle sechs

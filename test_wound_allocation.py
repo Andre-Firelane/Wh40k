@@ -17,7 +17,9 @@ Two independent causes, one per report:
   2. ai/agent_driver.py's _resolve_own_damage_choice() picked candidates[0]
      within the offered group, and a datasheet lists its leader first.
      Affects the squads whose leader shares its squad's W and Sv and is
-     therefore in the SAME group: Breacher Team, Kroot, Stealth, Tankbustas.
+     therefore in the SAME group: Breacher Team, Kroot, Stealth, Flash Gitz.
+     (The Tankbustas were the Ork case until the 2026-09 codex gave their Nob a
+     third wound; they moved to section 1, the tougher-leader case.)
 
 Run: python test_wound_allocation.py
 """
@@ -82,7 +84,7 @@ print("\n--- 1. the leader's group is no longer allocated first (report 2) ---")
 SHAS_UI_GEAR = {"Fire Warrior Shas'ui": ["Guardian Drone", "Shield Drone"]}
 for label, datasheet, gear in (("Strike Team", tau_empire.STRIKE_TEAM, SHAS_UI_GEAR),
                                ("Boyz", orks.BOYZ, None), ("Stormboyz", orks.STORMBOYZ, None),
-                               ("Warbikers", orks.WARBIKERS, None)):
+                               ("Warbikers", orks.WARBIKERS, None), ("Tankbustas", orks.TANKBUSTAS, None)):
     squad = squad_of(datasheet, label, gear=gear)
     groups = squad.allocation_groups()
     tougher_leader = any(m.profile.wounds > min(x.profile.wounds for x in squad.models)
@@ -102,7 +104,7 @@ print("\n--- 2. within one shared group, the AI picks a non-leader (report 1) --
 for label, datasheet in (("Breacher Team", tau_empire.BREACHER_TEAM),
                          ("Kroot", tau_empire.KROOT_CARNIVORES),
                          ("Stealth", tau_empire.STEALTH_BATTLESUITS),
-                         ("Tankbustas", orks.TANKBUSTAS)):
+                         ("Flash Gitz", orks.FLASH_GITZ)):
     squad = squad_of(datasheet, label)
     groups = squad.allocation_groups()
     check(f"{label}: leader shares its squad's group (precondition)",
@@ -138,7 +140,7 @@ check("a single already-damaged model is forced, no choice offered (05.04 step 1
 
 squad = squad_of(orks.TANKBUSTAS, "Tankbustas", owner="Player 2")
 leader = leaders(squad.models)[0]
-leader.apply_damage(1)
+leader.apply_damage(leader.profile.wounds - 1)  # one wound left, whatever W the Nob prints
 session = DamageAllocationSession([1], _TestGun(), squad)
 check("a damaged LEADER is still forced to take the next wound (rules beat leader-last)",
       session.pending_choice is None and leader.is_dead())

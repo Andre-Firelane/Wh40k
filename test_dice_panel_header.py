@@ -98,7 +98,10 @@ sc, dice = scene["shooting"], scene["dice"]
 sc.start_shooting(scene["attacker"])
 sc.choose_target_squad(scene["target"])
 key = next(k for k, *rest in sc.weapon_eligibility() if "Snazzgun" in str(rest[0]))
-sc.choose_weapon(key)
+# The Dakka profile (AP-1): the Snazzgun's first profile, the Cutta, is AP-3 and
+# makes the Strike Team's 4+ save an impossible 7+, which this engine does not
+# roll at all - so there would be no save roll to title.
+sc.choose_weapon(key, profile=1)
 c.eq("the hit roll is pending", sc.pending_step, "hit")
 c.eq("the hit roll is titled", dice.title, "Roll to Hit")
 c.eq("...its subtitle is the weapon, not a sentence",

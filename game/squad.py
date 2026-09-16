@@ -179,28 +179,22 @@ def is_monster_or_vehicle_unit(squad):
 
 
 def tank_hunters_modifiers(attacking_model, target_squad, melee=False):
-    """Tankbustas' own "Tank Hunters" ability (user-supplied, not a core
-    rule): "each time a model in this unit makes an attack that targets a
-    MONSTER or VEHICLE unit, add 1 to the Hit roll and add 1 to the Wound
-    roll" - a bonus to both, so per this engine's Modifier sign convention
-    (positive worsens a threshold, negative improves it) that's -1 to each.
-    Shared by game/shooting.py's and game/fight.py's own _hit_modifiers()/
-    _wound_modifiers(), since the ability isn't restricted to ranged
-    attacks - depends only on the attacking MODEL's own ability and the
-    TARGET unit's keywords, not on which phase the attack happens in.
+    """The Myphitic Blight-hauler's "Tank Hunters": "In your Shooting phase,
+    each time a model in this unit makes an attack that targets a MONSTER or
+    VEHICLE unit, add 1 to the Hit roll and add 1 to the Wound roll" - a bonus
+    to both, so -1 on each threshold (this engine's Modifier sign convention).
 
-    The Myphitic Blight-hauler prints an ability under the SAME NAME with the
-    same +1/+1, but its text opens "In your Shooting phase" where the Ork
-    version has no phase clause at all. That is why there are two flags rather
-    than one: `melee=True` (passed by game/fight.py) keeps the Ork bonus and
-    drops the Death Guard one. Reading them as the same ability would silently
-    hand a Blight-hauler the bonus with its Gnashing Maw as well - and the
-    narrower reading is the safe one, since it cannot grant more than either
-    printed text does."""
+    RANGED ONLY, which is what `melee` is for: game/damage_estimate.py asks
+    about both kinds of attack and must not count it for the Gnashing Maw.
+
+    The Ork Tankbustas printed a phase-less twin under the same name (and its
+    own `tank_hunters` flag, which game/fight.py read as well). The 2026-09 Ork
+    codex dropped it - its Hunter profiles are the anti-tank rule now - so this
+    is one flag again, and game/fight.py no longer asks."""
     if not is_monster_or_vehicle_unit(target_squad):
         return []
     profile = attacking_model.profile
-    if profile.tank_hunters or (profile.tank_hunters_ranged_only and not melee):
+    if profile.tank_hunters_ranged_only and not melee:
         return [Modifier(-1, "Tank Hunters (MONSTER/VEHICLE)")]
     return []
 
@@ -553,7 +547,8 @@ class Squad:
         self.nova_charge_grants = {}  # Riptide Battlesuit's Nova Charge ability: {model.id -> {weapon instance id, ...}} that have [DEVASTATING WOUNDS] "until the end of the phase" - see game/nova_charge.py. A dict rather than a bool like the flags around it because this ability names ONE weapon of one model, not the whole unit; cleared on every phase change in the same place they are
         self.spirit_of_gork_strength = False  # Kill Rig's Spirit of Gork: "until the end of the phase, add 1 to the Strength characteristic of melee weapons equipped by models in that unit" - see game/spirit_of_gork.py. A unit-level flag for the same reason the others here are (the buff lands on a unit that is not the one being resolved when a fight happens), and cleared in the same place
         self.spirit_of_gork_lethal = False  # Kill Rig's Spirit of Gork, the "on a 6" half: those same weapons also gain [LETHAL HITS]
-        self.ammo_runt_active = False  # Flash Gitz' Ammo Runt wargear: "until the end of the phase, ranged weapons equipped by models in this unit have the [LETHAL HITS] ability" - see game/ammo_runt.py. A unit-level flag for the same reason the ones above are, and cleared in the same place
+        self.bomb_squigs_used = 0  # Tankbustas' Bomb Squigs (2026-09 codex): how many of the unit's two tokens are spent - see game/bomb_squigs.py
+        self.bomb_squigs_turn = None  # ...and the 1-based turn number of the last use ("once per turn")
         self.hit_em_harder_active = False  # War Horde's Hit 'Em Harder: [LETHAL HITS] on this unit's melee attacks until the end of the phase - see game/horde_hit_em_harder.py
         self.mow_em_down_active = False  # War Horde's Mow 'Em Down: [CLEAVE] +1 on this unit's melee attacks until the end of the phase - see game/horde_mow_em_down.py
         self.fungus_fuel_injection_active = False  # War Horde's Fungus-Fuel Injection: +2" Move until the end of the phase - read by game/coldstar.py; see game/horde_fungus_fuel_injection.py

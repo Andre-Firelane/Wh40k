@@ -122,8 +122,8 @@ PROBES = [
      [(MAIN, "        ork_ammo_runts.reset_phase({t.squad for t in state.tokens if t.squad is not None})",
        "        pass" + MARK)], (TM,)),
     ("main.py: ShootingController never gets the Ammo Runts controller",
-     [(MAIN, "        ammo_runt=ammo_runt_controller, ork_ammo_runts=ork_ammo_runts_controller,",
-       "        ammo_runt=ammo_runt_controller," + MARK)], (TM,)),
+     [(MAIN, "        ork_ammo_runts=ork_ammo_runts_controller, pulsa_rokkit=pulsa_rokkit_controller,",
+       "        pulsa_rokkit=pulsa_rokkit_controller," + MARK)], (TM,)),
 
     # --------------------------------------------------------- Tide of Muscle
     ("Tide of Muscle: not in the fight chain",

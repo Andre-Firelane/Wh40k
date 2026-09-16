@@ -20,7 +20,7 @@ from game.shooting import (
     _damaged_modifier, _group_label, _resolve_roll, _threshold_note, _wound_crit_threshold, _wound_threshold,
     extra_attack_dice, melta_adjusted_weapon,
 )
-from game.squad import allocation_target_model, allocation_target_profile, attached_unit_toughness, model_engaged_with, squad_has_fights_first, tank_hunters_modifiers
+from game.squad import allocation_target_model, allocation_target_profile, attached_unit_toughness, model_engaged_with, squad_has_fights_first
 from game.thresholds import parse_threshold as _parse_threshold
 from game.turn import PHASE_FIGHT
 from game import forewarned
@@ -2788,7 +2788,6 @@ class FightController:
             modifiers.append(Modifier(-1, "Guide"))
         if self.suppression is not None and self.fighting_squad is not None and self.suppression.is_suppressed(self.fighting_squad):
             modifiers.append(Modifier(1, "Suppressed"))
-        modifiers.extend(tank_hunters_modifiers(fighter_model, target_squad, melee=True))
         # Warhost's Lightning-Fast Reactions is defender-side and asks only
         # about the target, the same shape as Forewarned above.
         modifiers.extend(
@@ -2872,8 +2871,6 @@ class FightController:
         modifiers.extend(guardian_shield_nodes.wound_modifiers(target_squad))
         if weapon.lance and self.charge_controller is not None and self.fighting_squad is not None and self.fighting_squad in self.charge_controller.charged_squad_ids:
             modifiers.append(Modifier(-1, "[LANCE] (charged)"))
-        if self.fighting_squad is not None and self.fighting_squad.models:
-            modifiers.extend(tank_hunters_modifiers(self.fighting_squad.models[0], target_squad, melee=True))
         # Corsair Kharseth's Misfortune is a MARK on the attacking unit, so it
         # is asked of the controller that holds the marks rather than of the
         # squad - the same shape as Guide and Doom above, one side over.

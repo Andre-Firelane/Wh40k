@@ -30,6 +30,7 @@ matchup go", which is what a positioning decision - or a "is this worth 1 CP"
 decision - needs, not "what will this attack roll".
 """
 
+from game import weapon_profiles
 from game.squad import (attached_unit_toughness, squad_has_guardian_drone,
                         tank_hunters_modifiers)
 
@@ -181,7 +182,7 @@ def attack_modifiers(attacker_model, defender, melee=False):
     hit = wound = 0
     # `melee` is threaded through so the Myphitic Blight-hauler's ranged-only
     # Tank Hunters is not counted for its Gnashing Maw - see
-    # game/squad.py's tank_hunters_modifiers() on why there are two flags.
+    # game/squad.py's tank_hunters_modifiers().
     for modifier in tank_hunters_modifiers(attacker_model, defender, melee=melee):
         # Tankbustas' Tank Hunters is +1 to Hit AND +1 to Wound against a
         # MONSTER or VEHICLE unit - the whole reason an anti-tank unit is an
@@ -274,11 +275,17 @@ def expected_wounds_against(attacker, defender, melee=False, gap_in=None):
         skill = model.profile.weapon_skill if melee else model.profile.ballistic_skill
         hit_mod, wound_mod = attack_modifiers(model, defender, melee=melee)
         best_selectable = 0.0
-        for weapon in model.weapons:
-            if getattr(weapon, "weapon_type", None) != want:
+        for carried in model.weapons:
+            if getattr(carried, "weapon_type", None) != want:
                 continue
-            if not melee and gap_in is not None and getattr(weapon, "range_in", 0) < gap_in:
+            # Rule 04.01.03: a multi-profile weapon is valued as the profile the
+            # AI would fire - see game/weapon_profiles.py's valued_profiles().
+            candidates = [p for p in weapon_profiles.valued_profiles(carried, defender)
+                          if melee or gap_in is None or getattr(p, "range_in", 0) >= gap_in]
+            if not candidates:
                 continue
+            weapon = max(candidates, key=lambda p: expected_wounds(
+                p, p.attacks, skill, d_profile, hit_modifier=hit_mod, wound_modifier=wound_mod))
             value = expected_wounds(weapon, weapon.attacks, skill, d_profile,
                                     hit_modifier=hit_mod, wound_modifier=wound_mod)
             if melee and not weapon.extra_attacks:

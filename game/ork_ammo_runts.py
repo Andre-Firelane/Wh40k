@@ -5,13 +5,12 @@ RULE (verbatim, rules/orks/Boyz.md):
    unit is selected to shoot, you can use this ability. If you do, this unit's
    ranged attacks have +1 to hit rolls."
 
-NOT game/ammo_runt.py. That module is the Flash Gitz' pre-codex WARGEAR item
-(one Runt on one model, [LETHAL HITS]); this is a unit ABILITY with a different
-effect. Two modules because they are two rules - the shared word is flavour.
+Not the Flash Gitz' pre-codex Ammo Runt WARGEAR (one Runt on one model,
+[LETHAL HITS], game/ammo_runt.py) - that item left the datasheet with the
+2026-09 codex and its module went with it (stage E3c).
 
 WHERE IT HANGS: "when this unit is selected to shoot" is
-ShootingController.start_shooting(), the instant Nova Charge and the Flash
-Gitz' Ammo Runt are already offered at. "In YOUR Shooting phase" is read off
+ShootingController.start_shooting(), the instant Nova Charge is offered at. "In YOUR Shooting phase" is read off
 the live clock, and that is right here: this is a start-of-activation offer,
 not an end-of-phase one (game/phase_window.py does not apply). A reactive
 shot in the opponent's turn therefore gets no offer.

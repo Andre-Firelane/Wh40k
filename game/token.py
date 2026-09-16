@@ -23,10 +23,10 @@ class Token:
     # purely so a unit's loadout can be DESCRIBED (game/loadout.py); no rule
     # reads this.
     gear_names: list = field(default_factory=list)
-    # Flash Gitz' "Ammo Runt" wargear item. Unlike the drone effects
-    # above this one IS read by a rule (game/ammo_runt.py), so it needs a
-    # real field rather than just a gear_names entry.
-    ammo_runt: bool = False
+    # The Tankbustas' "Pulsa Rokkit" wargear item (2026-09 Ork codex). Unlike
+    # the drone effects above this one IS read by a rule (game/pulsa_rokkit.py),
+    # so it needs a real field rather than just a gear_names entry.
+    pulsa_rokkit: bool = False
     # A destroyed model a rule keeps on the battlefield for now (Undying Spite,
     # Orks Is Never Beaten - game/fight_after_death.py sets and clears it).
     # GameState.remove_dead_models() skips it: without that, the NEXT frame's

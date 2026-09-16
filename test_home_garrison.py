@@ -147,8 +147,13 @@ printed = combat_focus.best_ranged_reach_in(dragons)
 fuegan = build_squad(aeldari.FUEGAN, OWNER, unit_index=1)
 led = attached_units.attach(fuegan, build_squad(aeldari.FIRE_DRAGONS, OWNER, unit_index=2))
 c.true("Fire Dragons alone report their printed range", printed > 0)
-c.eq("...and led by Fuegan the same unit reports 6\" more (Burning Lance)",
-     combat_focus.best_ranged_reach_in(led), printed + 6)
+# 24", not printed + 6: Fuegan's own Searsong prints a Beam (12") and a Lance
+# (18") profile, and since the Ork specialists stage the reach is read over the
+# profiles the AI would fire (game/weapon_profiles.py's valued_profiles()) - so
+# the longest gun in the unit is his 18" Lance, plus Burning Lance's 6".
+c.eq("Fire Dragons alone reach their printed 12\"", printed, 12)
+c.eq("...and led by Fuegan the unit reports his 18\" Searsong Lance plus 6\" (Burning Lance)",
+     combat_focus.best_ranged_reach_in(led), 18 + 6)
 
 # Dead models do not carry a gun anywhere.
 corpse = build_squad(aeldari.FIRE_DRAGONS, OWNER, unit_index=3)
@@ -294,13 +299,19 @@ for map_key in ("map1", "map2", "map3", "map4"):
     c.eq(f"{map_key}: the Necron home garrison is the Immortals, not the Lychguard",
          home_pick(map_key, "necrons").name, "2 Immortals 1 + Plasmancer")
 
-# THE ORK LIST IS UNCHANGED, and that matters as much as the fix: the Ork
-# answer is the one an earlier report asked for by name ("gretchins das
-# homeobjective halten"), and a role term that out-voted points everywhere
-# would have moved it to the 160-point Battlewagon.
-for map_key in ("map1", "map2", "map3", "map4"):
-    c.eq(f"{map_key}: the Ork home garrison is still the Gretchin",
-         home_pick(map_key, "orks").name, "2 Gretchin 1")
+# THE ORK ANSWER MOVED WITH THE 2026-09 CODEX, and not because this rule changed.
+# The Gretchin held it (an earlier report asked for them by name - "gretchins das
+# homeobjective halten") while the Orks had no top-band unit at all. The codex
+# Tankbustas shoot BS4+ with 24" rokkits and are decisively a shooting unit
+# (ratio 1.84), so they ARE the top band wherever 24" covers the needed reach -
+# map1-3 (17.1", 14.8", 11.6-13.8") - and the rule the user set for this job
+# ("fernkampfeinheiten stark bevorzugen") puts them there. map4 needs 24.2", one
+# fifth of an inch more than the rokkits reach, so the Gretchin keep it there.
+# A decision named in the stage report, not a silent drift.
+for map_key, want in (("map1", "2 Tankbustas 1"), ("map2", "2 Tankbustas 1"),
+                      ("map3", "2 Tankbustas 1"), ("map4", "2 Gretchin 1")):
+    c.eq(f"{map_key}: the Ork home garrison is {want}",
+         home_pick(map_key, "orks").name, want)
     # The Aeldari answer MOVED, and not because this rule changed: the Warlock
     # Skyrunner used to be the cheapest unit in the SHOOTER band at 55 pts, and
     # the Shroud Runners -> Windriders swap merged it into the Windriders, so it
@@ -313,13 +324,13 @@ for map_key in ("map1", "map2", "map3", "map4"):
     c.eq(f"{map_key}: the Aeldari home garrison is the Rangers, the cheapest shooter left",
          home_pick(map_key, "aeldari").name, "2 Rangers 1")
 
-# Points still decide WITHIN a band - the Gretchin are not the best band, they
-# are the cheapest unit in the band the Orks have.
-ctrl, state, own = pregame_for("map2", "orks")
+# Points still decide WITHIN a band - on map4 the Gretchin are not the best
+# band, they are the cheapest unit in the best band the Orks have THERE.
+ctrl, state, own = pregame_for("map4", "orks")
 picked = deployment_ai.home_garrison_squad(ctrl, OWNER, state.objectives, own)
 home_obj = deployment_ai._home_objective(OWNER, state.objectives, own)
 need = observation.garrison_reach_needed_in(home_obj, state.objectives)
-c.eq("the Ork pick is a middle-band unit, not a top-band one",
+c.eq("the map4 Ork pick is a middle-band unit, not a top-band one",
      combat_focus.home_garrison_rank(picked, need), combat_focus.GARRISON_BAND_NEUTRAL)
 same_band = [sq for sq in ctrl.army(OWNER)
              if sq.models and not deployment_ai.is_heavy(sq)

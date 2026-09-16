@@ -234,9 +234,7 @@ class UnitProfile:
     waaagh = False  # the Orks army rule "Waaagh!" (2026-09 codex): this unit can re-roll Advance rolls and can become riled up - see game/waaagh.py and game/riled_up.py. Pinned against every printed FACTION line by test_ork_army_rules.py
     joins_warlock_led_unit = False  # Eldrad Ulthran's own LEADER line: he may be attached to a unit even if one WARLOCKS unit is already attached to it. Printed on the arriving leader, asking what is already there. Read by game/attached_units.py's can_attach(); it is what finally makes game/protect.py reachable
     joins_without_leader_slot = False  # Warlock Conclave's LEADER ability is printed as a JOIN with its OWN restriction ("a unit cannot have more than one WARLOCK CONCLAVE unit joined to it") rather than as an ordinary attachment, so 19.01's one-leader-per-bodyguard default is not what limits it. Read by game/attached_units.py's can_attach(); the direction matters and is asymmetric on purpose - see _join_not_bound_by_leader_slot() there
-    tank_hunters = False  # Tankbustas' own "Tank Hunters" ability (user-supplied, not a core rule): each time a model with this ability makes an attack (ranged or melee) that targets a MONSTER or VEHICLE unit, add 1 to the Hit roll and add 1 to the Wound roll - see game/shooting.py's/game/fight.py's own _hit_modifiers()/_wound_modifiers()
     ramshackle_but_rugged = False  # Battlewagon's own "Ramshackle but Rugged" ability (user-supplied, not a core rule): each time an attack is allocated to this model, worsen that attack's Armour Penetration by 1 - see game/ramshackle.py
-    gun_crazy_showoffs = False  # Flash Gitz' own "Gun-crazy Show-offs" ability (user-supplied, not a core rule): a Snazzgun targeting the closest eligible target has an Attacks characteristic of 4 - see game/gun_crazy_showoffs.py
     psyker = False  # the PSYKER keyword - purely descriptive here (no engine rule reads it yet), same status as MOUNTED/SMOKE; the [PSYCHIC] weapon keyword (24.29) is a separate, wired thing on WeaponProfile
     psyker_level = 0  # the Orks army rule Unstable Energies: how many psychic levels this PSYKER may use per battle round ("psyker level N" in its abilities) - read by game/unstable_energies.py
     beast_snagga = False  # the BEAST SNAGGA keyword - matters for Kill Rig's transport_requires ("11 BEAST SNAGGA INFANTRY models"), see UnitProfile.transport_requires
@@ -249,6 +247,9 @@ class UnitProfile:
     keep_huntin = False  # Beastboss's "Keep Huntin'!" (2026-09 Ork codex): the same for one friendly BEAST SNAGGA unit, with its own per-army limit - see game/boss_motivation.py
     krushin_impetus = False  # Warboss in Mega Armour's "Krushin' Impetus" (2026-09 Ork codex): when this unit ends a charge move, one D6 per model engaged with one enemy unit, each 3+ a mortal wound - see game/krushin_impetus.py
     dodge_dis = False  # Beastboss's "Dodge Dis!" (2026-09 Ork codex): this unit's attacks have +1 to hit rolls - see game/dodge_dis.py
+    finderz_keeperz = False  # Flash Gitz' "Finderz Keeperz" (2026-09 Ork codex): in your Shooting phase, +1 AP on this unit's ranged attacks while it or the target is within range of an objective - see game/finderz_keeperz.py
+    rokkit_barrage = False  # Tankbustas' "Rokkit Barrage" (2026-09 Ork codex): after shooting, one enemy unit hit takes a Battle-shock test at -1 - see game/rokkit_barrage.py
+    bomb_squigs = False  # Tankbustas' "Bomb Squigs" (2026-09 Ork codex): twice per battle, once per turn, after a Normal move in your Movement phase, D6 3+ -> D3 mortal wounds on a visible enemy unit within 12" - see game/bomb_squigs.py
     crude_surgery = False  # Painboy's "Crude Surgery" (2026-09 Ork codex): in your Command phase this unit heals 3 wounds (core rule 02.02.04, game/heal.py) - see game/crude_surgery.py
     catch_dat_red_bit = False  # Painboy's "Catch Dat Red Bit" (2026-09 Ork codex): once per battle per unit, add D3 to the wounds Crude Surgery heals - see game/crude_surgery.py
     volley_fire = False  # Cadre Fireblade's own "Volley Fire" ability (user-supplied, not a core rule): while this model is LEADING a unit (19.01), add 1 to the Attacks characteristic of ranged weapons equipped by models in that unit - a leader ability granted to the whole attached unit, unlike every other flag here, so it is read with squad_has_volley_fire() rather than unit_wide_ability(); see game/volley_fire.py
@@ -416,7 +417,7 @@ class UnitProfile:
     scuttling_walker = False  # Defiler's own ability: it moves through models and terrain, may pass through Engagement Range without ending there, and auto-passes Desperate Escape - see game/scuttling_walker.py
     barrage_of_filth = False  # Defiler's own ability: after it shoots, one hit enemy unit cannot have the Benefit of Cover until the end of the phase - the seventh consumer of on_squad_finished_shooting; see game/barrage_of_filth.py
     hovering_death = False  # Foetid Bloat-drone's own ability: eligible to shoot and declare a charge in a turn in which it Fell Back - see game/hovering_death.py
-    tank_hunters_ranged_only = False  # Myphitic Blight-hauler's "Tank Hunters": the SAME +1 Hit/+1 Wound against MONSTER/VEHICLE as `tank_hunters` above, but its printed text adds "in your Shooting phase" where the Ork version has no phase clause - so a separate flag rather than a reuse, or this model would silently get the bonus with its Gnashing Maw too. See squad.py's tank_hunters_modifiers()
+    tank_hunters_ranged_only = False  # Myphitic Blight-hauler's "Tank Hunters": +1 Hit/+1 Wound against MONSTER/VEHICLE "in your Shooting phase" - ranged only, so not its Gnashing Maw. The Ork Tankbustas' phase-less twin (`tank_hunters`) was retired with the 2026-09 codex, which is why this is the only flag. See squad.py's tank_hunters_modifiers()
     spore_laced_shock_waves = False  # Plagueburst Crawler's own ability: its Plagueburst mortar rolls a D6 for the target and every enemy unit within 3" of it (+1 if Afflicted), and each 6+ takes D3 mortal wounds - see game/spore_laced_shock_waves.py
 
     @property
@@ -802,47 +803,40 @@ class WarbossMegaArmourProfile(UnitProfile):
 
 
 class TankbustaProfile(UnitProfile):
-    """Datasheet: Tankbustas (Orks), see game/factions/orks.py. Keywords
-    line (user-supplied): Infantry, Tankbustas, Grenades (Faction: Orks
-    dropped, same reasoning as every other datasheet's Faction keyword). A
-    single stat table ("Tankbusta (x6)") covers the WHOLE unit including
-    its own Boss Nob - unlike Boyz/Stormboyz/Warbikers, where the leader
-    model has different wounds, Tankbustas' Boss Nob shares this exact
-    stat line (only its own weapon loadout differs), same "identical stats,
-    just squad_leader=True" relationship as T'au's own FireWarriorShasUiProfile
-    to FireWarriorProfile - see TankbustaBossNobProfile below.
-    base_radius_in: user-supplied "Base 32 mm" - 32mm/2 = 16mm radius =
-    16/25.4 ~= 0.63" (same mm-to-inch conversion used everywhere else in
-    this file; also the same value BoyzProfile already uses for its own
-    32mm base). WS/BS aren't in the M/T/Sv/W/Ld/OC table (same convention
-    as every other datasheet so far) - read off the weapon tables: Rokkit
-    pistol's/Rokkit launcha's own BS5+ and Choppa's/Close combat weapon's
-    own WS3+ all match this model's own values, so no weapon needs a
-    per-weapon override."""
+    """Datasheet: Tankbustas (Orks), 2026-09 codex - rules/orks/Tankbustas.md,
+    built in game/factions/orks.py. KEYWORDS: INFANTRY; EXPLOSIVES.
+
+    base_radius_in: the printed 32mm (0.63"). The Nob stands on 40mm and has a
+    third wound, so it is a profile of its own now (TankbustaNobProfile) rather
+    than the pre-codex "identical stat line, squad_leader only" subclass.
+
+    WS/BS read off the weapon tables: every ranged row prints BS4+ (it was 5+
+    before the codex), every melee row WS3+ - no per-weapon override."""
     name = "Tankbusta"
     base_radius_in = 0.63
     movement_in = 6
     weapon_skill = "3+"
-    ballistic_skill = "5+"
+    ballistic_skill = "4+"
     toughness = 5
     wounds = 2
     leadership = "7+"
     armor_save = "4+"
     oc = 1
-    infantry = True  # the INFANTRY keyword - Tankbustas datasheet keyword
-    grenades = True  # the GRENADES keyword - Tankbustas datasheet keyword
-    tank_hunters = True  # this datasheet's own "Tank Hunters" ability - see UnitProfile.tank_hunters's own note and game/squad.py's tank_hunters_modifiers()
+    infantry = True  # the INFANTRY keyword
+    explosives = True  # the EXPLOSIVES keyword (2026-09 codex; it printed GRENADES before)
+    rokkit_barrage = True  # see game/rokkit_barrage.py
+    bomb_squigs = True  # see game/bomb_squigs.py
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
     orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
 
 
-class TankbustaBossNobProfile(TankbustaProfile):
-    """Datasheet: Tankbustas (Orks) - the Boss Nob shares TankbustaProfile's
-    exact stat line (see that class's own docstring); only its weapon
-    loadout differs (Choppa + 2x Rokkit pistol instead of Close combat
-    weapon + Rokkit launcha)."""
-    name = "Boss Nob"
-    squad_leader = True  # cosmetic leader highlight, same convention as every other datasheet's sergeant/leader model
+class TankbustaNobProfile(TankbustaProfile):
+    """Datasheet: Tankbustas (Orks) - the Nob: the Tankbusta's line with W3 on
+    the printed 40mm base (0.79")."""
+    name = "Nob"
+    base_radius_in = 0.79
+    wounds = 3
+    squad_leader = True  # cosmetic leader highlight, same convention as every other datasheet's leader model
 
 
 class DeffkoptaProfile(UnitProfile):
@@ -1008,34 +1002,27 @@ class BattlewagonProfile(UnitProfile):
 
 
 class FlashGitzProfile(UnitProfile):
-    """Datasheet: Flash Gitz (Orks), see game/factions/orks.py. Keywords line
-    (user-supplied): Infantry, Grenades, Flash Gitz (Faction: Orks dropped,
-    same reasoning as every other datasheet's Faction keyword).
+    """Datasheet: Flash Gitz (Orks), 2026-09 codex - rules/orks/Flash Gitz.md,
+    built in game/factions/orks.py. KEYWORDS: INFANTRY; EXPLOSIVES.
 
-    base_radius_in: user-supplied "40 mm" - 40mm/2 = 20mm = 20/25.4 ~= 0.79".
-    Bigger than the 32mm bases every other Ork Boy-sized model here uses, and
-    the first 40mm base in this module.
+    base_radius_in: the printed 40mm (0.79").
 
     Both model lines share this exact stat line - the Kaptin differs only in
-    being the squad's leader model (see FlashGitzKaptinProfile below), not
-    even in wounds, the same relationship TankbustaBossNobProfile has to
-    TankbustaProfile. WS/BS aren't in the M/T/Sv/W/Ld/OC table (same
-    convention as every other datasheet) - read off the weapon tables:
-    Snazzgun's BS5+ and Choppa's WS3+ both match this model's own values, so
-    neither weapon needs a per-weapon override."""
+    being the squad's leader model (FlashGitzKaptinProfile). The codex raised
+    them to W3 and BS4+ (every Snazzgun profile prints 4+; the Choppa WS3+)."""
     name = "Flash Git"
     base_radius_in = 0.79
     movement_in = 6
     weapon_skill = "3+"
-    ballistic_skill = "5+"
+    ballistic_skill = "4+"
     toughness = 5
-    wounds = 2
+    wounds = 3
     leadership = "7+"
     armor_save = "4+"
     oc = 1
-    infantry = True  # the INFANTRY keyword - Flash Gitz datasheet keyword
-    grenades = True  # the GRENADES keyword - Flash Gitz datasheet keyword
-    gun_crazy_showoffs = True  # this datasheet's own "Gun-crazy Show-offs" ability - see UnitProfile.gun_crazy_showoffs's own note and game/gun_crazy_showoffs.py
+    infantry = True  # the INFANTRY keyword
+    explosives = True  # the EXPLOSIVES keyword (2026-09 codex; it printed GRENADES before)
+    finderz_keeperz = True  # see game/finderz_keeperz.py
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
     orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
 

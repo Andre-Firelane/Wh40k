@@ -29,7 +29,7 @@ from ai.agent_driver import (
     _centroid,
     _ingress_pack_positions,
 )
-from game import attached_units, combat_focus, deployment, formations, movement, pregame
+from game import attached_units, combat_focus, deployment, formations, movement, pregame, weapon_profiles
 from game.squad import max_model_radius, squad_has_infiltrators
 
 # Candidate grid over the deploying player's own zone. 2" is fine enough that
@@ -131,19 +131,20 @@ BATTLE_LENGTH_TURNS = 5.0
 def _max_ranged_range(squad):
     best = 0.0
     for model in squad.models:
-        for weapon in getattr(model, "weapons", ()):
-            if getattr(weapon, "melee", False):
-                continue
-            best = max(best, getattr(weapon, "range_in", 0.0) or 0.0)
+        best = max(best, _model_ranged_range(model))
     return best
 
 
 def _model_ranged_range(model):
+    """The longest range this model reaches with the profiles the AI would fire
+    (game/weapon_profiles.py's valued_profiles()) - a Snazzgun is its 24" Dakka,
+    not the hazardous 12" Cutta it carries first."""
     best = 0.0
     for weapon in getattr(model, "weapons", ()):
         if getattr(weapon, "melee", False):
             continue
-        best = max(best, getattr(weapon, "range_in", 0.0) or 0.0)
+        for profile in weapon_profiles.valued_profiles(weapon):
+            best = max(best, getattr(profile, "range_in", 0.0) or 0.0)
     return best
 
 

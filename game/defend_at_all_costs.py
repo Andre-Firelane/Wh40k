@@ -104,13 +104,10 @@ def applies(attacking_squad, target_squad, objectives=()):
         return False
     if not aeldari_detachments.is_aeldari_unit(attacking_squad):
         return False
-    # "that model's unit AND/OR the target unit" - an OR.
-    on_objective = objectives_module.is_within_range_of_objective(
-        attacking_squad, objectives)
-    if not on_objective and target_squad is not None:
-        on_objective = objectives_module.is_within_range_of_objective(
-            target_squad, objectives)
-    return bool(on_objective)
+    # "that model's unit AND/OR the target unit" - an OR, the one definition
+    # the Flash Gitz' Finderz Keeperz reads too.
+    return objectives_module.attacker_or_target_within_range_of_objective(
+        attacking_squad, target_squad, objectives)
 
 
 def applies_to_model(model, attacking_squad, target_squad, objectives=()):

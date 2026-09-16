@@ -1,7 +1,6 @@
 """Battlewagon's own "Ramshackle but Rugged" ability, as supplied by the user
 (not a rule from the generic 40k core rulebook, so it lives in its own module
-- same reasoning as game/gun_crazy_showoffs.py for Flash Gitz' and
-game/spirit_of_gork.py for the Kill Rig's).
+- same reasoning as game/spirit_of_gork.py for the Kill Rig's).
 
 RULE: Each time an attack is allocated to this model, worsen the Armour
 Penetration characteristic of that attack by 1.

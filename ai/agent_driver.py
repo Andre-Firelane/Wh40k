@@ -11235,6 +11235,30 @@ def boss_motivation_choice(bearer_squad, candidates):
                                              -(getattr(s, "points", None) or 0), s.name))[0]
 
 
+def battle_shock_target_choice(shooter_squad, candidates, objectives=()):
+    """The Tankbustas' Rokkit Barrage, the AI's policy (0 API calls): which of
+    several units its volley hit takes the Battle-shock test at -1. Injected by
+    main.py into game/rokkit_barrage.py's controller; a sole candidate never
+    reaches here.
+
+    NOT ALREADY BATTLE-SHOCKED first. A forced test is taken either way, and a
+    PASSED one ends battle-shock (rule 01.07 - see BattleShockController.
+    start_forced_roll()), so testing a unit that is already shocked can only
+    help the enemy. Then a unit within range of an objective, where losing its
+    Objective Control (01.07) is worth the most; then the most valuable unit;
+    name breaks the last tie so a replay picks the same unit."""
+    if not candidates:
+        return None
+    from game.objectives import is_within_range_of_objective
+
+    def key(squad):
+        on_objective = bool(objectives) and is_within_range_of_objective(squad, objectives)
+        return (bool(getattr(squad, "battle_shocked", False)), not on_objective,
+                -(getattr(squad, "points", None) or 0), squad.name)
+
+    return sorted(candidates, key=key)[0]
+
+
 #: Catch Dat Red Bit's expected D3 (2) on top of Crude Surgery's 3 - the heal
 #: the AI waits for before spending the once-per-battle bonus.
 CATCH_DAT_RED_BIT_MIN_HEALABLE = 5

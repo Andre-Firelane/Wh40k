@@ -133,8 +133,12 @@ c.eq("Lokhust Heavy Destroyers are lopsidedly a shooting unit",
      round(combat_focus.ranged_to_melee_ratio(lokhust_heavy()), 2), 4.0)
 c.eq("...and so are the Immortals, less extremely",
      round(combat_focus.ranged_to_melee_ratio(immortals(st)), 2), 1.7)
+# 0.19 since the Ork specialists stage: its melee Spear prints a Strike and a
+# Sweep profile, and the estimate now reads the better one against the reference
+# defender (the Sweep) instead of only the first (game/weapon_profiles.py's
+# valued_profiles()). Further on the melee side, not closer to the line.
 c.eq("the Void Dragon is the opposite - the user's named exception",
-     round(combat_focus.ranged_to_melee_ratio(P2(nec.CTAN_SHARD_OF_THE_VOID_DRAGON, "vd")), 2), 0.23)
+     round(combat_focus.ranged_to_melee_ratio(P2(nec.CTAN_SHARD_OF_THE_VOID_DRAGON, "vd")), 2), 0.19)
 
 # The band. These are the two units nearest the line from either side across
 # both AI armies; the threshold has to sit between them with room to spare.

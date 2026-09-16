@@ -118,22 +118,11 @@
     {
       "datasheet": "Flash Gitz",
       "color": [170, 150, 55],
-      "composition_index": 1,
-      "gear": {
-        "Kaptin": ["Ammo Runt"]
-      }
+      "composition_index": 1
     },
     {
       "datasheet": "Tankbustas",
-      "color": [160, 110, 40],
-      "choices": {
-        "Boss Nob": {
-          "Rokkit Pistol -> Rokkit Pistol + Smash Hammer": 1
-        },
-        "Tankbusta": {
-          "+ Rokkit Launcha": 1
-        }
-      }
+      "color": [160, 110, 40]
     }
   ]
 }

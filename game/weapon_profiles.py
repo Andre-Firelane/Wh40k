@@ -104,3 +104,32 @@ def hunter_allows(profile, target_squad):
 
 def is_hunter(profile):
     return getattr(profile, "hunter_keywords", None) is not None
+
+
+def valued_profiles(weapon, target_squad=None):
+    """The profiles an AI ESTIMATE should read a weapon as: the ones the AI would
+    actually fire.
+
+    Every AI reader of "how far does this unit shoot" and "how much damage does
+    it do" (game/damage_estimate.py, game/combat_focus.py, ai/deployment_ai.py)
+    used to read model.weapons, i.e. only the CARRIED first profile. That was
+    invisible while every first profile was also a sensible one; the 2026-09 Ork
+    codex's Snazzgun prints its hazardous 12" Cutta first, and the Flash Gitz'
+    AI deployment role flipped from "shooter" to "assault" on it (measured: bulk
+    reach 12", ranged/melee ratio 0.70) - for a profile the AI never fires,
+    because ai/agent_driver.py's _best_profile_index() never picks a [HAZARDOUS]
+    one.
+
+    So, for a weapon with more than one profile: the non-hazardous ones, and a
+    Hunter profile only against a target it may shoot (none when there is no
+    target to ask - a reference-defender estimate cannot assume a MONSTER/
+    VEHICLE). A single-profile weapon is always just itself, so nothing that
+    was already exact moves; a chain with nothing left falls back to its first
+    profile. Callers take the best of these by their own measure."""
+    chain = profiles(weapon)
+    if len(chain) < 2:
+        return chain
+    usable = [p for p in chain
+              if not getattr(p, "hazardous", False)
+              and (hunter_allows(p, target_squad) if target_squad is not None else not is_hunter(p))]
+    return usable or chain[:1]

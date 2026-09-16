@@ -41,9 +41,7 @@ from game.bladestorm import bladestorm_adjusted_weapon
 from game import crit_ap
 from game import fate_inescapable
 from game.drive_by_dakka import drive_by_dakka_adjusted_weapon
-from game.gun_crazy_showoffs import gun_crazy_adjusted_weapon, unit_has_gun_crazy_showoffs
-from game.ammo_runt import ammo_runt_adjusted_weapon
-from game import boss_ammo_runt, dodge_dis, ork_ammo_runts
+from game import boss_ammo_runt, dodge_dis, finderz_keeperz, ork_ammo_runts
 from game.nova_charge import nova_charge_adjusted_weapon
 from game import damaged_attacks, triarch_auras
 from game import awakened_dynasty, destroyer_cult, nekrosor_ammentar, dlc_mortarions_teachings, exemplars_of_montka, gift_of_contagion, hovering_death, miasma_of_pestilence, protocol_conquering_tyrant, protocol_sudden_storm, guardian_protocols, implacable_eradication, mechanical_augmentation, overwhelming_obliteration, plagues, reroll_scope, sunforge, target_uploaded, way_of_the_short_blade
@@ -714,7 +712,7 @@ class ShootingController:
         turn_tracker=None, all_tokens=None, movement_controller=None, terrain_areas=None,
         decision_manager=None, greater_good=None, suppression=None, objectives=None, stealth_drones=None,
         barrage_of_filth=None, spore_laced=None,
-        target_reactions=(), nova_charge=None, ammo_runt=None, ork_ammo_runts=None, fire_support=None, hand_of_asuryan=None, guide=None, doom=None, whispering_web=None,
+        target_reactions=(), nova_charge=None, ork_ammo_runts=None, pulsa_rokkit=None, fire_support=None, hand_of_asuryan=None, guide=None, doom=None, whispering_web=None,
         advanced_scouting=None, bounty_hunters=None, oversight_drone=None,
         sonic_destruction=None, monofilament_snare=None, misfortune=None,
         spirit_mark=None, piratical_raiders=None, fury_of_the_void=None,
@@ -775,9 +773,9 @@ class ShootingController:
         self.fury_of_the_void = fury_of_the_void  # Kharseth's riven mark - optional; a STRENGTH change, so it rides the adjuster chain (see game/fury_of_the_void.py)
         self.sonic_destruction = sonic_destruction  # the Vibro Cannon Platforms' shared per-phase ledger - optional; see game/sonic_destruction.py
         self.monofilament_snare = monofilament_snare  # the Shadow Weaver Platforms' snare marks - optional; WRITTEN here (the mark is placed by a hit) and read from game/movement.py
-        self.ork_ammo_runts = ork_ammo_runts  # Boyz' Ammo Runts (2026-09 codex) - optional, offered from start_shooting() beside ammo_runt below (see game/ork_ammo_runts.py)
+        self.ork_ammo_runts = ork_ammo_runts  # Boyz' Ammo Runts (2026-09 codex) - optional, offered from start_shooting() (see game/ork_ammo_runts.py)
         self.boss_ammo_runt = boss_ammo_runt  # the Warboss's Boss' Ammo Runt (2026-09 codex) - the second carrier of that offer, see game/boss_ammo_runt.py
-        self.ammo_runt = ammo_runt  # Flash Gitz' Ammo Runt wargear - optional, same shape and same start_shooting()-only trigger as nova_charge (see game/ammo_runt.py)
+        self.pulsa_rokkit = pulsa_rokkit  # the Tankbustas' Pulsa Rokkit wargear (2026-09 codex) - optional; offered from start_shooting(), its mark read by _adjusted_weapon() (see game/pulsa_rokkit.py)
         self.nova_charge = nova_charge  # Riptide Battlesuit's Nova Charge ability - optional, like greater_good; offered from start_shooting() only (see game/nova_charge.py)
         # Reactive stratagems whose WHEN is "just after an enemy unit has
         # selected its targets" - Stim Injectors, Psychic Shield and more.
@@ -1068,16 +1066,17 @@ class ShootingController:
         psychic_communion.on_selected_to_shoot(squad, self.all_tokens)
         if self.hand_of_asuryan is not None:
             self.hand_of_asuryan.maybe_offer(squad)
-        if self.ammo_runt is not None:
-            self.ammo_runt.offer(squad)
-        # Boyz' Ammo Runts - the same instant ("when this unit is selected to
-        # shoot"), a different rule from the Flash Gitz' wargear above.
+        # Boyz' Ammo Runts - "when this unit is selected to shoot".
         if self.ork_ammo_runts is not None:
             self.ork_ammo_runts.offer(squad)
         # The Warboss's Boss' Ammo Runt - the same WHEN and spend, a separate
         # once-per-battle use on the same unit (see game/boss_ammo_runt.py).
         if self.boss_ammo_runt is not None:
             self.boss_ammo_runt.offer(squad)
+        # The Tankbustas' Pulsa Rokkit - the same instant; it marks one enemy
+        # MONSTER/VEHICLE unit for this unit's attacks (game/pulsa_rokkit.py).
+        if self.pulsa_rokkit is not None:
+            self.pulsa_rokkit.offer(squad)
         # The Vespid Strain Leader's Oversight Drone - "when the bearer's
         # unit is SELECTED TO SHOOT", which is this instant. Offered here
         # only, never mid-sequence, exactly like Nova Charge above.
@@ -1577,17 +1576,14 @@ class ShootingController:
 
         Only computed for a unit that actually needs the answer: it is an
         eligibility sweep over every enemy unit, far too expensive to run
-        for everyone else's activations. TWO abilities read it now - The
-        Twin Lance's Exemplars of Mont'ka and Flash Gitz' Gun-crazy
-        Show-offs - so the guard asks whether either applies. A third
-        consumer belongs in this same condition; leaving it out does not
-        fail loudly, it just silently returns False."""
+        for everyone else's activations. ONE ability reads it again - The
+        Twin Lance's Exemplars of Mont'ka; the Flash Gitz' Gun-crazy Show-offs
+        went with the 2026-09 Ork codex. A second consumer belongs in this
+        same condition; leaving it out does not fail loudly, it just silently
+        returns False."""
         if self.active_squad is None:
             return False
-        if not (
-            exemplars_of_montka.unit_has_exemplars_of_montka(self.active_squad)
-            or unit_has_gun_crazy_showoffs(self.active_squad)
-        ):
+        if not exemplars_of_montka.unit_has_exemplars_of_montka(self.active_squad):
             return False
         candidates = {
             t.squad for t in self.all_tokens
@@ -2536,23 +2532,10 @@ class ShootingController:
             self._continue_resolution_with_attacks(weapon, total_attacks)
             return
 
-        # Flash Gitz' Gun-crazy Show-offs (user-supplied): a Snazzgun aimed
-        # at the closest eligible target has an Attacks characteristic of 4.
-        # It has to land HERE, before the count is summed - unlike every
-        # other adjuster in this file, which touches Strength/AP/keywords
-        # that are read later in the sequence. Per model, since the check is
-        # on each shooter's own profile. "Closest" comes from rule 10.02's
-        # target-selection snapshot, never recomputed - see
-        # game/gun_crazy_showoffs.py.
-        is_closest = self._closest_target_snapshot.get(target_squad, False)
         # The Silent King's damaged tier halves "that MODEL's weapons", so it
         # lands per pair inside this sum rather than on the total - a Menhir
         # beside a damaged Szarekh keeps its own Attacks.
-        total_attacks = sum(
-            damaged_attacks.attacks_for(
-                m, gun_crazy_adjusted_weapon(w, [(m, w)], is_closest))
-            for m, w in pairs
-        )
+        total_attacks = sum(damaged_attacks.attacks_for(m, w) for m, w in pairs)
         total_attacks += extra_attack_dice(self._adjusted_weapon(pairs, target_squad), target_squad, weapon_key, self.split_fire, self.assignments, pairs)
         # Cadre Fireblade's "Volley Fire" (user-supplied): +1 A to every ranged
         # weapon in the unit he is leading. Added here rather than folded into
@@ -3639,7 +3622,7 @@ class ShootingController:
 
         The ones after that DO matter: Arro'kon, Bladestorm, Exemplars of
         Mont'ka ([SUSTAINED HITS]), Nova Charge, Hand of Asuryan
-        ([DEVASTATING WOUNDS]) and Ammo Runt ([LETHAL HITS]) all grant
+        ([DEVASTATING WOUNDS]) and the Pulsa Rokkit ([LETHAL HITS]) all grant
         keywords the hit/wound steps read straight off the returned weapon,
         so they have to be in place before those steps run.
 
@@ -3776,7 +3759,19 @@ class ShootingController:
         weapon = nova_charge_adjusted_weapon(weapon, pairs)
         weapon = hand_of_asuryan_adjusted_weapon(weapon, pairs)
         weapon = psychic_communion.psychic_communion_adjusted_weapon(weapon, pairs)
-        weapon = ammo_runt_adjusted_weapon(weapon, self.active_squad)
+        # The Tankbustas' Pulsa Rokkit: +1 AP and [LETHAL HITS] on this unit's
+        # attacks against the one MONSTER/VEHICLE unit it marked when selected
+        # to shoot. A keyword grant, so in the chain (_crit_note() reads it at
+        # roll time) - see game/pulsa_rokkit.py.
+        if self.pulsa_rokkit is not None:
+            weapon = self.pulsa_rokkit.adjusted_weapon(
+                weapon, self.active_squad, target_squad, reactive=self._reactive)
+        # The Flash Gitz' Finderz Keeperz: +1 AP while they or the target are
+        # within range of an objective, in their own Shooting phase only. In
+        # the chain because the Save roll reads the AP off this weapon.
+        weapon = finderz_keeperz.adjusted_weapon(
+            weapon, self.active_squad, target_squad, self.objectives,
+            reactive=self._reactive)
         # Kroot Farstalkers' Pech'ra: [IGNORES COVER] on the whole unit's
         # ranged weapons, unconditionally once taken - the simplest grant
         # in this chain, and ranged-only by its own printed wording.

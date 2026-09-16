@@ -2024,6 +2024,10 @@ _KNOWN_TRIGGERS = sorted([
     "face_of_death",                 #   Maugan Ra
     "panicked_quarry",               #   the Leystalker
     "outcast_eldritch_suppression",  #   Path of the Outcast's stratagem
+    # The Tankbustas' Rokkit Barrage (2026-09 Ork codex) - the base's fourth
+    # carrier. It fires when the Tankbustas have shot, i.e. in a SHOOTING phase,
+    # never inside a Command phase, so it joins the gap as the ordinary case.
+    "rokkit_barrage",
     "drone_harassment",
     "fall_back",                     # 09.07 Desperate Escape
     "grav_inhibitor_field",

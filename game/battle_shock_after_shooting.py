@@ -32,6 +32,7 @@ WHICH unit, when more than one was hit - and a sole candidate is auto-picked
 rather than asked about, the shortcut every other "select one enemy unit hit"
 ability here takes.
 """
+from game import ai_mode
 from game.squad import is_monster_or_vehicle_unit
 
 #: "subtracting 1 from the result" / "-1 to that battle-shock roll".
@@ -61,10 +62,17 @@ class BattleShockAfterShooting:
     eligible = staticmethod(any_target)
 
     def __init__(self, battle_shock_controller=None, decision_manager=None,
-                 game_log=None):
+                 game_log=None, auto_players=(), target_pick=None):
         self.battle_shock_controller = battle_shock_controller
         self.decision_manager = decision_manager
         self.game_log = game_log
+        # The fourth carrier (the Tankbustas' Rokkit Barrage) is the first the
+        # AI plays: an auto player's choice between several hit units is
+        # target_pick(shooter, candidates), injected by main.py so game/ never
+        # imports ai/. Both default to "nobody", so the three Aeldari carriers
+        # behave exactly as before.
+        self.auto_players = ai_mode.players(auto_players)
+        self.target_pick = target_pick
 
     def unit_has_ability(self, squad):
         """Whether THIS unit may offer the test.
@@ -95,8 +103,9 @@ class BattleShockAfterShooting:
                          key=lambda s: s.name)
         if not targets:
             return False
-        if len(targets) == 1 or self.decision_manager is None:
-            return self._test(targets[0])
+        if (len(targets) == 1 or self.decision_manager is None
+                or squad.owner in self.auto_players):
+            return self._test(self._pick(squad, targets))
         self.decision_manager.request(
             squad.owner,
             "%s: %s - which enemy unit must take a Battle-shock test?"
@@ -104,6 +113,16 @@ class BattleShockAfterShooting:
             [(t.name, (lambda t=t: self._test(t)), t) for t in targets],
         )
         return True
+
+    def _pick(self, squad, targets):
+        """Which of several hit units. A sole candidate is itself; without a
+        target_pick the first by name, which keeps a headless test (and the
+        pre-existing no-decision-manager path) reproducible."""
+        if len(targets) > 1 and self.target_pick is not None:
+            chosen = self.target_pick(squad, targets)
+            if chosen is not None:
+                return chosen
+        return targets[0]
 
     def _test(self, target):
         if self.battle_shock_controller is None:

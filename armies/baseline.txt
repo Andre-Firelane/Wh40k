@@ -413,16 +413,15 @@
   components: -
   Deffkopta x6 (130,145,165) [Kopta Rokkits, Slugga, Spinnin' Blades] {}
   enhancements: -
-1 Flash Gitz 1 | deploy | pts=150 | models=10
+1 Flash Gitz 1 | deploy | pts=210 | models=10
   components: -
-  Kaptin x1 (170,150,55) [Choppa, Snazzgun] {Ammo Runt}
-  Flash Git x9 (170,150,55) [Choppa, Snazzgun] {}
+  Kaptin x1 (170,150,55) [Choppa, Snazzgun - Cutta] {}
+  Flash Git x9 (170,150,55) [Choppa, Snazzgun - Cutta] {}
   enhancements: -
-1 Tankbustas 1 | deploy | pts=125 | models=6
+1 Tankbustas 1 | deploy | pts=145 | models=6
   components: -
-  Boss Nob x1 (160,110,40) [Choppa, Rokkit Pistol, Smash Hammer] {}
-  Tankbusta x1 (160,110,40) [Close Combat Weapon, Rokkit Launcha, Rokkit Launcha] {}
-  Tankbusta x4 (160,110,40) [Close Combat Weapon, Rokkit Launcha] {}
+  Nob x1 (160,110,40) [Choppa, Rokkit Pistol, Rokkit Pistol] {}
+  Tankbusta x5 (160,110,40) [Busta Rokkit Launcha - Standard, Gitstikka] {}
   enhancements: -
 
 ### orks / Player 2
@@ -484,16 +483,15 @@
   components: -
   Deffkopta x6 (130,145,165) [Kopta Rokkits, Slugga, Spinnin' Blades] {}
   enhancements: -
-2 Flash Gitz 1 | deploy | pts=150 | models=10
+2 Flash Gitz 1 | deploy | pts=210 | models=10
   components: -
-  Kaptin x1 (170,150,55) [Choppa, Snazzgun] {Ammo Runt}
-  Flash Git x9 (170,150,55) [Choppa, Snazzgun] {}
+  Kaptin x1 (170,150,55) [Choppa, Snazzgun - Cutta] {}
+  Flash Git x9 (170,150,55) [Choppa, Snazzgun - Cutta] {}
   enhancements: -
-2 Tankbustas 1 | deploy | pts=125 | models=6
+2 Tankbustas 1 | deploy | pts=145 | models=6
   components: -
-  Boss Nob x1 (160,110,40) [Choppa, Rokkit Pistol, Smash Hammer] {}
-  Tankbusta x1 (160,110,40) [Close Combat Weapon, Rokkit Launcha, Rokkit Launcha] {}
-  Tankbusta x4 (160,110,40) [Close Combat Weapon, Rokkit Launcha] {}
+  Nob x1 (160,110,40) [Choppa, Rokkit Pistol, Rokkit Pistol] {}
+  Tankbusta x5 (160,110,40) [Busta Rokkit Launcha - Standard, Gitstikka] {}
   enhancements: -
 
 ### necrons / Player 1

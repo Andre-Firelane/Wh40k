@@ -616,7 +616,7 @@ class BurnaProfile(WeaponProfile):
 
 class RokkitLaunchaBustaProfile(WeaponProfile):
     """Boyz' Rokkit Launcha - Busta: 24" A2 BS5+ S10 AP-2 D3. Not Tankbustas'
-    RokkitLunchaProfile, which prints other numbers under the bare name."""
+    BustaRokkitLaunchaProfile, which carries a Hunter profile besides."""
     name = "Rokkit Launcha - Busta"
     weapon_type = RANGED
     range_in = 24
@@ -675,53 +675,59 @@ class UgeChoppaProfile(WeaponProfile):
 
 
 # --- Tankbustas (Orks) datasheet, see game/factions/orks.py ---
+# 2026-09 codex (rules/orks/Tankbustas.md). Two of the five rows are TWO-profile
+# weapons (rule 04.01.03): the Busta Rokkit Launcha and the Smash Hammer each
+# print a Standard and a Hunter profile, the Hunter one usable only against a
+# MONSTER/VEHICLE unit - the same chain BeastSnaggaChoppaProfile already walks
+# (game/weapon_profiles.py). The Nob's Choppa is ChoppaA4Profile, the one the
+# Flash Gitz print too; the pre-codex Rokkit Launcha (D3 [BLAST]) is gone.
 
 class RokkitPistolProfile(WeaponProfile):
+    """Tankbustas' Nob (2026-09 Ork codex): Rokkit Pistol, 12" A1 BS4+ S10 AP-2
+    D3, [CLOSE-QUARTERS] - it printed S9 and Pistol before."""
     name = "Rokkit Pistol"
     weapon_type = RANGED
     range_in = 12
     attacks = 1
-    strength = 9
+    strength = 10
     ap = -2
     damage = 3
-    pistol = True
+    close_quarters = True
 
 
-class RokkitLunchaProfile(WeaponProfile):
-    """Tankbustas' own "Rokkit launcha" - a dice-notation Attacks
-    characteristic (a printed "D3"), same real-dice-roll treatment as
-    TauFlamerProfile's own D6 Attacks (see attacks_notation's own note) -
-    `attacks` below is only the preview/leftover placeholder value."""
-    name = "Rokkit Launcha"
+class BustaRokkitLaunchaHunterProfile(WeaponProfile):
+    """Tankbustas' Busta Rokkit Launcha - Hunter: 24" A3 BS4+ S12 AP-2 D3,
+    HUNTER: MONSTER/VEHICLE (rule 04.01.03)."""
+    name = "Busta Rokkit Launcha - Hunter"
     weapon_type = RANGED
     range_in = 24
-    attacks = 1
-    attacks_notation = D3()
-    strength = 9
+    attacks = 3
+    strength = 12
     ap = -2
     damage = 3
-    blast = 1  # plain [BLAST] keyword (X=1), see WeaponProfile.blast's own note
+    hunter_keywords = MONSTER_OR_VEHICLE_TARGETS
 
 
-class TankbustaChoppaProfile(WeaponProfile):
-    """Tankbustas' own Boss Nob's "Choppa" (A4 S5 AP-1 D1) - one Attack more
-    than the Boyz' ChoppaProfile (A3 S5 AP-1 D1 since the 2026-09 codex):
-    same printed name, different numbers, so a class of its own."""
-    name = "Choppa"
-    weapon_type = MELEE
-    range_in = 2
-    attacks = 4
-    strength = 5
-    ap = -1
-    damage = 1
+class BustaRokkitLaunchaProfile(WeaponProfile):
+    """Tankbustas' Busta Rokkit Launcha - Standard: 24" A2 BS4+ S10 AP-2 D3, the
+    first of two profiles. Not the Boyz' RokkitLaunchaBustaProfile, which
+    prints A2 S10 as well but under another name and with no Hunter profile -
+    and not KombiRokkitBustaRokkitProfile, which is A1."""
+    name = "Busta Rokkit Launcha - Standard"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 2
+    strength = 10
+    ap = -2
+    damage = 3
+    overcharge_profile = BustaRokkitLaunchaHunterProfile
 
 
-class TankbustaCloseCombatWeaponProfile(WeaponProfile):
-    """Tankbustas' own "Close combat weapon" (A3 S5 AP0 D1) - a distinct
-    stat line from both the generic CloseCombatWeaponProfile (A1 S4) and
-    OrkCloseCombatWeaponProfile (A2 S4), same "same printed name, needs its
-    own class" reasoning as TankbustaChoppaProfile."""
-    name = "Close Combat Weapon"
+class GitstikkaProfile(WeaponProfile):
+    """Tankbustas (2026-09 Ork codex): Gitstikka, A3 WS3+ S5 AP0 D1. The numbers
+    the pre-codex "Close combat weapon" printed on the same model, under the
+    name the codex gives it."""
+    name = "Gitstikka"
     weapon_type = MELEE
     range_in = 2
     attacks = 3
@@ -730,24 +736,31 @@ class TankbustaCloseCombatWeaponProfile(WeaponProfile):
     damage = 1
 
 
-class SmashHammerProfile(WeaponProfile):
-    """Tankbustas' own "Unselected Profiles" alternate (A2 S6 AP-2 D3,
-    Anti-Monster 4+ AND Anti-Vehicle 4+) - not wired as a wargear option
-    (no swap-rule text given), same documented gap as every other
-    datasheet's own Unselected Profiles. Both of its [ANTI-X] keywords are
-    now modeled: `anti` used to hold a single (keyword, threshold) tuple,
-    so Anti-Monster 4+ was dropped and only Anti-Vehicle 4+ survived. The
-    Beastboss's weapons print the same pair on a real, fielded loadout,
-    which is what finally generalized the field (see WeaponProfile.anti's
-    own note) - this weapon just gets its missing half back for free."""
-    name = "Smash Hammer"
+class SmashHammerHunterProfile(WeaponProfile):
+    """Tankbustas' Nob's Smash Hammer - Hunter: A3 WS3+ S12 AP-2 D3, HUNTER:
+    MONSTER/VEHICLE."""
+    name = "Smash Hammer - Hunter"
     weapon_type = MELEE
     range_in = 2
-    attacks = 2
-    strength = 6
+    attacks = 3
+    strength = 12
     ap = -2
     damage = 3
-    anti = (("MONSTER", 4), ("VEHICLE", 4))
+    hunter_keywords = MONSTER_OR_VEHICLE_TARGETS
+
+
+class SmashHammerProfile(WeaponProfile):
+    """Tankbustas' Nob's Smash Hammer - Standard: A3 WS3+ S7 AP-2 D2, the first
+    of two profiles. The pre-codex row (A2 S6 D3 with [ANTI-MONSTER 4+] and
+    [ANTI-VEHICLE 4+]) is gone; the Hunter profile is what anti-tank is now."""
+    name = "Smash Hammer - Standard"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    strength = 7
+    ap = -2
+    damage = 2
+    overcharge_profile = SmashHammerHunterProfile
 
 
 # --- Deffkoptas (Orks) datasheet, see game/factions/orks.py ---
@@ -755,10 +768,8 @@ class SmashHammerProfile(WeaponProfile):
 # D1, Pistol) to the existing SluggaProfile (Boyz' own weapon), reused as-is.
 
 class KoptaRokkitsProfile(WeaponProfile):
-    """Deffkoptas' own "Kopta rokkits" - same dice-notation Attacks
-    treatment as Tankbustas' own Rokkit Launcha (RokkitLunchaProfile,
-    identical S/AP/D/Blast), but also [TWIN-LINKED] - a distinct class
-    for that reason, not a reuse."""
+    """Deffkoptas' own "Kopta rokkits" (pre-codex row, stage E3d) - a
+    dice-notation Attacks (D3) with S9 AP-2 D3 [BLAST] [TWIN-LINKED]."""
     name = "Kopta Rokkits"
     weapon_type = RANGED
     range_in = 24
@@ -802,9 +813,8 @@ class KustomMegaBlastaProfile(WeaponProfile):
 # above (Trukk's own weapon), reused as-is. "Kustom mega-blasta" (Unselected
 # Profiles) is likewise NOT a new class - identical stat line to
 # KustomMegaBlastaProfile above (Deffkoptas' own Unselected Profiles entry),
-# reused as-is. "Rokkit launcha" (Unselected Profiles) is also NOT a new
-# class - identical stat line to RokkitLunchaProfile above (Tankbustas' own
-# weapon), reused as-is.
+# reused as-is. Its "Rokkit launcha" (Unselected Profiles) has no class since
+# the Tankbustas' pre-codex Rokkit Launcha went (stage E3d rebuilds this sheet).
 
 class StompyFeetProfile(WeaponProfile):
     name = "Stompy Feet"
@@ -1042,41 +1052,63 @@ class SavageHornsAndHoovesProfile(WeaponProfile):
 
 
 # --- Flash Gitz (Orks) datasheet, see game/factions/orks.py ---
-# Both weapons are new classes. The Choppa in particular LOOKS like one this
-# file already has and is not: A4 where Boyz' ChoppaProfile and Beast Snagga
-# Boyz' own BeastSnaggaChoppaProfile are both A3 (it shares the latter's S5).
-# Third same-named, different-numbered Choppa in this file - see
-# BeastSnaggaChoppaProfile's own note for the convention.
+# 2026-09 codex (rules/orks/Flash Gitz.md). The Snazzgun is a THREE-profile
+# weapon (rule 04.01.03) - Cutta, Dakka, Kill Shot, in printed order - on the
+# same chain the Kombi-weapon uses. Gun-crazy Show-offs is gone, and with it
+# the Attacks-4 special case. The Choppa is ChoppaA4Profile, shared with the
+# Tankbustas' Nob.
 
-class SnazzgunProfile(WeaponProfile):
-    """Flash Gitz' looted shoota (24", A3, BS5+, S6, AP-1, D2, [HEAVY],
-    [SUSTAINED HITS 1]).
+class SnazzgunKillShotProfile(WeaponProfile):
+    """Flash Gitz' Snazzgun - Kill Shot: 36" A2 BS4+ S8 AP-2 D2, [HAZARDOUS]."""
+    name = "Snazzgun - Kill Shot"
+    weapon_type = RANGED
+    range_in = 36
+    attacks = 2
+    strength = 8
+    ap = -2
+    damage = 2
+    hazardous = True
 
-    Its printed Attacks is 3; Gun-crazy Show-offs raises it to 4 against the
-    closest eligible target, which is applied as a real characteristic
-    change on a copy at resolution time rather than baked in here - see
-    game/gun_crazy_showoffs.py."""
-    name = "Snazzgun"
+
+class SnazzgunDakkaProfile(WeaponProfile):
+    """Flash Gitz' Snazzgun - Dakka: 24" A3 BS4+ S6 AP-1 D2, [LETHAL HITS:
+    non-MONSTER/VEHICLE], [SUSTAINED HITS 1]."""
+    name = "Snazzgun - Dakka"
     weapon_type = RANGED
     range_in = 24
     attacks = 3
     strength = 6
     ap = -1
     damage = 2
-    heavy = True  # [HEAVY], rule 24.16
-    sustained_hits = 1  # [SUSTAINED HITS 1], rule 24.36
+    sustained_hits = 1
+    conditional_keywords = (("lethal_hits", True, NON_MONSTER_VEHICLE_TARGETS),)
+    overcharge_profile = SnazzgunKillShotProfile
 
 
-class FlashGitzChoppaProfile(WeaponProfile):
-    """Flash Gitz' melee weapon (A4 WS3+ S5 AP-1 D1) - one Attack more than
-    BeastSnaggaChoppaProfile, which is otherwise the same line."""
-    name = "Choppa"
-    weapon_type = MELEE
-    range_in = 2
+class SnazzgunCuttaProfile(WeaponProfile):
+    """Flash Gitz' Snazzgun - Cutta: 12" A1 BS4+ S9 AP-3 D3+2, [HAZARDOUS],
+    [MELTA 2] - the first of three profiles, so the one a model carries.
+    `damage` is the notation's mean, the grouping/preview placeholder."""
+    name = "Snazzgun - Cutta"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 1
+    strength = 9
+    ap = -3
+    damage = 4
+    damage_notation = D3(2)
+    hazardous = True
+    melta = 2
+    overcharge_profile = SnazzgunDakkaProfile
+
+
+class ChoppaA4Profile(ChoppaProfile):
+    """The Choppa the Flash Gitz and the Tankbustas' Nob print (2026-09 Ork
+    codex): A4 WS3+ S5 AP-1 D1 - the Boyz' ChoppaProfile row with one Attack
+    more, so a subclass that changes that one number. It was two identical
+    classes (FlashGitzChoppaProfile, TankbustaChoppaProfile) until the codex
+    made both rows the same."""
     attacks = 4
-    strength = 5
-    ap = -1
-    damage = 1
 
 
 # --- Battlewagon (Orks) datasheet, see game/factions/orks.py ---

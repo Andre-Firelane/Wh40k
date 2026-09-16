@@ -29,9 +29,8 @@ from game.factions import build_squad
 from game.factions.orks import (
     BATTLEWAGON, BATTLEWAGON_ADD_BIG_SHOOTAS, BATTLEWAGON_ADD_ZZAP_GUN, BATTLEWAGON_ARD_CASE,
     BEAST_SNAGGA_BOYZ, BEASTBOSS, BOYZ, BOYZ_NOB_TO_POWER_KLAW, DEFF_DREAD, FLASH_GITZ,
-    FLASH_GITZ_AMMO_RUNT, GRETCHIN, KILL_RIG, MEGANOBZ, STORMBOYZ,
-    STORMBOYZ_NOB_TO_POWER_KLAW, TANKBUSTAS, TANKBUSTAS_ADD_ROKKIT_LAUNCHA,
-    TANKBUSTAS_BOSS_NOB_ADD_SMASH_HAMMER, TRUKK, WARBIKERS, WARBIKERS_ADD_POWER_KLAW,
+    GRETCHIN, KILL_RIG, MEGANOBZ, STORMBOYZ,
+    STORMBOYZ_NOB_TO_POWER_KLAW, TANKBUSTAS, TRUKK, WARBIKERS, WARBIKERS_ADD_POWER_KLAW,
     WARBOSS, WARBOSS_MEGA_ARMOUR,
 )
 
@@ -100,11 +99,8 @@ def ork_army():
     reg(mk(STORMBOYZ, "2 Stormboyz 1", composition_index=1,
            choices={"Nob": {STORMBOYZ_NOB_TO_POWER_KLAW: 1}}))
     reg(mk(DEFF_DREAD, "2 Deff Dread 1"))
-    reg(mk(FLASH_GITZ, "2 Flash Gitz 1", composition_index=1,
-           gear={"Kaptin": [FLASH_GITZ_AMMO_RUNT]}))
-    reg(mk(TANKBUSTAS, "2 Tankbustas 1",
-           choices={"Boss Nob": {TANKBUSTAS_BOSS_NOB_ADD_SMASH_HAMMER: 1},
-                    "Tankbusta": {TANKBUSTAS_ADD_ROKKIT_LAUNCHA: 1}}))
+    reg(mk(FLASH_GITZ, "2 Flash Gitz 1", composition_index=1))
+    reg(mk(TANKBUSTAS, "2 Tankbustas 1"))
 
     ctrl = pregame.PregameController(
         game_state=state, setup_controller=None, dice_manager=DiceManager(),
@@ -143,6 +139,9 @@ c.eq("Boyz 2 carries no character",
 # rather than asserted from memory: both units the user wants carried report a
 # reach at or above the old 18" cut-off, so a priority list that merely
 # reordered candidates inside that filter would still never load them.
+# 24", the Snazzgun's Dakka profile - read over the profiles the AI would fire
+# (game/weapon_profiles.py's valued_profiles()), not the 12" hazardous Cutta the
+# model carries first, nor the hazardous 36" Kill Shot.
 c.eq("Flash Gitz reach", deployment_ai._max_ranged_range(squads["2 Flash Gitz 1"]), 24.0)
 # 18", not the 24" it read while the pre-codex Warboss carried a Kombi-weapon:
 # the 2026-09 Warboss's Kustom Shoota and the Nobs' Kombi-skorchas are 18".

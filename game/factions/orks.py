@@ -38,17 +38,11 @@ new `transport_requires` - the INCLUSIVE counterpart of the long-standing
 transport_excludes, which could only ever express a refusal and so could not
 say "11 BEAST SNAGGA INFANTRY models".
 
-Flash Gitz is the cheapest addition of the three: one ability, no new
-mechanism. Gun-crazy Show-offs reuses the closest-eligible-target snapshot
-ShootingController already computes for The Twin Lance's Exemplars of
-Mont'ka - but it is applied at a DIFFERENT point in the sequence than every
-other weapon adjuster in that file, because it changes the Attacks
-characteristic and therefore has to land before the attack count is summed
-rather than at the hit/wound step. Adding it also widened
-_is_closest_eligible_target()'s own performance guard, which until now
-short-circuited to False for anyone without Exemplars of Mont'ka - a second
-consumer of that snapshot had to be named there or it would have silently
-got False forever.
+Flash Gitz (2026-09 codex) carry a THREE-profile Snazzgun (Cutta, Dakka, Kill
+Shot - rule 04.01.03) and Finderz Keeperz (game/finderz_keeperz.py: +1 AP on
+their ranged attacks in your Shooting phase while they or the target are within
+range of an objective). The pre-codex Gun-crazy Show-offs and the Kaptin's Ammo
+Runt wargear are gone, with game/gun_crazy_showoffs.py and game/ammo_runt.py.
 
 Battlewagon brought this engine's FIRST defensive weapon adjuster. Every
 other one belongs to the attacker and is chained onto the weapon while its
@@ -90,29 +84,15 @@ per battle (game/crude_surgery.py). The user-supplied Grot Orderly, Dok's
 Toolz' Feel No Pain and Hold Still and Say 'Aargh!' are gone with the
 pre-codex sheet.
 
-Tankbustas is the first non-standalone datasheet since Gretchin - a real
-6-model squad (1 Boss Nob + 5 Tankbusta), whose Boss Nob shares the rank-
-and-file's exact stat line (see TankbustaProfile's own note). Tank Hunters
-IS engine-wired (self-contained: a per-model ability plus a per-target
-keyword check, no attached-unit dependency) - new `tank_hunters` UnitProfile
-flag, plus a new shared game/squad.py's tank_hunters_modifiers() (used by
-BOTH game/shooting.py's and game/fight.py's own _hit_modifiers()/
-_wound_modifiers(), since the rule text isn't restricted to ranged attacks
-- fight.py's own _hit_modifiers()/_wound_modifiers() needed a new
-`target_squad` parameter for this, which they didn't previously take).
-Attached Unit is NOT engine-wired, same Attached-Unit-flow gap as every
-other Leader/Bodyguard text in this module (Lootas doesn't even exist as a
-datasheet here yet either). Bomb Squigs is also NOT engine-wired, and
-unlike every other ability decision in this module, that's a genuine scope
-call rather than a missing-infrastructure gap: it's a real once-per-battle
-reactive ability (fires after this unit ends a Normal move, needs its own
-target-selection/decision-manager prompt, a D6 roll at 3+, then a D3
-mortal-wound roll, and a 2-charge "Bomb Squig" counter per unit) - i.e. a
-whole new controller comparable in scope to game/explosives.py, not a
-one-line extension of an existing hook the way Da Biggest and da Best/
-Krumpin' Time/Dead Brutal/Tank Hunters all were. Left as abilities_text
-only; flagged here for whoever picks it up next rather than built silently
-without being asked.
+Tankbustas (2026-09 codex) are a Nob and five Tankbustas; the Busta Rokkit
+Launcha and the Smash Hammer each print a Standard and a Hunter profile. All
+three abilities are engine-wired: Rokkit Barrage (game/rokkit_barrage.py, a
+Battle-shock test at -1 on a unit they hit), Bomb Squigs (game/bomb_squigs.py,
+twice per battle after a Normal move, D6 3+ then D3 mortal wounds) and the
+Pulsa Rokkit wargear (game/pulsa_rokkit.py, +1 AP and [LETHAL HITS] against one
+MONSTER/VEHICLE unit). The pre-codex Tank Hunters is gone, and with it the Ork
+half of game/squad.py's tank_hunters_modifiers() (the Myphitic Blight-hauler's
+ranged-only twin stays).
 
 Deffkoptas is a multi-model (3x) VEHICLE squadron - unusual for VEHICLE
 (every other VEHICLE datasheet here so far, Trukk, is single-model), but a
@@ -194,25 +174,26 @@ from game.units import (
     BattlewagonProfile, BeastbossProfile, FlashGitzKaptinProfile, FlashGitzProfile, KillRigProfile,
     BeastSnaggaBoyProfile, BeastSnaggaNobProfile, BossNobOnWarbikeProfile, BoyzNobProfile, BoyzProfile,
     DeffDreadProfile, DeffkoptaProfile, GretchinProfile,
-    MeganobzProfile, PainboyProfile, StormboyProfile, StormboyzNobProfile, TankbustaBossNobProfile,
+    MeganobzProfile, PainboyProfile, StormboyProfile, StormboyzNobProfile, TankbustaNobProfile,
     TankbustaProfile, TrukkProfile, WarbikerProfile, WarbossMegaArmourProfile, WarbossProfile,
 )
 from game.weapons import (
     BeastSnaggaChoppaProfile, BeastSnaggaKlawAndBeastchoppaProfile, BigShootaS5Profile,
-    ButchaBoyzProfile, DeffRollaProfile, DoksToolzProfile, EavyLobbaProfile, FlashGitzChoppaProfile,
+    BustaRokkitLaunchaProfile, ButchaBoyzProfile, ChoppaA4Profile, DeffRollaProfile, DoksToolzProfile,
+    EavyLobbaProfile, GitstikkaProfile,
     GrabbinKlawProfile,
     LobbaProfile, SavageHornsAndHoovesProfile, TracksAndWheelsProfile, WreckinBallProfile,
     ZzapGunProfile,
-    SawBladesProfile, SnazzgunProfile,
+    SawBladesProfile, SnazzgunCuttaProfile,
     ShootaProfile, StikkaKannonProfile, WurrtowerProfile,
     BigChoppaProfile, BigShootaProfile, BurnaProfile, ChoppaProfile, DreadKlawProfile,
     GrotBlastaProfile, KillsawProfile, KombiRokkitBustaRokkitProfile, KombiSkorchaShootaProfile,
     KombiWeaponShootaProfile, KoptaRokkitsProfile, KustomChoppaProfile,
     KustomShootaAimedProfile, KustomShootaProfile,
     OrkCloseCombatWeaponProfile, PowerKlawProfile, PowerSnappaProfile, RokkitLaunchaBlastaProfile,
-    RokkitLunchaProfile, RokkitPistolProfile, ScavengedShivsProfile, SluggaProfile,
-    SmashHammerProfile, SpikedWheelProfile, SpinninBladesProfile, StompyFeetProfile, TankbustaChoppaProfile,
-    TankbustaCloseCombatWeaponProfile, ThumpGunProfile, TwinDakkagunProfile, TwinKillsawProfile,
+    RokkitPistolProfile, ScavengedShivsProfile, SluggaProfile,
+    SmashHammerProfile, SpikedWheelProfile, SpinninBladesProfile, StompyFeetProfile,
+    ThumpGunProfile, TwinDakkagunProfile, TwinKillsawProfile,
     UgeChoppaProfile, UrtySyringeProfile,
     WarbossKustomChoppaProfile, WarbossPowerKlawProfile,
 )
@@ -540,61 +521,67 @@ WARBOSS_MEGA_ARMOUR = ORKS.add_datasheet(Datasheet(
     ],
 ))
 
-_TANKBUSTA_BOSS_NOB_LOADOUT = [TankbustaChoppaProfile, RokkitPistolProfile, RokkitPistolProfile]
-_TANKBUSTA_LOADOUT = [TankbustaCloseCombatWeaponProfile, RokkitLunchaProfile]
+_TANKBUSTA_NOB_LOADOUT = [ChoppaA4Profile, RokkitPistolProfile, RokkitPistolProfile]
+_TANKBUSTA_LOADOUT = [BustaRokkitLaunchaProfile, GitstikkaProfile]
 
-TANKBUSTAS_BOSS_NOB_ADD_SMASH_HAMMER = "Rokkit Pistol -> Rokkit Pistol + Smash Hammer"
-TANKBUSTAS_ADD_ROKKIT_LAUNCHA = "+ Rokkit Launcha"
+TANKBUSTAS_NOB_SMASH_HAMMER = "Rokkit Pistol -> Smash Hammer"
+TANKBUSTAS_ADD_BUSTA_ROKKIT_LAUNCHA = "+ Busta Rokkit Launcha"
+TANKBUSTAS_PULSA_ROKKIT = "Pulsa Rokkit"
+
+
+def _apply_pulsa_rokkit(token):
+    """The bearer carries a Pulsa Rokkit. It is wargear, not a weapon (the
+    datasheet prints no profile for it); what it grants is the unit's Pulsa
+    Rokkit ability, resolved when the unit is selected to shoot - see
+    game/pulsa_rokkit.py."""
+    token.pulsa_rokkit = True
+
 
 TANKBUSTAS = ORKS.add_datasheet(Datasheet(
     "Tankbustas",
-    keywords=("INFANTRY", "TANKBUSTAS", "GRENADES"),
+    keywords=("INFANTRY", "EXPLOSIVES"),
+    # 2026-09 codex (rules/orks/Tankbustas.md): "1 Nob model, 5 Tankbusta
+    # models", priced for exactly that size.
     model_lines=[
-        ModelLine(TankbustaBossNobProfile, 1, _TANKBUSTA_BOSS_NOB_LOADOUT, name="Boss Nob"),
+        ModelLine(TankbustaNobProfile, 1, _TANKBUSTA_NOB_LOADOUT, name="Nob"),
         ModelLine(TankbustaProfile, 5, _TANKBUSTA_LOADOUT, name="Tankbusta"),
     ],
-    # Real wargear choices, user-supplied separately from the datasheet
-    # itself (an army list build: Boss Nob "Choppa, Rokkit pistol, Smash
-    # hammer" - one of the default 2x Rokkit pistol swapped for a Smash
-    # Hammer, modeled as replacing BOTH default Rokkit pistols and adding
-    # back one Rokkit pistol plus one Smash Hammer, since WargearOption's
-    # own `replaces` filter removes every matching instance at once, not
-    # just one of several duplicates - nets to the same final loadout
-    # either way; and one Tankbusta "Close combat weapon, 2x Rokkit
-    # launcha" - a second Rokkit launcha added, same "replace-then-re-add"
-    # shape for the same reason.
+    # "The Nob can have their Rokkit Pistol replaced with 1 Smash Hammer" - ONE
+    # of the two pistols, so both are taken off and one is put back
+    # (WargearOption's `replaces` removes every matching instance at once).
+    # "1 Tankbusta model can be equipped with one of the following: 1 Busta
+    # Rokkit Launcha / 1 Pulsa Rokkit" - an ADDITION, and the Pulsa Rokkit is
+    # wargear rather than a weapon, so it is a Gear item.
+    # KNOWN LIMITATION: "one of the following" makes the two exclusive, and a
+    # WargearOption cannot exclude a Gear item - the same documented gap as the
+    # Kroot Farstalkers' and the Broadside's menus. A build can take both.
     wargear_options=[
-        WargearOption("Boss Nob", replaces=RokkitPistolProfile, with_weapons=[RokkitPistolProfile, SmashHammerProfile], max_models=1, name=TANKBUSTAS_BOSS_NOB_ADD_SMASH_HAMMER),
-        WargearOption("Tankbusta", replaces=RokkitLunchaProfile, with_weapons=[RokkitLunchaProfile, RokkitLunchaProfile], max_models=1, name=TANKBUSTAS_ADD_ROKKIT_LAUNCHA),
+        WargearOption("Nob", replaces=RokkitPistolProfile,
+                      with_weapons=[RokkitPistolProfile, SmashHammerProfile], max_models=1,
+                      name=TANKBUSTAS_NOB_SMASH_HAMMER),
+        WargearOption("Tankbusta", replaces=None, with_weapons=[BustaRokkitLaunchaProfile],
+                      max_models=1, name=TANKBUSTAS_ADD_BUSTA_ROKKIT_LAUNCHA),
     ],
-    # Unselected Profiles (user-supplied reference block): a bare "2x
-    # Tankbusta" reference build (same weapons already used above, just
-    # fewer copies) plus one new alternate, Smash Hammer (now a real class,
-    # SmashHammerProfile - see game/weapons.py's own note on its dual-
-    # [ANTI-X] limitation) - now also a real wargear_option above, since an
-    # actual list selected it. Pulsa Rokkit (a once-per-battle Strength/AP
-    # buff, printed under the Unselected Profiles block) isn't wired either
-    # - same "not part of the actual modeled loadout" reasoning.
-    # Official list: 6 models 125 pts for your 1st-2nd Tankbustas unit, 135
-    # from the 3rd on - this is the only size this datasheet's own list
-    # prices, and it's exactly the 6-model build modeled here. Both wargear
-    # options above are free on the list (no `points=` given for either).
+    gear_options=[
+        Gear("Tankbusta", TANKBUSTAS_PULSA_ROKKIT, _apply_pulsa_rokkit),
+    ],
+    gear_slots={"Tankbusta": 1},
     points=ORKS_POINTS["Tankbustas"],
     abilities_text=[
-        'Tank Hunters: Each time a model in this unit makes an attack that targets a MONSTER or '
-        'VEHICLE unit, add 1 to the Hit roll and add 1 to the Wound roll.',
-        'Attached Unit: If a CHARACTER unit from your army with the Leader ability can be attached '
-        'to a LOOTAS unit, it can be attached to this unit instead.',
-        'Bomb Squigs: Once per battle, for each bomb squig this unit has, after this unit ends a '
-        'Normal move, you can use one Bomb Squig. If you do, select one enemy unit within 12" and '
-        'visible to this unit and roll one D6: on a 3+, that enemy unit suffers D3 mortal wounds.',
+        "Rokkit Barrage: In your Shooting phase, when this unit has shot, select one enemy unit hit "
+        "by those attacks. That unit makes a battle-shock roll, with -1 to that battle-shock roll.",
+        "Bomb Squigs (Once per turn, twice per battle, per unit): In your Movement phase, when this "
+        "unit ends a normal move, you can select one visible enemy unit within 12\" of this unit and "
+        "roll one D6: on a 3+, that enemy unit suffers D3 mortal wounds.",
+        "Pulsa Rokkit: In your Shooting phase, when this unit is selected to shoot, you can select "
+        "one enemy MONSTER/VEHICLE unit within 24\" of this unit. If you do, this unit's attacks that "
+        "target that unit have +1 AP and [LETHAL HITS].",
     ],
 ))
-# Tank Hunters IS engine-wired - see this module's own docstring
-# (TankbustaProfile's own `tank_hunters` flag in game/units.py and
-# game/squad.py's tank_hunters_modifiers()). Attached Unit and Bomb Squigs
-# are NOT engine-wired - see this module's own docstring for why (an
-# Attached-Unit-flow gap and a deliberate scope call, respectively).
+# All three are engine-wired: Rokkit Barrage (game/rokkit_barrage.py, the
+# fourth carrier of game/battle_shock_after_shooting.py), Bomb Squigs
+# (game/bomb_squigs.py) and the Pulsa Rokkit (game/pulsa_rokkit.py). The
+# pre-codex Tank Hunters and Attached Unit text are gone.
 
 _DEFFKOPTA_LOADOUT = [KoptaRokkitsProfile, SluggaProfile, SpinninBladesProfile]
 
@@ -673,14 +660,6 @@ _BEAST_SNAGGA_NOB_LOADOUT = [PowerSnappaProfile, SluggaProfile]
 _BEAST_SNAGGA_BOY_LOADOUT = [BeastSnaggaChoppaProfile, SluggaProfile]
 
 BEAST_SNAGGA_BOYZ_THUMP_GUN = "+ Thump Gun"
-FLASH_GITZ_AMMO_RUNT = "Ammo Runt"
-
-
-def _apply_ammo_runt(token):
-    """Flags the bearer as carrying an Ammo Runt. Unlike a drone's effect
-    this changes no characteristic at all - the ability it grants is
-    resolved at shooting time, see game/ammo_runt.py."""
-    token.ammo_runt = True
 
 
 BEAST_SNAGGA_BOYZ = ORKS.add_datasheet(Datasheet(
@@ -804,16 +783,13 @@ KILL_RIG = ORKS.add_datasheet(Datasheet(
 # NOTE: like Beast Snagga Boyz and Beastboss, this datasheet is NOT in any
 # demo army yet (main.py) and has no sprite in Sprites/.
 
-_FLASH_GITZ_LOADOUT = [FlashGitzChoppaProfile, SnazzgunProfile]
+_FLASH_GITZ_LOADOUT = [ChoppaA4Profile, SnazzgunCuttaProfile]
 
 FLASH_GITZ = ORKS.add_datasheet(Datasheet(
     "Flash Gitz",
-    keywords=("INFANTRY", "GRENADES", "FLASH GITZ"),
-    # Two composition sizes, same pattern as Warbikers/Stormboyz/Meganobz -
-    # the printed 5-model build plus the 10-model one an actual army list
-    # fields ("10x Flash Gitz ... 1x Kaptin + 9x Flash Gitz").
-    # composition_index=0 is the 5-model build, 1 the 10-model one; the
-    # points list already prices both.
+    keywords=("INFANTRY", "EXPLOSIVES"),
+    # 2026-09 codex (rules/orks/Flash Gitz.md): "1 Kaptin model, 4-9 Flash Git
+    # models", priced at 5 and 10 - composition_index 0 and 1.
     composition_options=[
         [
             ModelLine(FlashGitzKaptinProfile, 1, _FLASH_GITZ_LOADOUT, name="Kaptin"),
@@ -824,51 +800,16 @@ FLASH_GITZ = ORKS.add_datasheet(Datasheet(
             ModelLine(FlashGitzProfile, 9, _FLASH_GITZ_LOADOUT, name="Flash Git"),
         ],
     ],
-    # Unselected Profiles (user-supplied reference block): just restates the
-    # same Snazzgun and Choppa the loadout above already uses, one copy
-    # instead of five - no new classes needed, nothing left unused. This is
-    # the first datasheet here whose Unselected Profiles block adds nothing
-    # at all.
-    #
-    # Official list: 5 models 75 pts / 10 models 150 pts for your 1st-2nd
-    # Flash Gitz unit, 85/160 from the 3rd on - both sizes are modeled
-    # above, so either composition_index prices correctly.
-    #
-    # NOT modeled: "Ammo Runt", which the supplied army list gives this unit.
-    # No rule text and no price were supplied for it, and it is not on the
-    # published points list this module reads, so there is nothing to build
-    # against - flagged rather than invented. (The list's own 160 pts for a
-    # 10-model unit against the published 150 is consistent with it costing
-    # 10, but that is an inference, not a source.)
     points=ORKS_POINTS["Flash Gitz"],
-    # Ammo Runt is a Gear item rather than a WargearOption because it swaps
-    # no weapons - it grants an ability, which is what Gear's effect(token)
-    # callback is for (same shape as the Battlewagon's 'Ard Case). FREE here:
-    # the published points list carries no wargear entry for this datasheet,
-    # and the supplied army list's own 160 vs the published 150 is an
-    # inference about its cost, not a source - so no price is invented.
-    gear_options=[
-        Gear("Kaptin", FLASH_GITZ_AMMO_RUNT, _apply_ammo_runt),
-    ],
-    gear_slots={"Kaptin": 1},
     abilities_text=[
-        'Gun-crazy Show-offs: Each time a model in this unit targets the closest eligible target '
-        'with its Snazzgun, until the end of the phase, that weapon has an Attacks characteristic '
-        'of 4.',
-        'Ammo Runt: Once per battle, when this unit is selected to shoot, it can use this ability. '
-        'If it does, until the end of the phase, ranged weapons equipped by models in this unit '
-        'have the [LETHAL HITS] ability.',
+        "Finderz Keeperz: In your Shooting phase, if any of the following apply, this unit's ranged "
+        "attacks have +1 AP: this unit is within range of an objective; the target of that attack "
+        "is within range of an objective.",
     ],
 ))
-# Gun-crazy Show-offs IS engine-wired (game/gun_crazy_showoffs.py). It reuses
-# the closest-eligible-target snapshot ShootingController already computes
-# for The Twin Lance's Exemplars of Mont'ka, so the expensive half needed no
-# new code - but unlike every other weapon adjuster in game/shooting.py it
-# has to be applied BEFORE the attack count is summed rather than at the
-# hit/wound step, because it changes the Attacks characteristic itself.
-#
-# NOTE: like Beast Snagga Boyz, Beastboss and Kill Rig, this datasheet is NOT
-# in any demo army yet (main.py) and has no sprite in Sprites/.
+# Finderz Keeperz is engine-wired (game/finderz_keeperz.py, in ShootingController's
+# adjuster chain). The pre-codex Gun-crazy Show-offs and the Kaptin's Ammo Runt
+# wargear are gone.
 
 _BATTLEWAGON_LOADOUT = [TracksAndWheelsProfile]
 
