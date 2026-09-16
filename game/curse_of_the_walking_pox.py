@@ -149,7 +149,7 @@ class CurseOfTheWalkingPoxController:
         # that is still standing, so returning_positions() seats them touching
         # the survivors and rule 09.02's coherency holds by construction. A
         # model that finds nowhere legal is simply not returned - "you CAN
-        # return one" - which is the same call grot_orderly.py makes.
+        # return one" - the same call every model-return ability makes.
         spots = returning_positions(squad, candidates, position_valid=self._valid_for)
         if self.placer is not None:
             returned = self.placer.place(squad, candidates, spots,

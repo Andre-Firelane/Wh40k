@@ -234,7 +234,6 @@ class UnitProfile:
     waaagh = False  # the Orks army rule "Waaagh!" (2026-09 codex): this unit can re-roll Advance rolls and can become riled up - see game/waaagh.py and game/riled_up.py. Pinned against every printed FACTION line by test_ork_army_rules.py
     joins_warlock_led_unit = False  # Eldrad Ulthran's own LEADER line: he may be attached to a unit even if one WARLOCKS unit is already attached to it. Printed on the arriving leader, asking what is already there. Read by game/attached_units.py's can_attach(); it is what finally makes game/protect.py reachable
     joins_without_leader_slot = False  # Warlock Conclave's LEADER ability is printed as a JOIN with its OWN restriction ("a unit cannot have more than one WARLOCK CONCLAVE unit joined to it") rather than as an ordinary attachment, so 19.01's one-leader-per-bodyguard default is not what limits it. Read by game/attached_units.py's can_attach(); the direction matters and is asymmetric on purpose - see _join_not_bound_by_leader_slot() there
-    doks_toolz = False  # Painboy's own "Dok's Toolz" ability (user-supplied, not a core rule): while this model is LEADING a unit (19.01), models in that unit have the Feel No Pain 5+ ability - see game/doks_toolz.py, read through game/feel_no_pain.py's current_feel_no_pain()
     tank_hunters = False  # Tankbustas' own "Tank Hunters" ability (user-supplied, not a core rule): each time a model with this ability makes an attack (ranged or melee) that targets a MONSTER or VEHICLE unit, add 1 to the Hit roll and add 1 to the Wound roll - see game/shooting.py's/game/fight.py's own _hit_modifiers()/_wound_modifiers()
     ramshackle_but_rugged = False  # Battlewagon's own "Ramshackle but Rugged" ability (user-supplied, not a core rule): each time an attack is allocated to this model, worsen that attack's Armour Penetration by 1 - see game/ramshackle.py
     gun_crazy_showoffs = False  # Flash Gitz' own "Gun-crazy Show-offs" ability (user-supplied, not a core rule): a Snazzgun targeting the closest eligible target has an Attacks characteristic of 4 - see game/gun_crazy_showoffs.py
@@ -242,10 +241,16 @@ class UnitProfile:
     psyker_level = 0  # the Orks army rule Unstable Energies: how many psychic levels this PSYKER may use per battle round ("psyker level N" in its abilities) - read by game/unstable_energies.py
     beast_snagga = False  # the BEAST SNAGGA keyword - matters for Kill Rig's transport_requires ("11 BEAST SNAGGA INFANTRY models"), see UnitProfile.transport_requires
     spirit_of_gork = False  # Kill Rig's own "Spirit of Gork (Psychic)" ability (user-supplied, not a core rule): at the start of the Fight phase, buff one friendly ORKS unit within 12" - see game/spirit_of_gork.py
-    ferocious_rage = False  # Beastboss's own "Ferocious Rage" ability (user-supplied, not a core rule): each time this model makes a Charge move, until the end of the turn, melee weapons it is equipped with have [DEVASTATING WOUNDS] - per MODEL, not per unit, which matters once it is leading one (19.01); see game/ferocious_rage.py
     mega_armour = False  # the MEGA ARMOUR keyword - matters for a TRANSPORT's capacity math ("each MEGA ARMOUR model takes up the space of 2 models", rule 18.01/Trukk's own printed exception) - see game/transport.py's _model_capacity_cost()
     coldstar_commander = False  # Commander in Coldstar Battlesuit's own "Coldstar Commander" ability (user-supplied, not a core rule): while this model is LEADING a unit (19.01), models in that unit have a Move characteristic of 12" and their ranged weapons have [ASSAULT] - a leader ability granted to the whole attached unit, so read with squad_has_coldstar_commander() rather than unit_wide_ability(); see game/coldstar.py
-    might_is_right = False  # Warboss's own "Might is Right" ability (user-supplied, not a core rule): while this model is LEADING a unit (19.01), each time a model in that unit makes a melee attack, add 1 to the Hit roll - a leader ability granted to the whole attached unit, so read with squad_has_might_is_right() rather than unit_wide_ability(); see game/fight.py's _hit_modifiers()
+    might_is_right = False  # Warboss's "Might Is Right" (2026-09 Ork codex): if this unit made a charge move this turn, this model's melee attacks have +3 A and +2 S - per MODEL, see game/might_is_right.py. The pre-codex +1-to-hit leader grant of that name is gone
+    boss_ammo_runt = False  # Warboss's "Boss' Ammo Runt" (2026-09 Ork codex): once per battle per unit, +1 to hit for THIS MODEL's ranged attacks when its unit is selected to shoot - see game/boss_ammo_runt.py
+    intimidating_motivation = False  # both Warbosses' "Intimidating Motivation" (2026-09 Ork codex): once per battle round per army, at the start or end of this unit's move, one friendly ORKS unit within 6" is no longer battle-shocked and is riled up - see game/boss_motivation.py
+    keep_huntin = False  # Beastboss's "Keep Huntin'!" (2026-09 Ork codex): the same for one friendly BEAST SNAGGA unit, with its own per-army limit - see game/boss_motivation.py
+    krushin_impetus = False  # Warboss in Mega Armour's "Krushin' Impetus" (2026-09 Ork codex): when this unit ends a charge move, one D6 per model engaged with one enemy unit, each 3+ a mortal wound - see game/krushin_impetus.py
+    dodge_dis = False  # Beastboss's "Dodge Dis!" (2026-09 Ork codex): this unit's attacks have +1 to hit rolls - see game/dodge_dis.py
+    crude_surgery = False  # Painboy's "Crude Surgery" (2026-09 Ork codex): in your Command phase this unit heals 3 wounds (core rule 02.02.04, game/heal.py) - see game/crude_surgery.py
+    catch_dat_red_bit = False  # Painboy's "Catch Dat Red Bit" (2026-09 Ork codex): once per battle per unit, add D3 to the wounds Crude Surgery heals - see game/crude_surgery.py
     volley_fire = False  # Cadre Fireblade's own "Volley Fire" ability (user-supplied, not a core rule): while this model is LEADING a unit (19.01), add 1 to the Attacks characteristic of ranged weapons equipped by models in that unit - a leader ability granted to the whole attached unit, unlike every other flag here, so it is read with squad_has_volley_fire() rather than unit_wide_ability(); see game/volley_fire.py
     crack_shot = False  # Cadre Fireblade's own "Crack Shot" ability (user-supplied, not a core rule): each time this model makes a ranged attack, on a Critical Wound, that attack has an Armour Penetration characteristic of -3 (a flat override, not a modifier) - see game/crack_shot.py
 
@@ -698,34 +703,39 @@ class GretchinProfile(UnitProfile):
 
 
 class WarbossProfile(UnitProfile):
-    """Datasheet: Warboss (Orks), see game/factions/orks.py. Keywords line
-    (user-supplied): Character, Warboss, Infantry, Grenades (Faction: Orks
-    dropped, same reasoning as every other datasheet's Faction keyword -
-    implicit in Faction registration). Standalone single-model Leader
-    datasheet, unlike every other Ork UnitProfile so far, which is a
-    ModelLine within a squad-sized datasheet.
-    base_radius_in: user-supplied "Base 50 mm" - 50mm/2 = 25mm radius =
-    25/25.4 ~= 0.98" (same mm-to-inch conversion used everywhere else in
-    this file; also the same value Warbikers already use for their own
-    assumed 50mm base, see WarbikerProfile's own note)."""
+    """Datasheet: Warboss (Orks), 2026-09 codex - rules/orks/Warboss.md, built in
+    game/factions/orks.py. KEYWORDS: INFANTRY; CHARACTER; EXPLOSIVES; WARBOSS (the
+    pre-codex sheet printed GRENADES where it now prints EXPLOSIVES).
+
+    base_radius_in: 50mm (0.98"), the user-supplied "Base 50 mm" - a NAMED
+    deviation from the 40mm the codex page prints (verify_rules_vs_engine.py
+    lists it). Kept because it puts all three bosses on one base (the Warboss in
+    Mega Armour and the Beastboss print 50mm), and because three suites that
+    reproduce reported scenes (test_pack_inner_ring.py, test_staging_and_charge.py,
+    test_hazard_lock_and_dice.py) are pinned to this geometry.
+
+    WS/BS read off the weapon tables: every melee row prints WS2+ and every
+    ranged row BS5+, so no weapon overrides."""
     name = "Warboss"
     base_radius_in = 0.98
     movement_in = 6
     weapon_skill = "2+"
     ballistic_skill = "5+"
-    toughness = 5
+    toughness = 6
     wounds = 6
     leadership = "6+"
     armor_save = "4+"
-    invulnerable_save = "5+"  # "Invulnerable Save (5+)" - this model's own printed defensive rule, not the Waaagh!-granted one (they just happen to coincide numerically)
+    invulnerable_save = "5+"
     oc = 1
     character = True
-    infantry = True  # the INFANTRY keyword - Warboss datasheet keyword
-    grenades = True  # the GRENADES keyword - Warboss datasheet keyword
-    leader = True  # the Leader core ability (24.22) - "can be attached to Boyz/Nobz", enforced by game/attached_units.py's can_attach()
-    might_is_right = True  # this datasheet's own "Might is Right" ability - see UnitProfile.might_is_right's own note and game/fight.py's _hit_modifiers()
+    infantry = True
+    explosives = True  # the EXPLOSIVES keyword
+    leader = True  # the Leader core ability (24.22) - Boyz, Breaka Boyz, Nobz; enforced by game/attached_units.py's can_attach()
+    boss_ammo_runt = True  # Boss' Ammo Runt - see game/boss_ammo_runt.py
+    might_is_right = True  # Might Is Right - see game/might_is_right.py
+    intimidating_motivation = True  # Intimidating Motivation - see game/boss_motivation.py
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
-    orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
+    orks = True  # Orks Faction - see UnitProfile.orks' own note
 
 
 class MeganobzProfile(UnitProfile):
@@ -762,43 +772,33 @@ class MeganobzProfile(UnitProfile):
 
 
 class WarbossMegaArmourProfile(UnitProfile):
-    """Datasheet: Warboss in Mega Armour (Orks), see game/factions/orks.py.
-    Keywords line (user-supplied): Character, Infantry, Warboss in Mega
-    Armour, Mega Armour, Warboss (Faction: Orks dropped, same reasoning as
-    every other datasheet's Faction keyword). Standalone single-model
-    Leader datasheet, like the plain WarbossProfile above - but NO Grenades
-    keyword this time (unlike the plain Warboss, whose own Keywords line
-    does include it - not an oversight, just a real difference between the
-    two printed datasheets).
-    base_radius_in: no "Base" line was ever given for this datasheet. It
-    started as an assumed 0.79" (40mm), reasoned from MeganobzProfile since
-    this is also a MEGA ARMOUR model - which the user then corrected on
-    sight ("der Warboss in Megaarmor ist zu klein. der hat eine groessere
-    Warboss base"), i.e. it takes the WARBOSS base, not the Meganob one.
-    So 0.98" - WarbossProfile's own user-supplied "Base 50 mm" (50mm/2 =
-    25mm radius = 25/25.4"), the same conversion every other base_radius_in
-    in this file uses. WS/BS aren't in the M/T/Sv/W/Ld/OC table (same
-    convention as every other datasheet so far) - read off the weapon
-    tables: Big shoota's own BS4+ and 'Uge choppa's own WS2+ both match this
-    model's own values, so neither weapon needs a per-weapon override."""
+    """Datasheet: Warboss in Mega Armour (Orks), 2026-09 codex - rules/orks/
+    Warboss in Mega Armour.md, built in game/factions/orks.py. KEYWORDS: INFANTRY;
+    CHARACTER; MEGA ARMOUR; WARBOSS.
+
+    base_radius_in: the printed 50mm (0.98") - the size the user's earlier
+    correction ("der hat eine groessere Warboss base") had already given him.
+
+    WS/BS read off the weapon tables: 'Uge Choppa WS2+, Big Shoota BS4+."""
     name = "Warboss in Mega Armour"
-    base_radius_in = 0.98  # 50mm base, same as WarbossProfile - see the docstring above
+    base_radius_in = 0.98
     movement_in = 5
     weapon_skill = "2+"
     ballistic_skill = "4+"
-    toughness = 6
+    toughness = 7
     wounds = 7
     leadership = "6+"
     armor_save = "2+"
-    invulnerable_save = "5+"  # "Invulnerable Save (5+)" - this model's own printed defensive rule, not the Waaagh!-granted one (they just happen to coincide numerically, same note as WarbossProfile's own)
+    invulnerable_save = "5+"
     oc = 1
     character = True
-    infantry = True  # the INFANTRY keyword - this datasheet's own keyword
+    infantry = True
     mega_armour = True  # the MEGA ARMOUR keyword - see UnitProfile.mega_armour's own note
-    leader = True  # the Leader core ability (24.22) - "can be attached to Meganobz", enforced by game/attached_units.py's can_attach()
-    might_is_right = True  # this datasheet's own "Might is Right" ability, identical text to the plain Warboss's - see game/fight.py's _hit_modifiers()
+    leader = True  # the Leader core ability (24.22) - Meganobz
+    krushin_impetus = True  # Krushin' Impetus - see game/krushin_impetus.py
+    intimidating_motivation = True  # Intimidating Motivation - see game/boss_motivation.py
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
-    orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
+    orks = True  # Orks Faction - see UnitProfile.orks' own note
 
 
 class TankbustaProfile(UnitProfile):
@@ -1050,26 +1050,17 @@ class FlashGitzKaptinProfile(FlashGitzProfile):
 
 
 class PainboyProfile(UnitProfile):
-    """Datasheet: Painboy (Orks), see game/factions/orks.py. Keywords line
-    (user-supplied): Character, Infantry, Painboy (Faction: Orks dropped,
-    same reasoning as every other datasheet's Faction keyword). A standalone
-    single-model character datasheet.
+    """Datasheet: Painboy (Orks), 2026-09 codex - rules/orks/Painboy.md, built in
+    game/factions/orks.py. KEYWORDS: INFANTRY; CHARACTER.
 
-    base_radius_in: NOT supplied by the user - assumed 0.63" (32mm, the size
-    every Ork Boy-sized model in this module uses). Flag if a specific mm
-    figure is wanted.
+    base_radius_in: the printed 32mm (0.63").
 
-    WS/BS aren't in the M/T/Sv/W/Ld/OC table (same convention as every other
-    datasheet) - read off the weapon tables: the 'Urty syringe prints WS3+, so
-    3+ is this model's own value. BS is never read at all - this datasheet
-    has no ranged weapon - so it keeps the UnitProfile default. Its Power Klaw
-    is the class shared with Boyz, Stormboyz and Meganobz and follows their
-    2026-09 codex row until this datasheet's own stage refreshes the Painboy.
+    WS read off the weapon tables: both melee rows print WS3+. The datasheet has
+    no ranged weapon, so BS keeps the UnitProfile default and is never read.
 
-    `support`, not `leader`: the 2026-09 Boyz datasheet lists PAINBOY under
-    SUPPORTED BY, and game/factions/orks_points.py's entry agrees. As Support
-    it joins a mob that already has its Warboss (rule 19.01: one leader and
-    one support per bodyguard unit)."""
+    `support`, not `leader`: his page prints a SUPPORT section (Boyz, Breaka
+    Boyz, Flash Gitz, Nobz, Tankbustas), so a mob can take a Warboss AND a
+    Painboy (rule 19.01)."""
     name = "Painboy"
     base_radius_in = 0.63
     movement_in = 6
@@ -1081,10 +1072,11 @@ class PainboyProfile(UnitProfile):
     oc = 1
     character = True  # the CHARACTER keyword
     infantry = True  # the INFANTRY keyword
-    support = True  # SUPPORTED BY on the 2026-09 Boyz datasheet names PAINBOY - so a mob can take a Warboss (leader) AND a Painboy (support), rule 19.01, now that Bodyguard is gone
-    doks_toolz = True  # this datasheet's own "Dok's Toolz" ability - see UnitProfile.doks_toolz's own note and game/doks_toolz.py
+    support = True  # the Support core ability - see game/attached_units.py
+    crude_surgery = True  # Crude Surgery - see game/crude_surgery.py
+    catch_dat_red_bit = True  # Catch Dat Red Bit - see game/crude_surgery.py
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
-    orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
+    orks = True  # Orks Faction - see UnitProfile.orks' own note
 
 
 class KillRigProfile(UnitProfile):
@@ -1145,48 +1137,35 @@ class KillRigProfile(UnitProfile):
 
 
 class BeastbossProfile(UnitProfile):
-    """Datasheet: Beastboss (Orks), see game/factions/orks.py. Keywords line
-    (user-supplied): Character, Infantry, Beast Snagga, Beastboss, Warboss
-    (Faction: Orks dropped, same reasoning as every other datasheet's
-    Faction keyword). A standalone single-model Leader datasheet, like both
-    Warboss datasheets - and it shares the plain Warboss's exact
-    M/T/Sv/W/Ld/OC line, which is a real coincidence of the stat block and
-    not a relationship: it leads a different unit, has different weapons,
-    and its own Ferocious Rage has no Warboss counterpart.
+    """Datasheet: Beastboss (Orks), 2026-09 codex - rules/orks/Beastboss.md, built
+    in game/factions/orks.py. KEYWORDS: INFANTRY; BEAST SNAGGA; CHARACTER;
+    WARBOSS.
 
-    base_radius_in: user-supplied "50 mm wie warboss" - 50mm/2 = 25mm =
-    25/25.4 ~= 0.98", the same value WarbossProfile already carries.
+    base_radius_in: the printed 50mm (0.98").
 
-    WS/BS aren't in the M/T/Sv/W/Ld/OC table (same convention as every other
-    datasheet) - read off the weapon tables, and here they DISAGREE with
-    each other: Beastchoppa is WS2+, Beast Snagga klaw WS3+, Shoota BS4+.
-    With only two melee weapons there is no majority to follow (unlike The
-    Twin Lance's three), so the profile carries the BETTER of the two (2+,
-    matching both Warboss datasheets) and BeastSnaggaKlawProfile overrides
-    itself down to 3+ - that way the override marks the weapon the datasheet
-    actually prints as clumsier, rather than making the model look worse
-    than it is everywhere the profile's own WS is read."""
+    WS/BS read off the weapon tables: his one melee weapon prints WS2+ and his
+    Shoota BS4+, so no weapon overrides. CORE prints Feel No Pain 6+."""
     name = "Beastboss"
     base_radius_in = 0.98
     movement_in = 6
     weapon_skill = "2+"
     ballistic_skill = "4+"
-    toughness = 5
+    toughness = 6
     wounds = 6
     leadership = "6+"
     armor_save = "4+"
-    invulnerable_save = "5+"  # "Invulnerable Save (5+)" - this model's own printed rule, distinct from (but numerically equal to) the conditional 5+ Waaagh! grants every `waaagh` model
+    invulnerable_save = "5+"
     oc = 1
     character = True  # the CHARACTER keyword
     infantry = True  # the INFANTRY keyword
-    beast_snagga = True  # the BEAST SNAGGA keyword - Beastboss datasheet keyword
-    leader = True  # the Leader core ability (24.22) - "can be attached to Beast Snagga Boyz", enforced by game/attached_units.py's can_attach() against the pairing in the points list
-    feel_no_pain = "6+"  # "Rules: Feel No Pain 6+" - rule 24.12, an existing generic field, no new code needed
-    might_is_right = True  # this datasheet's "Beastboss" ability is word-for-word the Warbosses' own "Might is Right" (+1 to the Hit roll for melee attacks in the unit it leads), so it reuses that exact flag and game/squad.py's squad_has_might_is_right() - no new code
-    ferocious_rage = True  # this datasheet's own "Ferocious Rage" ability - see UnitProfile.ferocious_rage's own note and game/ferocious_rage.py
+    beast_snagga = True  # the BEAST SNAGGA keyword
+    leader = True  # the Leader core ability (24.22) - Beast Snagga Boyz
+    feel_no_pain = "6+"  # CORE: Feel No Pain 6+ (rule 24.12)
+    keep_huntin = True  # Keep Huntin'! - see game/boss_motivation.py
+    dodge_dis = True  # Dodge Dis! - see game/dodge_dis.py
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
-    orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
-    squad_leader = True  # cosmetic leader highlight, same convention as both Warboss datasheets
+    orks = True  # Orks Faction - see UnitProfile.orks' own note
+    squad_leader = True  # cosmetic leader highlight
 
 
 class BeastSnaggaNobProfile(BeastSnaggaBoyProfile):

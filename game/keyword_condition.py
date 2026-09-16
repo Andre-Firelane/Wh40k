@@ -71,6 +71,8 @@ class KeywordCondition:
         return "KeywordCondition(%r)" % self.spelled
 
 
-#: The two conditions the 2026-09 Ork codex prints on its weapons.
+#: The conditions the 2026-09 Ork codex prints on its weapons.
 MONSTER_OR_VEHICLE_TARGETS = KeywordCondition(("MONSTER", "VEHICLE"))
 NON_MONSTER_VEHICLE_TARGETS = KeywordCondition(("MONSTER", "VEHICLE"), negated=True)
+#: The Painboy's 'Urty Syringe: "DEVASTATING WOUNDS: INFANTRY".
+INFANTRY_TARGETS = KeywordCondition(("INFANTRY",))

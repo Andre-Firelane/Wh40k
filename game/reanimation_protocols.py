@@ -32,7 +32,7 @@ Two consequences worth stating because they are easy to get backwards:
     "Protocol of the Eternal Revenant" is the only way a Necron CHARACTER
     comes back, precisely because 02.02.04 refuses to revive one.
 
-WHY THIS ISN'T grot_orderly.py WITH A DIFFERENT NAME. Grot Orderly returns
+WHY THIS WASN'T grot_orderly.py WITH A DIFFERENT NAME. Grot Orderly returned
 models to ONE unit, once per battle, as a visible one-off. This is the army
 rule: every unit, every Command phase, for the whole game. That is what makes
 the controller below a QUEUE rather than a single pending slot - and, on the
@@ -44,9 +44,20 @@ NOT here - they are shared with three other abilities and live in
 game/model_return.py.
 """
 
-from game import ai_mode, model_return
+from game import ai_mode, heal as heal_rule, model_return
 from game.formation_layout import returning_positions
 from game.squad import ENGAGEMENT_RANGE_IN
+# Core rule 02.02.04's Heal lives in game/heal.py since its second consumer
+# (the Painboy's Crude Surgery). Every name this module had is re-exported,
+# so no Necron caller moved.
+from game.heal import (
+    alive_models as _alive,
+    engaged_enemy_squads as _engaged_enemy_squads,
+    healable_wounds as recoverable_wounds,
+    placement_validator,
+    revivable_models,
+    revive_off_board as _revive_off_board,
+)
 
 REANIMATION_DICE_SIDES = 3          # "heals D3 wounds"
 RESURRECTION_ORB_DICE_SIDES = 6     # the Overlord's orb heals D6 instead - rule text on his datasheet
@@ -61,36 +72,6 @@ def has_reanimation_protocols(squad):
     the answer has to follow whoever is actually still standing."""
     return any(getattr(m.profile, "reanimation_protocols", False)
                for m in getattr(squad, "models", ()) or ())
-
-
-def _alive(squad):
-    return [m for m in getattr(squad, "models", ()) or () if not m.is_dead()]
-
-
-def revivable_models(squad):
-    """The destroyed models this unit is allowed to bring back, oldest
-    destruction first.
-
-    Two filters, both printed: CHARACTER models are excluded by 02.02.04, and
-    01.02.03's "cannot expand a unit beyond its starting strength" caps how
-    many of them may actually stand up again."""
-    room = max(0, getattr(squad, "starting_model_count", 0) - len(_alive(squad)))
-    if room <= 0:
-        return []
-    candidates = [m for m in getattr(squad, "destroyed_models", ()) or ()
-                  if not getattr(m.profile, "character", False)]
-    return candidates[:room]
-
-
-def recoverable_wounds(squad):
-    """How many reanimated wounds this unit could still turn into something.
-
-    The shared gate: the Resurrection Orb, Protocol of the Undying Legions and
-    every deterministic AI verdict all ask this one question rather than each
-    re-deriving it, so they cannot drift apart. A unit at full strength and
-    full health returns 0, which is exactly "rolling for this one is wasted"."""
-    missing = sum(max(0, m.profile.wounds - m.current_wounds) for m in _alive(squad))
-    return missing + sum(m.profile.wounds for m in revivable_models(squad))
 
 
 def can_reroll(squad, rolled):
@@ -129,158 +110,24 @@ def should_reroll(squad, rolled):
     return can_reroll(squad, rolled) and rolled < REANIMATION_REROLL_FLOOR
 
 
-def _engaged_enemy_squads(squad, all_tokens):
-    """The enemy UNITS already within Engagement Range of this one.
-
-    01.02.03 permits a returning model to be set up engaged only with enemies
-    that were already engaged with its unit, and it says UNITS - so this is a
-    set of squads, not of models."""
-    engaged = set()
-    for token in all_tokens:
-        other = getattr(token, "squad", None)
-        if other is None or other is squad or other.owner == squad.owner or token.is_dead():
-            continue
-        for mine in _alive(squad):
-            gap = (((token.x_in - mine.x_in) ** 2 + (token.y_in - mine.y_in) ** 2) ** 0.5
-                   - token.radius_in - mine.radius_in)
-            if gap <= ENGAGEMENT_RANGE_IN:
-                engaged.add(id(other))
-                break
-    return engaged
-
-
-def placement_validator(squad, all_tokens=(), position_valid=None):
-    """The `position_valid` returning_positions() should be handed.
-
-    Two conditions, and the second is the one SetupController.position_valid()
-    explicitly does not cover: terrain/board legality, AND 01.02.03's
-    engagement clause - clear of every enemy unit that was not already fighting
-    this one. Getting that wrong would let a wiped-out squad reanimate directly
-    into a combat it was never part of."""
-    tokens = list(all_tokens or ())
-    already = _engaged_enemy_squads(squad, tokens)
-    forbidden = [t for t in tokens
-                 if getattr(t, "squad", None) is not None
-                 and t.squad.owner != squad.owner
-                 and not t.is_dead()
-                 and id(t.squad) not in already]
-
-    def _valid(model, x_in, y_in):
-        if position_valid is not None and not position_valid(model, x_in, y_in):
-            return False
-        return model_return.clear_of_engagement(model, x_in, y_in, forbidden)
-
-    return _valid
-
-
-def _revive_off_board(model, squad, wounds):
-    """model_return.set_up_model()'s three non-positional halves, for a unit that
-    is NOT on the battlefield: back into the unit, off the destroyed list, with
-    `wounds` remaining - and deliberately NOT onto the board. A unit in
-    Strategic Reserves has no battlefield to stand a model on; its models come
-    down together when the unit arrives, because IngressController.start_ingress()
-    places every model in squad.models (SetupController.start_setup())."""
-    maximum = model.profile.wounds
-    model.current_wounds = max(1, min(int(wounds), maximum))
-    if model not in squad.models:
-        squad.models.append(model)
-    model.squad = squad
-    if model in getattr(squad, "destroyed_models", ()):
-        squad.destroyed_models.remove(model)
-    return model
-
-
 def reanimate(squad, wounds, all_tokens=(), position_valid=None, game_state=None,
               placer=None, on_placed=None, off_board=False):
-    """Spend `wounds` reanimated wounds on `squad`, per 02.02.04 + 01.02.03.
+    """Spend `wounds` reanimated wounds on `squad` - core rule 02.02.04's Heal
+    plus 01.02.03's revive, which is game/heal.py's heal(). A delegation, kept
+    under this name because every Necron door and guard reads it: activate()
+    below is still the one function that calls it (test_return_placement.py
+    section 7).
 
-    Returns (wounds_spent, revived_models). `wounds_spent` can be less than
-    `wounds` - a unit simply may not have that much to recover, and a model
-    with nowhere legal to stand does not come back at all. Both are legal
-    outcomes of the printed rule, and the surplus is lost rather than banked.
-
-    `placer`, if given, is a ReturnPlacementController: rule 01.02.03 says a
-    returning model is SET UP, and setting up is the controlling player's job.
-    With one, a HUMAN gets the engine's spots as a starting point and drags
-    from there; an owner in its auto_players lands on them outright, which is
-    what this did for everyone. None keeps that older path for every caller
-    that has not been handed one.
-
-    `off_board=True` is for a unit in RESERVES (Hypercrypt Legion's Reanimation
-    Crypts: "each of your NECRONS units in Reserves, that Reserves unit's
-    Reanimation Protocols activate"). Healing is unchanged; a revived model
-    goes back into the unit WITHOUT a spot, a token or a placer, and stands up
-    with the rest of the unit when it arrives - see _revive_off_board().
-    """
-    remaining = max(0, int(wounds))
-    spent = 0
-
-    # 02.02.04, first clause: every living model back to full before anything
-    # is revived. One wound at a time to the model that has lost the most, so
-    # the unit never carries a nearly-dead model it could have topped up.
-    while remaining > 0:
-        damaged = [m for m in _alive(squad) if m.current_wounds < m.profile.wounds]
-        if not damaged:
-            break
-        target = min(damaged, key=lambda m: (m.current_wounds, m.profile.name))
-        target.current_wounds += 1
-        remaining -= 1
-        spent += 1
-
-    if remaining <= 0:
-        return spent, []
-
-    # 02.02.04, second clause: revive with ONE wound, then keep healing that
-    # model with whatever is left before moving to the next corpse.
-    plan = []
-    for model in revivable_models(squad):
-        if remaining <= 0:
-            break
-        give = min(model.profile.wounds, remaining)
-        plan.append((model, give))
-        remaining -= give
-    if not plan:
-        return spent, []
-
-    if off_board:
-        revived = []
-        for model, give in plan:
-            _revive_off_board(model, squad, give)
-            revived.append(model)
-            spent += give
-        return spent, revived
-
-    valid = placement_validator(squad, all_tokens, position_valid)
-    spots = returning_positions(squad, [m for m, _ in plan], position_valid=valid)
-
-    if placer is not None:
-        # The spots become a STARTING POINT rather than the answer. Only the
-        # models that found one are handed over; a model with nowhere legal to
-        # stand still stays down, so nobody is asked to place something the
-        # rule did not return.
-        revived = placer.place(
-            squad,
-            [model for model, _give in plan],
-            spots,
-            wounds=[give for _model, give in plan],
-            validator=valid,
-            # Fires when the placement is CONFIRMED (or cancelled, with an
-            # empty list) - which for a human is frames later. The army rule
-            # uses it to hold its queue; every other caller passes None and
-            # is unaffected.
-            on_done=on_placed,
-        )
-        spent += sum(give for (model, give) in plan if model in revived)
-        return spent, revived
-
-    revived = []
-    for (model, give), spot in zip(plan, spots):
-        if spot is None:
-            continue  # nowhere legal to stand - that model stays down, wounds lost
-        model_return.set_up_model(model, spot, wounds=give, game_state=game_state)
-        revived.append(model)
-        spent += give
-    return spent, revived
+    `placer`, `on_placed` and `off_board` mean exactly what heal() documents."""
+    return heal_rule.heal(
+        squad, wounds,
+        all_tokens=all_tokens,
+        position_valid=position_valid,
+        game_state=game_state,
+        placer=placer,
+        on_placed=on_placed,
+        off_board=off_board,
+    )
 
 
 def activate(squad, rolled, *, boost=None, bonus=0, all_tokens=(), position_valid=None,
@@ -334,7 +181,7 @@ class ReanimationProtocolsController:
     """Runs the army rule at the end of its owner's Command phase.
 
     A QUEUE, not a single pending slot, and that is the whole difference from
-    game/grot_orderly.py: this fires for EVERY unit with the ability, every
+    the retired game/grot_orderly.py: this fires for EVERY unit with the ability, every
     Command phase, so the controller has to hold a list of units still owed a
     roll and walk it one acknowledgement at a time.
 

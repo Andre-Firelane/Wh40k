@@ -562,6 +562,11 @@ class Squad:
         self.ammo_runts_active = False  # Boyz' Ammo Runts: +1 to hit on this unit's ranged attacks for the phase it was used in
         self.rokkit_charge_active = False  # Stormboyz' Rokkit Charge: +1 A/S and [HAZARDOUS] on melee attacks for the phase - see game/rokkit_charge.py
         self.da_boss_is_watchin_used = False  # War Horde's Da Boss is Watchin': the once-per-battle-per-army spend, written on the unit that used it so a save keeps it - see game/enh_da_boss_is_watchin.py
+        self.boss_ammo_runt_used = False  # the Warboss's Boss' Ammo Runt: the once-per-battle-per-unit spend - see game/boss_ammo_runt.py; saved
+        self.boss_ammo_runt_active = False  # ...and its +1 to hit on the Warboss's own ranged attacks for the phase it was used in
+        self.intimidating_motivation_round = None  # the battle round Intimidating Motivation was used by this unit's Warboss - once per battle round per ARMY, see game/boss_motivation.py; saved
+        self.keep_huntin_round = None  # the same for the Beastboss's Keep Huntin'! - a separate budget, same file
+        self.catch_dat_red_bit_used = False  # the Painboy's Catch Dat Red Bit: once per battle per unit - see game/crude_surgery.py; saved
         # The DEATH GUARD army rule Nurgle's Gift (game/nurgles_gift.py). Two
         # flags rather than a live geometric test, both stamped by the same
         # once-per-frame NurglesGiftController.refresh(): "Afflicted" has a
@@ -588,7 +593,7 @@ class Squad:
         self.datasheet = None  # the game.factions.datasheet.Datasheet this unit was built from, set by build_squad() - None for a hand-built Squad. Needed by rule 19.01's "can only lead specific bodyguard units" pairing lookup (see game/attached_units.py's leadable_unit_names())
         self.attached_components = []  # rule 19.01: one game.attached_units.AttachedComponent per unit merged into this one, empty for an ordinary unit - the provenance 19.02/19.04 need after the merge
         self.attached_ability_grace = False  # rule 19.04's "applies until the attacking unit has resolved all of its attacks" window - see game/attached_units.py's begin/end_attack_sequence()
-        self.destroyed_models = []  # every Token of this unit that has been removed by GameState.remove_dead_models(), oldest first. Kept because a model removed from `models` is otherwise unrecoverable, and one ability now puts models BACK: Painboy's Grot Orderly (see game/grot_orderly.py). Purely a record - no rule reads it except that one, and nothing here resurrects anything on its own
+        self.destroyed_models = []  # every Token of this unit that has been removed by GameState.remove_dead_models(), oldest first. Kept because a model removed from `models` is otherwise unrecoverable, and abilities put models BACK through core rule 02.02.04's heal (game/heal.py - Reanimation Protocols, the Painboy's Crude Surgery) and several model_return.py callers. Purely a record - nothing here resurrects anything on its own
         self.absorbed_into = None  # set on a leader Squad that attach() merged away, pointing at the attached unit that now owns its models - so a stale reference can be followed rather than silently acting on an empty squad
         for model in models:
             model.squad = self
@@ -1034,15 +1039,6 @@ def squad_has_volley_fire(squad):
     rulebook rule - see game/volley_fire.py): does this unit currently have a
     Fireblade LEADING it? +1 Attack on every ranged weapon in the unit."""
     return attached_units.leader_ability(squad, "volley_fire")
-
-
-def squad_has_might_is_right(squad):
-    """Ork Warboss ability "Might is Right" (user-supplied, not a core
-    rulebook rule): "while this model is leading a unit, each time a model in
-    that unit makes a melee attack, add 1 to the Hit roll" - see
-    game/fight.py's own _hit_modifiers(). Shared verbatim by both Warboss
-    datasheets (plain and in Mega Armour)."""
-    return attached_units.leader_ability(squad, "might_is_right")
 
 
 def support_turret_bearer(squad):

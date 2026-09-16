@@ -5,7 +5,7 @@ RULE (printed, word for word):
    Pain 5+ ability."
 
 THE THIRD DATASHEET TO PRINT THIS EXACT SENTENCE, after the Ork Painboy's
-Dok's Toolz (game/doks_toolz.py) and the Necron Technomancer's Rites of
+the pre-codex Painboy's Dok's Toolz and the Necron Technomancer's Rites of
 Reanimation (game/rites_of_reanimation.py). So it is deliberately their twin,
 and folds into game/feel_no_pain.py's current_feel_no_pain() the same way -
 which makes the never-worse-than-printed guarantee free.

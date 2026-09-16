@@ -59,6 +59,8 @@ FI = os.path.join("game", "fight.py")
 SH = os.path.join("game", "shooting.py")
 MV = os.path.join("game", "movement.py")
 RP = os.path.join("game", "reanimation_protocols.py")
+# reanimate()'s body is the core-rule Heal in game/heal.py since Crude Surgery.
+HEAL = os.path.join("game", "heal.py")
 RS = os.path.join("game", "reroll_scope.py")
 INV = os.path.join("game", "invulnerable_save.py")
 AP = os.path.join("game", "ui", "action_panel.py")
@@ -193,7 +195,7 @@ PROBES = [
 
     # --------------------------------------------------- off-board reanimation
     ("an off-board revive stands the model on the battlefield",
-     [(RP, lines("    if off_board:", "        revived = []"),
+     [(HEAL, lines("    if off_board:", "        revived = []"),
        lines("    if False:" + MARK, "        revived = []"))], (HC,)),
     ("the boosts are asked for a unit in Reserves",
      [(RP, "    if boost is not None and not off_board:", "    if boost is not None:" + MARK)], (HC,)),

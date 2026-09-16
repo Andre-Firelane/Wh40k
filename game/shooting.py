@@ -43,7 +43,7 @@ from game import fate_inescapable
 from game.drive_by_dakka import drive_by_dakka_adjusted_weapon
 from game.gun_crazy_showoffs import gun_crazy_adjusted_weapon, unit_has_gun_crazy_showoffs
 from game.ammo_runt import ammo_runt_adjusted_weapon
-from game import ork_ammo_runts
+from game import boss_ammo_runt, dodge_dis, ork_ammo_runts
 from game.nova_charge import nova_charge_adjusted_weapon
 from game import damaged_attacks, triarch_auras
 from game import awakened_dynasty, destroyer_cult, nekrosor_ammentar, dlc_mortarions_teachings, exemplars_of_montka, gift_of_contagion, hovering_death, miasma_of_pestilence, protocol_conquering_tyrant, protocol_sudden_storm, guardian_protocols, implacable_eradication, mechanical_augmentation, overwhelming_obliteration, plagues, reroll_scope, sunforge, target_uploaded, way_of_the_short_blade
@@ -497,6 +497,10 @@ def _attack_key(model, weapon):
             # instance of the one-representative fix; (False, False) for every
             # player not fielding that detachment, so no existing group splits.
             necron_detachments.attack_key(model),
+            # The Warboss's Boss' Ammo Runt is "this MODEL's ranged attacks" -
+            # eighth instance of the one-representative fix; False for every
+            # model that does not print it.
+            boss_ammo_runt.attack_key(model),
             # Rule 04.01.03: two weapons whose FIRST profiles coincide can
             # differ in the rest (a Boy's Shoota and his Nob's Kombi-skorcha
             # both print 18" A2 S4) - grouped together, picking the Skorcha
@@ -719,6 +723,7 @@ class ShootingController:
         targeting_array=None,
         prototype_weapon_system=None,
         unmasking_suite=None,
+        boss_ammo_runt=None,
     ):
         self.active_squad = None
         self.state = IDLE
@@ -771,6 +776,7 @@ class ShootingController:
         self.sonic_destruction = sonic_destruction  # the Vibro Cannon Platforms' shared per-phase ledger - optional; see game/sonic_destruction.py
         self.monofilament_snare = monofilament_snare  # the Shadow Weaver Platforms' snare marks - optional; WRITTEN here (the mark is placed by a hit) and read from game/movement.py
         self.ork_ammo_runts = ork_ammo_runts  # Boyz' Ammo Runts (2026-09 codex) - optional, offered from start_shooting() beside ammo_runt below (see game/ork_ammo_runts.py)
+        self.boss_ammo_runt = boss_ammo_runt  # the Warboss's Boss' Ammo Runt (2026-09 codex) - the second carrier of that offer, see game/boss_ammo_runt.py
         self.ammo_runt = ammo_runt  # Flash Gitz' Ammo Runt wargear - optional, same shape and same start_shooting()-only trigger as nova_charge (see game/ammo_runt.py)
         self.nova_charge = nova_charge  # Riptide Battlesuit's Nova Charge ability - optional, like greater_good; offered from start_shooting() only (see game/nova_charge.py)
         # Reactive stratagems whose WHEN is "just after an enemy unit has
@@ -1068,6 +1074,10 @@ class ShootingController:
         # shoot"), a different rule from the Flash Gitz' wargear above.
         if self.ork_ammo_runts is not None:
             self.ork_ammo_runts.offer(squad)
+        # The Warboss's Boss' Ammo Runt - the same WHEN and spend, a separate
+        # once-per-battle use on the same unit (see game/boss_ammo_runt.py).
+        if self.boss_ammo_runt is not None:
+            self.boss_ammo_runt.offer(squad)
         # The Vespid Strain Leader's Oversight Drone - "when the bearer's
         # unit is SELECTED TO SHOOT", which is this instant. Offered here
         # only, never mid-sequence, exactly like Nova Charge above.
@@ -2736,6 +2746,12 @@ class ShootingController:
         # Boyz' Ammo Runts: "+1 to hit rolls" for the unit's ranged attacks in
         # the phase it was used - a property of the attacking unit alone.
         modifiers.extend(ork_ammo_runts.hit_modifiers(self.active_squad))
+        # The Warboss's Boss' Ammo Runt: "this MODEL's ranged attacks" - exact
+        # per group because _attack_key() keeps a bearer's group his own.
+        modifiers.extend(boss_ammo_runt.hit_modifiers(shooter_model, self.active_squad))
+        # The Beastboss's Dodge Dis!: "This unit's attacks have +1 to hit
+        # rolls" - read literally, both phases (see game/dodge_dis.py).
+        modifiers.extend(dodge_dis.hit_modifiers(self.active_squad))
         # Prince Yriel's Piratical Hero, second half: "add 1 to the Hit roll"
         # while he leads. A bonus, so a -1 on the threshold.
         if corsair_abilities.piratical_hero_applies(self.active_squad):

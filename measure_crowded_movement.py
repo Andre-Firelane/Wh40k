@@ -105,7 +105,7 @@ from game.factions.orks import (
     BEAST_SNAGGA_BOYZ, BEASTBOSS, BOYZ, BOYZ_NOB_TO_POWER_KLAW,
     DEFF_DREAD, DEFFKOPTAS, FLASH_GITZ, GRETCHIN, KILL_RIG, MEGANOBZ, PAINBOY,
     STORMBOYZ, STORMBOYZ_NOB_TO_POWER_KLAW, TANKBUSTAS, WARBIKERS,
-    WARBIKERS_ADD_POWER_KLAW, WARBOSS, WARBOSS_ADD_ATTACK_SQUIG,
+    WARBIKERS_ADD_POWER_KLAW, WARBOSS,
     WARBOSS_MEGA_ARMOUR,
 )
 from game.factions.tau_empire import (
@@ -158,8 +158,7 @@ def movers(state):
                       choices={"Nob": {BOYZ_NOB_TO_POWER_KLAW: 1}},
                       name="Boyz")
     mob = attached_units.attach(build_squad(
-        WARBOSS, owner="Player 2", name="Warboss",
-        choices={"Warboss": {WARBOSS_ADD_ATTACK_SQUIG: 1}}), mob, game_state=state)
+        WARBOSS, owner="Player 2", name="Warboss"), mob, game_state=state)
     mob = attached_units.attach(build_squad(PAINBOY, owner="Player 2", name="Painboy"),
                                 mob, game_state=state)
     add("Boyz 20 + Warboss + Painboy", mob)

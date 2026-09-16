@@ -5,7 +5,7 @@ RULE (printed, word for word):
    Pain 5+ ability."
 
 WORD FOR WORD THE SAME SHAPE as the Ork Painboy's Dok's Toolz
-(game/doks_toolz.py) - a leader granting his whole unit Feel No Pain 5+ - so
+(pre-codex, now retired) - a leader granting his whole unit Feel No Pain 5+ - so
 this is deliberately its twin rather than anything cleverer, and it folds into
 game/feel_no_pain.py's current_feel_no_pain() the same way. That function
 folds sources pairwise, so "adding a source is one more fold" and the

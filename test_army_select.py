@@ -136,8 +136,10 @@ EXPECTED = {
     # 101), and four merged units moved price, measured per unit against the
     # previous build: Meganobz + Warboss in Mega Armour +45, Boyz + Warboss +
     # Painboy +20, Stormboyz +10, Beast Snagga Boyz + Beastboss -5, which is
-    # 1935 + 70 = 2005.
-    "orks": (14, 101, 2005),     # 17 list entries, three attachments merged
+    # 1935 + 70 = 2005. The character stage then re-priced the four bosses
+    # (Beastboss 80 -> 85, Warboss + Attack Squig -> Warboss 100, Painboy with
+    # Grot Orderly -> 45, Warboss in Mega Armour 80 -> 125): 2005 + 20 = 2025.
+    "orks": (14, 101, 2025),     # 17 list entries, three attachments merged
     "necrons": (9, 68, 2020),    # 15 list entries, SIX attachments merged
     # Replaced wholesale on 2026-08-30 by the list the user supplied: out go
     # the Ghostkeel, the Strike Team, the Coldstar + Starscythes and Farsight +

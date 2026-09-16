@@ -21,20 +21,14 @@ one usable only against MONSTER/VEHICLE targets (game/weapon_profiles.py). The
 codex dropped Monster Hunters and the unit's Feel No Pain; its Thump Gun is an
 ADDITION per 10 models, not a swap.
 
-Beastboss is its Leader, and the first Ork Leader datasheet here with NO
-deferred ability: its "Beastboss" rule is word-for-word the Warbosses' own
-Might is Right (so it reuses that flag outright), Invulnerable Save 5+ and
-Feel No Pain 6+ are existing generic UnitProfile fields, the Leader pairing
-is already in the points list that game/attached_units.py reads, and only
-Ferocious Rage needed new code (game/ferocious_rage.py - [DEVASTATING
-WOUNDS] on its own melee weapons for the rest of a turn in which it
-charged, keyed off ChargeController.charged_squad_ids, which already has
-exactly that lifetime). It is also the datasheet that finally generalised
-WeaponProfile.anti from one (keyword, threshold) tuple to a sequence: both
-its melee weapons print Anti-Monster 4+ AND Anti-Vehicle 4+, the first real
-fielded loadout to do so - Tankbustas' Smash Hammer had the same pair as an
-Unselected Profile and had been silently losing half of it, and gets it
-back for free.
+Beastboss is its Leader. The 2026-09 codex gave it Keep Huntin'! (game/
+boss_motivation.py - one friendly BEAST SNAGGA unit within 6" at the start or
+end of its move is no longer battle-shocked and is riled up, once per battle
+round per army) and Dodge Dis! (game/dodge_dis.py, read literally: the unit's
+own attacks have +1 to hit); its Beast Snagga Klaw and Beastchoppa are ONE
+printed weapon with [SUSTAINED HITS 2: MONSTER/VEHICLE]. The pre-codex
+Beastboss rule (Might is Right's twin) and Ferocious Rage are gone, and with
+them game/ferocious_rage.py.
 
 Kill Rig is the first MONSTER that is also a TRANSPORT, and the first PSYKER
 of either faction. Only Spirit of Gork needed new code
@@ -67,17 +61,13 @@ Gear a `points` field and taught Datasheet.points_for() to charge for gear at
 all - priced from what build_squad() actually APPLIED rather than from the
 caller's request, so a trimmed-away second copy cannot be billed.
 
-Warboss is a standalone single-model Character/Leader datasheet, unlike the
-other five (each a squad built from several ModelLines). Its Leader ability
-("can be attached to Boyz/Nobz") and Might is Right (a per-attached-unit
-Hit-roll buff) are NOT engine-wired - both depend on the live Attached-Unit
-formation flow this engine deliberately doesn't have yet (same documented
-gap as Boyz'/Kroot Carnivores' own Bodyguard text below), so they're
-abilities_text only. Da Biggest and da Best was engine-wired as a rider on
-the old Waaagh! and retired with it (2026-09 codex). Its Invulnerable Save (5+) is just WarbossProfile's own
-`invulnerable_save` field, same as Warbikers'/Trukk's own printed 6+ - no
-new code, and it happens to coincide numerically with (but is distinct
-from) the conditional 5+ that Waaagh! itself grants every `waaagh` model.
+Warboss is a single-model Character/Leader datasheet (2026-09 codex). All
+three of its abilities are engine-wired: Boss' Ammo Runt (game/
+boss_ammo_runt.py, the second carrier of the Boyz' Ammo Runts offer, for the
+Warboss's own ranged attacks), Might Is Right (game/might_is_right.py, +3 A
+and +2 S on his melee attacks in a turn his unit charged - per MODEL) and
+Intimidating Motivation (game/boss_motivation.py). Its Invulnerable Save 5+
+is WarbossProfile's own `invulnerable_save` field.
 
 Meganobz is the first MEGA ARMOUR datasheet - the new `mega_armour`
 UnitProfile flag makes Trukk's own "each MEGA ARMOUR model takes up the
@@ -87,12 +77,18 @@ such datasheet existed yet), see game/transport.py's
 _model_capacity_cost(). Its old Krumpin' Time (Feel No Pain 5+ while the old
 Waaagh! was active) was retired with that rule (2026-09 codex).
 
-Warboss in Mega Armour is a second standalone single-model Character/Leader
-datasheet (like the plain Warboss), this time a MEGA ARMOUR one - "can be
-attached to Meganobz" and Might is Right are NOT engine-wired, same
-Attached-Unit-flow gap as every other Leader/Bodyguard text in this module.
-Dead Brutal was a rider on the old Waaagh! and was retired with it (2026-09
-codex).
+Warboss in Mega Armour is a second single-model Character/Leader datasheet,
+a MEGA ARMOUR one that leads Meganobz. Krushin' Impetus (game/
+krushin_impetus.py - one D6 per engaged model after a charge, each 3+ a mortal
+wound) and Intimidating Motivation, which it shares with the Warboss as ONE
+once-per-battle-round budget, are engine-wired.
+
+Painboy is the SUPPORT of Boyz, Breaka Boyz, Flash Gitz, Nobz and Tankbustas.
+Crude Surgery heals its unit 3 wounds at the start of its Command phase
+through core rule 02.02.04 (game/heal.py), and Catch Dat Red Bit adds D3 once
+per battle (game/crude_surgery.py). The user-supplied Grot Orderly, Dok's
+Toolz' Feel No Pain and Hold Still and Say 'Aargh!' are gone with the
+pre-codex sheet.
 
 Tankbustas is the first non-standalone datasheet since Gretchin - a real
 6-model squad (1 Boss Nob + 5 Tankbusta), whose Boss Nob shares the rank-
@@ -202,22 +198,23 @@ from game.units import (
     TankbustaProfile, TrukkProfile, WarbikerProfile, WarbossMegaArmourProfile, WarbossProfile,
 )
 from game.weapons import (
-    BeastchoppaProfile, BeastSnaggaChoppaProfile, BeastSnaggaKlawProfile,
-    ButchaBoyzProfile, DeffRollaProfile, EavyLobbaProfile, FlashGitzChoppaProfile, GrabbinKlawProfile,
+    BeastSnaggaChoppaProfile, BeastSnaggaKlawAndBeastchoppaProfile, BigShootaS5Profile,
+    ButchaBoyzProfile, DeffRollaProfile, DoksToolzProfile, EavyLobbaProfile, FlashGitzChoppaProfile,
+    GrabbinKlawProfile,
     LobbaProfile, SavageHornsAndHoovesProfile, TracksAndWheelsProfile, WreckinBallProfile,
-    AttackSquigProfile, ZzapGunProfile,
+    ZzapGunProfile,
     SawBladesProfile, SnazzgunProfile,
     ShootaProfile, StikkaKannonProfile, WurrtowerProfile,
     BigChoppaProfile, BigShootaProfile, BurnaProfile, ChoppaProfile, DreadKlawProfile,
     GrotBlastaProfile, KillsawProfile, KombiRokkitBustaRokkitProfile, KombiSkorchaShootaProfile,
-    KombiWeaponProfile, KombiWeaponShootaProfile, KoptaRokkitsProfile, KustomChoppaProfile,
+    KombiWeaponShootaProfile, KoptaRokkitsProfile, KustomChoppaProfile,
     KustomShootaAimedProfile, KustomShootaProfile,
     OrkCloseCombatWeaponProfile, PowerKlawProfile, PowerSnappaProfile, RokkitLaunchaBlastaProfile,
     RokkitLunchaProfile, RokkitPistolProfile, ScavengedShivsProfile, SluggaProfile,
     SmashHammerProfile, SpikedWheelProfile, SpinninBladesProfile, StompyFeetProfile, TankbustaChoppaProfile,
     TankbustaCloseCombatWeaponProfile, ThumpGunProfile, TwinDakkagunProfile, TwinKillsawProfile,
-    TwinSluggaProfile, UgeChoppaProfile, UrtySyringeProfile,
-    WarbossBigChoppaProfile,
+    UgeChoppaProfile, UrtySyringeProfile,
+    WarbossKustomChoppaProfile, WarbossPowerKlawProfile,
 )
 
 ORKS = Faction("Orks", "ORKS")
@@ -447,49 +444,45 @@ GRETCHIN = ORKS.add_datasheet(Datasheet(
     ],
 ))
 
-_WARBOSS_LOADOUT = [KombiWeaponProfile, TwinSluggaProfile, WarbossBigChoppaProfile]
+_WARBOSS_LOADOUT = [WarbossKustomChoppaProfile, KustomShootaProfile]
 
-WARBOSS_ADD_ATTACK_SQUIG = "+ Attack Squig"
+WARBOSS_KUSTOM_CHOPPA_TO_POWER_KLAW = "Kustom Choppa -> Power Klaw"
+WARBOSS_KUSTOM_SHOOTA_TO_KOMBI_ROKKIT = "Kustom Shoota -> Kombi-rokkit"
+WARBOSS_KUSTOM_SHOOTA_TO_KOMBI_SKORCHA = "Kustom Shoota -> Kombi-skorcha"
 
 WARBOSS = ORKS.add_datasheet(Datasheet(
     "Warboss",
-    keywords=("CHARACTER", "WARBOSS", "INFANTRY", "GRENADES"),
+    keywords=("INFANTRY", "CHARACTER", "EXPLOSIVES", "WARBOSS"),
+    # 2026-09 codex (rules/orks/Warboss.md): 1 Warboss with a Kustom Choppa and a
+    # Kustom Shoota.
     model_lines=[
         ModelLine(WarbossProfile, 1, _WARBOSS_LOADOUT, name="Warboss"),
     ],
-    # Unselected Profiles (user-supplied reference block): Power klaw (A4
-    # WS3+ S10 AP-2 D2) - now a real class (WarbossPowerKlawProfile, see
-    # game/weapons.py), distinct from Boyz/Stormboyz/Warbikers' shared
-    # PowerKlawProfile since the numbers differ. No wargear-swap rule text
-    # given, so no wargear_options yet - same documented gap as every other
-    # datasheet's own Unselected Profiles.
-    # Real wargear choice, user-supplied separately from the datasheet itself
-    # (an army list build: "1x Warboss: Kombi-weapon, Twin slugga, Attack
-    # squig, Big choppa") - a pure addition, and free on the published list.
-    # [EXTRA ATTACKS] is what lets the squig bite alongside whatever the
-    # Warboss himself swings under rule 04.01.
+    # "This model's Kustom Choppa can be replaced with 1 Power Klaw" and "This
+    # model's Kustom Shoota can be replaced with one of the following: 1
+    # Kombi-rokkit, 1 Kombi-skorcha". The two Kombi options give up the same
+    # weapon, so they share build_squad()'s cursor - on a one-model line that is
+    # "one of the following" exactly. The Kombi weapons are the Boyz Nob's
+    # profile chains (rule 04.01.03).
     wargear_options=[
-        WargearOption(
-            "Warboss", replaces=None, with_weapons=[AttackSquigProfile], max_models=1,
-            name=WARBOSS_ADD_ATTACK_SQUIG,
-        ),
+        WargearOption("Warboss", replaces=WarbossKustomChoppaProfile, with_weapons=[WarbossPowerKlawProfile],
+                      max_models=1, name=WARBOSS_KUSTOM_CHOPPA_TO_POWER_KLAW),
+        WargearOption("Warboss", replaces=KustomShootaProfile, with_weapons=[KombiRokkitBustaRokkitProfile],
+                      max_models=1, name=WARBOSS_KUSTOM_SHOOTA_TO_KOMBI_ROKKIT),
+        WargearOption("Warboss", replaces=KustomShootaProfile, with_weapons=[KombiSkorchaShootaProfile],
+                      max_models=1, name=WARBOSS_KUSTOM_SHOOTA_TO_KOMBI_SKORCHA),
     ],
-    # Official list: 1 model 85 pts, leads Boyz/Nobz (see
-    # game/factions/orks_points.py's _LEADS_BOYZ_MOBS).
     points=ORKS_POINTS["Warboss"],
     abilities_text=[
-        'Might is Right: While this model is leading a unit, each time a model in that unit makes '
-        'a melee attack, add 1 to the Hit roll.',
-        'Da Biggest and da Best: NOT ENGINE-WIRED - retired with the old Waaagh! (2026-09 codex).',
-        'Invulnerable Save (5+): This model has a 5+ invulnerable save.',
-        'Leader: This model can be attached to the following units: Boyz, Nobz.',
+        "Boss' Ammo Runt (Once per battle, per unit): In your Shooting phase, when this unit is selected "
+        "to shoot, you can use this ability. If you do, this model's ranged attacks have +1 to hit rolls.",
+        "Might Is Right: If this unit made a charge move this turn, this model's melee attacks have +3 A "
+        "and +2 S.",
+        "Intimidating Motivation (Once per battle round, per army): In your Movement phase, at the start "
+        "or end of this unit's move, you can select one friendly ORKS unit within 6\" of this unit. That "
+        "unit is no longer battle-shocked and is riled up until the start of your next turn.",
     ],
 ))
-# Might is Right and Leader are NOT engine-wired - see this module's own
-# docstring (same Attached-Unit-flow gap as Boyz'/Kroot Carnivores' own
-# Bodyguard text). Da Biggest and da Best was retired with the old Waaagh!
-# (see game/waaagh.py). Invulnerable Save (5+) is just
-# WarbossProfile.invulnerable_save, no new code needed.
 
 _MEGANOB_LOADOUT = [KustomShootaAimedProfile, PowerKlawProfile]
 
@@ -526,31 +519,26 @@ MEGANOBZ = ORKS.add_datasheet(Datasheet(
     ],
 ))
 
-_WARBOSS_MEGA_ARMOUR_LOADOUT = [BigShootaProfile, UgeChoppaProfile]
+_WARBOSS_MEGA_ARMOUR_LOADOUT = [BigShootaS5Profile, UgeChoppaProfile]
 
 WARBOSS_MEGA_ARMOUR = ORKS.add_datasheet(Datasheet(
     "Warboss in Mega Armour",
-    keywords=("CHARACTER", "INFANTRY", "WARBOSS IN MEGA ARMOUR", "MEGA ARMOUR", "WARBOSS"),
+    keywords=("INFANTRY", "CHARACTER", "MEGA ARMOUR", "WARBOSS"),
+    # 2026-09 codex (rules/orks/Warboss in Mega Armour.md): 1 model with a Big
+    # Shoota and an 'Uge Choppa, no wargear options.
     model_lines=[
         ModelLine(WarbossMegaArmourProfile, 1, _WARBOSS_MEGA_ARMOUR_LOADOUT, name="Warboss in Mega Armour"),
     ],
-    # No Unselected Profiles block was given for this datasheet.
-    # Official list: 1 model 80 pts, leads Meganobz (see
-    # game/factions/orks_points.py's own entry).
     points=ORKS_POINTS["Warboss in Mega Armour"],
     abilities_text=[
-        'Might is Right: While this model is leading a unit, each time a model in that unit makes '
-        'a melee attack, add 1 to the Hit roll.',
-        "Dead Brutal: NOT ENGINE-WIRED - retired with the old Waaagh! (2026-09 codex).",
-        'Invulnerable Save (5+): This model has a 5+ invulnerable save.',
-        'Leader: This model can be attached to the following unit: Meganobz.',
+        "Krushin' Impetus: When this unit ends a charge move, you can select one enemy unit engaged with "
+        "this unit. If you do, roll one D6 for each model in this unit engaged with that enemy unit: for "
+        "each 3+, that enemy unit suffers 1 mortal wound.",
+        "Intimidating Motivation (Once per battle round, per army): In your Movement phase, at the start "
+        "or end of this unit's move, you can select one friendly ORKS unit within 6\" of this unit. That "
+        "unit is no longer battle-shocked and is riled up until the start of your next turn.",
     ],
 ))
-# Might is Right and Leader are NOT engine-wired - see this module's own
-# docstring (same Attached-Unit-flow gap as every other Leader/Bodyguard
-# text here). Dead Brutal was retired with the old Waaagh! (see
-# game/waaagh.py). Invulnerable Save (5+)
-# is just WarbossMegaArmourProfile.invulnerable_save, no new code needed.
 
 _TANKBUSTA_BOSS_NOB_LOADOUT = [TankbustaChoppaProfile, RokkitPistolProfile, RokkitPistolProfile]
 _TANKBUSTA_LOADOUT = [TankbustaCloseCombatWeaponProfile, RokkitLunchaProfile]
@@ -724,124 +712,44 @@ BEAST_SNAGGA_BOYZ = ORKS.add_datasheet(Datasheet(
     ],
 ))
 
-_BEASTBOSS_LOADOUT = [BeastSnaggaKlawProfile, BeastchoppaProfile, ShootaProfile]
+_BEASTBOSS_LOADOUT = [ShootaProfile, BeastSnaggaKlawAndBeastchoppaProfile]
 
 BEASTBOSS = ORKS.add_datasheet(Datasheet(
     "Beastboss",
-    keywords=("CHARACTER", "INFANTRY", "BEAST SNAGGA", "BEASTBOSS", "WARBOSS"),
+    keywords=("INFANTRY", "BEAST SNAGGA", "CHARACTER", "WARBOSS"),
+    # 2026-09 codex (rules/orks/Beastboss.md): 1 model with a Shoota and a Beast
+    # Snagga Klaw and Beastchoppa - ONE melee weapon now, no wargear options.
     model_lines=[
         ModelLine(BeastbossProfile, 1, _BEASTBOSS_LOADOUT, name="Beastboss"),
     ],
-    # No Unselected Profiles block was given for this datasheet, and no
-    # Wargear Options text either - so no wargear_options, same documented
-    # gap as Warboss in Mega Armour's own entry.
-    #
-    # Both melee weapons are carried at once, and that is the point rather
-    # than an oversight: rule 04.01 lets a model swing only ONE melee weapon
-    # per fight activation, so the two profiles are a real per-activation
-    # choice (klaw = S10/AP-2 at WS3+, choppa = 6 attacks at WS2+). Same
-    # shape as Commander Farsight's two Dawn Blade modes.
-    #
-    # Official list: 1 model 80 pts, leads Beast Snagga Boyz - that pairing
-    # already sits in game/factions/orks_points.py's own entry, which is
-    # what game/attached_units.py's can_attach() reads, so the Leader
-    # ability needs no separate wiring here.
     points=ORKS_POINTS["Beastboss"],
     abilities_text=[
-        'Beastboss: While this model is leading a unit, each time a model in that unit makes a '
-        'melee attack, add 1 to the Hit roll.',
-        'Ferocious Rage: Each time this model makes a Charge move, until the end of the turn, melee '
-        'weapons it is equipped with have the [DEVASTATING WOUNDS] ability.',
-        'Invulnerable Save (5+): This model has a 5+ invulnerable save.',
-        'Feel No Pain 6+: Each time an attack is allocated to this model, roll one D6: on a 6, that '
-        'attack is ignored.',
-        'Leader: This model can be attached to the following unit: Beast Snagga Boyz.',
+        "Keep Huntin'! (Once per battle round, per army): In your Movement phase, at the start or end of "
+        "this unit's move, you can select one friendly BEAST SNAGGA unit within 6\" of this unit. That "
+        "unit is no longer battle-shocked and is riled up until the start of your next turn.",
+        "Dodge Dis!: This unit's attacks have +1 to hit rolls.",
     ],
 ))
-# Every one of these is engine-wired, which makes this the first Ork Leader
-# datasheet with no deferred ability at all:
-#   * "Beastboss" is word-for-word the Warbosses' own Might is Right, so it
-#     reuses that exact flag and game/squad.py's squad_has_might_is_right()
-#     - no new code. (Both Warboss datasheets' own copies were left
-#     unwired back when there was no Attached-Unit flow; there is one now.)
-#   * Ferocious Rage is new - see game/ferocious_rage.py, chained into
-#     game/fight.py next to War Horde's Get Stuck In.
-#   * Invulnerable Save (5+) and Feel No Pain 6+ are existing generic
-#     UnitProfile fields (`invulnerable_save`, `feel_no_pain`).
-#   * Leader is real: the legal pairing lives in the points list, which
-#     game/attached_units.py's can_attach() already reads.
-#
-# NOTE: like Beast Snagga Boyz, this datasheet is NOT in any demo army yet
-# (main.py) and has no sprite in Sprites/ - it renders as a plain token,
-# which is fine by this project's convention (see game/sprites.py).
 
-_PAINBOY_LOADOUT = [UrtySyringeProfile, PowerKlawProfile]
-
-PAINBOY_GROT_ORDERLY = "Grot Orderly"
-
-
-def _apply_grot_orderly(token):
-    """Flags the bearer as carrying a Grot Orderly. Like the Ammo Runt this
-    changes no characteristic - the ability is resolved in the Command phase,
-    see game/grot_orderly.py."""
-    token.grot_orderly = True
-
+_PAINBOY_LOADOUT = [DoksToolzProfile, UrtySyringeProfile]
 
 PAINBOY = ORKS.add_datasheet(Datasheet(
     "Painboy",
-    keywords=("CHARACTER", "INFANTRY", "PAINBOY"),
+    keywords=("INFANTRY", "CHARACTER"),
+    # 2026-09 codex (rules/orks/Painboy.md): 1 model with Dok's Toolz and an
+    # 'Urty Syringe, no wargear options. The syringe's [EXTRA ATTACKS] lets both
+    # swing in one activation (rule 04.01). The pre-codex Grot Orderly gear is
+    # gone - Catch Dat Red Bit prints the same token, as an ability.
     model_lines=[
         ModelLine(PainboyProfile, 1, _PAINBOY_LOADOUT, name="Painboy"),
     ],
-    # Both melee weapons are carried at once, and unlike the Beastboss's pair
-    # that is NOT a per-activation choice: the 'Urty syringe has [EXTRA
-    # ATTACKS] (24.11), so rule 04.01's one-melee-weapon limit does not apply
-    # to it and both swing every activation - the same shape as the Warboss's
-    # Attack Squig. That is what makes the syringe's [ANTI-INFANTRY 4+] worth
-    # having on an S2 weapon: it is not there to wound, it is there to score
-    # critical wounds for Hold Still and Say 'Aargh!'.
-    #
-    # No Unselected Profiles block and no weapon-swap text were supplied, so
-    # no wargear_options - the same documented gap every other Ork Character
-    # datasheet here carries. The Grot Orderly IS supplied, and is a Gear item
-    # rather than a WargearOption for the same reason as Flash Gitz' Ammo Runt:
-    # it swaps no weapons, it grants an ability. Free - the published points
-    # list carries no wargear entry for this datasheet.
-    gear_options=[
-        Gear("Painboy", PAINBOY_GROT_ORDERLY, _apply_grot_orderly),
-    ],
-    gear_slots={"Painboy": 1},
-    # Official list: 1 model 90 pts. The pairing table it also carries is what
-    # game/attached_units.py's can_attach() reads - see PainboyProfile's own
-    # docstring on the leader-vs-support discrepancy between that entry and
-    # this datasheet's printed "Abilities (Leader)" heading.
     points=ORKS_POINTS["Painboy"],
     abilities_text=[
-        "Dok's Toolz: While this model is leading a unit, models in that unit have the "
-        'Feel No Pain 5+ ability.',
-        "Hold Still and Say 'Aargh!': Each time an attack made by this model with its "
-        "'Urty syringe scores a Critical Wound against a unit (excluding VEHICLE units), "
-        'that unit suffers D6 mortal wounds.',
-        'Grot Orderly: Once per battle, in your Command phase, if the bearer is leading a unit '
-        'that is below its Starting Strength, you can return up to D3 destroyed Bodyguard models '
-        'to that unit.',
-        'Leader: This model can be attached to the following units: Boyz, Nobz, Lootas, '
-        'Burna Boyz, Tankbustas.',
+        "Crude Surgery: In your Command phase, this unit heals 3 wounds.",
+        "Catch Dat Red Bit (Once per battle, per unit): When this model uses its Crude Surgery ability, "
+        "you can add D3 to the number of wounds healed.",
     ],
 ))
-# All four are engine-wired:
-#   * Dok's Toolz - game/doks_toolz.py, folded into game/feel_no_pain.py's
-#     current_feel_no_pain(), so it reaches every damage source uniformly.
-#   * Hold Still and Say 'Aargh!' - game/hold_still.py, chained into
-#     game/fight.py's wound-resolution tail (melee-only by construction).
-#   * Grot Orderly - game/grot_orderly.py, a Command-phase controller; the
-#     first ability in this engine that puts models BACK into a unit.
-#   * Leader - the legal pairings live in the points list, which
-#     game/attached_units.py's can_attach() already reads.
-#
-# NOTE: like the Beastboss, this datasheet is NOT in any demo army yet
-# (main.py) and has no sprite in Sprites/ - it renders as a plain token,
-# which is fine by this project's convention (see game/sprites.py).
 
 _KILL_RIG_LOADOUT = [
     EavyLobbaProfile, ButchaBoyzProfile, SavageHornsAndHoovesProfile,

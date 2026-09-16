@@ -1,6 +1,6 @@
 """Kill Rig's own "Spirit of Gork (Psychic)" ability, as supplied by the
 user (not a rule from the generic 40k core rulebook, so it lives in its own
-module - same reasoning as game/ferocious_rage.py for the Beastboss's).
+module - same reasoning as game/ork_ammo_runts.py for the Boyz').
 
 RULE: At the start of the Fight phase, you can select one friendly ORKS unit
 within 12" of this model and roll one D6:
@@ -24,7 +24,7 @@ exception, `auto_players`: for those the target is chosen deterministically
 (the highest-points OTHER unit, falling back to the caster's own unit when
 no other is eligible) and no prompt is raised at all. That is an explicit
 user instruction for the AI, and it is the same auto_players shape
-game/grot_orderly.py already uses. Points are read from Squad.points, which
+game/ork_ammo_runts.py already uses. Points are read from Squad.points, which
 is None for a unit whose faction has no published list - those sort last
 rather than crashing. See strongest() for why "other" is worth spelling out.
 

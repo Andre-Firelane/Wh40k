@@ -248,7 +248,7 @@ import ast  # noqa: F811  (already imported above; kept local to this block)
 # one-line change.
 ROUTED = {
     "reanimation_protocols": "reanimation_controller.placer",
-    "grot_orderly": "grot_orderly_controller.placer",
+    "crude_surgery": "crude_surgery_controller.placer",
     "unquenchable_resolve": "unquenchable_resolve_controller.placer",
     "curse_of_the_walking_pox": "placer=return_placement_controller",
 }

@@ -14,7 +14,10 @@ import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.join(ROOT, "test_return_placement.py")
-BASE = 132
+# Measured at start, not written down: a hard-coded count goes stale the moment
+# the suite grows (it read 132 against a 179-check suite, so every probe that bit
+# was reported as NOT biting).
+BASE = None
 
 G = lambda *p: os.path.join(ROOT, "game", *p)
 
@@ -38,27 +41,40 @@ def run():
 
 
 def probe(label, path, old, new):
-    src = open(path, encoding="utf-8").read()
+    # BYTES, not text mode: a text-mode write on Windows turns every LF into
+    # CRLF, so each run used to leave the files it probed with CRLF endings -
+    # and every other driver's multi-line anchor (they read with newline="")
+    # stopped matching them. The anchor is matched with the endings folded,
+    # the probe is written in the file's own endings, and the restore is the
+    # original bytes.
+    raw = open(path, "rb").read()
+    src = raw.decode("utf-8").replace("\r\n", "\n")
     if src.count(old) != 1:
         print(f"  SKIP {label}: anchor found {src.count(old)}x")
         return
-    open(path, "w", encoding="utf-8").write(src.replace(old, new, 1))
+    probed = src.replace(old, new, 1)
+    if b"\r\n" in raw:
+        probed = probed.replace("\n", "\r\n")
+    open(path, "wb").write(probed.encode("utf-8"))
     try:
         clear_cache()
         got, total = run()
     finally:
-        open(path, "w", encoding="utf-8").write(src)
+        open(path, "wb").write(raw)
+    if open(path, "rb").read() != raw:
+        raise SystemExit(f"NOT RESTORED: {path}")
     print(f"  {'BITES' if got < BASE else '*** DID NOT BITE ***':22} {got}/{total}  {label}")
 
 
 clear_cache()
-print(f"baseline: {run()[0]}/{BASE}")
+BASE = run()[0]
+print(f"baseline: {BASE}")
 
 # 1. THE WHOLE PRE-CHANGE WORLD: the ability applies its own spots for
 #    everyone and nothing is ever opened.
 probe(
     "the ability places for everyone, as all eight used to",
-    G("reanimation_protocols.py"),
+    G("heal.py"),  # reanimate()'s body is the core-rule Heal in game/heal.py since Crude Surgery
     "    if placer is not None:",
     "    if False:",
 )
@@ -68,8 +84,8 @@ probe(
 probe(
     "a placement is opened for the AI as well",
     G("return_placement.py"),
-    "        if (squad.owner in self.auto_players or self.setup_controller is None",
-    "        if (False or self.setup_controller is None",
+    "        if squad.owner in self.auto_players or self.setup_controller is None:",
+    "        if False or self.setup_controller is None:",
 )
 
 # 3. The subset collapses: SetupController picks up the WHOLE unit, so the
@@ -169,8 +185,8 @@ probe(
 probe(
     "main.py hands Undying Legions no placer",
     os.path.join(ROOT, "main.py"),
-    "        placer=return_placement_controller,\n    )\n    eternal_revenant_controller",
-    "    )\n    eternal_revenant_controller",
+    "        placer=return_placement_controller,\n        # ...and the Canoptek boosts",
+    "        # ...and the Canoptek boosts",
 )
 
 # 13. ...and the same for the orb, whose placer arrives by assignment because

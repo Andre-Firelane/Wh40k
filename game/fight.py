@@ -4,7 +4,7 @@ from game import attached_units
 # cannot cycle back into anything here.
 from game import battle_stats
 from game import damaged_attacks, triarch_auras
-from game import krumpin_time, rokkit_charge, tide_of_muscle
+from game import dodge_dis, krumpin_time, might_is_right, rokkit_charge, tide_of_muscle
 from game import aux_experimental_modifications, awakened_dynasty, nekrosor_ammentar, swift_demise, montka_pinpoint_counter_offensive, destroyer_cult, destroyer_hive, dlc_grim_reapers, gift_of_contagion, guardian_protocols, protocol_hungry_void, implacable_eradication, mechanical_augmentation, plagues, plasmacyte, reroll_scope
 from game import way_of_the_short_blade
 from game import strength_over_toughness
@@ -12,17 +12,15 @@ from game import conditional_keywords, weapon_profiles
 from game.damage_resolution import DamageAllocationSession, DevastatingWoundAllocationSession, MortalWoundAllocationSession, displayed_save_threshold, save_heading, save_is_impossible, AUTO_FAILED_SAVE
 from game.dice import ATTACKS_ROLL, HIT_ROLL, SAVE_ROLL, WOUND_ROLL
 from game.dice_notation import DiceNotationRoll, describe as describe_dice_notation
-from game.ferocious_rage import ferocious_rage_adjusted_weapon
 from game.spirit_of_gork import spirit_of_gork_adjusted_weapon
 from game.hazard import hazard_failures, hazard_mortal_wounds
-from game import hold_still as hold_still_rule
 from game.modifiers import Modifier, apply_modifiers, describe_modifiers, for_display
 from game import roll_choice
 from game.shooting import (
     _damaged_modifier, _group_label, _resolve_roll, _threshold_note, _wound_crit_threshold, _wound_threshold,
     extra_attack_dice, melta_adjusted_weapon,
 )
-from game.squad import allocation_target_model, allocation_target_profile, attached_unit_toughness, model_engaged_with, squad_has_fights_first, squad_has_might_is_right, tank_hunters_modifiers
+from game.squad import allocation_target_model, allocation_target_profile, attached_unit_toughness, model_engaged_with, squad_has_fights_first, tank_hunters_modifiers
 from game.thresholds import parse_threshold as _parse_threshold
 from game.turn import PHASE_FIGHT
 from game import forewarned
@@ -160,6 +158,9 @@ def _melee_attack_key(model, weapon):
             # War Horde's Headwoppa's Killchoppa is per BEARER as well - see
             # game/enh_headwoppas_killchoppa.py.
             enh_headwoppas_killchoppa.attack_key(model),
+            # The Warboss's Might Is Right is per MODEL too (+3 A, +2 S) -
+            # see game/might_is_right.py.
+            might_is_right.attack_key(model),
             # Rule 04.01.03: a weapon's profile chain - see shooting.py's
             # _attack_key() and game/weapon_profiles.py. () for every
             # single-profile weapon, so no existing group splits.
@@ -344,8 +345,6 @@ class FightController:
         self.one_shot_used = set()  # rule 24.26: (model.id, id(weapon)) pairs already fought with - persists for the whole battle, never reset
         self.assignment_profile = 0  # Split Fire: which profile (rule 04.01.03) of the front pair's weapon is armed for the NEXT assignment - see toggle_assignment_profile()
         self.mortal_wound_session = None  # MortalWoundAllocationSession while pending_step == "hazard_wounds"
-        self.hold_still_session = None  # MortalWoundAllocationSession while pending_step == "hold_still_wounds" - Painboy's "Hold Still and Say 'Aargh!'", see game/hold_still.py
-        self._hold_still_crits = 0  # critical WOUNDS of the current group that trigger that ability. Kept separate from _devastating_crits because they are NOT removed from the normal wound pool - see game/hold_still.py's own note on how the two differ.
         # Rule 12.02 frozen for the current activation, per (model, target
         # squad) - see _snapshot_engagement().
         self._engagement_snapshot = {}
@@ -385,8 +384,6 @@ class FightController:
         self._pending_twin_linked_reroll = None
         self._pending_hit_reroll = None
         self.mortal_wound_session = None
-        self.hold_still_session = None
-        self._hold_still_crits = 0
         self.assignment_queue = []
         self.assignments = {}
         self.resolved_groups = []
@@ -797,8 +794,6 @@ class FightController:
         self._hazardous_count = 0
         self._lethal_hits_auto_wounds = 0
         self.mortal_wound_session = None
-        self.hold_still_session = None
-        self._hold_still_crits = 0
         self.assignment_queue = []
         self.assignments = {}
         self.resolved_groups = []
@@ -1370,30 +1365,6 @@ class FightController:
             return
         target_profile = allocation_target_profile(target_squad)
 
-        if self.pending_step == "hold_still":
-            # Painboy's "Hold Still and Say 'Aargh!'" - one D6 per critical
-            # wound, summed, then allocated as ordinary mortal wounds (06.02).
-            total = hold_still_rule.mortal_wounds(rolls)
-            self._log(
-                f"{hold_still_rule.HOLD_STILL_LABEL} {rolls}: {target_squad.name} suffers "
-                f"{total} mortal wound(s)."
-            )
-            if total > 0:
-                self.hold_still_session = MortalWoundAllocationSession(
-                    target_squad, total, dice_manager=self.dice_manager, log=self._log,
-                )
-                self.pending_step = "hold_still_wounds"
-                self._check_hold_still_done()
-            else:
-                self._finish_group()
-            return
-
-        if self.pending_step == "hold_still_wounds":
-            if self.hold_still_session is not None and self.hold_still_session.pending_fnp is not None:
-                self.hold_still_session.on_fnp_acknowledged()
-                self._check_hold_still_done()
-            return
-
         if self.pending_step == "sustained_hits":
             # A dice-notation [SUSTAINED HITS X] (the Avatar of Khaine's
             # "d3"), acknowledged between the Hit roll and the Wound roll it
@@ -1580,9 +1551,9 @@ class FightController:
         applied, in one place - game/shooting.py's own _adjusted_weapon() for
         the ranged side.
 
-        War Horde's Get Stuck In ([SUSTAINED HITS 1]),
-        Ferocious Rage ([DEVASTATING WOUNDS]) and Spirit of Gork (+1 S and
-        [LETHAL HITS]). Order matters for the last three: the hit and wound
+        War Horde's Get Stuck In ([SUSTAINED HITS 1]), Might Is Right (+3 A,
+        +2 S) and Spirit of Gork (+1 S and [LETHAL HITS]). Order matters for
+        the last three: the hit and wound
         steps read those keywords straight off the returned weapon, so they
         have to be in place before those steps run.
 
@@ -1608,9 +1579,9 @@ class FightController:
         # ledger read the returned weapon.
         weapon = tide_of_muscle.adjusted_weapon(weapon, self.fighting_squad)
         weapon = rokkit_charge.adjusted_weapon(weapon, self.fighting_squad)
-        weapon = ferocious_rage_adjusted_weapon(
-            weapon, pairs, self.charge_controller, self.fighting_squad,
-        )
+        # The Warboss's Might Is Right (+3 A, +2 S after a charge) is per
+        # MODEL; exact because _melee_attack_key() keeps a bearer's group his.
+        weapon = might_is_right.adjusted_weapon(weapon, pairs[0][0] if pairs else None)
         weapon = spirit_of_gork_adjusted_weapon(weapon, self.fighting_squad)
         # The Corsair grants, all of them properties of the attacking unit
         # (and, for the last two, of what it is swinging at).
@@ -1814,12 +1785,6 @@ class FightController:
         wound resolution (Devastating Wounds routing, Lethal Hits auto-wound
         pool, save roll)."""
         self._devastating_crits = crits if weapon.devastating_wounds else 0
-        # Painboy's "Hold Still and Say 'Aargh!'" - note these crits are NOT
-        # subtracted from normal_wounds below, unlike [DEVASTATING WOUNDS]'
-        # own: that rule replaces the rest of the attack sequence for the
-        # wound, this one leaves it alone and adds mortal wounds on top. See
-        # game/hold_still.py.
-        self._hold_still_crits = crits if hold_still_rule.applies(weapon, target_squad) else 0
         # Spirit Conclave's Stave of Kurnous: "on a Critical Wound, that attack
         # has [PRECISION]". That is a property of the DIE, not of the attack or
         # the target, and this engine's Save roll is batched per group - so the
@@ -1878,36 +1843,9 @@ class FightController:
 
     def _finish_group_after_wounds(self):
         """The shared tail of every path that has finished a weapon group's
-        wound/save resolution. Painboy's "Hold Still and Say 'Aargh!'" runs
-        here - after the attack itself has been fully resolved, because the
-        mortal wounds it inflicts are in ADDITION to that attack, not instead
-        of it (see game/hold_still.py). Anything else goes straight on to
-        _finish_group() as before."""
-        if self._hold_still_crits > 0 and self.current_group is not None and self.dice_manager is not None:
-            self._begin_hold_still_wounds()
-        else:
-            self._finish_group()
-
-    def _begin_hold_still_wounds(self):
-        crits = self._hold_still_crits
-        self._hold_still_crits = 0
-        target_squad = self.current_group["target_squad"]
-        if self.turn_tracker is not None:
-            # Rule 06.02: the mortal wounds land on the TARGET unit, so which
-            # of its models take them is the DEFENDING player's choice - the
-            # same flip _resolve_wounds() makes before a save roll.
-            self.turn_tracker.set_active(target_squad.owner)
-        self.dice_manager.roll(
-            count=hold_still_rule.dice_count(crits), sides=hold_still_rule.HOLD_STILL_DICE_SIDES,
-            label=hold_still_rule.roll_label(crits, target_squad),
-            target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad,
-        )
-        self.pending_step = "hold_still"
-
-    def _check_hold_still_done(self):
-        if self.hold_still_session is None or not self.hold_still_session.done:
-            return
-        self.hold_still_session = None
+        wound/save resolution. It used to run the Painboy's pre-codex "Hold
+        Still and Say 'Aargh!'" mortal wounds here; the 2026-09 codex dropped
+        that ability, so it goes straight on to _finish_group()."""
         self._finish_group()
 
     @property
@@ -1922,8 +1860,6 @@ class FightController:
             return self.devastating_wound_session.pending_choice
         if self.mortal_wound_session is not None:
             return self.mortal_wound_session.pending_choice
-        if self.hold_still_session is not None:
-            return self.hold_still_session.pending_choice
         return None
 
     def choose_damage_model(self, model):
@@ -1940,9 +1876,6 @@ class FightController:
         elif self.mortal_wound_session is not None:
             self.mortal_wound_session.choose_model(model)
             self._check_hazard_wounds_done()
-        elif self.hold_still_session is not None:
-            self.hold_still_session.choose_model(model)
-            self._check_hold_still_done()
 
     def _check_allocation_done(self, rolls=None):
         if not self.damage_session.done:
@@ -2860,19 +2793,13 @@ class FightController:
         # about the target, the same shape as Forewarned above.
         modifiers.extend(
             warhost_lightning_fast_reactions.hit_modifiers(target_squad))
-        # Warboss's own "Might is Right" (user-supplied): "while this model is
-        # leading a unit, each time a model in that unit makes a MELEE attack,
-        # add 1 to the Hit roll". Melee-only, so it lives here and not in the
-        # shared helper tank_hunters_modifiers() sits in. A bonus, so -1 under
-        # this engine's Modifier sign convention (positive worsens).
-        if self.fighting_squad is not None and squad_has_might_is_right(self.fighting_squad):
-            modifiers.append(Modifier(-1, "Might is Right"))
-        # Awakened Dynasty's Command Protocols - the same shape as Might is
-        # Right above (a leader granting his whole unit +1 to hit), differing
-        # only in reaching BOTH phases: its text says "an attack", not "a melee
-        # attack", so game/shooting.py reads it too.
+        # The Beastboss's Dodge Dis!: "This unit's attacks have +1 to hit
+        # rolls" - both phases, so game/shooting.py reads it too.
+        modifiers.extend(dodge_dis.hit_modifiers(self.fighting_squad))
         # Meganobz' Krumpin' Time: +1 to hit in this phase while riled up.
         modifiers.extend(krumpin_time.hit_modifiers(self.fighting_squad))
+        # Awakened Dynasty's Command Protocols: a leader granting his whole
+        # unit +1 to hit; "an attack", so game/shooting.py reads it too.
         modifiers.extend(awakened_dynasty.hit_modifiers(self.fighting_squad))
         # Canoptek Court's Curse of the Cryptek - "an attack", so both phases;
         # per MODEL, and added before the ignore filter below (it improves).
@@ -3016,12 +2943,6 @@ class FightController:
         # sequence is right, since each has its own attacks and its own
         # outcome.
         self._report_group_statistics()
-        # Safety net for the paths that reach here WITHOUT going through
-        # _finish_group_after_wounds() - notably the "target was destroyed
-        # before this group finished resolving" abandon branch. Mortal wounds
-        # owed to a unit that no longer exists are wasted either way; what
-        # must not happen is them leaking into the next weapon group.
-        self._hold_still_crits = 0
         weapon_key = self.current_group["weapon_key"] if self.current_group else None
         pairs = self.current_group["pairs"] if self.current_group else None
         # Rule 24.15 ([HAZARDOUS]): "roll one D6 for each [HAZARDOUS] weapon
@@ -3106,8 +3027,6 @@ class FightController:
         self._hazardous_count = 0
         self._lethal_hits_auto_wounds = 0
         self.mortal_wound_session = None
-        self.hold_still_session = None
-        self._hold_still_crits = 0
         self.pending_step = None
         self.assignment_queue = []
         self.assignments = {}

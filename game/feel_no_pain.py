@@ -1,5 +1,4 @@
 from game.advanced_armour import advanced_armour_feel_no_pain
-from game.doks_toolz import doks_toolz_feel_no_pain
 from game.failure_is_not_an_option import failure_is_not_an_option_feel_no_pain
 from game.nanoscarab_amulet import nanoscarab_amulet_feel_no_pain
 from game.rites_of_feasting import rites_of_feasting_feel_no_pain
@@ -41,9 +40,9 @@ def current_feel_no_pain(model, mortal=False, psychic=False,
     the "never worse than what's printed" guarantee still holds across all of
     them: a model that already prints a 5+ keeps it under a granted 6+."""
     best = _better_threshold(model.profile.feel_no_pain, stim_injectors_feel_no_pain(model))
-    best = _better_threshold(best, doks_toolz_feel_no_pain(model))
-    # The Necron Technomancer's Rites of Reanimation - the Painboy's Dok's
-    # Toolz under another name, and folded in exactly the same way.
+    # The Necron Technomancer's Rites of Reanimation - a leader granting his
+    # unit Feel No Pain 5+. (The pre-codex Painboy's Dok's Toolz printed the
+    # same sentence; the 2026-09 codex made Dok's Toolz a weapon.)
     best = _better_threshold(best, rites_of_reanimation_feel_no_pain(model))
     # The Lokhust Lord's nanoscarab amulet. The first source here that is a
     # per-TOKEN wargear grant rather than a unit-wide or aura one - "the

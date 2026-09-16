@@ -6414,6 +6414,16 @@ def _take_one_action(
     # Fight phase. Breakin' Heads is here for deadly_vectors_controller's reason.
     da_boss_controller=None, fungus_fuel_controller=None, close_range_dakka_controller=None,
     hit_em_harder_controller=None, mow_em_down_controller=None, breakin_heads_controller=None,
+    # main.py's ONE list of controllers that can be waiting for a model click
+    # (game/damage_pick.py). The hand-picked list below answers the AI's OWN
+    # rule 06.02 allocations for twelve controllers, and every other carrier
+    # left an allocation the AI owned open for good - measured with the
+    # Warboss in Mega Armour's Krushin' Impetus hitting a Necron Warriors
+    # unit: the choice sat on Player 2 and no wound ever landed. Two lists
+    # answering one question is the drift this repo keeps consolidating, so
+    # the shared one is passed and folded in; the twelve stay first for the
+    # callers that do not pass it. Appended, like everything above.
+    damage_choice_controllers=None,
 ):
     """Resolve exactly ONE pending decision for `player` (Player 2 by
     default) and return - this is the function main.py's "A" key calls. A
@@ -6565,6 +6575,9 @@ def _take_one_action(
         deadly_vectors_controller, metalodermal_tesla_weave_controller,
         breakin_heads_controller,
     ]
+    for extra in damage_choice_controllers or ():
+        if extra not in controllers:
+            controllers.append(extra)
     controllers = [c for c in controllers if c is not None]
 
     damage_result = _resolve_own_damage_choice(player, controllers)
@@ -11205,6 +11218,34 @@ def rokkit_charge_verdict(squad, fight_controller):
                 else hazard.MORTAL_WOUNDS_ON_FAIL)
     loss = swingers * (hazard.HAZARD_FAILURE_THRESHOLD / 6.0) * per_fail * _points_per_wound(squad)
     return gain > loss
+
+
+def boss_motivation_choice(bearer_squad, candidates):
+    """Intimidating Motivation / Keep Huntin'!, the AI's policy (0 API calls).
+    Injected by main.py into game/boss_motivation.py's controllers, which only
+    ever hand over units the ability would really help.
+
+    Always USED, never held: the budget comes back next battle round, so an
+    unused round is simply lost. A battle-shocked unit first (it gets its
+    Objective Control back as well as riled up), then the most valuable one;
+    name breaks the last tie so a replay picks the same unit."""
+    if not candidates:
+        return None
+    return sorted(candidates, key=lambda s: (not getattr(s, "battle_shocked", False),
+                                             -(getattr(s, "points", None) or 0), s.name))[0]
+
+
+#: Catch Dat Red Bit's expected D3 (2) on top of Crude Surgery's 3 - the heal
+#: the AI waits for before spending the once-per-battle bonus.
+CATCH_DAT_RED_BIT_MIN_HEALABLE = 5
+
+
+def catch_dat_red_bit_verdict(squad):
+    """The Painboy's Catch Dat Red Bit, decided deterministically (0 API calls):
+    spend the once-per-battle +D3 only when the unit can take the whole expected
+    heal, so it is not burned on a wound or two."""
+    from game.heal import healable_wounds
+    return squad is not None and healable_wounds(squad) >= CATCH_DAT_RED_BIT_MIN_HEALABLE
 
 
 def _handle_hungry_void(player, all_tokens, fight_controller, hungry_void_controller,

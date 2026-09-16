@@ -9554,3 +9554,38 @@ Sitzordnungen exit 0; `verify_ork_mobs.py` 10/10, neutralisiert 8/8; `verify_rul
 **CLAUDE.md nachgezogen:** neuer Abschnitt `## Ork-Mobs`; die Ork-Liste (14/101/2005), die
 Fraktionszeile, die Übergangszahlen im Korpus-Abschnitt, und fünf Stellen, die Monster Hunters bzw.
 Grot-Smacka als lebend nannten.
+
+## 2026-09-16 — Orks E3b: Warboss, Warboss in Mega Armour, Beastboss, Painboy
+
+User: *"Etappe E3a Orks aus einer anderen sission ist durch. bitte da weitwermachen."* Umfang laut
+Plan: die vier Charaktere samt Fähigkeiten, Stilllegungen, Tests, Sonden, Live-Verify, Doku; danach
+Commit, Push, Bericht, Stopp.
+
+**Gebaut:** sechs Module (`boss_ammo_runt`, `might_is_right`, `dodge_dis`, `boss_motivation`,
+`krushin_impetus`, `crude_surgery`) plus zwei Extraktionen (`heal.py`, `per_army_round_limit.py`);
+Ferocious Rage, Dok's Toolz, Hold Still und Grot Orderly stillgelegt.
+
+**Unterwegs gefunden:**
+- Ein Bash-Heredoc mit dem großen `main.py`-Patch scheiterte am Parsen (nichts lief) → Skript im
+  Scratchpad. Später zweimal dasselbe mit `\n` in Python-Strings (Fehlerklasse 21).
+- `armies/orks.json` ist CRLF, ein LF-Anker traf nicht.
+- Regression rot an vier Stellen, alle zu Recht: Golden Master (`--write`), Punktesumme, §14 (Basisklasse
+  mit `panel_label()`), §25 (Listener in `add(...)` konstruiert), dazu drei Geometrie-Suiten gegen eine
+  kurz auf 40 mm gesetzte Warboss-Base → zurück auf 0.98" als benannte Abweichung.
+- `test_ork_characters.py` zuerst rot: der echte `MovementController` verweigerte den Zug, weil die
+  zweite Reihe des Feindes den Mob band (Feind nach y=2.0), und Boyz haben per Default 10 Modelle.
+- **Der Live-Verify fand den KI-Zuteilungs-Stall** (Krushin' auf eine KI-Einheit, `settled: False`).
+  Fix über die geteilte Liste statt eines dreizehnten Namens; §28 und zwei Sonden.
+- `ab_return_placement.py`: veraltete Baseline (132 gegen 179) und Text-Mode-Restore, der CRLF schrieb
+  und die Hypercrypt-Anker brach. Byte-genauer Restore, gemessene Baseline, neun Dateien zurück auf LF;
+  zwei veraltete Anker nachgezogen. Git-Bash-`grep -c $'\r$'` log dabei über die Zeilenenden — erst
+  ein Byte-Zähler in Python zeigte den echten Stand.
+
+**Verifiziert:** `test_ork_characters.py` 228/228; `ab_ork_characters.py` 50 Sonden, alle beißen;
+`test_event_chain_wiring.py` 264/264; volle Regression 235 Suiten, ~22924 Prüfungen, 234 grün / 0 rot /
+1 bekannt; `--smoke` grün; `selfplay.py map2 1500` beide Sitzordnungen exit 0; `verify_ork_characters.py`
+17/17, neutralisiert 8/8; `verify_rules_vs_engine.py` 133 → 115; `measure_crowded_movement.py`
+unverändert.
+
+**CLAUDE.md nachgezogen:** neuer Abschnitt `## Ork-Charaktere`; Rezept (§28, die `grot_orderly`-Ausnahme),
+Ork-Liste 2025, Fraktionszeile, Übergangszahlen, KI-Liste der deterministischen Antworten, Return-Placement-Zeile.

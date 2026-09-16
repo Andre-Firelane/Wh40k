@@ -4,7 +4,7 @@ Rule 01.02.03: a model put back on the battlefield is SET UP, and setting up
 is something the controlling player does. Eight abilities in this engine return
 models, and until now all eight picked the spot themselves for BOTH sides:
 
-    reanimation_protocols  grot_orderly       curse_of_the_walking_pox
+    reanimation_protocols  crude_surgery      curse_of_the_walking_pox
     protocol_eternal_revenant                 word_of_the_phoenix
     unquenchable_resolve   enh_phoenix_gem    spiritseer (Tears of Isha)
 

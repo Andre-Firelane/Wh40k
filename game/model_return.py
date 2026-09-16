@@ -1,7 +1,7 @@
 """Putting a destroyed model BACK on the battlefield - the shared half.
 
 WHY THIS EXISTS. Two modules already did this, character for character:
-game/grot_orderly.py's _return_model() (Painboy's Grot Orderly) and
+the retired game/grot_orderly.py's _return_model() (Painboy's Grot Orderly) and
 game/unquenchable_resolve.py's _set_up() (Fuegan). CLAUDE.md's standing rule is
 to extract at the SECOND consumer, and the Necron Reanimation Protocols army
 rule brings the third and fourth (game/reanimation_protocols.py, plus Awakened

@@ -127,7 +127,7 @@ class GameState:
                 token.squad.models.remove(token)
                 # Keep the Token, so an ability that returns destroyed models
                 # to a unit has something to return - Painboy's Grot Orderly
-                # is the first (see game/grot_orderly.py). Nothing else reads
+                # was the first (see game/heal.py). Nothing else reads
                 # this list, and holding the reference costs nothing: rule
                 # 19.02/19.04 already rely on a dead Token outliving its
                 # removal from Squad.models (game/attached_units.py's

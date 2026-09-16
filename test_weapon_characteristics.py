@@ -83,12 +83,11 @@ VALUE_EXCEPTIONS = {}   # empty, and that is the point - see the docstring
 # stage deletes this block and its three A/B probes.
 CORPUS_AHEAD = {
     "orks": {
-        "Battlewagon", "Beastboss", "Deff Dread", "Deffkoptas", "Flash Gitz",
-        "Kill Rig", "Painboy", "Tankbustas", "Trukk", "Warbikers", "Warboss",
-        "Warboss in Mega Armour",
+        "Battlewagon", "Deff Dread", "Deffkoptas", "Flash Gitz",
+        "Kill Rig", "Tankbustas", "Trukk", "Warbikers",
     },
 }
-EXPECTED_AHEAD = 12
+EXPECTED_AHEAD = 8
 
 _AHEAD_KEYS = {(folder, normalise_name(name))
                for folder, names in CORPUS_AHEAD.items() for name in names}
@@ -321,7 +320,7 @@ print("--- 7. how printed_keywords spells them ---")
 # The valued keywords are the ones whose printed form is not a constant, so
 # each is pinned at the point where it could be spelled wrong.
 checks.eq("ANTI-X reads its threshold, and a pair at ONE threshold prints merged, as the sheet does",
-          printed_keywords(_wp.BeastSnaggaKlawProfile),
+          printed_keywords(_wp.PowerSnappaProfile),
           ["ANTI-MONSTER/VEHICLE 4+"])
 checks.eq("...and the comparison expands that merged spelling back into both rules",
           keyword_set("anti-MONSTER/VEHICLE 4+"), {"anti-monster 4+", "anti-vehicle 4+"})
@@ -332,7 +331,9 @@ checks.eq("a dice [SUSTAINED HITS X] prints the DIE, not the placeholder int",
           ["SUSTAINED HITS D3"])
 # Alphabetical, because that is the printed order - all 35 distinct
 # multi-keyword rows in rules/*.md are sorted.
-mixed = printed_keywords(_wp.KombiWeaponProfile)
+# (The Painboy's 'Urty Syringe since the 2026-09 codex retired the Warboss's
+# Kombi-weapon that used to stand here.)
+mixed = printed_keywords(_wp.UrtySyringeProfile)
 checks.eq("keywords come out alphabetically, as the sheet prints them",
           mixed, sorted(mixed))
 checks.true("...and that is more than one keyword, so the order means something",

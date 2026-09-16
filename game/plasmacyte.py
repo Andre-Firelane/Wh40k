@@ -21,7 +21,7 @@ here uses (rule 19.04).
 
 THE GRANT ITSELF is a [DEVASTATING WOUNDS] keyword on melee weapons until the
 end of the phase, which is exactly the shape of Ferocious Rage
-(game/ferocious_rage.py) - so it is a chain entry in FightController's
+(the retired game/ferocious_rage.py) - so it is a chain entry in FightController's
 _adjusted_weapon(), reading a phase-scoped flag on the Squad. It must be in the
 chain rather than applied at the wound step because _crit_note() has to know at
 ROLL time whether a critical die is a [DEVASTATING WOUNDS] one.

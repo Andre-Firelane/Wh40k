@@ -62,19 +62,11 @@
       "leaders": [
         {
           "datasheet": "Warboss",
-          "color": [170, 60, 60],
-          "choices": {
-            "Warboss": {
-              "+ Attack Squig": 1
-            }
-          }
+          "color": [170, 60, 60]
         },
         {
           "datasheet": "Painboy",
-          "color": [150, 65, 105],
-          "gear": {
-            "Painboy": ["Grot Orderly"]
-          }
+          "color": [150, 65, 105]
         }
       ]
     },

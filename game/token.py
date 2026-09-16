@@ -27,9 +27,6 @@ class Token:
     # above this one IS read by a rule (game/ammo_runt.py), so it needs a
     # real field rather than just a gear_names entry.
     ammo_runt: bool = False
-    # Painboy's "Grot Orderly" wargear item - same shape as ammo_runt above
-    # (a real rule reads it: game/grot_orderly.py).
-    grot_orderly: bool = False
     # A destroyed model a rule keeps on the battlefield for now (Undying Spite,
     # Orks Is Never Beaten - game/fight_after_death.py sets and clears it).
     # GameState.remove_dead_models() skips it: without that, the NEXT frame's

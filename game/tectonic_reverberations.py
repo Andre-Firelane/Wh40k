@@ -112,7 +112,7 @@ class TectonicReverberationsController:
 
         The clock is read LIVE here and that is correct rather than the error
         class 15 trap: this is a START-of-phase offer, so the phase really has
-        just become the Movement phase - the same reading game/grot_orderly.py
+        just become the Movement phase - the same reading game/crude_surgery.py
         records for the identical shape."""
         raised = False
         for bearer in self.bearers(player):

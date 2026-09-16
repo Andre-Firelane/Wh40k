@@ -683,7 +683,7 @@ def returning_positions(squad, returning, base_angle=None, position_valid=None,
                         rings=PACK_RINGS, gap_in=MODEL_GAP_IN):
     """Where to stand each of `returning` when models are put BACK into a
     unit that is already on the battlefield (Painboy's Grot Orderly - see
-    game/grot_orderly.py; rule 09.02 requires the result to still be one
+    game/heal.py; rule 09.02 requires the result to still be one
     coherent group).
 
     Different problem from pack_positions(): the survivors are already

@@ -109,7 +109,7 @@ PROBES = [
      [(OAR, "    return [Modifier(-AMMO_RUNTS_HIT_BONUS, AMMO_RUNTS_NAME)]",
        "    return [Modifier(AMMO_RUNTS_HIT_BONUS, AMMO_RUNTS_NAME)]" + MARK)], (TM,)),
     ("Ammo Runts: the once-per-battle spend is not recorded",
-     [(OAR, "        squad.ammo_runts_used = True", "        pass" + MARK)], (TM,)),
+     [(OAR, "        setattr(squad, self.USED_ATTR, True)", "        pass" + MARK)], (TM,)),
     ("Ammo Runts: offered outside your Shooting phase",
      [(OAR,) + gone("        if tt is not None and (tt.phase != PHASE_SHOOTING or squad.owner != tt.turn_owner):",
                     "            return \"not your Shooting phase\"")], (TM,)),

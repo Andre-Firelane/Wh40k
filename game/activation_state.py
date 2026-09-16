@@ -145,6 +145,15 @@ SQUAD_FLAGS = (
     "rokkit_charge_active",
     # War Horde's Da Boss is Watchin': once per battle per army, a spend.
     "da_boss_is_watchin_used",
+    # The 2026-09 Ork characters: Boss' Ammo Runt's spend and phase grant,
+    # the round the two boss motivations were used in (a battle-round number,
+    # the one non-boolean spend here besides the Silent King's choice), and
+    # Catch Dat Red Bit's spend.
+    "boss_ammo_runt_used",
+    "boss_ammo_runt_active",
+    "intimidating_motivation_round",
+    "keep_huntin_round",
+    "catch_dat_red_bit_used",
     "flickerjump_active",
     # battle-scoped spend: once per battle each, so this only ever grows
     "aspect_shrine_tokens_used",

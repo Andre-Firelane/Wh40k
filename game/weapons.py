@@ -1,5 +1,5 @@
 from game.dice_notation import D3, D6, describe
-from game.keyword_condition import MONSTER_OR_VEHICLE_TARGETS, NON_MONSTER_VEHICLE_TARGETS  # noqa: F401 - the two printed conditions, used by the weapon classes below
+from game.keyword_condition import INFANTRY_TARGETS, MONSTER_OR_VEHICLE_TARGETS, NON_MONSTER_VEHICLE_TARGETS  # noqa: F401 - the printed conditions, used by the weapon classes below
 
 #: A sentinel keyword for the NEGATED form of [ANTI-X], which no ordinary
 #: keyword entry can express: the Stonesinger prints "ANTI-non-MONSTER/VEHICLE
@@ -64,7 +64,6 @@ class WeaponProfile:
     # condition is entirely "the attack was made with THIS weapon", so the
     # weapon is where the flag actually belongs (same shape as
     # devastating_wounds above, which is the closest core-rule analogue).
-    hold_still = False       # Painboy's "Hold Still and Say 'Aargh!'" - each critical WOUND this weapon scores against a non-VEHICLE unit inflicts D6 mortal wounds on it, on top of the attack itself; see game/hold_still.py
 
 
 def anti_entries(weapon):
@@ -204,15 +203,10 @@ def printed_keywords(weapon):
     the printed row, and a caller that hands it a runtime-adjusted copy gets
     that copy's answer, which is what such a caller is asking for.
 
-    NOT included: `hold_still`. Its own comment in WeaponProfile says why -
-    it is printed as a UNIT ability whose condition happens to name one
-    weapon, not as a keyword in that weapon's keyword column. Painboy's
-    printed row is empty there, and inventing an entry would be the card
-    claiming something the datasheet does not say. The same holds for the
-    three datasheet-specific weapon abilities this engine deliberately does
-    not model (Dead Choppy, Snagged, Linked Fire) - each is documented as
-    unmodeled where its weapon is defined, and printing them would promise a
-    rule that no code enforces.
+    NOT included: the three datasheet-specific weapon abilities this engine
+    deliberately does not model (Dead Choppy, Snagged, Linked Fire) - each is
+    documented as unmodeled where its weapon is defined, and printing them
+    would promise a rule that no code enforces.
     """
     printed = _printed_anti(weapon)
     # Rule 24.01's conditional abilities print the keyword, a colon and the
@@ -290,23 +284,6 @@ class ShootaProfile(WeaponProfile):
     damage = 1
     rapid_fire = 1
     conditional_keywords = (("lethal_hits", True, NON_MONSTER_VEHICLE_TARGETS),)
-
-
-class KombiWeaponProfile(WeaponProfile):
-    """Unselected Profiles alternate, real stat line (user-supplied,
-    corrects two earlier guesses here - KombiShootaProfile/KombiRokkitProfile
-    - that didn't match any actual printed Boyz datasheet stat line and are
-    now removed)."""
-    name = "Kombi-weapon"
-    weapon_type = RANGED
-    range_in = 24
-    attacks = 1
-    strength = 4
-    ap = 0
-    damage = 1
-    anti = ("INFANTRY", 4)
-    devastating_wounds = True
-    rapid_fire = 1
 
 
 class SluggaProfile(WeaponProfile):
@@ -467,82 +444,43 @@ class ScavengedShivsProfile(WeaponProfile):
 
 
 # --- Warboss (Orks) datasheet, see game/factions/orks.py ---
-# "Kombi-weapon" is NOT a new class - the Warboss's printed stat line (range
-# 24", A1, S4, AP0, D1, Anti-Infantry 4+, Devastating Wounds, Rapid Fire 1)
-# is word-for-word identical to KombiWeaponProfile above (Boyz's own
-# Unselected Profiles entry), so it's reused as-is.
+# The 2026-09 codex rebuilt the loadout. His Kustom Shoota is KustomShootaProfile
+# (the Boyz Nob's row) and his Kombi-rokkit / Kombi-skorcha are the Boyz Nob's
+# Kombi chains below; his Kustom Choppa and Power Klaw print the Nob's NAMES with
+# the Warboss's own numbers, so they are their own classes. The pre-codex Twin
+# Slugga, Big Choppa, Kombi-weapon and Attack Squig are no longer printed.
 
-class TwinSluggaProfile(WeaponProfile):
-    """Warboss's own "Twin slugga" (A2 S4 AP0 D1, Pistol/Twin-linked) - a
-    distinct, stronger class from the rank-and-file SluggaProfile (A1, no
-    Twin-linked), same "same weapon family, different stat line for this
-    datasheet" pattern as OrkCloseCombatWeaponProfile vs the plain
-    CloseCombatWeaponProfile."""
-    name = "Twin Slugga"
-    weapon_type = RANGED
-    range_in = 12
-    attacks = 2
-    strength = 4
-    ap = 0
-    damage = 1
-    pistol = True
-    twin_linked = True
-
-
-class AttackSquigProfile(WeaponProfile):
-    """The Warboss's own "Attack squig" (Melee, A2, WS4+, S4, AP0, D1,
-    [EXTRA ATTACKS]) - a wargear item rather than a weapon swap, so
-    [EXTRA ATTACKS] (24.11) is what lets it bite alongside whatever the
-    Warboss himself swings under rule 04.01. Its WS4+ is worse than the
-    Warboss's own 2+, hence the per-weapon override."""
-    name = "Attack Squig"
+class WarbossKustomChoppaProfile(WeaponProfile):
+    """Warboss (2026-09 Ork codex): Kustom Choppa, A6 WS2+ S7 AP-2 D2, [CLEAVE 2].
+    Not the Boyz Nob's KustomChoppaProfile (A4 S5, no Cleave) - same printed
+    name, different numbers."""
+    name = "Kustom Choppa"
     weapon_type = MELEE
     range_in = 2
-    attacks = 2
-    weapon_skill = "4+"  # printed on the weapon, worse than the Warboss's own 2+
-    strength = 4
-    ap = 0
-    damage = 1
-    extra_attacks = True
-
-
-class WarbossBigChoppaProfile(WeaponProfile):
-    """Warboss's own "Big choppa" (A5 S8 AP-1 D2) - a distinct, stronger
-    stat line from the Boyz Nob's Big Choppa (BigChoppaProfile: A4 S7 AP-1 D2
-    [CLEAVE 2] since the 2026-09 codex) - same printed name, different
-    numbers, so it is named distinctly rather than reusing BigChoppaProfile."""
-    name = "Big Choppa"
-    weapon_type = MELEE
-    range_in = 2
-    attacks = 5
-    strength = 8
-    ap = -1
+    attacks = 6
+    strength = 7
+    ap = -2
     damage = 2
+    cleave = 2
 
 
 class WarbossPowerKlawProfile(WeaponProfile):
-    """Warboss's own "Unselected Profiles" alternate Power klaw (A4 WS3+
-    S10 AP-2 D2) - a distinct, stronger stat line from Boyz/Stormboyz/
-    Warbikers' shared PowerKlawProfile (A3 WS4+ S9 AP-2 D2). Not wired as a
-    Warboss wargear option (no swap-rule text given), same documented gap as
-    every other datasheet's own Unselected Profiles entries."""
+    """Warboss (2026-09 Ork codex): Power Klaw, A6 WS2+ S12 AP-2 D2 - what his
+    Kustom Choppa can be replaced with. Not the PowerKlawProfile Boyz, Stormboyz
+    and Meganobz print (A3 WS3+ S10). The WS2+ is the Warboss's own, so there is
+    no weapon_skill override."""
     name = "Power Klaw"
     weapon_type = MELEE
     range_in = 2
-    attacks = 4
-    weapon_skill = "3+"
-    strength = 10
+    attacks = 6
+    strength = 12
     ap = -2
     damage = 2
 
 
 # --- Meganobz (Orks) datasheet, see game/factions/orks.py ---
-# "Kombi-weapon" (Unselected Profiles) is NOT a new class - identical stat
-# line to KombiWeaponProfile above (Boyz' own Unselected Profiles entry,
-# already reused as-is by Warboss). "Power klaw" (both the actual default
-# loadout AND the Unselected Profiles reference) is NOT a new class either
-# - identical stat line (A3 WS4+ S9 AP-2 D2) to the existing PowerKlawProfile
-# (Boyz/Stormboyz/Warbikers' shared Boss Nob upgrade), reused as-is.
+# The Power Klaw is PowerKlawProfile above (the row Boyz and Stormboyz print);
+# the Kombi-weapon is the three-profile chain in the Kombi block below.
 
 class KustomShootaProfile(WeaponProfile):
     """A Boyz Nob's Kustom Shoota (2026-09 Ork codex): 18" A4 BS5+ S4 AP0 D1,
@@ -713,18 +651,27 @@ class KustomChoppaProfile(WeaponProfile):
 
 
 # --- Warboss in Mega Armour (Orks) datasheet, see game/factions/orks.py ---
-# "Big shoota" is NOT a new class - the printed stat line (range 36", A3,
-# S5, AP0, D1, Rapid Fire 2) is word-for-word identical to BigShootaProfile
-# above (Trukk's own weapon), so it's reused as-is.
+
+class BigShootaS5Profile(BigShootaProfile):
+    """The S5 Big Shoota row (2026-09 Ork codex): 36" A3 S5 AP0 D1,
+    [LETHAL HITS: non-MONSTER/VEHICLE], [RAPID FIRE 2]. Printed by the Warboss in
+    Mega Armour (at his own BS4+) - and by the Battlewagon and the Deff Dread,
+    which keep BigShootaProfile until their own codex stage. The Boyz print the
+    same row at S4, so this is a subclass that changes that one number."""
+    strength = 5
+
 
 class UgeChoppaProfile(WeaponProfile):
+    """Warboss in Mega Armour (2026-09 Ork codex): 'Uge Choppa, A5 WS2+ S12 AP-2
+    D3, [CLEAVE 2]."""
     name = "'Uge Choppa"
     weapon_type = MELEE
     range_in = 2
-    attacks = 4
+    attacks = 5
     strength = 12
     ap = -2
-    damage = 2
+    damage = 3
+    cleave = 2
 
 
 # --- Tankbustas (Orks) datasheet, see game/factions/orks.py ---
@@ -965,47 +912,26 @@ class ThumpGunProfile(WeaponProfile):
 
 
 # --- Beastboss (Orks) datasheet, see game/factions/orks.py ---
-# "Shoota" is NOT a new class - the printed stat line (18", A2, S4, AP0, D1,
-# Rapid Fire 1) is word-for-word identical to ShootaProfile above (Boyz'
-# own Unselected Profiles entry), and it deliberately has no
-# ballistic_skill of its own, so it correctly picks up the Beastboss's own
-# BS4+ rather than the BS5+ a Boy would shoot it at.
-#
-# Both melee weapons below carry Anti-Monster 4+ AND Anti-Vehicle 4+ - the
-# first REAL, fielded loadout to print two [ANTI-X] keywords at once, which
-# is what generalized WeaponProfile.anti from a single tuple to a sequence
-# (see its own note; Smash Hammer had the same pair but only as an
-# Unselected Profile, and lost half of it until now).
+# His Shoota is ShootaProfile, at the Beastboss's own BS4+.
 
-class BeastSnaggaKlawProfile(WeaponProfile):
-    """Beastboss's heavy melee weapon (A4 WS3+ S10 AP-2 D2). Its WS3+ does
-    NOT match this model's own printed WS - see BeastchoppaProfile below
-    and BeastbossProfile's own note on why the profile carries 2+ and this
-    weapon overrides."""
-    name = "Beast Snagga Klaw"
-    weapon_type = MELEE
-    range_in = 2
-    attacks = 4
-    weapon_skill = "3+"  # printed on the weapon, worse than the Beastboss's own 2+
-    strength = 10
-    ap = -2
-    damage = 2
-    anti = (("MONSTER", 4), ("VEHICLE", 4))
+class BeastSnaggaKlawAndBeastchoppaProfile(WeaponProfile):
+    """Beastboss (2026-09 Ork codex): Beast Snagga Klaw and Beastchoppa - ONE
+    printed melee weapon, A6 WS2+ S12 AP-2 D2, [SUSTAINED HITS 2: MONSTER/VEHICLE].
 
-
-class BeastchoppaProfile(WeaponProfile):
-    """Beastboss's fast melee weapon (A6 WS2+ S6 AP-1 D2) - more attacks and
-    a better hit roll than the klaw, but less Strength and AP, so the two
-    are a genuine per-activation choice under rule 04.01 (only one melee
-    weapon per model per fight), not one strictly better profile."""
-    name = "Beastchoppa"
+    The pre-codex sheet printed the two as separate weapons, each with
+    [ANTI-MONSTER 4+] and [ANTI-VEHICLE 4+], and was the first fielded loadout
+    that needed WeaponProfile.anti to hold a pair; Beast Snagga Boyz' Power
+    Snappa and Thump Gun carry that pair today."""
+    name = "Beast Snagga Klaw and Beastchoppa"
     weapon_type = MELEE
     range_in = 2
     attacks = 6
-    strength = 6
-    ap = -1
+    strength = 12
+    ap = -2
     damage = 2
-    anti = (("MONSTER", 4), ("VEHICLE", 4))
+    conditional_keywords = (("sustained_hits", 2, MONSTER_OR_VEHICLE_TARGETS),)
+
+
 
 
 # --- Kill Rig (Orks) datasheet, see game/factions/orks.py ---
@@ -1245,33 +1171,39 @@ class DeffRollaProfile(WeaponProfile):
 # --- Painboy (Orks) datasheet, see game/factions/orks.py ---
 
 class UrtySyringeProfile(WeaponProfile):
-    """Painboy's "'Urty syringe" (Melee, A1, WS3+, S2, AP0, D1,
-    [ANTI-INFANTRY 4+], [EXTRA ATTACKS], [PRECISION]).
+    """Painboy (2026-09 Ork codex): 'Urty Syringe, A1 WS3+ S2 AP0 D D6,
+    [ANTI-INFANTRY 4+], [DEVASTATING WOUNDS: INFANTRY], [EXTRA ATTACKS].
 
-    No `weapon_skill` override even though the datasheet prints WS3+ on the
-    weapon: that IS PainboyProfile's own Weapon Skill, so the printed value
-    is not an override at all (see WeaponProfile.weapon_skill's own note -
-    None means "use the wielder's"). Its Power klaw is the one that really
-    deviates, and that profile already carries its own 4+.
-
-    [EXTRA ATTACKS] (24.11) is what makes this datasheet's two melee weapons
-    both swing in the same activation despite rule 04.01 - same shape as the
-    Warboss's Attack Squig - and it is what makes the combination with
-    [ANTI-INFANTRY 4+] the point of the model: against INFANTRY a wound roll
-    of 4+ is a CRITICAL wound (24.03), and each critical wound is what "Hold
-    Still and Say 'Aargh!'" turns into D6 mortal wounds. `hold_still` below
-    is that ability's hook - see game/hold_still.py."""
+    [EXTRA ATTACKS] (24.11) is what lets it swing beside his Dok's Toolz under
+    rule 04.01. Against INFANTRY a Wound roll of 4+ is a critical wound (24.03)
+    and, by rule 24.01's condition, a devastating one - so its D6 goes past the
+    save. The pre-codex Hold Still and Say 'Aargh!' and [PRECISION] are gone.
+    `damage` is the grouping placeholder every notation weapon carries (the
+    die's maximum, as on the Wreckin' Ball)."""
     name = "'Urty Syringe"
     weapon_type = MELEE
     range_in = 2
     attacks = 1
     strength = 2
     ap = 0
-    damage = 1
+    damage = 6
+    damage_notation = D6()
     anti = ("INFANTRY", 4)  # [ANTI-INFANTRY 4+], rule 24.03
     extra_attacks = True    # [EXTRA ATTACKS], rule 24.11
-    precision = True        # [PRECISION], rule 24.28
-    hold_still = True       # Painboy's "Hold Still and Say 'Aargh!'" - see game/hold_still.py
+    conditional_keywords = (("devastating_wounds", True, INFANTRY_TARGETS),)
+
+
+class DoksToolzProfile(WeaponProfile):
+    """Painboy (2026-09 Ork codex): Dok's Toolz, A3 WS3+ S10 AP-2 D2. The
+    pre-codex ABILITY of that name (Feel No Pain 5+ for the led unit) is no
+    longer printed; the name now belongs to this weapon."""
+    name = "Dok's Toolz"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    strength = 10
+    ap = -2
+    damage = 2
 
 
 # --- Strike Team (T'au Empire) datasheet ---

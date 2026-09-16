@@ -1210,6 +1210,29 @@ for _real, _names in _ALIASES.items():
     if _REACHABLE & _names:
         _REACHABLE.add(_short)
 
+# A BASE that defines panel_label() reaches the panel through a registered
+# SUBCLASS - game/boss_motivation.py writes the button once for Intimidating
+# Motivation and Keep Huntin'!, and registers only the two subclasses. The
+# method runs on the subclass instance, so the base is reachable exactly when
+# one of its subclasses is; a base none of whose subclasses is registered still
+# fails below.
+_BASES = {}
+for _name in sorted(os.listdir("game")):
+    if not _name.endswith(".py"):
+        continue
+    for _cls in ast.walk(ast.parse(io.open(os.path.join("game", _name), encoding="utf-8").read())):
+        if isinstance(_cls, ast.ClassDef):
+            _BASES.setdefault(_cls.name, set()).update(
+                _b.id for _b in _cls.bases if isinstance(_b, ast.Name))
+_grew = True
+while _grew:
+    _grew = False
+    for _sub in list(_REACHABLE):
+        for _base in _BASES.get(_sub, ()):
+            if _base not in _REACHABLE:
+                _REACHABLE.add(_base)
+                _grew = True
+
 _WANTS_BUTTON = {}
 for _name in sorted(os.listdir("game")):
     if not _name.endswith(".py"):
@@ -1261,10 +1284,11 @@ print("\n=== 15. end-of-phase offers use a window, not the phase ===")
 #
 # ONLY offer_at_end_*, deliberately. A START-of-phase offer reads the live
 # clock CORRECTLY: it fires once the clock has already become the phase it
-# names, which is why game/grot_orderly.py's `phase != PHASE_COMMAND` is right
-# and must not be swept up here. Measured: 24 controllers have some offer_at_*
-# method, 14 of them an end-of-phase one, and exactly one of the other ten
-# reads the clock - the start-of-phase case just described.
+# names, which is why a start-of-phase `phase != PHASE_COMMAND` is right and
+# must not be swept up here (the retired game/grot_orderly.py was the one such
+# can_use()). Measured at the 2026-09 Ork characters stage: 32 controllers have
+# some offer_at_* method, 16 of them an end-of-phase one, and none of the other
+# sixteen reads the clock in can_use() any more.
 _END_OFFERS, _LIVE_CLOCK = [], []
 for _name in sorted(os.listdir("game")):
     if not _name.endswith(".py"):
@@ -2457,5 +2481,41 @@ for _path in (os.path.join("game", "shooting.py"), os.path.join("game", "fight.p
                 _raw.append("%s:%d" % (_path.replace(os.sep, "/"), _n.lineno))
 ck.true("the sweep is live - it found the extra-dice calls (%d)" % _extra_calls, _extra_calls >= 6)
 ck.eq("every one is handed self._adjusted_weapon(...), never the printed weapon", _raw, [])
+
+
+# --- 28. the AI answers an allocation it OWNS from the one shared list -------
+print("--- 28. take_one_action() is handed damage_choice_controllers ---")
+# The mirror of section 12, on the AI's side. Section 12 makes every controller
+# that can wait for a model click PAUSE the AI when the choice is the HUMAN's;
+# nothing made the AI ANSWER one that is its own. _take_one_action() carried a
+# hand-picked list of twelve, so an allocation from any other carrier - measured
+# with the Warboss in Mega Armour's Krushin' Impetus hitting a Necron Warriors
+# unit - sat on the AI's side for good and held the phase. The fix passes
+# main.py's one list; this pins both ends, so a thirteenth hand-picked name is
+# never again the only way in.
+_AGENT_TREE = ast.parse(io.open(os.path.join("ai", "agent_driver.py"), encoding="utf-8").read())
+_toa = [n for n in ast.walk(MAIN) if isinstance(n, ast.Call) and getattr(n.func, "id", None) == "take_one_action"]
+ck.true("the sweep is live - main() calls take_one_action() (%d)" % len(_toa), len(_toa) >= 1)
+ck.eq("every call passes damage_choice_controllers=damage_choice_controllers",
+      [n.lineno for n in _toa
+       if not any(k.arg == "damage_choice_controllers" and ast.unparse(k.value) == "damage_choice_controllers"
+                  for k in n.keywords)], [])
+_shared = next((n for n in ast.walk(MAIN) if isinstance(n, ast.Assign)
+                and any(ast.unparse(t) == "damage_choice_controllers" for t in n.targets)), None)
+ck.true("...and the list it passes is the real one (%d names)"
+        % (len(_shared.value.elts) if _shared is not None and isinstance(_shared.value, ast.Tuple) else 0),
+        _shared is not None and isinstance(_shared.value, ast.Tuple) and len(_shared.value.elts) >= 30)
+_tfn = next((n for n in _AGENT_TREE.body if isinstance(n, ast.FunctionDef) and n.name == "_take_one_action"), None)
+ck.true("_take_one_action() takes damage_choice_controllers",
+        _tfn is not None and "damage_choice_controllers" in [a.arg for a in _tfn.args.args + _tfn.args.kwonlyargs])
+_resolve = [n for n in ast.walk(_tfn) if isinstance(n, ast.Call)
+            and getattr(n.func, "id", None) == "_resolve_own_damage_choice"] if _tfn is not None else []
+_folds = [n for n in ast.walk(_tfn) if isinstance(n, ast.For)
+          and "damage_choice_controllers" in ast.unparse(n.iter)
+          and "controllers.append" in ast.unparse(n)] if _tfn is not None else []
+ck.true("...folds it into the resolver's list",
+        bool(_folds) and bool(_resolve) and _folds[0].lineno < _resolve[0].lineno)
+ck.true("...and hands that list to _resolve_own_damage_choice()",
+        bool(_resolve) and ast.unparse(_resolve[0].args[1]) == "controllers")
 
 ck.finish()

@@ -108,7 +108,8 @@ der NÄCHSTEN Phase, und wenn ein Mensch antwortet, noch weiter.
 → **§15** fängt jedes `offer_at_end_*`, dessen `can_use()` die Uhr liest. Sechs
 Fehler dieser Form über zwei Fraktionen.
 **Ausnahme, die kein Fehler ist:** ein START-of-phase-Angebot liest die Uhr
-RICHTIG — sie ist gerade zu dieser Phase geworden (`grot_orderly.py`).
+RICHTIG — sie ist gerade zu dieser Phase geworden (das mit Orks E3b stillgelegte
+`grot_orderly.py` war der eine solche Leser).
 
 **Ein Angebot NACH `advance_phase()`** bekommt `mover_before`, nie
 `turn_tracker.turn_owner` — der ist an dieser Naht schon geflippt.
@@ -145,7 +146,9 @@ Flag gehört in `activation_state.SQUAD_FLAGS_EXCLUDED`, ein bezahlter Grant in
 **Schadenszuteilung** → `pending_damage_choice` braucht DREI Dinge: einen
 Klick-Zweig, ein `draw_damage_choice_highlight()` und einen Eintrag in der
 KI-Pause `_any_pending_damage_choice()`.
-→ **§6** (klickbar + gezeichnet), **§12** (KI-Pause).
+→ **§6** (klickbar + gezeichnet), **§12** (KI-Pause). Gehört die Wahl der KI, beantwortet sie
+sie aus DERSELBEN Liste (`damage_choice_controllers`, an `take_one_action()` gereicht) → **§28**;
+ein neuer Eintrag in diesem Tupel ist damit für beide Seiten verdrahtet.
 **Und wer eine `MortalWoundAllocationSession` ÖFFNET, muss sie LEEREN können**
 (`pending_damage_choice` + `choose_damage_model` + die FNP-Etappe VOR dem
 `_pending is None`-Early-return) — sonst parkt sie gegen jedes Mehr-Modell-Ziel
@@ -425,6 +428,11 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
     dem Feld, das es liest, und `shooting.py` re-exportiert es unter dem alten privaten Namen,
     also bewegt sich keine Aufrufstelle (siehe `## Die Waffentabelle druckte auch die KEYWORDS
     nicht`).
+    Seither **`game/heal.py`** — Kernregel 02.02.04 (heilen, dann nicht-CHARACTER
+    wiederbeleben), aus `reanimation_protocols.reanimate()` gehoben, als Crude Surgery der
+    zweite Konsument wurde; `reanimation_protocols` re-exportiert. Daneben
+    **`game/per_army_round_limit.py`** — „einmal pro Schlachtrunde pro Armee" samt Spiegel auf
+    ein gespeichertes Squad-Flag, gelesen von beiden Boss-Motivationen.
     **Die teuerste Ausprägung ist NICHT "zwei Antworten", sondern "eine Stelle antwortet gar
     nicht".** Ein KEYWORD-Grant wird in dieser Engine regelmäßig an zwei ganz verschiedenen Orten
     gelesen: in der Adjuster-Kette (die Schadens-Mathematik — leicht zu verdrahten, leicht zu
@@ -4526,7 +4534,7 @@ dazukommen.
   Ethereal steht weiter allein, weil der User es so gesagt hat. **Die vierte hat VIER
   Anbindungen**, alle vier nachgereicht (User: "die charactere sind keinen squads zugeordnet") —
   siehe `### Die VIERTE T'au-Liste`.
-- **Orks — 14 Einheiten, 101 Modelle, 2005 pts** (seit E3a). Attached: Warboss + Painboy (SUPPORT) im 20er-Boyz-Mob,
+- **Orks — 14 Einheiten, 101 Modelle, 2025 pts** (seit E3b). Attached: Warboss + Painboy (SUPPORT) im 20er-Boyz-Mob,
   Beastboss in Beast Snagga Boyz (im Kill Rig), Warboss in Mega Armour bei den Meganobz (im
   Battlewagon). Stormboyz und Deffkoptas in Reserve.
 - **Death Guard — 16 Listeneinträge, 14 Einheiten nach zwei Anbindungen, 49 Modelle, 2020 pts**,
@@ -8199,7 +8207,8 @@ Spiellänge definieren.
   Armour), Painboy. Armeeregel Waaagh! (seit E1 der 2026-09-Codex: riled up + War Cry, siehe
   `## Die Ork-Armeeregel`), Detachment "War Horde" (seit E2 Codex-Stand: Get Stuck In, vier Enhancements,
   sechs Stratagems, siehe `## War Horde`); seit E3a stehen Boyz, Beast Snagga Boyz, Stormboyz,
-  Gretchin und Meganobz auf Codex-Stand (siehe `## Ork-Mobs`). Komplette
+  Gretchin und Meganobz auf Codex-Stand (siehe `## Ork-Mobs`), seit E3b auch Warboss, Warboss in
+  Mega Armour, Beastboss und Painboy (siehe `## Ork-Charaktere`). Komplette
   Punkteliste (58 Einträge).
 - **Aeldari** — Guardian Defenders, Storm Guardians, Striking Scorpions, Howling Banshees, Warp
   Spiders, Dire Avengers, Fire Dragons, Dark Reapers, Shining Spears, Windriders, Warlock Skyrunners,
@@ -9007,11 +9016,11 @@ byte-identisch (In-Memory-Vergleich über 255 Dateien, 0 Differenzen). Plan und 
   Eintrag, `force_dispositions.from_printed_list()` liest die Zeile, und `detachments.py` prüft die
   Deklaration einer Liste gegen die VEREINIGUNG. Die Ork-Liste bleibt bei Take and Hold.
 - **ÜBERGANG, bis die Datenblatt-Etappen landen:** der Korpus ist den gebauten Ork-Blättern
-  VORAUS (E0: alle 17, seit E3a noch **12**). `test_weapon_characteristics.py` führt sie in `CORPUS_AHEAD` — ihre Abweichungen werden
+  VORAUS (E0: alle 17, E3a 12, seit E3b noch **8**). `test_weapon_characteristics.py` führt sie in `CORPUS_AHEAD` — ihre Abweichungen werden
   GESAMMELT statt gefailt, und die Menge ist dreifach bewacht (nur `orks`; Anzahl ==
   `EXPECTED_AHEAD`; jedes gelistete Blatt MUSS noch abweichen, sonst raus). Jede Datenblatt-Etappe
   senkt die Zahl, die letzte löscht den Block samt drei Sonden. `verify_rules_vs_engine.py` meldet
-  bis dahin mehr Differenzen: E0 **173** (106 Ork-Zeilen), seit E3a **133** (66). Seit E2 spielt die Engine
+  bis dahin mehr Differenzen: E0 **173** (106 Ork-Zeilen), E3a **133** (66), seit E3b **115** (48). Seit E2 spielt die Engine
   denselben War-Horde-Text, den der Army-Rules-Leser zeigt.
 - **Getestet:** `test_datasheet_rules.py` → **145/145** (neu §6: eine COMMITTETE, ERFUNDENE Fixture
   `testdata/wahapedia_new_layout_blocks.html` — nur Markup, kein GW-Text, weil `.cache/`
@@ -9339,6 +9348,107 @@ Beast-Snagga-Einheit neben einer feindlichen MONSTER/VEHICLE (die Liste setzt ih
 Kill Rig) und der „Charge beendet"-Moment. `--neutralize` nimmt die Nähte per Import-Hook zurück, die
 Dateien auf der Platte bleiben unberührt.
 
+## Ork-Charaktere (2026-09-Codex): Warboss, Warboss in Mega Armour, Beastboss, Painboy — Etappe E3b
+
+Plan: `C:\Users\Andre\.claude\plans\transient-munching-boot.md`. Gedruckter Text in `rules/orks/*.md`,
+jedes Modul trägt ihn im Docstring. `armies/orks.json` bleibt minimal lauffähig: **14 Einheiten,
+101 Modelle, 2025 pts** (Warboss ohne Waffenwahl, Painboy ohne Gear; Golden Master bewegt nur die
+Boss-Zeilen: Boyz-Mob 355 → 325, Meganobz + WMA 305 → 350, Beast Snagga + Beastboss 165 → 170).
+
+| Fähigkeit | Träger | Modul | Naht |
+|---|---|---|---|
+| Boss' Ammo Runt | Warboss | `boss_ammo_runt.py` | Unterklasse von `ork_ammo_runts`' Controller; Angebot in `start_shooting()` NACH Ammo Runts, +1 Hit nur für die Gruppe des Warboss (`_attack_key()`-Term) |
+| Might Is Right | Warboss | `might_is_right.py` | +3 A / +2 S auf die Nahkampfwaffen DES MODELLS, wenn seine Einheit gechargt hat; Fight-Kette plus `_melee_attack_key()`-Term |
+| Dodge Dis! | Beastboss | `dodge_dis.py` | +1 Hit in BEIDEN `_hit_modifiers()`, per `unit_wide_ability()` (19.04) |
+| Intimidating Motivation / Keep Huntin'! | Warboss + WMA / Beastboss | `boss_motivation.py` | Registry-Knopf ohne CP, zwei Fenster über `on_move_started`/`on_move_finished` |
+| Krushin' Impetus | WMA | `krushin_impetus.py` | `MortalWoundOfferController` am Charge-Ende-Haken; ein W6 je SELBST engagiertem Modell, 3+ je eine MW |
+| Crude Surgery / Catch Dat Red Bit | Painboy | `crude_surgery.py` + `heal.py` | Beginn der eigenen Command-Phase, heilt 3 nach Kernregel 02.02.04; Red Bit +D3 einmal pro Schlacht |
+
+- **Dodge Dis! ist wörtlich gelesen** (User): die EIGENEN Angriffe der Einheit, beide Phasen.
+- **Die Boss-Motivationen** („at the start or end of this unit's move") sind ein Knopf, solange ein
+  Fenster offen ist: START = die Einheit war diese Phase weder bewegt, advanced noch stationär und
+  kein eigener Zug läuft; END = ihr Zug ist der zuletzt beendete und seither begann keiner.
+  Kandidaten sind befreundete ORKS- bzw. BEAST-SNAGGA-Einheiten in 6" (die eigene zählt mit), und
+  nur, wenn es etwas bringt (geschockt, oder riled up würde länger laufen — Fehlerklasse 5). Einer
+  direkt, mehrere als Brett-Pick mit Cancel, das nichts kostet. **Das Budget ist pro FÄHIGKEIT pro
+  Armee pro Schlachtrunde** (`game/per_army_round_limit.py`, der Verbrauch wird auf ein Squad-Flag
+  `*_round` gespiegelt, damit ein Save ihn behält): Warboss und WMA teilen Intimidating Motivation,
+  ein Beastboss hat Keep Huntin'! extra. KI über die Move-Haken mit `boss_motivation_choice()`
+  (geschockt zuerst, dann die punktstärkste).
+- **Krushin' Impetus hat KEIN Decline** (Würfeln kostet nichts und kann nur schaden); WELCHER Feind
+  ist ein Brett-Pick für den Menschen, `_best_damage_target` für die KI. Eine Einheit ohne lebenden
+  WMA würfelt nicht.
+- **Crude Surgery läuft automatisch** für jede Painboy-Einheit, WO sie auch steht: eine Einheit in
+  Reserve heilt vom Brett aus, Wiederbelebte kehren ohne Token in `squad.models` zurück. Auf dem
+  Brett setzt der MENSCH wiederbelebte Modelle über `ReturnPlacementController` (der seine eigenen
+  Platzierungen queut). **Catch Dat Red Bit wird nur gefragt, wenn mehr als 3 zu heilen sind** —
+  sonst kann das +D3 nicht landen —, mit „Save it for later"; KI ab 5 heilbaren Wunden
+  (`CATCH_DAT_RED_BIT_MIN_HEALABLE`). `catch_dat_red_bit_used` steht in `SQUAD_FLAGS`.
+- **`game/heal.py` (Extraktion am zweiten Konsumenten):** Kernregel 02.02.04 (erst beschädigte
+  heilen, dann nicht-CHARACTER-Modelle mit 1 Wunde wiederbeleben, 01.02.03-Deckel) war der Rumpf von
+  `reanimation_protocols.reanimate()`; das Modul re-exportiert.
+- **Die Warboss-Base bleibt 0.98"** statt der gedruckten 40 mm — benannte Abweichung: alle drei Bosse
+  stehen auf 50 mm, und drei Report-Suiten hängen an dieser Geometrie. Die einzige
+  `verify_rules_vs_engine.py`-Zeile der vier Blätter.
+- **Stillgelegt:** Ferocious Rage, Dok's Toolz, Hold Still, Grot Orderly (Module, Suiten, Felder,
+  Verdrahtung) und die Waffenklassen Attack Squig, Kombi-weapon, Twin Slugga, Big Choppa, Beast Snagga
+  Klaw/Beastchoppa.
+
+**DER FUND: die KI beantwortete eine eigene Zuteilung nur für zwölf Controller.** Im echten Spiel
+gemessen: Krushin' Impetus des Menschen auf 20 Necron Warriors — die 06.02-Wahl lag bei Player 2 und
+keine Wunde landete (`settled: False, open choice owner: Player 2, wounds lost: 0`), weil
+`_take_one_action()` eine handgepflegte Zwölferliste an `_resolve_own_damage_choice()` gab, während
+`main.py`s `damage_choice_controllers` 37 kennt. Fehlerklasse 10: die eine Liste wird jetzt an
+`take_one_action(damage_choice_controllers=)` gereicht und angefügt (die zwölf bleiben vorn für
+Aufrufer ohne sie). **Damit ist dieselbe Lücke für rund zwei Dutzend ältere Träger mit zu** (Living
+Lightning, Matter Absorption, Crimson Harvest, Eater Plague, Kroot Linebreakers, Crushing Strides,
+Isha's Fury, Grenade Pack, Grav-inhibitor, Flickerjump, Wraith Form, Drakolithe, Harvester of Souls,
+Monofilament Snare, Drain Life, Lord of the Storm, Malevolent Arcing, Lethal Ichor, Spore-laced,
+Sickening Impact, Internal Grenade Racks, Self-Destruction, Khaine's Vengeance) — gemessen ist nur
+der Krushin'-Fall, die anderen sind aus dem Code benannt. Wächter `test_event_chain_wiring.py` **§28**
+(beide Enden per AST).
+
+**Zwei Wächter mussten wachsen:** §14 zählt eine Basisklasse mit `panel_label()` als erreichbar,
+wenn eine registrierte Unterklasse sie erbt (`_BASES`-Fixpunkt); §25 löst Listener nur auf, wenn der
+Controller erst gebunden und dann registriert wird (`x = Class(...)`, `proactive_stratagems.add(x)`).
+**Mitwandernde Pins:** `test_transport_priority.py` (Boyz-mit-Warboss-Reichweite 24" → 18"),
+`test_army_select.py` (2005 → 2025), `test_weapon_characteristics.py` (`CORPUS_AHEAD` 12 → 8:
+Battlewagon, Deff Dread, Deffkoptas, Flash Gitz, Kill Rig, Tankbustas, Trukk, Warbikers),
+`test_player2_army.py`, `test_ork_wargear.py`, `test_ork_war_horde.py`, `test_return_placement.py`,
+`measure_crowded_movement.py`.
+
+**Ein alter Sondentreiber, zwei Befunde:** `ab_return_placement.py` trug `BASE = 132` gegen eine
+179-Prüfungen-Suite, meldete also jede BEISSENDE Sonde als NICHT beißend (jetzt gemessen), und
+stellte im TEXT-Modus zurück — unter Windows wurde jede sondierte Datei LF → CRLF, und
+`ab_necron_hypercrypt_legion.py --check` meldete plötzlich sechs Mehrzeilen-Anker als fehlend. Jetzt
+byte-genau; die neun Dateien sind zurück auf LF (`git diff --numstat` unverändert, autocrlf
+normalisiert ohnehin). Zwei seit Früherem veraltete Anker sind nachgezogen und beißen.
+
+**Getestet:** neu `test_ork_characters.py` (**228/228**, dreizehn Abschnitte — jede Fähigkeit durch
+ihren echten Controller, die Boss-Motivationen über einen echten `MovementController` und das echte
+`ActionPanel`, Crude Surgery mit echtem `SetupController`/`ReturnPlacementController`, die KI-Zuteilung
+durch `_take_one_action()` mit und ohne geteilte Liste) und `ab_ork_characters.py` (**50 Sonden,
+56 Suite-Läufe, alle beißend, keine stürzt ab**). `test_event_chain_wiring.py` **264/264**. Volle
+Regression **235 Suiten, ~22924 Prüfungen, 234 grün / 0 rot / 1 bekannt**, `run_tests.py --smoke`
+komplett grün, `selfplay.py map2 1500` Orks gegen Necrons in beiden Sitzordnungen exit 0 (die KI
+nimmt Boss' Ammo Runt). `verify_rules_vs_engine.py` **133 → 115** (48 Ork-Zeilen),
+`measure_crowded_movement.py` unverändert gedrängt **65 % / 217.2"**, isoliert **87 % / 292.2"**.
+
+**Im ECHTEN Spiel belegt** (`verify_ork_characters.py map2 3000`, Orks als Player 1; 17/17, unter
+`--neutralize` 8/8 Abwesenheitsprüfungen):
+
+| | gefixt | `--neutralize` |
+|---|---|---|
+| Boss' Ammo Runt / beide Motivationen / Krushin' am Live-Objekt | ja | nein |
+| Crude Surgery an `main()`s Command-Grenze | Painboy 3/3, beide Boys zurück, vom Menschen platziert | kein Aufruf |
+| Krushin' Impetus über `main()`s Charge-Listener | gewürfelt, KI teilt zu, **settled** | kein Wurf |
+| Intimidating Motivation auf `main()`s Panel | gezeichnet, Brett-Pick, verbraucht | nie gezeichnet |
+| Boss' Ammo Runt beim Schießen | gefragt, Ablehnen kostet nichts | nie gefragt |
+
+GESTELLT: Orks als Player 1, die zwei Verluste und die Uhr (Player 2s Fight) vor EINEM
+`advance_turn_phase()`, die WMA-Einheit neben der Necron-Einheit samt „Charge beendet"-Moment, Phase
+und Auswahl für D/E. `--neutralize` nimmt die Nähte per Import-Hook zurück.
+
 ## KI-Architektur
 
 `ai/agent_driver.py`, `ai/claude_agent.py`, `ai/observation.py`, `ai/planner_prompt.py`,
@@ -9500,7 +9610,9 @@ KI-Pfad.**
   verfehlten Charge (verfehlt + Nahkampfeinheit + Lücke ≤7"), War Cry (`war_cry_verdict`), der
   Waaagh!-Advance-Reroll (unter 4), War Horde (Da Boss is Watchin', Fungus-Fuel Injection,
   Close-Range Dakka, Hit 'Em Harder, Mow 'Em Down als `_handle_*` ohne `agent`; Breakin' Heads und
-  Orks Is Never Beaten über `auto_players` plus injiziertes Urteil), Ammo Runt, Grot Orderly,
+  Orks Is Never Beaten über `auto_players` plus injiziertes Urteil), Ammo Runt, Boss' Ammo Runt, die
+  zwei Boss-Motivationen (`boss_motivation_choice`), Catch Dat Red Bit (`catch_dat_red_bit_verdict`),
+  Krushin' Impetus' Zielwahl,
   Spirit of Gork — und die
   **gesamte Necron-Fraktion**: Reanimation Protocols samt Warriors-Reroll, Resurrection Orb,
   Technomancer, Matter Absorption, Living Lightning, Wraith Form und alle sechs
@@ -9753,7 +9865,8 @@ Kohaerenz per Konstruktion — er war nur nie jemandes Wahl.
     schon einmal eine ganze Einheit gekostet hat.
   - **`allow_engaged=True` plus der Validator der Faehigkeit**: 01.02.03 erlaubt engaged, wenn die
     Einheit ohnehin gebunden ist, und der Validator erzwingt genau das pro Position.
-- **VIER der acht sind verdrahtet** (Reanimation Protocols, Grot Orderly, Unquenchable Resolve,
+- **VIER der acht sind verdrahtet** (Reanimation Protocols, Crude Surgery — seit Orks E3b statt des
+  stillgelegten Grot Orderly —, Unquenchable Resolve,
   Curse of the Walking Pox); die anderen vier stehen mit ihrem Grund im Test, damit die fuenfte eine
   sichtbare Einzeiler-Aenderung ist.
 - **Aber eine FAEHIGKEIT zu verdrahten ist nicht dasselbe wie ihren TRICHTER zu verdrahten** (User:

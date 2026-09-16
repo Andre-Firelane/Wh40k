@@ -9,10 +9,11 @@ the config, and the Ork army is still built, still fielded and still played by
 the AI whenever that flag is passed. See test_player2_necron_army.py for the
 list that turns up by default.
 
-Every item on that list is modeled, including the three whose rules arrived
-after the datasheets did (the Warboss's Attack Squig, the Battlewagon's Zzap
-gun and the Flash Gitz' Ammo Runt) - those have their own suite in
-test_ork_wargear.py; here they only have to be present and free.
+Every item on that list is modeled, including the two whose rules arrived
+after the datasheets did (the Battlewagon's Zzap gun and the Flash Gitz' Ammo
+Runt) - those have their own suite in test_ork_wargear.py; here they only have
+to be present and free. The Warboss's Attack Squig and the Painboy's Grot
+Orderly went with the pre-codex character sheets.
 
 Builds the roster the same way main() does, rather than driving main()
 itself: that keeps the check about WHAT the army is, independent of
@@ -23,6 +24,8 @@ compares that hand-built roster against armies/orks.json's own build.
 The Boyz, Beast Snagga Boyz, Stormboyz, Gretchin and Meganobz lines follow the
 2026-09 codex datasheets (rules/orks/*.md): "Nob" model lines, no Runtherd,
 Meganobz priced at 2/3/5/6 models, and a Painboy that attaches as SUPPORT.
+The four characters (Warboss, Warboss in Mega Armour, Beastboss, Painboy)
+follow it too since the Ork characters stage; test_ork_characters.py owns them.
 """
 
 from testkit import Checks, GameState, build_squad
@@ -31,9 +34,9 @@ from game import attached_units
 from game import pregame
 from game.factions.orks import (
     BATTLEWAGON, BATTLEWAGON_ADD_BIG_SHOOTAS, BATTLEWAGON_ADD_ZZAP_GUN, BATTLEWAGON_ARD_CASE,
-    FLASH_GITZ_AMMO_RUNT, WARBOSS_ADD_ATTACK_SQUIG,
+    FLASH_GITZ_AMMO_RUNT,
     BEAST_SNAGGA_BOYZ, BEASTBOSS, BOYZ, BOYZ_NOB_TO_POWER_KLAW, DEFF_DREAD, DEFFKOPTAS,
-    FLASH_GITZ, GRETCHIN, KILL_RIG, MEGANOBZ, PAINBOY, PAINBOY_GROT_ORDERLY,
+    FLASH_GITZ, GRETCHIN, KILL_RIG, MEGANOBZ, PAINBOY,
     STORMBOYZ, STORMBOYZ_NOB_TO_POWER_KLAW,
     TANKBUSTAS, TANKBUSTAS_ADD_ROKKIT_LAUNCHA, TANKBUSTAS_BOSS_NOB_ADD_SMASH_HAMMER,
     TRUKK, WARBIKERS, WARBIKERS_ADD_POWER_KLAW, WARBOSS, WARBOSS_MEGA_ARMOUR,
@@ -65,27 +68,24 @@ def line_counts(squad):
 beastboss = build(BEASTBOSS)
 c.eq("Beastboss is one model", len(beastboss.models), 1)
 c.eq("Beastboss weapons", weapons(beastboss.models[0]),
-     ["Beast Snagga Klaw", "Beastchoppa", "Shoota"])
-c.eq("Beastboss points", beastboss.points, 80)  # the list's own 80 pts too
+     ["Beast Snagga Klaw and Beastchoppa", "Shoota"])
+c.eq("Beastboss points", beastboss.points, 85)  # the 2026-09 codex price
 
-warboss = build(WARBOSS, choices={"Warboss": {WARBOSS_ADD_ATTACK_SQUIG: 1}})
+warboss = build(WARBOSS)
 c.eq("Warboss is one model", len(warboss.models), 1)
-c.eq("Warboss weapons, Attack Squig included", weapons(warboss.models[0]),
-     ["Attack Squig", "Big Choppa", "Kombi-weapon", "Twin Slugga"])
-c.eq("the squig is free", warboss.points, build(WARBOSS, name="bare").points)
+c.eq("Warboss weapons", weapons(warboss.models[0]), ["Kustom Choppa", "Kustom Shoota"])
+c.eq("Warboss points", warboss.points, 100)
 
-painboy = build(PAINBOY, gear={"Painboy": [PAINBOY_GROT_ORDERLY]})
+painboy = build(PAINBOY)
 c.eq("Painboy is one model", len(painboy.models), 1)
-c.eq("Painboy weapons", weapons(painboy.models[0]), ["'Urty Syringe", "Power Klaw"])
-c.true("the Grot Orderly is on him", painboy.models[0].grot_orderly)
-c.eq("...and it is free", painboy.points, build(PAINBOY, name="bare doc").points)
-c.eq("Painboy points", painboy.points, 90)  # the list says 80 - see main.py's note
+c.eq("Painboy weapons", weapons(painboy.models[0]), ["'Urty Syringe", "Dok's Toolz"])
+c.eq("Painboy points", painboy.points, 45)
 
 warboss_mega = build(WARBOSS_MEGA_ARMOUR)
 c.eq("Warboss in Mega Armour is one model", len(warboss_mega.models), 1)
 c.eq("Warboss in Mega Armour weapons", weapons(warboss_mega.models[0]),
      sorted(["Big Shoota", "'Uge Choppa"]))
-c.eq("Warboss in Mega Armour points", warboss_mega.points, 80)  # matches the list
+c.eq("Warboss in Mega Armour points", warboss_mega.points, 125)
 
 
 # ---------------------------------------------------------------------------
@@ -217,7 +217,7 @@ c.eq("Kill Rig weapons", sorted(w.name for w in rig.models[0].weapons),
 state = GameState()
 bsb_unit = attached_units.attach(build(BEASTBOSS), build(BEAST_SNAGGA_BOYZ), game_state=state)
 c.eq("Beastboss + Beast Snagga Boyz is one 11-model unit", len(bsb_unit.models), 11)
-c.eq("...and its points are the sum", bsb_unit.points, 80 + 85)  # 85: the codex's 10-model price
+c.eq("...and its points are the sum", bsb_unit.points, 85 + 85)  # the Beastboss and the codex's 10-model mob
 
 mega_unit = attached_units.attach(build(WARBOSS_MEGA_ARMOUR),
                                   build(MEGANOBZ, composition_index=3), game_state=state)
@@ -356,10 +356,9 @@ c.eq("...while the Battlewagon still ranks it top",
 ROSTER = [
     attached_units.attach(build(BEASTBOSS), build(BEAST_SNAGGA_BOYZ), game_state=GameState()),
     attached_units.attach(
-        build(PAINBOY, name="roster doc", gear={"Painboy": [PAINBOY_GROT_ORDERLY]}),
+        build(PAINBOY, name="roster doc"),
         attached_units.attach(
-            build(WARBOSS, name="roster boss",
-                  choices={"Warboss": {WARBOSS_ADD_ATTACK_SQUIG: 1}}),
+            build(WARBOSS, name="roster boss"),
             build(BOYZ, name="roster mob", composition_index=1,
                   choices={"Nob": {BOYZ_NOB_TO_POWER_KLAW: 1}}, unit_index=1),
             game_state=GameState()),
@@ -390,7 +389,7 @@ c.true("every unit is priced", all(s.points is not None for s in ROSTER))
 # codex POINTS tables for the rebuilt Ork datasheets). The user's list totals
 # differently unit by unit - recorded in main.py's own note, with the
 # transcribed data left as the source of truth.
-c.eq("engine total", sum(s.points for s in ROSTER), 2005)
+c.eq("engine total", sum(s.points for s in ROSTER), 2025)
 c.eq("model count", sum(len(s.models) for s in ROSTER), 101)
 
 # The hand-built roster above is only worth checking if it IS the shipped

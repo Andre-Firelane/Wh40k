@@ -7,7 +7,7 @@ RULE (printed, word for word):
    units, with its full wounds remaining."
 
 PUTTING A MODEL BACK is a concept this engine already has exactly once - the
-Painboy's Grot Orderly (game/grot_orderly.py) - and both pieces it needed are
+Painboy's pre-codex Grot Orderly (since retired) - and both pieces it needed are
 therefore already in place:
 
   * Squad.destroyed_models. GameState.remove_dead_models() takes a dead Token

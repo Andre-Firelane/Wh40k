@@ -23,6 +23,13 @@ activation_state.SQUAD_FLAGS, so a save keeps both.
 
 "You can use this ability" is a real choice for a human (a once-per-battle
 resource). The AI uses it at its first opportunity (auto_players), 0 API calls.
+
+THE CONTROLLER HAS A SECOND CARRIER. The Warboss prints Boss' Ammo Runt with the
+same WHEN, the same spend ("Once per battle, per unit") and the same bonus - but
+for "this MODEL's ranged attacks". The offer, the spend and the phase grant are
+one machine, so they are knobs here (NAME, USED_ATTR, ACTIVE_ATTR, SUBJECT,
+USE_LABEL, has_ability) and game/boss_ammo_runt.py subclasses it; only the
+reach of the bonus differs, and that half lives beside each rule.
 """
 
 from game import ai_mode
@@ -59,21 +66,31 @@ def reset_phase(squads=()):
 
 
 class AmmoRuntsController:
+    #: The knobs a second carrier sets - see game/boss_ammo_runt.py.
+    NAME = AMMO_RUNTS_NAME
+    USED_ATTR = "ammo_runts_used"
+    ACTIVE_ATTR = "ammo_runts_active"
+    SUBJECT = "this unit's"
+    USE_LABEL = "Use Ammo Runts"
+
     def __init__(self, decision_manager=None, turn_tracker=None, game_log=None, auto_players=()):
         self.decision_manager = decision_manager
         self.turn_tracker = turn_tracker
         self.game_log = game_log
         self.auto_players = ai_mode.players(auto_players)
 
+    def has_ability(self, squad):
+        return has_ability(squad)
+
     def why_not(self, squad):
         """None when the ability may be used right now, else the reason."""
         if squad is None:
             return "no unit"
-        if not has_ability(squad):
-            return "this unit has no Ammo Runts"
-        if getattr(squad, "ammo_runts_used", False):
+        if not self.has_ability(squad):
+            return "this unit has no %s" % self.NAME
+        if getattr(squad, self.USED_ATTR, False):
             return "already used this battle"
-        if is_active(squad):
+        if getattr(squad, self.ACTIVE_ATTR, False):
             return "already in use"
         tt = self.turn_tracker
         if tt is not None and (tt.phase != PHASE_SHOOTING or squad.owner != tt.turn_owner):
@@ -94,10 +111,10 @@ class AmmoRuntsController:
             return False
         self.decision_manager.request(
             squad.owner,
-            f"{squad.name}: {AMMO_RUNTS_NAME} (once per battle) - +1 to hit rolls "
-            f"for this unit's ranged attacks this phase?",
+            f"{squad.name}: {self.NAME} (once per battle) - +1 to hit rolls "
+            f"for {self.SUBJECT} ranged attacks this phase?",
             [
-                ("Use Ammo Runts", lambda s=squad: self.use(s)),
+                (self.USE_LABEL, lambda s=squad: self.use(s)),
                 ("Save it for later", lambda: None),
             ],
         )
@@ -106,12 +123,14 @@ class AmmoRuntsController:
     def use(self, squad):
         if not self.can_use(squad):
             return False
-        squad.ammo_runts_used = True
-        squad.ammo_runts_active = True
+        setattr(squad, self.USED_ATTR, True)
+        setattr(squad, self.ACTIVE_ATTR, True)
         if self.game_log is not None:
-            self.game_log.add(f"{squad.name} uses {AMMO_RUNTS_NAME}: +1 to hit rolls for its "
-                              "ranged attacks this phase.")
+            self.game_log.add(f"{squad.name} uses {self.NAME}: +1 to hit rolls for "
+                              f"{self.SUBJECT} ranged attacks this phase.")
         return True
 
     def reset_phase(self, squads=()):
-        reset_phase(squads)
+        for squad in squads or ():
+            if getattr(squad, self.ACTIVE_ATTR, False):
+                setattr(squad, self.ACTIVE_ATTR, False)

@@ -554,11 +554,13 @@ with settings_as(**WH):
     S["shooting"].active_squad = None
     _choppa = melee_of(A.models[0])
     c.true("...melee weapons untouched", crd.adjusted_weapon(_choppa, A) is _choppa)
-    _kombi_boss = tk.build(ork.WARBOSS, ORK, name="1 Warboss 9")
+    # The Warboss in Mega Armour's Big Shoota prints [RAPID FIRE 2] (the
+    # pre-codex Warboss's Kombi-weapon, which stood here, is retired).
+    _kombi_boss = tk.build(ork.WARBOSS_MEGA_ARMOUR, ORK, name="1 Warboss in Mega Armour 9")
     _kombi_boss.close_range_dakka_active = True
-    _kombi = ranged_of(_kombi_boss.models[0], "Kombi-weapon")
-    c.eq("an existing [RAPID FIRE 1] becomes [RAPID FIRE 2]",
-         crd.adjusted_weapon(_kombi, _kombi_boss).rapid_fire, (_kombi.rapid_fire or 0) + 1)
+    _kombi = ranged_of(_kombi_boss.models[0], "Big Shoota")
+    c.eq("an existing [RAPID FIRE 2] becomes [RAPID FIRE 3]",
+         crd.adjusted_weapon(_kombi, _kombi_boss).rapid_fire, 3)
     c.eq("not twice", CTRL.can_use(A), False)
 
     FAR = dakka(gap=20.0)

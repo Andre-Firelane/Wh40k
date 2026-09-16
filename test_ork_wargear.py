@@ -1,6 +1,7 @@
-"""The three wargear items whose rules arrived after their datasheets:
-Battlewagon's Zzap gun (a dice-rolled Strength), the Warboss's Attack Squig,
-and Flash Gitz' Ammo Runt.
+"""The wargear items whose rules arrived after their datasheets:
+Battlewagon's Zzap gun (a dice-rolled Strength) and Flash Gitz' Ammo Runt.
+The Warboss's Attack Squig was a third, and went with the pre-codex Warboss
+(2026-09 Ork codex; test_ork_characters.py owns the new sheet).
 
 Run: python test_ork_wargear.py
 
@@ -16,10 +17,10 @@ from game import ammo_runt as ar
 from game.dice_notation import describe as describe_dice
 from game.factions.orks import (
     BATTLEWAGON, BATTLEWAGON_ADD_BIG_SHOOTAS, BATTLEWAGON_ADD_ZZAP_GUN, BATTLEWAGON_ARD_CASE,
-    BOYZ, FLASH_GITZ, FLASH_GITZ_AMMO_RUNT, WARBOSS, WARBOSS_ADD_ATTACK_SQUIG,
+    BOYZ, FLASH_GITZ, FLASH_GITZ_AMMO_RUNT,
 )
 from game.factions.tau_empire import DEVILFISH, STRIKE_TEAM
-from game.weapons import AttackSquigProfile, ZzapGunProfile
+from game.weapons import ZzapGunProfile
 
 c = Checks("Ork wargear")
 
@@ -130,29 +131,12 @@ c.eq("a Big Shoota goes straight to the wound roll", sc.pending_step, "wound")
 
 
 # ---------------------------------------------------------------------------
-# 3. Attack Squig
+# 3. (The Warboss's Attack Squig was here; the 2026-09 codex dropped it.)
 # ---------------------------------------------------------------------------
 
-squig = AttackSquigProfile()
-c.eq("melee", squig.weapon_type, "melee")
-c.eq("attacks", squig.attacks, 2)
-c.eq("strength", squig.strength, 4)
-c.eq("AP", squig.ap, 0)
-c.eq("damage", squig.damage, 1)
-c.eq("has [EXTRA ATTACKS]", squig.extra_attacks, True)
-c.eq("overrides WS down to 4+ (the Warboss himself is 2+)", squig.weapon_skill, "4+")
-
-boss = build(WARBOSS, name="Warboss", choices={"Warboss": {WARBOSS_ADD_ATTACK_SQUIG: 1}})
-c.eq("the Warboss carries it alongside everything else",
-     sorted(w.name for w in boss.models[0].weapons),
-     ["Attack Squig", "Big Choppa", "Kombi-weapon", "Twin Slugga"])
-c.eq("and it is free", boss.points, build(WARBOSS, name="W2").points)
-c.eq("the Warboss's own WS is unchanged", boss.models[0].profile.weapon_skill, "2+")
-# [EXTRA ATTACKS] (24.11) is what stops it competing with the Big Choppa
-# under rule 04.01 - the reason it can be a pure addition at all.
-melee = [w for w in boss.models[0].weapons if w.weapon_type == "melee"]
-c.eq("only one of its melee weapons competes under 04.01",
-     sum(1 for w in melee if not w.extra_attacks), 1)
+import game.weapons as _weapons
+c.true("the Attack Squig profile is gone with the pre-codex Warboss",
+       not hasattr(_weapons, "AttackSquigProfile"))
 
 
 # ---------------------------------------------------------------------------

@@ -9,7 +9,7 @@ from ai import deployment_ai
 from ai import observation as ai_observation
 from ai.agent_driver import AIMemory, take_one_action
 from ai.agent_driver import reactive_subroutines_destination, reactive_subroutines_move
-from ai.agent_driver import hyperphasing_choice, hyperphasic_recall_verdict, rokkit_charge_verdict, war_cry_verdict
+from ai.agent_driver import boss_motivation_choice, catch_dat_red_bit_verdict, hyperphasing_choice, hyperphasic_recall_verdict, rokkit_charge_verdict, war_cry_verdict
 from ai.claude_agent import ClaudeAgent
 # from ai.mock_agent import MockAgent  # free/offline alternative - no API key or network needed
 from game import attached_units, battle_focus, biomes, charge, config, consolidate, crushing_impact, enhancements, epic_challenge, explosives, fall_back, fight, firing_deck, greater_good, line_of_sight, maps, movement, overwatch, pregame, setup, shooting, starflare_ignition, status_effects, strands_of_fate
@@ -36,7 +36,11 @@ from game.fall_back import FallBackController
 from game.fieldcraft import apply_fieldcraft
 from game.grot_riggers import apply_grot_riggers
 from game import thievin_scavengers
-from game import ork_ammo_runts, rokkit_charge
+from game import boss_ammo_runt, ork_ammo_runts, rokkit_charge
+from game.boss_ammo_runt import BossAmmoRuntController
+from game.boss_motivation import IntimidatingMotivationController, KeepHuntinController
+from game.crude_surgery import CrudeSurgeryController
+from game.krushin_impetus import KrushinImpetusController
 from game.mobbed import MobbedController
 from game.ork_ammo_runts import AmmoRuntsController
 from game.rokkit_charge import RokkitChargeController
@@ -126,7 +130,6 @@ from game.suppression import SuppressionController
 from game.stealth_drones import StealthDronesController
 from game.starflare_ignition import StarflareIgnitionController
 from game.ammo_runt import AmmoRuntController
-from game.grot_orderly import GrotOrderlyController, unit_has_grot_orderly
 from game.reanimation_protocols import ReanimationProtocolsController
 from game.return_placement import ReturnPlacementController
 from game.technomancer import TechnomancerController
@@ -1099,6 +1102,12 @@ def main(map_key=None):
         decision_manager=decision_manager, turn_tracker=turn_tracker, game_log=game_log,
         auto_players=ai_players,
     )
+    # The Warboss's Boss' Ammo Runt - the same offer's second carrier, its own
+    # once-per-battle use (game/boss_ammo_runt.py).
+    boss_ammo_runt_controller = BossAmmoRuntController(
+        decision_manager=decision_manager, turn_tracker=turn_tracker, game_log=game_log,
+        auto_players=ai_players,
+    )
     # Kill Rig's Spirit of Gork (user-supplied): resolved at the start of
     # each Fight phase. The same auto_players shape as Ammo Runt above -
     # Player 2 is this project's AI throughout main.py, and per explicit
@@ -1108,16 +1117,10 @@ def main(map_key=None):
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
         all_tokens=state.tokens, auto_players=ai_players,
     )
-    # Painboy's Grot Orderly (user-supplied wargear): resolved in its owner's
-    # Command phase. Same auto_players shape again - per explicit user
-    # instruction the AI uses it deterministically at the first opportunity.
-    # It is handed SetupController's own position_valid() so "somewhere legal
-    # to put the returning models" means exactly what it means for a
-    # disembark or an ingress, rather than a second opinion that could drift.
-    # Fuegan's Unquenchable Resolve - the second ability in this engine that puts
-    # a destroyed model back (Grot Orderly below is the first), and it borrows
-    # that one's position_valid wiring for the same reason: the placement has to
-    # judge real ground. Its own Engagement Range clause is NOT in there and is
+    # Fuegan's Unquenchable Resolve puts a destroyed model back, and is handed
+    # SetupController's own position_valid() so the placement judges real
+    # ground - "somewhere legal" means what it means for a disembark or an
+    # ingress, rather than a second opinion that could drift. Its own Engagement Range clause is NOT in there and is
     # checked inside the module - position_valid() says outright that it does not
     # cover engagement.
     unquenchable_resolve_controller = UnquenchableResolveController(
@@ -1137,9 +1140,13 @@ def main(map_key=None):
             model, x, y, squad=model.squad,
         ),
     )
-    grot_orderly_controller = GrotOrderlyController(
+    # The Painboy's Crude Surgery ("In your Command phase, this unit heals 3
+    # wounds") and Catch Dat Red Bit, resolved at the start of its owner's
+    # Command phase through core rule 02.02.04's heal (game/heal.py). The AI
+    # answers the Red Bit through its injected verdict, 0 API calls.
+    crude_surgery_controller = CrudeSurgeryController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
-        game_state=state, auto_players=ai_players,
+        game_state=state, auto_players=ai_players, verdict=catch_dat_red_bit_verdict,
         position_valid=lambda model, x, y: setup_controller.position_valid(
             model, x, y, squad=model.squad,
         ),
@@ -1318,6 +1325,12 @@ def main(map_key=None):
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
         game_state=state, auto_players=ai_players, target_pick=_best_damage_target,
         battle_shock=battle_shock_controller,
+    )
+    # The Warboss in Mega Armour's Krushin' Impetus - Kroot Linebreakers with
+    # one stage less, on the same charge hook (game/krushin_impetus.py).
+    krushin_impetus_controller = KrushinImpetusController(
+        dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
+        game_state=state, auto_players=ai_players, target_pick=_best_damage_target,
     )
     wraith_form_controller = WraithFormController(
         dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
@@ -1752,6 +1765,7 @@ def main(map_key=None):
         all_tokens=state.tokens, movement_controller=movement_controller, terrain_areas=state.terrain_areas,
         decision_manager=decision_manager, greater_good=greater_good_controller, suppression=suppression_controller,
         ammo_runt=ammo_runt_controller, ork_ammo_runts=ork_ammo_runts_controller,
+        boss_ammo_runt=boss_ammo_runt_controller,
         advanced_scouting=advanced_scouting_controller,
         bounty_hunters=bounty_hunters_controller, oversight_drone=oversight_drone_controller,
         targeting_array=targeting_array_controller,
@@ -2041,7 +2055,7 @@ def main(map_key=None):
         auto_players=ai_players,
     )
     reanimation_controller.placer = return_placement_controller
-    grot_orderly_controller.placer = return_placement_controller
+    crude_surgery_controller.placer = return_placement_controller
     unquenchable_resolve_controller.placer = return_placement_controller
     # The Resurrection Orb is a SECOND DOOR into reanimation_protocols.reanimate()
     # - the army rule's own controller is not the only funnel (Fehlerklasse 9).
@@ -2381,6 +2395,9 @@ def main(map_key=None):
     # move"; see game/mobbed.py.
     charge_controller.on_charge_move_finished.append(
         mobbed_controller.on_charge_move_finished)
+    # The Warboss in Mega Armour's Krushin' Impetus - the same hook.
+    charge_controller.on_charge_move_finished.append(
+        krushin_impetus_controller.on_charge_move_finished)
     crushing_impact_controller = CrushingImpactController(
         stratagem_controller, dice_manager, charge_controller, all_tokens=state.tokens,
         turn_tracker=turn_tracker, game_log=game_log,
@@ -3083,6 +3100,27 @@ def main(map_key=None):
         game_log=game_log))
     da_boss_controller = proactive_stratagems.add(DaBossIsWatchinController(
         turn_tracker=turn_tracker, squads_provider=state.all_squads, game_log=game_log))
+    # The Warbosses' Intimidating Motivation and the Beastboss's Keep Huntin'!
+    # (game/boss_motivation.py): panel buttons for a human while the start or
+    # end window of the bearer's move is open, and the two move hooks for the
+    # AI (an injected choice, 0 API calls). APPENDED to the hook lists, never
+    # assigned - the reassignment that once silenced five listeners.
+    intimidating_motivation_controller = IntimidatingMotivationController(
+        turn_tracker=turn_tracker, movement_controller=movement_controller,
+        decision_manager=decision_manager, game_log=game_log,
+        squads_provider=state.all_squads, all_tokens=state.tokens,
+        auto_players=ai_players, choice=boss_motivation_choice)
+    keep_huntin_controller = KeepHuntinController(
+        turn_tracker=turn_tracker, movement_controller=movement_controller,
+        decision_manager=decision_manager, game_log=game_log,
+        squads_provider=state.all_squads, all_tokens=state.tokens,
+        auto_players=ai_players, choice=boss_motivation_choice)
+    proactive_stratagems.add(intimidating_motivation_controller)
+    proactive_stratagems.add(keep_huntin_controller)
+    movement_controller.on_move_started.append(intimidating_motivation_controller.on_move_started)
+    movement_controller.on_move_finished.append(intimidating_motivation_controller.on_move_finished)
+    movement_controller.on_move_started.append(keep_huntin_controller.on_move_started)
+    movement_controller.on_move_finished.append(keep_huntin_controller.on_move_finished)
 
     def _never_beaten_worth_it(attacker, defender):
         """The AI's rule (user decision): buy it when the incoming melee
@@ -4193,7 +4231,11 @@ def main(map_key=None):
         # Boyz' Ammo Runts and Stormboyz' Rokkit Charge: phase grants. Ammo
         # Runts' once-per-battle spend is a separate flag and survives.
         ork_ammo_runts.reset_phase({t.squad for t in state.tokens if t.squad is not None})
+        boss_ammo_runt.reset_phase({t.squad for t in state.tokens if t.squad is not None})
         rokkit_charge.reset_phase({t.squad for t in state.tokens if t.squad is not None})
+        # The boss motivations' END window never outlives its Movement phase.
+        intimidating_motivation_controller.reset_phase()
+        keep_huntin_controller.reset_phase()
         # Skorpekh Destroyers' Plasmacyte: "until the end of the phase". Its
         # once-per-battle-per-Plasmacyte spend count deliberately survives.
         plasmacyte.reset_phase({t.squad for t in state.tokens if t.squad is not None})
@@ -4598,19 +4640,12 @@ def main(map_key=None):
             # instant, and the SAME bonus-CP cap - an army with both gains one
             # bonus CP per battle round between them, not two.
             grand_strategist_controller.start_of_command_phase(turn_tracker.turn_owner)
-            # Painboy's Grot Orderly (user-supplied): "once per battle, in
-            # your Command phase". Offered to the phase's own turn owner
-            # only, like every other start-of-phase effect here.
-            # The NECRONS army rule. At the END of the Command phase, so it is
-            # driven from the phase_before branch further down - this comment
-            # sits here only because it is the sibling of the offer below.
-            grot_orderly_controller.offer_at_command_phase(
-                [
-                    sq for sq in {t.squad for t in state.tokens if t.squad is not None}
-                    if sq.owner == turn_tracker.turn_owner and unit_has_grot_orderly(sq)
-                ],
-                turn_tracker,
-            )
+            # The NECRONS army rule runs at the END of the Command phase, so it is
+            # driven from the phase_before branch further down.
+            # The Painboy's Crude Surgery: "In your Command phase, this unit
+            # heals 3 wounds" - resolved at the start, for the phase's own
+            # turn owner, wherever the unit is (a unit in reserves heals too).
+            crude_surgery_controller.begin_command_phase(state.all_squads(), turn_tracker.turn_owner)
         if turn_tracker.phase == PHASE_MOVEMENT:
             # The Monolith's Eternity Gate: "In your Movement phase (excluding
             # the first battle round)". The per-turn ledger is cleared first,
@@ -5127,6 +5162,7 @@ def main(map_key=None):
         living_lightning_controller, matter_absorption_controller,
         crimson_harvest_controller, eater_plague_controller,
         kroot_linebreakers_controller, crushing_strides_controller,
+        krushin_impetus_controller,
         # Isha's Fury, the Grenade Pack Flyover, the Grav-inhibitor Field and
         # Flickerjump - four more allocations belonging to the TARGET's owner.
         ishas_fury_controller, grenade_pack_controller,
@@ -5361,6 +5397,7 @@ def main(map_key=None):
             or crimson_harvest_controller.pending_damage_choice is not None
             or eater_plague_controller.pending_damage_choice is not None
             or kroot_linebreakers_controller.pending_damage_choice is not None
+            or krushin_impetus_controller.pending_damage_choice is not None
             or crushing_strides_controller.pending_damage_choice is not None
             or malevolent_souls_controller.is_busy
             or systematic_vigour_controller.is_busy
@@ -5563,6 +5600,10 @@ def main(map_key=None):
             close_range_dakka_controller=close_range_dakka_controller,
             hit_em_harder_controller=hit_em_harder_controller, mow_em_down_controller=mow_em_down_controller,
             breakin_heads_controller=breakin_heads_controller,
+            # The one list of controllers that can wait for a model click, so
+            # the AI answers an allocation it OWNS from every one of them - not
+            # just the twelve take_one_action() names by hand.
+            damage_choice_controllers=damage_choice_controllers,
         )
         # User: "ich würde den plan gerne ausführlicher in einem großen text
         # prompt sehen am anfang des gegnerischen zuges nachdem er erstellt
@@ -6084,7 +6125,7 @@ def main(map_key=None):
         crushing_impact_controller.on_dice_acknowledged()
         fall_back_controller.on_dice_acknowledged()
         spirit_of_gork_controller.on_dice_acknowledged()
-        grot_orderly_controller.on_dice_acknowledged()
+        crude_surgery_controller.on_dice_acknowledged()
         reanimation_controller.on_dice_acknowledged()
         coordinated_leadership_controller.on_dice_acknowledged()
         undying_legions_controller.on_dice_acknowledged()
@@ -6100,6 +6141,7 @@ def main(map_key=None):
         lord_of_the_storm_controller.on_dice_acknowledged()
         kroot_linebreakers_controller.on_dice_acknowledged()
         kroot_linebreakers_controller.resolve_pending_battle_shock()
+        krushin_impetus_controller.on_dice_acknowledged()
         wraith_form_controller.on_dice_acknowledged()
         internal_grenade_racks_controller.on_dice_acknowledged()
         self_destruction_controller.on_dice_acknowledged()
@@ -7200,6 +7242,14 @@ def main(map_key=None):
                     clicked = input_manager.token_at_event(state.tokens, board, event.pos)
                     if clicked is not None and clicked in kroot_linebreakers_controller.pending_damage_choice:
                         kroot_linebreakers_controller.choose_damage_model(clicked)
+            elif krushin_impetus_controller.pending_damage_choice is not None:
+                if (
+                    event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and board_rect_screen.collidepoint(event.pos)
+                ):
+                    clicked = input_manager.token_at_event(state.tokens, board, event.pos)
+                    if clicked is not None and clicked in krushin_impetus_controller.pending_damage_choice:
+                        krushin_impetus_controller.choose_damage_model(clicked)
             elif crushing_strides_controller.pending_damage_choice is not None:
                 if (
                     event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
@@ -8334,6 +8384,7 @@ def main(map_key=None):
         renderer.draw_damage_choice_highlight(board_surface, board, crimson_harvest_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, eater_plague_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, kroot_linebreakers_controller.pending_damage_choice)
+        renderer.draw_damage_choice_highlight(board_surface, board, krushin_impetus_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, crushing_strides_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, grenade_pack_controller.pending_damage_choice)
         renderer.draw_damage_choice_highlight(board_surface, board, grav_inhibitor_controller.pending_damage_choice)

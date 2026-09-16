@@ -359,28 +359,28 @@
   components: -
   Kill Rig x1 (100,85,65) ['Eavy Lobba, Butcha Boyz, Savage Horns and Hooves, Saw Blades, Stikka Kannon, Wurrtower] {}
   enhancements: -
-1 Beast Snagga Boyz 1 + Beastboss | embark | via=1 Kill Rig 1 | pts=165 | models=11
+1 Beast Snagga Boyz 1 + Beastboss | embark | via=1 Kill Rig 1 | pts=170 | models=11
   components: Beast Snagga Boyz/bodyguard, Beastboss/leader
   Beast Snagga Nob x1 (120,145,55) [Power Snappa, Slugga] {}
   Beast Snagga Boy x9 (120,145,55) [Choppa - Standard, Slugga] {}
-  Beastboss x1 (185,80,45) [Beast Snagga Klaw, Beastchoppa, Shoota] {}
+  Beastboss x1 (185,80,45) [Beast Snagga Klaw and Beastchoppa, Shoota] {}
   enhancements: -
 1 Battlewagon 1 | deploy | pts=160 | models=1
   components: -
   Battlewagon x1 (75,95,55) [Big Shoota, Big Shoota, Big Shoota, Big Shoota, Tracks and Wheels, Zzap Gun] {'Ard Case}
   enhancements: -
-1 Meganobz 1 + Warboss in Mega Armour | embark | via=1 Battlewagon 1 | pts=305 | models=7
+1 Meganobz 1 + Warboss in Mega Armour | embark | via=1 Battlewagon 1 | pts=350 | models=7
   components: Meganobz/bodyguard, Warboss in Mega Armour/leader
   Meganob x6 (120,100,130) [Kustom Shoota - Aimed, Power Klaw] {}
   Warboss in Mega Armour x1 (170,60,60) ['Uge Choppa, Big Shoota] {}
   enhancements: -
-1 Boyz 1 + Warboss + Painboy | deploy | pts=355 | models=22
+1 Boyz 1 + Warboss + Painboy | deploy | pts=325 | models=22
   components: Boyz/bodyguard, Warboss/leader, Painboy/support
   Nob x1 (70,140,60) [Kombi-skorcha - Shoota, Power Klaw] {}
   Nob x1 (70,140,60) [Kombi-skorcha - Shoota, Kustom Choppa] {}
   Boy x18 (70,140,60) [Choppa, Shoota, Slugga] {}
-  Warboss x1 (170,60,60) [Attack Squig, Big Choppa, Kombi-weapon, Twin Slugga] {}
-  Painboy x1 (150,65,105) ['Urty Syringe, Power Klaw] {Grot Orderly}
+  Warboss x1 (170,60,60) [Kustom Choppa, Kustom Shoota] {}
+  Painboy x1 (150,65,105) ['Urty Syringe, Dok's Toolz] {}
   enhancements: -
 1 Gretchin 1 | deploy | pts=45 | models=10
   components: -
@@ -430,28 +430,28 @@
   components: -
   Kill Rig x1 (100,85,65) ['Eavy Lobba, Butcha Boyz, Savage Horns and Hooves, Saw Blades, Stikka Kannon, Wurrtower] {}
   enhancements: -
-2 Beast Snagga Boyz 1 + Beastboss | embark | via=2 Kill Rig 1 | pts=165 | models=11
+2 Beast Snagga Boyz 1 + Beastboss | embark | via=2 Kill Rig 1 | pts=170 | models=11
   components: Beast Snagga Boyz/bodyguard, Beastboss/leader
   Beast Snagga Nob x1 (120,145,55) [Power Snappa, Slugga] {}
   Beast Snagga Boy x9 (120,145,55) [Choppa - Standard, Slugga] {}
-  Beastboss x1 (185,80,45) [Beast Snagga Klaw, Beastchoppa, Shoota] {}
+  Beastboss x1 (185,80,45) [Beast Snagga Klaw and Beastchoppa, Shoota] {}
   enhancements: -
 2 Battlewagon 1 | deploy | pts=160 | models=1
   components: -
   Battlewagon x1 (75,95,55) [Big Shoota, Big Shoota, Big Shoota, Big Shoota, Tracks and Wheels, Zzap Gun] {'Ard Case}
   enhancements: -
-2 Meganobz 1 + Warboss in Mega Armour | embark | via=2 Battlewagon 1 | pts=305 | models=7
+2 Meganobz 1 + Warboss in Mega Armour | embark | via=2 Battlewagon 1 | pts=350 | models=7
   components: Meganobz/bodyguard, Warboss in Mega Armour/leader
   Meganob x6 (120,100,130) [Kustom Shoota - Aimed, Power Klaw] {}
   Warboss in Mega Armour x1 (170,60,60) ['Uge Choppa, Big Shoota] {}
   enhancements: -
-2 Boyz 1 + Warboss + Painboy | deploy | pts=355 | models=22
+2 Boyz 1 + Warboss + Painboy | deploy | pts=325 | models=22
   components: Boyz/bodyguard, Warboss/leader, Painboy/support
   Nob x1 (70,140,60) [Kombi-skorcha - Shoota, Power Klaw] {}
   Nob x1 (70,140,60) [Kombi-skorcha - Shoota, Kustom Choppa] {}
   Boy x18 (70,140,60) [Choppa, Shoota, Slugga] {}
-  Warboss x1 (170,60,60) [Attack Squig, Big Choppa, Kombi-weapon, Twin Slugga] {}
-  Painboy x1 (150,65,105) ['Urty Syringe, Power Klaw] {Grot Orderly}
+  Warboss x1 (170,60,60) [Kustom Choppa, Kustom Shoota] {}
+  Painboy x1 (150,65,105) ['Urty Syringe, Dok's Toolz] {}
   enhancements: -
 2 Gretchin 1 | deploy | pts=45 | models=10
   components: -

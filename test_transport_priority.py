@@ -32,7 +32,7 @@ from game.factions.orks import (
     FLASH_GITZ_AMMO_RUNT, GRETCHIN, KILL_RIG, MEGANOBZ, STORMBOYZ,
     STORMBOYZ_NOB_TO_POWER_KLAW, TANKBUSTAS, TANKBUSTAS_ADD_ROKKIT_LAUNCHA,
     TANKBUSTAS_BOSS_NOB_ADD_SMASH_HAMMER, TRUKK, WARBIKERS, WARBIKERS_ADD_POWER_KLAW,
-    WARBOSS, WARBOSS_ADD_ATTACK_SQUIG, WARBOSS_MEGA_ARMOUR,
+    WARBOSS, WARBOSS_MEGA_ARMOUR,
 )
 
 c = Checks("transport passenger priority")
@@ -81,7 +81,7 @@ def ork_army():
     reg(meganobz, battlewagon.models[0])
 
     boyz1 = attached_units.attach(
-        mk(WARBOSS, "2 Warboss 1", choices={"Warboss": {WARBOSS_ADD_ATTACK_SQUIG: 1}}),
+        mk(WARBOSS, "2 Warboss 1"),
         mk(BOYZ, "2 Boyz 1", choices={"Nob": {BOYZ_NOB_TO_POWER_KLAW: 1}}),
         game_state=state,
     )
@@ -144,7 +144,10 @@ c.eq("Boyz 2 carries no character",
 # reach at or above the old 18" cut-off, so a priority list that merely
 # reordered candidates inside that filter would still never load them.
 c.eq("Flash Gitz reach", deployment_ai._max_ranged_range(squads["2 Flash Gitz 1"]), 24.0)
-c.eq("Boyz-with-Warboss reach", deployment_ai._max_ranged_range(squads["2 Boyz 1 + Warboss"]), 24.0)
+# 18", not the 24" it read while the pre-codex Warboss carried a Kombi-weapon:
+# the 2026-09 Warboss's Kustom Shoota and the Nobs' Kombi-skorchas are 18".
+# Still AT the old cut-off, which is all the claim above needs.
+c.eq("Boyz-with-Warboss reach", deployment_ai._max_ranged_range(squads["2 Boyz 1 + Warboss"]), 18)
 c.true("...and both are at/over the old passenger cut-off",
        min(deployment_ai._max_ranged_range(squads["2 Flash Gitz 1"]),
            deployment_ai._max_ranged_range(squads["2 Boyz 1 + Warboss"]))
