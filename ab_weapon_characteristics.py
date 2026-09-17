@@ -179,11 +179,12 @@ PROBES = [
      "test_weapon_characteristics.py", "test_weapon_characteristics.py",
      [('CORPUS_AHEAD = {\n    "orks": {\n',
        'CORPUS_AHEAD = {\n    "aeldari": {"Falcon"},\n    "orks": {\n'),
-      ("EXPECTED_AHEAD = 17\n", "EXPECTED_AHEAD = 18\n")]),
+      ("EXPECTED_AHEAD = 1\n", "EXPECTED_AHEAD = 2\n")]),
 
     ("(b) an Ork sheet leaves the set while it still differs",
      "test_weapon_characteristics.py", "test_weapon_characteristics.py",
-     [('        "Battlewagon", "Beast Snagga Boyz",', '        "Beast Snagga Boyz",')]),
+     # The Kill Rig is the one sheet left in the set since the vehicles stage.
+     [('        "Kill Rig",\n', '')]),
 
     ("(c) the ahead sheets stop being counted as different",
      "test_weapon_characteristics.py", "test_weapon_characteristics.py",

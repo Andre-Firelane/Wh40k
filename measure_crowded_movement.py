@@ -101,11 +101,11 @@ from ai import agent_driver
 from game import attached_units, config, line_of_sight, maps, squad as squad_module
 from game.factions import build_squad
 from game.factions.orks import (
-    BATTLEWAGON, BATTLEWAGON_ADD_BIG_SHOOTAS, BATTLEWAGON_ADD_ZZAP_GUN,
+    BATTLEWAGON, BATTLEWAGON_ADD_BIG_SHOOTAS,
     BEAST_SNAGGA_BOYZ, BEASTBOSS, BOYZ, BOYZ_NOB_TO_POWER_KLAW,
     DEFF_DREAD, DEFFKOPTAS, FLASH_GITZ, GRETCHIN, KILL_RIG, MEGANOBZ, PAINBOY,
     STORMBOYZ, STORMBOYZ_NOB_TO_POWER_KLAW, TANKBUSTAS, WARBIKERS,
-    WARBIKERS_ADD_POWER_KLAW, WARBOSS,
+    WARBOSS,
     WARBOSS_MEGA_ARMOUR,
 )
 from game.factions.tau_empire import (
@@ -145,8 +145,7 @@ def movers(state):
         game_state=state))
     add("Battlewagon", build_squad(
         BATTLEWAGON, owner="Player 2", name="Battlewagon",
-        choices={"Battlewagon": {BATTLEWAGON_ADD_BIG_SHOOTAS: 1,
-                                 BATTLEWAGON_ADD_ZZAP_GUN: 1}}))
+        choices={"Battlewagon": {BATTLEWAGON_ADD_BIG_SHOOTAS: 1}}))
     add("Meganobz + Warboss", attached_units.attach(
         build_squad(WARBOSS_MEGA_ARMOUR, owner="Player 2", name="Warboss in Mega Armour"),
         # composition_index 3 is the 6-model build since the 2026-09 codex
@@ -168,7 +167,6 @@ def movers(state):
             GRETCHIN, owner="Player 2", name=f"Gretchin {index}", unit_index=index))
         add(f"Warbikers {index}", build_squad(
             WARBIKERS, owner="Player 2", composition_index=0,
-            choices={"Boss Nob on Warbike": {WARBIKERS_ADD_POWER_KLAW: 1}},
             name=f"Warbikers {index}", unit_index=index))
     add("Stormboyz", build_squad(
         STORMBOYZ, owner="Player 2", composition_index=1,

@@ -1,7 +1,21 @@
-"""The wargear item whose rules arrived after its datasheet: the Battlewagon's
-Zzap gun (a dice-rolled Strength). The Warboss's Attack Squig and the Flash Gitz'
-Ammo Runt were two more, and went with their pre-codex sheets (2026-09 Ork codex;
-test_ork_characters.py and test_ork_specialists.py own the new ones).
+"""Two engine mechanisms that ORK wargear introduced and no shipped datasheet
+carries any more, kept honest on SYNTHETIC carriers - plus the retirement pins
+for the wargear that took them away.
+
+  1. A dice-notation STRENGTH characteristic (`WeaponProfile.strength_notation`,
+     ShootingController's "strength" pending step). Built for the Battlewagon's
+     Zzap Gun ("D6+6"); the 2026-09 Ork codex dropped the Zzap Gun (stage E3d),
+     and no other built weapon rolls its Strength. The step is live code with no
+     rostered carrier, so it is driven here on a stand-in with the Zzap Gun's
+     own numbers - a mechanism shipped inert and driven by no test is broken on
+     the day its next carrier arrives (the WALL_CROSSING_COST_IN precedent).
+  2. A PRICED Gear item (`Gear.points`, Datasheet._gear_cost()). First used by
+     the Battlewagon's 'Ard Case, also retired in E3d; every Gear item still
+     built is free.
+
+The Warboss's Attack Squig and the Flash Gitz' Ammo Runt were two more items
+here and went with their pre-codex sheets (test_ork_characters.py and
+test_ork_specialists.py own the new ones).
 
 Run: python test_ork_wargear.py
 
@@ -9,60 +23,68 @@ Built on testkit.py (see its docstring for the headless-harness traps).
 """
 
 import os
+import re
 
-from testkit import (
-    Checks, build, script, shooting_scene,
-)
+from testkit import Checks, build, script, shooting_scene
 
-from game.dice_notation import describe as describe_dice
-from game.factions.orks import (
-    BATTLEWAGON, BATTLEWAGON_ADD_BIG_SHOOTAS, BATTLEWAGON_ADD_ZZAP_GUN, BATTLEWAGON_ARD_CASE,
-)
+import game.factions.orks as _orks
+import game.weapons as _weapons
+from game.dice_notation import D6, describe as describe_dice
+from game.factions.datasheet import Datasheet, Gear, ModelLine
+from game.factions.orks import BATTLEWAGON
+from game.factions.points import flat_points
 from game.factions.tau_empire import DEVILFISH, STRIKE_TEAM
-from game.weapons import ZzapGunProfile
+from game.units import UnitProfile
+from game.weapons import BigShootaProfile, RANGED, WeaponProfile
 
-c = Checks("Ork wargear")
+c = Checks("Ork wargear mechanisms")
 
-BW_CHOICES = {"Battlewagon": {BATTLEWAGON_ADD_BIG_SHOOTAS: 1, BATTLEWAGON_ADD_ZZAP_GUN: 1}}
-BW_GEAR = {"Battlewagon": [BATTLEWAGON_ARD_CASE]}
+
+class DiceStrengthGun(WeaponProfile):
+    """The retired Zzap Gun's printed row, as a stand-in: 36" A1 S D6+6 AP-3 D5,
+    [ANTI-VEHICLE 4+]."""
+    name = "Dice Strength Gun"
+    weapon_type = RANGED
+    range_in = 36
+    attacks = 1
+    strength = 9          # a grouping/preview placeholder only
+    strength_notation = D6(6)
+    ap = -3
+    damage = 5
+    anti = (("VEHICLE", 4),)
+
 
 # ---------------------------------------------------------------------------
-# 1. Zzap gun: the profile
+# 1. a dice-notation Strength: the profile
 # ---------------------------------------------------------------------------
 
-zzap = ZzapGunProfile()
-c.eq("range", zzap.range_in, 36)
-c.eq("attacks", zzap.attacks, 1)
-c.eq("AP", zzap.ap, -3)
-c.eq("damage", zzap.damage, 5)
-c.eq("anti-vehicle 4+", zzap.anti, (("VEHICLE", 4),))
-c.eq("needs no BS override (matches the Battlewagon's 5+)", zzap.ballistic_skill, None)
-c.true("Strength is a dice notation, not a fixed number", zzap.strength_notation is not None)
-c.eq("...printed as D6+6", describe_dice(zzap.strength_notation), "D6+6")
-c.eq("...over sides 6", zzap.strength_notation.sides, 6)
-c.eq("...plus 6", zzap.strength_notation.bonus, 6)
+gun = DiceStrengthGun()
+c.true("Strength is a dice notation, not a fixed number", gun.strength_notation is not None)
+c.eq("...printed as D6+6", describe_dice(gun.strength_notation), "D6+6")
 c.true("the fixed `strength` is only a placeholder, inside D6+6's real range",
-       7 <= zzap.strength <= 12)
-
-wagon = build(BATTLEWAGON, name="Battlewagon", gear=BW_GEAR, choices=BW_CHOICES)
-c.eq("the Battlewagon carries it", sorted(w.name for w in wagon.models[0].weapons),
-     ["Big Shoota"] * 4 + ["Tracks and Wheels", "Zzap Gun"])
-c.eq("and it is still 160 points (both additions are free)", wagon.points, 160)
+       7 <= gun.strength <= 12)
 
 
 # ---------------------------------------------------------------------------
-# 2. Zzap gun: the Strength is really rolled, END TO END
+# 2. ...and the Strength is really rolled, END TO END
 # ---------------------------------------------------------------------------
 
-def fire_zzap(strength_die, hit=6, wound=4, target_sheet=DEVILFISH):
-    """One Zzap gun shot through the real controller. `strength_die` is what
-    the D6 comes up as, so the resolved Strength is that + 6."""
-    scene = shooting_scene(BATTLEWAGON, target_sheet, gap=10.0,
-                           attacker_choices=BW_CHOICES)
+def armed_scene():
+    """A Battlewagon (whose default loadout has no ranged weapon since E3d)
+    carrying the stand-in and a plain Big Shoota, ten inches from a T9 Devilfish."""
+    scene = shooting_scene(BATTLEWAGON, DEVILFISH, gap=10.0)
+    scene["attacker"].models[0].weapons = [DiceStrengthGun(), BigShootaProfile()]
+    return scene
+
+
+def fire(strength_die, hit=6, wound=4):
+    """One shot through the real controller. `strength_die` is what the D6
+    comes up as, so the resolved Strength is that + 6."""
+    scene = armed_scene()
     sc = scene["shooting"]
     sc.start_shooting(scene["attacker"])
     sc.choose_target_squad(scene["target"])
-    key = next(k for k, *rest in sc.weapon_eligibility() if "Zzap" in str(rest[0]))
+    key = next(k for k, *rest in sc.weapon_eligibility() if "Dice Strength" in str(rest[0]))
     script(hit)                       # the hit roll
     sc.choose_weapon(key)
     sc.dice_manager.acknowledge()
@@ -78,46 +100,36 @@ def fire_zzap(strength_die, hit=6, wound=4, target_sheet=DEVILFISH):
     return scene, strength_step
 
 
-scene, step = fire_zzap(strength_die=3)
+scene, step = fire(strength_die=3)
 c.eq("a Strength step really happens, before the wound roll", step, "strength")
 c.true("...and it is a visible dice roll",
        any("strength" in label.lower() for label, _ in scene["dice"].rolled))
 c.true("...logged with the resolved value", scene["log"].has("Strength 9"))
 
-# The whole point: the rolled value, not the placeholder, decides the wound
-# threshold. The Devilfish is T9, so S7 needs a 5+ and S12 a 3+ - a wound
-# roll of exactly 3 separates them completely. Same hit die, same wound die;
-# only the Strength differs.
-#
-# 3 rather than the more obvious 4: this weapon's own [ANTI-VEHICLE 4+]
-# makes an unmodified 4 a CRITICAL wound against a VEHICLE regardless of
-# Strength, which would mask exactly the difference under test. Checked the
-# hard way - the first version of this used 4 and passed for the wrong
-# reason.
+
 def wounds_from_log(scene):
-    # A regex, not a split: the controller prefixes its lines with the
-    # player name ("Player 2: Zzap Gun wound roll [4]: 0 wound(s) ..."), so
-    # splitting on the first ": " lands in the wrong place.
-    import re
     match = re.search(r"(\d+) wound\(s\)", scene["log"].find("wound roll"))
     return int(match.group(1)) if match else None
 
 
-weak, _ = fire_zzap(strength_die=1, wound=3)
-strong, _ = fire_zzap(strength_die=6, wound=3)
+# The rolled value, not the placeholder, decides the wound threshold. The
+# Devilfish is T9, so S7 needs a 5+ and S12 a 3+ - a wound roll of exactly 3
+# separates them. 3 rather than 4: [ANTI-VEHICLE 4+] makes an unmodified 4 a
+# critical wound against a VEHICLE whatever the Strength, which would mask the
+# very difference under test.
+weak, _ = fire(strength_die=1, wound=3)
+strong, _ = fire(strength_die=6, wound=3)
 c.true("both runs reached the wound step",
        weak["log"].has("wound roll") and strong["log"].has("wound roll"))
 c.eq("S7 vs T9 (needs 5+): a wound roll of 3 fails", wounds_from_log(weak), 0)
 c.eq("S12 vs T9 (needs 3+): the same 3 wounds", wounds_from_log(strong), 1)
-# And the masking effect itself, since it is worth pinning down: a 4 wounds
-# either way, because [ANTI-VEHICLE 4+] makes it a critical wound.
 c.eq("a 4 wounds even at S7, via [ANTI-VEHICLE 4+]",
-     wounds_from_log(fire_zzap(strength_die=1, wound=4)[0]), 1)
+     wounds_from_log(fire(strength_die=1, wound=4)[0]), 1)
 c.true("...and the two rolled different Strengths",
        weak["log"].has("Strength 7") and strong["log"].has("Strength 12"))
 
 # A weapon WITHOUT a dice Strength must not gain a Strength step.
-plain = shooting_scene(BATTLEWAGON, DEVILFISH, gap=10.0, attacker_choices=BW_CHOICES)
+plain = armed_scene()
 sc = plain["shooting"]
 sc.start_shooting(plain["attacker"])
 sc.choose_target_squad(plain["target"])
@@ -130,19 +142,53 @@ c.eq("a Big Shoota goes straight to the wound roll", sc.pending_step, "wound")
 
 
 # ---------------------------------------------------------------------------
-# 3. (The Warboss's Attack Squig was here; the 2026-09 codex dropped it.)
+# 3. a PRICED Gear item
 # ---------------------------------------------------------------------------
 
-import game.weapons as _weapons
-c.true("the Attack Squig profile is gone with the pre-codex Warboss",
-       not hasattr(_weapons, "AttackSquigProfile"))
+class _PlateProfile(UnitProfile):
+    name = "Plated Grot"
+    toughness = 3
+    wounds = 1
+    armor_save = "6+"
+
+
+def _plate(token):
+    token.profile = type(token.profile)()
+    token.profile.toughness += 2
+
+
+PLATED = Datasheet(
+    name="Plated Grot",
+    model_lines=[ModelLine(_PlateProfile, 1, [])],
+    gear_options=[Gear("Plated Grot", "Test Plate", _plate, points=15)],
+    gear_slots={"Plated Grot": 1},
+    points=flat_points({1: 20}),
+)
+plain_grot = build(PLATED, name="Grot 1")
+plated = build(PLATED, name="Grot 2", gear={"Plated Grot": ["Test Plate"]})
+c.eq("the item's effect applies", plated.models[0].profile.toughness, 5)
+c.eq("...and only on the model that took it", plain_grot.models[0].profile.toughness, 3)
+c.eq("it costs its price", plated.points - plain_grot.points, 15)
+greedy = build(PLATED, name="Grot 3", gear={"Plated Grot": ["Test Plate", "Test Plate"]})
+c.eq("a second copy beyond max_count is trimmed, not stacked", greedy.models[0].profile.toughness, 5)
+c.eq("...and not charged twice", greedy.points, plated.points)
+droned = build(STRIKE_TEAM, "Player 1", name="ST 2", gear={"Fire Warrior Shas'ui": ["Shield Drone"]})
+c.eq("a free gear item still costs nothing", droned.points,
+     build(STRIKE_TEAM, "Player 1", name="ST 1").points)
 
 
 # ---------------------------------------------------------------------------
-# 4. (The Flash Gitz' Ammo Runt was here; the 2026-09 codex dropped it.)
+# 4. retirements (2026-09 Ork codex)
 # ---------------------------------------------------------------------------
 
-c.true("game/ammo_runt.py is gone with the pre-codex Flash Gitz",
-       not os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), "game", "ammo_runt.py")))
+for _name in ("ZzapGunProfile", "AttackSquigProfile", "LobbaProfile", "DeffRollaProfile",
+              "KoptaRokkitsProfile", "StompyFeetProfile", "TracksAndWheelsProfile"):
+    c.true("game/weapons.py no longer defines %s" % _name, not hasattr(_weapons, _name))
+for _name in ("BATTLEWAGON_ADD_ZZAP_GUN", "BATTLEWAGON_ARD_CASE"):
+    c.true("game/factions/orks.py no longer offers %s" % _name, not hasattr(_orks, _name))
+_game = os.path.join(os.path.dirname(os.path.abspath(__file__)), "game")
+for _module in ("ammo_runt.py", "ramshackle.py", "drive_by_dakka.py", "grot_riggers.py"):
+    c.true("game/%s is gone with its pre-codex datasheet" % _module,
+           not os.path.exists(os.path.join(_game, _module)))
 
 c.finish()

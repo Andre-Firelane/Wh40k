@@ -183,20 +183,22 @@ c.true("Exarch first: the squad can still swing", "Close Combat Weapon" in after
 section("4. the other factions")
 
 # Measured across all 72 datasheets: 14 model loadouts carry more than one
-# selectable melee weapon. An Ork Boss Nob with a Power Klaw is the same shape
+# selectable melee weapon. A Tankbusta Nob with a Smash Hammer is the same shape
 # in another faction, and it is a squad LEADER rather than an Exarch - so the
-# split has to key on the loadout, not on any one role flag.
-bikers = tk.build(ork.WARBIKERS, "Player 2", name="2 Warbikers 1",
-                  choices={"Boss Nob on Warbike": {ork.WARBIKERS_ADD_POWER_KLAW: 1}})
-nob = next(m for m in bikers.models if "Nob" in m.profile.name)
+# split has to key on the loadout, not on any one role flag. (The Warbikers' Boss
+# Nob with a Power Klaw staged this until the 2026-09 Ork codex took the option
+# away; the Tankbustas print the same shape.)
+busters = tk.build(ork.TANKBUSTAS, "Player 2", name="2 Tankbustas 1",
+                   choices={"Nob": {ork.TANKBUSTAS_NOB_SMASH_HAMMER: 1}})
+nob = next(m for m in busters.models if m.profile.squad_leader)
 nob_melee = sorted(w.name for w in nob.weapons if w.weapon_type == MELEE)
-c.eq("the Boss Nob carries two melee weapons", nob_melee, ["Close Combat Weapon", "Power Klaw"])
-biker_groups = _melee_attack_groups(bikers)
-labels = {_melee_group_label(pairs) for pairs in biker_groups.values()}
-c.true("his Power Klaw is its own group", any("Power Klaw" in l for l in labels))
-c.true("...and his close combat weapon is separated from the squad's",
-       any(l.startswith("Close Combat Weapon (") for l in labels))
-c.true("...while the plain bikers keep a shared one", "Close Combat Weapon" in labels)
+c.eq("the Nob carries two melee weapons", nob_melee, ["Choppa", "Smash Hammer - Standard"])
+buster_groups = _melee_attack_groups(busters)
+labels = {_melee_group_label(pairs) for pairs in buster_groups.values()}
+c.true("his Smash Hammer is its own group", any("Smash Hammer" in l for l in labels))
+c.true("...and his Choppa is a group of his own",
+       any(l.startswith("Choppa (") for l in labels))
+c.true("...while the plain Tankbustas keep a shared Gitstikka", "Gitstikka" in labels)
 
 
 c.finish()

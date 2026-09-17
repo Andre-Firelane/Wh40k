@@ -26,7 +26,7 @@ Run: python test_close_quarters_shooting.py
 """
 import testkit as tk
 from game import shooting
-from game.factions import aeldari, necrons, orks
+from game.factions import aeldari, necrons, orks, tau_empire
 from game.modifiers import describe_modifiers
 from game.squad import ENGAGEMENT_RANGE_IN, edge_distance, is_monster_or_vehicle_unit
 
@@ -171,12 +171,16 @@ c.true("...while the unit it is itself locked with stays legal",
 
 # ------------------------------------------------------------------ 4) malus
 print("\n4) The hit malus, both halves - one of them was unreachable until now")
-s = scene(orks.DEFFKOPTAS, far_edge_in=8.0)
+# The Twin Lance since the 2026-09 Ork codex: the Deffkoptas that staged this
+# were a VEHICLE with a [CLOSE-QUARTERS] Slugga, and are MOUNTED now. Swept over
+# every built datasheet, it is the one MONSTER/VEHICLE unit left carrying both a
+# [CLOSE-QUARTERS] weapon and one that is not.
+s = scene(tau_empire.THE_TWIN_LANCE, far_edge_in=8.0)
 sh, near, far = s["shooter"], s["near"], s["far"]
-c.true("stage: Deffkoptas are a MONSTER/VEHICLE unit", is_monster_or_vehicle_unit(sh))
+c.true("stage: The Twin Lance is a MONSTER/VEHICLE unit", is_monster_or_vehicle_unit(sh))
 sc = close_quarters(s)
-cq_model, cq_weapon = weapon_named(sh, "Slugga")               # [CLOSE-QUARTERS]
-other_model, other_weapon = weapon_named(sh, "Kopta Rokkits")  # not
+cq_model, cq_weapon = weapon_named(sh, "Shardstorm")               # [PISTOL]
+other_model, other_weapon = weapon_named(sh, "Fusion Eliminator")  # not
 
 
 def malus(model, weapon, target):
@@ -191,7 +195,7 @@ c.true("other weapon at the unit it is locked with: malus",
 c.true("other weapon out at the far unit: malus",
        "non-[CLOSE-QUARTERS] weapon" in malus(other_model, other_weapon, far))
 # The branch that had nothing to reach it before: a [CLOSE-QUARTERS] weapon
-# fired OUT of the melee. The old label would have called a Slugga a
+# fired OUT of the melee. The old label would have called a pistol a
 # "non-[CLOSE-QUARTERS] weapon" on the dice panel.
 out = malus(cq_model, cq_weapon, far)
 c.true("[CLOSE-QUARTERS] weapon out at the far unit: malus", "Close-Quarters" in out)

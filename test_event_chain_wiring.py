@@ -588,6 +588,9 @@ _END_OF_PHASE_OFFERS = (
     "wall_of_mirrors_controller.offer_at_end_of_fight_phase(",
     "cost_of_victory_controller.offer_at_end_of_fight_phase(",
     "webway_tunnel_controller.offer_at_end_of_fight_phase(",
+    # The Deffkoptas' Aerial Manoover (2026-09 Ork codex): "at the end of your
+    # opponent's Fight phase", Wall of Mirrors' side of the same seam.
+    "aerial_manoover_controller.offer_at_end_of_fight_phase(",
     "elemental_ensnarement_controller.offer_at_end_of_fight(",
     "resurrection_orb_controller.offer_at_end_of_phase(",
     # The two Aeldari offers that were NOT on this list, and were exactly the
@@ -606,7 +609,8 @@ _END_OF_PHASE_OFFERS = (
 )
 for _call in _END_OF_PHASE_OFFERS:
     ck.true("%s is still made at this seam" % _call.split("(")[0], _call in _TAIL)
-    _args = _TAIL.split(_call, 1)[1]
+    # find-style, not index-style: a missing call is red above, not a crash here.
+    _args = _TAIL.split(_call, 1)[1] if _call in _TAIL else ""
     # Up to the matching close paren, shallowly - enough to see the arguments.
     _depth, _end = 1, 0
     for _i, _ch in enumerate(_args):

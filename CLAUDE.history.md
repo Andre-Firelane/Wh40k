@@ -9681,3 +9681,45 @@ Backup-Commit per `-A` hätte genau diesen Zustand gesichert (Fehlerklasse 20); 
 deshalb nur seine eigenen Dateien.
 Eine wiederaufgenommene Sitzung mit altem CLAUDE.md im Kontext findet ihre Edit-Anker nicht mehr;
 Ork-Stand gehört jetzt nach `docs/stand/orks-codex-2026-09.md`.
+
+## 2026-09-17 — Orks Etappe E3d: Warbikers, Deffkoptas, Trukk, Battlewagon, Deff Dread
+
+**Auftrag:** Plan-Etappe E3d („Fernkampf-only −1 D, reaktives Rapid-Disembark, Reserve-Angebot Ende
+gegnerischer Fight-Phase; Deff from Above, High-speed Carnage, Mobile Fortress, Dread 'Ard, Damaged 6,
+Transportzeilen; stilllegen …; ovale Basen als benannte Abweichung"). Fortgesetzt nach einer
+Kompaktierung, mit dem Hinweis des Users, dass CLAUDE.md inzwischen aufgeteilt ist — der Stand steht
+deshalb in der NEUEN Datei `docs/stand/orks-codex-2026-09-2.md` (die erste hätte 42.000 Zeichen
+überschritten).
+
+**Abweichung vom Plan, begründet:** Pilin' Out bekam KEINEN Eintrag in `REACTIVE_MOVE_MODES`. Ein
+Disembark ist in diesem Repo eine `SetupController`-Platzierung, auf die `main.py`s Phasentor und die
+KI schon warten; der Plan hatte ihn als `move_mode` gelesen.
+
+**Gefunden beim Bauen:** `disembarked_from_this_turn` wurde nie zurückgesetzt (der Squad-Kommentar
+versprach es), der Charge-Lock-Sweep lief nur über die Einheiten des endenden Spielers (ein
+reaktiver Lock hätte durch den eigenen Zug gehalten), und `_matchup_hint` las Mehrprofilwaffen nur
+am getragenen Profil (Deffkoptas: Ghostkeel auf 6 statt auf 3).
+
+**Sondenlauf, zwei Befunde über den Prozess und fünf über die Tests:** der erste Lauf wurde beim
+Kompaktieren nach 20 von 49 Sonden abgebrochen (keine „exit"-Zeile) und ließ Sonde 21 in der
+ungetrackten `game/aerial_manoover.py` stehen; `git grep "AB-PROBE"` war leer, weil es ungetrackte
+Dateien übergeht. Die parallele CLAUDE.md-Sitzung hatte genau diesen Rest gesehen und deshalb nur
+ihre eigenen Dateien committet. Der nächste Lauf verweigerte den Start („already contains the
+marker") — so fiel es auf. Wiederhergestellt, Restprüfung auf `--untracked` umgestellt
+(Treiber-Docstring, Fehlerklasse 20, Memory). Der volle Lauf danach: 45 von 50 Läufen bissen; drei
+Sonden STÜRZTEN die Suite ab (`dm.options`/`dm.prompt` ohne Prompt; `_TAIL.split(call)[1]` in
+`test_event_chain_wiring.py` §8), eine prüfte „nicht im eigenen Zug" mit einem Mover, der nie auslöst,
+und eine fand ein doppeltes Brett-Tor in `PilinOutController.on_ingress_resolved()` (entfernt, die
+Sonde zielt jetzt auf `transports_in_range()`). Nachlauf der fünf: alle beißen.
+
+**Laufzeit-Sonde:** `verify_ork_vehicles.py` 13/13, neutralisiert 6/6. Die Prüfung „die KI wartet,
+solange die Platzierung des Menschen offen ist" war zuerst nur „Phase unverändert" — das hätte auch
+eine KI erfüllt, die ohnehin nichts tut. Jetzt zählt sie bewegte Player-2-Modelle: 0, und mit
+`_is_blocked()`s Fremd-Platzierungs-Zweig per Import-Hook entfernt 38 (Prüfung fällt).
+
+**Verifiziert:** `test_ork_vehicles.py` 147/147; `ab_ork_vehicles.py` 49 Sonden / 50 Läufe alle
+beißend, kein Rest (auch ungetrackt); volle Regression 236 Suiten, ~23039 Prüfungen, 235 grün / 0 rot
+/ 1 bekannt; `--smoke` grün; `selfplay.py map2 1500` Orks gegen Necrons beide Sitzordnungen exit 0;
+`verify_rules_vs_engine.py` 100 → 73; `fetch_datasheet_rules.py --offline` ohne Diff (nur das Datum
+in `rules/README.md`, zurückgesetzt); `measure_crowded_movement.py` unverändert 62 % / 210.2",
+isoliert 87 % / 292.3"; `test_claude_md_budget.py` grün.

@@ -35,7 +35,6 @@ from game.factions import build_squad
 from game.factions.orks import (
     BATTLEWAGON, BEAST_SNAGGA_BOYZ, BOYZ, DEFF_DREAD, FLASH_GITZ, GRETCHIN,
     KILL_RIG, MEGANOBZ, STORMBOYZ, TANKBUSTAS, TRUKK, WARBIKERS,
-    WARBIKERS_ADD_POWER_KLAW,
 )
 from game.factions.tau_empire import (
     BREACHER_TEAM, GHOSTKEEL_BATTLESUIT, KROOT_CARNIVORES, PATHFINDER_TEAM,
@@ -61,10 +60,8 @@ def army(owner):
             build_squad(TRUKK, owner, name="2 Trukk 1"),
             build_squad(TRUKK, owner, name="2 Trukk 2"),
             build_squad(WARBIKERS, owner, composition_index=0,
-                        choices={"Boss Nob on Warbike": {WARBIKERS_ADD_POWER_KLAW: 1}},
                         name="2 Warbikers 1"),
             build_squad(WARBIKERS, owner, composition_index=0,
-                        choices={"Boss Nob on Warbike": {WARBIKERS_ADD_POWER_KLAW: 1}},
                         name="2 Warbikers 2"),
             build_squad(GRETCHIN, owner, name="2 Gretchin 1"),
             build_squad(GRETCHIN, owner, name="2 Gretchin 2"),

@@ -186,7 +186,11 @@ c.true("...as are Canoptek Wraiths",
        combat_focus.is_assault_unit(P2(nec.CANOPTEK_WRAITHS, "cw", composition_index=1)))
 c.eq("Gretchin are NOT - they lean melee but are the archetypal cheap screen",
      combat_focus.is_assault_unit(P2(ork.GRETCHIN, "gr")), False)
-c.eq("...nor are Warbikers", combat_focus.is_assault_unit(P2(ork.WARBIKERS, "wb", composition_index=0)), False)
+# The 2026-09 codex Warbikers ARE, measured (stage E3d): a Choppa each and
+# High-speed Carnage against an 18" Dual Dakkagun on BS5+ reads 0.48, where the
+# pre-codex bikers sat on 1.00 and were pinned as a screen here.
+c.true("...while the codex Warbikers are (ranged/melee 0.48)",
+       combat_focus.is_assault_unit(P2(ork.WARBIKERS, "wb", composition_index=0)))
 
 # The log line has to carry the numbers, not just the verdict.
 note = combat_focus.describe_ratio(lokhust_heavy())
@@ -416,8 +420,8 @@ c.eq("...and the Lychguard, whose Overlord does not make them 'key'",
      deployment_ai._deployment_role(lychguard(st)), "assault")
 c.eq("Gretchin stay a screen - the home-objective holder the earlier report asked for",
      deployment_ai._deployment_role(P2(ork.GRETCHIN, "gr")), "screen")
-c.eq("Warbikers stay a screen too",
-     deployment_ai._deployment_role(P2(ork.WARBIKERS, "wb", composition_index=0)), "screen")
+c.eq("the codex Warbikers deploy as an assault unit (stage E3d, measured above)",
+     deployment_ai._deployment_role(P2(ork.WARBIKERS, "wb", composition_index=0)), "assault")
 c.eq("a shooter is still a shooter",
      deployment_ai._deployment_role(warriors(GameState())), "shooter")
 c.eq("a big model is still 'heavy', which is checked first and wants room to move",

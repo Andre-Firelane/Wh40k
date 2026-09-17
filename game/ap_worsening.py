@@ -1,9 +1,10 @@
 """Worsening an attack's Armour Penetration - the one arithmetic.
 
-Three defender-side rules worsen AP by 1: the Battlewagon's Ramshackle but
-Rugged (per model, game/ramshackle.py), the Enforcer Commander's aura (ranged
+Defender-side rules that worsen AP by 1: the Enforcer Commander's aura (ranged
 attacks on its unit, game/enforcer_commander.py) and the Meganobz' Arrogant
-Invulnerability (game/arrogant_invulnerability.py). Extracted at the third.
+Invulnerability (game/arrogant_invulnerability.py). Extracted at the third -
+the Battlewagon's Ramshackle but Rugged, which the 2026-09 Ork codex dropped
+(stage E3d); the arithmetic stays one definition for the two that remain.
 
 AP is written as a penalty (0, -1, -2 ...), so "worsen by N" moves N steps
 TOWARD zero and stops there: an AP0 attack cannot become a bonus to the save.

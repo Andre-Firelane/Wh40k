@@ -323,31 +323,11 @@ class ChoppaProfile(WeaponProfile):
     damage = 1
 
 
-class OrkCloseCombatWeaponProfile(WeaponProfile):
-    """Boyz's own "Close combat weapon (x2)" Unselected Profiles alternate
-    (A2 WS3+ S4 AP0 D1) - not wired as a Boyz wargear option yet (no
-    swap-rule text given, same documented gap as every other Unselected
-    Profiles entry), but the IDENTICAL stat line is Warbikers' own actual
-    default loadout weapon (see WARBIKERS in game/factions/orks.py) - named
-    generically (not "Boyz..."/"Warbikers...") since it's reused as-is
-    across datasheets, same convention as TauCloseCombatWeaponProfile/
-    KrootCloseCombatWeaponProfile. Not the same class as the plain
-    CloseCombatWeaponProfile placeholder at the top of this file (A1, no
-    specific datasheet) - this one has a real, datasheet-sourced A2."""
-    name = "Close Combat Weapon"
-    weapon_type = MELEE
-    range_in = 2
-    attacks = 2
-    strength = 4
-    ap = 0
-    damage = 1
-
-
 class PowerKlawProfile(WeaponProfile):
     """The Power Klaw Boyz, Stormboyz and Meganobz print in the 2026-09 Ork
     codex: A3 WS3+ S10 AP-2 D2 (it was A3 WS4+ S9 before). The WS3+ is carried
     on the weapon because the Meganob's own WS is read off its Killsaw's 4+ row
-    - see MeganobzProfile. Warbikers still field it until their codex stage."""
+    - see MeganobzProfile."""
     name = "Power Klaw"
     weapon_type = MELEE
     range_in = 2
@@ -358,28 +338,11 @@ class PowerKlawProfile(WeaponProfile):
     damage = 2
 
 
-# --- Warbikers (Orks) datasheet, see game/factions/orks.py ---
-
-class TwinDakkagunProfile(WeaponProfile):
-    name = "Twin Dakkagun"
-    weapon_type = RANGED
-    range_in = 18
-    attacks = 3
-    strength = 5
-    ap = 0
-    damage = 1
-    assault = True
-    rapid_fire = 2
-    twin_linked = True
-
-
-# --- Trukk (Orks) datasheet, see game/factions/orks.py ---
-
 class BigShootaProfile(WeaponProfile):
     """The Boyz' Big Shoota (2026-09 Ork codex): 36" A3 BS5+ S4 AP0 D1,
     [LETHAL HITS: non-MONSTER/VEHICLE], [RAPID FIRE 2] (it printed S5 and no
-    Lethal Hits before). The vehicles that carry one keep reading this class
-    until their own codex stage."""
+    Lethal Hits before). The vehicles print the same row at S5 - see
+    BigShootaS5Profile."""
     name = "Big Shoota"
     weapon_type = RANGED
     range_in = 36
@@ -389,31 +352,6 @@ class BigShootaProfile(WeaponProfile):
     damage = 1
     rapid_fire = 2
     conditional_keywords = (("lethal_hits", True, NON_MONSTER_VEHICLE_TARGETS),)
-
-
-class SpikedWheelProfile(WeaponProfile):
-    name = "Spiked Wheel"
-    weapon_type = MELEE
-    range_in = 2
-    attacks = 3
-    strength = 6
-    ap = 0
-    damage = 1
-
-
-class WreckinBallProfile(WeaponProfile):
-    """Trukk's own "Unselected Profiles" alternate (D6 Damage - WS4+ here
-    matches the Trukk's own weapon_skill, so no weapon_skill override was
-    ever needed for this one, unlike PowerKlawProfile above)."""
-    name = "Wreckin' Ball"
-    weapon_type = MELEE
-    range_in = 2
-    attacks = 1
-    strength = 10
-    ap = 0
-    damage = 6
-    damage_notation = D6()
-    extra_attacks = True
 
 
 # --- Gretchin (Orks) datasheet, see game/factions/orks.py ---
@@ -655,8 +593,8 @@ class KustomChoppaProfile(WeaponProfile):
 class BigShootaS5Profile(BigShootaProfile):
     """The S5 Big Shoota row (2026-09 Ork codex): 36" A3 S5 AP0 D1,
     [LETHAL HITS: non-MONSTER/VEHICLE], [RAPID FIRE 2]. Printed by the Warboss in
-    Mega Armour (at his own BS4+) - and by the Battlewagon and the Deff Dread,
-    which keep BigShootaProfile until their own codex stage. The Boyz print the
+    Mega Armour (at his own BS4+), the Battlewagon and the Deff Dread (at their
+    BS5+ - BS lives on the model, so one class serves both). The Boyz print the
     same row at S4, so this is a subclass that changes that one number."""
     strength = 5
 
@@ -761,109 +699,6 @@ class SmashHammerProfile(WeaponProfile):
     ap = -2
     damage = 2
     overcharge_profile = SmashHammerHunterProfile
-
-
-# --- Deffkoptas (Orks) datasheet, see game/factions/orks.py ---
-# "Slugga" is NOT a new class - identical stat line (range 12", A1, S4, AP0,
-# D1, Pistol) to the existing SluggaProfile (Boyz' own weapon), reused as-is.
-
-class KoptaRokkitsProfile(WeaponProfile):
-    """Deffkoptas' own "Kopta rokkits" (pre-codex row, stage E3d) - a
-    dice-notation Attacks (D3) with S9 AP-2 D3 [BLAST] [TWIN-LINKED]."""
-    name = "Kopta Rokkits"
-    weapon_type = RANGED
-    range_in = 24
-    attacks = 1
-    attacks_notation = D3()
-    strength = 9
-    ap = -2
-    damage = 3
-    blast = 1
-    twin_linked = True
-
-
-class SpinninBladesProfile(WeaponProfile):
-    name = "Spinnin' Blades"
-    weapon_type = MELEE
-    range_in = 2
-    attacks = 6
-    strength = 5
-    ap = 0
-    damage = 1
-
-
-class KustomMegaBlastaProfile(WeaponProfile):
-    """Deffkoptas' own "Unselected Profiles" alternate (A3 S9 AP-2, D6
-    Damage, [HAZARDOUS]) - not wired as a wargear option (no swap-rule text
-    given), same documented gap as every other datasheet's own Unselected
-    Profiles."""
-    name = "Kustom Mega-Blasta"
-    weapon_type = RANGED
-    range_in = 24
-    attacks = 3
-    strength = 9
-    ap = -2
-    damage = 6
-    damage_notation = D6()
-    hazardous = True
-
-
-# --- Deff Dread (Orks) datasheet, see game/factions/orks.py ---
-# "Big shoota" is NOT a new class - identical stat line to BigShootaProfile
-# above (Trukk's own weapon), reused as-is. "Kustom mega-blasta" (Unselected
-# Profiles) is likewise NOT a new class - identical stat line to
-# KustomMegaBlastaProfile above (Deffkoptas' own Unselected Profiles entry),
-# reused as-is. Its "Rokkit launcha" (Unselected Profiles) has no class since
-# the Tankbustas' pre-codex Rokkit Launcha went (stage E3d rebuilds this sheet).
-
-class StompyFeetProfile(WeaponProfile):
-    name = "Stompy Feet"
-    weapon_type = MELEE
-    range_in = 2
-    attacks = 4
-    strength = 5
-    ap = 0
-    damage = 1
-
-
-class DreadKlawProfile(WeaponProfile):
-    """Deff Dread's own "Dread klaw" - printed A4 already reflects this
-    model's actual loadout (2x Dread klaw): the datasheet's own "Dead
-    Choppy" ability adds +1 Attacks per ADDITIONAL Dread klaw equipped
-    (base A3, +1 for the 2nd), and since this datasheet only has one
-    modeled composition (always exactly 2x Dread klaw, no wargear option to
-    change that count), the bonus is simply baked into this class's fixed
-    `attacks` value rather than computed at runtime - there's no other
-    loadout for it to differ against yet. Dead Choppy itself is therefore
-    NOT engine-wired as a live per-count calculation (abilities_text only)
-    - see game/factions/orks.py's own note."""
-    name = "Dread Klaw"
-    weapon_type = MELEE
-    range_in = 2
-    attacks = 4
-    strength = 12
-    ap = -2
-    damage = 3
-
-
-class SkorchaProfile(WeaponProfile):
-    """Deff Dread's own "Unselected Profiles" alternate (D6 Attacks, S5
-    AP-1 D1, [IGNORES COVER]/[TORRENT]) - not wired as a wargear option (no
-    swap-rule text given), same documented gap as every other datasheet's
-    own Unselected Profiles. Printed BS is "N/A" - [TORRENT] attacks
-    auto-hit (rule 24.37) and never roll a Hit roll at all, so no
-    ballistic_skill override is needed for that "N/A" to already be
-    correct."""
-    name = "Skorcha"
-    weapon_type = RANGED
-    range_in = 12
-    attacks = 1
-    attacks_notation = D6()
-    strength = 5
-    ap = -1
-    damage = 1
-    ignores_cover = True
-    torrent = True
 
 
 # --- Beast Snagga Boyz (Orks) datasheet, see game/factions/orks.py ---
@@ -1111,93 +946,212 @@ class ChoppaA4Profile(ChoppaProfile):
     attacks = 4
 
 
-# --- Battlewagon (Orks) datasheet, see game/factions/orks.py ---
-# Two of its Unselected Profiles are NOT new classes: "Big shoota" (36", A3,
-# S5, AP0, D1, Rapid Fire 2) is word-for-word BigShootaProfile above (Trukk's
-# own weapon), and "Wreckin' ball" (A1, WS4+, S10, AP0, D D6, [EXTRA ATTACKS])
-# is word-for-word WreckinBallProfile above (Trukk's own Unselected Profile) -
-# including its WS4+, which matches the Battlewagon's own weapon_skill just as
-# it matched the Trukk's. Both reused as-is.
+# --- Warbikers, Deffkoptas, Trukk, Battlewagon, Deff Dread (Orks) ---
+# 2026-09 codex (rules/orks/Warbikers.md, Deffkoptas.md, Trukk.md,
+# Battlewagon.md, Deff Dread.md), stage E3d. The rule used throughout this file:
+# a row with the numbers of a class above under ANOTHER printed name is a
+# subclass that renames it; the same name with different numbers is its own
+# class. Reused as they stand: ChoppaProfile and KustomChoppaProfile (Warbikers),
+# SluggaProfile (Deffkoptas), BigShootaS5Profile (Battlewagon, Deff Dread) and
+# the Boyz' Rokkit Launcha chain (Trukk, Deff Dread). Gone with the pre-codex
+# sheets: Twin Dakkagun, Close Combat Weapon, Kopta Rokkits, Spiked Wheel,
+# Tracks and Wheels, Stompy Feet, Dread Klaw, Lobba, Zzap Gun and Deff Rolla.
 
-class TracksAndWheelsProfile(WeaponProfile):
-    """Battlewagon's only default weapon - it simply runs things over
-    (A6 WS4+ S8 AP0 D1). WS4+ matches this model's own, so no override."""
-    name = "Tracks and Wheels"
-    weapon_type = MELEE
-    range_in = 2
-    attacks = 6
-    strength = 8
-    ap = 0
-    damage = 1
-
-
-class LobbaProfile(WeaponProfile):
-    """Battlewagon's own "Unselected Profiles" artillery alternate (48",
-    A D6, BS5+, S5, AP0, D1, [BLAST], [INDIRECT FIRE]).
-
-    NOT the same class as the Kill Rig's EavyLobbaProfile above, despite the
-    related name: that one is S6/D2, this is S5/D1."""
-    name = "Lobba"
+class DualDakkagunProfile(WeaponProfile):
+    """Warbikers (2026-09 Ork codex): Dual Dakkagun, 18" A6 BS5+ S5 AP0 D1,
+    [ASSAULT], [LETHAL HITS: non-MONSTER/VEHICLE]."""
+    name = "Dual Dakkagun"
     weapon_type = RANGED
-    range_in = 48
-    attacks = 1
-    attacks_notation = D6()
+    range_in = 18
+    attacks = 6
     strength = 5
     ap = 0
     damage = 1
-    blast = 1  # plain [BLAST] (no explicit X) is X=1, see WeaponProfile.blast
-    indirect_fire = True  # [INDIRECT FIRE], rule 10.07
+    assault = True
+    conditional_keywords = (("lethal_hits", True, NON_MONSTER_VEHICLE_TARGETS),)
+
+
+class DualKombiRokkitBustaRokkitProfile(WeaponProfile):
+    """The Biker Nob's Dual Kombi-rokkit - Busta Rokkit: 24" A2 BS5+ S10 AP-2
+    D3, [ASSAULT]; the second of two profiles."""
+    name = "Dual Kombi-rokkit - Busta Rokkit"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 2
+    strength = 10
+    ap = -2
+    damage = 3
+    assault = True
+
+
+class DualKombiRokkitDakkagunProfile(DualDakkagunProfile):
+    """The Biker Nob's Dual Kombi-rokkit - Dakkagun: the Dual Dakkagun's row,
+    first of two profiles (rule 04.01.03)."""
+    name = "Dual Kombi-rokkit - Dakkagun"
+    overcharge_profile = DualKombiRokkitBustaRokkitProfile
+
+
+class DeffkoptaChoppaProfile(ChoppaProfile):
+    """Deffkoptas (2026-09 Ork codex): Choppa, A3 WS4+ S5 AP-1 D1 - the Boyz'
+    row at WS4+. The two melee rows on this sheet disagree (Spinnin' Blades is
+    WS3+), so the model carries 3+ and this weapon overrides downward."""
+    weapon_skill = "4+"
+
+
+class SpinninBladesProfile(WeaponProfile):
+    """Deffkoptas (2026-09 Ork codex): Spinnin' Blades, A4 WS3+ S5 AP-1 D1,
+    [CLEAVE 1], [HAZARDOUS]."""
+    name = "Spinnin' Blades"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 4
+    strength = 5
+    ap = -1
+    damage = 1
+    cleave = 1
+    hazardous = True
+
+
+class DeffkoptaRokkitLaunchaBustaProfile(RokkitLaunchaBustaProfile):
+    """Deffkoptas' Rokkit Launcha - Busta: the Boyz' row plus [LETHAL HITS],
+    which only the Deffkoptas print."""
+    lethal_hits = True
+
+
+class DeffkoptaRokkitLaunchaBlastaProfile(RokkitLaunchaBlastaProfile):
+    """Deffkoptas' Rokkit Launcha - Blasta: the Boyz' row exactly, chained to the
+    Deffkoptas' own Busta profile."""
+    overcharge_profile = DeffkoptaRokkitLaunchaBustaProfile
+
+
+class KustomMegaBlastaProfile(WeaponProfile):
+    """Deff Dread (2026-09 Ork codex): Kustom Mega-blasta, 24" A3 BS5+ S9 AP-2
+    D3, [HAZARDOUS]. The pre-codex row rolled D6 Damage."""
+    name = "Kustom Mega-blasta"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 3
+    strength = 9
+    ap = -2
+    damage = 3
+    hazardous = True
+
+
+class DeffkoptaKustomMegaBlastaProfile(KustomMegaBlastaProfile):
+    """Deffkoptas' Kustom Mega-blasta: the Deff Dread's row plus [LETHAL HITS]."""
+    lethal_hits = True
+
+
+class DualBigShootaProfile(BigShootaS5Profile):
+    """Trukk (2026-09 Ork codex): Dual Big Shoota, 36" A6 BS5+ S5 AP0 D1,
+    [LETHAL HITS: non-MONSTER/VEHICLE], [RAPID FIRE 4] - the S5 Big Shoota's row
+    doubled."""
+    name = "Dual Big Shoota"
+    attacks = 6
+    rapid_fire = 4
+
+
+class BuzzsawProfile(WeaponProfile):
+    """Trukk (2026-09 Ork codex): Buzzsaw, A2 WS3+ S6 AP-1 D2, [CLEAVE 1],
+    [EXTRA ATTACKS]."""
+    name = "Buzzsaw"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 2
+    strength = 6
+    ap = -1
+    damage = 2
+    cleave = 1
+    extra_attacks = True
 
 
 class GrabbinKlawProfile(WeaponProfile):
-    """Battlewagon's own "Unselected Profiles" alternate (A2 WS3+ S8 AP-2 D2,
-    [EXTRA ATTACKS]). Its WS3+ is BETTER than the Battlewagon's own 4+, hence
-    the per-weapon override - the first weapon in this file whose override
-    improves on its wielder rather than worsening it."""
+    """Trukk and Battlewagon (2026-09 Ork codex): Grabbin' Klaw, A2 WS3+ S10 AP-2
+    D2, [EXTRA ATTACKS]. Both carriers print WS3+ on the model, so no override."""
     name = "Grabbin' Klaw"
     weapon_type = MELEE
     range_in = 2
     attacks = 2
-    weapon_skill = "3+"  # printed on the weapon, BETTER than the Battlewagon's own 4+
-    strength = 8
+    strength = 10
     ap = -2
     damage = 2
     extra_attacks = True
 
 
-class ZzapGunProfile(WeaponProfile):
-    """Battlewagon's own "Unselected Profiles" alternate, and part of the
-    supplied army list's actual build (36", A1, BS5+, S D6+6, AP-3, D5,
-    Anti-Vehicle 4+).
-
-    The first weapon in this file with a DICE-ROLLED Strength characteristic
-    (`strength_notation`) - a real, visible roll before the Wound roll, the
-    same treatment attacks_notation/damage_notation already get. The printed
-    `strength` below is only the preview/grouping placeholder the two of them
-    use; 9 is D6+6's average rounded, never the value an attack resolves
-    with."""
-    name = "Zzap Gun"
-    weapon_type = RANGED
-    range_in = 36
-    attacks = 1
-    strength = 9  # preview/grouping placeholder only - see strength_notation
-    strength_notation = D6(6)  # "S D6+6"
-    ap = -3
-    damage = 5
-    anti = (("VEHICLE", 4),)  # [ANTI-VEHICLE 4+], rule 24.03
+class SpikedRamProfile(WeaponProfile):
+    """Trukk (2026-09 Ork codex): Spiked Ram, A3 WS3+ S6 AP0 D1, [CLEAVE 1]."""
+    name = "Spiked Ram"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    strength = 6
+    ap = 0
+    damage = 1
+    cleave = 1
 
 
-class DeffRollaProfile(WeaponProfile):
-    """Battlewagon's own "Unselected Profiles" alternate (A6 WS3+ S9 AP-1
-    D2). Same better-than-its-wielder WS3+ override as Grabbin' Klaw above."""
-    name = "Deff Rolla"
+class CrushinBulkProfile(WeaponProfile):
+    """Battlewagon (2026-09 Ork codex): Crushin' Bulk, A6 WS3+ S8 AP-2 D2,
+    [CLEAVE 1] - its only default weapon."""
+    name = "Crushin' Bulk"
     weapon_type = MELEE
     range_in = 2
     attacks = 6
-    weapon_skill = "3+"  # printed on the weapon, BETTER than the Battlewagon's own 4+
-    strength = 9
-    ap = -1
+    strength = 8
+    ap = -2
     damage = 2
+    cleave = 1
+
+
+class WreckinBallProfile(WeaponProfile):
+    """Battlewagon (2026-09 Ork codex): Wreckin' Ball, A1 WS3+ S10 AP0 D D6,
+    [CLEAVE 2], [EXTRA ATTACKS]. `damage` is the notation's grouping
+    placeholder, the die's maximum."""
+    name = "Wreckin' Ball"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 1
+    strength = 10
+    ap = 0
+    damage = 6
+    damage_notation = D6()
+    cleave = 2
+    extra_attacks = True
+
+
+class DreadKlawsProfile(WeaponProfile):
+    """Deff Dread (2026-09 Ork codex): Dread Klaws, A5 WS3+ S12 AP-2 D3,
+    [CLEAVE 1]. ONE weapon now - the pre-codex pair of Dread Klaws and their
+    Dead Choppy are gone."""
+    name = "Dread Klaws"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 5
+    strength = 12
+    ap = -2
+    damage = 3
+    cleave = 1
+
+
+class ExtraKlawProfile(WeaponProfile):
+    """Deff Dread (2026-09 Ork codex): Extra Klaw, A1 WS3+ S12 AP-2 D3,
+    [EXTRA ATTACKS] - swings beside the Dread Klaws (rule 04.01, 24.11), once
+    per copy."""
+    name = "Extra Klaw"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 1
+    strength = 12
+    ap = -2
+    damage = 3
+    extra_attacks = True
+
+
+class SkorchaProfile(KombiWeaponPointBlankProfile):
+    """Deff Dread (2026-09 Ork codex): Skorcha, 12" A3, no Hit roll, S5 AP0 D1,
+    [BLAST 1], [TORRENT] - the Kombi-weapon Point Blank's numbers under the name
+    the Deff Dread prints."""
+    name = "Skorcha"
 
 
 # --- Painboy (Orks) datasheet, see game/factions/orks.py ---

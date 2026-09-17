@@ -9,7 +9,7 @@ from ai import deployment_ai
 from ai import observation as ai_observation
 from ai.agent_driver import AIMemory, take_one_action
 from ai.agent_driver import reactive_subroutines_destination, reactive_subroutines_move
-from ai.agent_driver import boss_motivation_choice, catch_dat_red_bit_verdict, hyperphasing_choice, hyperphasic_recall_verdict, rokkit_charge_verdict, war_cry_verdict
+from ai.agent_driver import aerial_manoover_choice, boss_motivation_choice, catch_dat_red_bit_verdict, hyperphasing_choice, hyperphasic_recall_verdict, pilin_out_verdict, rokkit_charge_verdict, war_cry_verdict
 from ai.agent_driver import battle_shock_target_choice
 from ai.claude_agent import ClaudeAgent
 # from ai.mock_agent import MockAgent  # free/offline alternative - no API key or network needed
@@ -35,7 +35,6 @@ from game.env import load_dotenv
 from game.explosives import ExplosivesController
 from game.fall_back import FallBackController
 from game.fieldcraft import apply_fieldcraft
-from game.grot_riggers import apply_grot_riggers
 from game import thievin_scavengers
 from game import boss_ammo_runt, ork_ammo_runts, rokkit_charge
 from game.boss_ammo_runt import BossAmmoRuntController
@@ -43,6 +42,8 @@ from game.boss_motivation import IntimidatingMotivationController, KeepHuntinCon
 from game.crude_surgery import CrudeSurgeryController
 from game.krushin_impetus import KrushinImpetusController
 from game.bomb_squigs import BombSquigsController
+from game.aerial_manoover import AerialManooverController
+from game.pilin_out import PilinOutController
 from game.pulsa_rokkit import PulsaRokkitController
 from game.rokkit_barrage import RokkitBarrageController
 from game.mobbed import MobbedController
@@ -1743,6 +1744,13 @@ def main(map_key=None):
     airborne_agility_controller = AirborneAgilityController(
         decision_manager=decision_manager, game_state=state, game_log=game_log,
         auto_players=ai_players)
+    # Deffkoptas' Aerial Manoover: Airborne Agility's withdrawal at the end of
+    # the opponent's FIGHT phase instead of turn. The AI answers with
+    # Hyperphasing's rescue-or-reposition policy, injected for the same reason.
+    aerial_manoover_controller = AerialManooverController(
+        decision_manager=decision_manager, game_state=state, game_log=game_log,
+        turn_tracker=turn_tracker, auto_players=ai_players,
+        choose=lambda eligible: aerial_manoover_choice(state, turn_tracker, eligible))
     # Ophydian Destroyers' Tunnelling Horrors - the same instant and the same
     # withdrawal as Airborne Agility above, plus an owed ingress move in the
     # owner's NEXT Movement phase. Constructed beside it so the shared timing
@@ -2269,6 +2277,9 @@ def main(map_key=None):
         setup_controller, state, state.tokens, game_log=game_log, turn_tracker=turn_tracker,
         board_width_in=board.width_in, board_height_in=board.height_in,
     )
+    # The Deffkoptas' Deff from Above asks "made an ingress move this turn",
+    # which only this controller knows - see game/deff_from_above.py.
+    shooting_controller.ingress_controller = ingress_controller
     rapid_ingress_controller = RapidIngressController(
         stratagem_controller, state, turn_tracker=turn_tracker, game_log=game_log,
     )
@@ -3462,6 +3473,20 @@ def main(map_key=None):
         path_of_the_outcast_controller.offer_after_move,
         grenade_pack_controller.offer_after_move,
     ])
+    # The Trukk's Pilin' Out: "when an enemy unit ends a move within 8"" - a
+    # Normal/Advance/Fall Back move, an arrival and a Disembark Move are the
+    # three kinds the Movement phase has, so it listens on all three hooks.
+    # LAST on the move hook, so every other reaction to the same move has been
+    # asked before a passenger's placement opens. Its own passengers queue on
+    # the transport's resolved hook (game/pilin_out.py).
+    pilin_out_controller = PilinOutController(
+        transport_controller, game_state=state, turn_tracker=turn_tracker,
+        decision_manager=decision_manager, game_log=game_log, auto_players=ai_players,
+        choose=lambda transport_token, passenger, mover: pilin_out_verdict(
+            state, transport_token, passenger, mover))
+    movement_controller.on_move_finished.append(pilin_out_controller.on_move_finished)
+    ingress_controller.on_ingress_resolved.append(pilin_out_controller.on_ingress_resolved)
+    transport_controller.on_disembark_resolved.append(pilin_out_controller.on_disembark_resolved)
     # Aeldari Seer Council detachment rule Strands of Fate: a Fate dice pool
     # rolled ONCE for the whole battle, where each die's FACE decides which one
     # stratagem it can discount. Plugged into the same cost-discount hook
@@ -4351,6 +4376,12 @@ def main(map_key=None):
             webway_tunnel_controller.offer_at_end_of_fight_phase(
                 {t.squad for t in state.tokens if t.squad is not None},
                 mover_before)
+            # Deffkoptas' Aerial Manoover: "at the end of your OPPONENT'S Fight
+            # phase" - the Wall of Mirrors side, and mover_before for the same
+            # reason.
+            aerial_manoover_controller.offer_at_end_of_fight_phase(
+                {t.squad for t in state.tokens if t.squad is not None},
+                mover_before)
             # Skyborne Sanctuary says "End of THE Fight phase" - it belongs to
             # nobody, so both players are offered it and no owner is passed.
             for _skyborne in skyborne_sanctuary_controllers:
@@ -4503,11 +4534,21 @@ def main(map_key=None):
             for _gate_squad in state.all_squads():
                 _gate_squad.eternity_gate_charge_locked = False
                 _gate_squad.eternity_gate_bearer_started_on_board = False
-            for squad in ending_squads:
+            # EVERY unit, not ending_squads: "until the end of the turn" ends
+            # with THIS turn whoever's unit carries the flag. A reaction in the
+            # opponent's turn sets them too - the Trukk's Pilin' Out disembark
+            # locks the charge, Heroic Intervention charges - and swept over
+            # the ending player's units only, the lock ran on through the
+            # reacting player's own turn (stage E3d). Reserves and embarked
+            # units included, for the same reason as the Eternity Gate sweep.
+            for squad in state.all_squads():
                 squad.fights_first = False
                 squad.charged_this_turn = False  # rule 11.04's own marker, see Squad.charged_this_turn
                 squad.set_up_this_turn = False
                 squad.charge_locked_until_end_of_turn = False
+                # "cleared at end of turn alongside the flags below", says
+                # Squad's own comment - and nothing did (game/fire_support.py).
+                squad.disembarked_from_this_turn = None
                 # Swooping Hawks' Grenade Pack Flyover locks the unit out of
                 # the Explosives Stratagem "until the end of the turn".
                 squad.explosives_locked_until_end_of_turn = False
@@ -4630,10 +4671,6 @@ def main(map_key=None):
             # "until the start of your next turn" - this IS that instant,
             # for the player whose turn is beginning.
             support_turret_controller.expire_for(turn_tracker.active_player)
-            # Trukk's Grot Riggers ability (user-supplied): "at the start
-            # of your Command phase" - same instant, same active-player
-            # argument as the Support Turret expiry right above.
-            apply_grot_riggers(state.tokens, turn_tracker.active_player)
             # The Farseer's Guide: "until the start of YOUR next Command
             # phase" - so it ends here, for the player whose Command phase
             # this is, rather than in the end-of-turn block with every other
@@ -4690,6 +4727,7 @@ def main(map_key=None):
             movement_controller.reset_movement_phase()
             ingress_controller.reset_movement_phase()
             transport_controller.reset_movement_phase()
+            pilin_out_controller.reset_movement_phase()
         if turn_tracker.phase == PHASE_SHOOTING:
             shooting_controller.reset_shooting_phase()
         if turn_tracker.phase == PHASE_CHARGE:

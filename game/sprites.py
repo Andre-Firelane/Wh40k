@@ -258,7 +258,7 @@ SQUAD_SPRITE_KEYS = {
     # squad-level mapping could tell them apart.
     "Beast Snagga Boyz": "Beast Boy",
     "Boyz": "Ork Boy",
-    # Same fallback note as Boyz above - no separate Boss Nob on Warbike art.
+    # Same fallback note as Boyz above - no separate Biker Nob art.
     "Warbikers": "Ork Warbiker",
     # Same fallback note as Boyz above - no separate Boss Nob art.
     "Stormboyz": "Ork Stormboyz",

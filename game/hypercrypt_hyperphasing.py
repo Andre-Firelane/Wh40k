@@ -44,7 +44,7 @@ and live here instead, so a test can pin them without the AI:
 """
 
 from game import battle_size as battle_size_module
-from game import enh_dimensional_overseer, necron_detachments
+from game import enh_dimensional_overseer, necron_detachments, strategic_reserves
 from game.end_of_turn_withdrawal import EndOfTurnWithdrawalController
 
 HYPERPHASING_LABEL = "Hyperphasing"
@@ -58,9 +58,12 @@ UNITS_BY_BATTLE_SIZE = {
     battle_size_module.ONSLAUGHT: 3,
 }
 
-#: Rule 20.03: "At the end of the third battle round ... all strategic reserves
-#: units that have not made one or more ingress moves are destroyed."
-RESERVES_DESTROYED_AFTER_ROUND = 3
+#: Rule 20.03's round and the two timing predicates below live in
+#: game/strategic_reserves.py since the Deffkoptas' Aerial Manoover became their
+#: second reader (stage E3d); re-exported so every caller here stays put.
+RESERVES_DESTROYED_AFTER_ROUND = strategic_reserves.RESERVES_DESTROYED_AFTER_ROUND
+withdrawal_is_doomed = strategic_reserves.withdrawal_is_doomed
+misses_next_arrival = strategic_reserves.misses_next_arrival
 
 
 def has_detachment(player):
@@ -77,33 +80,6 @@ def applies(squad):
     if squad is None or not has_detachment(getattr(squad, "owner", None)):
         return False
     return necron_detachments.is_necrons_unit(squad)
-
-
-def withdrawal_is_doomed(turn_tracker):
-    """Whether a unit placed into Strategic Reserves at THIS end of turn is lost
-    before it can arrive. Read after advance_phase(), which is when main.py makes
-    the end-of-turn offers.
-
-    True when the battle is over, and when the turn that just ended was the last
-    of battle round 3: advance_phase() has then rolled the counter to 4 with the
-    round's first turn still to come (turn_index_in_round 0), and rule 20.03's
-    destruction runs right after the offers in the same call."""
-    if turn_tracker is None:
-        return False
-    if getattr(turn_tracker, "battle_over", False):
-        return True
-    return (getattr(turn_tracker, "battle_round", 0) == RESERVES_DESTROYED_AFTER_ROUND + 1
-            and getattr(turn_tracker, "turn_index_in_round", None) == 0)
-
-
-def misses_next_arrival(turn_tracker):
-    """Whether a unit withdrawn now cannot arrive in its owner's NEXT Movement
-    phase because rule 20.03 forbids arrivals before battle round 2. The owner's
-    next turn is the one advance_phase() has just started."""
-    if turn_tracker is None:
-        return False
-    from game.ingress import INGRESS_MIN_BATTLE_ROUND
-    return getattr(turn_tracker, "battle_round", 0) < INGRESS_MIN_BATTLE_ROUND
 
 
 class HyperphasingController(EndOfTurnWithdrawalController):

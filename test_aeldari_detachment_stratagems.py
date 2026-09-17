@@ -2898,6 +2898,9 @@ with settings_as(**SC_ON):
     _target6.wraithbone_armour_active = True
     _sess = DamageAllocationSession.__new__(DamageAllocationSession)
     _sess.log = None
+    # The weapon rides into _reduced_damage() since the Battlewagon's Mobile
+    # Fortress (ranged-only, 2026-09 Ork codex); a real session always has one.
+    _sess.weapon = None
     _model6 = _target6.models[0]
     _model6.squad = _target6
     c.eq("the real _reduced_damage() takes 3 down to 2",

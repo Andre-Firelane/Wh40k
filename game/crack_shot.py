@@ -1,7 +1,6 @@
 """T'au Empire datasheet ability: Cadre Fireblade's Crack Shot, as supplied
 by the user (not a rule from the generic 40k core rulebook, so it lives in
-its own module - same reasoning as game/starscythe.py for Starscythe and
-game/drive_by_dakka.py for Drive-by Dakka).
+its own module - same reasoning as game/starscythe.py for Starscythe).
 
 RULE: each time this model makes a ranged attack, on a Critical Wound, that
 attack has an Armour Penetration characteristic of -3.

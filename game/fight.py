@@ -4,7 +4,7 @@ from game import attached_units
 # cannot cycle back into anything here.
 from game import battle_stats
 from game import damaged_attacks, triarch_auras
-from game import dodge_dis, krumpin_time, might_is_right, rokkit_charge, tide_of_muscle
+from game import dodge_dis, high_speed_carnage, krumpin_time, might_is_right, rokkit_charge, tide_of_muscle
 from game import aux_experimental_modifications, awakened_dynasty, nekrosor_ammentar, swift_demise, montka_pinpoint_counter_offensive, destroyer_cult, destroyer_hive, dlc_grim_reapers, gift_of_contagion, guardian_protocols, protocol_hungry_void, implacable_eradication, mechanical_augmentation, plagues, plasmacyte, reroll_scope
 from game import way_of_the_short_blade
 from game import strength_over_toughness
@@ -1579,6 +1579,9 @@ class FightController:
         # ledger read the returned weapon.
         weapon = tide_of_muscle.adjusted_weapon(weapon, self.fighting_squad)
         weapon = rokkit_charge.adjusted_weapon(weapon, self.fighting_squad)
+        # Warbikers' High-speed Carnage (+1 S and D after a charge), the third
+        # charge-turn grant of the 2026-09 codex - see game/high_speed_carnage.py.
+        weapon = high_speed_carnage.adjusted_weapon(weapon, self.fighting_squad)
         # The Warboss's Might Is Right (+3 A, +2 S after a charge) is per
         # MODEL; exact because _melee_attack_key() keeps a bearer's group his.
         weapon = might_is_right.adjusted_weapon(weapon, pairs[0][0] if pairs else None)

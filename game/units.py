@@ -228,13 +228,14 @@ class UnitProfile:
     recon_drone = False  # Recon Drone wargear (user-supplied): the bearer carries a Drone burst cannon and "the bearer's UNIT has the Infiltrators ability" - a UNIT-level grant, which is why it is its own flag instead of just setting `infiltrators` on the bearer (rule 24.20 only applies "if every model in a unit has this ability", so one flagged model would grant nothing) - see squad_has_infiltrators()
     grav_inhibitor_drone = False  # Grav-inhibitor Drone wargear (user-supplied): enemy units charging the bearer's unit take -2 on the Charge roll - see game/drones.py / game/grav_inhibitor_drone.py
     nova_charge = 0  # Riptide Battlesuit's own "Nova Charge" ability (user-supplied, not a core rule): max uses per BATTLE of "grant one of this model's ranged weapons [DEVASTATING WOUNDS] until the end of the phase" - 0 = no ability, see game/nova_charge.py
-    drive_by_dakka = False  # Warbikers' "Drive-by Dakka" ability (user-supplied, not a core rule): improves the AP of this model's ranged attacks that target a unit within 9" - see game/drive_by_dakka.py
+    high_speed_carnage = False  # Warbikers' "High-speed Carnage" (2026-09 Ork codex): if this unit made a charge move this turn, +1 S and D on its melee attacks - see game/high_speed_carnage.py
+    deff_from_above = False  # Deffkoptas' "Deff from Above" (2026-09 Ork codex): in your Shooting phase, +1 to hit on this unit's ranged attacks if it made an ingress move this turn - see game/deff_from_above.py
+    aerial_manoover = False  # Deffkoptas' "Aerial Manoover" (2026-09 Ork codex): at the end of the opponent's Fight phase an unengaged unit may be placed in Strategic Reserves - see game/aerial_manoover.py
+    pilin_out = False  # Trukk's "Pilin' Out" (2026-09 Ork codex): in the opponent's Movement phase, when an enemy unit ends a move within 8" of this model, units embarked within it may make a rapid disembark move - see game/pilin_out.py
     full_throttle = False  # Stormboyz' "Full Throttle" ability (user-supplied, not a core rule): this unit remains eligible to declare a charge in a turn it Advanced or Fell Back - see squad_has_full_throttle(), game/charge.py's can_declare_charge()
-    grot_riggers = False  # Trukk's "Grot Riggers" ability (user-supplied, not a core rule): at the start of its controller's Command phase, this model regains 1 lost wound - see game/grot_riggers.py
     waaagh = False  # the Orks army rule "Waaagh!" (2026-09 codex): this unit can re-roll Advance rolls and can become riled up - see game/waaagh.py and game/riled_up.py. Pinned against every printed FACTION line by test_ork_army_rules.py
     joins_warlock_led_unit = False  # Eldrad Ulthran's own LEADER line: he may be attached to a unit even if one WARLOCKS unit is already attached to it. Printed on the arriving leader, asking what is already there. Read by game/attached_units.py's can_attach(); it is what finally makes game/protect.py reachable
     joins_without_leader_slot = False  # Warlock Conclave's LEADER ability is printed as a JOIN with its OWN restriction ("a unit cannot have more than one WARLOCK CONCLAVE unit joined to it") rather than as an ordinary attachment, so 19.01's one-leader-per-bodyguard default is not what limits it. Read by game/attached_units.py's can_attach(); the direction matters and is asymmetric on purpose - see _join_not_bound_by_leader_slot() there
-    ramshackle_but_rugged = False  # Battlewagon's own "Ramshackle but Rugged" ability (user-supplied, not a core rule): each time an attack is allocated to this model, worsen that attack's Armour Penetration by 1 - see game/ramshackle.py
     psyker = False  # the PSYKER keyword - purely descriptive here (no engine rule reads it yet), same status as MOUNTED/SMOKE; the [PSYCHIC] weapon keyword (24.29) is a separate, wired thing on WeaponProfile
     psyker_level = 0  # the Orks army rule Unstable Energies: how many psychic levels this PSYKER may use per battle round ("psyker level N" in its abilities) - read by game/unstable_energies.py
     beast_snagga = False  # the BEAST SNAGGA keyword - matters for Kill Rig's transport_requires ("11 BEAST SNAGGA INFANTRY models"), see UnitProfile.transport_requires
@@ -305,7 +306,9 @@ class UnitProfile:
     united_in_destruction = False  # Skorpekh Lord's own ability: while this model leads a unit, melee weapons equipped by models in that unit gain [LETHAL HITS] - a FightController._adjusted_weapon() chain entry; see game/united_in_destruction.py
     crimson_harvest = False  # Skorpekh Lord's own ability: each time this model ends a Charge move, one enemy unit in Engagement Range suffers D3 (or D3+3 on a 6) mortal wounds - fired from ChargeController.on_charge_move_finished; see game/mortal_wound_abilities.py
     my_will_be_done = False  # Overlord's own ability: once per battle round, reduce by 1 the CP cost of a Stratagem targeting this model's unit - a StratagemController.cost_discounts collaborator, see game/my_will_be_done.py
-    damage_reduction = 0  # "subtract N from the Damage characteristic of that attack" as a flat per-model reduction (Overlord's Implacable Resilience, Void Dragon's Necrodermis - both print N=1); 0 = no such ability. Mortal wounds are excluded, exactly as game/molten_form.py's halving is; see game/damage_reduction.py
+    damage_reduction = 0  # "subtract N from the Damage characteristic of that attack" as a flat per-model reduction (Overlord's Implacable Resilience, Void Dragon's Necrodermis, the Deff Dread's Dread 'Ard - all print N=1); 0 = no such ability. Mortal wounds are excluded, exactly as game/molten_form.py's halving is; see game/damage_reduction.py
+    ranged_damage_reduction = 0  # the same subtraction for RANGED attacks only - the Battlewagon's Mobile Fortress ("Ranged attacks that target this unit have -1 D"); read beside damage_reduction by game/damage_reduction.py, which is handed the attack's weapon
+    damage_reduction_label = None  # the printed NAME of this model's damage reduction, for the log line (e.g. "Dread 'Ard"); None falls back to game/damage_reduction.py's own naming
     leading_ranged_crit_on_5 = False  # while this model is LEADING a unit (19.01), ranged attacks by that unit score a Critical Hit on an unmodified 5+ - a leader ability, so read with attached_units.leader_ability(). TWO datasheets print this under two names (Plasmancer "Harbinger of Destruction", Lokhust Lord "Destroyer Cult"), which is why the flag is named for the mechanic; see game/crit_hit.py
     living_lightning = False  # Plasmancer's own ability: in your Shooting phase, one enemy unit within 18" and visible takes four D6, 1 mortal wound per 4+ - see game/mortal_wound_abilities.py
     rites_of_reanimation = False  # Technomancer's own ability: while this model is LEADING a unit (19.01), models in that unit have Feel No Pain 5+ - one more fold in game/feel_no_pain.py's current_feel_no_pain()
@@ -535,19 +538,16 @@ class BoyzNobProfile(BoyzProfile):
 
 
 class WarbikerProfile(UnitProfile):
-    """Datasheet: Warbikers (Orks), see game/factions/orks.py. Keywords line
-    (user-supplied): Mounted, Grenades, Warbikers, Speed Freeks (Faction:
-    Orks dropped, same reasoning as every other datasheet's Faction keyword
-    - implicit in Faction registration). MOUNTED has no field of its own
-    here - unlike Boyz, this datasheet's Keywords line does NOT include
-    INFANTRY/BEASTS/SWARM/MOBILE, so (rule 13.06) it's actually blocked by
-    Dense terrain like a normal non-infantry model, not a documented gap.
-    base_radius_in: originally 1.18" from the user-supplied "60 mm bases" -
-    user later asked for "die bases von den bikern etwas kleiner" (no exact
-    figure given this time), so reduced to an assumed 50mm base instead:
-    50mm/2 = 25mm = 25/25.4 ~= 0.98" (same mm-to-inch conversion used
-    everywhere else in this file). Not an official size, just a reasonable
-    "somewhat smaller" step down - flag if a specific mm figure is wanted."""
+    """Datasheet: Warbikers (Orks), 2026-09 codex - rules/orks/Warbikers.md,
+    built in game/factions/orks.py. KEYWORDS: MOUNTED; EXPLOSIVES; SPEED FREEKS.
+
+    base_radius_in: 0.98" (an assumed 50mm) - a NAMED DEVIATION. The codex
+    prints a 75x42mm oval, whose equal-area circle is 1.10"; the user had the
+    bikes made "etwas kleiner" than their earlier 1.18" and they play on 0.98",
+    so the oval would enlarge them again. The Deffkoptas share the value.
+
+    WS3+/BS5+ read off the weapon tables. The Warbikers print NO invulnerable
+    save (the pre-codex 6+ is gone); the Biker Nob prints 6+."""
     name = "Warbiker"
     base_radius_in = 0.98
     movement_in = 12
@@ -557,20 +557,21 @@ class WarbikerProfile(UnitProfile):
     wounds = 3
     leadership = "7+"
     armor_save = "4+"
-    invulnerable_save = "6+"  # "Invulnerable Save (6+) [Warbikers]"
     oc = 2
-    grenades = True  # the GRENADES keyword
-    drive_by_dakka = True  # this datasheet's own ability, see game/drive_by_dakka.py
-    waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note; also inherited by BossNobOnWarbikeProfile below
-    orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment); also inherited by BossNobOnWarbikeProfile below
+    mounted = True  # the MOUNTED keyword
+    explosives = True  # the EXPLOSIVES keyword (2026-09 codex; it printed GRENADES before)
+    high_speed_carnage = True  # see game/high_speed_carnage.py; inherited by BikerNobProfile
+    waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note; also inherited by BikerNobProfile below
+    orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment); also inherited by BikerNobProfile below
 
 
-class BossNobOnWarbikeProfile(WarbikerProfile):
-    """Datasheet: Warbikers (Orks) - the Boss Nob on Warbike is the squad's
-    tougher leader model (4 wounds instead of 3), otherwise identical to a
-    Warbiker (same loadout, same base size)."""
-    name = "Boss Nob on Warbike"
+class BikerNobProfile(WarbikerProfile):
+    """Datasheet: Warbikers (Orks) - the codex row "Biker Nob": a Warbiker with
+    W4 and a 6+ invulnerable save, the unit's leader model. It was the "Boss Nob
+    on Warbike" before the 2026-09 codex."""
+    name = "Biker Nob"
     wounds = 4
+    invulnerable_save = "6+"  # printed on the Biker Nob's row only
     squad_leader = True  # cosmetic leader highlight, same convention as every other datasheet's sergeant/leader model
 
 
@@ -616,67 +617,48 @@ class StormboyzNobProfile(StormboyProfile):
 
 
 class TrukkProfile(UnitProfile):
-    """Datasheet: Trukk (Orks), see game/factions/orks.py - a single-model
-    TRANSPORT vehicle, like Devilfish. WS/BS aren't in the M/T/Sv/W/Ld/OC
-    table (same 10th-edition convention as every other datasheet so far) -
-    read off the weapon tables: Big shoota's own BS5+ matches this model's
-    own BS, Spiked wheel's WS4+ matches this model's own WS.
+    """Datasheet: Trukk (Orks), 2026-09 codex - rules/orks/Trukk.md, built in
+    game/factions/orks.py. KEYWORDS: VEHICLE; DEDICATED TRANSPORT; FRAME; SPEED
+    FREEKS; TRANSPORT. DEDICATED TRANSPORT (18.01's "must start with a unit
+    embarked") is not modeled - see game/scouts.py.
 
-    Keywords: Dedicated Transport, Vehicle, Transport, Trukk, Faction: Orks
-    (Faction dropped, same reasoning as every other datasheet's Faction
-    keyword). DEDICATED TRANSPORT isn't modeled - same already-documented
-    gap as Devilfish's own (see DevilfishProfile's own note).
+    base_radius_in: 1.4", a TABLE-SIZE DECISION kept from the pre-codex sheet
+    (user: "nicht so groß wie den devilfish sondern etwas kleiner"). The codex
+    prints "Use model" - there is no printed size to transcribe.
 
-    Transport: "capacity of 12 ORKS INFANTRY models" - transport_requires_
-    infantry covers the INFANTRY half only, same documented simplification
-    as Devilfish (no per-model faction tracking in this engine, see
-    TransportController.can_embark()'s own note). "cannot transport JUMP
-    PACK... models" maps to transport_excludes=("jump_pack",) - Stormboyz
-    is the first (and so far only) JUMP PACK datasheet, see its own note on
-    why that field exists now. "...or GHAZGHKULL THRAKA models" is NOT
-    modeled: that's a single named-CHARACTER exclusion, not a keyword one,
-    and this engine has no generic named-unit exclusion system (nor does
-    Ghazghkull Thraka exist as a datasheet here) - same kind of documented
-    gap as the missing generic keyword/ability system noted throughout this
-    file. "Each MEGA ARMOUR model takes up the space of 2 models" IS now
-    modeled, since Meganobz (below) is the first MEGA ARMOUR datasheet -
-    see game/transport.py's _model_capacity_cost(), read by both
-    embarked_model_count() and can_embark()'s own capacity check.
+    WS3+/BS5+ read off the weapon tables (the pre-codex Spiked Wheel was WS4+).
 
-    Rules: Deadly Demise D3 (deadly_demise_notation, a real D3 roll - see
-    DevilfishProfile's own note), Firing Deck 12 (firing_deck - already
-    fully generic, already-existing FiringDeckController; this is simply
-    the first datasheet to actually set it to a nonzero value).
+    Transport: "12 ORKS INFANTRY models. It cannot transport GHAZGHKULL
+    THRAKA/JUMP PACK models. Each MEGA ARMOUR model takes up the space of 2
+    models." INFANTRY is transport_requires_infantry, ORKS is transport_requires
+    (the `orks` flag every Ork profile carries), JUMP PACK is transport_excludes
+    and MEGA ARMOUR's 2 slots are game/transport.py's _model_capacity_cost().
+    GHAZGHKULL THRAKA is not built.
 
-    base_radius_in: no exact mm given - user instruction: "mach die base
-    size nicht so groß wie den devilfish sondern etwas kleiner" (Devilfish
-    is 2.1", a deliberate 1.5x enlargement of VehicleProfile's own generic
-    ~70mm-width assumption, see DevilfishProfile's own note). Using that
-    same generic, un-enlarged 1.4" here - clearly smaller than the
-    Devilfish's 2.1" as asked, without inventing a specific mm figure
-    nothing in the user's message actually gave; revisit if a real base
-    size is supplied later."""
+    CORE: Deadly Demise D3 and Firing Deck 12. Pilin' Out is game/pilin_out.py.
+    The pre-codex Grot Riggers is gone."""
     name = "Trukk"
     base_radius_in = 1.4
     movement_in = 12
-    weapon_skill = "4+"
+    weapon_skill = "3+"
     ballistic_skill = "5+"
     toughness = 8
     wounds = 10
     leadership = "7+"
     armor_save = "4+"
-    invulnerable_save = "6+"  # "Invulnerable Save (6+)"
+    invulnerable_save = "6+"  # printed INSV 6+
     oc = 2
     vehicle = True
     deadly_demise = 3  # documentation leftover only, see deadly_demise_notation below - same convention as DevilfishProfile
     deadly_demise_notation = D3()  # "Deadly Demise D3"
     transport = True
     transport_capacity = 12
-    transport_requires_infantry = True  # "transport capacity of 12 ORKS INFANTRY models" - the INFANTRY half, see class docstring
-    transport_excludes = ("jump_pack",)  # "cannot transport JUMP PACK ... models" (GHAZGHKULL THRAKA exclusion not modeled, see class docstring)
+    transport_requires_infantry = True  # "12 ORKS INFANTRY models" - the INFANTRY half
+    transport_requires = ("orks",)  # ...and the ORKS half
+    transport_excludes = ("jump_pack",)  # "cannot transport GHAZGHKULL THRAKA/JUMP PACK models" (GHAZGHKULL THRAKA is not built)
     firing_deck = 12  # "Firing Deck 12"
-    grot_riggers = True  # this datasheet's own ability, see game/grot_riggers.py
-    waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note (user: "ALLE bisher angelegten Ork einheiten haben die Waaagh! ability")
+    pilin_out = True  # see game/pilin_out.py
+    waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
     orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
 
 
@@ -840,21 +822,19 @@ class TankbustaNobProfile(TankbustaProfile):
 
 
 class DeffkoptaProfile(UnitProfile):
-    """Datasheet: Deffkoptas (Orks), see game/factions/orks.py. Keywords
-    line (user-supplied): Vehicle, Fly, Grenades, Deffkoptas, Speed Freeks
-    (Faction: Orks dropped, same reasoning as every other datasheet's
-    Faction keyword). A VEHICLE unit that comes in a multi-model squadron
-    (3 identical Deffkopta models, no separate leader model this time,
-    unlike Tankbustas/Boyz/etc.) - unusual for VEHICLE but real on this
-    printed datasheet.
-    base_radius_in: no "Base" line was given this time - user's own
-    instruction: "wie warbikes" (same as Warbikers), so 0.98" (same assumed
-    50mm value as WarbikerProfile - see that class's own note on how that
-    number was reached). WS/BS aren't in the M/T/Sv/W/Ld/OC table (same
-    convention as every other datasheet so far) - read off the weapon
-    tables: Kopta rokkits'/Slugga's own BS5+ and Spinnin' blades' own WS3+
-    both match this model's own values, so no weapon needs a per-weapon
-    override."""
+    """Datasheet: Deffkoptas (Orks), 2026-09 codex - rules/orks/Deffkoptas.md,
+    built in game/factions/orks.py. KEYWORDS: MOUNTED; EXPLOSIVES; FLY; SPEED
+    FREEKS - NO LONGER A VEHICLE: the codex moved them to MOUNTED, so every
+    MONSTER/VEHICLE rule now leaves them alone.
+
+    base_radius_in: 0.98", the Warbikers' named deviation - the codex prints the
+    same 75x42mm oval (see WarbikerProfile).
+
+    WS3+/BS5+: the two melee rows disagree (Spinnin' Blades WS3+, Choppa WS4+),
+    so the model carries 3+ and the Choppa overrides - DeffkoptaChoppaProfile.
+
+    CORE: Deep Strike. Deff from Above (game/deff_from_above.py) and Aerial
+    Manoover (game/aerial_manoover.py) are this sheet's two abilities."""
     name = "Deffkopta"
     base_radius_in = 0.98
     movement_in = 12
@@ -864,38 +844,30 @@ class DeffkoptaProfile(UnitProfile):
     wounds = 4
     leadership = "7+"
     armor_save = "4+"
-    invulnerable_save = "6+"  # "Invulnerable Save (6+) [Deffkoptas]"
+    invulnerable_save = "6+"  # printed INSV 6+
     oc = 2
-    vehicle = True  # the VEHICLE keyword - Deffkoptas datasheet keyword
-    fly = True  # the FLY keyword - Deffkoptas datasheet keyword
-    grenades = True  # the GRENADES keyword - Deffkoptas datasheet keyword
-    deep_strike = True  # "Rules: Deep Strike", rule 24.09
+    mounted = True  # the MOUNTED keyword
+    fly = True  # the FLY keyword
+    explosives = True  # the EXPLOSIVES keyword (2026-09 codex; it printed GRENADES before)
+    deep_strike = True  # CORE: Deep Strike, rule 24.09
+    deff_from_above = True  # see game/deff_from_above.py
+    aerial_manoover = True  # see game/aerial_manoover.py
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
     orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
 
 
 class DeffDreadProfile(UnitProfile):
-    """Datasheet: Deff Dread (Orks), see game/factions/orks.py. Keywords
-    line (user-supplied): Vehicle, Walker, Deff Dread (Faction: Orks
-    dropped, same reasoning as every other datasheet's Faction keyword).
-    Single-model VEHICLE/WALKER, like a bigger cousin of Trukk - `walker`
-    already exists as a UnitProfile flag (rule 15.11, Heroic Intervention
-    eligibility for an otherwise-pure-VEHICLE unit), just not set by any
-    datasheet until now.
-    base_radius_in: user-supplied "base 60-mm" - 60mm/2 = 30mm radius =
-    30/25.4 ~= 1.18" (same mm-to-inch conversion used everywhere else in
-    this file; also the same value WarbikerProfile's own docstring
-    computed for a 60mm base before it was revised down to an assumed
-    50mm). WS/BS aren't in the M/T/Sv/W/Ld/OC table (same convention as
-    every other datasheet so far) - read off the weapon tables: Big
-    shoota's own BS5+ and Stompy feet's/Dread klaw's own WS3+ both match
-    this model's own values, so no weapon needs a per-weapon override.
+    """Datasheet: Deff Dread (Orks), 2026-09 codex - rules/orks/Deff Dread.md,
+    built in game/factions/orks.py. KEYWORDS: VEHICLE; WALKER.
 
-    Deadly Demise 1 (rule 24.08) needs no new code - `deadly_demise` is an
-    existing generic UnitProfile field, already read by
-    game/deadly_demise.py's DeadlyDemiseController; a plain fixed "1" (no
-    `deadly_demise_notation`) is used as-is, same as any other non-dice-
-    notation value."""
+    base_radius_in: the printed 60mm (1.18").
+
+    WS3+/BS5+ read off the weapon tables (every melee row prints WS3+).
+
+    CORE: Deadly Demise 1. Dread 'Ard ("Attacks that target this unit have -1
+    D") is `damage_reduction` - on a one-model unit "this unit" and "this
+    model" are the same attacks. The pre-codex Piston-driven Brutality and
+    Dead Choppy are gone."""
     name = "Deff Dread"
     base_radius_in = 1.18
     movement_in = 8
@@ -905,11 +877,13 @@ class DeffDreadProfile(UnitProfile):
     wounds = 8
     leadership = "7+"
     armor_save = "2+"
-    invulnerable_save = "6+"  # "Invulnerable Save (6+)"
+    invulnerable_save = "6+"  # printed INSV 6+
     oc = 3
-    vehicle = True  # the VEHICLE keyword - Deff Dread datasheet keyword
-    walker = True  # the WALKER keyword - Deff Dread datasheet keyword
-    deadly_demise = 1  # "Rules: Deadly Demise 1" - see this class's own note above
+    vehicle = True  # the VEHICLE keyword
+    walker = True  # the WALKER keyword
+    deadly_demise = 1  # CORE: Deadly Demise 1
+    damage_reduction = 1  # Dread 'Ard - see game/damage_reduction.py
+    damage_reduction_label = "Dread 'Ard"
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
     orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
 
@@ -956,47 +930,47 @@ class BeastSnaggaBoyProfile(UnitProfile):
 
 
 class BattlewagonProfile(UnitProfile):
-    """Datasheet: Battlewagon (Orks), see game/factions/orks.py. Keywords
-    line (user-supplied): Vehicle, Transport, Battlewagon (Faction: Orks
-    dropped, same reasoning as every other datasheet's Faction keyword).
+    """Datasheet: Battlewagon (Orks), 2026-09 codex - rules/orks/Battlewagon.md,
+    built in game/factions/orks.py. KEYWORDS: VEHICLE; FRAME; TRANSPORT; WAGON.
 
-    base_radius_in: user-supplied "base size wie kill rig" - whatever
-    KillRigProfile carries, currently 2.1" (it started at a 170x109mm oval's
-    equal-area 2.68" and was then set to the Devilfish's size on user
-    request; see that class's own note). Written out rather than read from
-    KillRigProfile, matching how every other datasheet in this file states
-    its own number - but the two are meant to stay equal, so change both.
+    base_radius_in: 2.1", a TABLE-SIZE DECISION (user: "base size wie kill
+    rig"); the codex prints "Use model", so there is nothing to transcribe.
 
-    Its M/T/Sv/W/Ld/OC line is numerically identical to the Kill Rig's, which
-    is a coincidence of the two stat blocks rather than a relationship - one
-    is a MONSTER PSYKER with six weapons, the other a VEHICLE with one.
+    WS3+/BS5+ read off the weapon tables (Crushin' Bulk, Big Shoota).
 
-    WS/BS aren't in the M/T/Sv/W/Ld/OC table (same convention as every other
-    datasheet). Its only DEFAULT weapon is Tracks and wheels at WS4+, so that
-    is the model's own; the Unselected Profiles' Grabbin' klaw and Deff rolla
-    print a better WS3+ and override themselves upward. BS5+ is read off the
-    Unselected big shoota/lobba - no default ranged weapon exists to fix it
-    otherwise, and 5+ is what every other Ork vehicle here carries."""
+    CORE: Damaged 6 (rule 24.39: "while a model's remaining wounds are equal to
+    or less than X ... that model's attacks have -1 to hit rolls" - the
+    `damaged_threshold` field), Deadly Demise D6 and Firing Deck 11. Mobile
+    Fortress ("Ranged attacks that target this unit have -1 D") is
+    `ranged_damage_reduction`.
+
+    Transport: "22 ORKS INFANTRY models. Each MEGA ARMOUR/JUMP PACK model takes
+    up the space of 2 models. Each GHAZGHKULL THRAKA model takes up the space of
+    4 models." The first two sentences are modeled (game/transport.py's
+    _model_capacity_cost()); GHAZGHKULL THRAKA is not built. The pre-codex
+    Ramshackle but Rugged, 'Ard Case and Killkannon clause are gone."""
     name = "Battlewagon"
     base_radius_in = 2.1
     movement_in = 10
-    weapon_skill = "4+"
+    weapon_skill = "3+"
     ballistic_skill = "5+"
-    toughness = 10
+    toughness = 11
     wounds = 16
     leadership = "7+"
     armor_save = "3+"
-    invulnerable_save = "6+"  # "Invulnerable Save (6+)"
+    invulnerable_save = "6+"  # printed INSV 6+
     oc = 5
     vehicle = True  # the VEHICLE keyword
-    damaged_threshold = 5  # "Damaged: 1-5 Wounds Remaining" -> -1 to this model's own Hit rolls
-    ramshackle_but_rugged = True  # this datasheet's own ability - see UnitProfile.ramshackle_but_rugged's own note and game/ramshackle.py
+    damaged_threshold = 6  # CORE: Damaged 6 (rule 24.39)
+    ranged_damage_reduction = 1  # Mobile Fortress - see game/damage_reduction.py
+    damage_reduction_label = "Mobile Fortress"
     deadly_demise = 6  # documentation leftover only, see deadly_demise_notation below
-    deadly_demise_notation = D6()  # "Rules: Deadly Demise D6"
-    firing_deck = 11  # "Rules: Firing Deck 11" - rule 24.14, an existing generic field (see game/firing_deck.py); the 'Ard Case wargear removes it, see game/factions/orks.py
+    deadly_demise_notation = D6()  # CORE: Deadly Demise D6
+    firing_deck = 11  # CORE: Firing Deck 11 (rule 24.14, game/firing_deck.py)
     transport = True  # the TRANSPORT keyword
-    transport_capacity = 22  # "a transport capacity of 22 ORKS INFANTRY models" - the Killkannon variant's reduced 12 is not modeled, see the datasheet's own note
+    transport_capacity = 22  # "a transport capacity of 22 ORKS INFANTRY models"
     transport_requires_infantry = True  # the INFANTRY half of that line
+    transport_requires = ("orks",)  # ...and the ORKS half
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
     orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
 

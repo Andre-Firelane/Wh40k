@@ -43,7 +43,7 @@ from game.factions import build_squad
 from game.factions.orks import (
     BATTLEWAGON, BOYZ, BOYZ_NOB_TO_POWER_KLAW, DEFF_DREAD, FLASH_GITZ,
     GRETCHIN, KILL_RIG, MEGANOBZ, STORMBOYZ, TANKBUSTAS, TRUKK, WARBIKERS,
-    WARBIKERS_ADD_POWER_KLAW, WARBOSS,
+    WARBOSS,
 )
 from game import attached_units
 from game.game_state import GameState
@@ -68,7 +68,7 @@ def units():
         ("Trukk", build_squad(TRUKK, "Player 2", name="Trukk")),
         ("Warbikers x3", build_squad(
             WARBIKERS, "Player 2", composition_index=0,
-            choices={"Boss Nob on Warbike": {WARBIKERS_ADD_POWER_KLAW: 1}}, name="Warbikers")),
+            name="Warbikers")),
         ("Boyz x10", build_squad(
             BOYZ, "Player 2", choices={"Nob": {BOYZ_NOB_TO_POWER_KLAW: 1}}, name="Boyz")),
         ("Gretchin x10", build_squad(GRETCHIN, "Player 2", name="Gretchin")),

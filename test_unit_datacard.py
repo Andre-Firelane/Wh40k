@@ -359,7 +359,6 @@ bolter_cls = _w.BolterProfile
 vd_spear = _w.SpearOfTheVoidDragonAntiVehicleProfile
 entropy = _w.EntropyCannonProfile
 multimelta = _w.MultiMeltaProfile
-zzap = _w.ZzapGunProfile
 
 
 class _Notated:
@@ -400,7 +399,6 @@ for label, weapon_cls, column, want in (
         ("...its Attacks too", vd_spear, "attacks", "D3"),
         ("entropy cannon", entropy, "damage", "D6+1"),
         ("multi-melta", multimelta, "damage", "D6"),
-        ("Zzap gun's Strength", zzap, "strength", "D6+6"),
 ):
     checks.eq("%s prints %s" % (label, want),
               udc.printed_characteristic(weapon_cls, column), want)
@@ -448,16 +446,28 @@ checks.eq("the DRAWN ranged spear row is Range/A/BS/S/AP/D as printed",
 
 # The spear's Strength is a plain 8, so the row above cannot tell whether the S
 # column goes through the helper at all - an A/B probe reverting just that
-# column passed. The Battlewagon's Zzap gun is the one weapon in the game with
-# a dice-notation Strength (printed "D6+6"), so it is the only thing that can
-# pin the third column.
-_zzap_squad = tk.build(_orks.BATTLEWAGON, "Player 1", name="1 Battlewagon 1",
-                       choices={"Battlewagon": {_orks.BATTLEWAGON_ADD_ZZAP_GUN: 1}})
+# column passed. The Battlewagon's Zzap gun ("D6+6") was the one weapon with a
+# dice-notation Strength and the 2026-09 Ork codex retired it (stage E3d), so the
+# third column is pinned on a stand-in carrying its printed Strength, DRAWN on a
+# real model's card.
+class _DiceStrengthGun(_w.WeaponProfile):
+    name = "Dice Strength Gun"
+    weapon_type = _w.RANGED
+    range_in = 36
+    attacks = 1
+    strength = 9
+    strength_notation = D6(6)
+    ap = -3
+    damage = 5
+
+
+_zzap_squad = tk.build(_orks.BATTLEWAGON, "Player 1", name="1 Battlewagon 1")
+_zzap_squad.models[0].weapons = [_DiceStrengthGun()]
 _zzap_blitted = []
 _zzap_card = udc.UnitDatacardOverlay()
 _zzap_card.font = _RecordingFont(_zzap_card.font, _zzap_blitted)
 _zzap_card.draw(pygame.Surface((900, 1400)), _zzap_squad.models[0], (60, 40))
-checks.true("the DRAWN Zzap gun shows its Strength as the D6+6 roll",
+checks.true("the DRAWN dice-Strength weapon shows its Strength as the D6+6 roll",
             "D6+6" in _zzap_blitted)
 
 

@@ -27,10 +27,10 @@ from ai import deployment_ai
 from game import attached_units, formations, pregame
 from game.factions import build_squad
 from game.factions.orks import (
-    BATTLEWAGON, BATTLEWAGON_ADD_BIG_SHOOTAS, BATTLEWAGON_ADD_ZZAP_GUN, BATTLEWAGON_ARD_CASE,
+    BATTLEWAGON, BATTLEWAGON_ADD_BIG_SHOOTAS,
     BEAST_SNAGGA_BOYZ, BEASTBOSS, BOYZ, BOYZ_NOB_TO_POWER_KLAW, DEFF_DREAD, FLASH_GITZ,
     GRETCHIN, KILL_RIG, MEGANOBZ, STORMBOYZ,
-    STORMBOYZ_NOB_TO_POWER_KLAW, TANKBUSTAS, TRUKK, WARBIKERS, WARBIKERS_ADD_POWER_KLAW,
+    STORMBOYZ_NOB_TO_POWER_KLAW, TANKBUSTAS, TRUKK, WARBIKERS,
     WARBOSS, WARBOSS_MEGA_ARMOUR,
 )
 
@@ -65,8 +65,8 @@ def ork_army():
     reg(bsb, kill_rig.models[0])
 
     battlewagon = mk(
-        BATTLEWAGON, "2 Battlewagon 1", gear={"Battlewagon": [BATTLEWAGON_ARD_CASE]},
-        choices={"Battlewagon": {BATTLEWAGON_ADD_BIG_SHOOTAS: 1, BATTLEWAGON_ADD_ZZAP_GUN: 1}},
+        BATTLEWAGON, "2 Battlewagon 1",
+        choices={"Battlewagon": {BATTLEWAGON_ADD_BIG_SHOOTAS: 1}},
     )
     transports.append(battlewagon.models[0])
     reg(battlewagon)
@@ -94,8 +94,7 @@ def ork_army():
     for i in (1, 2):
         reg(mk(GRETCHIN, f"2 Gretchin {i}"))
     for i in (1, 2):
-        reg(mk(WARBIKERS, f"2 Warbikers {i}", composition_index=0,
-               choices={"Boss Nob on Warbike": {WARBIKERS_ADD_POWER_KLAW: 1}}))
+        reg(mk(WARBIKERS, f"2 Warbikers {i}", composition_index=0))
     reg(mk(STORMBOYZ, "2 Stormboyz 1", composition_index=1,
            choices={"Nob": {STORMBOYZ_NOB_TO_POWER_KLAW: 1}}))
     reg(mk(DEFF_DREAD, "2 Deff Dread 1"))

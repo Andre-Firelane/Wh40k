@@ -462,6 +462,10 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
     Datei, schreibt der Restore fremden Code um: `roll_choice.take()`s `return True` wurde zu
     einer `NameError`-Zeile. Ein Sondentreiber muss einen bereits vorhandenen Ersatztext
     ABLEHNEN (`ab_command_reroll_owner.py` tut es).
+    **FÜNFTE Form (2026-09-17): `git grep` übergeht UNGETRACKTE Dateien.** Ein beim Kompaktieren
+    abgebrochener Sondenlauf ließ eine Sonde in einer NEUEN Datei stehen, und die Restprüfung war
+    leer. Die Restprüfung ist `git grep --untracked "AB-PROBE"`; ein Sondenlauf ohne
+    Schlusszeile im Output gilt als mitten in einer Sonde abgebrochen.
 21. **Bash-Heredocs zerlegen Prompt-/Codetexte** (Apostrophe, `\n`, `\"`) — mehrfach passiert.
     Solche Texte über Write/Edit schreiben.
 22. **Positionelle Aufrufe**: `action_panel.draw()` und `game_status_panel.draw()` werden positionell
@@ -803,6 +807,9 @@ Fraktion deren Dateien plus `fraktionen.md`; bei einer gemeldeten Fehlerform zue
 - Ork-Mobs (2026-09-Codex): Boyz, Beast Snagga Boyz, Stormboyz, Gretchin, Meganobz — Etappe E3a
 - Ork-Charaktere (2026-09-Codex): Warboss, Warboss in Mega Armour, Beastboss, Painboy — Etappe E3b
 - Ork-Spezialisten (2026-09-Codex): Flash Gitz, Tankbustas — Etappe E3c
+
+### `docs/stand/orks-codex-2026-09-2.md` — Etappe E3d Fahrzeuge (Pilin' Out als reaktiver Disembark, Aerial Manoover, Mobile Fortress/Dread 'Ard, Rundenende-Sweep über alle Einheiten)
+- Ork-Fahrzeuge (2026-09-Codex): Warbikers, Deffkoptas, Trukk, Battlewagon, Deff Dread — Etappe E3d
 
 ### `docs/stand/audits-aeldari-und-tau.md` — die Prüfungen „werden die Aeldari-/T'au-Stratagems angeboten und wirken sie“
 - Werden die Aeldari-Stratagems überhaupt ANGEBOTEN? (Prüfung, 2026-09-07)

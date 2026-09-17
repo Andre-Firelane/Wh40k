@@ -453,15 +453,18 @@ with settings_as(**WH):
     c.true("offered for an ORKS VEHICLE that charged this turn", CTRL.can_use(A))
     _pairs = [(m, melee_of(m)) for m in A.models]
     _w = _pairs[0][1]
-    c.eq("(live) the Battlewagon's melee weapon has no [CLEAVE]", _w.cleave, 0)
-    c.eq("...so it rolls no extra die against ten models", extra_attack_dice(_w, T, None, False, {}, _pairs), 0)
+    # Crushin' Bulk since stage E3d prints [CLEAVE 1] itself, so the grant is
+    # measured as the step from one to two rather than from none to one.
+    c.eq("(live) the Battlewagon's Crushin' Bulk prints [CLEAVE 1]", _w.cleave, 1)
+    c.eq("...so it rolls one extra die per five models against ten",
+         extra_attack_dice(_w, T, None, False, {}, _pairs), len(T.models) // 5)
     c.true("...bought", CTRL.use(A))
     _adj = mow.adjusted_weapon(_w, A)
-    c.eq("...it becomes [CLEAVE 1]", _adj.cleave, 1)
-    c.eq("...and the extra-dice step READS the grant: one die per five models",
-         extra_attack_dice(_adj, T, None, False, {}, _pairs), len(T.models) // 5)
+    c.eq("...it becomes [CLEAVE 2]", _adj.cleave, 2)
+    c.eq("...and the extra-dice step READS the grant: two dice per five models",
+         extra_attack_dice(_adj, T, None, False, {}, _pairs), 2 * (len(T.models) // 5))
     FC.fighting_squad = A
-    c.eq("...game/fight.py's chain carries it", FC._adjusted_weapon(_pairs).cleave, 1)
+    c.eq("...game/fight.py's chain carries it", FC._adjusted_weapon(_pairs).cleave, 2)
     FC.fighting_squad = None
     import copy as _copy
     _c2 = _copy.copy(_w)
@@ -953,7 +956,7 @@ with settings_as(**WH):
     for _m in list(S["target"].models[mow.MOW_EM_DOWN_MIN_TARGET_MODELS - 1:]):
         S["target"].models.remove(_m)
         S["state"].tokens.remove(_m)
-    c.eq("...and not against four, where [CLEAVE 1] adds no die",
+    c.eq("...and not against four, where [CLEAVE 2] adds no die",
          agent_driver._handle_mow_em_down(ORK, S["state"].tokens, S["fight"], S["ctrl"]), False)
 
 

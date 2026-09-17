@@ -122,9 +122,11 @@ c.eq("Deffkoptas fielded at 6 models", len(DEFFKOPTAS.models), 6)
 c.true("Tankbustas carry S10 Rokkits",
      any(w.strength == 10 for m in TANKBUSTAS.models for w in m.weapons
          if w.weapon_type == "ranged"))
-c.true("Deffkoptas carry S9 Rokkits",
-     any(w.strength == 9 for m in DEFFKOPTAS.models for w in m.weapons
-         if w.weapon_type == "ranged"))
+# The codex Deffkoptas' Rokkit Launcha is a two-profile weapon (Blasta S4,
+# Busta S10 - stage E3d); the report's S9 Kopta Rokkits are retired.
+c.true("Deffkoptas carry S10 Rokkits (the Busta profile)",
+     any(p.strength == 10 for m in DEFFKOPTAS.models for w in m.weapons
+         if w.weapon_type == "ranged" for p in weapon_profiles.profiles(w)))
 vehicles = [s.name for s in FOES if is_vehicle(s)]
 c.eq("the enemy army on this board has four vehicles", len(vehicles), 4)
 c.true("Ghostkeel is one of them", "1 Ghostkeel Battlesuit 1" in vehicles)
@@ -307,9 +309,13 @@ kopta2.name = "2 Deffkoptas 1"
 for i, model in enumerate(kopta2.models):
     model.x_in, model.y_in = 20.0 + i * 1.6, 20.0
 foes2 = []
+# A Strike Team as the third target since the codex Deffkoptas (stage E3d):
+# measured, it is the one of these the squadron gets less than half the best
+# shot's value out of (12 against the Ghostkeel's 26), where the Devilfish
+# that stood here is now 16.
 for name, sheet, x, y in (("1 Stealth", tau_empire.STEALTH_BATTLESUITS, 20.0, 30.0),
                           ("1 Ghostkeel", tau_empire.GHOSTKEEL_BATTLESUIT, 30.0, 30.0),
-                          ("1 Devilfish", tau_empire.DEVILFISH, 36.0, 30.0)):
+                          ("1 Strike Team", tau_empire.STRIKE_TEAM, 36.0, 30.0)):
     squad = build_squad(sheet, "Player 1", unit_index=1)
     squad.name = name
     for i, model in enumerate(squad.models):
@@ -318,12 +324,12 @@ for name, sheet, x, y in (("1 Stealth", tau_empire.STEALTH_BATTLESUITS, 20.0, 30
 
 hints, targets = shoot_options(kopta2, foes2)
 c.eq("all three targets are shootable in the option scene", len(targets), 3)
-for name in ("1 Stealth", "1 Ghostkeel", "1 Devilfish"):
+for name in ("1 Stealth", "1 Ghostkeel", "1 Strike Team"):
     c.true(f"{name}'s option now states what the shot is worth",
          "enemy points per turn" in hints[name])
 c.true("the weakest of the three is called out as such",
-     "less than half" in hints["1 Devilfish"])
-c.eq("a near-tie names no favourite at all (13 vs 14 is inside the noise)",
+     "less than half" in hints["1 Strike Team"])
+c.eq("a near-tie names no favourite at all (24 vs 26 is inside the noise)",
      sum(1 for text in hints.values() if "most valuable" in text), 0)
 
 # ...and where there IS a clear leader, exactly one option is named.
@@ -633,9 +639,19 @@ best_infantry = max(observation.damage_value(rok_squad, t) for t in infantry.val
 c.true("every MONSTER/VEHICLE outranks every infantry squad for this unit",
        worst_vehicle > best_infantry)
 
+# The matchup hint reads the same valued profiles (stage E3d): carried-only,
+# the Deffkoptas' Blasta profile (S4) would tell them a Ghostkeel is a 6+ shot.
+c.true("the matchup hint reads the valued profiles: 3+ against the Ghostkeel",
+       "wounds it on 3+" in agent_driver._matchup_hint(
+           DEFFKOPTAS, SQUADS["1 Ghostkeel Battlesuit 1"]))
+c.true("...where the carried profile alone says 6+",
+       "wounds it on 6+" in carried_profile_only(lambda: agent_driver._matchup_hint(
+           DEFFKOPTAS, SQUADS["1 Ghostkeel Battlesuit 1"])))
+
 # A unit whose weapons print one profile each must be completely unaffected.
-plain = build_squad(orks.DEFFKOPTAS, "Player 2", unit_index=1)
-c.true("the scene: every Deffkopta weapon prints a single profile",
+# The Deff Dread since the codex Deffkoptas carry a two-profile Rokkit Launcha.
+plain = build_squad(orks.DEFF_DREAD, "Player 2", unit_index=1)
+c.true("the scene: every Deff Dread weapon prints a single profile",
        all(len(weapon_profiles.profiles(w)) == 1 for m in plain.models for w in m.weapons))
 c.true("a squad of single-profile weapons gets no modifiers",
        damage_estimate.attack_modifiers(plain.models[0], monsters["Riptide"]) == (0, 0))

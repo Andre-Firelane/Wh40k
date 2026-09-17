@@ -27,13 +27,9 @@
     {
       "datasheet": "Battlewagon",
       "color": [75, 95, 55],
-      "gear": {
-        "Battlewagon": ["'Ard Case"]
-      },
       "choices": {
         "Battlewagon": {
-          "+ 4x Big Shoota": 1,
-          "+ Zzap Gun": 1
+          "+ 4x Big Shoota": 1
         }
       },
       "id": "battlewagon_1"
@@ -80,21 +76,11 @@
     },
     {
       "datasheet": "Warbikers",
-      "color": [150, 130, 60],
-      "choices": {
-        "Boss Nob on Warbike": {
-          "+ Power Klaw": 1
-        }
-      }
+      "color": [150, 130, 60]
     },
     {
       "datasheet": "Warbikers",
-      "color": [150, 130, 60],
-      "choices": {
-        "Boss Nob on Warbike": {
-          "+ Power Klaw": 1
-        }
-      }
+      "color": [150, 130, 60]
     },
     {
       "datasheet": "Stormboyz",

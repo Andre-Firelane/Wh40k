@@ -8,6 +8,7 @@ from game import status_effects
 from game.ingress import INGRESS_MIN_BATTLE_ROUND
 from game import arrokon_protocol as arrokon_module
 from game import base_contact
+from game import weapon_profiles
 from game import coldstar
 from game import combat_focus
 from game import court_cynosure_of_eradication
@@ -9571,16 +9572,24 @@ def _matchup_hint(squad, target):
     is evidently not reliable, so derive it here and state the result. Same
     approach as the charge option's hit probability, which had the same
     problem before it stopped printing raw distances and started printing
-    odds."""
+    odds.
+
+    A MULTI-PROFILE weapon is read as the profiles the AI would really fire at
+    this target (game/weapon_profiles.valued_profiles(), the answer
+    game/damage_estimate.py reads since the Ork specialists stage). Reading the
+    carried first profile only told the codex Deffkoptas their Rokkit Launcha
+    wounds a Ghostkeel on 6s - the Blasta's S4 - while its Busta profile is S10
+    and wounds it on 3s (stage E3d)."""
     toughness = attached_unit_toughness(target)
     best = None
     for model in squad.models:
         for weapon in model.weapons:
             if weapon.weapon_type != RANGED:
                 continue
-            needed = _shooting_wound_threshold(weapon.strength, toughness)
-            if best is None or needed < best:
-                best = needed
+            for profile in weapon_profiles.valued_profiles(weapon, target):
+                needed = _shooting_wound_threshold(profile.strength, toughness)
+                if best is None or needed < best:
+                    best = needed
     if best is None:
         return ""
     if best >= 6:
@@ -11504,6 +11513,39 @@ def hyperphasing_choice(state, turn_tracker, candidates, cap):
         scored.append((-((squad.points or 0) * weight), squad.name, squad))
     scored.sort(key=lambda entry: (entry[0], entry[1]))
     return [squad for _score, _name, squad in scored[:cap]]
+
+
+def aerial_manoover_choice(state, turn_tracker, candidates):
+    """The Deffkoptas' Aerial Manoover (2026-09 Ork codex, stage E3d), the AI's
+    policy - injected by main.py into game/aerial_manoover.py as `choose`.
+
+    The printed withdrawal is Hyperphasing's with a different WHEN ("at the end
+    of your opponent's Fight phase") and no cap, so it is hyperphasing_choice()
+    with the cap set to every eligible unit: never when the unit cannot come
+    back in time, a garrison stays, and a unit goes when the enemy's next turn
+    is expected to strip half its remaining wounds or when it has nothing to
+    shoot, charge or take where it stands. Its return is _auto_ingress_squad()'s,
+    on which its own Deff from Above adds +1 to hit."""
+    return hyperphasing_choice(state, turn_tracker, candidates, len(candidates or ()))
+
+
+def pilin_out_verdict(state, transport_token, passenger, mover):
+    """The Trukk's Pilin' Out (2026-09 Ork codex, stage E3d), the AI's answer -
+    injected by main.py into game/pilin_out.py as `choose`.
+
+    Out when the TRANSPORT is expected to be destroyed: the enemy's expected
+    wounds against it reach its remaining wounds. A wreck means an Emergency
+    Disembark - 6" instead of 3", a hazard roll per model and Battle-shock -
+    so leaving now, by the rapid mode, is the cheap way out. Otherwise the unit
+    stays aboard: a Trukk that has not moved still lets it disembark and charge
+    in its own turn, which a unit already on foot has no advantage over."""
+    if state is None or transport_token is None or passenger is None:
+        return False
+    transport_squad = getattr(transport_token, "squad", None)
+    if transport_squad is None:
+        return False
+    remaining = _remaining_wounds(transport_squad)
+    return remaining > 0 and _expected_incoming_wounds(state, transport_squad) >= remaining
 
 
 def hyperphasic_recall_verdict(state, squad):

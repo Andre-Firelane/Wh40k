@@ -4,12 +4,13 @@ RULE (printed, word for word):
   "While this model is leading a unit, each time a ranged attack targets that
    unit, worsen the Armour Penetration characteristic of that attack by 1."
 
-THE BATTLEWAGON'S RAMSHACKLE BUT RUGGED, ONE CONDITION RICHER - so it sits in
-exactly the same slot: game/damage_resolution.py's save_thresholds(), where the
-save roll is actually built. That is a DEFENDER-side adjustment, and the reason
-it belongs there rather than on the attacker's weapon chain is Ramshackle's own
-note: the trigger is about the attack arriving, not about who fired it, and the
-panel and the resolution must not disagree about a save.
+BUILT AS THE BATTLEWAGON'S PRE-CODEX RAMSHACKLE BUT RUGGED, ONE CONDITION RICHER
+(that rule went with the 2026-09 Ork codex) - so it sits in the slot Ramshackle
+had: game/damage_resolution.py's save_thresholds(), where the save roll is
+actually built. That is a DEFENDER-side adjustment, and it belongs there rather
+than on the attacker's weapon chain because the trigger is about the attack
+arriving, not about who fired it, and the panel and the resolution must not
+disagree about a save.
 
 TWO DIFFERENCES FROM RAMSHACKLE, both printed:
 
@@ -29,8 +30,9 @@ zero, and an AP0 attack must not become a BONUS to the target's save. With only
 AP0 weapons on the table the two spellings are indistinguishable, which is
 exactly why it is written as min(0, ap + 1) and tested at AP0.
 
-STACKS WITH RAMSHACKLE by construction, because each is applied in turn - no
-T'au model has both, but the arithmetic is composition rather than a max().
+STACKS WITH ARROGANT INVULNERABILITY (the Meganobz') by construction, because
+each is applied in turn - no unit has both, but the arithmetic is composition
+rather than a max().
 """
 
 from game.attached_units import leader_ability

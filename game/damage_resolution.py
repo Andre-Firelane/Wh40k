@@ -4,7 +4,6 @@ from game import damage_reduction, molten_form
 from game import plagues  # imports only game/modifiers.py, so this cannot cycle
 from game.feel_no_pain import FeelNoPainRoll
 from game.enforcer_commander import adjusted_ap as enforcer_commander_adjusted_ap
-from game.ramshackle import adjusted_ap as ramshackle_adjusted_ap
 from game import arrogant_invulnerability
 from game.thresholds import parse_threshold
 from game.invulnerable_save import effective_invulnerable_save
@@ -70,16 +69,14 @@ def save_thresholds(model, weapon):
     insv = parse_threshold(effective_invulnerable_save(
         model, melee=getattr(weapon, "weapon_type", None) == MELEE,
     ))
-    # Two AP adjustments, applied in turn rather than folded: Ramshackle but
-    # Rugged belongs to the MODEL being allocated to, the Enforcer Commander's
-    # aura belongs to its UNIT and only to ranged attacks. No model has both
-    # today, but composing them is what the printed texts say, where a max()
-    # would silently cap two independent effects at one.
-    ap = ramshackle_adjusted_ap(weapon.ap, model)
-    # The Meganobz' Arrogant Invulnerability ("attacks that target this unit
-    # have -1 AP"): the third defender-side step, applied in turn like the
-    # other two - see game/ap_worsening.py.
-    ap = arrogant_invulnerability.adjusted_ap(ap, model)
+    # Two defender-side AP steps, applied in turn rather than folded: the
+    # Meganobz' Arrogant Invulnerability ("attacks that target this unit have
+    # -1 AP") and the Enforcer Commander's aura (its UNIT, ranged attacks
+    # only). Composing them is what the printed texts say, where a max() would
+    # silently cap two independent effects at one - see game/ap_worsening.py.
+    # The Battlewagon's Ramshackle but Rugged was the third until the
+    # 2026-09 Ork codex dropped it.
+    ap = arrogant_invulnerability.adjusted_ap(weapon.ap, model)
     return sv, insv, enforcer_commander_adjusted_ap(ap, model, weapon)
 
 
@@ -593,7 +590,9 @@ class DamageAllocationSession:
         if result != amount and self.log is not None:
             self.log(f"Molten Form: {model.profile.name} halves this attack's Damage "
                      f"{amount} -> {result}.")
-        reduced = damage_reduction.adjusted_damage(model, result)
+        # The weapon rides along for the ranged-only half (the Battlewagon's
+        # Mobile Fortress) - see game/damage_reduction.py.
+        reduced = damage_reduction.adjusted_damage(model, result, self.weapon)
         if reduced != result and self.log is not None:
             self.log(f"{damage_reduction.label_for(model)}: {model.profile.name} reduces "
                      f"this attack's Damage {result} -> {reduced}.")

@@ -55,7 +55,7 @@ from game import config, geometry, maps, movement as movement_module, squad as s
 from game.factions import build_squad
 from game.factions.orks import (
     BATTLEWAGON, BOYZ, DEFF_DREAD, GRETCHIN, KILL_RIG, TRUKK,
-    WARBIKERS, WARBIKERS_ADD_POWER_KLAW,
+    WARBIKERS,
 )
 from game.game_state import GameState
 from game.movement import MovementController
@@ -83,7 +83,7 @@ def units():
         ("Trukk (r1.40, M12)", build_squad(TRUKK, "Player 2", name="Trukk")),
         ("Warbikers x3 (r0.98, M12)", build_squad(
             WARBIKERS, "Player 2", composition_index=0,
-            choices={"Boss Nob on Warbike": {WARBIKERS_ADD_POWER_KLAW: 1}}, name="Warbikers")),
+            name="Warbikers")),
         ("Boyz x10 (INFANTRY control)", build_squad(BOYZ, "Player 2", name="Boyz")),
         ("Gretchin x11 (INFANTRY control)", build_squad(GRETCHIN, "Player 2", name="Gretchin")),
     ]

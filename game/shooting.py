@@ -14,6 +14,7 @@ from game import roll_choice
 from game.objectives import is_on_objective
 from game.arrokon_protocol import arrokon_adjusted_weapon
 from game import psychic_guidance
+from game import deff_from_above
 from game import protect
 from game.doom import DOOM_WOUND_BONUS
 from game.crit_hit import crit_hit_threshold
@@ -40,7 +41,6 @@ from game import structural_collapse
 from game.bladestorm import bladestorm_adjusted_weapon
 from game import crit_ap
 from game import fate_inescapable
-from game.drive_by_dakka import drive_by_dakka_adjusted_weapon
 from game import boss_ammo_runt, dodge_dis, finderz_keeperz, ork_ammo_runts
 from game.nova_charge import nova_charge_adjusted_weapon
 from game import damaged_attacks, triarch_auras
@@ -946,6 +946,11 @@ class ShootingController:
         # there's a completion callback (rule 24.14's Firing Deck needs one
         # for a perfectly normal, non-reactive activation too).
         self._reactive = False
+        # The IngressController, set by main.py once both exist. Only read to
+        # answer "made an ingress move this turn" - the Deffkoptas' Deff from
+        # Above (game/deff_from_above.py). None in a test that builds this
+        # controller alone, which answers no.
+        self.ingress_controller = None
         # Awakened Dynasty's Protocol of the Vengeful Stars: "it MUST target
         # only that enemy unit". None = no restriction, which is every other
         # activation in the game.
@@ -2735,6 +2740,11 @@ class ShootingController:
         # The Beastboss's Dodge Dis!: "This unit's attacks have +1 to hit
         # rolls" - read literally, both phases (see game/dodge_dis.py).
         modifiers.extend(dodge_dis.hit_modifiers(self.active_squad))
+        # The Deffkoptas' Deff from Above: +1 to hit in your Shooting phase
+        # after an ingress move this turn - never for a reactive shot, which
+        # is not "your Shooting phase".
+        modifiers.extend(deff_from_above.hit_modifiers(
+            self.active_squad, self.ingress_controller, reactive=self._reactive))
         # Prince Yriel's Piratical Hero, second half: "add 1 to the Hit roll"
         # while he leads. A bonus, so a -1 on the threshold.
         if corsair_abilities.piratical_hero_applies(self.active_squad):
@@ -3750,7 +3760,6 @@ class ShootingController:
         weapon = crystalline_targeting.adjusted_weapon(
             weapon, self.crystalline_targeting, self.active_squad, target_squad)
         weapon = starscythe_adjusted_weapon(weapon, pairs, target_squad)
-        weapon = drive_by_dakka_adjusted_weapon(weapon, pairs, target_squad)
         weapon = arrokon_adjusted_weapon(weapon, pairs, target_squad)
         weapon = bladestorm_adjusted_weapon(weapon, pairs, target_squad)
         # Blitzing Firepower is Bladestorm with a fixed 12" instead of half

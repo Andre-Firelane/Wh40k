@@ -31,7 +31,6 @@ from game.factions.orks import (
     TANKBUSTAS,
     TRUKK,
     WARBIKERS,
-    WARBIKERS_ADD_POWER_KLAW,
 )
 from game.factions.tau_empire import (
     GHOSTKEEL_BATTLESUIT,
@@ -52,7 +51,7 @@ def _army(owner):
             build_squad(STORMBOYZ, owner, composition_index=1,
                         choices={"Nob": {STORMBOYZ_NOB_TO_POWER_KLAW: 1}}, name="2 Stormboyz 1"),
             build_squad(WARBIKERS, owner, composition_index=0,
-                        choices={"Boss Nob on Warbike": {WARBIKERS_ADD_POWER_KLAW: 1}}, name="2 Warbikers 1"),
+                        name="2 Warbikers 1"),
             build_squad(BOYZ, owner, choices={"Nob": {BOYZ_NOB_TO_POWER_KLAW: 1}}, name="2 Boyz 1"),
             build_squad(DEFF_DREAD, owner, name="2 Deff Dread 1"),
             build_squad(TRUKK, owner, name="2 Trukk 1"),

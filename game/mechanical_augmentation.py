@@ -27,8 +27,8 @@ list in hand, which the 3" measurement needs.
   * defender half: the TARGET squad is the augmented one.
 
 "IMPROVE BY 1" MEANS MORE NEGATIVE, "worsen" means less - the same arithmetic
-game/crit_ap.py and game/ramshackle.py already use, and worsening is clamped at
-0 exactly as Ramshackle clamps it (AP cannot become a bonus).
+game/crit_ap.py and game/ap_worsening.py already use, and worsening is clamped
+at 0 exactly as ap_worsening clamps it (AP cannot become a bonus).
 
 THE GROWING RANGE is the first ability in this engine whose numbers change over
 the course of a battle. Two decisions worth recording:

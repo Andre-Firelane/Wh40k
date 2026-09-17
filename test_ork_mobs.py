@@ -341,8 +341,11 @@ _boss = next(x for x in _led.models if x.profile.character)
 c.eq("a Warboss in Mega Armour leading them is covered (rule 19.04)", save_thresholds(_boss, _klaw)[2], -1)
 c.eq("ap_worsening: -2 -> -1, 0 -> 0, -3 by 2 -> -1",
      (ap_worsening.worsen(-2), ap_worsening.worsen(0), ap_worsening.worsen(-3, 2)), (-1, 0, -1))
+# The Battlewagon's Ramshackle but Rugged was this extraction's other Ork
+# reader; the 2026-09 codex took it off the datasheet (stage E3d, Mobile
+# Fortress instead), so the wagon now takes the printed AP like any model.
 _wagon = build(BATTLEWAGON, name="Wagon").models[0]
-c.eq("Ramshackle but Rugged is unchanged by the extraction", save_thresholds(_wagon, _klaw)[2], -1)
+c.eq("the Battlewagon no longer worsens AP (Ramshackle retired in E3d)", save_thresholds(_wagon, _klaw)[2], -2)
 
 
 # ===========================================================================
@@ -487,7 +490,7 @@ _pins = [
     ("game/fight.py", "FightController", "_hit_modifiers", "krumpin_time.hit_modifiers(self.fighting_squad)"),
     ("game/fight.py", "FightController", "_start_fighting", "self.rokkit_charge.offer(squad)"),
     ("game/actions.py", None, "start_eligibility", "never_too_busy_to_fight.applies(squad)"),
-    ("game/damage_resolution.py", None, "save_thresholds", "arrogant_invulnerability.adjusted_ap(ap, model)"),
+    ("game/damage_resolution.py", None, "save_thresholds", "arrogant_invulnerability.adjusted_ap(weapon.ap, model)"),
     ("game/transport.py", "TransportController", "can_embark", "squad_capacity_cost(squad)"),
     ("game/transport.py", "TransportController", "embarked_model_count", "squad_capacity_cost(s)"),
     ("game/formations.py", None, "transport_capacity_used", "squad_capacity_cost(s)"),

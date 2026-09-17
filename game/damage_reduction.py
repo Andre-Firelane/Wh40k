@@ -36,33 +36,62 @@ gives: a mortal wound is not an attack with a Damage characteristic being
 allocated (rule 06.02 is its own mechanism), so MortalWoundAllocationSession
 does not call this. Deadly Demise, [HAZARDOUS] and Living Lightning are
 therefore untouched by it.
+
+THE 2026-09 ORK CODEX BROUGHT TWO MORE (stage E3d):
+
+  * Deff Dread, "Dread 'Ard": "Attacks that target this unit have -1 D." The
+    same field. The printed subject is the UNIT and this reads the MODEL - on a
+    one-model unit those are the same attacks, and no rule lets anything join a
+    Deff Dread.
+  * Battlewagon, "Mobile Fortress": "RANGED attacks that target this unit have
+    -1 D." The one qualifier the others lack, so it is its own field
+    (UnitProfile.ranged_damage_reduction) and this module is handed the
+    attack's WEAPON to answer it. A melee attack is untouched - the half a
+    shared field would lose.
+
+UnitProfile.damage_reduction_label names the rule for the log line, since five
+carriers print it under four names.
 """
+
+from game.weapons import RANGED
 
 DAMAGE_FLOOR = 1
 
 
-def reduction_for(model):
-    """How much this model subtracts. Per MODEL, because the printed sentence
-    says "this model" - after rule 19.01 a merged unit can hold models that do
-    and do not have it, and an Overlord leading Lychguard is exactly that."""
+def reduction_for(model, weapon=None):
+    """How much this model subtracts from an attack made with `weapon`. Per
+    MODEL, because the printed sentence says "this model" - after rule 19.01 a
+    merged unit can hold models that do and do not have it, and an Overlord
+    leading Lychguard is exactly that.
+
+    `weapon` is only needed for the ranged-only half (Mobile Fortress); without
+    it that half is not counted, so a caller that cannot say what attacked never
+    claims a reduction the printed text limits to ranged attacks."""
     if model is None:
         return 0
-    return int(getattr(getattr(model, "profile", None), "damage_reduction", 0) or 0)
+    profile = getattr(model, "profile", None)
+    reduction = int(getattr(profile, "damage_reduction", 0) or 0)
+    if getattr(weapon, "weapon_type", None) == RANGED:
+        reduction += int(getattr(profile, "ranged_damage_reduction", 0) or 0)
+    return reduction
 
 
-def adjusted_damage(model, amount):
-    """`amount` after this model's reduction, floored at 1."""
-    reduction = reduction_for(model)
+def adjusted_damage(model, amount, weapon=None):
+    """`amount` after this model's reduction against `weapon`, floored at 1."""
+    reduction = reduction_for(model, weapon)
     if reduction <= 0:
         return amount
     return max(DAMAGE_FLOOR, amount - reduction)
 
 
 def label_for(model):
-    """The ability's printed NAME, for the log line - the two carriers call the
+    """The ability's printed NAME, for the log line - the carriers call the
     same rule different things, and a log that says "damage reduction" would
     make the reader look for a rule with that name."""
     profile = getattr(model, "profile", None)
+    printed = getattr(profile, "damage_reduction_label", None)
+    if printed:
+        return printed
     if getattr(profile, "matter_absorption", False):
         return "Necrodermis"
     return "Implacable Resilience"

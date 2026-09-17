@@ -2,8 +2,8 @@
 "Unit Costs" screen (user-supplied paste, 2026-07-29). The entries of the
 datasheets rebuilt for the 2026-09 codex (Boyz, Beast Snagga Boyz, Stormboyz,
 Gretchin, Meganobz, Warboss, Warboss in Mega Armour, Beastboss, Painboy, Flash Gitz,
-Tankbustas so far) follow the POINTS table of their rules/orks/*.md
-page instead, and say so where they stand.
+Tankbustas, Warbikers, Deffkoptas, Trukk, Battlewagon, Deff Dread so far) follow the
+POINTS table of their rules/orks/*.md page instead, and say so where they stand.
 
 All 58 entries, not just the five units game/factions/orks.py has datasheets
 for - same reasoning as game/factions/tau_empire_points.py, which this
@@ -19,11 +19,10 @@ Two things this list does that the T'au one doesn't:
 - Two entries attach as SUPPORT rather than LEADER (Bannernob, Painboy) -
   see UnitPoints' own `supports` field.
 
-The one Ork wargear price on the list ("Battlewagon: per 'ard case 15 pts")
-belongs to a datasheet that doesn't exist here yet, so nothing reads it -
-it's stored so that it's already there when Battlewagon is added. Big Mek
-Dakkarig's "UPDATED / REQUISITION THRESHOLDS REMOVED" note is not a cost and
-isn't stored.
+The one pre-codex Ork wargear price ("Battlewagon: per 'ard case 15 pts") went
+with the 'Ard Case: the 2026-09 Battlewagon page prints "WARGEAR COSTS
+REMOVED". Big Mek Dakkarig's "UPDATED / REQUISITION THRESHOLDS REMOVED" note is
+not a cost and isn't stored.
 """
 
 from game.factions.points import PointsTier, UnitPoints, flat_points
@@ -35,7 +34,11 @@ ORKS_POINTS = {
     "Bannernob": flat_points({1: 50}, supports=(
         "Boyz", "Breaka Boyz", "Burna Boyz", "Flash Gitz", "Lootas", "Nobz", "Tankbustas",
     )),
-    "Battlewagon": flat_points({1: 145}, wargear={"'ard case": 15}),
+    # 2026-09 codex (rules/orks/Battlewagon.md) - the 'ard case price is gone.
+    "Battlewagon": UnitPoints([
+        PointsTier({1: 150}, to_unit=2),
+        PointsTier({1: 160}, from_unit=3),
+    ]),
     # 2026-09 codex (rules/orks/Beastboss.md).
     "Beastboss": flat_points({1: 85}, leads=("Beast Snagga Boyz",)),
     "Beastboss on Squigosaur": flat_points({1: 95}, leads=("Squighog Boyz",)),
@@ -71,12 +74,17 @@ ORKS_POINTS = {
     "Burna-Bommer": flat_points({1: 115}),
     "Burna Boyz": flat_points({5: 60, 10: 120}),
     "Dakkajet": flat_points({1: 125}),
+    # 2026-09 codex (rules/orks/Deff Dread.md).
     "Deff Dread": UnitPoints([
-        PointsTier({1: 110}, to_unit=2),
-        PointsTier({1: 120}, from_unit=3),
+        PointsTier({1: 130}, to_unit=2),
+        PointsTier({1: 140}, from_unit=3),
     ]),
     "Deffkilla Wartrike": flat_points({1: 70}, leads=("Warbikers",)),
-    "Deffkoptas": flat_points({3: 75, 6: 140}),
+    # 2026-09 codex (rules/orks/Deffkoptas.md).
+    "Deffkoptas": UnitPoints([
+        PointsTier({3: 80, 6: 160}, to_unit=2),
+        PointsTier({3: 90, 6: 170}, from_unit=3),
+    ]),
     # 2026-09 codex (rules/orks/Flash Gitz.md).
     "Flash Gitz": UnitPoints([
         PointsTier({5: 105, 10: 210}, to_unit=2),
@@ -147,11 +155,13 @@ ORKS_POINTS = {
         PointsTier({6: 145}, to_unit=2),
         PointsTier({6: 155}, from_unit=3),
     ]),
+    # 2026-09 codex (rules/orks/Trukk.md).
     "Trukk": UnitPoints([
-        PointsTier({1: 55}, to_unit=3),
-        PointsTier({1: 65}, from_unit=4),
+        PointsTier({1: 60}, to_unit=3),
+        PointsTier({1: 70}, from_unit=4),
     ]),
-    "Warbikers": flat_points({3: 60, 6: 120}),
+    # 2026-09 codex (rules/orks/Warbikers.md).
+    "Warbikers": flat_points({3: 75, 6: 140}),
     # 2026-09 codex (rules/orks/Warboss.md, rules/orks/Warboss in Mega Armour.md).
     "Warboss": flat_points({1: 100}, leads=_LEADS_BOYZ_MOBS),
     "Warboss in Mega Armour": UnitPoints(

@@ -199,6 +199,14 @@ class TransportController:
         self._disembark_transport = None
         self._hazard_step = None       # HazardRollStep while Combat/Emergency Disembark's POST-placement hazard roll is pending (see confirm_disembark())
         self._emergency_queue = []     # [(transport_token, squad), ...] awaiting their emergency disembark
+        # Listeners fired once a Disembark Move has fully RESOLVED - placement
+        # confirmed (and, for Combat/Emergency, its hazard roll done) or the
+        # placement cancelled - with (squad, confirmed). Synchronous, so a
+        # reactor can open the NEXT disembark in the same call instead of
+        # leaving a frame in which nothing is open: the Trukk's Pilin' Out
+        # (game/pilin_out.py) queues its passengers behind it, and reads an
+        # enemy's confirmed disembark here as "ended a move".
+        self.on_disembark_resolved = []
 
     def reset_movement_phase(self):
         self._embarked_this_phase = set()
@@ -381,11 +389,14 @@ class TransportController:
                 return True
         return False
 
-    def start_disembark(self, squad):
+    def start_disembark(self, squad, mode=None):
+        """`mode` is for a rule that PRINTS the mode (the Trukk's Pilin' Out:
+        "using the rapid disembark mode"); left None, rule 18.04's
+        determine_mode() decides it from what the TRANSPORT did this phase."""
         if not self.can_disembark(squad):
             return
         self._disembarking_squad = squad
-        self._disembark_mode = self.determine_mode(squad.embarked_in, squad)
+        self._disembark_mode = mode if mode is not None else self.determine_mode(squad.embarked_in, squad)
         self._disembark_transport = squad.embarked_in
         # Placement first, hazard roll afterwards - for EVERY mode. See
         # confirm_disembark() for why the roll can't come first.
@@ -536,6 +547,7 @@ class TransportController:
                 self._hazard_step = HazardRollStep(squad, len(squad.models), self.dice_manager, log=self._log)
             else:
                 self._reset_disembark_state()
+                self._fire_resolved(squad, True)
 
     def cancel_disembark(self):
         squad = self.setup_controller.setting_up_squad
@@ -543,6 +555,7 @@ class TransportController:
             return
         self.setup_controller.cancel_setup()  # triggers _on_cancel_disembark synchronously
         self._reset_disembark_state()
+        self._fire_resolved(squad, False)
 
     def _on_cancel_disembark(self, squad):
         if self._disembark_mode == EMERGENCY:
@@ -572,6 +585,10 @@ class TransportController:
         squad.embarked_in = self._disembark_transport
         if squad not in self.game_state.embarked_squads:
             self.game_state.embarked_squads.append(squad)
+
+    def _fire_resolved(self, squad, confirmed):
+        for listener in list(self.on_disembark_resolved or ()):
+            listener(squad, confirmed)
 
     def _reset_disembark_state(self):
         self._disembarking_squad = None
@@ -638,8 +655,10 @@ class TransportController:
         queued Emergency Disembark are waiting on."""
         if self._hazard_step is None or not self._hazard_step.done:
             return
+        squad = self._disembarking_squad
         self._hazard_step = None
         self._reset_disembark_state()
+        self._fire_resolved(squad, True)
 
     # --- placement overlay ---
 

@@ -32,7 +32,47 @@ WHAT IS NOT SHARED is each caller's own eligibility and wording: the
 Enhancement's "not within Engagement Range of one or more enemy units" and the
 stratagem's TARGET clause have nothing in common, and each logs in its own
 voice. Both are checked BEFORE calling this.
+
+WHEN A WITHDRAWAL CAN STILL COME BACK. withdrawal_is_doomed() and
+misses_next_arrival() are rule 20.03 facts about the moment a unit leaves the
+board at the end of an opponent's turn. They were written for Hypercrypt
+Legion's Hyperphasing and moved here with their second reader, the Deffkoptas'
+Aerial Manoover (stage E3d) - "at the end of your opponent's Fight phase" is
+the same advance_turn_phase() call. game/hypercrypt_hyperphasing.py re-exports
+both.
 """
+
+
+#: Rule 20.03: "At the end of the third battle round ... all strategic reserves
+#: units that have not made one or more ingress moves are destroyed."
+RESERVES_DESTROYED_AFTER_ROUND = 3
+
+
+def withdrawal_is_doomed(turn_tracker):
+    """Whether a unit placed into Strategic Reserves at THIS end of turn is lost
+    before it can arrive. Read after advance_phase(), which is when main.py makes
+    the end-of-turn offers.
+
+    True when the battle is over, and when the turn that just ended was the last
+    of battle round 3: advance_phase() has then rolled the counter to 4 with the
+    round's first turn still to come (turn_index_in_round 0), and rule 20.03's
+    destruction runs right after the offers in the same call."""
+    if turn_tracker is None:
+        return False
+    if getattr(turn_tracker, "battle_over", False):
+        return True
+    return (getattr(turn_tracker, "battle_round", 0) == RESERVES_DESTROYED_AFTER_ROUND + 1
+            and getattr(turn_tracker, "turn_index_in_round", None) == 0)
+
+
+def misses_next_arrival(turn_tracker):
+    """Whether a unit withdrawn now cannot arrive in its owner's NEXT Movement
+    phase because rule 20.03 forbids arrivals before battle round 2. The owner's
+    next turn is the one advance_phase() has just started."""
+    if turn_tracker is None:
+        return False
+    from game.ingress import INGRESS_MIN_BATTLE_ROUND
+    return getattr(turn_tracker, "battle_round", 0) < INGRESS_MIN_BATTLE_ROUND
 
 
 def withdraw_to_reserves(game_state, squad, log=None, message=None):

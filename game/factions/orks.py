@@ -44,16 +44,19 @@ their ranged attacks in your Shooting phase while they or the target are within
 range of an objective). The pre-codex Gun-crazy Show-offs and the Kaptin's Ammo
 Runt wargear are gone, with game/gun_crazy_showoffs.py and game/ammo_runt.py.
 
-Battlewagon brought this engine's FIRST defensive weapon adjuster. Every
-other one belongs to the attacker and is chained onto the weapon while its
-group resolves; Ramshackle but Rugged belongs to the TARGET ("each time an
-attack is allocated to this model") and is therefore applied at rule 05.03's
-allocation step in game/damage_resolution.py, against the model actually
-taking the wound - see game/ramshackle.py. Its 'Ard Case is also the first
-PRICED Gear item (every drone menu before it was free), which is what gave
-Gear a `points` field and taught Datasheet.points_for() to charge for gear at
-all - priced from what build_squad() actually APPLIED rather than from the
-caller's request, so a trimmed-away second copy cannot be billed.
+The five vehicles and bikes (2026-09 codex, stage E3d). Warbikers carry
+High-speed Carnage (game/high_speed_carnage.py: +1 S and D on their melee
+attacks in a turn they charged). Deffkoptas are MOUNTED now, not VEHICLE, with
+Deff from Above (game/deff_from_above.py: +1 to hit in your Shooting phase after
+an ingress move) and Aerial Manoover (game/aerial_manoover.py: into Strategic
+Reserves at the end of the opponent's Fight phase). The Trukk's Pilin' Out
+(game/pilin_out.py) lets its passengers make a rapid disembark move when an enemy
+unit ends a move within 8" of it in the opponent's Movement phase. The
+Battlewagon's Mobile Fortress and the Deff Dread's Dread 'Ard are Damage
+reductions (game/damage_reduction.py - ranged attacks only for the first).
+Retired with the pre-codex sheets: Drive-by Dakka, Grot Riggers, Ramshackle but
+Rugged, the 'Ard Case, Piston-driven Brutality and Dead Choppy, and the Zzap Gun
+that was this engine's only dice-rolled Strength.
 
 Warboss is a single-model Character/Leader datasheet (2026-09 codex). All
 three of its abilities are engine-wired: Boss' Ammo Runt (game/
@@ -94,55 +97,6 @@ MONSTER/VEHICLE unit). The pre-codex Tank Hunters is gone, and with it the Ork
 half of game/squad.py's tank_hunters_modifiers() (the Myphitic Blight-hauler's
 ranged-only twin stays).
 
-Deffkoptas is a multi-model (3x) VEHICLE squadron - unusual for VEHICLE
-(every other VEHICLE datasheet here so far, Trukk, is single-model), but a
-real printed composition, and no separate leader model this time. Deep
-Strike (24.09) needs no new code - `deep_strike` is an existing generic
-UnitProfile flag, already read by game/ingress.py/game/transport.py.
-Invulnerable Save (6+) is likewise just DeffkoptaProfile's own
-`invulnerable_save` field. Deff from Above is NOT engine-wired, for the
-same reason as Bomb Squigs above (see that note) - it's a once-per-Normal-
-move reactive ability needing its own "which enemy unit did we move over"
-detection, a D6-per-model roll, and per-model mortal wounds, i.e. real new
-controller work, not a one-line hook extension.
-
-Deff Dread is a single-model VEHICLE/WALKER, the first datasheet to set the
-existing (previously unused) `walker` flag. Deadly Demise 1 needs no new
-code at all - it's an existing generic mechanic (game/deadly_demise.py's
-DeadlyDemiseController), already fully wired for T'au's own Devilfish/
-Ghostkeel. Dead Choppy is NOT engine-wired as a live per-count calculation
-- with only one modeled composition (always 2x Dread klaw), the +1-per-
-additional-klaw bonus is simply baked into DreadKlawProfile's own fixed
-Attacks value (see that class's own note in game/weapons.py) rather than
-computed at runtime; nothing to recompute since there's no other loadout
-to differ against yet. Piston-driven Brutality is NOT engine-wired, same
-deliberate scope call as Tankbustas' Bomb Squigs/Deffkoptas' Deff from
-Above - a reactive post-Charge ability needing its own target selection
-and a two-tier D6 roll (2-5 vs 6) into mortal wounds, not a hook
-extension.
-
-Bodyguard is purely descriptive (`abilities_text`) for now, same status as
-Kroot Carnivores' own Bodyguard text in game/factions/tau_empire.py: it
-depends on the live Attached-Unit formation flow this engine doesn't have
-yet (see that module's note). Get Da Good Bitz IS engine-wired: it's
-word-for-word the same rule as Kroot Carnivores' own Fieldcraft, so both
-BoyzProfile and BossNobProfile just set the shared `fieldcraft` flag and
-reuse game/fieldcraft.py's apply_fieldcraft()/squad_has_fieldcraft() as-is
-(see UnitProfile.fieldcraft's own note on why that field isn't
-Kroot-exclusive) - no new code needed for this datasheet. Warbikers' own
-Drive-by Dakka IS engine-wired too, but needed real new code (see
-game/drive_by_dakka.py) rather than reusing an existing mechanism - it isn't
-identical to any ability already built (Bonded Heroes' own 9" AP tier is the
-closest match, but that's one tier of a two-tier S/AP ability gated on
-BATTLESUIT, not a standalone rule). Stormboyz' Full Throttle is engine-wired
-too - a named exception in game/charge.py's can_declare_charge(), the
-charging equivalent of Battlesuit Support System's own shooting-after-
-Fall-Back exception (see squad_has_full_throttle() in game/squad.py).
-Trukk's Grot Riggers is engine-wired too (game/grot_riggers.py, called from
-main.py's own start-of-Command-phase block, same hook as Support Turret's
-own expiry) - genuinely new code again, no existing per-model wound-
-regeneration mechanism to reuse.
-
 Detachment "War Horde" is engine-wired (game/war_horde.py -
 get_stuck_in_adjusted_weapon(), chained into FightController the same way
 Bonded Heroes is, see that module's own docstring), gated on
@@ -172,30 +126,33 @@ from game.factions.detachment import Enhancement
 from game.factions.orks_points import ORKS_POINTS
 from game.units import (
     BattlewagonProfile, BeastbossProfile, FlashGitzKaptinProfile, FlashGitzProfile, KillRigProfile,
-    BeastSnaggaBoyProfile, BeastSnaggaNobProfile, BossNobOnWarbikeProfile, BoyzNobProfile, BoyzProfile,
+    BeastSnaggaBoyProfile, BeastSnaggaNobProfile, BikerNobProfile, BoyzNobProfile, BoyzProfile,
     DeffDreadProfile, DeffkoptaProfile, GretchinProfile,
     MeganobzProfile, PainboyProfile, StormboyProfile, StormboyzNobProfile, TankbustaNobProfile,
     TankbustaProfile, TrukkProfile, WarbikerProfile, WarbossMegaArmourProfile, WarbossProfile,
 )
 from game.weapons import (
     BeastSnaggaChoppaProfile, BeastSnaggaKlawAndBeastchoppaProfile, BigShootaS5Profile,
-    BustaRokkitLaunchaProfile, ButchaBoyzProfile, ChoppaA4Profile, DeffRollaProfile, DoksToolzProfile,
+    BustaRokkitLaunchaProfile, ButchaBoyzProfile, ChoppaA4Profile, DoksToolzProfile,
     EavyLobbaProfile, GitstikkaProfile,
-    GrabbinKlawProfile,
-    LobbaProfile, SavageHornsAndHoovesProfile, TracksAndWheelsProfile, WreckinBallProfile,
-    ZzapGunProfile,
+    SavageHornsAndHoovesProfile,
     SawBladesProfile, SnazzgunCuttaProfile,
     ShootaProfile, StikkaKannonProfile, WurrtowerProfile,
-    BigChoppaProfile, BigShootaProfile, BurnaProfile, ChoppaProfile, DreadKlawProfile,
+    BigChoppaProfile, BigShootaProfile, BurnaProfile, ChoppaProfile,
     GrotBlastaProfile, KillsawProfile, KombiRokkitBustaRokkitProfile, KombiSkorchaShootaProfile,
-    KombiWeaponShootaProfile, KoptaRokkitsProfile, KustomChoppaProfile,
+    KombiWeaponShootaProfile, KustomChoppaProfile,
     KustomShootaAimedProfile, KustomShootaProfile,
-    OrkCloseCombatWeaponProfile, PowerKlawProfile, PowerSnappaProfile, RokkitLaunchaBlastaProfile,
+    PowerKlawProfile, PowerSnappaProfile, RokkitLaunchaBlastaProfile,
     RokkitPistolProfile, ScavengedShivsProfile, SluggaProfile,
-    SmashHammerProfile, SpikedWheelProfile, SpinninBladesProfile, StompyFeetProfile,
-    ThumpGunProfile, TwinDakkagunProfile, TwinKillsawProfile,
+    SmashHammerProfile,
+    ThumpGunProfile, TwinKillsawProfile,
     UgeChoppaProfile, UrtySyringeProfile,
     WarbossKustomChoppaProfile, WarbossPowerKlawProfile,
+    # stage E3d - Warbikers, Deffkoptas, Trukk, Battlewagon, Deff Dread
+    BuzzsawProfile, CrushinBulkProfile, DeffkoptaChoppaProfile, DeffkoptaKustomMegaBlastaProfile,
+    DeffkoptaRokkitLaunchaBlastaProfile, DreadKlawsProfile, DualBigShootaProfile, DualDakkagunProfile,
+    DualKombiRokkitDakkagunProfile, ExtraKlawProfile, GrabbinKlawProfile, KustomMegaBlastaProfile,
+    SkorchaProfile, SpikedRamProfile, SpinninBladesProfile, WreckinBallProfile,
 )
 
 ORKS = Faction("Orks", "ORKS")
@@ -295,57 +252,33 @@ BOYZ = ORKS.add_datasheet(Datasheet(
     ],
 ))
 
-_WARBIKER_LOADOUT = [OrkCloseCombatWeaponProfile, TwinDakkagunProfile]
+_BIKER_NOB_LOADOUT = [KustomChoppaProfile, DualKombiRokkitDakkagunProfile]
+_WARBIKER_LOADOUT = [ChoppaProfile, DualDakkagunProfile]
 
-WARBIKERS_ADD_POWER_KLAW = "+ Power Klaw"
-
-# Two composition sizes, same pattern datasheet.py's own docstring
-# describes for Boyz' 10/20-model builds - the original 3-model composition
-# (1 Boss Nob on Warbike + 2 Warbiker) plus a larger 6-model one, user-
-# supplied separately via an actual army list ("6x Warbikers... 1x Boss Nob
-# on Warbike + 5x Warbiker"). composition_index=0 is the original 3-model
-# build, 1 is this new 6-model one.
 WARBIKERS = ORKS.add_datasheet(Datasheet(
     "Warbikers",
-    keywords=("MOUNTED", "GRENADES", "WARBIKERS", "SPEED FREEKS"),
+    keywords=("MOUNTED", "EXPLOSIVES", "SPEED FREEKS"),
+    # 2026-09 codex (rules/orks/Warbikers.md): "1 Biker Nob model, 2-5 Warbiker
+    # models", priced at 3 and 6 - composition_index 0 and 1. No wargear
+    # options: the pre-codex Power Klaw addition is gone.
     composition_options=[
         [
-            ModelLine(BossNobOnWarbikeProfile, 1, _WARBIKER_LOADOUT, name="Boss Nob on Warbike"),
+            ModelLine(BikerNobProfile, 1, _BIKER_NOB_LOADOUT, name="Biker Nob"),
             ModelLine(WarbikerProfile, 2, _WARBIKER_LOADOUT, name="Warbiker"),
         ],
         [
-            ModelLine(BossNobOnWarbikeProfile, 1, _WARBIKER_LOADOUT, name="Boss Nob on Warbike"),
+            ModelLine(BikerNobProfile, 1, _BIKER_NOB_LOADOUT, name="Biker Nob"),
             ModelLine(WarbikerProfile, 5, _WARBIKER_LOADOUT, name="Warbiker"),
         ],
     ],
-    # Real wargear choice, user-supplied separately from the datasheet
-    # itself (an army list build: "1x Boss Nob on Warbike: Close combat
-    # weapon, Twin dakkagun, Power klaw" - all 3 weapons at once,
-    # user-confirmed when asked: the Boss Nob keeps its Close Combat Weapon
-    # AND gains a Power Klaw, a genuine second melee profile to choose
-    # between each fight activation, not a replacement). replaces=None
-    # since it's a pure addition, same pattern as e.g. Devilfish's Seeker
-    # Missile option.
-    wargear_options=[
-        WargearOption("Boss Nob on Warbike", replaces=None, with_weapons=[PowerKlawProfile], max_models=1, name=WARBIKERS_ADD_POWER_KLAW),
-    ],
-    # Unselected Profiles (user-supplied reference block): a bare "3x
-    # Warbiker, no Boss Nob" build reference - same weapons already used
-    # above (Twin Dakkagun/Close combat weapon, just fewer copies) plus two
-    # alternates, Slugga and Choppa, that already exist from Boyz (see
-    # SluggaProfile/ChoppaProfile above) - no new classes needed. No
-    # wargear-swap rule text given for either alternate, so still a
-    # documented gap for those specifically.
-    # Official list: 3 models 60 pts / 6 models 120 pts, no per-copy tiering -
-    # and both of those sizes ARE modeled above, so either composition_index
-    # prices correctly. The added Power Klaw is free on the list.
     points=ORKS_POINTS["Warbikers"],
     abilities_text=[
-        'Drive-by Dakka: Each time a model in this unit makes a ranged attack that targets a unit '
-        'within 9", improve the Armour Penetration characteristic of that attack by 1.',
-        'Invulnerable Save (6+) [Warbikers]: Models in this unit have a 6+ invulnerable save.',
+        "High-speed Carnage: If this unit made a charge move this turn, this unit's melee attacks have: "
+        "+1 S and D.",
     ],
 ))
+# High-speed Carnage is engine-wired (game/high_speed_carnage.py, in
+# FightController's adjuster chain). The pre-codex Drive-by Dakka is gone.
 
 _STORMBOYZ_NOB_LOADOUT = [KustomChoppaProfile, SluggaProfile]
 _STORMBOY_LOADOUT = [ChoppaProfile, SluggaProfile]
@@ -379,31 +312,44 @@ STORMBOYZ = ORKS.add_datasheet(Datasheet(
     ],
 ))
 
-_TRUKK_LOADOUT = [BigShootaProfile, SpikedWheelProfile]
+_TRUKK_LOADOUT = [DualBigShootaProfile, SpikedRamProfile]
+
+TRUKK_DUAL_BIG_SHOOTA_TO_ROKKIT_LAUNCHA = "Dual Big Shoota -> Rokkit Launcha"
+TRUKK_ADD_BUZZSAW = "+ Buzzsaw"
+TRUKK_ADD_GRABBIN_KLAW = "+ Grabbin' Klaw"
 
 TRUKK = ORKS.add_datasheet(Datasheet(
     "Trukk",
-    keywords=("DEDICATED TRANSPORT", "VEHICLE", "TRANSPORT", "TRUKK"),
+    keywords=("VEHICLE", "DEDICATED TRANSPORT", "FRAME", "SPEED FREEKS", "TRANSPORT"),
     model_lines=[
         ModelLine(TrukkProfile, 1, _TRUKK_LOADOUT, name="Trukk"),
     ],
-    # Unselected Profiles (user-supplied reference block): Wreckin' Ball -
-    # now a real class (WreckinBallProfile), unlike Boyz's Power klaw, since
-    # its WS4+ actually matches the Trukk's own weapon_skill (no per-weapon
-    # WS override needed). No wargear-swap rule text given, so no
-    # wargear_options yet, same documented gap as every other datasheet's
-    # own Unselected Profiles.
-    # Official list: 1 model 55 pts for your 1st to 3rd Trukk, 65 pts from the
-    # 4th on - the demo scene's two Trukks are 55 each.
+    # 2026-09 codex (rules/orks/Trukk.md): "This model's Dual Big Shoota can be
+    # replaced with 1 Rokkit Launcha" and "This model can be equipped with one
+    # of the following: 1 Buzzsaw / 1 Grabbin' Klaw" - both of the latter are
+    # ADDITIONS beside the Spiked Ram.
+    # KNOWN LIMITATION: "one of the following" makes the two additions
+    # exclusive, and two WargearOptions that replace nothing cannot exclude each
+    # other - the same documented gap as the Tankbustas' Busta Rokkit Launcha
+    # and Pulsa Rokkit. A build can take both.
+    wargear_options=[
+        WargearOption("Trukk", replaces=DualBigShootaProfile, with_weapons=[RokkitLaunchaBlastaProfile],
+                      max_models=1, name=TRUKK_DUAL_BIG_SHOOTA_TO_ROKKIT_LAUNCHA),
+        WargearOption("Trukk", replaces=None, with_weapons=[BuzzsawProfile], max_models=1,
+                      name=TRUKK_ADD_BUZZSAW),
+        WargearOption("Trukk", replaces=None, with_weapons=[GrabbinKlawProfile], max_models=1,
+                      name=TRUKK_ADD_GRABBIN_KLAW),
+    ],
     points=ORKS_POINTS["Trukk"],
     abilities_text=[
-        'Grot Riggers: At the start of your Command phase, this model regains 1 lost wound.',
-        'Invulnerable Save (6+): This model has a 6+ invulnerable save.',
-        'Transport: This model has a transport capacity of 12 ORKS INFANTRY models. Each MEGA '
-        'ARMOUR model takes up the space of 2 models. It cannot transport JUMP PACK or GHAZGHKULL '
-        'THRAKA models.',
+        "Pilin' Out: In your opponent's Movement phase, when an enemy unit ends a move within 8\" of this "
+        "model, units embarked within this model can make a disembark move using the rapid disembark mode.",
+        "Transport: This model has a transport capacity of 12 ORKS INFANTRY models. It cannot transport "
+        "GHAZGHKULL THRAKA/JUMP PACK models. Each MEGA ARMOUR model takes up the space of 2 models.",
     ],
 ))
+# Pilin' Out is engine-wired (game/pilin_out.py). Deadly Demise D3 and Firing
+# Deck 12 are generic UnitProfile fields. The pre-codex Grot Riggers is gone.
 
 _GRETCHIN_LOADOUT = [ScavengedShivsProfile, GrotBlastaProfile]
 
@@ -583,78 +529,86 @@ TANKBUSTAS = ORKS.add_datasheet(Datasheet(
 # (game/bomb_squigs.py) and the Pulsa Rokkit (game/pulsa_rokkit.py). The
 # pre-codex Tank Hunters and Attached Unit text are gone.
 
-_DEFFKOPTA_LOADOUT = [KoptaRokkitsProfile, SluggaProfile, SpinninBladesProfile]
+_DEFFKOPTA_LOADOUT = [DeffkoptaChoppaProfile, DeffkoptaRokkitLaunchaBlastaProfile, SluggaProfile,
+                      SpinninBladesProfile]
+
+DEFFKOPTAS_KUSTOM_MEGA_BLASTA = "Rokkit Launcha -> Kustom Mega-blasta"
 
 DEFFKOPTAS = ORKS.add_datasheet(Datasheet(
     "Deffkoptas",
-    keywords=("VEHICLE", "FLY", "GRENADES", "DEFFKOPTAS", "SPEED FREEKS"),
-    # Two composition sizes, same pattern as Warbikers/Stormboyz/Meganobz/
-    # Flash Gitz - the printed 3-model build plus the 6-model one an actual
-    # army list fields ("6x Deffkoptas: 6 with Kopta rokkits, Slugga,
-    # Spinnin' blades"). composition_index=0 is the 3-model build, 1 the
-    # 6-model one; the points list already prices both. No separate leader
-    # ModelLine on this datasheet (like Meganobz, unlike Boyz/Stormboyz) -
-    # every model shares DeffkoptaProfile's stat line and loadout, which is
-    # exactly what "6 with Kopta rokkits, Slugga, Spinnin' blades" says.
+    keywords=("MOUNTED", "EXPLOSIVES", "FLY", "SPEED FREEKS"),
+    # 2026-09 codex (rules/orks/Deffkoptas.md): "3-6 Deffkopta models", priced
+    # at 3 and 6 - composition_index 0 and 1.
     composition_options=[
         [ModelLine(DeffkoptaProfile, 3, _DEFFKOPTA_LOADOUT, name="Deffkopta")],
         [ModelLine(DeffkoptaProfile, 6, _DEFFKOPTA_LOADOUT, name="Deffkopta")],
     ],
-    # Unselected Profiles (user-supplied reference block): a bare "2x
-    # Deffkopta" reference build (same weapons already used above, just
-    # fewer copies) plus one new alternate, Kustom Mega-Blasta (now a real
-    # class, KustomMegaBlastaProfile - see game/weapons.py). No wargear-swap
-    # rule text given, so no wargear_options yet - same documented gap as
-    # every other datasheet's own Unselected Profiles.
-    # Official list: 3 models 75 pts / 6 models 140 pts, no per-copy
-    # tiering - both sizes are modeled and therefore both reachable.
+    # "For every 3 models in this unit, 1 model can have their Rokkit Launcha
+    # replaced with 1 Kustom Mega-blasta."
+    wargear_options=[
+        WargearOption("Deffkopta", replaces=DeffkoptaRokkitLaunchaBlastaProfile,
+                      with_weapons=[DeffkoptaKustomMegaBlastaProfile], per_models=3,
+                      name=DEFFKOPTAS_KUSTOM_MEGA_BLASTA),
+    ],
     points=ORKS_POINTS["Deffkoptas"],
     abilities_text=[
-        'Deff from Above: Each time this unit ends a Normal move, you can select one enemy unit it '
-        'moved over during that move and roll one D6 for each model in this unit: for each 4+, that '
-        'enemy unit suffers 1 mortal wound.',
-        'Invulnerable Save (6+) [Deffkoptas]: Models in this unit have a 6+ invulnerable save.',
+        "Deff from Above: In your Shooting phase, if this unit made an ingress move this turn, this unit's "
+        "ranged attacks have +1 to hit rolls.",
+        "Aerial Manoover: At the end of your opponent's Fight phase, if this unit is unengaged, you can place "
+        "this unit in strategic reserves.",
     ],
 ))
-# Deff from Above is NOT engine-wired - see this module's own docstring for
-# why (a deliberate scope call, same reasoning as Tankbustas' own Bomb
-# Squigs). Invulnerable Save (6+) is just DeffkoptaProfile.invulnerable_save,
-# no new code needed.
+# Both abilities are engine-wired: Deff from Above (game/deff_from_above.py, in
+# ShootingController's hit modifiers) and Aerial Manoover
+# (game/aerial_manoover.py, offered at main.py's end-of-Fight-phase seam).
 
-_DEFF_DREAD_LOADOUT = [StompyFeetProfile, BigShootaProfile, BigShootaProfile, DreadKlawProfile, DreadKlawProfile]
+_DEFF_DREAD_LOADOUT = [BigShootaS5Profile, DreadKlawsProfile, SkorchaProfile]
+
+DEFF_DREAD_BIG_SHOOTA_TO_EXTRA_KLAW = "Big Shoota -> Extra Klaw"
+DEFF_DREAD_BIG_SHOOTA_TO_KUSTOM_MEGA_BLASTA = "Big Shoota -> Kustom Mega-blasta"
+DEFF_DREAD_BIG_SHOOTA_TO_ROKKIT_LAUNCHA = "Big Shoota -> Rokkit Launcha"
+DEFF_DREAD_SKORCHA_TO_EXTRA_KLAW = "Skorcha -> Extra Klaw"
+DEFF_DREAD_SKORCHA_TO_BIG_SHOOTA = "Skorcha -> Big Shoota"
+DEFF_DREAD_SKORCHA_TO_KUSTOM_MEGA_BLASTA = "Skorcha -> Kustom Mega-blasta"
+DEFF_DREAD_SKORCHA_TO_ROKKIT_LAUNCHA = "Skorcha -> Rokkit Launcha"
 
 DEFF_DREAD = ORKS.add_datasheet(Datasheet(
     "Deff Dread",
-    keywords=("VEHICLE", "WALKER", "DEFF DREAD"),
+    keywords=("VEHICLE", "WALKER"),
     model_lines=[
         ModelLine(DeffDreadProfile, 1, _DEFF_DREAD_LOADOUT, name="Deff Dread"),
     ],
-    # Unselected Profiles (user-supplied reference block): Big shoota/Rokkit
-    # launcha/Kustom mega-blasta all reuse existing classes (identical stat
-    # lines to Trukk's/Tankbustas'/Deffkoptas' own weapons, see
-    # game/weapons.py's own notes); Skorcha and the reference "Dread klaw"
-    # row are also now real/reused classes. No wargear-swap rule text given
-    # for any of these, so no wargear_options yet - same documented gap as
-    # every other datasheet's own Unselected Profiles.
-    # Official list: 1 model 110 pts for your 1st-2nd Deff Dread, 120 from
-    # the 3rd on.
+    # 2026-09 codex (rules/orks/Deff Dread.md): the Big Shoota and the Skorcha
+    # can each be replaced with "one of the following". Options that give up the
+    # same weapon share build_squad()'s cursor, which on a one-model line is "one
+    # of" exactly. ORDER MATTERS: the Big Shoota swaps come first, because
+    # build_squad() applies options in this order and a swap removes EVERY copy
+    # of what it replaces - "Skorcha -> Big Shoota" listed first would hand the
+    # Big Shoota swap a second Big Shoota to take away.
+    wargear_options=[
+        WargearOption("Deff Dread", replaces=BigShootaS5Profile, with_weapons=[ExtraKlawProfile],
+                      max_models=1, name=DEFF_DREAD_BIG_SHOOTA_TO_EXTRA_KLAW),
+        WargearOption("Deff Dread", replaces=BigShootaS5Profile, with_weapons=[KustomMegaBlastaProfile],
+                      max_models=1, name=DEFF_DREAD_BIG_SHOOTA_TO_KUSTOM_MEGA_BLASTA),
+        WargearOption("Deff Dread", replaces=BigShootaS5Profile, with_weapons=[RokkitLaunchaBlastaProfile],
+                      max_models=1, name=DEFF_DREAD_BIG_SHOOTA_TO_ROKKIT_LAUNCHA),
+        WargearOption("Deff Dread", replaces=SkorchaProfile, with_weapons=[ExtraKlawProfile],
+                      max_models=1, name=DEFF_DREAD_SKORCHA_TO_EXTRA_KLAW),
+        WargearOption("Deff Dread", replaces=SkorchaProfile, with_weapons=[BigShootaS5Profile],
+                      max_models=1, name=DEFF_DREAD_SKORCHA_TO_BIG_SHOOTA),
+        WargearOption("Deff Dread", replaces=SkorchaProfile, with_weapons=[KustomMegaBlastaProfile],
+                      max_models=1, name=DEFF_DREAD_SKORCHA_TO_KUSTOM_MEGA_BLASTA),
+        WargearOption("Deff Dread", replaces=SkorchaProfile, with_weapons=[RokkitLaunchaBlastaProfile],
+                      max_models=1, name=DEFF_DREAD_SKORCHA_TO_ROKKIT_LAUNCHA),
+    ],
     points=ORKS_POINTS["Deff Dread"],
     abilities_text=[
-        'Piston-driven Brutality: Each time this model ends a Charge move, select one enemy unit '
-        'within Engagement Range of it and roll one D6: on a 2-5, that enemy unit suffers D3 mortal '
-        'wounds; on a 6, that enemy unit suffers D3+3 mortal wounds.',
-        'Invulnerable Save (6+): This model has a 6+ invulnerable save.',
-        'Dead Choppy: The Attacks characteristic of this weapon is increased by 1 for each '
-        'additional Dread klaw this model is equipped with.',
+        "Dread 'Ard: Attacks that target this unit have -1 D.",
     ],
 ))
-# Piston-driven Brutality is NOT engine-wired - see this module's own
-# docstring for why (a deliberate scope call, same reasoning as Tankbustas'
-# Bomb Squigs/Deffkoptas' Deff from Above). Dead Choppy is NOT engine-wired
-# as a live calculation either - see DreadKlawProfile's own note in
-# game/weapons.py (its fixed Attacks value already bakes in this loadout's
-# only possible count). Invulnerable Save (6+) is just
-# DeffDreadProfile.invulnerable_save, no new code needed.
+# Dread 'Ard is UnitProfile.damage_reduction (game/damage_reduction.py). Deadly
+# Demise 1 is a generic field. The pre-codex Piston-driven Brutality and Dead
+# Choppy are gone.
 
 _BEAST_SNAGGA_NOB_LOADOUT = [PowerSnappaProfile, SluggaProfile]
 _BEAST_SNAGGA_BOY_LOADOUT = [BeastSnaggaChoppaProfile, SluggaProfile]
@@ -811,108 +765,44 @@ FLASH_GITZ = ORKS.add_datasheet(Datasheet(
 # adjuster chain). The pre-codex Gun-crazy Show-offs and the Kaptin's Ammo Runt
 # wargear are gone.
 
-_BATTLEWAGON_LOADOUT = [TracksAndWheelsProfile]
+_BATTLEWAGON_LOADOUT = [CrushinBulkProfile]
 
-BATTLEWAGON_ARD_CASE = "'Ard Case"
+BATTLEWAGON_ADD_WRECKIN_BALL = "+ Wreckin' Ball"
 BATTLEWAGON_ADD_BIG_SHOOTAS = "+ 4x Big Shoota"
-BATTLEWAGON_ADD_ZZAP_GUN = "+ Zzap Gun"
-
-
-def _apply_ard_case(token):
-    """"Add 2 to the bearer's Toughness characteristic, but it no longer has
-    the Firing Deck ability."
-
-    Mutates this token's OWN profile instance - build_squad() gives every
-    token a fresh one (see game/factions/datasheet.py), so nothing else on
-    the board is touched. Both halves are applied together because the
-    printed wargear is one item: the +2 T is the whole reason to take it and
-    losing Firing Deck 11 is what it costs."""
-    token.profile.toughness += 2
-    token.profile.firing_deck = 0
-
+BATTLEWAGON_ADD_GRABBIN_KLAW = "+ Grabbin' Klaw"
 
 BATTLEWAGON = ORKS.add_datasheet(Datasheet(
     "Battlewagon",
-    keywords=("VEHICLE", "TRANSPORT", "BATTLEWAGON"),
+    keywords=("VEHICLE", "FRAME", "TRANSPORT", "WAGON"),
     model_lines=[
         ModelLine(BattlewagonProfile, 1, _BATTLEWAGON_LOADOUT, name="Battlewagon"),
     ],
-    # 'Ard Case is a real, PRICED option - the one Ork wargear cost on the
-    # published list is "Battlewagon: per 'ard case 15 pts", stored in
-    # game/factions/orks_points.py long before this datasheet existed and
-    # now finally read. It is a Gear item rather than a WargearOption
-    # because it swaps no weapons at all: it changes a characteristic and
-    # removes an ability, which is exactly what Gear's effect(token)
-    # callback is for.
-    # Real wargear choice, user-supplied separately from the datasheet
-    # itself (an army list build: "1x Battlewagon: 'Ard Case, 4x Big shoota,
-    # Zzap gun, Tracks and wheels") - the same "an actual list selected it"
-    # evidence that turned Boyz' Power Klaw and Tankbustas' Smash Hammer
-    # into real options. replaces=None since the Big shootas are a pure
-    # addition alongside Tracks and wheels, and free on the published list.
-    #
-    # The Zzap gun is the same kind of addition, and the first weapon in this
-    # engine with a DICE-ROLLED Strength ("S D6+6") - see ZzapGunProfile and
-    # WeaponProfile.strength_notation.
+    # 2026-09 codex (rules/orks/Battlewagon.md): "This model can be equipped
+    # with 1 Wreckin' Ball", "...with up to 4 Big Shoota" and "...with 1 Grabbin'
+    # Klaw" - three additions beside the Crushin' Bulk, every one free
+    # ("WARGEAR COSTS REMOVED").
+    # KNOWN LIMITATION: "up to 4" is offered as the four at once. A WargearOption
+    # counts MODELS, and this line has one, so 1-3 Big Shootas cannot be
+    # expressed; the full four is what a list takes.
     wargear_options=[
-        WargearOption(
-            "Battlewagon", replaces=None,
-            with_weapons=[BigShootaProfile] * 4, max_models=1,
-            name=BATTLEWAGON_ADD_BIG_SHOOTAS,
-        ),
-        WargearOption(
-            "Battlewagon", replaces=None, with_weapons=[ZzapGunProfile], max_models=1,
-            name=BATTLEWAGON_ADD_ZZAP_GUN,
-        ),
+        WargearOption("Battlewagon", replaces=None, with_weapons=[WreckinBallProfile], max_models=1,
+                      name=BATTLEWAGON_ADD_WRECKIN_BALL),
+        WargearOption("Battlewagon", replaces=None, with_weapons=[BigShootaS5Profile] * 4, max_models=1,
+                      name=BATTLEWAGON_ADD_BIG_SHOOTAS),
+        WargearOption("Battlewagon", replaces=None, with_weapons=[GrabbinKlawProfile], max_models=1,
+                      name=BATTLEWAGON_ADD_GRABBIN_KLAW),
     ],
-    gear_options=[
-        Gear("Battlewagon", BATTLEWAGON_ARD_CASE, _apply_ard_case,
-             points=ORKS_POINTS["Battlewagon"].wargear["'ard case"]),
-    ],
-    gear_slots={"Battlewagon": 1},
-    # Unselected Profiles (user-supplied reference block): Big shoota and
-    # Wreckin' ball reuse existing classes unchanged (identical stat lines to
-    # Trukk's own, see game/weapons.py); Lobba, Grabbin' klaw and Deff rolla
-    # are new classes there. None is wired as a wargear option - no swap-rule
-    # text was given for them, the same documented gap as every other
-    # datasheet's Unselected Profiles.
-    #
-    # Official list: 1 model 145 pts, no per-copy tiering, plus 15 pts per
-    # 'ard case.
     points=ORKS_POINTS["Battlewagon"],
     abilities_text=[
-        'Ramshackle but Rugged: Each time an attack is allocated to this model, worsen the Armour '
-        'Penetration characteristic of that attack by 1.',
-        'Damaged: 1-5 Wounds Remaining: While this model has 1-5 wounds remaining, each time this '
-        'model makes an attack, subtract 1 from the Hit roll.',
-        'Invulnerable Save (6+): This model has a 6+ invulnerable save.',
-        'Deadly Demise D6: When this model is destroyed, roll one D6. On a 6, each unit within 6" '
-        'suffers D6 mortal wounds.',
-        'Firing Deck 11: Each time this model shoots, up to 11 models embarked within it can each '
-        'have one of their ranged weapons fired as if by this model.',
-        'Transport: This model has a transport capacity of 22 ORKS INFANTRY models. If this model '
-        'is equipped with a Killkannon, it has a transport capacity of 12 ORKS INFANTRY models. '
-        'Each MEGA ARMOUR or JUMP PACK model takes up the space of 2 models. The GHAZGHKULL THRAKA '
-        'model takes up the space of 4 models.',
-        "'Ard Case: Add 2 to the bearer's Toughness characteristic, but it no longer has the Firing "
-        'Deck ability.',
+        "Mobile Fortress: Ranged attacks that target this unit have -1 D.",
+        "Transport: This model has a transport capacity of 22 ORKS INFANTRY models. Each MEGA ARMOUR/JUMP "
+        "PACK model takes up the space of 2 models. Each GHAZGHKULL THRAKA model takes up the space of 4 "
+        "models.",
     ],
 ))
-# Only Ramshackle but Rugged needed new code (game/ramshackle.py) - and it is
-# the FIRST defensive adjuster in this engine: every other one belongs to the
-# attacker and is chained onto the weapon while its group resolves, this one
-# belongs to the target and is applied at rule 05.03's allocation step, in
-# game/damage_resolution.py. Everything else is an existing generic field:
-# Damaged 1-5 is `damaged_threshold`, Deadly Demise D6 is
-# `deadly_demise_notation`, Invulnerable Save 6+ is `invulnerable_save`, and
-# Firing Deck 11 is `firing_deck` (game/firing_deck.py, built for the
-# Devilfish). Its Transport line needed one small generalisation: JUMP PACK
-# models now cost 2 capacity alongside MEGA ARMOUR ones, see
-# game/transport.py's _model_capacity_cost().
-#
-# TWO printed clauses are NOT modeled, both because the thing they refer to
-# does not exist here: the Killkannon (a weapon this datasheet has no wargear
-# text for, which would drop capacity 22 -> 12) and GHAZGHKULL THRAKA taking
-# 4 slots (no such datasheet).
+# Mobile Fortress is UnitProfile.ranged_damage_reduction (game/damage_reduction.py).
+# Damaged 6, Deadly Demise D6 and Firing Deck 11 are generic fields. The
+# pre-codex Ramshackle but Rugged, 'Ard Case, Zzap Gun and Killkannon clause
+# are gone. GHAZGHKULL THRAKA taking 4 slots is not modeled (no such datasheet).
 
 register_faction(ORKS)

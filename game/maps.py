@@ -305,7 +305,7 @@ MAP1 = BattleMap(
         # room over. Costs nothing: the points list prices Warbikers at 3
         # models for 60 and 6 for 120.
         warbikers=[
-            # 3x Warbikers (Boss Nob on Warbike first), right flank, clear of
+            # 3x Warbikers (Biker Nob first), right flank, clear of
             # both ruins and the Trukks - the front row of what used to be the
             # 6-model block.
             [(36.50, 13.50), (39.10, 13.50), (41.70, 13.50)],

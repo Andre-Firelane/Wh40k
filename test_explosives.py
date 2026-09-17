@@ -57,7 +57,7 @@ from game.shooting import ShootingController
 from game.stratagems import StratagemController
 from game.turn import PHASES, PHASE_MOVEMENT, PHASE_SHOOTING, TurnTracker
 from game.units import AutarchProfile
-from game.weapons import WeaponProfile
+from game.weapons import SluggaProfile, WeaponProfile
 
 m = maps.get("map2")
 maps.apply_to_config(m)
@@ -250,12 +250,14 @@ checks.true("with [ASSAULT], an Advanced unit IS still eligible to shoot",
 checks.true("...and Explosives still refuses it - the Advance clause is its own",
             not s6["explosives"].can_use(shooter))
 
-# 6b. "unengaged" - proven independent by a VEHICLE, which rule 10.06 lets
-# shoot out of combat.
-s6b = scene(shooter_sheet=DEFFKOPTAS, gap=1.0)
+# 6b. "unengaged" - proven independent by a [CLOSE-QUARTERS] weapon, which rule
+# 10.06 lets an engaged unit fire. The Deffkoptas were a VEHICLE until the
+# 2026-09 Ork codex; they are MOUNTED now, and their Slugga is what keeps the
+# case alive - no EXPLOSIVES VEHICLE is built any more.
+s6b = scene(shooter_sheet=DEFFKOPTAS, gun=SluggaProfile, gap=1.0)
 kopta = s6b["shooter"]
 checks.true("the scene really has them engaged", kopta.is_engaged(s6b["state"].tokens))
-checks.true("a VEHICLE engaged in combat IS still eligible to shoot (10.06)",
+checks.true("an engaged unit with a [CLOSE-QUARTERS] Slugga IS still eligible to shoot (10.06)",
             s6b["shooting"].can_shoot(kopta))
 checks.true("...and Explosives still refuses it - the unengaged clause is its own",
             not s6b["explosives"].can_use(kopta))

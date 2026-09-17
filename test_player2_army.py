@@ -9,11 +9,9 @@ the config, and the Ork army is still built, still fielded and still played by
 the AI whenever that flag is passed. See test_player2_necron_army.py for the
 list that turns up by default.
 
-Every item on that list is modeled, including the one whose rules arrived
-after the datasheet did (the Battlewagon's Zzap gun) - it has its own suite in
-test_ork_wargear.py; here it only has to be present. The Warboss's Attack Squig,
-the Painboy's Grot Orderly and the Flash Gitz' Ammo Runt went with the
-pre-codex sheets.
+The Battlewagon's Zzap gun and 'Ard Case, the Warboss's Attack Squig, the
+Painboy's Grot Orderly and the Flash Gitz' Ammo Runt went with the pre-codex
+sheets; test_ork_wargear.py keeps the two engine mechanisms the first two built.
 
 Builds the roster the same way main() does, rather than driving main()
 itself: that keeps the check about WHAT the army is, independent of
@@ -27,8 +25,10 @@ Meganobz priced at 2/3/5/6 models, and a Painboy that attaches as SUPPORT.
 The four characters (Warboss, Warboss in Mega Armour, Beastboss, Painboy)
 follow it too since the Ork characters stage; test_ork_characters.py owns them.
 Flash Gitz and Tankbustas since the specialists stage (test_ork_specialists.py),
-fielded without wargear choices - armies/orks.json is kept minimal until the
-user's app export replaces it.
+and Warbikers, Deffkoptas, Deff Dread and Battlewagon since the vehicles stage
+(test_ork_vehicles.py), all fielded with as few wargear choices as the list
+allows - armies/orks.json is kept minimal until the user's app export replaces
+it.
 """
 
 from testkit import Checks, GameState, build_squad
@@ -36,12 +36,12 @@ from testkit import Checks, GameState, build_squad
 from game import attached_units
 from game import pregame
 from game.factions.orks import (
-    BATTLEWAGON, BATTLEWAGON_ADD_BIG_SHOOTAS, BATTLEWAGON_ADD_ZZAP_GUN, BATTLEWAGON_ARD_CASE,
+    BATTLEWAGON, BATTLEWAGON_ADD_BIG_SHOOTAS,
     BEAST_SNAGGA_BOYZ, BEASTBOSS, BOYZ, BOYZ_NOB_TO_POWER_KLAW, DEFF_DREAD, DEFFKOPTAS,
     FLASH_GITZ, GRETCHIN, KILL_RIG, MEGANOBZ, PAINBOY,
     STORMBOYZ, STORMBOYZ_NOB_TO_POWER_KLAW,
     TANKBUSTAS,
-    TRUKK, WARBIKERS, WARBIKERS_ADD_POWER_KLAW, WARBOSS, WARBOSS_MEGA_ARMOUR,
+    TRUKK, WARBIKERS, WARBOSS, WARBOSS_MEGA_ARMOUR,
 )
 
 c = Checks("Player 2 army")
@@ -156,43 +156,36 @@ c.eq("a Tankbusta's weapons", weapons(tank.models[1]), ["Busta Rokkit Launcha - 
 c.eq("Tankbustas points (codex)", tank.points, 145)
 
 for idx in (1, 2):
-    bikes = build(WARBIKERS, composition_index=0,
-                  choices={"Boss Nob on Warbike": {WARBIKERS_ADD_POWER_KLAW: 1}}, unit_index=idx)
-    c.eq(f"Warbikers {idx} is the 3-model build", len(bikes.models), 3)
-    c.eq(f"Warbikers {idx} Boss Nob keeps all three weapons", weapons(bikes.models[0]),
-         ["Close Combat Weapon", "Power Klaw", "Twin Dakkagun"])
+    bikes = build(WARBIKERS, composition_index=0, unit_index=idx)
+    c.eq(f"Warbikers {idx} is the 3-model build", line_counts(bikes), {"Biker Nob": 1, "Warbiker": 2})
+    c.eq(f"Warbikers {idx} Biker Nob's weapons", weapons(bikes.models[0]),
+         ["Dual Kombi-rokkit - Dakkagun", "Kustom Choppa"])
+    c.eq(f"Warbikers {idx} points (codex)", bikes.points, 75)
 
 
 # ---------------------------------------------------------------------------
 # 3. Vehicles
 # ---------------------------------------------------------------------------
 
-wagon = build(BATTLEWAGON, gear={"Battlewagon": [BATTLEWAGON_ARD_CASE]},
-              choices={"Battlewagon": {BATTLEWAGON_ADD_BIG_SHOOTAS: 1, BATTLEWAGON_ADD_ZZAP_GUN: 1}})
+wagon = build(BATTLEWAGON, choices={"Battlewagon": {BATTLEWAGON_ADD_BIG_SHOOTAS: 1}})
 c.eq("Battlewagon weapons", sorted(w.name for w in wagon.models[0].weapons),
-     ["Big Shoota"] * 4 + ["Tracks and Wheels", "Zzap Gun"])
-c.eq("'Ard Case raised its Toughness", wagon.models[0].profile.toughness, 12)
-c.eq("...and removed Firing Deck", wagon.models[0].profile.firing_deck, 0)
-c.eq("Battlewagon points", wagon.points, 160)  # matches the list exactly
-zzap = next(w for w in wagon.models[0].weapons if w.name == "Zzap Gun")
-c.true("the Zzap gun's Strength is a real D6+6 roll", zzap.strength_notation is not None)
-c.eq("...and both additions are free", wagon.points, 160)
+     ["Big Shoota"] * 4 + ["Crushin' Bulk"])
+c.eq("Battlewagon points (codex, the four Big Shootas are free)", wagon.points, 150)
 
 dread = build(DEFF_DREAD)
 c.eq("Deff Dread weapons", sorted(w.name for w in dread.models[0].weapons),
-     ["Big Shoota", "Big Shoota", "Dread Klaw", "Dread Klaw", "Stompy Feet"])
+     ["Big Shoota", "Dread Klaws", "Skorcha"])
+c.eq("Deff Dread points (codex)", dread.points, 130)
 
 koptas = build(DEFFKOPTAS, composition_index=1)
 c.eq("Deffkoptas is the 6-model build", line_counts(koptas), {"Deffkopta": 6})
-c.eq("Deffkopta weapons", weapons(koptas.models[0]),
-     ["Kopta Rokkits", "Slugga", "Spinnin' Blades"])
-c.true("...and every model carries the same three",
+c.eq("Deffkopta weapons (the Rokkit Launcha's first profile stands for both)",
+     weapons(koptas.models[0]), ["Choppa", "Rokkit Launcha - Blasta", "Slugga", "Spinnin' Blades"])
+c.true("...and every model carries the same four",
        all(weapons(m) == weapons(koptas.models[0]) for m in koptas.models))
-c.eq("Deffkoptas points", koptas.points, 140)  # the list says 160 - see main.py's note
-# The 3-model build stays reachable, which is what makes the new size an
-# added composition rather than a replaced one.
+c.eq("Deffkoptas points (codex)", koptas.points, 160)
 c.eq("the 3-model composition still builds", len(build(DEFFKOPTAS, name="small koptas").models), 3)
-c.eq("...and is priced separately", build(DEFFKOPTAS, name="small koptas 2").points, 75)
+c.eq("...and is priced separately", build(DEFFKOPTAS, name="small koptas 2").points, 80)
 
 rig = build(KILL_RIG)
 c.eq("Kill Rig weapons", sorted(w.name for w in rig.models[0].weapons),
@@ -294,7 +287,7 @@ c.true("the Mega Armour Warboss may not lead Boyz",
 from game import formations  # noqa: E402
 
 rig_token = build(KILL_RIG).models[0]
-wagon_token = build(BATTLEWAGON, gear={"Battlewagon": [BATTLEWAGON_ARD_CASE]}).models[0]
+wagon_token = build(BATTLEWAGON).models[0]
 trukk_token = build(TRUKK).models[0]
 
 c.eq("Beast Snagga Boyz + Beastboss fit in the Kill Rig",
@@ -358,8 +351,7 @@ ROSTER = [
                   choices={"Nob": {BOYZ_NOB_TO_POWER_KLAW: 1}}, unit_index=1),
             game_state=GameState()),
         game_state=GameState()),
-    build(BATTLEWAGON, gear={"Battlewagon": [BATTLEWAGON_ARD_CASE]},
-          choices={"Battlewagon": {BATTLEWAGON_ADD_BIG_SHOOTAS: 1, BATTLEWAGON_ADD_ZZAP_GUN: 1}}),
+    build(BATTLEWAGON, choices={"Battlewagon": {BATTLEWAGON_ADD_BIG_SHOOTAS: 1}}),
     build(DEFF_DREAD),
     build(DEFFKOPTAS, composition_index=1),
     build(FLASH_GITZ, composition_index=1),
@@ -370,10 +362,8 @@ ROSTER = [
                           game_state=GameState()),
     build(STORMBOYZ, composition_index=1, choices={"Nob": {STORMBOYZ_NOB_TO_POWER_KLAW: 1}}),
     build(TANKBUSTAS),
-    build(WARBIKERS, composition_index=0,
-          choices={"Boss Nob on Warbike": {WARBIKERS_ADD_POWER_KLAW: 1}}, unit_index=1),
-    build(WARBIKERS, composition_index=0,
-          choices={"Boss Nob on Warbike": {WARBIKERS_ADD_POWER_KLAW: 1}}, unit_index=2),
+    build(WARBIKERS, composition_index=0, unit_index=1),
+    build(WARBIKERS, composition_index=0, unit_index=2),
 ]
 c.eq("the army is 14 units after attaching", len(ROSTER), 14)
 c.true("every unit is priced", all(s.points is not None for s in ROSTER))
@@ -381,7 +371,7 @@ c.true("every unit is priced", all(s.points is not None for s in ROSTER))
 # codex POINTS tables for the rebuilt Ork datasheets). The user's list totals
 # differently unit by unit - recorded in main.py's own note, with the
 # transcribed data left as the source of truth.
-c.eq("engine total", sum(s.points for s in ROSTER), 2105)
+c.eq("engine total", sum(s.points for s in ROSTER), 2165)
 c.eq("model count", sum(len(s.models) for s in ROSTER), 101)
 
 # The hand-built roster above is only worth checking if it IS the shipped
