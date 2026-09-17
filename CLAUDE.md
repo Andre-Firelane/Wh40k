@@ -808,8 +808,9 @@ Fraktion deren Dateien plus `fraktionen.md`; bei einer gemeldeten Fehlerform zue
 - Ork-Charaktere (2026-09-Codex): Warboss, Warboss in Mega Armour, Beastboss, Painboy — Etappe E3b
 - Ork-Spezialisten (2026-09-Codex): Flash Gitz, Tankbustas — Etappe E3c
 
-### `docs/stand/orks-codex-2026-09-2.md` — Etappe E3d Fahrzeuge (Pilin' Out als reaktiver Disembark, Aerial Manoover, Mobile Fortress/Dread 'Ard, Rundenende-Sweep über alle Einheiten)
+### `docs/stand/orks-codex-2026-09-2.md` — Etappen E3d Fahrzeuge (Pilin' Out, Aerial Manoover, Mobile Fortress/Dread 'Ard, Rundenende-Sweep) und E3e Kill Rig (psychischer Wurf, Warpath, Beastscent, ein Würfel-Slot)
 - Ork-Fahrzeuge (2026-09-Codex): Warbikers, Deffkoptas, Trukk, Battlewagon, Deff Dread — Etappe E3d
+- Kill Rig (2026-09-Codex): Beastscent, Warpath, der psychische Wurf — Etappe E3e
 
 ### `docs/stand/audits-aeldari-und-tau.md` — die Prüfungen „werden die Aeldari-/T'au-Stratagems angeboten und wirken sie“
 - Werden die Aeldari-Stratagems überhaupt ANGEBOTEN? (Prüfung, 2026-09-07)

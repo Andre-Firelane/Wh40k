@@ -157,11 +157,11 @@ c.eq("[ANTI-INFANTRY 3+] lowers the critical threshold on the wound roll",
 
 
 def melee_note():
-    """The fight phase has its own adjuster chain (Get Stuck In, Spirit of
-    Gork), so its labels are wired separately and tested separately."""
+    """The fight phase has its own adjuster chain (Get Stuck In, Hit 'Em
+    Harder), so its labels are wired separately and tested separately."""
     tk.script(*([6] * 40))
     scene = tk.fight_scene(BEAST_SNAGGA_BOYZ, BOYZ)
-    scene["attacker"].spirit_of_gork_lethal = True
+    scene["attacker"].hit_em_harder_active = True  # War Horde: [LETHAL HITS] on melee
     fc = scene["fight"]
     fc.select_to_fight(scene["attacker"])
     if fc.target_squad is None:

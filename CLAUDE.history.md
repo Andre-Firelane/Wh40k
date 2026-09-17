@@ -9723,3 +9723,37 @@ beißend, kein Rest (auch ungetrackt); volle Regression 236 Suiten, ~23039 Prüf
 `verify_rules_vs_engine.py` 100 → 73; `fetch_datasheet_rules.py --offline` ohne Diff (nur das Datum
 in `rules/README.md`, zurückgesetzt); `measure_crowded_movement.py` unverändert 62 % / 210.2",
 isoliert 87 % / 292.3"; `test_claude_md_budget.py` grün.
+
+## 2026-09-17 - Orks Etappe E3e: Kill Rig, psychischer Wurf, Warpath, Beastscent
+
+**Auftrag:** „weiter" nach der Frage, was an den angelegten Orks noch nicht aktualisiert ist - die
+Antwort war: nur der Kill Rig (Plan-Etappe E3e), plus `CORPUS_AHEAD` samt Sonden löschen.
+
+**Gebaut:** `game/psychic_roll.py` (nicht battle-shocked, Unstable-Energies-Budget, freier
+Würfel-Slot, eine 1 schockt über die eine Tür), `game/warpath.py` (bei „selected to fight",
+[LETHAL HITS]+[PSYCHIC]), `game/beastscent.py` (neuer `TransportController.on_disembark_started`,
++1 Verwunden gegen MONSTER/VEHICLE bis Zugende), `FightController._hit_modifiers()` liest
+[PSYCHIC] jetzt an der angepassten Waffe. Datenblatt, Waffen und Punkte auf Codex-Stand, Spirit of
+Gork stillgelegt, `CORPUS_AHEAD` gelöscht. Damit stehen alle 17 Ork-Datenblätter auf Codex-Stand.
+
+**Der Fund:** ein Würfel-Slot, zwei Würfe. `_handle_fight()` warf nach `select_to_fight()` sofort
+den Hit Roll über Warpaths offenen W6 - per Laufzeit-Sonde an `main()`s Objekten gemessen, beide
+Etiketten in EINEM Aufruf, und die 1 schockte nie, weil die Bestätigung den Hit-Würfel las. Stopp in
+`_handle_fight()` plus ein Controller, der einen ersetzten Wurf mit seiner eigenen Augenzahl auflöst.
+
+**Eigene Fehler, beide erkannt und ohne Schaden:** `ab_weapon_characteristics.py --check` gestartet -
+der Treiber kennt `--check` nicht und fuhr einen echten Sondenlauf (lief allein, Dateien und Zeilenenden
+geprüft, kein Rest; Memory ergänzt). Die erste Fassung der Laufzeit-Sonde prüfte „Player 2 ist nach dem
+Zugende dran" und war in einem von drei Läufen falsch rot - der gestellte Zug gehört nicht immer dem, dem
+die Uhr ihn zuschreibt; jetzt fragt sie die Uhr.
+
+**Nebenbei gefunden:** drei Sondenanker, die E3d verschoben hatte, ohne dass dessen Lauf sie sah
+(Waaagh!-Flag, `withdrawal_is_doomed`, Arrogant Invulnerability - die letzte hätte mit ihrer alten
+Ersetzung abgestürzt statt rot gemacht). Umgezogen, alle drei beißen. Lehre: nach einer Etappe jeden
+Treiber mit `--check` fragen.
+
+**Verifiziert:** `test_ork_kill_rig.py` 108/108; `ab_ork_kill_rig.py` 48 Sonden alle beißend (eine
+zuerst nicht - Testlücke geschlossen); volle Regression 236 Suiten, ~23019 Prüfungen, 235 grün / 0 rot
+/ 1 bekannt; `--smoke` grün; `selfplay.py map2 1500` beide Sitzordnungen exit 0;
+`verify_ork_kill_rig.py` 14/14, neutralisiert 6/6, Wächter-A/B fällt; `verify_rules_vs_engine.py`
+73 → 68; `fetch --offline` ohne Diff; `measure_crowded_movement.py` unverändert 62 % / 87 %.

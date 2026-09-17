@@ -41,7 +41,8 @@ passenden Abschnitt hier; ein neuer `##`-Abschnitt braucht eine Zeile im Verzeic
   Gretchin und Meganobz auf Codex-Stand (siehe `## Ork-Mobs`), seit E3b auch Warboss, Warboss in
   Mega Armour, Beastboss und Painboy (siehe `## Ork-Charaktere`), seit E3c Flash Gitz und
   Tankbustas (siehe `## Ork-Spezialisten`), seit E3d Warbikers, Deffkoptas, Trukk, Battlewagon und
-  Deff Dread (siehe `## Ork-Fahrzeuge`). Komplette
+  Deff Dread (siehe `## Ork-Fahrzeuge`), seit E3e der Kill Rig (siehe `## Kill Rig`) - damit alle
+  17 auf Codex-Stand. Komplette
   Punkteliste (58 Einträge).
 - **Aeldari** — Guardian Defenders, Storm Guardians, Striking Scorpions, Howling Banshees, Warp
   Spiders, Dire Avengers, Fire Dragons, Dark Reapers, Shining Spears, Windriders, Warlock Skyrunners,

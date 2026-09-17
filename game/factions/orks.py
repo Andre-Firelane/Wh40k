@@ -30,13 +30,14 @@ printed weapon with [SUSTAINED HITS 2: MONSTER/VEHICLE]. The pre-codex
 Beastboss rule (Might is Right's twin) and Ferocious Rage are gone, and with
 them game/ferocious_rage.py.
 
-Kill Rig is the first MONSTER that is also a TRANSPORT, and the first PSYKER
-of either faction. Only Spirit of Gork needed new code
-(game/spirit_of_gork.py); Damaged 1-5, Deadly Demise D6 and Feel No Pain 6+
-are all existing generic UnitProfile fields. Its Transport line needed the
-new `transport_requires` - the INCLUSIVE counterpart of the long-standing
-transport_excludes, which could only ever express a refusal and so could not
-say "11 BEAST SNAGGA INFANTRY models".
+Kill Rig (2026-09 codex) is the first MONSTER that is also a TRANSPORT. Its two
+psychic abilities share one psychic roll (game/psychic_roll.py: not
+battle-shocked, the Unstable Energies budget of its Wurrboy's psyker level 1, a
+1 battle-shocks): Beastscent (game/beastscent.py) and Warpath (game/warpath.py).
+Damaged 6, Deadly Demise D6 and Feel No Pain 5+ are generic UnitProfile fields;
+its Transport line uses `transport_requires` - the INCLUSIVE counterpart of
+transport_excludes - for "12 BEAST SNAGGAS INFANTRY models". The pre-codex
+Spirit of Gork is gone, with game/spirit_of_gork.py.
 
 Flash Gitz (2026-09 codex) carry a THREE-profile Snazzgun (Cutta, Dakka, Kill
 Shot - rule 04.01.03) and Finderz Keeperz (game/finderz_keeperz.py: +1 AP on
@@ -691,51 +692,35 @@ _KILL_RIG_LOADOUT = [
 
 KILL_RIG = ORKS.add_datasheet(Datasheet(
     "Kill Rig",
-    keywords=("MONSTER", "TRANSPORT", "PSYKER", "BEAST SNAGGA", "KILL RIG"),
+    keywords=("MONSTER", "BEAST SNAGGA", "PSYKER", "TRANSPORT", "WAGON"),
     model_lines=[
         ModelLine(KillRigProfile, 1, _KILL_RIG_LOADOUT, name="Kill Rig"),
     ],
-    # No Unselected Profiles block and no Wargear Options text were given -
-    # every one of the six printed weapons is carried at once, which is the
-    # whole loadout. Same documented gap as Warboss in Mega Armour's entry.
-    #
-    # Three melee weapons, but that is not three swings: Butcha boyz and
-    # Savage horns and hooves both have [EXTRA ATTACKS] (24.11), so they
-    # resolve ALONGSIDE the model's chosen weapon rather than competing with
-    # it under rule 04.01 - in practice Saw blades plus both extras.
-    #
-    # Official list: 1 model 145 pts, no per-copy tiering.
+    # 2026-09 codex (rules/orks/Kill Rig.md): one model carrying all six printed
+    # weapons, no wargear options. Every melee weapon is [EXTRA ATTACKS] now, so
+    # rule 04.01's one-weapon choice contests none of them.
     points=ORKS_POINTS["Kill Rig"],
     abilities_text=[
-        'Spirit of Gork (Psychic): At the start of the Fight phase, you can select one friendly '
-        'ORKS unit within 12" of this model and roll one D6: on a 1, this model suffers D3 mortal '
-        'wounds; on a 2-5, until the end of the phase, add 1 to the Strength characteristic of '
-        'melee weapons equipped by models in that unit; on a 6, until the end of the phase, add 1 '
-        'to the Strength characteristic of melee weapons equipped by models in that unit and those '
-        'weapons have the [LETHAL HITS] ability.',
-        'Damaged: 1-5 Wounds Remaining: While this model has 1-5 wounds remaining, each time this '
-        'model makes an attack, subtract 1 from the Hit roll.',
-        'Deadly Demise D6: When this model is destroyed, roll one D6. On a 6, each unit within 6" '
-        'suffers D6 mortal wounds.',
-        'Feel No Pain 6+: Each time an attack is allocated to this model, roll one D6: on a 6, that '
-        'attack is ignored.',
-        'Transport: This model has a transport capacity of 11 BEAST SNAGGA INFANTRY models.',
+        "Beastscent (psychic level 1): In your Movement phase, when a unit embarked within this unit is "
+        "selected to make a disembark move, if this unit is not battle-shocked, you can make a psychic roll "
+        "for this unit by rolling one D6. If you do: On a 1, this unit is battle-shocked. That disembarking "
+        "unit's attacks that target a MONSTER/VEHICLE unit have +1 to wound rolls until the end of the turn.",
+        "Warpath (psychic level 1): In the Fight phase, when this unit is selected to fight, if this unit is "
+        "not battle-shocked, you can make a psychic roll for this unit by rolling one D6. If you do: On a 1, "
+        "this unit is battle-shocked. This unit's melee attacks have [Lethal Hits] and [Psychic].",
+        "Wurrboy (psyker level 1): This model has the psychic abilities listed in the Psychic Abilities "
+        "section (see above).",
+        "Transport: This model has a transport capacity of 12 BEAST SNAGGAS INFANTRY models.",
     ],
 ))
-# Only Spirit of Gork needed new code (game/spirit_of_gork.py, chained into
-# game/fight.py and driven from main.py's own start-of-Fight-phase block) -
-# and the AI resolves it deterministically on the highest-points eligible
-# unit via the controller's own auto_players, per explicit user instruction,
-# so no ai/agent_driver.py change was needed either. Everything else is an
-# existing generic field: Damaged 1-5 is `damaged_threshold`, Deadly Demise
-# D6 is `deadly_demise_notation`, Feel No Pain 6+ is `feel_no_pain`, and the
-# Transport line is transport_capacity/transport_requires_infantry plus the
-# new `transport_requires` for its BEAST SNAGGA half (see
-# UnitProfile.transport_requires - the inclusive counterpart of the existing
-# transport_excludes, which could only ever express a refusal).
-#
-# NOTE: like Beast Snagga Boyz and Beastboss, this datasheet is NOT in any
-# demo army yet (main.py) and has no sprite in Sprites/.
+# Both psychic abilities are engine-wired through one psychic roll
+# (game/psychic_roll.py: not battle-shocked, the Unstable Energies budget, a 1
+# battle-shocks): Beastscent (game/beastscent.py, TransportController's
+# on_disembark_started) and Warpath (game/warpath.py, offered in
+# FightController._start_fighting()). Damaged 6, Deadly Demise D6 and Feel No
+# Pain 5+ are generic UnitProfile fields; the Transport line is
+# transport_capacity/transport_requires_infantry plus transport_requires for its
+# BEAST SNAGGA half. The pre-codex Spirit of Gork is gone.
 
 _FLASH_GITZ_LOADOUT = [ChoppaA4Profile, SnazzgunCuttaProfile]
 

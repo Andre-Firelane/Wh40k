@@ -138,3 +138,108 @@ Platz mit freiem Ausstiegsring, gebaute Deffkoptas am weitesten von Player 2, di
 Bewegung), der „Zug beendet"-Moment, die Platzierung der Boyz im Ring, der Sprung ans Ende von
 Player 2s Fight-Phase im selben Frame wie das Bestätigen und die Ingress-Marke für D.
 `--neutralize` nimmt die sechs Nähte per Import-Hook zurück.
+
+## Kill Rig (2026-09-Codex): Beastscent, Warpath, der psychische Wurf — Etappe E3e
+
+Plan: `C:\Users\Andre\.claude\plans\transient-munching-boot.md`. Gedruckter Text in
+`rules/orks/Kill Rig.md`, jedes Modul trägt ihn im Docstring. **Damit stehen alle 17 gebauten
+Ork-Datenblätter auf Codex-Stand.** `armies/orks.json` unverändert: **14 Einheiten, 101 Modelle,
+2195 pts** (Kill Rig 145 → 175; der Golden Master bewegt nur diese zwei Zeilen).
+
+**Datenblatt:** M10 T10 Sv3+ W16 Ld7+ OC5, **neu InSv 6+**, CORE Damaged 6 (vorher 1-5), Deadly
+Demise D6, Feel No Pain 5+ (vorher 6+); KEYWORDS MONSTER; BEAST SNAGGA; PSYKER; TRANSPORT; WAGON
+(KILL RIG entfällt). Transport **12** BEAST SNAGGAS INFANTRY (vorher 11). Waffen: 'Eavy Lobba jetzt
+fest **A3** und [BLAST 2] (vorher D6 und [BLAST]), Wurrtower fest **A1 / D6** (vorher D3 und D6 als Würfe), Saw
+Blades [CLEAVE 1] und [EXTRA ATTACKS] — alle drei Nahkampfwaffen sind jetzt [EXTRA ATTACKS], 04.01s
+Einwaffen-Wahl betrifft keine. 175, ab dem dritten 185. **Benannt:** die Base bleibt 2.1" wie der
+Devilfish (stehende User-Entscheidung, das Oval wären 2.68").
+
+| Fähigkeit | Modul | Naht |
+|---|---|---|
+| psychischer Wurf | `psychic_roll.py` | drei Tore (nicht battle-shocked, Unstable-Energies-Budget, freier Würfel-Slot), sichtbarer W6, eine 1 über `battle_shock.set_battle_shocked()` |
+| Warpath | `warpath.py` | Angebot in `FightController._start_fighting()` (wie Rokkit Charge), Grant pro Phase: Nahkampfwaffen mit [LETHAL HITS] und [PSYCHIC] |
+| Beastscent | `beastscent.py` | neuer `TransportController.on_disembark_started`; Grant auf dem AUSSTEIGENDEN Trupp bis Zugende: +1 Verwunden gegen MONSTER/VEHICLE in beiden `_wound_modifiers()` |
+
+- **Lesart des Wurfs (Plan-Entscheidung):** der Effekt kommt bei JEDEM Wurf, eine 1 macht
+  zusätzlich battle-shocked. Der Aufrufer setzt den Grant also beim Benutzen; das Modul besitzt
+  nur, was der W6 entscheidet. Der Wurf VERBRAUCHT die Psychic-Stufe, egal was fällt.
+- **Unstable Energies ist nicht mehr ruhend:** Psyker-Stufe 1 gegen zwei Fähigkeiten der Stufe 1 —
+  eine pro Schlachtrunde, Beastscent ODER Warpath, und das Budget ist die EINZIGE Einmal-Grenze.
+  Ein `not is_active()`-Term in beiden `can_use()` war ein toter Zweig und ist wieder raus.
+- **Beastscent: zwei Einheiten, zwei Rollen.** Wurf, Budget und Shock gehören dem Kill Rig, der
+  Grant dem Passagier. „Your Movement phase" heißt Phase Bewegung UND Besitzer des Kill Rig am Zug.
+  Ein nach dem Wurf abgebrochener Ausstieg behält den Grant (die Einheit WURDE ausgewählt) —
+  benannt.
+- **[PSYCHIC] auf einem NAHKAMPF-Angriff:** Regel 24.29s Modifier-Drop stand bisher nur in
+  `shooting.py`, weil keine Nahkampfwaffe das Keyword druckte. `FightController._hit_modifiers()`
+  nimmt jetzt die ANGEPASSTE Waffe (alle drei Aufrufer reichen sie), und ein beschädigter Kill Rig
+  unter Warpath verliert seinen eigenen Damaged -1 — im echten Hit-Roll gemessen (4+ → 3+) und im
+  Hit-SCHRITT, der seine Schwelle selbst rechnet.
+- **DER FUND: ein Würfel-Slot, zwei Würfe.** `DiceManager` hält genau einen offenen Wurf, und ein
+  zweites `roll()` ersetzt den ersten spurlos. Warpath würfelt bei „selected to fight" —
+  `_handle_fight()` der KI warf direkt danach im selben Aufruf den Hit Roll. Im echten Spiel
+  belegt (per Import-Hook ohne den neuen Wächter): `['Psychic roll: Warpath …', 'Hit Roll: Saw
+  Blades (6 attack(s))']` in EINEM Aufruf, und die 1 hat den Kill Rig nie geschockt, weil die
+  Bestätigung den Hit-Würfel las. Zwei Nähte: `_handle_fight()` hört nach `select_to_fight()` auf,
+  solange ein Wurf offen ist (der Resume-Zweig macht weiter), und `PsychicRollController` löst einen
+  ERSETZTEN Wurf mit seiner eigenen Augenzahl auf und schreibt eine `[psychic roll]`-Dateizeile.
+  Beastscents KI würfelt nie bei einem Combat- oder Emergency-Ausstieg: deren Hazard-Wurf folgt im
+  selben KI-Aufruf auf die Bestätigung — benannt, eine Policy-Grenze statt Regel.
+- **KI (0 API-Calls):** `warpath_verdict()` würfelt immer, außer der Kill Rig steht in
+  Objective-Reichweite (eine 1 → OC 0). `beastscent_verdict()` würfelt, wenn ein feindliches
+  MONSTER/VEHICLE in 15" steht (3" Ausstieg + 12"), nicht auf einem Objective, nie Combat/Emergency.
+- **Stillgelegt:** Spirit of Gork (`game/spirit_of_gork.py`, zwei Squad-Flags, das Profil-Flag, die
+  `main.py`-Verdrahtung, `test_kill_rig.py`); damit ist auch die benannte Lücke 2 in
+  `## Unit Statistics` weg (Spirit of Gork schrieb `current_wounds` direkt).
+  **`CORPUS_AHEAD` ist gelöscht** — samt drei Wächtern und drei Sonden in
+  `ab_weapon_characteristics.py`: jede Ork-Waffe wird wie jede andere geprüft, null Abweichungen.
+- **Nachgezogen:** `test_player2_army.py` (2195, „11 of 12"), `test_army_select.py`,
+  `armies/baseline.txt`, `test_crit_labels.py` (Hit 'Em Harder statt Spirit of Gork als
+  [LETHAL HITS]-Quelle), `test_ork_army_rules.py`. **Drei veraltete Sondenanker aus E3d**, die
+  dessen Lauf nicht gesehen hatte (nur die eigenen Treiber per `--check` geprüft): Waaagh!-Flag
+  (`ab_ork_army_rules.py`, jetzt die Gretchin-Zeile), `withdrawal_is_doomed` nach
+  `game/strategic_reserves.py` (`ab_necron_hypercrypt_legion.py`), Arrogant Invulnerability als
+  jetzt ERSTER AP-Schritt (`ab_ork_mobs.py` — die alte Ersetzung `pass` hätte `ap` ungebunden
+  gelassen und abgestürzt statt rot gemacht). Alle drei beißen wieder. **Lehre:** nach einer Etappe
+  JEDEN Treiber mit `--check` fragen, nicht nur den eigenen.
+
+**Getestet:** neu `test_ork_kill_rig.py` (**108/108**, acht Abschnitte - Datenblatt gegen die
+Korpus-Keywords, die sechs Waffen, Transport an 18.01 UND 18.02 samt A/B der BEAST-SNAGGA-Hälfte,
+der psychische Wurf mit allen drei Toren und dem ersetzten Wurf, Warpath durch einen echten
+`FightController` bis in den Hit-SCHRITT, Beastscent durch echten `TransportController`/
+`SetupController` und beide `_wound_modifiers()`, die KI samt `_handle_fight()`, AST-Pins in
+`main.py`) und `ab_ork_kill_rig.py` (**48 Sonden, 49 Läufe, alle beißend, kein Rest**). **Eine biss
+zuerst nicht, ein Befund über den TEST:** „jeder TRANSPORT hat Beastscent" blieb grün, weil der
+Battlewagon der Szene keine Psyker-Stufe hat und das Budget-Tor zuerst ablehnte - die Szene nimmt
+jetzt einen PSYKER-Battlewagon (Unterklasse nur auf diesem Token). Volle Regression **236 Suiten,
+~23019 Prüfungen, 235 grün / 0 rot / 1 bekannt**, `run_tests.py --smoke` komplett grün,
+`selfplay.py map2 1500` Orks gegen Necrons in beiden Sitzordnungen exit 0 (der MockAgent erreicht
+keine Fight-Phase mit dem Kill Rig - dafür ist die Laufzeit-Sonde da). `verify_rules_vs_engine.py`
+**73 → 68** (einzige Ork-Zeile: die Warboss-Base, eine benannte Entscheidung),
+`fetch_datasheet_rules.py --offline` ohne Diff, `measure_crowded_movement.py` unverändert gedrängt
+**62 % / 210.2"**, isoliert **87 % / 292.3"**.
+
+**Im ECHTEN Spiel belegt** (`verify_ork_kill_rig.py map2`, Orks als Player 1; 14/14, unter
+`--neutralize` 6/6 Abwesenheitsprüfungen; in beiden Aufstellungs-Reihenfolgen gelaufen):
+
+| | gefixt | `--neutralize` |
+|---|---|---|
+| Warpath am Live-`FightController`, Beastscent am Live-`TransportController`, beide auf `main()`s Wurf | ja | nein |
+| Beastscent beim Ausstieg (der Aufruf des Panel-Knopfs) | gefragt, W6 (4) von `main()`s Bestätigung aufgelöst, Grant, Stufe verbraucht, +1 Verwunden gegen den MONSTER im Live-`ShootingController`, Warpath für diesen Kill Rig gesperrt | kein Prompt |
+| Warpath bei „selected to fight" | gefragt, die 1 schockt über `main()`s Bestätigung, Live-Kette [LETHAL HITS]+[PSYCHIC], Damaged -1 fällt aus den Live-Hit-Modifiern | kein Prompt |
+| Zugende über `main()`s `advance_turn_phase()` | beide Grants weg | von Hand gestellt, beide überleben |
+| KI-`_handle_fight()` an den Live-Objekten | wählt den Kill Rig, im Aufruf fällt NUR der psychische Wurf, `main()` löst ihn auf | kein psychischer Wurf |
+
+**Der KI-Wächter ist eigens A/B-belegt:** mit nur dem neuen Stopp in `_handle_fight()` per
+Import-Hook entfernt fielen im selben Aufruf `Psychic roll: Warpath` UND `Hit Roll: Saw Blades (6
+attack(s))`, der offene Wurf war der Hit Roll, und die Prüfung fiel. Vor der Härtung des
+Controllers blieb dabei auch der Shock auf der 1 aus.
+
+GESTELLT: Orks als Player 1, drei gebaute Kill Rigs (A mit Beast Snagga Boyz, B mit 5 Wunden an C
+von Player 2), auf dem freiesten Boden außerhalb jeder Engagement Range und mit C außerhalb jeder
+Objective-Reichweite, die Phasen, der Start des Fight-Schritts ohne Pile-In-Prüfung, die
+W6-Augen (4 und 1), die Antworten des Menschen, das Abbrechen von Ausstieg und Kampf nach dem
+Lesen, ein `advance_turn_phase()` und der `_handle_fight()`-Aufruf. **Der Zugende-Check fragt die
+Uhr**, nicht den nächsten Besitzer: war der gestellte Zug in Wahrheit Player 2s zweiter der Runde,
+gehört der nächste wieder Player 1 - so ist die erste Fassung der Prüfung in einem von drei Läufen
+fälschlich rot geworden.

@@ -9,7 +9,7 @@ from ai import deployment_ai
 from ai import observation as ai_observation
 from ai.agent_driver import AIMemory, take_one_action
 from ai.agent_driver import reactive_subroutines_destination, reactive_subroutines_move
-from ai.agent_driver import aerial_manoover_choice, boss_motivation_choice, catch_dat_red_bit_verdict, hyperphasing_choice, hyperphasic_recall_verdict, pilin_out_verdict, rokkit_charge_verdict, war_cry_verdict
+from ai.agent_driver import aerial_manoover_choice, beastscent_verdict, boss_motivation_choice, catch_dat_red_bit_verdict, hyperphasing_choice, hyperphasic_recall_verdict, pilin_out_verdict, rokkit_charge_verdict, war_cry_verdict, warpath_verdict
 from ai.agent_driver import battle_shock_target_choice
 from ai.claude_agent import ClaudeAgent
 # from ai.mock_agent import MockAgent  # free/offline alternative - no API key or network needed
@@ -229,7 +229,10 @@ from game.protocol_undying_legions import UndyingLegionsController
 from game.protocol_eternal_revenant import EternalRevenantController
 from game.protocol_vengeful_stars import VengefulStarsController
 from game import protocol_sudden_storm
-from game.spirit_of_gork import SpiritOfGorkController, unit_has_spirit_of_gork
+from game import warpath
+from game.beastscent import BeastscentController
+from game.psychic_roll import PsychicRollController
+from game.warpath import WarpathController
 from game import hand_of_asuryan
 from game import branching_fates
 from game import psychic_communion
@@ -1103,15 +1106,12 @@ def main(map_key=None):
         decision_manager=decision_manager, turn_tracker=turn_tracker, game_log=game_log,
         auto_players=ai_players,
     )
-    # Kill Rig's Spirit of Gork (user-supplied): resolved at the start of
-    # each Fight phase. The same auto_players shape as Ammo Runt above -
-    # Player 2 is this project's AI throughout main.py, and per explicit
-    # user instruction it picks the highest-points eligible unit itself
-    # rather than being asked; a human keeps the DecisionManager prompt.
-    spirit_of_gork_controller = SpiritOfGorkController(
-        dice_manager=dice_manager, decision_manager=decision_manager, game_log=game_log,
-        all_tokens=state.tokens, auto_players=ai_players,
-    )
+    # The Orks' psychic roll (the Kill Rig's Beastscent and Warpath): the
+    # not-battle-shocked gate, the Unstable Energies budget and the shock on a
+    # 1. Built this early because the FightController below takes Warpath, and
+    # its D6 is acknowledged through on_dice_acknowledged() like any other.
+    psychic_roll_controller = PsychicRollController(
+        dice_manager=dice_manager, turn_tracker=turn_tracker, game_log=game_log)
     # Fuegan's Unquenchable Resolve puts a destroyed model back, and is handed
     # SetupController's own position_valid() so the placement judges real
     # ground - "somewhere legal" means what it means for a disembark or an
@@ -2480,6 +2480,12 @@ def main(map_key=None):
             decision_manager=decision_manager, game_log=game_log,
             auto_players=ai_players,
             verdict=lambda squad: rokkit_charge_verdict(squad, fight_controller)),
+        # The Kill Rig's Warpath - offered at the same instant, through the
+        # psychic roll above. The AI's rule is injected, 0 API calls.
+        warpath=WarpathController(
+            psychic_roll_controller, decision_manager=decision_manager, game_log=game_log,
+            auto_players=ai_players,
+            verdict=lambda squad: warpath_verdict(state, squad)),
     )
 
     # Placed AFTER fight_controller: Experimental Modifications takes it for
@@ -3487,6 +3493,16 @@ def main(map_key=None):
     movement_controller.on_move_finished.append(pilin_out_controller.on_move_finished)
     ingress_controller.on_ingress_resolved.append(pilin_out_controller.on_ingress_resolved)
     transport_controller.on_disembark_resolved.append(pilin_out_controller.on_disembark_resolved)
+    # The Kill Rig's Beastscent: "when a unit embarked within this unit is
+    # selected to make a disembark move" - the transport's started hook, which
+    # the panel button, the AI and every printed-mode caller share. The AI's
+    # rule is injected, 0 API calls; it reads the mode the disembark opened in.
+    beastscent_controller = BeastscentController(
+        psychic_roll_controller, turn_tracker=turn_tracker, decision_manager=decision_manager,
+        game_log=game_log, auto_players=ai_players,
+        verdict=lambda transport_token, passenger: beastscent_verdict(
+            state, transport_token, passenger, transport_controller.disembark_mode))
+    transport_controller.on_disembark_started.append(beastscent_controller.on_disembark_started)
     # Aeldari Seer Council detachment rule Strands of Fate: a Fate dice pool
     # rolled ONCE for the whole battle, where each die's FACE decides which one
     # stratagem it can discount. Plugged into the same cost-discount hook
@@ -4268,8 +4284,8 @@ def main(map_key=None):
         # the controller and is deliberately not touched here - a spent use
         # stays spent.
         nova_charge_controller.reset_phase({t.squad for t in state.tokens if t.squad is not None})
-        # Kill Rig's Spirit of Gork: "until the end of the phase".
-        spirit_of_gork_controller.reset_phase({t.squad for t in state.tokens if t.squad is not None})
+        # The Kill Rig's Warpath: a grant for the phase the unit fought in.
+        warpath.reset_phase({t.squad for t in state.tokens if t.squad is not None})
         # The Tankbustas' Pulsa Rokkit: its mark lasts the phase.
         pulsa_rokkit_controller.reset_phase()
         # Boyz' Ammo Runts and Stormboyz' Rokkit Charge: phase grants. Ammo
@@ -4549,6 +4565,9 @@ def main(map_key=None):
                 # "cleared at end of turn alongside the flags below", says
                 # Squad's own comment - and nothing did (game/fire_support.py).
                 squad.disembarked_from_this_turn = None
+                # The Kill Rig's Beastscent: "until the end of the turn", on
+                # the unit that disembarked (game/beastscent.py).
+                squad.beastscent_active = False
                 # Swooping Hawks' Grenade Pack Flyover locks the unit out of
                 # the Explosives Stratagem "until the end of the turn".
                 squad.explosives_locked_until_end_of_turn = False
@@ -4766,14 +4785,6 @@ def main(map_key=None):
                 accelerator_mandible_controller.offer_at_start_of_fight(_owner)
             the_stars_are_right_controller.offer_at_start_of_fight_phase(
                 {t.squad for t in state.tokens if t.squad is not None})
-            # Kill Rig's Spirit of Gork: "at the start of the Fight phase".
-            # Offered for the phase's own turn owner only - the ability
-            # belongs to its controller's turn, like every other
-            # start-of-phase effect here.
-            spirit_of_gork_controller.start_of_fight_phase([
-                sq for sq in {t.squad for t in state.tokens if t.squad is not None}
-                if sq.owner == turn_tracker.turn_owner and unit_has_spirit_of_gork(sq)
-            ])
             # Yvraine's Herald of Ynnead: "at the START of the Fight phase".
             # Cleared FIRST and offered second - the mark lasts only until the
             # end of the phase it was set in, so a stale one from last turn
@@ -6183,7 +6194,7 @@ def main(map_key=None):
         transport_controller.on_dice_acknowledged()
         crushing_impact_controller.on_dice_acknowledged()
         fall_back_controller.on_dice_acknowledged()
-        spirit_of_gork_controller.on_dice_acknowledged()
+        psychic_roll_controller.on_dice_acknowledged()
         crude_surgery_controller.on_dice_acknowledged()
         reanimation_controller.on_dice_acknowledged()
         coordinated_leadership_controller.on_dice_acknowledged()

@@ -142,7 +142,8 @@ EXPECTED = {
     # The Ork specialists stage (Flash Gitz 150 -> 210, Tankbustas 125 -> 145): 2105.
     # The Ork vehicles stage (Battlewagon 160 -> 150, Deff Dread 110 -> 130,
     # Deffkoptas 140 -> 160, two Warbikers 60 + 60 -> 75 + 75): 2165.
-    "orks": (14, 101, 2165),     # 17 list entries, three attachments merged
+    # The Kill Rig stage (Kill Rig 145 -> 175): 2195.
+    "orks": (14, 101, 2195),     # 17 list entries, three attachments merged
     "necrons": (9, 68, 2020),    # 15 list entries, SIX attachments merged
     # Replaced wholesale on 2026-08-30 by the list the user supplied: out go
     # the Ghostkeel, the Strike Team, the Coldstar + Starscythes and Farsight +

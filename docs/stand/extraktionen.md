@@ -139,3 +139,11 @@ passenden Abschnitt hier; ein neuer `##`-Abschnitt braucht eine Zeile im Verzeic
     zweite Konsument wurde; `reanimation_protocols` re-exportiert. Daneben
     **`game/per_army_round_limit.py`** — „einmal pro Schlachtrunde pro Armee" samt Spiegel auf
     ein gespeichertes Squad-Flag, gelesen von beiden Boss-Motivationen.
+    Seither **`strategic_reserves.withdrawal_is_doomed()`/`misses_next_arrival()`** (Orks E3d) -
+    die Regel-20.03-Fragen zu einem Rückzug am Zugende des Gegners, aus Hypercrypt Legions
+    Hyperphasing gehoben, als Aerial Manoover der zweite Leser wurde; `hypercrypt_hyperphasing`
+    re-exportiert. Und **`game/psychic_roll.py`** (Orks E3e) - der psychische Wurf der Orks
+    (nicht battle-shocked, Unstable-Energies-Budget, freier Würfel-Slot, eine 1 über die eine
+    Shock-Tür), von Beginn an von zwei Fähigkeiten gelesen (Beastscent, Warpath). Die leicht zu
+    verfehlende Hälfte: ein ERSETZTER Wurf - der Controller löst mit seiner eigenen Augenzahl auf,
+    statt den Würfel eines fremden Wurfs zu lesen.

@@ -215,7 +215,9 @@ PROBES = [
 
     # ---------------------------------------------- Arrogant Invulnerability
     ("Arrogant Invulnerability: not in save_thresholds()",
-     [(DR, "    ap = arrogant_invulnerability.adjusted_ap(ap, model)", "    pass" + MARK)], (TM,)),
+     # Since stage E3d it is the FIRST AP step (Ramshackle went), so the
+     # probe keeps the printed AP rather than leaving `ap` unbound.
+     [(DR, "    ap = arrogant_invulnerability.adjusted_ap(weapon.ap, model)", "    ap = weapon.ap" + MARK)], (TM,)),
     ("Arrogant Invulnerability: read off the model, not the unit (19.04)",
      [(AINV, lines("    from game.squad import unit_wide_ability  # lazy: damage_resolution imports this module",
                    '    return bool(unit_wide_ability(squad, "arrogant_invulnerability"))'),

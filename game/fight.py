@@ -4,7 +4,7 @@ from game import attached_units
 # cannot cycle back into anything here.
 from game import battle_stats
 from game import damaged_attacks, triarch_auras
-from game import dodge_dis, high_speed_carnage, krumpin_time, might_is_right, rokkit_charge, tide_of_muscle
+from game import beastscent, dodge_dis, high_speed_carnage, krumpin_time, might_is_right, rokkit_charge, tide_of_muscle, warpath
 from game import aux_experimental_modifications, awakened_dynasty, nekrosor_ammentar, swift_demise, montka_pinpoint_counter_offensive, destroyer_cult, destroyer_hive, dlc_grim_reapers, gift_of_contagion, guardian_protocols, protocol_hungry_void, implacable_eradication, mechanical_augmentation, plagues, plasmacyte, reroll_scope
 from game import way_of_the_short_blade
 from game import strength_over_toughness
@@ -12,7 +12,6 @@ from game import conditional_keywords, weapon_profiles
 from game.damage_resolution import DamageAllocationSession, DevastatingWoundAllocationSession, MortalWoundAllocationSession, displayed_save_threshold, save_heading, save_is_impossible, AUTO_FAILED_SAVE
 from game.dice import ATTACKS_ROLL, HIT_ROLL, SAVE_ROLL, WOUND_ROLL
 from game.dice_notation import DiceNotationRoll, describe as describe_dice_notation
-from game.spirit_of_gork import spirit_of_gork_adjusted_weapon
 from game.hazard import hazard_failures, hazard_mortal_wounds
 from game.modifiers import Modifier, apply_modifiers, describe_modifiers, for_display
 from game import roll_choice
@@ -242,7 +241,7 @@ class FightController:
         advanced_scouting=None, bounty_hunters=None, fated_hero=None, herald_of_ynnead=None,
         path_of_the_warrior=None, shepherds_of_the_dead=None, misfortune=None, spirit_mark=None,
         piratical_raiders=None, fury_of_the_void=None, plasmacyte=None, rokkit_charge=None,
-        objectives=None,
+        objectives=None, warpath=None,
     ):
         self.game_log = game_log
         self.dice_manager = dice_manager
@@ -273,6 +272,8 @@ class FightController:
         # Stormboyz' Rokkit Charge OFFER (game/rokkit_charge.py), asked at the
         # same instant as the Plasmacyte. None means nobody asks.
         self.rokkit_charge = rokkit_charge
+        # The Kill Rig's Warpath OFFER (game/warpath.py), the same instant.
+        self.warpath = warpath
         self.herald_of_ynnead = herald_of_ynnead
         self.misfortune = misfortune
         self.spirit_mark = spirit_mark
@@ -750,6 +751,11 @@ class FightController:
         # same instant, before any dice.
         if self.rokkit_charge is not None:
             self.rokkit_charge.offer(squad)
+        # The Kill Rig's Warpath: "when this unit is selected to fight" - the
+        # same instant. Its psychic roll puts a D6 on the table; nothing below
+        # rolls, and the Hit roll waits for a weapon choice.
+        if self.warpath is not None:
+            self.warpath.offer(squad)
         self._used_other_melee_weapon = set()
         self._reset_engagement_snapshot()
         self._hazardous_count = 0
@@ -1297,7 +1303,8 @@ class FightController:
             self._log(f"{weapon_label} automatically hits ({total_attacks} attack(s)) - [TORRENT].")
             self._handle_hit_results(total_attacks, 0, torrent_weapon, target_squad, weapon_label)
             return
-        hit_modifiers = self._hit_modifiers(fighter_model, target_squad)
+        hit_modifiers = self._hit_modifiers(fighter_model, target_squad,
+                                            self._adjusted_weapon(group["pairs"], target_squad))
         threshold = apply_modifiers(_parse_threshold(effective_weapon_skill(fighter_model, weapon)), hit_modifiers)
         label = f"Hit Roll: {weapon_label} ({total_attacks} attack(s))"
         if hit_modifiers:
@@ -1309,7 +1316,7 @@ class FightController:
             success_threshold=threshold if threshold is not None else 7,
             target_name=target_squad.name, attacker_squad=self.fighting_squad, target_squad=target_squad, rolled_for=self.fighting_squad, roll_kind=HIT_ROLL,
             # `weapon` here is the printed profile; the conditional grants
-            # (Get Stuck In, Spirit of Gork) are only applied at resolution
+            # (Get Stuck In, Warpath) are only applied at resolution
             # time, so the note has to ask for the adjusted one itself.
             **self._crit_note("hit", self._adjusted_weapon(group["pairs"], target_squad), target_squad),
         )
@@ -1552,7 +1559,7 @@ class FightController:
         the ranged side.
 
         War Horde's Get Stuck In ([SUSTAINED HITS 1]), Might Is Right (+3 A,
-        +2 S) and Spirit of Gork (+1 S and [LETHAL HITS]). Order matters for
+        +2 S) and Warpath ([LETHAL HITS] and [PSYCHIC]). Order matters for
         the last three: the hit and wound
         steps read those keywords straight off the returned weapon, so they
         have to be in place before those steps run.
@@ -1585,7 +1592,10 @@ class FightController:
         # The Warboss's Might Is Right (+3 A, +2 S after a charge) is per
         # MODEL; exact because _melee_attack_key() keeps a bearer's group his.
         weapon = might_is_right.adjusted_weapon(weapon, pairs[0][0] if pairs else None)
-        weapon = spirit_of_gork_adjusted_weapon(weapon, self.fighting_squad)
+        # The Kill Rig's Warpath ([LETHAL HITS] and [PSYCHIC]) - in the chain
+        # because the crit note and _hit_modifiers()' [PSYCHIC] drop read the
+        # returned weapon.
+        weapon = warpath.adjusted_weapon(weapon, self.fighting_squad)
         # The Corsair grants, all of them properties of the attacking unit
         # (and, for the last two, of what it is swinging at).
         weapon = corsair_abilities.piratical_hero_adjusted_weapon(
@@ -2264,7 +2274,7 @@ class FightController:
         first). One method, so the buttons and the offer cannot disagree."""
         threshold = apply_modifiers(
             _parse_threshold(effective_weapon_skill(group["pairs"][0][0], weapon)),
-            self._hit_modifiers(group["pairs"][0][0], target_squad),
+            self._hit_modifiers(group["pairs"][0][0], target_squad, weapon),
         )
         # Mandiblasters and Whispering Web both say
         # "an unmodified hit roll of 5+ scores a Critical Hit" - i.e.
@@ -2284,7 +2294,7 @@ class FightController:
         if not preview:
             self._log(
                 f"{weapon_label} hit roll {rolls}"
-                f"{_threshold_note(threshold, _parse_threshold(effective_weapon_skill(group['pairs'][0][0], weapon)), self._hit_modifiers(group['pairs'][0][0], target_squad))}: "
+                f"{_threshold_note(threshold, _parse_threshold(effective_weapon_skill(group['pairs'][0][0], weapon)), self._hit_modifiers(group['pairs'][0][0], target_squad, weapon))}: "
                 f"{hits} hit(s) (of which {crits} critical), {misses} miss(es)."
             )
         # The optional Hit re-roll sources read "makes an attack", not
@@ -2736,7 +2746,7 @@ class FightController:
         self.pending_step = "allocate"
         self._check_allocation_done(rolls)
 
-    def _hit_modifiers(self, fighter_model, target_squad):
+    def _hit_modifiers(self, fighter_model, target_squad, weapon=None):
         """Strike Team's Suppression Volley ability (user-supplied, not a
         core rule - game/suppression.py): "each time a model in that
         [suppressed] unit makes an attack, subtract 1 from the Hit roll" -
@@ -2829,6 +2839,13 @@ class FightController:
         # offering a choice with one sane answer.
         if aspect_warrior_focus.ignores_hit_modifiers(self.fighting_squad):
             modifiers = [m for m in modifiers if m.amount <= 0]
+        # Rule 24.29 ([PSYCHIC]) on a MELEE attack, resolved the way
+        # shooting.py resolves it: drop every worsening modifier, keep every
+        # improving one. No melee weapon printed the keyword before the Kill
+        # Rig's Warpath GRANTED it, so `weapon` is the ADJUSTED profile - every
+        # caller hands it in, and None (the keyword unknown) drops nothing.
+        if weapon is not None and getattr(weapon, "psychic", False):
+            modifiers = [m for m in modifiers if m.amount <= 0]
         # The Canoptek Macrocytes' Harassment Swarm - the printed noun is
         # "an attack", not "a ranged attack", so it reaches THIS fold too.
         # Added AFTER the ignore-modifier filter above: it is a worsening
@@ -2906,6 +2923,9 @@ class FightController:
             _pairs = self.current_group.get("pairs") if self.current_group else None
             modifiers.extend(self.curse_of_the_cryptek.wound_modifiers(
                 _pairs[0][0] if _pairs else None, self.fighting_squad, target_squad))
+        # The Kill Rig's Beastscent - "attacks", so both phases; see
+        # game/shooting.py's twin and game/beastscent.py.
+        modifiers.extend(beastscent.wound_modifiers(self.fighting_squad, target_squad))
         return modifiers
 
     def _report_group_statistics(self):

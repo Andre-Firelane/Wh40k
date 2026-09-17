@@ -420,7 +420,8 @@ byte-identisch (In-Memory-Vergleich über 255 Dateien, 0 Differenzen). Plan und 
   Eintrag, `force_dispositions.from_printed_list()` liest die Zeile, und `detachments.py` prüft die
   Deklaration einer Liste gegen die VEREINIGUNG. Die Ork-Liste bleibt bei Take and Hold.
 - **ÜBERGANG, bis die Datenblatt-Etappen landen:** der Korpus ist den gebauten Ork-Blättern
-  VORAUS (E0: alle 17, E3a 12, E3b 8, seit E3c noch **6**). `test_weapon_characteristics.py` führt sie in `CORPUS_AHEAD` — ihre Abweichungen werden
+  VORAUS (E0: alle 17, E3a 12, E3b 8, E3c 6, E3d 1; **seit E3e keins mehr - `CORPUS_AHEAD` ist samt
+  Wächtern und Sonden gelöscht, siehe `## Kill Rig`**). `test_weapon_characteristics.py` führte sie in `CORPUS_AHEAD` — ihre Abweichungen wurden
   GESAMMELT statt gefailt, und die Menge ist dreifach bewacht (nur `orks`; Anzahl ==
   `EXPECTED_AHEAD`; jedes gelistete Blatt MUSS noch abweichen, sonst raus). Jede Datenblatt-Etappe
   senkt die Zahl, die letzte löscht den Block samt drei Sonden. `verify_rules_vs_engine.py` meldet

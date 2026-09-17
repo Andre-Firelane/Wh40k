@@ -188,7 +188,7 @@ c.eq("the 3-model composition still builds", len(build(DEFFKOPTAS, name="small k
 c.eq("...and is priced separately", build(DEFFKOPTAS, name="small koptas 2").points, 80)
 
 rig = build(KILL_RIG)
-c.eq("Kill Rig weapons", sorted(w.name for w in rig.models[0].weapons),
+c.eq("Kill Rig weapons (2026-09 codex)", sorted(w.name for w in rig.models[0].weapons),
      ["'Eavy Lobba", "Butcha Boyz", "Savage Horns and Hooves", "Saw Blades",
       "Stikka Kannon", "Wurrtower"])
 
@@ -295,7 +295,7 @@ c.eq("Beast Snagga Boyz + Beastboss fit in the Kill Rig",
 c.eq("Meganobz + Warboss in Mega Armour fit in the Battlewagon",
      formations.embark_errors(mega_unit, wagon_token), [])
 # Both fits are tight enough to be worth pinning down.
-c.eq("...the Kill Rig is exactly full (11 of 11)",
+c.eq("...the Kill Rig holds 11 of 12 (the 2026-09 codex capacity)",
      formations.transport_capacity_used(rig_token, [bsb_unit]), 11)
 c.eq("...and the Battlewagon is at 14 of 22 (MEGA ARMOUR costs 2 each)",
      formations.transport_capacity_used(wagon_token, [mega_unit]), 14)
@@ -371,7 +371,7 @@ c.true("every unit is priced", all(s.points is not None for s in ROSTER))
 # codex POINTS tables for the rebuilt Ork datasheets). The user's list totals
 # differently unit by unit - recorded in main.py's own note, with the
 # transcribed data left as the source of truth.
-c.eq("engine total", sum(s.points for s in ROSTER), 2165)
+c.eq("engine total", sum(s.points for s in ROSTER), 2195)
 c.eq("model count", sum(len(s.models) for s in ROSTER), 101)
 
 # The hand-built roster above is only worth checking if it IS the shipped

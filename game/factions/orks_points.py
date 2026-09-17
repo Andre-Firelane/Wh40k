@@ -2,7 +2,7 @@
 "Unit Costs" screen (user-supplied paste, 2026-07-29). The entries of the
 datasheets rebuilt for the 2026-09 codex (Boyz, Beast Snagga Boyz, Stormboyz,
 Gretchin, Meganobz, Warboss, Warboss in Mega Armour, Beastboss, Painboy, Flash Gitz,
-Tankbustas, Warbikers, Deffkoptas, Trukk, Battlewagon, Deff Dread so far) follow the
+Tankbustas, Warbikers, Deffkoptas, Trukk, Battlewagon, Deff Dread, Kill Rig) follow the
 POINTS table of their rules/orks/*.md page instead, and say so where they stand.
 
 All 58 entries, not just the five units game/factions/orks.py has datasheets
@@ -107,7 +107,11 @@ ORKS_POINTS = {
         PointsTier({3: 120, 6: 240}, to_unit=2),
         PointsTier({3: 130, 6: 250}, from_unit=3),
     ]),
-    "Kill Rig": flat_points({1: 145}),
+    # 2026-09 codex (rules/orks/Kill Rig.md).
+    "Kill Rig": UnitPoints([
+        PointsTier({1: 175}, to_unit=2),
+        PointsTier({1: 185}, from_unit=3),
+    ]),
     "Kommandos": flat_points({10: 120}),
     "Kustom Boosta-blasta": flat_points({1: 70}),
     "Lootas": UnitPoints([

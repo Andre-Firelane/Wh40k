@@ -171,8 +171,10 @@ PROBES = [
 
     # ------------------------------------------------- who has the ability
     ("one Ork datasheet loses its Waaagh! flag",
-     [(UNITS, '    waaagh = True  # Orks army rule - see UnitProfile.waaagh\'s own note (user: '
-              '"ALLE bisher angelegten Ork einheiten haben die Waaagh! ability")',
+     # The Gretchin's line - the one profile that prints its FACTION rule as
+     # "Rules: Waaagh!". Its earlier anchor went with the pre-codex Battlewagon
+     # comment in stage E3d.
+     [(UNITS, '    waaagh = True  # "Rules: Waaagh!"',
        "    waaagh = False" + MARK)], (T,)),
     ("the Waaagh! flag leaks onto every profile",
      [(UNITS, '    psyker_level = 0  # the Orks army rule Unstable Energies: how many psychic levels '

@@ -355,7 +355,7 @@
   enhancements: -
 
 ### orks / Player 1
-1 Kill Rig 1 | deploy | pts=145 | models=1
+1 Kill Rig 1 | deploy | pts=175 | models=1
   components: -
   Kill Rig x1 (100,85,65) ['Eavy Lobba, Butcha Boyz, Savage Horns and Hooves, Saw Blades, Stikka Kannon, Wurrtower] {}
   enhancements: -
@@ -425,7 +425,7 @@
   enhancements: -
 
 ### orks / Player 2
-2 Kill Rig 1 | deploy | pts=145 | models=1
+2 Kill Rig 1 | deploy | pts=175 | models=1
   components: -
   Kill Rig x1 (100,85,65) ['Eavy Lobba, Butcha Boyz, Savage Horns and Hooves, Saw Blades, Stikka Kannon, Wurrtower] {}
   enhancements: -

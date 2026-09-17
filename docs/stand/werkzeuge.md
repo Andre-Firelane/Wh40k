@@ -97,10 +97,15 @@ passenden Abschnitt hier; ein neuer `##`-Abschnitt braucht eine Zeile im Verzeic
   einen Wegwerf-Ordner und schaltet `selfplay.py`s Opt-out beim Bau der Kante wieder ein;
   gefixt 8 Phasen / 8 Autosaves, `--neutralize` 7 / 1 plus Überschreiben beim Load.
   **`verify_ork_*.py [map] [frames] [--neutralize]`** — je Ork-Codex-Etappe eine Laufzeit-Sonde
-  (`army_rules`, `war_horde`, `mobs`, `characters`, `specialists`, `vehicles`), alle nach demselben
+  (`army_rules`, `war_horde`, `mobs`, `characters`, `specialists`, `vehicles`, `kill_rig`), alle nach demselben
   Muster: Orks als PLAYER 1, gebaute Träger statt der Liste, `main()`s Locals per Frame-Walk,
   `--neutralize` per Import-Hook auf `main.py`. Was jede belegt und stellt, steht in ihrer Etappe in
   `orks-codex-2026-09*.md`. **`verify_ork_vehicles.py`** ist die erste, die eine Platzierung des
   MENSCHEN im Zug der KI offen hält und misst, ob die KI wartet — nicht an „Phase unverändert“,
   sondern an den Positionen der Player-2-Modelle (0 bewegt; ohne `_is_blocked()`s
-  Fremd-Platzierungs-Zweig 38).
+  Fremd-Platzierungs-Zweig 38). **`verify_ork_kill_rig.py`** treibt als erste
+  `agent_driver._handle_fight()` an `main()`s Live-Objekten und prüft, welche Würfe INNERHALB des
+  Aufrufs fielen - ein zweiter Wurf ersetzt im Ein-Slot-`DiceManager` den ersten spurlos, und nur
+  die Wurf-Etiketten zeigen es. Ihr Zugende-Check fragt die UHR (neuer Runde/Zug-Slot,
+  Command-Phase), nicht „Player 2 ist dran": wem der gestellte Zug gehörte, hängt am zufälligen
+  Aufstellungswurf.

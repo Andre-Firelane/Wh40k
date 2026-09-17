@@ -168,7 +168,8 @@ unberührte Schlachten byte-identisch). Wiederhergestellt NACH `begin_battle()`.
    `BattleStats.unattributed_wounds` und krediteren keinen Killer. Tanking ist davon UNBERÜHRT
    (es liest keine Wunden). Stufe 2 wäre `source_squad=` über 21 Module, bewacht als
    MENGENDIFFERENZ; `verify_unit_stats.py` misst die Größe, bevor das entschieden wird.
-2. **`spirit_of_gork.py:271` schreibt `current_wounds` direkt** und umgeht `apply_damage()`.
+2. ~~**`spirit_of_gork.py:271` schreibt `current_wounds` direkt** und umgeht `apply_damage()`.~~
+   Erledigt mit Orks E3e: Spirit of Gork ist stillgelegt, das Modul gelöscht.
 3. **[SUSTAINED HITS] untertreibt „verhindert" leicht** — gezählt werden die Angriffe der Waffe,
    nicht die Zusatztreffer des Keywords. Vertretbar: einen Angriff, den es nie gab, hat der
    Verteidiger nicht verhindert.

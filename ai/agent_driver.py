@@ -11548,6 +11548,67 @@ def pilin_out_verdict(state, transport_token, passenger, mover):
     return remaining > 0 and _expected_incoming_wounds(state, transport_squad) >= remaining
 
 
+#: Beastscent's reach for the AI: the rapid/tactical 3" disembark plus a 12"
+#: shot or charge - where a MONSTER/VEHICLE the unit could attack this turn stands.
+BEASTSCENT_REACH_IN = 15.0
+
+
+def _psychic_shock_costs_an_objective(state, squad):
+    """A psychic roll's 1 battle-shocks the PSYKER, and a battle-shocked unit
+    has OC 0 - a Kill Rig (OC 5) standing within range of an objective marker
+    would hand it over for a +1."""
+    objectives = getattr(state, "objectives", None) or []
+    return bool(objectives) and is_within_range_of_objective(squad, objectives)
+
+
+def warpath_verdict(state, squad):
+    """The Kill Rig's Warpath (2026-09 Ork codex, stage E3e), the AI's answer -
+    injected by main.py into game/warpath.py as `verdict`.
+
+    Rolls whenever it is offered (the unit is fighting, so [LETHAL HITS] and
+    [PSYCHIC] always have attacks to land on), EXCEPT when a 1 would cost an
+    objective: a battle-shocked Kill Rig has OC 0. The budget is already checked
+    by the offer - a Beastscent spent this round means Warpath is not asked."""
+    if state is None or squad is None:
+        return False
+    return not _psychic_shock_costs_an_objective(state, squad)
+
+
+def beastscent_verdict(state, transport_token, passenger, disembark_mode=None):
+    """The Kill Rig's Beastscent (2026-09 Ork codex, stage E3e), the AI's answer -
+    injected by main.py into game/beastscent.py as `verdict`.
+
+    Rolls when an enemy MONSTER/VEHICLE unit stands within BEASTSCENT_REACH_IN of
+    the Kill Rig - otherwise the +1 to wound has nothing to land on this turn and
+    the psyker level is worth keeping for Warpath - and not when a 1 would cost
+    an objective (see warpath_verdict()).
+
+    NEVER for a Combat or Emergency disembark: those roll their hazard dice
+    right after the placement is confirmed, the AI confirms its own placement in
+    the same call that opened it, and DiceManager holds one roll - the hazard
+    roll would replace the psychic one unread."""
+    if state is None or transport_token is None or passenger is None:
+        return False
+    from game.squad import is_monster_or_vehicle_unit
+    from game.transport import COMBAT, EMERGENCY
+    if disembark_mode in (COMBAT, EMERGENCY):
+        return False
+    rig = getattr(transport_token, "squad", None)
+    if rig is None or _psychic_shock_costs_an_objective(state, rig):
+        return False
+    seen = set()
+    for token in getattr(state, "tokens", ()) or ():
+        squad = getattr(token, "squad", None)
+        if squad is None or squad.owner == rig.owner or id(squad) in seen or token.is_dead():
+            continue
+        if edge_distance(transport_token, token) > BEASTSCENT_REACH_IN:
+            continue
+        seen.add(id(squad))
+        if is_monster_or_vehicle_unit(squad):
+            return True
+    return False
+
+
 def hyperphasic_recall_verdict(state, squad):
     """Hypercrypt Legion's Hyperphasic Recall (2CP), the AI's answer - injected
     by main.py into game/hypercrypt_hyperphasic_recall.py as `ai_verdict`.
@@ -12027,6 +12088,14 @@ def _handle_fight(
     # CHOOSING_TARGET/CHOOSING_WEAPON resume branch above re-enters
     # _resolve_fight_choices() for this same unit.
     if _defender_is_deciding(fight_controller):
+        return True
+    # ...and STOP HERE if selecting put a die on the table: the Kill Rig's
+    # Warpath makes its psychic roll at "selected to fight", and
+    # _resolve_fight_choices() would throw the Hit roll into the same one-roll
+    # DiceManager slot, replacing the psychic roll before anyone read it.
+    # _is_blocked() holds on a pending roll, and the resume branch above picks
+    # this unit up once it is acknowledged.
+    if getattr(fight_controller, "dice_manager", None) is not None and fight_controller.dice_manager.is_pending:
         return True
     return _resolve_fight_choices(agent, player, all_tokens, fight_controller, squad, on_thinking)
 

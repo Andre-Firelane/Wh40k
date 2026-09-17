@@ -207,6 +207,11 @@ class TransportController:
         # (game/pilin_out.py) queues its passengers behind it, and reads an
         # enemy's confirmed disembark here as "ended a move".
         self.on_disembark_resolved = []
+        # Listeners fired the moment a unit is SELECTED to make a Disembark
+        # Move - once start_disembark() has opened its placement - with
+        # (squad, transport_token). The Kill Rig's Beastscent
+        # (game/beastscent.py) is offered here.
+        self.on_disembark_started = []
 
     def reset_movement_phase(self):
         self._embarked_this_phase = set()
@@ -282,7 +287,7 @@ class TransportController:
         if required_keywords and not all(
             getattr(m.profile, kw, False) for m in squad.models for kw in required_keywords
         ):
-            return False  # e.g. Kill Rig: "11 BEAST SNAGGA INFANTRY models" - the BEAST SNAGGA half
+            return False  # e.g. Kill Rig: "12 BEAST SNAGGAS INFANTRY models" - the BEAST SNAGGA half
         excluded_keywords = transport_token.profile.transport_excludes
         if excluded_keywords and any(getattr(m.profile, kw, False) for m in squad.models for kw in excluded_keywords):
             return False  # e.g. Devilfish: "cannot transport BATTLESUIT, KROOT or VESPID STINGWINGS models"
@@ -401,6 +406,10 @@ class TransportController:
         # Placement first, hazard roll afterwards - for EVERY mode. See
         # confirm_disembark() for why the roll can't come first.
         self._begin_placement()
+        if self.is_disembarking(squad):
+            transport_token = self._disembark_transport
+            for listener in list(self.on_disembark_started or ()):
+                listener(squad, transport_token)
 
     def is_disembarking(self, squad):
         return squad is not None and squad is self._disembarking_squad

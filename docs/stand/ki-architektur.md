@@ -172,7 +172,8 @@ KI-Pfad.**
   zwei Boss-Motivationen (`boss_motivation_choice`), Catch Dat Red Bit (`catch_dat_red_bit_verdict`),
   Krushin' Impetus' Zielwahl, Bomb Squigs (sofort, Ziel per Schadensranking), Pulsa Rokkit
   (markiert immer), Rokkit Barrages Zielwahl (`battle_shock_target_choice`),
-  Spirit of Gork — und die
+  Warpath und Beastscent des Kill Rig (`warpath_verdict`, `beastscent_verdict`, seit E3e statt Spirit
+  of Gork) — und die
   **gesamte Necron-Fraktion**: Reanimation Protocols samt Warriors-Reroll, Resurrection Orb,
   Technomancer, Matter Absorption, Living Lightning, Wraith Form und alle sechs
   Awakened-Dynasty-Protokolle. **Und seit Etappe 3 auch der Plasmacyte** — er stand hier

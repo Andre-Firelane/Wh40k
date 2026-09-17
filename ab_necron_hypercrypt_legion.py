@@ -43,6 +43,9 @@ RIDE = "test_aeldari_detachment_rules.py"
 BS = os.path.join("game", "battle_size.py")
 EOW = os.path.join("game", "end_of_turn_withdrawal.py")
 HP = os.path.join("game", "hypercrypt_hyperphasing.py")
+# withdrawal_is_doomed() moved here with its second reader, the Deffkoptas'
+# Aerial Manoover (Orks stage E3d); game/hypercrypt_hyperphasing.py re-exports it.
+SR = os.path.join("game", "strategic_reserves.py")
 OV = os.path.join("game", "enh_dimensional_overseer.py")
 TY = os.path.join("game", "enh_arisen_tyrant.py")
 OF = os.path.join("game", "enh_osteoclave_fulcrum.py")
@@ -133,7 +136,7 @@ PROBES = [
                  '        if getattr(squad, "embarked_in", None) is not None:'),
        lines("        pass" + MARK, '        if getattr(squad, "embarked_in", None) is not None:'))], (HC,)),
     ("doomed read one round early",
-     [(HP, '"battle_round", 0) == RESERVES_DESTROYED_AFTER_ROUND + 1',
+     [(SR, '"battle_round", 0) == RESERVES_DESTROYED_AFTER_ROUND + 1',
        '"battle_round", 0) == RESERVES_DESTROYED_AFTER_ROUND' + MARK)], (HC,)),
     ("an embarked unit may be hyperphased",
      [(HP, lines('        if getattr(squad, "embarked_in", None) is not None:', "            return False",

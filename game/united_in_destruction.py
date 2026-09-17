@@ -4,9 +4,9 @@ RULE (printed, word for word):
   "While this model is leading a unit, melee weapons equipped by models in
    that unit have the [LETHAL HITS] ability."
 
-THE SHAPE IS SPIRIT OF GORK'S SECOND HALF, one grant short. Both hand [LETHAL
-HITS] to a whole unit's melee weapons; the difference is only the condition -
-Spirit of Gork asks about a psychic power being up, this one asks 24.22's
+THE SHAPE IS THE KILL RIG'S WARPATH, one grant short. Both hand [LETHAL HITS]
+to a whole unit's melee weapons; the difference is only the condition - Warpath
+asks about a psychic power being up, this one asks 24.22's
 "while this model is LEADING a unit". So the READER is a chain entry in
 FightController._adjusted_weapon(), same as that one, and for the same reason:
 _crit_note() has to know at ROLL time whether a critical die is a [LETHAL HITS]

@@ -16,7 +16,7 @@ WHAT THIS SUITE HAS TO PROVE, and why each part is its own section:
      reaching reserves too, surviving a save, expiring on the right turn;
   6. the AI's War Cry verdict at its decision boundaries;
   7. the Advance re-roll on the shared machinery;
-  8. Unstable Energies' budget (dormant until the Kill Rig stage);
+  8. Unstable Energies' budget (spent by the Kill Rig's psychic rolls since E3e);
   9. Da Boss and the Special Move Types as documented no-ops, measured;
  10. what the planner is told;
  11. the wiring in main.py and the retired `waaagh=` threading, at the source.

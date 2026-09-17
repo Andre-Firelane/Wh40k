@@ -14,7 +14,7 @@ from game import roll_choice
 from game.objectives import is_on_objective
 from game.arrokon_protocol import arrokon_adjusted_weapon
 from game import psychic_guidance
-from game import deff_from_above
+from game import beastscent, deff_from_above
 from game import protect
 from game.doom import DOOM_WOUND_BONUS
 from game.crit_hit import crit_hit_threshold
@@ -3066,6 +3066,10 @@ class ShootingController:
         if self.curse_of_the_cryptek is not None:
             modifiers.extend(self.curse_of_the_cryptek.wound_modifiers(
                 self._representative_shooter(), self.active_squad, target_squad))
+        # The Kill Rig's Beastscent: the disembarked unit's attacks against a
+        # MONSTER/VEHICLE unit have +1 to wound until the end of the turn -
+        # "attacks", so game/fight.py reads it too (game/beastscent.py).
+        modifiers.extend(beastscent.wound_modifiers(self.active_squad, target_squad))
         # The Canoptek Tomb Crawlers' Weapon Sentinels, third noun: "you can
         # ignore any or all modifiers to ... the Wound roll". THE FIRST such
         # filter on this fold - ignores_hit_modifiers, [PSYCHIC], Kauyon and

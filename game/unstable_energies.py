@@ -10,10 +10,11 @@ PRINTED (rules/orks/army_rules.md):
     abilities whose total psychic level does not exceed that PSYKER unit's
     psyker level.
 
-DORMANT BY CONSTRUCTION, and named so: the only carrier is the Kill Rig, whose
-two psychic abilities (Beastscent, Warpath - psychic level 1 each) are built
-with its datasheet stage. Until then nothing asks can_use(), and the ledger here
-is what that stage reads.
+THE ONE CARRIER is the Kill Rig (psyker level 1), whose two psychic abilities -
+Beastscent and Warpath, psychic level 1 each - share this budget: one of them per
+battle round. Both are asked through game/psychic_roll.py, which checks can_use()
+and spends on the roll (stage E3e; built with the army rule in E1 and unread until
+then).
 
 THE LEDGER LIVES ON THE UNIT (Squad.unstable_energies_round and
 Squad.unstable_energies_spent, both in activation_state.SQUAD_FLAGS): a psychic

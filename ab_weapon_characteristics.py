@@ -170,25 +170,6 @@ PROBES = [
        '                        and getattr(weapon_cls, "torrent", False)):\n'
        "                    continue\n",
        "")]),
-
-    # --- probes on the CORPUS_AHEAD transition set --------------------------
-    # The set lets the refetched Ork sheets differ while their stages are
-    # pending. Each of its three guards gets a probe, because a set nobody can
-    # see into is exactly where a real difference would go to hide.
-    ("(a) a non-Ork sheet is parked in the ahead set",
-     "test_weapon_characteristics.py", "test_weapon_characteristics.py",
-     [('CORPUS_AHEAD = {\n    "orks": {\n',
-       'CORPUS_AHEAD = {\n    "aeldari": {"Falcon"},\n    "orks": {\n'),
-      ("EXPECTED_AHEAD = 1\n", "EXPECTED_AHEAD = 2\n")]),
-
-    ("(b) an Ork sheet leaves the set while it still differs",
-     "test_weapon_characteristics.py", "test_weapon_characteristics.py",
-     # The Kill Rig is the one sheet left in the set since the vehicles stage.
-     [('        "Kill Rig",\n', '')]),
-
-    ("(c) the ahead sheets stop being counted as different",
-     "test_weapon_characteristics.py", "test_weapon_characteristics.py",
-     [("    ahead_diffs[key] = ahead_diffs.get(key, 0) + 1\n", "    pass\n")]),
 ]
 
 

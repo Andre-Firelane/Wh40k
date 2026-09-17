@@ -131,8 +131,10 @@ SQUAD_FLAGS = (
     "flitting_shadows_active",
     "sudden_strike_active",
     "neocapacitor_shielded",
-    "spirit_of_gork_strength",
-    "spirit_of_gork_lethal",
+    # The Kill Rig's two psychic grants: Warpath (the phase) and Beastscent
+    # (the turn, on the disembarked unit).
+    "warpath_active",
+    "beastscent_active",
     # The Tankbustas' Bomb Squigs: tokens spent and the turn of the last use.
     "bomb_squigs_used",
     "bomb_squigs_turn",

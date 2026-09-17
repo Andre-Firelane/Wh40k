@@ -787,30 +787,23 @@ class BeastSnaggaKlawAndBeastchoppaProfile(WeaponProfile):
 # class itself rather than silently dropped.
 
 class EavyLobbaProfile(WeaponProfile):
-    """Kill Rig's artillery piece (48", A D6, BS5+, S6, AP0, D2, [BLAST],
-    [INDIRECT FIRE]). `attacks_notation` makes the printed "D6" a real,
-    visible roll (see WeaponProfile.attacks_notation's own note)."""
+    """Kill Rig's artillery piece, 2026-09 codex: 48" A3 BS5+ S6 AP0 D2,
+    [BLAST 2], [INDIRECT FIRE]. The pre-codex D6 Attacks is a flat 3 now."""
     name = "'Eavy Lobba"
     weapon_type = RANGED
     range_in = 48
-    attacks = 1
-    attacks_notation = D6()
+    attacks = 3
     strength = 6
     ap = 0
     damage = 2
-    blast = 1  # plain [BLAST] (no explicit X) is X=1, see WeaponProfile.blast
+    blast = 2  # [BLAST 2], see WeaponProfile.blast
     indirect_fire = True  # [INDIRECT FIRE], rule 10.07
 
 
 class StikkaKannonProfile(WeaponProfile):
-    """Kill Rig's anti-armour shot (12", A1, BS5+, S12, AP-2, D3,
-    Anti-Monster 2+, Anti-Vehicle 2+, Snagged).
-
-    "Snagged" is NOT modeled: no rule text for it was supplied, and it is
-    not a core 24.xx keyword this engine knows - same documented status as
-    Tankbustas' Pulsa Rokkit. The two [ANTI-X] keywords ARE both modeled
-    (see WeaponProfile.anti), and at 2+ they are the lowest crit threshold
-    on any weapon here."""
+    """Kill Rig's anti-armour shot, 2026-09 codex: 12" A1 BS5+ S12 AP-2 D3,
+    [ANTI-MONSTER/VEHICLE 2+] (both halves, see WeaponProfile.anti). The
+    pre-codex "Snagged" is no longer printed."""
     name = "Stikka Kannon"
     weapon_type = RANGED
     range_in = 12
@@ -822,22 +815,20 @@ class StikkaKannonProfile(WeaponProfile):
 
 
 class WurrtowerProfile(WeaponProfile):
-    """Kill Rig's psychic weapon (24", A D3, BS N/A, S12, AP-3, D D6,
-    [HAZARDOUS], [PSYCHIC], [TORRENT]).
+    """Kill Rig's psychic weapon, 2026-09 codex: 24" A1 BS- S12 AP-3 D6,
+    [HAZARDOUS], [PSYCHIC], [TORRENT]. The pre-codex D3 Attacks and D6 Damage
+    are flat 1 and 6 now.
 
-    The printed BS "N/A" needs no override: [TORRENT] attacks auto-hit
-    (rule 24.37) and never make a Hit roll at all, exactly as
-    SkorchaProfile already documents. Both its Attacks and its Damage are
-    real dice rolls (attacks_notation/damage_notation)."""
+    The printed BS "-" needs no override: [TORRENT] attacks auto-hit (rule
+    24.37) and never make a Hit roll at all, exactly as SkorchaProfile already
+    documents."""
     name = "Wurrtower"
     weapon_type = RANGED
     range_in = 24
     attacks = 1
-    attacks_notation = D3()
     strength = 12
     ap = -3
-    damage = 1
-    damage_notation = D6()
+    damage = 6
     hazardous = True  # [HAZARDOUS], rule 24.15
     psychic = True  # [PSYCHIC], rule 24.29
     torrent = True  # [TORRENT], rule 24.37
@@ -860,7 +851,8 @@ class ButchaBoyzProfile(WeaponProfile):
 
 
 class SawBladesProfile(WeaponProfile):
-    """Kill Rig's main melee weapon (A6 WS3+ S10 AP-2 D2)."""
+    """Kill Rig's main melee weapon, 2026-09 codex: A6 WS3+ S10 AP-2 D2,
+    [CLEAVE 1], [EXTRA ATTACKS]."""
     name = "Saw Blades"
     weapon_type = MELEE
     range_in = 2
@@ -868,6 +860,8 @@ class SawBladesProfile(WeaponProfile):
     strength = 10
     ap = -2
     damage = 2
+    cleave = 1  # [CLEAVE 1], rule 24.06
+    extra_attacks = True
 
 
 class SavageHornsAndHoovesProfile(WeaponProfile):

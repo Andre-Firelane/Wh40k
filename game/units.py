@@ -184,7 +184,7 @@ class UnitProfile:
     transport = False  # the TRANSPORT keyword - rule 18.01, matters together with transport_capacity
     transport_capacity = 0  # rule 18.01: max total models that can embark within this model, if it's a TRANSPORT
     transport_requires_infantry = False  # rule 18.02 "eligible to embark... as described on that TRANSPORT's datasheet": this TRANSPORT only accepts INFANTRY units - e.g. Devilfish's "T'AU EMPIRE INFANTRY models" (the "T'au Empire" half of that isn't modeled - no per-model faction tracking exists in this engine, see TransportController.can_embark()'s own note)
-    transport_requires = ()  # rule 18.02, the INCLUSIVE counterpart of transport_excludes below: tuple of UnitProfile boolean-attribute names EVERY model must have to embark - e.g. ("beast_snagga",) for Kill Rig's "11 BEAST SNAGGA INFANTRY models" (the INFANTRY half is transport_requires_infantry, so the two compose). Empty means no such restriction
+    transport_requires = ()  # rule 18.02, the INCLUSIVE counterpart of transport_excludes below: tuple of UnitProfile boolean-attribute names EVERY model must have to embark - e.g. ("beast_snagga",) for Kill Rig's "12 BEAST SNAGGAS INFANTRY models" (the INFANTRY half is transport_requires_infantry, so the two compose). Empty means no such restriction
     transport_excludes = ()  # rule 18.02: tuple of UnitProfile boolean-attribute names this TRANSPORT refuses to carry (e.g. ("battlesuit", "kroot", "vespid_stingwings") for Devilfish) - empty means no restriction, i.e. the old "any non-TRANSPORT unit is eligible" default
     transport_pools = ()  # rule 18.02, the SUB-POOL form of a printed capacity line: a tuple of (max_models, (DATASHEET keyword, ...)) pairs. Every model must fit at least one pool and no pool may be overfilled. Ghost Ark: "a transport capacity of 10 NECRON WARRIOR models AND 1 NECRONS INFANTRY CHARACTER model" - two pools with different keyword rules, which transport_requires above cannot express because its contract is "EVERY model has EVERY keyword", i.e. one pool by definition. () = no sub-pools, which is every other TRANSPORT in this engine, so both readers sit behind `if pools:` and nothing moves. The keywords are DATASHEET keywords read via attached_units.model_has_datasheet_keyword() (rule 19.01's merge means the realistic passenger is ONE squad holding models from two different datasheets), NOT UnitProfile flags - "NECRON WARRIORS" is a datasheet's own name and has no flag. Read by TransportController.can_embark() and formations.embark_errors(). MERGE CANDIDATE: transport_requires is this field with one pool and a different keyword vocabulary; they are deliberately NOT merged in the stage that added this, because doing so would rewrite the Kill Rig and the Devilfish in the middle of a datasheet stage
     firing_deck = 0  # Firing Deck X value (rule 24.14) - max embarked models that can lend the TRANSPORT a weapon each time it shoots, 0 = no ability
@@ -238,8 +238,9 @@ class UnitProfile:
     joins_without_leader_slot = False  # Warlock Conclave's LEADER ability is printed as a JOIN with its OWN restriction ("a unit cannot have more than one WARLOCK CONCLAVE unit joined to it") rather than as an ordinary attachment, so 19.01's one-leader-per-bodyguard default is not what limits it. Read by game/attached_units.py's can_attach(); the direction matters and is asymmetric on purpose - see _join_not_bound_by_leader_slot() there
     psyker = False  # the PSYKER keyword - purely descriptive here (no engine rule reads it yet), same status as MOUNTED/SMOKE; the [PSYCHIC] weapon keyword (24.29) is a separate, wired thing on WeaponProfile
     psyker_level = 0  # the Orks army rule Unstable Energies: how many psychic levels this PSYKER may use per battle round ("psyker level N" in its abilities) - read by game/unstable_energies.py
-    beast_snagga = False  # the BEAST SNAGGA keyword - matters for Kill Rig's transport_requires ("11 BEAST SNAGGA INFANTRY models"), see UnitProfile.transport_requires
-    spirit_of_gork = False  # Kill Rig's own "Spirit of Gork (Psychic)" ability (user-supplied, not a core rule): at the start of the Fight phase, buff one friendly ORKS unit within 12" - see game/spirit_of_gork.py
+    beast_snagga = False  # the BEAST SNAGGA keyword - matters for Kill Rig's transport_requires ("12 BEAST SNAGGAS INFANTRY models"), see UnitProfile.transport_requires
+    beastscent = False  # Kill Rig's "Beastscent (psychic level 1)" (2026-09 Ork codex): in your Movement phase, when a unit embarked within it is selected to disembark, a psychic roll gives that unit +1 to wound against MONSTER/VEHICLE units until the end of the turn - read off the TRANSPORT token, see game/beastscent.py
+    warpath = False  # Kill Rig's "Warpath (psychic level 1)" (2026-09 Ork codex): when this unit is selected to fight, a psychic roll gives its melee attacks [LETHAL HITS] and [PSYCHIC] - see game/warpath.py
     mega_armour = False  # the MEGA ARMOUR keyword - matters for a TRANSPORT's capacity math ("each MEGA ARMOUR model takes up the space of 2 models", rule 18.01/Trukk's own printed exception) - see game/transport.py's _model_capacity_cost()
     coldstar_commander = False  # Commander in Coldstar Battlesuit's own "Coldstar Commander" ability (user-supplied, not a core rule): while this model is LEADING a unit (19.01), models in that unit have a Move characteristic of 12" and their ranged weapons have [ASSAULT] - a leader ability granted to the whole attached unit, so read with squad_has_coldstar_commander() rather than unit_wide_ability(); see game/coldstar.py
     might_is_right = False  # Warboss's "Might Is Right" (2026-09 Ork codex): if this unit made a charge move this turn, this model's melee attacks have +3 A and +2 S - per MODEL, see game/might_is_right.py. The pre-codex +1-to-hit leader grant of that name is gone
@@ -1041,35 +1042,27 @@ class PainboyProfile(UnitProfile):
 
 
 class KillRigProfile(UnitProfile):
-    """Datasheet: Kill Rig (Orks), see game/factions/orks.py. Keywords line
-    (user-supplied): Monster, Transport, Psyker, Beast Snagga, Kill Rig
-    (Faction: Orks dropped, same reasoning as every other datasheet's
-    Faction keyword). The first MONSTER in this engine that is also a
-    TRANSPORT, and the first PSYKER of either faction.
+    """Datasheet: Kill Rig (Orks), 2026-09 codex - rules/orks/Kill Rig.md, built
+    in game/factions/orks.py. KEYWORDS: MONSTER; BEAST SNAGGA; PSYKER; TRANSPORT;
+    WAGON. The first MONSTER in this engine that is also a TRANSPORT.
 
-    base_radius_in: started at the user-supplied real base, "170 mm x 109" -
-    an oval, converted to a circle of EQUAL AREA, the same conversion
-    GhostkeelProfile's 105x70mm and RiptideProfile's 120x92mm ovals already
-    use (a token here is always a circle, see VehicleProfile's own note):
-    semi-axes 85mm and 54.5mm, so r = sqrt(85 * 54.5) = sqrt(4632.5)
-    ~= 68.06mm = 68.06/25.4 ~= 2.68" (deliberately NOT the mean of the two
-    semi-axes, 69.75mm = 2.75", which would overstate the footprint - see
-    the Riptide's own note). The user then judged that too big on the board
-    ("kill rig und battle wagon sind zu groß. bitte so groß machen wie
-    devilfish") and asked for DevilfishProfile's own 2.1" instead, which is
-    what this now carries - so it is a deliberate cosmetic choice, not the
-    oval arithmetic. base_radius_in has no rules citation anywhere in this
-    file (it is collision/rendering size only), so a size the user prefers
-    beats a size derived from the real model. BattlewagonProfile follows
-    this value, same as it followed the old one.
+    base_radius_in: the printed 170x109mm oval's equal-area circle is 2.68"; the
+    user judged that too big on the board ("kill rig und battle wagon sind zu
+    gross. bitte so gross machen wie devilfish") and asked for DevilfishProfile's
+    2.1" instead. A standing cosmetic decision - base_radius_in cites no rule
+    (collision and rendering only) - kept through the codex stage and reported by
+    verify_rules_vs_engine.py as a named deviation.
 
-    WS/BS aren't in the M/T/Sv/W/Ld/OC table (same convention as every
-    other datasheet) - read off the weapon tables. BS5+ is shared by 'Eavy
-    lobba and Stikka kannon (the Wurrtower's printed "N/A" needs nothing:
-    [TORRENT] auto-hits, rule 24.37). The melee weapons disagree - Butcha
-    boyz and Saw blades are WS3+, Savage horns and hooves WS4+ - so the
-    profile carries the majority 3+ and only that one weapon overrides,
-    same handling as The Twin Lance's own three-way disagreement."""
+    WS/BS read off the weapon tables: BS5+ on the 'Eavy Lobba and the Stikka
+    Kannon (the Wurrtower's "-" needs nothing: [TORRENT] auto-hits, rule 24.37);
+    WS3+ on Butcha Boyz and Saw Blades, WS4+ on Savage Horns and Hooves, which
+    overrides on the weapon.
+
+    CORE: Damaged 6, Deadly Demise D6, Feel No Pain 5+ - generic fields. The
+    Wurrboy (psyker level 1) is the Unstable Energies budget its two psychic
+    abilities share: Beastscent (game/beastscent.py) and Warpath
+    (game/warpath.py), both through game/psychic_roll.py. The pre-codex Spirit of
+    Gork is gone."""
     name = "Kill Rig"
     base_radius_in = 2.1
     movement_in = 10
@@ -1079,20 +1072,22 @@ class KillRigProfile(UnitProfile):
     wounds = 16
     leadership = "7+"
     armor_save = "3+"
+    invulnerable_save = "6+"  # printed INSV 6+
     oc = 5
     monster = True  # the MONSTER keyword
     psyker = True  # the PSYKER keyword - descriptive, see UnitProfile.psyker's own note
     psyker_level = 1  # "Wurrboy (psyker level 1)" - the Unstable Energies budget, see game/unstable_energies.py
     beast_snagga = True  # the BEAST SNAGGA keyword
-    feel_no_pain = "6+"  # "Rules: Feel No Pain 6+" - rule 24.12, an existing generic field
-    damaged_threshold = 5  # "Damaged: 1-5 Wounds Remaining" -> -1 to this model's own Hit rolls, an existing generic field (see game/shooting.py's _damaged_modifier())
+    feel_no_pain = "5+"  # CORE "Feel No Pain 5+" - rule 24.12, an existing generic field
+    damaged_threshold = 6  # CORE "Damaged 6": -1 to this model's own Hit rolls at 1-6 wounds remaining (see game/shooting.py's _damaged_modifier())
     deadly_demise = 6  # documentation leftover only, see deadly_demise_notation below - same convention as Devilfish/Trukk
-    deadly_demise_notation = D6()  # "Rules: Deadly Demise D6" - a real D6 roll, see game/deadly_demise.py
+    deadly_demise_notation = D6()  # CORE "Deadly Demise D6" - a real D6 roll, see game/deadly_demise.py
     transport = True  # the TRANSPORT keyword
-    transport_capacity = 11  # "a transport capacity of 11 BEAST SNAGGA INFANTRY models"
+    transport_capacity = 12  # "a transport capacity of 12 BEAST SNAGGAS INFANTRY models"
     transport_requires_infantry = True  # the INFANTRY half of that line
     transport_requires = ("beast_snagga",)  # the BEAST SNAGGA half - see UnitProfile.transport_requires's own note
-    spirit_of_gork = True  # this datasheet's own "Spirit of Gork (Psychic)" ability - see game/spirit_of_gork.py
+    beastscent = True  # "Beastscent (psychic level 1)" - see game/beastscent.py
+    warpath = True  # "Warpath (psychic level 1)" - see game/warpath.py
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
     orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
 
