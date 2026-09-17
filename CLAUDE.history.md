@@ -9632,3 +9632,52 @@ unverändert 87 %.
 **CLAUDE.md nachgezogen:** neuer Abschnitt `## Ork-Spezialisten`; Ork-Liste 2105, Fraktionszeile,
 Übergangszahlen, Death-Guard-Tank-Hunters-Zeile, Home-Garnisons-Messzeile, KI-Liste der
 deterministischen Antworten, Bewertungs-Bullet (`valued_profiles()`).
+
+## 2026-09-17 — CLAUDE.md aufgeteilt: der Stand liegt jetzt in docs/stand/
+
+**Gemeldet:** „es kommt bei etwas längeren aufgaben sehr schnell zu dem punkt, wo 'prompt too long'
+erscheint /compact hilft dann auch nicht mehr. das war vor einer woche nooch nicht so." — mit der
+Frage, ob die CLAUDE.md zu lang sei oder versehentlich etwas Großes als Kontext mitgehe.
+
+**Gemessen:** CLAUDE.md 418 KB (06.09.) → 815 KB (08.09.) → 978 KB (10.09.) → 1.108 KB (12.09.) →
+1,19 MB (17.09.). Die Token-Dichte kam aus den Fehlermeldungen des Read-Tools an zwei Stücken:
+88.410 Zeichen = 44.844 Tokens, 65.137 Zeichen = 32.838 Tokens, also ~2 Zeichen pro Token und
+~586.000 Tokens bei jeder Anfrage. Keine @-Imports, `CLAUDE.history.md` wird nicht geladen, keine
+Datei liest CLAUDE.md programmatisch (nur Code-Kommentare verweisen darauf). Teil 1 hatte 68 KB,
+Teil 2 1,1 MB (94 %): die Pflegeregel „verdichten statt anhängen" stand die ganze Zeit oben in der
+Datei und hat nicht gehalten.
+
+**Umbau (User: „ja umbau"):**
+- Teil 2 wörtlich auf 38 Dateien in `docs/stand/` verteilt, jede ≤ 42.000 Zeichen, damit ein Read
+  (Limit 25.000 Tokens) sie ganz liefert. Drei Abschnitte an `###`-Grenzen mit
+  `## … — Fortsetzung` geteilt: Armeen, Hover-Datacard, Necron-Datenblätter (vier Teile).
+- Aus Teil 1 die zwei Kataloge, die mit jeder Etappe wuchsen: die Extraktionsliste aus
+  Fehlerklasse 10 (`extraktionen.md`) und die smoke/measure/verify-Beschreibungen (`werkzeuge.md`).
+- CLAUDE.md behält Teil 1, ein Verzeichnis (jede Datei mit ihren `##`-Überschriften) und Teil 3
+  (offene Punkte, Später-Liste — letztere, weil ~10 Code-Kommentare „CLAUDE.md's Später-Liste"
+  zitieren). 1.174.906 → 71.307 Zeichen, ~36.000 Tokens.
+
+**Belegt:**
+- Ein vom Aufteil-Skript unabhängiges Skript baut die alte Datei ausschließlich aus den neuen Dateien
+  zusammen: byte-identisch zu HEAD (1.159.859 Zeichen, LF). Sein erster Lauf fand genau ein fehlendes
+  Zeichen — das Aufteil-Skript hatte die Schlussleerzeile des letzten Abschnitts ausgeschlossen, in
+  `meldungen-4.md` fehlte deshalb die Leerzeile vor dem nächsten Abschnitt. Korrigiert und aus der
+  Sicherung neu gebaut.
+- Neuer Wächter `test_claude_md_budget.py` (22/22): CLAUDE.md ≤ 100 KB, kein @-Import, Verzeichnis ↔
+  Dateien ↔ `##`-Überschriften exakt samt Reihenfolge, Dateien ≤ 42.000 Zeichen, kein verschachteltes
+  CLAUDE.md. Die Prüfung ist eine reine Funktion über Text; jede Zusicherung wird an einer
+  In-Memory-Mutation als beißend belegt. Genau diese Mutationen fanden einen Testfehler: CLAUDE.md
+  wurde mit CRLF gelesen, die Mutation suchte `\n` und entfernte nichts.
+
+**Eigene Fehler:** ein Bash-Heredoc zerlegte die Backslashes eines Patch-Skripts (Fehlerklasse 21;
+die Assertion brach vor dem Schreiben ab, danach per Edit); ein Read zum Messen blieb unter dem
+Limit und lud ~18k Tokens statt eine Zahl zu melden.
+
+**Nicht angefasst:** die uncommittete Ork-Arbeit einer anderen Sitzung (letzte Änderung 16.09.
+20:58, kein laufender Prozess) — sie ist NICHT committet. In ihr steht ein Sondenrest:
+`game/aerial_manoover.py:75` lautet `if False:  # AB-PROBE` statt `if engagement.is_engaged(squad,
+tokens):` (Sonde aus `ab_ork_vehicles.py` Z. 153, deren Wiederherstellung nie lief). Ein
+Backup-Commit per `-A` hätte genau diesen Zustand gesichert (Fehlerklasse 20); der Doku-Commit nimmt
+deshalb nur seine eigenen Dateien.
+Eine wiederaufgenommene Sitzung mit altem CLAUDE.md im Kontext findet ihre Edit-Anker nicht mehr;
+Ork-Stand gehört jetzt nach `docs/stand/orks-codex-2026-09.md`.
