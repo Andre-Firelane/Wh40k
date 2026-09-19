@@ -652,8 +652,9 @@ _agent = read(os.path.join("ai", "agent_driver.py"))
 c.true("the AI's Movement handler asks Makari before anything moves (ahead of Da Jump and the Ingress step)",
        0 <= _agent.find("    if _handle_makari(player, all_tokens, makari_controller, game_log):")
        < _agent.find("    if _handle_da_jump(player, state, movement_controller, da_jump_controller, game_log):"))
-c.true("ShootingController chains More Dakka",
-       "more_dakka.adjusted_weapon(weapon, self.active_squad)" in read(os.path.join("game", "shooting.py")))
+c.true("ShootingController chains More Dakka (with the embarked units Targetin' Gizmos asks, G4)",
+       "more_dakka.adjusted_weapon(weapon, self.active_squad, self.embarked_squads())"
+       in read(os.path.join("game", "shooting.py")))
 _fight = read(os.path.join("game", "fight.py"))
 c.true("FightController reads the Prophet in both hit and wound modifiers",
        "prophet_of_da_great_waaagh.hit_modifiers(self.fighting_squad, self.all_tokens)" in _fight

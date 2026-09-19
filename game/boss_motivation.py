@@ -89,7 +89,12 @@ class BossMotivationController:
         raise NotImplementedError
 
     def bearer_models(self, squad):
-        return [m for m in _alive(squad) if getattr(m.profile, self.FLAG, False)]
+        """The living models that give `squad` this ability: its own printers,
+        and - Blitz Brigade's Boss Boomer - a printing WARBOSS embarked within a
+        WAGON that has the Enhancement (game/enh_boss_boomer.py)."""
+        from game import enh_boss_boomer
+        own = [m for m in _alive(squad) if getattr(m.profile, self.FLAG, False)]
+        return own + enh_boss_boomer.lent_models(squad, self._squads(), self.FLAG)
 
     def _squads(self):
         if self.squads_provider is None:

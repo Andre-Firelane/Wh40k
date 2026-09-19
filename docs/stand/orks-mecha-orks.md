@@ -212,3 +212,78 @@ GESTELLT: Orks als Player 1, gebaute Einheiten (die Liste fieldet Green Tide ers
 jedem Ork [SUSTAINED HITS 1]), die Uhr je Stufe samt `reset_command_phase()` und CP-Auffüllung, ein
 Beast-Snagga-Trupp „unter halber Stärke" als 4 von 10 gebaut, der Nahkampf-Mob neben ein
 Player-2-Infanterieziel gestellt.
+
+## Mecha Orks G4: Blitz Brigade (2026-09-19)
+
+Gedruckter Text in `rules/orks/detachments/Blitz Brigade.md`. `armies/orks.json` UNVERÄNDERT (G6),
+`BLITZ_BRIGADE_PLAYERS` leer, bis eine Liste es deklariert. WAGON ist ein Datenblatt-Keyword (Kill Rig,
+Battlewagon, Gunwagon; der Trukk nicht), gelesen über `unit_has_datasheet_keyword()`.
+
+| Teil | Modul | Naht / Lesart |
+|---|---|---|
+| Unstoppable Momentum, Advance | `blitz_brigade.py` | `start_run()`s No-Roll-Zweig: ein Wurf, den man immer auf sein Maximum ändern darf, IST eine 6 — kein Würfel, also bietet kein Reroll (Waaagh!, Command Re-roll) etwas an, das nichts kauft; anders als die flachen Boni dort ein WURF, die Advance-Modifikatoren (`shaken` −2) gelten weiter. Die KI-Beobachtung rechnet mit 6 statt 3,5 |
+| Unstoppable Momentum, Charge | `blitz_brigade.py` | DRITTER Träger von `charge_reroll.py`, an `main()`s Quittungstür nach Phaeron of the Blades und auf dem Würfelpanel |
+| Targetin' Gizmos (10) | `enh_targetin_gizmos.py` | zweite Quelle von `more_dakka.py` (`grants_more_dakka()`); die Kette bekommt die eingestiegenen Einheiten (`ShootingController.embarked_squads_provider`, in `main()` = `state.embarked_squads`); BIG MEK je MODELL per `model_has_datasheet_keyword()`, lebend; beide [IGNORES COVER]-Leser sehen es |
+| Boss Boomer (10) | `enh_boss_boomer.py` | `BossMotivationController.bearer_models()` leiht die Modelle eines eingestiegenen, lebenden WARBOSS, der die Fähigkeit druckt — der WAGON wird Träger: sein Zug, seine 6", das Limit der Fähigkeit |
+| Keep It Runnin' (1CP) | `blitz_keep_it_runnin.py` | dritte Druckform der Fight-Ende-Einsteige-Mechanik (siehe unten); ORKS INFANTRY, „End of THE Fight phase" beide Spieler, die KI lehnt ab (benannt) |
+| Impending Krunch (1CP) | `blitz_impending_krunch.py` | Angebot am `on_charge_move_finished`-Haken in der EIGENEN Charge-Phase (Heroic Intervention nicht), nur mit engagiertem Feind, einmal je Charge-Move (Memo); die Tests über die geteilte Warteschlange; KI kauft, wenn ein engagierter Feind noch NICHT shocked ist (ein bestandener Test heilt) |
+| Readied Brawlers | — | **NICHT verdrahtet** (User-Entscheidung: die „assault disembark move" gibt es im Regelbuch nicht). `blitz_brigade.NOT_WIRED` nennt die Lücke, die Suite pinnt, dass kein Modul außer der Regel sie erwähnt und nichts eine „assault disembark" baut |
+
+**Drei Extraktionen, alle am fälligen Konsumenten:**
+- **`game/end_of_fight_embark.py`** — Skyborne Sanctuarys Mechanik wörtlich verschoben, mit den drei
+  Knöpfen NAME/CP, RANGE_IN und `eligible_unit()`. Ein Ork-Stratagem, das eine nach einem Aeldari-Stratagem
+  benannte Klasse erbt, wäre ein lügender Name (Fehlerklasse 11). Das Aeldari-Verhalten ist unverändert
+  (1013/1013). Zwei Quell-Wächter lesen jetzt das neue Modul.
+- **`game/forced_shock_queue.py`** — Mobbeds Warteschlange erzwungener Battle-shock-Tests, am zweiten
+  Nutzer. Der Psychomancer (Nightmare Shroud) behält seine ältere Kopie — benannt als nächster Kandidat,
+  nicht in einer Ork-Etappe umgeschrieben. §21 nennt den neuen Aufrufer.
+- **`game/ork_units.py`** — `is_orks_unit()`/`is_orks_infantry_unit()`, von War Horde und Green Tide
+  re-exportiert; Blitz Brigade hätte sie sonst aus einem fremden Detachment-Modul importiert.
+
+**Vorbestehender Befund:** `ab_aeldari_offer_windows.py` (ohne `--check`) hatte veraltete Skyborne-Anker
+seit dem Umbau auf `unit_choice_offer` (`self._window.arm(squad.owner)` gibt es nicht mehr). Beim Umzug
+mitkorrigiert, dazu `ab_unit_choice_offers.py`; beide Treiber liefen danach vollständig, alle Sonden beißen.
+**Falle dabei:** diese älteren Treiber haben keinen `__main__`-Schutz — ein IMPORT (für eine Ankerprüfung)
+startet den echten Sondenlauf.
+
+**Getestet:** neu `test_ork_blitz_brigade.py` (**122/122**, zehn Abschnitte — der Advance ohne Würfel samt
+`shaken` und Beobachtung, der Charge-Reroll an einem echten `ChargeController` mitten im Wurf,
+Targetin' Gizmos an Kette UND Cover-Tor mit fünf Negativen, Boss Boomer an beiden Controllern und am
+ECHTEN `ActionPanel` samt Phasen- und Detachment-Negativen, Keep It Runnin' mit sieben Negativen und
+Stellvertretern, Impending Krunch durch `confirm_charge_move()` eines echten `ChargeController` samt
+Warteschlange und KI-Regel, Readied Brawlers' Lücke, die Extraktionen, AST-Pins) und
+`ab_ork_blitz_brigade.py` (**41 Sonden**). **Im ersten Lauf bissen zwei nicht, eine stürzte ab** — alle
+über die Tests: Keep It Runnins INFANTRY-Klausel wird von JEDEM Ork-Transport selbst verdeckt (jetzt ein
+Battlewagon, dessen Profil-INSTANZ das Verbot verliert), Krunchs „einmal je Charge-Move" war nach dem
+Kauf hinter 15.01 verdeckt (jetzt nach einem Decline gemessen), und `NOT_WIRED[...]` warf statt rot zu
+werden. Vorher schon per Test-Durchdenken ergänzt: ein WARBOSS-Stellvertreter für Boss Boomer (kein
+gebautes Blatt druckt Intimidating Motivation ohne WARBOSS). Die umgezogenen Anker in `ab_ork_mobs.py`
+(Warteschlange) und `ab_ork_mecha_characters.py` (More Dakka) beißen weiter; `--check` über alle **12**
+Treiber sauber. Volle Regression **242 Suiten, ~23776 Prüfungen, 241 grün / 1 bekannt**, `--smoke`
+grün, selfplay Orks gegen Necrons beide Sitzordnungen exit 0, `verify_rules_vs_engine.py` **68**, Korpus
+unverändert, `measure_crowded_movement.py` unverändert **62 % / 210.2"**, **87 % / 292.3"**.
+Nachgezogen: `test_detachments.py` (Orks namentlich), `test_force_dispositions.py` (21),
+`test_ork_mecha_characters.py` (More Dakka mit Passagieren), `test_unit_choice_offers.py` und
+`test_event_chain_wiring.py` (Skyborne im neuen Modul, §21 mit der Warteschlange).
+
+**Im ECHTEN Spiel belegt** (`verify_ork_blitz_brigade.py map2`, Orks als Player 1; 8/8, unter
+`--neutralize` 7/7):
+
+| | gefixt | `--neutralize` |
+|---|---|---|
+| Wiring | Charge-Reroll mit `main()`s Würfeln/Charge, Krunch mit `main()`s BattleShock/Decision/Tokens, KIR mit Transport/Fight, die Schieß-Sicht IST `state.embarked_squads` | keine Schieß-Sicht |
+| KI-Impending-Krunch am Charge-Ende-Haken | 1 CP, Test −1 für eine engagierte Player-1-Einheit | nie gehört |
+| KI-Charge-Reroll an `main()`s Quittungstür | eine 3 ohne Ziel wird ganz neu gewürfelt | nie gefragt |
+| Advance eines Battlewagon | +6", kein Würfel | Würfel |
+| Targetin' Gizmos | [IGNORES COVER], kein Benefit of Cover | Cover bleibt |
+| Boss Boomer auf `main()`s Panel | Intimidating Motivation gezeichnet, benutzt | nie gezeichnet |
+| Keep It Runnin' an der Fight-Grenze | angeboten, gepickt, 1 CP, eingestiegen | nie angeboten |
+
+GESTELLT: Orks als Player 1, gebaute Einheiten, `BLITZ_BRIGADE_PLAYERS` für beide Seiten und
+`WAR_HORDE_PLAYERS` geleert, die Uhr je Stufe und CP-Auffüllung, H feuert `main()`s
+Charge-Ende-Hakenliste für einen engagiert gestellten Battlewagon, C würfelt die Charge per
+kurzzeitig getauschtem `random.randint` (NICHT `testkit` — dessen Import setzt JEDEN Würfel des Laufs auf
+1, gemessen), F legt die Boyz in `engaged_at_start`. Zwei Bühnen-Lehren: eine gestellte Charge, die der
+Reroll zufällig ans Ziel bringt, bleibt offen und hält das Panel auf dem Charge-Bildschirm — C lehnt sie
+nach der Messung ab (11.02); und Keep It Runnins Preis wird NACH der Grenze gemessen, weil die
+Fight-Grenze schon den Kern-CP der nächsten Command-Phase gezahlt hat.

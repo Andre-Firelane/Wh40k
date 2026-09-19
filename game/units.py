@@ -166,6 +166,8 @@ class UnitProfile:
     follow_me_ladz = False  # War Horde Enhancement: +2" Move for the bearer's unit - game/coldstar.py's effective_movement_in(); see game/enh_follow_me_ladz.py
     ferocious_show_off = False  # Green Tide Enhancement: +1 A (+2 A while the unit has 11+ models) on the BEARER's melee attacks - game/fight.py's chain and _melee_attack_key(); see game/enh_ferocious_show_off.py
     ardboyz = False  # Green Tide Enhancement, UNIT-level (every Boyz model is marked): the unit has 4+ Sv - game/save_characteristic.py; see game/enh_ardboyz.py
+    targetin_gizmos = False  # Blitz Brigade Enhancement, UNIT-level (a WAGON): More Dakka's two points while a BIG MEK is embarked within it - game/more_dakka.py; see game/enh_targetin_gizmos.py
+    boss_boomer = False  # Blitz Brigade Enhancement, UNIT-level (a WAGON): it has an embarked WARBOSS's Intimidating Motivation/Keep Huntin' - game/boss_motivation.py's bearer_models(); see game/enh_boss_boomer.py
     thievin_scavengers = False  # Gretchin's Thievin' Scavengers (2026-09 codex): at the end of your Movement phase, an objective this unit is controlling becomes secured (rule 14.03) - see game/thievin_scavengers.py
     ammo_runts = False  # Boyz' Ammo Runts (2026-09 codex): once per battle per unit, +1 to hit for its ranged attacks when selected to shoot - see game/ork_ammo_runts.py
     tide_of_muscle = False  # Boyz' Tide of Muscle: [LETHAL HITS] on its melee attacks in a turn it made a charge move - see game/tide_of_muscle.py

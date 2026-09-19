@@ -13,6 +13,7 @@ from game import whole_unit_drag
 from game.coldstar import effective_movement_in
 from game import guardian_time_to_strike
 from game import montka_aggressive_mobility, montka_pulse_onslaught
+from game import blitz_brigade
 from game import formation_layout, front_rank, line_drag
 from game.dice import ADVANCE_ROLL
 from game.roll_bonus import advance_and_charge_bonus, advance_sources as roll_bonus_advance_sources
@@ -723,6 +724,16 @@ class MovementController:
             # again, on an Enhancement.
             no_roll_bonus = (enh_hyperspatial_transfer_node.HYPERSPATIAL_TRANSFER_NODE_BONUS_IN,
                              enh_hyperspatial_transfer_node.HYPERSPATIAL_TRANSFER_NODE)
+        elif blitz_brigade.advance_roll_is_fixed(self.selected_squad):
+            # Blitz Brigade's Unstoppable Momentum: "can change advance rolls to
+            # a 6". Unlike the flat bonuses above this IS a roll - a 6 - so the
+            # Advance modifiers still apply, through the same advance_total()
+            # every rolled Advance goes through. No die is thrown: one that may
+            # always become its own maximum would only open re-roll offers that
+            # buy nothing. See game/blitz_brigade.py.
+            no_roll_bonus = (advance_total(self.selected_squad, [blitz_brigade.UNSTOPPABLE_MOMENTUM_ADVANCE],
+                                           self.all_tokens),
+                             blitz_brigade.UNSTOPPABLE_MOMENTUM)
         if no_roll_bonus is not None:
             bonus, _label = no_roll_bonus
             for model in self.selected_squad.models:

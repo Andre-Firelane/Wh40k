@@ -337,6 +337,13 @@ def _orks_infantry_character(model, squad):
             and bool(getattr(model.profile, "infantry", False)))
 
 
+def _wagon_unit(model, squad):
+    """"WAGON unit only" - Blitz Brigade's two. WAGON is a datasheet keyword
+    (Kill Rig, Battlewagon, Gunwagon)."""
+    from game import attached_units
+    return attached_units.unit_has_datasheet_keyword(squad, "WAGON")
+
+
 def _boyz_unit(model, squad):
     """"BOYZ unit only" - Green Tide's 'Ardboyz. BOYZ is a datasheet name, not a
     keyword on the Boyz' line."""
@@ -379,6 +386,8 @@ _HYPERCRYPT_LEGION = ("Hypercrypt Legion", "HYPERCRYPT_LEGION_PLAYERS")
 _WAR_HORDE = ("War Horde", "WAR_HORDE_PLAYERS")
 # Green Tide (Mecha Orks stage G3) - both wired.
 _GREEN_TIDE = ("Green Tide", "GREEN_TIDE_PLAYERS")
+# Blitz Brigade (Mecha Orks stage G4) - both wired.
+_BLITZ_BRIGADE = ("Blitz Brigade", "BLITZ_BRIGADE_PLAYERS")
 
 ENHANCEMENTS = {}
 
@@ -570,6 +579,14 @@ _add("Ferocious Show-off", 15, _GREEN_TIDE, "ferocious_show_off",
      _orks_infantry_character, "ORKS INFANTRY model only")
 _add("'Ardboyz", 25, _GREEN_TIDE, "ardboyz",
      _boyz_unit, "BOYZ unit only", unit_level=True)
+
+# Blitz Brigade - game/enh_targetin_gizmos.py (More Dakka's second source) and
+# game/enh_boss_boomer.py (lends an embarked WARBOSS's ability). Both are given to
+# a WAGON unit, which has no CHARACTER.
+_add("Targetin' Gizmos", 10, _BLITZ_BRIGADE, "targetin_gizmos",
+     _wagon_unit, "WAGON unit only", unit_level=True)
+_add("Boss Boomer", 10, _BLITZ_BRIGADE, "boss_boomer",
+     _wagon_unit, "WAGON unit only", unit_level=True)
 
 
 def get(name):

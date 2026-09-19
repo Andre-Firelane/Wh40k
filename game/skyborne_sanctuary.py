@@ -73,10 +73,8 @@ Tunnel before it - see game/phase_window.py.
 THE AI DECLINES (standing Aeldari instruction).
 """
 
-from game import (aeldari_detachments, ai_mode, detachment_gate, engagement,
-                  unit_choice_offer)
-from game.phase_window import PhaseWindow
-from game.stratagems import Stratagem
+from game import aeldari_detachments, detachment_gate
+from game.end_of_fight_embark import EndOfFightEmbarkController
 
 SKYBORNE_SANCTUARY_NAME = "Skyborne Sanctuary"
 SKYBORNE_SANCTUARY_CP = 1
@@ -93,171 +91,22 @@ def eligible_unit(squad, setting):
     return aeldari_detachments.is_asuryani_unit(squad)
 
 
-class SkyborneSanctuaryController:
+class SkyborneSanctuaryController(EndOfFightEmbarkController):
     """The end-of-Fight-phase offer. Built once per detachment that prints it,
-    each with its own `setting`."""
+    each with its own `setting`. The mechanism is
+    game/end_of_fight_embark.py's (moved there when the Orks' Keep It Runnin'
+    became its third printing); this class owns the name, the cost, the
+    distance and the ASURYANI TARGET."""
 
-    def __init__(self, stratagem_controller, setting, transport_controller=None,
-                 fight_controller=None, game_state=None, all_tokens=None,
-                 turn_tracker=None, decision_manager=None, game_log=None,
-                 auto_players=()):
-        self.stratagem_controller = stratagem_controller
+    NAME = SKYBORNE_SANCTUARY_NAME
+    CP = SKYBORNE_SANCTUARY_CP
+    RANGE_IN = SKYBORNE_SANCTUARY_RANGE_IN
+
+    def __init__(self, stratagem_controller, setting, **kwargs):
+        super().__init__(stratagem_controller, **kwargs)
         #: Which detachment's copy this instance is - the ONLY difference
         #: between the two printings.
         self.setting = setting
-        self.transport_controller = transport_controller
-        self.fight_controller = fight_controller
-        self.game_state = game_state
-        self.all_tokens = all_tokens if all_tokens is not None else []
-        self.turn_tracker = turn_tracker
-        self.decision_manager = decision_manager
-        self.game_log = game_log
-        self.auto_players = ai_mode.players(auto_players)
-        # The end-of-Fight-phase window this controller's own offer opens.
-        # NOT a live turn_tracker.phase test - see game/phase_window.py.
-        self._window = PhaseWindow()
-        self._pending = {}
-        self._stratagem = Stratagem(
-            name=SKYBORNE_SANCTUARY_NAME, cp_cost=SKYBORNE_SANCTUARY_CP,
-            effect=self._embark,
-        )
 
-    def was_eligible_to_fight(self, squad):
-        """"that was eligible to fight this phase" - asked of the controller
-        that owns rule 12.04's sticky engaged_at_start set. Nothing else can
-        still answer this once the phase has ended."""
-        if self.fight_controller is None:
-            return True
-        return self.fight_controller.is_eligible_to_fight(squad)
-
-    def transports_for(self, squad):
-        """"one friendly TRANSPORT it is able to embark within", within 6".
-
-        Every part of "able to embark within" is can_embark()'s to answer -
-        capacity, the keyword bans, 18.02 - which is why the two overrides are
-        parameters on it rather than a second opinion here."""
-        if self.transport_controller is None or squad is None:
-            return []
-        out = []
-        for token in (self.all_tokens or ()):
-            other = getattr(token, "squad", None)
-            if other is None or other.owner != squad.owner or other is squad:
-                continue
-            if token.is_dead():
-                continue
-            if self.transport_controller.can_embark(
-                    squad, token, require_move=False,
-                    range_in=SKYBORNE_SANCTUARY_RANGE_IN):
-                out.append(token)
-        return out
-
-    def can_use(self, squad):
-        if squad is None or self.stratagem_controller is None:
-            return False
-        # The window is the one this controller's own offer opened, not a live
-        # phase test: the offer runs AFTER advance_phase(), and Fight is the
-        # last phase, so the clock already reads Command by then. See
-        # game/phase_window.py.
-        if not self._window.is_open(squad.owner):
-            return False
-        if not eligible_unit(squad, self.setting):
-            return False
-        if not any(not m.is_dead() for m in (getattr(squad, "models", ()) or ())):
-            return False
-        # "UNENGAGED" - a separate clause from "eligible to fight", and both
-        # can be true at once, which is the case this Stratagem is for.
-        if engagement.is_engaged(squad, self.all_tokens):
-            return False
-        if not self.was_eligible_to_fight(squad):
-            return False
-        if not self.transports_for(squad):
-            return False
-        return self.stratagem_controller.can_use(squad.owner, self._stratagem, [squad])
-
-    def reset_phase(self):
-        """The window lasts exactly one phase boundary. main.py clears it in
-        the per-phase reset block, which runs BEFORE that boundary's offers."""
-        self._window.close()
-
-    def offer_at_end_of_fight_phase(self, squads):
-        """"End of THE Fight phase" - it belongs to nobody, so both players
-        are offered it at the same boundary, and no owner is passed in.
-
-        There is deliberately no live phase test any more: this runs AFTER
-        advance_phase(), so `phase != PHASE_FIGHT` was always true and this
-        Stratagem never opened a prompt at all. See game/phase_window.py."""
-        # ONE prompt listing EVERY eligible unit, each tagged with itself, so
-        # the choice is made by clicking on the board. It used to raise a
-        # yes/no about whichever unit sorted first, with the TRANSPORT picked
-        # silently as transports_for(squad)[0]. See game/unit_choice_offer.py.
-        #
-        # TWO STEPS, because the printed TARGET names TWO things: "One
-        # unengaged ASURYANI unit ... AND one friendly TRANSPORT it is able to
-        # embark within". Step one is the board pick; step two is an ordinary
-        # list, and only when there is really a choice - see _choose_transport.
-        #
-        # The window is armed BEFORE the eligibility test, because can_use()
-        # asks it: the window IS this offer's own "right moment". Closed again
-        # if nothing was actually put to that player.
-        for player in sorted({s.owner for s in squads}, key=str):
-            self._window.arm(player)
-            candidates = [s for s in sorted(squads, key=lambda s: s.name)
-                          if s.owner == player and self.can_use(s)]
-            if unit_choice_offer.offer_one_of(
-                    self.decision_manager, player, candidates,
-                    "%s (%d CP): which unit embarks within a TRANSPORT?"
-                    % (SKYBORNE_SANCTUARY_NAME, SKYBORNE_SANCTUARY_CP),
-                    self._choose_transport, auto_players=self.auto_players,
-                    is_stratagem=True):
-                return True
-            self._window.close()       # nothing offered - and no AI path
-        return False
-
-    def _choose_transport(self, squad):
-        """Step two: WHICH TRANSPORT, and only when that is a real question.
-
-        A single legal transport is resolved without asking - "never offer what
-        cannot be chosen" - which is also why the old one-step prompt read
-        correctly on the boards where only one Wave Serpent was in range, and
-        silently took transports_for(squad)[0] everywhere else.
-
-        An ordinary LIST, not a second board pick: the options name TRANSPORTS
-        that belong to the same player and may sit under the unit that was just
-        clicked, so rings would be ambiguous about which of the two things on
-        that spot is being chosen."""
-        transports = self.transports_for(squad)
-        if not transports:
-            return False
-        if len(transports) == 1 or self.decision_manager is None:
-            return self.use(squad, transports[0])
-        self.decision_manager.request(
-            squad.owner,
-            "%s: embark %s within which TRANSPORT?"
-            % (SKYBORNE_SANCTUARY_NAME, squad.name),
-            [(token.squad.name, (lambda s=squad, t=token: self.use(s, t)))
-             for token in transports]
-            + [("Decline", lambda: None)],
-            is_stratagem=True,
-        )
-        return True
-
-    def use(self, squad, transport_token=None):
-        if not self.can_use(squad):
-            return False
-        if transport_token is None:
-            transport_token = self.transports_for(squad)[0]
-        self._pending[squad.owner] = (squad, transport_token)
-        return self.stratagem_controller.use(squad.owner, self._stratagem, [squad])
-
-    def _embark(self, controller, player, targets):
-        squad, transport_token = self._pending.pop(player, (None, None))
-        if squad is None or self.transport_controller is None:
-            return
-        if self.transport_controller.embark(
-                squad, transport_token, require_move=False,
-                range_in=SKYBORNE_SANCTUARY_RANGE_IN):
-            if self.game_log is not None:
-                self.game_log.add(
-                    "%s: %s embarks within %s."
-                    % (SKYBORNE_SANCTUARY_NAME, squad.name,
-                       transport_token.squad.name))
+    def eligible_unit(self, squad):
+        return eligible_unit(squad, self.setting)

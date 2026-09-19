@@ -164,3 +164,13 @@ passenden Abschnitt hier; ein neuer `##`-Abschnitt braucht eine Zeile im Verzeic
     Keyword der Zeile sind. **`dice_notation.plus()`** - „+N auf eine Würfelnotation", an der
     VIERTEN Kopie; Psychic Communion hatte dabei die Würfel-ANZAHL fallen lassen (2D6 → D6,
     latent, weil ihr Träger 1W6 würfelt).
+    Mit Blitz Brigade (G4) drei weitere: **`game/end_of_fight_embark.py`** - Skyborne Sanctuarys
+    Mechanik (Fight-Ende-Fenster, Zwei-Schritt-Pick, `can_embark(require_move=False, range_in=6)`),
+    als die Orks sie ein drittes Mal druckten (Keep It Runnin'); Knöpfe NAME/CP, RANGE_IN,
+    `eligible_unit()`. Die leicht zu verfehlende Hälfte: die ANKER älterer Sondentreiber und zwei
+    Quell-Wächter, die die alte Datei lasen. **`game/forced_shock_queue.py`** - Mobbeds Warteschlange
+    erzwungener Battle-shock-Tests, am zweiten Nutzer (Impending Krunch); die ältere Kopie im
+    Psychomancer bleibt benannt als nächster Kandidat. **`game/ork_units.py`** - ORKS / ORKS
+    INFANTRY, am dritten Frager, von War Horde und Green Tide re-exportiert (Fehlerklasse 11: sonst
+    importiert Blitz Brigade aus einem fremden Detachment-Modul). Dazu Unstoppable Momentum als
+    DRITTER Träger von `charge_reroll.py` (kein neues Modul).

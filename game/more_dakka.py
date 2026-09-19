@@ -24,8 +24,9 @@ X - a grant never makes a weapon worse - and a dice X (a notation) is left alone
 Riled up is game/riled_up.py's one question, asked at attack time.
 
 Blitz Brigade's Targetin' Gizmos (stage G4) prints the same two points for a WAGON
-carrying a BIG MEK; this module is where that second source will join, which is
-why the grant is written against a predicate rather than the flag alone.
+carrying a BIG MEK, and joins here as the grant's second source:
+grants_more_dakka() asks it beside the Big Mek's own ability. Its condition needs
+the game's EMBARKED units, which the chain hands in (`embarked_squads`).
 """
 
 import copy
@@ -43,11 +44,19 @@ def has_more_dakka(squad):
     return squad is not None and bool(unit_wide_ability(squad, "more_dakka"))
 
 
-def adjusted_weapon(weapon, squad):
+def grants_more_dakka(squad, embarked_squads=()):
+    """The two points apply to this unit: it has More Dakka itself (19.04), or it
+    is a WAGON with Targetin' Gizmos and a BIG MEK aboard."""
+    from game import enh_targetin_gizmos
+    return has_more_dakka(squad) or enh_targetin_gizmos.applies(squad, embarked_squads)
+
+
+def adjusted_weapon(weapon, squad, embarked_squads=()):
     """The chain link: [IGNORES COVER] on a ranged weapon of a More Dakka unit,
     plus [SUSTAINED HITS 1] while it is riled up. A copy - the shared instance is
     never mutated - and the weapon handed in when nothing changes."""
-    if weapon is None or getattr(weapon, "weapon_type", None) != RANGED or not has_more_dakka(squad):
+    if (weapon is None or getattr(weapon, "weapon_type", None) != RANGED
+            or not grants_more_dakka(squad, embarked_squads)):
         return weapon
     add_cover = not getattr(weapon, "ignores_cover", False)
     add_sustained = (riled_up.is_riled_up(squad)

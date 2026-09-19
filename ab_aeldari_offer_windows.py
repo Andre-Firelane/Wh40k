@@ -30,7 +30,10 @@ import sys
 
 NL = chr(10)
 MAIN = "main.py"
-SKY = os.path.join("game", "skyborne_sanctuary.py")
+# Skyborne Sanctuary's mechanism moved to game/end_of_fight_embark.py (Mecha
+# Orks G4). Its window is armed per PLAYER since the unit_choice_offer rework -
+# the anchors below had gone stale with that, before the move.
+SKY = os.path.join("game", "end_of_fight_embark.py")
 OVER = os.path.join("game", "windrider_overflight.py")
 SUITE = "test_aeldari_detachment_stratagems.py"
 WIRING = "test_event_chain_wiring.py"
@@ -65,7 +68,7 @@ PROBES = [
      SUITE),
 
     ("Skyborne's window never armed",
-     [(SKY, "            self._window.arm(squad.owner)", "            pass")],
+     [(SKY, "            self._window.arm(player)", "            pass")],
      SUITE),
 
     ("Skyborne's reset_phase() a no-op (the stale prompt)",
@@ -105,7 +108,7 @@ PROBES = [
     ("the ENTIRE pre-fix Skyborne (live clock, no window, no reset)",
      [(SKY, "        if not self._window.is_open(squad.owner):",
        "        if self.turn_tracker is not None and self.turn_tracker.phase != 'Fight':"),
-      (SKY, "            self._window.arm(squad.owner)", "            pass"),
+      (SKY, "            self._window.arm(player)", "            pass"),
       (MAIN, "            _skyborne.reset_phase()", "            pass")],
      SUITE),
 

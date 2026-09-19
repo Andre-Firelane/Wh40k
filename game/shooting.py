@@ -812,6 +812,12 @@ class ShootingController:
         # threshold. The DISCOUNT object itself, because the latch that says
         # which activation is the free one lives on it.
         self.protector_of_the_paths = None
+        # Every unit embarked within a TRANSPORT, for the rules whose condition
+        # is WHO RIDES INSIDE the shooting unit (Blitz Brigade's Targetin'
+        # Gizmos). A callable - main.py hands `lambda: state.embarked_squads` -
+        # because the list is the game's and changes between activations. None
+        # means "nobody is embarked", which can only under-report.
+        self.embarked_squads_provider = None
         self.one_shot_used = set()  # rule 24.26: (model.id, id(weapon)) pairs already fired - persists for the whole battle, never reset
         # Shroud Runners' Target Acquisition needs to know WHICH weapon hit,
         # not just which unit - "hit by one or more of those attacks made with
@@ -3633,6 +3639,11 @@ class ShootingController:
             labels = ["DEVASTATING WOUND"] if weapon.devastating_wounds else []
         return {"crit_threshold": threshold, "crit_labels": tuple(labels)}
 
+    def embarked_squads(self):
+        """The game's embarked units, or () with no provider."""
+        provider = self.embarked_squads_provider
+        return tuple(provider() or ()) if provider is not None else ()
+
     def _adjusted_weapon(self, pairs, target_squad):
         """This weapon group's profile with every conditional grant applied,
         in one place.
@@ -3801,8 +3812,10 @@ class ShootingController:
         # The Big Mek in Mega Armour's More Dakka: [IGNORES COVER] on the unit's
         # ranged attacks, and [SUSTAINED HITS 1] while it is riled up. The cover
         # half has a second reader - the cover gate - which is handed this
-        # chain's copy (test_event_chain_wiring.py section 29).
-        weapon = more_dakka.adjusted_weapon(weapon, self.active_squad)
+        # chain's copy (test_event_chain_wiring.py section 29). Blitz Brigade's
+        # Targetin' Gizmos is its second source (a WAGON carrying a BIG MEK), so
+        # the embarked units come along.
+        weapon = more_dakka.adjusted_weapon(weapon, self.active_squad, self.embarked_squads())
         # Kroot Farstalkers' Pech'ra: [IGNORES COVER] on the whole unit's
         # ranged weapons, unconditionally once taken - the simplest grant
         # in this chain, and ranged-only by its own printed wording.

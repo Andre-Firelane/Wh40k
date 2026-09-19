@@ -45,6 +45,9 @@ OAR = os.path.join("game", "ork_ammo_runts.py")
 TOM = os.path.join("game", "tide_of_muscle.py")
 KT = os.path.join("game", "krumpin_time.py")
 MOB = os.path.join("game", "mobbed.py")
+# Mobbed's queue moved to game/forced_shock_queue.py (Mecha Orks G4, its second
+# user); its two probes follow it there.
+FSQ = os.path.join("game", "forced_shock_queue.py")
 RK = os.path.join("game", "rokkit_charge.py")
 AINV = os.path.join("game", "arrogant_invulnerability.py")
 APW = os.path.join("game", "ap_worsening.py")
@@ -158,10 +161,10 @@ PROBES = [
      [(MOB, "               if t.squad is not None and t.squad.owner != squad.owner and not t.is_dead()}",
        "               if t.squad is not None and not t.is_dead()}" + MARK)], (TM,)),
     ("Mobbed: overwrites a roll another rule has open",
-     [(MOB, '        return bool(getattr(dice, "pending_values", None))', "        return False" + MARK)], (TM,)),
+     [(FSQ, '        return bool(getattr(dice, "pending_values", None))', "        return False" + MARK)], (TM,)),
     ("Mobbed: the acknowledgement does not release the queue",
      [(MOB, lines("        \"\"\"The queue's re-entry point - one more test per acknowledged roll.\"\"\"",
-                  "        return self._drain()"),
+                  "        return self.queue.on_dice_acknowledged()"),
        lines("        \"\"\"The queue's re-entry point - one more test per acknowledged roll.\"\"\"",
              "        return False" + MARK))], (TM,)),
     ("main.py: Mobbed is never fed the charge end",

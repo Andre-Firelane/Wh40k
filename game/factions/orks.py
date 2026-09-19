@@ -246,6 +246,32 @@ GREEN_TIDE = ORKS.add_detachment(Detachment(
     # The three Stratagems (game/green_tide_*.py) are built in main.py.
 ))
 
+BLITZ_BRIGADE = ORKS.add_detachment(Detachment(
+    "Blitz Brigade",
+    rule_name="Unstoppable Momentum",
+    points=1,
+    force_dispositions=(force_dispositions.TAKE_AND_HOLD,),
+    # Mecha Orks stage G4. The rule is game/blitz_brigade.py.
+    setting="BLITZ_BRIGADE_PLAYERS",
+    rule_text=(
+        "Unstoppable Momentum: Friendly WAGON units can re-roll charge rolls. When a friendly "
+        "WAGON unit is selected to make an advance move, that unit can change advance rolls to a 6."
+    ),
+    enhancements=[
+        # ENGINE-WIRED, both - game/enh_targetin_gizmos.py, game/enh_boss_boomer.py.
+        Enhancement("Targetin' Gizmos", 10, description=(
+            "WAGON unit only. While a BIG MEK model is embarked within this unit: this unit's "
+            "ranged attacks have [Ignores Cover]; if this unit is riled up, this unit's ranged "
+            "attacks have [Sustained Hits 1].")),
+        Enhancement("Boss Boomer", 10, description=(
+            "WAGON unit only. While a WARBOSS model is embarked within this unit, this unit has "
+            "that WARBOSS model's Intimidating Motivation/Keep Huntin' ability.")),
+    ],
+    # Keep It Runnin' (game/blitz_keep_it_runnin.py) and Impending Krunch
+    # (game/blitz_impending_krunch.py) are built in main.py. Readied Brawlers is
+    # NOT wired - game/blitz_brigade.py's NOT_WIRED says why.
+))
+
 _NOB_LOADOUT = [KustomChoppaProfile, KombiSkorchaShootaProfile]
 _BOY_LOADOUT = [ChoppaProfile, ShootaProfile, SluggaProfile]
 

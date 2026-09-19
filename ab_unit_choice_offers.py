@@ -23,7 +23,10 @@ import sys
 
 COV = os.path.join("game", "guardian_cost_of_victory.py")
 WWT = os.path.join("game", "warhost_webway_tunnel.py")
-SKY = os.path.join("game", "skyborne_sanctuary.py")
+# Skyborne Sanctuary's offer moved to game/end_of_fight_embark.py (Mecha Orks G4:
+# the Orks' Keep It Runnin' became its third printing), naming itself through
+# self.NAME / self.CP.
+SKY = os.path.join("game", "end_of_fight_embark.py")
 OVF = os.path.join("game", "windrider_overflight.py")
 HELPER = os.path.join("game", "unit_choice_offer.py")
 
@@ -178,7 +181,7 @@ SKY_NEW = '''        for player in sorted({s.owner for s in squads}, key=str):
             if unit_choice_offer.offer_one_of(
                     self.decision_manager, player, candidates,
                     "%s (%d CP): which unit embarks within a TRANSPORT?"
-                    % (SKYBORNE_SANCTUARY_NAME, SKYBORNE_SANCTUARY_CP),
+                    % (self.NAME, self.CP),
                     self._choose_transport, auto_players=self.auto_players,
                     is_stratagem=True):
                 return True
@@ -197,9 +200,9 @@ SKY_OLD = '''        for squad in sorted(squads, key=lambda s: (str(s.owner), s.
             self.decision_manager.request(
                 squad.owner,
                 "%s (%d CP): embark %s within %s?"
-                % (SKYBORNE_SANCTUARY_NAME, SKYBORNE_SANCTUARY_CP, squad.name,
+                % (self.NAME, self.CP, squad.name,
                    transport.squad.name),
-                [("Use (%d CP)" % SKYBORNE_SANCTUARY_CP,
+                [("Use (%d CP)" % self.CP,
                   (lambda s=squad, t=transport: self.use(s, t))),
                  ("Decline", lambda: None)],
                 is_stratagem=True,

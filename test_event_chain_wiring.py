@@ -662,9 +662,13 @@ _ov_can_use = _OV_SRC.split("def can_use", 1)[1].split("\n    def ", 1)[0]
 ck.true("...and its can_use() reads neither the clock nor the turn owner",
         "turn_tracker.phase" not in _ov_can_use
         and "turn_tracker.turn_owner" not in _ov_can_use)
-_SKY_SRC = io.open(os.path.join("game", "skyborne_sanctuary.py"), encoding="utf-8").read()
-_sky_can_use = _SKY_SRC.split("    def can_use", 1)[1].split("\n    def ", 1)[0]
-ck.true("Skyborne Sanctuary's can_use() reads no live phase either",
+# Skyborne Sanctuary's mechanism - and the Orks' Keep It Runnin' - lives in
+# game/end_of_fight_embark.py since that third printing arrived (Mecha Orks G4).
+_SKY_SRC = io.open(os.path.join("game", "end_of_fight_embark.py"), encoding="utf-8").read()
+_sky_can_use = (_SKY_SRC.split("    def can_use", 1) + [""])[1].split("\n    def ", 1)[0]
+ck.true("the end-of-Fight embark offer (Skyborne Sanctuary, Keep It Runnin') has a can_use()",
+        bool(_sky_can_use))
+ck.true("...and it reads no live phase either",
         "turn_tracker.phase" not in _sky_can_use)
 
 
@@ -1807,7 +1811,7 @@ ck.eq("no looping offer raises an untagged prompt", sorted(set(_untagged_offers)
 ck.eq("...and the one loop over PLAYERS exempted from it is War Cry's",
       sorted(set(_player_loops)), ["war_cry.py.offer_at_start_of_command_phase"])
 for _mod in ("guardian_cost_of_victory", "warhost_webway_tunnel",
-             "skyborne_sanctuary", "windrider_overflight"):
+             "end_of_fight_embark", "windrider_overflight"):
     ck.true("%s offers every candidate, not just the first" % _mod,
             "unit_choice_offer.offer_one_of(" in
             io.open("game/%s.py" % _mod, encoding="utf-8").read())
@@ -2036,7 +2040,8 @@ _KNOWN_TRIGGERS = sorted([
     "fall_back",                     # 09.07 Desperate Escape
     "grav_inhibitor_field",
     "kauyon_photon_grenades",
-    "mobbed",                        # Beast Snagga Boyz (2026-09 Ork codex)
+    "forced_shock_queue",            # Mobbed (Beast Snagga Boyz) and Impending Krunch (Blitz
+                                     # Brigade) - the queue moved here at its second user
     "mortal_wound_abilities",        # Kroot Linebreakers
     "neocapacitor_shields",
     "presentiment_of_dread",

@@ -687,6 +687,12 @@ beide Deployment-Modi) nur, wenn eine Änderung wirklich Geometrie/Terrain/Aufst
   `verify_phase_autosave.py`.
 - Der Turn-Plan-Grund `(test plan)` bzw. `(mock plan)` unterscheidet einen Selbstspiel-Lauf von einer
   echten Partie des Users im selben `logs/`-Ordner.
+- **`import testkit` setzt JEDEN Würfel des Prozesses auf 1** (es tauscht `random.randint` beim Import,
+  Standardwert 1). In einer Suite gewollt, in einer `verify_*.py` ein verfälschter Lauf — dort
+  `random.randint` nur um den einen Aufruf tauschen (Vorlage `verify_ork_blitz_brigade.py`).
+- **Ältere Sondentreiber ohne `__main__`-Schutz** (`ab_aeldari_offer_windows.py`,
+  `ab_unit_choice_offers.py`) starten beim bloßen IMPORT einen echten Sondenlauf. Ihre Anker per
+  Dateisuche prüfen, nie per Import.
 
 ---
 
@@ -837,9 +843,10 @@ Fraktion deren Dateien plus `fraktionen.md`; bei einer gemeldeten Fehlerform zue
 - Kill Rig (2026-09-Codex): Beastscent, Warpath, der psychische Wurf — Etappe E3e
 - Mecha Orks G1: Bigboss, Weirdboy, Gunwagon (2026-09-19)
 
-### `docs/stand/orks-mecha-orks.md` — Mecha Orks ab G2: Big Mek in Mega Armour (More Dakka, der Cover-Tor-Fix), Ghazghkull Thraka, der Warlord samt Da Boss; G3 Green Tide (Zählstellen-Fix für +A im Nahkampf, der Save-Wert mit einem Leser)
+### `docs/stand/orks-mecha-orks.md` — Mecha Orks ab G2: Big Mek in Mega Armour (More Dakka, der Cover-Tor-Fix), Ghazghkull Thraka, der Warlord samt Da Boss; G3 Green Tide (Zählstellen-Fix für +A im Nahkampf, der Save-Wert mit einem Leser); G4 Blitz Brigade (Readied Brawlers als benannte Lücke, Fight-Ende-Einsteigen und Schock-Warteschlange extrahiert)
 - Mecha Orks G2: Big Mek in Mega Armour, Ghazghkull Thraka, der Warlord (2026-09-19)
 - Mecha Orks G3: Green Tide (2026-09-19)
+- Mecha Orks G4: Blitz Brigade (2026-09-19)
 
 ### `docs/stand/audits-aeldari-und-tau.md` — die Prüfungen „werden die Aeldari-/T'au-Stratagems angeboten und wirken sie“
 - Werden die Aeldari-Stratagems überhaupt ANGEBOTEN? (Prüfung, 2026-09-07)

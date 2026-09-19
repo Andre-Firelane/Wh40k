@@ -103,7 +103,8 @@ PROBES = [
 
     # --------------------------------------------------------------- More Dakka
     ("shooting: More Dakka is not in the chain",
-     [(SH, "        weapon = more_dakka.adjusted_weapon(weapon, self.active_squad)", "        pass" + MARK)], (TK,)),
+     [(SH, "        weapon = more_dakka.adjusted_weapon(weapon, self.active_squad, self.embarked_squads())",
+       "        pass" + MARK)], (TK,)),
     ("More Dakka: no [IGNORES COVER]",
      [(MD, "        granted.ignores_cover = True", "        pass" + MARK)], (TK,)),
     ("More Dakka: no [SUSTAINED HITS 1]",
@@ -111,8 +112,8 @@ PROBES = [
     ("More Dakka: [SUSTAINED HITS 1] without being riled up",
      [(MD, "    add_sustained = (riled_up.is_riled_up(squad)", "    add_sustained = (True" + MARK)], (TK,)),
     ("More Dakka: melee weapons too",
-     [(MD, '    if weapon is None or getattr(weapon, "weapon_type", None) != RANGED or not has_more_dakka(squad):',
-       "    if weapon is None or not has_more_dakka(squad):" + MARK)], (TK,)),
+     [(MD, '    if (weapon is None or getattr(weapon, "weapon_type", None) != RANGED',
+       "    if (weapon is None" + MARK)], (TK,)),
     ("More Dakka: a dead Big Mek still confers it",
      [(MD, '    return squad is not None and bool(unit_wide_ability(squad, "more_dakka"))',
        "    return squad is not None and any(m.profile.more_dakka for m in squad.models)" + MARK)], (TK,)),

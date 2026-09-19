@@ -159,6 +159,9 @@ from game.deadly_vectors import DeadlyVectorsController
 from game.barrage_of_filth import BarrageOfFilthController
 from game.targeting_relay import TargetingRelayController
 from game.relentless_combatants import RelentlessCombatantsController
+from game.blitz_brigade import UnstoppableMomentumChargeRerollController
+from game.blitz_impending_krunch import ImpendingKrunchController
+from game.blitz_keep_it_runnin import KeepItRunninController
 from game import harassment_swarm, spyder_wargear
 from game.canoptek_swarm import CanoptekSwarmController
 from game.macrocyte_wargear import AcceleratorMandibleController
@@ -2375,6 +2378,9 @@ def main(map_key=None):
         game_log=game_log, turn_tracker=turn_tracker, board_width_in=board.width_in, board_height_in=board.height_in,
     )
     firing_deck_controller = FiringDeckController(shooting_controller, transport_controller, game_log=game_log)
+    # Blitz Brigade's Targetin' Gizmos asks WHO RIDES INSIDE the shooting unit;
+    # the embarked list is the game's, so the controller is handed a view of it.
+    shooting_controller.embarked_squads_provider = lambda: state.embarked_squads
     reserves_panel = ReservesPanel()
     charge_controller = ChargeController(
         game_log=game_log, dice_manager=dice_manager, turn_tracker=turn_tracker,
@@ -2419,6 +2425,14 @@ def main(map_key=None):
         charge_controller=charge_controller, game_log=game_log,
         auto_players=ai_players,
     )
+    # The THIRD carrier: Blitz Brigade's Unstoppable Momentum ("Friendly WAGON
+    # units can re-roll charge rolls"), Mecha Orks G4. Its Advance half is a
+    # branch of MovementController.start_run() and needs nothing here.
+    unstoppable_momentum_controller = UnstoppableMomentumChargeRerollController(
+        dice_manager=dice_manager, decision_manager=decision_manager,
+        charge_controller=charge_controller, game_log=game_log,
+        auto_players=ai_players,
+    )
     # The Silent King's Voice of the Triarch. Idempotent per battle round,
     # exactly like battle_focus_pool.sync_battle_round() below.
     voice_of_the_triarch_controller = VoiceOfTheTriarchController(
@@ -2451,6 +2465,15 @@ def main(map_key=None):
     # move"; see game/mobbed.py.
     charge_controller.on_charge_move_finished.append(
         mobbed_controller.on_charge_move_finished)
+    # Blitz Brigade's Impending Krunch - the same hook ("when a friendly WAGON
+    # unit ends a charge move"), offered to the owner in their own Charge phase,
+    # and the same forced-test queue Mobbed uses (game/forced_shock_queue.py).
+    impending_krunch_controller = ImpendingKrunchController(
+        stratagem_controller, battle_shock_controller=battle_shock_controller,
+        turn_tracker=turn_tracker, decision_manager=decision_manager,
+        all_tokens=state.tokens, game_log=game_log, auto_players=ai_players)
+    charge_controller.on_charge_move_finished.append(
+        impending_krunch_controller.on_charge_move_finished)
     # The Warboss in Mega Armour's Krushin' Impetus - the same hook.
     charge_controller.on_charge_move_finished.append(
         krushin_impetus_controller.on_charge_move_finished)
@@ -2816,6 +2839,14 @@ def main(map_key=None):
         decision_manager=decision_manager, game_log=game_log,
         auto_players=ai_players,
     ))
+    # Blitz Brigade's Keep It Runnin' - the THIRD printing of the same
+    # end-of-Fight embark (game/end_of_fight_embark.py), for ORKS INFANTRY.
+    keep_it_runnin_controller = KeepItRunninController(
+        stratagem_controller, transport_controller=transport_controller,
+        fight_controller=fight_controller, game_state=state, all_tokens=state.tokens,
+        turn_tracker=turn_tracker, decision_manager=decision_manager, game_log=game_log,
+        auto_players=ai_players,
+    )
     # Vaul's Vengeance fires "after that enemy unit has finished making its
     # attacks", which is one instant in each attack phase.
     shooting_controller.on_squad_finished_shooting.append(
@@ -4256,6 +4287,7 @@ def main(map_key=None):
         # the way to Command - so neither was ever offered.
         for _skyborne in skyborne_sanctuary_controllers:
             _skyborne.reset_phase()
+        keep_it_runnin_controller.reset_phase()
         # An unattributed death does not outlive the phase it happened in.
         pinpoint_controller.reset_phase()
         # Canoptek Court - everything that lasts "until the end of the phase".
@@ -4482,6 +4514,9 @@ def main(map_key=None):
             for _skyborne in skyborne_sanctuary_controllers:
                 _skyborne.offer_at_end_of_fight_phase(
                     {t.squad for t in state.tokens if t.squad is not None})
+            # Blitz Brigade's Keep It Runnin' - "End of THE Fight phase" as well.
+            keep_it_runnin_controller.offer_at_end_of_fight_phase(
+                {t.squad for t in state.tokens if t.squad is not None})
             # The Stonesinger's Elemental Ensnarement: "at the end of YOUR Fight
             # phase", so it is offered to the player whose phase just ended -
             # the opposite side from Wall of Mirrors directly above it. Its
@@ -6173,6 +6208,7 @@ def main(map_key=None):
         shooting_controller, fight_controller,
         reanimation_controller,
         relentless_combatants_controller, phaeron_blades_controller,
+        unstoppable_momentum_controller,
         # The Advance offers ask WHICH unit is moving - the same squad the
         # click-anywhere path hands them.
         lambda: superlative_strategist_controller.pending_roll_choice(movement_controller.selected_squad),
@@ -6218,6 +6254,9 @@ def main(map_key=None):
             # both today and the suite pins that.
             if not decision_manager.is_pending:
                 phaeron_blades_controller.maybe_offer_charge_reroll()
+            # The THIRD - Blitz Brigade's Unstoppable Momentum (WAGON units).
+            if not decision_manager.is_pending:
+                unstoppable_momentum_controller.maybe_offer_charge_reroll()
             if decision_manager.is_pending:
                 return False
         dice_manager.acknowledge()
@@ -6238,6 +6277,8 @@ def main(map_key=None):
         # MONSTER/VEHICLE unit - after battle_shock's, so the finished
         # test is applied before the next one opens.
         mobbed_controller.on_dice_acknowledged()
+        # Impending Krunch drains the same kind of queue, one test per roll.
+        impending_krunch_controller.on_dice_acknowledged()
         # After battle_shock's: the Grav-Inhibitor Field's own
         # first step IS a Battle-Shock test, and its second roll
         # is queued only once that outcome has been applied.

@@ -9892,3 +9892,31 @@ grün / 1 bekannt; `--smoke` grün; selfplay Orks gegen Necrons beide Sitzordnun
 `verify_ork_green_tide.py` 11/11, neutralisiert 7/7 (die KI kauft Mob Mentality über `main()`s
 Auto-Play; neutralisiert nahm sie Insane Bravery - die Sonde unterscheidet beide am Log);
 `verify_rules_vs_engine.py` 68; `measure_crowded_movement.py` unverändert 62 % / 87 %.
+
+## 2026-09-19 - Mecha Orks G4: Blitz Brigade
+
+**Auftrag:** „Weiter" nach G3 - Etappe G4 des Plans `mecha-orks.md`.
+
+**Gebaut:** Blitz Brigade (1 DP, Take and Hold). Unstoppable Momentum: der Advance eines WAGON ist
+eine 6 ohne Würfel (No-Roll-Zweig, aber mit den Advance-Modifikatoren; die KI-Beobachtung rechnet mit
+6), der Charge-Reroll als dritter Träger von `charge_reroll.py`. Targetin' Gizmos als zweite Quelle
+von More Dakka (die Schieß-Kette bekommt die eingestiegenen Einheiten), Boss Boomer über
+`bearer_models()` der Boss-Motivationen. Keep It Runnin' (dritte Druckform der Fight-Ende-Einsteige-
+Mechanik), Impending Krunch (Angebot am Charge-Ende, Tests über die geteilte Warteschlange, KI-Regel).
+Readied Brawlers NICHT verdrahtet (User-Entscheidung), als `NOT_WIRED` benannt und gepinnt.
+
+**Extraktionen:** `end_of_fight_embark.py` (aus Skyborne Sanctuary), `forced_shock_queue.py` (aus
+Mobbed), `ork_units.py` (aus War Horde/Green Tide). Dabei gefunden: `ab_aeldari_offer_windows.py`
+hatte schon veraltete Skyborne-Anker; korrigiert, beide älteren Treiber liefen vollständig und beißen.
+Falle: diese Treiber haben keinen `__main__`-Schutz - mein Import zur Ankerprüfung startete sie
+(hintereinander, nichts parallel, alles zurückgeschrieben; per Diff geprüft).
+
+**Sonden:** 41, im ersten Lauf zwei nicht beißend und ein Absturz - alle über die Tests (die
+INFANTRY-Klausel hinter dem Transport-Verbot, das Krunch-Memo hinter 15.01, ein `[...]` statt `.get()`).
+Danach alle beißend; `--check` über 12 Treiber sauber.
+
+**Verifiziert:** Suite 122/122; volle Regression 242 Suiten, ~23776 Prüfungen, 241 grün / 1 bekannt;
+`--smoke` grün; selfplay Orks gegen Necrons beide Sitzordnungen exit 0; `verify_ork_blitz_brigade.py`
+8/8, neutralisiert 7/7 (drei Bühnen-Lehren: `testkit` pinnt beim Import alle Würfel auf 1; eine offen
+gebliebene gestellte Charge hielt das Panel fest, flakig 1 von 3; der KIR-Preis wird nach der
+Fight-Grenze gemessen); `verify_rules_vs_engine.py` 68; `measure_crowded_movement.py` unverändert.

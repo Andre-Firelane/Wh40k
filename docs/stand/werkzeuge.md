@@ -98,7 +98,7 @@ passenden Abschnitt hier; ein neuer `##`-Abschnitt braucht eine Zeile im Verzeic
   gefixt 8 Phasen / 8 Autosaves, `--neutralize` 7 / 1 plus Überschreiben beim Load.
   **`verify_ork_*.py [map] [frames] [--neutralize]`** — je Ork-Codex-Etappe eine Laufzeit-Sonde
   (`army_rules`, `war_horde`, `mobs`, `characters`, `specialists`, `vehicles`, `kill_rig`, und für die
-  Mecha-Orks-Etappen `mecha_sheets`, `mecha_characters`, `green_tide`), alle nach demselben
+  Mecha-Orks-Etappen `mecha_sheets`, `mecha_characters`, `green_tide`, `blitz_brigade`), alle nach demselben
   Muster: Orks als PLAYER 1, gebaute Träger statt der Liste, `main()`s Locals per Frame-Walk,
   `--neutralize` per Import-Hook auf `main.py`. Was jede belegt und stellt, steht in ihrer Etappe in
   `orks-codex-2026-09*.md`. **`verify_ork_vehicles.py`** ist die erste, die eine Platzierung des
@@ -120,3 +120,10 @@ passenden Abschnitt hier; ein neuer `##`-Abschnitt braucht eine Zeile im Verzeic
   (jedes Infanterieziel der Reihe nach, bis eines Platz daneben hat) und unterscheidet zwei Regeln
   mit demselben sichtbaren Ergebnis am LOG: ein Battle-shock-Test ohne Würfel kann Mob Mentality
   oder Insane Bravery sein - neutralisiert hat die KI genau Letzteres gekauft.
+  **`verify_ork_blitz_brigade.py`** ruft `main()`s eigene Quittungstür (`_acknowledge_pending_roll`)
+  und feuert `main()`s Charge-Ende-Hakenliste, wie `confirm_charge_move()` es tut. Drei Lehren:
+  `testkit` darf NICHT importiert werden (es setzt jeden Würfel des Laufs auf 1 - der erste Lauf
+  würfelte nur Einsen), Würfel werden nur um den einen Aufruf getauscht; eine gestellte Charge, die
+  zufällig ans Ziel kommt, bleibt offen und hält das Panel auf dem Charge-Bildschirm (flakig 1 von 3,
+  bis die Stufe sie nach der Messung ablehnt); und ein Preis an der Fight-Grenze wird NACH der Grenze
+  gemessen, weil sie den Kern-CP der nächsten Command-Phase schon gezahlt hat.

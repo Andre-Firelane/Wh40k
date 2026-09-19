@@ -419,8 +419,10 @@ c.true("it records the report it was built for",
        "cost of victory wird mir pauschal angeboten" in _UCO)
 c.true("...and says how it differs from per_unit_offer", "per_unit_offer" in _UCO)
 
+# Skyborne Sanctuary's offer lives in game/end_of_fight_embark.py since the
+# Orks' Keep It Runnin' became its third printing (Mecha Orks G4).
 for _name in ("guardian_cost_of_victory", "warhost_webway_tunnel",
-              "skyborne_sanctuary", "windrider_overflight"):
+              "end_of_fight_embark", "windrider_overflight"):
     _src = io.open("game/%s.py" % _name, encoding="utf-8").read()
     c.true("%s offers through the shared helper" % _name,
            "unit_choice_offer.offer_one_of(" in _src)

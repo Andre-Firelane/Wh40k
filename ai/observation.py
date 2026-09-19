@@ -221,8 +221,26 @@ def advance_reach_in(squad):
     condition the first two rules had already made impossible. Measured over
     the reported WAAAGH! turn, the planner ordered six units to "Advance" and
     the tactical layer had an Advance option for exactly one of them (the only
-    one whose plan named no position at all)."""
-    return min_model_movement(squad) + AVERAGE_ADVANCE_IN + charge_roll_bonus(squad)
+    one whose plan named no position at all).
+
+    A WAGON under Blitz Brigade's Unstoppable Momentum does not roll - its
+    Advance IS a 6 (game/blitz_brigade.py) - so it is told the 6, not the
+    average (error class 1: the engine's certainty belongs in the observation)."""
+    return min_model_movement(squad) + advance_roll_expectation(squad) + charge_roll_bonus(squad)
+
+
+def advance_roll_values(squad):
+    """The Advance results this unit can get, equally likely: 1-6, or only the
+    6 of Blitz Brigade's Unstoppable Momentum."""
+    from game import blitz_brigade
+    if blitz_brigade.advance_roll_is_fixed(squad):
+        return (blitz_brigade.UNSTOPPABLE_MOMENTUM_ADVANCE,)
+    return tuple(range(1, 7))
+
+
+def advance_roll_expectation(squad):
+    values = advance_roll_values(squad)
+    return sum(values) / float(len(values)) if values != tuple(range(1, 7)) else AVERAGE_ADVANCE_IN
 
 
 def charge_chance_after_advancing(squad, enemy, at_point=None):
@@ -246,10 +264,11 @@ def charge_chance_after_advancing(squad, enemy, at_point=None):
     move = min_model_movement(squad)
     bonus = charge_roll_bonus(squad)  # applies to the Advance roll AND the charge roll
     total = 0.0
-    for die in range(1, 7):
+    dice = advance_roll_values(squad)
+    for die in dice:
         after = max(0.0, gap - move - die - bonus)
         total += charge_roll_chance(max(0.0, after - bonus))
-    return total / 6.0
+    return total / float(len(dice))
 
 
 def charge_roll_chance(needed_in):

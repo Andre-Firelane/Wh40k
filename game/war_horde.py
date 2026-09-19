@@ -30,11 +30,9 @@ def fields_war_horde(player):
     return has_detachment(player, SETTING)
 
 
-def is_orks_unit(squad):
-    """"Friendly ORKS units" - read off the models' `orks` flag, which every Ork
-    UnitProfile sets (there is no per-model faction tracking to read instead)."""
-    return bool(squad is not None and any(
-        getattr(m.profile, "orks", False) for m in getattr(squad, "models", ()) or ()))
+# "Friendly ORKS units" - game/ork_units.py, re-exported so the six War Horde
+# modules that ask war_horde.is_orks_unit() keep asking it here.
+from game.ork_units import is_orks_unit  # noqa: E402,F401
 
 
 def get_stuck_in_adjusted_weapon(weapon, pairs):

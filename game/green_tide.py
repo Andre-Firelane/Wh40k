@@ -54,17 +54,9 @@ def fields_green_tide(player):
     return has_detachment(player, SETTING)
 
 
-def is_orks_unit(squad):
-    """"Friendly ORKS unit" - the models' `orks` flag, which every Ork
-    UnitProfile sets. Rule 19.03's any-model reading."""
-    return bool(squad is not None and any(
-        getattr(m.profile, "orks", False) for m in getattr(squad, "models", ()) or ()))
-
-
-def is_orks_infantry_unit(squad):
-    """"ORKS INFANTRY unit", both keywords pooled over the components (19.03)."""
-    return is_orks_unit(squad) and attached_units.unit_has_keyword(
-        squad, lambda m: getattr(m.profile, "infantry", False))
+# "Friendly ORKS unit" / "ORKS INFANTRY unit" - game/ork_units.py (extracted when
+# Blitz Brigade became their third asker), re-exported for Green Tide's modules.
+from game.ork_units import is_orks_infantry_unit, is_orks_unit  # noqa: E402,F401
 
 
 def is_boyz_unit(squad):
