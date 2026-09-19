@@ -9757,3 +9757,76 @@ zuerst nicht - Testlücke geschlossen); volle Regression 236 Suiten, ~23019 Prü
 / 1 bekannt; `--smoke` grün; `selfplay.py map2 1500` beide Sitzordnungen exit 0;
 `verify_ork_kill_rig.py` 14/14, neutralisiert 6/6, Wächter-A/B fällt; `verify_rules_vs_engine.py`
 73 → 68; `fetch --offline` ohne Diff; `measure_crowded_movement.py` unverändert 62 % / 87 %.
+
+## 2026-09-19 — Hit-/Wound-Modifikatoren: ±1-Deckel und 2+-Untergrenze
+
+**Gemeldet:** eine fehlende Regelmechanik: +1/-1 auf Hit oder Wound weicht höchstens um 1 vom
+Ausgangswert ab, gegenläufige Modifikatoren heben sich vorher auf, 1+ gibt es nicht. Mitten in
+der Arbeit nachgeschoben: Kennwert-Modifikationen (BS, z. B. Cover) werden getrennt behandelt.
+
+**Diagnose:** `apply_modifiers()` summierte schlicht, und die Liste mischte beide Sorten. Die
+Auflösung am rohen Würfel (`_resolve_roll()`: 1 scheitert, 6 kritisch) war schon richtig; falsch
+war die Schwelle, die Panel, Log und Crit-Regeln lesen. Der Nachtrag des Users hat das Design
+entschieden: ohne ihn wäre Cover mitgedeckelt worden.
+
+**Gebaut:** `Modifier.kind` (ROLL als Default, CHARACTERISTIC an acht Stellen: Cover,
+2× Close-Quarters, Guided, Target Uploaded, Coordinate to Engage, 2× Wraithlord-Psychic-Guidance),
+Deckel und Untergrenze in `apply_modifiers()`, Deckel-Hinweis in Log und Würfelpanel,
+`damage_estimate.attack_modifiers()` über dieselbe Faltung. Alle 62 Konstruktionen einzeln am
+gedruckten Wortlaut eingeordnet. Der Psychic-Guidance-Docstring („die zwei Lesarten können nicht
+auseinanderlaufen“) war damit falsch und ist korrigiert.
+
+**Eigener Fehler, Fehlerklasse 20 in neuer Form:** die Prozessprüfung lief um 08:28, die
+Parallelsitzung (Mecha Orks) startete ihren Sondenlauf um 08:36, und meine Suite und meine
+A/B-Sonden liefen ab 08:37 hinein, darunter eine Quell-Sonde auf `game/shooting.py` mit
+byteweisem Restore. Aufgefallen durch einen AB-PROBE-Marker in ihrer `game/da_jump.py`. Danach:
+nichts angefasst, bis ihr Lauf endete; Restprüfung leer; ihre Anker und meine Edits überschneiden
+sich nicht; per `SendMessage` abgestimmt. Die Parallelsitzung meldet, alle 62 ihrer Sonden hätten
+gebissen und ihr Datei-Digest sei unverändert. Den Lauf wiederholt sie trotzdem, weil ein falsches
+„beißt“ nicht auszuschließen ist.
+
+**Verifiziert:** `test_roll_modifier_cap.py` 52/52; sechs A/B-Sonden, alle beißend, jede an den
+erwarteten Prüfungen; volle Regression 238 Suiten, ~23213 Prüfungen, 237 grün / 0 rot / 1 bekannt;
+`--smoke` grün inkl. `selfplay.py map2 1500`.
+
+## 2026-09-19 - Mecha Orks G1: Bigboss, Weirdboy, Gunwagon
+
+**Auftrag:** die App-Liste „Mecha Orks" des Users spielbar machen (Plan
+`C:\Users\Andre\.claude\plans\mecha-orks.md`, Etappen G1-G6, nach jeder Etappe Stopp). User-
+Entscheidungen: die Liste ERSETZT `armies/orks.json` (erst in G6), Readied Brawlers wird nicht
+verdrahtet (kein „assault disembark move" im Regelbuch - benannte Lücke, G4).
+
+**Gebaut (G1):** drei Datenblätter samt Regeltext-Korpus - Bigboss (SUPPORT, Sumfin' to Prove),
+Weirdboy (SUPPORT, Psyker-Stufe 1, Da Jump und ein EIGENER Warpath), Gunwagon (Kannon als Zweiprofil,
+Killkannon/Zzap Gun, Mobile Arsenal, Transport 12). `WarpathController` parametrisiert statt
+kopiert (ein Name, zwei Wirkungen). Da Jump als Registry-Knopf ohne CP plus KI-Handler vor dem
+Ingress-Schritt. Sprites für alle drei und den Painboy (der User hatte `Weirdboy.png` und
+`Painboy.png` neu abgelegt; die Plan-Annahme „Wurrboy.png ist der Weirdboy" wurde damit hinfällig).
+
+**Mitgewandert:** vier Suiten mit echten Pins auf dem alten Stand - „17 Ork-Blätter", „Zzap Gun/Lobba
+sind retired" (sie sind als Gunwagon-Zeilen zurück), „der Painboy ist der kunstlose Fall", und die
+Datacard-Annahme „die breiteste Keyword-Zeile passt auf eine Zeile" (die Zzap Gun braucht zwei; die
+Karte brach schon immer um, gepinnt ist jetzt der Umbruch). Ein kopierter Gunwagon-Kommentar hatte einen
+Sondenanker in `ab_ork_vehicles.py` verdoppelt - `--check` über alle Treiber fand es.
+
+**Sonden:** 62, erster Lauf 54 beißend - alle acht Nicht-Bisse Befunde über den Test (fünf Abstürze
+statt Rot, zwei Sonden gegen die falsche Suite, eine verdeckt: „jede Einheit hat Da Jump" hielt das
+Psyker-Level-Tor, Gegenprobe jetzt ein Kill Rig). Danach 62/62.
+
+**Parallelsitzung (Fehlerklasse 20):** während des finalen Sondenlaufs (08:36-08:39) fuhr eine andere
+Sitzung (±1-Deckel für Wurfmodifikatoren) zwei Quell-Sonden auf `game/shooting.py` und meldete das
+selbst per Nachricht. Mein Lauf hatte alle 62 beißend und digest-gleich gemeldet, ein falsches „beißt"
+war aber nicht auszuschließen - komplett wiederholt, als sie „keine Sonde offen" bestätigte: wieder
+62/62, kein Rest. Sie hatte Sumfin' to Prove schon in ihre Modifier-Klassifikation (ROLL) eingetragen.
+Commit mit `git add -A` nach Absprache; ihre Doku committet sie danach selbst.
+
+**Laufzeit-Sonde:** `verify_ork_mecha_sheets.py` 15/15, neutralisiert 9/9. Die erste Fassung ließ F
+(Phasengrenze) einen Frame nach C laufen, selfplay hatte dazwischen „Next Phase" geklickt, und die
+echte Grenze hatte den Grant schon gelöscht - F läuft jetzt im selben Frame. Nachträglich ergänzt, weil
+„die KI springt und landet" nichts über den Nutzen sagt: der Abstand zum Feind, 26.7" vorher, 10.3"
+nach der Landung.
+
+**Verifiziert:** `test_ork_mecha_sheets.py` 138/138; volle Regression 238 Suiten, ~23213 Prüfungen,
+237 grün / 0 rot / 1 bekannt; `--smoke` grün; `selfplay.py map2 1500` Orks gegen Necrons beide
+Sitzordnungen exit 0; `verify_rules_vs_engine.py` 68 (unverändert); `fetch --offline` nur mit den drei
+neuen Blättern im README (Datum zurückgesetzt); `measure_crowded_movement.py` unverändert 62 % / 87 %.

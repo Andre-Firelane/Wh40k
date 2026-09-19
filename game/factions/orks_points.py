@@ -2,10 +2,12 @@
 "Unit Costs" screen (user-supplied paste, 2026-07-29). The entries of the
 datasheets rebuilt for the 2026-09 codex (Boyz, Beast Snagga Boyz, Stormboyz,
 Gretchin, Meganobz, Warboss, Warboss in Mega Armour, Beastboss, Painboy, Flash Gitz,
-Tankbustas, Warbikers, Deffkoptas, Trukk, Battlewagon, Deff Dread, Kill Rig) follow the
+Tankbustas, Warbikers, Deffkoptas, Trukk, Battlewagon, Deff Dread, Kill Rig) and of the
+datasheets built for the Mecha Orks list (Bigboss, Weirdboy, Gunwagon) follow the
 POINTS table of their rules/orks/*.md page instead, and say so where they stand.
 
-All 58 entries, not just the five units game/factions/orks.py has datasheets
+All 58 entries of that paste plus the Gunwagon, which the July app did not
+print - not just the units game/factions/orks.py has datasheets
 for - same reasoning as game/factions/tau_empire_points.py, which this
 module mirrors exactly. Structure, the omitted ▲/▼ change markers, and the
 "a priced wargear option is only charged when actually selected" rule are all
@@ -16,8 +18,8 @@ Two things this list does that the T'au one doesn't:
 - Gretchin USED to be priced by composition (with and without Runtherds);
   the 2026-09 codex prints 10 and 20 Gretchin only, the Runtherd being a
   separate SUPPORT unit now.
-- Two entries attach as SUPPORT rather than LEADER (Bannernob, Painboy) -
-  see UnitPoints' own `supports` field.
+- Four entries attach as SUPPORT rather than LEADER (Bannernob, Bigboss,
+  Painboy, Weirdboy) - see UnitPoints' own `supports` field.
 
 The one pre-codex Ork wargear price ("Battlewagon: per 'ard case 15 pts") went
 with the 'Ard Case: the 2026-09 Battlewagon page prints "WARGEAR COSTS
@@ -47,7 +49,9 @@ ORKS_POINTS = {
         PointsTier({10: 85, 20: 170}, to_unit=3),
         PointsTier({10: 95, 20: 180}, from_unit=4),
     ]),
-    "Bigboss": flat_points({1: 55}, leads=_LEADS_BOYZ_MOBS),
+    # 2026-09 codex (rules/orks/Bigboss.md) - a SUPPORT section now, not a
+    # LEADER one: it joins a mob beside its Warboss (rule 19.01).
+    "Bigboss": flat_points({1: 50}, supports=("Boyz", "Breaka Boyz", "Nobz")),
     "Big'ed Bossbunka": flat_points({1: 135}),
     "Big Mek": flat_points({1: 70}, leads=_LEADS_MEK_UNITS),
     "Big Mek Dakkarig": flat_points({1: 115}),
@@ -102,6 +106,12 @@ ORKS_POINTS = {
     ]),
     # 2026-09 codex (rules/orks/Gretchin.md).
     "Gretchin": flat_points({10: 45, 20: 80}),
+    # 2026-09 codex (rules/orks/Gunwagon.md): "WARGEAR OPTIONS per Zzap Gun 10" -
+    # the default Kannon carries no price, so a swap taken is the Zzap Gun paid.
+    "Gunwagon": UnitPoints([
+        PointsTier({1: 150}, to_unit=2),
+        PointsTier({1: 160}, from_unit=3),
+    ], wargear={"Zzap Gun": 10}),
     "Hunta Rig": flat_points({1: 125}),
     "Killa Kans": UnitPoints([
         PointsTier({3: 120, 6: 240}, to_unit=2),
@@ -178,7 +188,11 @@ ORKS_POINTS = {
     "Wartrakk": flat_points({1: 60}),
     "Wazbom Blastajet": flat_points({1: 165}),
     "Wazdakka Gutsmek": flat_points({1: 175}),
-    "Weirdboy": flat_points({1: 65}, leads=("Boyz", "Breaka Boyz")),
+    # 2026-09 codex (rules/orks/Weirdboy.md) - SUPPORT for Beast Snagga Boyz and
+    # Boyz. The app list's separate "Wurrboy" below has no codex datasheet of its
+    # own (the name lives on as the Kill Rig's psyker ability) and is left as the
+    # app printed it, like every other unbuilt entry here.
+    "Weirdboy": flat_points({1: 65}, supports=("Beast Snagga Boyz", "Boyz")),
     "Wurrboy": flat_points({1: 60}, leads=("Beast Snagga Boyz",)),
     "Zodgrod Wortsnagga": flat_points({1: 80}, leads=("Gretchin",)),
 }

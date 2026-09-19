@@ -241,6 +241,10 @@ class UnitProfile:
     beast_snagga = False  # the BEAST SNAGGA keyword - matters for Kill Rig's transport_requires ("12 BEAST SNAGGAS INFANTRY models"), see UnitProfile.transport_requires
     beastscent = False  # Kill Rig's "Beastscent (psychic level 1)" (2026-09 Ork codex): in your Movement phase, when a unit embarked within it is selected to disembark, a psychic roll gives that unit +1 to wound against MONSTER/VEHICLE units until the end of the turn - read off the TRANSPORT token, see game/beastscent.py
     warpath = False  # Kill Rig's "Warpath (psychic level 1)" (2026-09 Ork codex): when this unit is selected to fight, a psychic roll gives its melee attacks [LETHAL HITS] and [PSYCHIC] - see game/warpath.py
+    weirdboy_warpath = False  # Weirdboy's "Warpath (psychic level 1)" (2026-09 Ork codex) - the Kill Rig's frame with ANOTHER effect: its melee attacks can re-roll wound rolls of 1 and have [PSYCHIC]. Its own flag because one name, two effects (error class 11) - see game/weirdboy_warpath.py
+    da_jump = False  # Weirdboy's "Da Jump (psychic level 1, once per army, per battle round)" (2026-09 Ork codex): in your Movement phase a psychic roll places this unit in Strategic Reserves with Deep Strike - see game/da_jump.py
+    sumfin_to_prove = False  # Bigboss's "Sumfin' to Prove" (2026-09 Ork codex): this unit's melee attacks have +1 to hit rolls - see game/sumfin_to_prove.py
+    mobile_arsenal = False  # Gunwagon's "Mobile Arsenal" (2026-09 Ork codex): in your Shooting phase, this unit's ranged attacks can re-roll hit rolls of 1 - see game/mobile_arsenal.py
     mega_armour = False  # the MEGA ARMOUR keyword - matters for a TRANSPORT's capacity math ("each MEGA ARMOUR model takes up the space of 2 models", rule 18.01/Trukk's own printed exception) - see game/transport.py's _model_capacity_cost()
     coldstar_commander = False  # Commander in Coldstar Battlesuit's own "Coldstar Commander" ability (user-supplied, not a core rule): while this model is LEADING a unit (19.01), models in that unit have a Move characteristic of 12" and their ranged weapons have [ASSAULT] - a leader ability granted to the whole attached unit, so read with squad_has_coldstar_commander() rather than unit_wide_ability(); see game/coldstar.py
     might_is_right = False  # Warboss's "Might Is Right" (2026-09 Ork codex): if this unit made a charge move this turn, this model's melee attacks have +3 A and +2 S - per MODEL, see game/might_is_right.py. The pre-codex +1-to-hit leader grant of that name is gone
@@ -976,6 +980,53 @@ class BattlewagonProfile(UnitProfile):
     orks = True  # Orks Faction - see UnitProfile.orks' own note (War Horde detachment)
 
 
+class GunwagonProfile(UnitProfile):
+    """Datasheet: Gunwagon (Orks), 2026-09 codex - rules/orks/Gunwagon.md, built in
+    game/factions/orks.py. KEYWORDS: VEHICLE; FRAME; TRANSPORT; WAGON.
+
+    base_radius_in: 2.1", the Battlewagon's - the codex prints "Use model" for
+    both, so there is nothing to transcribe, and the user's table-size decision
+    for the Battlewagon ("base size wie kill rig") is carried over to its gun
+    variant rather than inventing a second size. Named, not measured.
+
+    WS3+ read off the melee rows. BS5+ is the Big Shoota's row; the Kannon,
+    Killkannon, Lobba and Zzap Gun print 4+ and carry it on the weapon (see the
+    note above KannonShellProfile in game/weapons.py).
+
+    CORE: Damaged 6 and Deadly Demise D6 - generic fields. NO Firing Deck and
+    no Mobile Fortress: the Battlewagon prints both, this sheet prints neither.
+    Mobile Arsenal (re-roll hit rolls of 1 in your Shooting phase) is
+    game/mobile_arsenal.py.
+
+    Transport: "12 ORKS INFANTRY models. Each MEGA ARMOUR/JUMP PACK model takes up
+    the space of 2 models. Each GHAZGHKULL THRAKA model takes up the space of 4
+    models." - the Battlewagon's three sentences at 12 instead of 22, so
+    game/transport.py's global _model_capacity_cost() is exact for it too.
+    GHAZGHKULL THRAKA is not built."""
+    name = "Gunwagon"
+    base_radius_in = 2.1
+    movement_in = 10
+    weapon_skill = "3+"
+    ballistic_skill = "5+"
+    toughness = 12
+    wounds = 16
+    leadership = "7+"
+    armor_save = "3+"
+    invulnerable_save = "6+"  # printed INSV 6+
+    oc = 5
+    vehicle = True  # the VEHICLE keyword
+    damaged_threshold = 6  # the Gunwagon's CORE Damaged 6 (rule 24.39)
+    deadly_demise = 6  # a documentation leftover, as on the Battlewagon - see deadly_demise_notation
+    deadly_demise_notation = D6()  # the Gunwagon's CORE Deadly Demise D6
+    transport = True  # the TRANSPORT keyword
+    transport_capacity = 12  # "a transport capacity of 12 ORKS INFANTRY models"
+    transport_requires_infantry = True  # the INFANTRY half of the Gunwagon's line
+    transport_requires = ("orks",)  # ...and its ORKS half
+    mobile_arsenal = True  # Mobile Arsenal - see game/mobile_arsenal.py
+    waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
+    orks = True  # Orks Faction - see UnitProfile.orks' own note
+
+
 class FlashGitzProfile(UnitProfile):
     """Datasheet: Flash Gitz (Orks), 2026-09 codex - rules/orks/Flash Gitz.md,
     built in game/factions/orks.py. KEYWORDS: INFANTRY; EXPLOSIVES.
@@ -1037,6 +1088,71 @@ class PainboyProfile(UnitProfile):
     support = True  # the Support core ability - see game/attached_units.py
     crude_surgery = True  # Crude Surgery - see game/crude_surgery.py
     catch_dat_red_bit = True  # Catch Dat Red Bit - see game/crude_surgery.py
+    waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
+    orks = True  # Orks Faction - see UnitProfile.orks' own note
+
+
+class BigbossProfile(UnitProfile):
+    """Datasheet: Bigboss (Orks), 2026-09 codex - rules/orks/Bigboss.md, built in
+    game/factions/orks.py. KEYWORDS: INFANTRY; CHARACTER.
+
+    base_radius_in: 40mm (0.79"), a NAMED choice - the codex prints "Use model",
+    so there is no number to transcribe. 40mm is the Warboss's printed base, the
+    boss this model stands beside in a Boyz mob.
+
+    WS3+ off the Big Choppa row, BS5+ off the Slugga row. SUPPORT (Boyz, Breaka
+    Boyz, Nobz - game/factions/orks_points.py), so a mob takes a Warboss AND a
+    Bigboss (rule 19.01). Sumfin' to Prove is game/sumfin_to_prove.py."""
+    name = "Bigboss"
+    base_radius_in = 0.79
+    movement_in = 6
+    weapon_skill = "3+"
+    ballistic_skill = "5+"
+    toughness = 5
+    wounds = 5
+    leadership = "7+"
+    armor_save = "4+"
+    oc = 1
+    character = True  # the CHARACTER keyword
+    infantry = True  # the INFANTRY keyword
+    support = True  # the Support core ability - see game/attached_units.py
+    sumfin_to_prove = True  # Sumfin' to Prove - see game/sumfin_to_prove.py
+    waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
+    orks = True  # Orks Faction - see UnitProfile.orks' own note
+
+
+class WeirdboyProfile(UnitProfile):
+    """Datasheet: Weirdboy (Orks), 2026-09 codex - rules/orks/Weirdboy.md, built in
+    game/factions/orks.py. KEYWORDS: INFANTRY; CHARACTER; PSYKER - NOT BEAST
+    SNAGGA, so a mob he supports no longer fits a Kill Rig.
+
+    base_radius_in: the printed 50mm (0.98").
+
+    WS3+ off the Copper Staff; the Power Vomit prints BS "-" ([TORRENT]), so BS
+    keeps the default and is never read. CORE: Deadly Demise D3, Support (Beast
+    Snagga Boyz, Boyz).
+
+    "Waaagh! Energy (psyker level 1)" is the Unstable Energies budget his two
+    psychic abilities share - Da Jump (game/da_jump.py) and Warpath
+    (game/weirdboy_warpath.py), both through game/psychic_roll.py."""
+    name = "Weirdboy"
+    base_radius_in = 0.98
+    movement_in = 6
+    weapon_skill = "3+"
+    toughness = 5
+    wounds = 4
+    leadership = "7+"
+    armor_save = "5+"
+    oc = 1
+    character = True  # the CHARACTER keyword
+    infantry = True  # the INFANTRY keyword
+    psyker = True  # the PSYKER keyword - descriptive, see UnitProfile.psyker's own note
+    psyker_level = 1  # "Waaagh! Energy (psyker level 1)" - see game/unstable_energies.py
+    support = True  # the Support core ability - see game/attached_units.py
+    deadly_demise = 3  # documentation leftover only, see deadly_demise_notation below
+    deadly_demise_notation = D3()  # CORE: Deadly Demise D3
+    da_jump = True  # "Da Jump (psychic level 1, once per army, per battle round)" - see game/da_jump.py
+    weirdboy_warpath = True  # "Warpath (psychic level 1)" - see game/weirdboy_warpath.py
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
     orks = True  # Orks Faction - see UnitProfile.orks' own note
 

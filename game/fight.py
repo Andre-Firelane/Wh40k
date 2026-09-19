@@ -5,6 +5,7 @@ from game import attached_units
 from game import battle_stats
 from game import damaged_attacks, triarch_auras
 from game import beastscent, dodge_dis, high_speed_carnage, krumpin_time, might_is_right, rokkit_charge, tide_of_muscle, warpath
+from game import sumfin_to_prove, weirdboy_warpath
 from game import aux_experimental_modifications, awakened_dynasty, nekrosor_ammentar, swift_demise, montka_pinpoint_counter_offensive, destroyer_cult, destroyer_hive, dlc_grim_reapers, gift_of_contagion, guardian_protocols, protocol_hungry_void, implacable_eradication, mechanical_augmentation, plagues, plasmacyte, reroll_scope
 from game import way_of_the_short_blade
 from game import strength_over_toughness
@@ -13,7 +14,7 @@ from game.damage_resolution import DamageAllocationSession, DevastatingWoundAllo
 from game.dice import ATTACKS_ROLL, HIT_ROLL, SAVE_ROLL, WOUND_ROLL
 from game.dice_notation import DiceNotationRoll, describe as describe_dice_notation
 from game.hazard import hazard_failures, hazard_mortal_wounds
-from game.modifiers import Modifier, apply_modifiers, describe_modifiers, for_display
+from game.modifiers import CHARACTERISTIC, Modifier, apply_modifiers, describe_modifiers, for_display
 from game import roll_choice
 from game.shooting import (
     _damaged_modifier, _group_label, _resolve_roll, _threshold_note, _wound_crit_threshold, _wound_threshold,
@@ -241,7 +242,7 @@ class FightController:
         advanced_scouting=None, bounty_hunters=None, fated_hero=None, herald_of_ynnead=None,
         path_of_the_warrior=None, shepherds_of_the_dead=None, misfortune=None, spirit_mark=None,
         piratical_raiders=None, fury_of_the_void=None, plasmacyte=None, rokkit_charge=None,
-        objectives=None, warpath=None,
+        objectives=None, warpath=None, weirdboy_warpath=None,
     ):
         self.game_log = game_log
         self.dice_manager = dice_manager
@@ -274,6 +275,9 @@ class FightController:
         self.rokkit_charge = rokkit_charge
         # The Kill Rig's Warpath OFFER (game/warpath.py), the same instant.
         self.warpath = warpath
+        # The Weirdboy's Warpath OFFER (game/weirdboy_warpath.py) - same frame,
+        # other effect, so its own slot.
+        self.weirdboy_warpath = weirdboy_warpath
         self.herald_of_ynnead = herald_of_ynnead
         self.misfortune = misfortune
         self.spirit_mark = spirit_mark
@@ -756,6 +760,10 @@ class FightController:
         # rolls, and the Hit roll waits for a weapon choice.
         if self.warpath is not None:
             self.warpath.offer(squad)
+        # The Weirdboy's Warpath - the same printed frame and instant, its own
+        # effect (game/weirdboy_warpath.py). A unit carries one or the other.
+        if self.weirdboy_warpath is not None:
+            self.weirdboy_warpath.offer(squad)
         self._used_other_melee_weapon = set()
         self._reset_engagement_snapshot()
         self._hazardous_count = 0
@@ -1596,6 +1604,9 @@ class FightController:
         # because the crit note and _hit_modifiers()' [PSYCHIC] drop read the
         # returned weapon.
         weapon = warpath.adjusted_weapon(weapon, self.fighting_squad)
+        # The Weirdboy's Warpath ([PSYCHIC] - its wound re-roll of 1s is in
+        # _wound_without_optional_reroll()), for the same reason.
+        weapon = weirdboy_warpath.adjusted_weapon(weapon, self.fighting_squad)
         # The Corsair grants, all of them properties of the attacking unit
         # (and, for the last two, of what it is swinging at).
         weapon = corsair_abilities.piratical_hero_adjusted_weapon(
@@ -2412,6 +2423,14 @@ class FightController:
                 wounds=wounds, crits=crits, target_profile=target_profile,
                 reason=enh_hyperphasic_fulcrum.HYPERPHASIC_FULCRUM_LABEL,
             )
+        elif ones and weirdboy_warpath.rerolls_wound_ones(self.fighting_squad):
+            # The Weirdboy's Warpath: "melee attacks can re-roll wound rolls of
+            # 1" - a plain automatic 1s with no "instead", like the two above.
+            self._begin_ones_reroll(
+                "wound", ones, wound_threshold, weapon, target_squad, weapon_label,
+                wounds=wounds, crits=crits, target_profile=target_profile,
+                reason=weirdboy_warpath.WEIRDBOY_WARPATH_LABEL,
+            )
         else:
             self._resolve_wounds(weapon, target_squad, target_profile, weapon_label, wounds, crits)
 
@@ -2785,7 +2804,7 @@ class FightController:
         # rather than granting the flat bonus above - a separate question with
         # a separate answer, kept apart so neither can quietly widen.
         if psychic_guidance.applies_characteristics(self.fighting_squad, self.all_tokens):
-            modifiers.append(Modifier(-1, "Psychic Guidance"))
+            modifiers.append(Modifier(-1, "Psychic Guidance", CHARACTERISTIC))
         # The Farseer's Guide: "each time a friendly AELDARI model makes an
         # attack that targets that enemy unit, add 1 to the Hit roll" - a
         # bonus, so a -1 on the threshold. Army-wide, not unit-wide, which
@@ -2808,6 +2827,9 @@ class FightController:
         # The Beastboss's Dodge Dis!: "This unit's attacks have +1 to hit
         # rolls" - both phases, so game/shooting.py reads it too.
         modifiers.extend(dodge_dis.hit_modifiers(self.fighting_squad))
+        # The Bigboss's Sumfin' to Prove: "This unit's MELEE attacks have +1 to
+        # hit rolls" - Dodge Dis! with one word more, so this side only.
+        modifiers.extend(sumfin_to_prove.hit_modifiers(self.fighting_squad))
         # Meganobz' Krumpin' Time: +1 to hit in this phase while riled up.
         modifiers.extend(krumpin_time.hit_modifiers(self.fighting_squad))
         # Awakened Dynasty's Command Protocols: a leader granting his whole

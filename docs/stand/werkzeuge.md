@@ -97,7 +97,8 @@ passenden Abschnitt hier; ein neuer `##`-Abschnitt braucht eine Zeile im Verzeic
   einen Wegwerf-Ordner und schaltet `selfplay.py`s Opt-out beim Bau der Kante wieder ein;
   gefixt 8 Phasen / 8 Autosaves, `--neutralize` 7 / 1 plus Überschreiben beim Load.
   **`verify_ork_*.py [map] [frames] [--neutralize]`** — je Ork-Codex-Etappe eine Laufzeit-Sonde
-  (`army_rules`, `war_horde`, `mobs`, `characters`, `specialists`, `vehicles`, `kill_rig`), alle nach demselben
+  (`army_rules`, `war_horde`, `mobs`, `characters`, `specialists`, `vehicles`, `kill_rig`, und für die
+  Mecha-Orks-Etappen `mecha_sheets`), alle nach demselben
   Muster: Orks als PLAYER 1, gebaute Träger statt der Liste, `main()`s Locals per Frame-Walk,
   `--neutralize` per Import-Hook auf `main.py`. Was jede belegt und stellt, steht in ihrer Etappe in
   `orks-codex-2026-09*.md`. **`verify_ork_vehicles.py`** ist die erste, die eine Platzierung des
@@ -108,4 +109,10 @@ passenden Abschnitt hier; ein neuer `##`-Abschnitt braucht eine Zeile im Verzeic
   Aufrufs fielen - ein zweiter Wurf ersetzt im Ein-Slot-`DiceManager` den ersten spurlos, und nur
   die Wurf-Etiketten zeigen es. Ihr Zugende-Check fragt die UHR (neuer Runde/Zug-Slot,
   Command-Phase), nicht „Player 2 ist dran": wem der gestellte Zug gehörte, hängt am zufälligen
-  Aufstellungswurf.
+  Aufstellungswurf. **`verify_ork_mecha_sheets.py`** lässt als erste die KI eine Panel-Fähigkeit
+  über `main()`s ECHTES Auto-Play nutzen (Da Jump: Sprung, Quittung durch `main()`, Landung im selben
+  Zug) und misst, ob es sich lohnt (Abstand zum Feind vorher/nachher). Zwei Lehren daraus: (a) eine
+  Phasengrenzen-Stufe muss im SELBEN Frame starten, in dem die Stufe davor fertig wird — selfplay
+  klickt in Player 1s Zug in jedem freien Frame „Next Phase", und eine echte Grenze hatte den zu
+  messenden Grant sonst schon gelöscht; (b) erzwungene Würfel so wählen, dass der Angriff OHNE
+  Rettungswurf endet (alle Wunden 1), sonst wartet der Lauf auf eine Zuteilung, die niemand gibt.

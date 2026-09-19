@@ -181,9 +181,23 @@ c.eq("a free gear item still costs nothing", droned.points,
 # 4. retirements (2026-09 Ork codex)
 # ---------------------------------------------------------------------------
 
-for _name in ("ZzapGunProfile", "AttackSquigProfile", "LobbaProfile", "DeffRollaProfile",
+for _name in ("AttackSquigProfile", "DeffRollaProfile",
               "KoptaRokkitsProfile", "StompyFeetProfile", "TracksAndWheelsProfile"):
     c.true("game/weapons.py no longer defines %s" % _name, not hasattr(_weapons, _name))
+# The Zzap Gun and the Lobba are BACK under their old class names, as the
+# Gunwagon's codex rows (Mecha Orks stage G1) - not the pre-codex Battlewagon's.
+# What retired stays retired: the rolled Strength, and the Battlewagon's options.
+_zzap = getattr(_weapons, "ZzapGunProfile", None)
+c.eq("the Zzap Gun is the Gunwagon's flat S8 row, not the pre-codex rolled Strength",
+     (getattr(_zzap, "strength", None), getattr(_zzap, "strength_notation", "missing"),
+      getattr(_zzap, "damage", None)), (8, None, 4))
+_lobba = getattr(_weapons, "LobbaProfile", None)
+c.eq("the Lobba is the Gunwagon's 48\" A3 S5 [BLAST 3] row",
+     (getattr(_lobba, "range_in", None), getattr(_lobba, "attacks", None),
+      getattr(_lobba, "strength", None), getattr(_lobba, "blast", None)), (48, 3, 5, 3))
+c.true("...and neither is on the Battlewagon's wargear menu",
+       not any(w in (_zzap, _lobba) for option in _orks.BATTLEWAGON.wargear_options
+               for w in option.with_weapons))
 for _name in ("BATTLEWAGON_ADD_ZZAP_GUN", "BATTLEWAGON_ARD_CASE"):
     c.true("game/factions/orks.py no longer offers %s" % _name, not hasattr(_orks, _name))
 _game = os.path.join(os.path.dirname(os.path.abspath(__file__)), "game")

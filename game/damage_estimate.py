@@ -31,6 +31,7 @@ decision - needs, not "what will this attack roll".
 """
 
 from game import weapon_profiles
+from game.modifiers import Modifier, characteristic_modifier, net_roll_modifier
 from game.squad import (attached_unit_toughness, squad_has_guardian_drone,
                         tank_hunters_modifiers)
 
@@ -178,8 +179,12 @@ def attack_modifiers(attacker_model, defender, melee=False):
     Still missing and now cheap to add, in rough order of what they are
     worth: Might is Right (melee hit, Warboss-led units), Volley Fire (an
     extra Attack per ranged weapon). Each is one line here; each needs its
-    own measurement, which is why they are named rather than swept in."""
-    hit = wound = 0
+    own measurement, which is why they are named rather than swept in.
+
+    Collected as Modifier lists and folded the way apply_modifiers() folds
+    them - roll modifiers capped at +/-1 as a sum - so an estimate can never
+    count a stack the dice would not honour."""
+    hit, wound = [], []
     # `melee` is threaded through so the Myphitic Blight-hauler's ranged-only
     # Tank Hunters is not counted for its Gnashing Maw - see
     # game/squad.py's tank_hunters_modifiers().
@@ -189,13 +194,14 @@ def attack_modifiers(attacker_model, defender, melee=False):
         # anti-tank unit, and it was worth exactly nothing here. User:
         # "noch dazu haben sie anti tank regeln, also die entscheidung war
         # auf allen ebenen falsch."
-        hit += modifier.amount
-        wound += modifier.amount
+        hit.append(modifier)
+        wound.append(modifier)
     if not melee and squad_has_guardian_drone(defender):
         # The defender's side of the same coin. Counting only the attacker's
         # buffs would trade one bias for another.
-        wound += 1
-    return hit, wound
+        wound.append(Modifier(1, "Guardian Drone"))
+    return (characteristic_modifier(hit) + net_roll_modifier(hit),
+            characteristic_modifier(wound) + net_roll_modifier(wound))
 
 
 def expected_wounds(weapon, shots, skill, defender_profile,

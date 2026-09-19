@@ -32,6 +32,7 @@ import testkit as tk  # noqa: E402
 from game import army_lists, attached_units, rules_text  # noqa: E402
 from game.factions import faction as factions  # noqa: E402
 from game.ui import unit_datacard as udc  # noqa: E402
+from game.ui.text_utils import wrap_text  # noqa: E402
 from game.weapons import MELEE  # noqa: E402
 
 checks = tk.Checks("Unit datacard")
@@ -611,19 +612,51 @@ checks.true("every keyword line is drawn inside the card",
             all(_kw_card.last_rect.y < y < _kw_card.last_rect.bottom for y in _keyword_rows))
 
 # The layout decision itself, measured rather than asserted: the keywords go
-# under the numbers instead of into an eighth column because the widest string
-# any built weapon prints fits the table on one line and could not have fitted
-# the name cell at all.
+# under the numbers instead of into an eighth column because even the widest
+# string any built weapon prints stays short across the full table and could
+# not have fitted the name cell at all.
+#
+# It USED to fit on one line (the widest was 346 px). The Gunwagon's Zzap Gun
+# (Mecha Orks stage G1) prints "ANTI-MONSTER/VEHICLE 4+, DEVASTATING WOUNDS:
+# MONSTER/VEHICLE, RAPID FIRE 2, SUSTAINED HITS 2" - 546 px, so the band wraps.
+# The card was built for that (_weapon_keyword_lines() wraps, the row height
+# counts the lines), so what is pinned now is the wrap: two lines at most, the
+# row grown by both, and both drawn inside a real Gunwagon card.
 _widest = max([", ".join(printed_keywords(w)) for w in _ALL_BUILT_WEAPONS
                if printed_keywords(w)] or [""],
               key=lambda t: _kw_card.keyword_font.size(t)[0])
 _widest_px = _kw_card.keyword_font.size(_widest)[0]
-checks.true("the widest printed keyword string (%d px) fits the full table width"
+_table_px = udc.BOX_WIDTH - 2 * udc.PADDING - 8
+_widest_lines = wrap_text(_kw_card.keyword_font, _widest, _table_px) or [_widest]
+checks.true("the widest printed keyword string (%d px) wraps to at most two lines of the full table width"
             % _widest_px,
-            _widest_px <= udc.BOX_WIDTH - 2 * udc.PADDING - 8)
+            len(_widest_lines) <= 2
+            and all(_kw_card.keyword_font.size(line)[0] <= _table_px for line in _widest_lines))
 checks.true("...and would NOT have fitted the %d px name column"
             % (udc.NAME_COLUMN_WIDTH - 8),
             _widest_px > udc.NAME_COLUMN_WIDTH - 8)
+
+from game.factions import orks as _orks  # noqa: E402
+
+_zzap_squad = tk.build(_orks.GUNWAGON, "Player 2", name="2 Gunwagon 1",
+                       choices={"Gunwagon": {_orks.GUNWAGON_KANNON_TO_ZZAP_GUN: 1}})
+_zzap_token = _zzap_squad.models[0]
+_zzap_gun = next((w for w in _zzap_token.weapons if w.name == "Zzap Gun"), None)
+_zzap_surface = pygame.Surface((900, 1400))
+_zzap_surface.fill(BG)
+_zzap_card = udc.UnitDatacardOverlay()
+_zzap_rendered = []
+_zzap_card.keyword_font = _RecordingFont(_zzap_card.keyword_font, _zzap_rendered)
+_zzap_card.draw(_zzap_surface, _zzap_token, (60, 40))
+_zzap_lines = (_zzap_card._weapon_keyword_lines(_zzap_gun, _zzap_card.last_rect)
+               if _zzap_gun is not None and _zzap_card.last_rect is not None else [])
+checks.eq("the Zzap Gun's keywords take two lines on the real card", len(_zzap_lines), 2)
+checks.true("...its row is its numbers band plus BOTH lines",
+            _zzap_gun is not None and len(_zzap_lines) == 2
+            and _zzap_card._weapon_row_height(_zzap_gun, _zzap_card.last_rect)
+            == _zzap_card._weapon_band_height(_zzap_gun)
+            + 2 * (_zzap_card.keyword_font.get_height() + 1) + 4)
+checks.true("...and both lines are drawn", all(line in _zzap_rendered for line in _zzap_lines) and bool(_zzap_lines))
 
 
 # --- 11. the unit's own KEYWORDS bar ---------------------------------------

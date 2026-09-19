@@ -162,6 +162,12 @@ ein Literal), sonst haben eine Regel zwei uneinige Leser. Und: ein abgeleitetes
 Flag gehört in `activation_state.SQUAD_FLAGS_EXCLUDED`, ein bezahlter Grant in
 `SQUAD_FLAGS`.
 
+**Ein Hit-/Wound-Modifikator** → `Modifier(amount, label)` ist ein WURF-Modifikator ("add 1 to
+the Hit roll"): alle zusammen werden summiert und auf ±1 gedeckelt, die Schwelle ist nie besser als
+2+. NUR „improve/worsen the ... characteristic“ (Cover, Guided) bekommt `CHARACTERISTIC` und zählt
+voll daneben. Nie `.amount` selbst summieren, immer `apply_modifiers()`.
+→ **`test_roll_modifier_cap.py` §6** wird rot, bis die neue Stelle in einer seiner zwei Listen steht.
+
 **Würfel** → `on_dice_acknowledged` muss aus `main.py` gerufen werden.
 → **§11**.
 
@@ -466,6 +472,13 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
     abgebrochener Sondenlauf ließ eine Sonde in einer NEUEN Datei stehen, und die Restprüfung war
     leer. Die Restprüfung ist `git grep --untracked "AB-PROBE"`; ein Sondenlauf ohne
     Schlusszeile im Output gilt als mitten in einer Sonde abgebrochen.
+    **SECHSTE Form (2026-09-19): eine Prozessprüfung ist nur für den MOMENT gültig.** Geprüft um
+    08:28 (still seit 1,5 Tagen), die Parallelsitzung startete ihren Sondenlauf um 08:36, und
+    Suite und Quell-Sonden dieser Sitzung liefen ab 08:37 mitten hinein. Aufgefallen nur, weil die
+    Restprüfung einen Marker in einer FREMDEN Datei sah. Deshalb: die Prüfung auf `ab_*.py` steht
+    in DERSELBEN Kommandozeile wie der Lauf, und eine laufende Parallelsitzung wird per
+    `ListAgents`/`SendMessage` abgestimmt (wer sondiert, wer committet). Das hat danach reibungslos
+    geklappt.
 21. **Bash-Heredocs zerlegen Prompt-/Codetexte** (Apostrophe, `\n`, `\"`) — mehrfach passiert.
     Solche Texte über Write/Edit schreiben.
 22. **Positionelle Aufrufe**: `action_panel.draw()` und `game_status_panel.draw()` werden positionell
@@ -736,9 +749,10 @@ Fraktion deren Dateien plus `fraktionen.md`; bei einer gemeldeten Fehlerform zue
 - Regelengine — Bewegung
 - Bewegungsqualität — was gemessen ist
 
-### `docs/stand/regelengine-schiessen.md` — Schießen (10.06, reaktive Schüsse, Zielwahl-Freeze, Unmodified-Six-Knopf), der T'au-Lag-Fix (Sichtlinien-Memo, Greater Good)
+### `docs/stand/regelengine-schiessen.md` — Schießen (10.06, reaktive Schüsse, Zielwahl-Freeze, Unmodified-Six-Knopf), der T'au-Lag-Fix (Sichtlinien-Memo, Greater Good), ±1-Deckel und 2+ für Hit-/Wound-Modifikatoren
 - Regelengine — Schießen
 - Die Schussphase war mit T'au unspielbar (2026-09-08)
+- Hit- und Wound-Modifikatoren: ±1-Deckel und 2+-Untergrenze (game/modifiers.py, 2026-09-19)
 
 ### `docs/stand/regelengine-nahkampf.md` — Nahkampf (12.02-Freeze, Waffengruppen, Counteroffensive, Sudden Strike, End-Turn-Warnung, [ASSAULT]-Tor)
 - Regelengine — Nahkampf
@@ -808,9 +822,10 @@ Fraktion deren Dateien plus `fraktionen.md`; bei einer gemeldeten Fehlerform zue
 - Ork-Charaktere (2026-09-Codex): Warboss, Warboss in Mega Armour, Beastboss, Painboy — Etappe E3b
 - Ork-Spezialisten (2026-09-Codex): Flash Gitz, Tankbustas — Etappe E3c
 
-### `docs/stand/orks-codex-2026-09-2.md` — Etappen E3d Fahrzeuge (Pilin' Out, Aerial Manoover, Mobile Fortress/Dread 'Ard, Rundenende-Sweep) und E3e Kill Rig (psychischer Wurf, Warpath, Beastscent, ein Würfel-Slot)
+### `docs/stand/orks-codex-2026-09-2.md` — Etappen E3d Fahrzeuge (Pilin' Out, Aerial Manoover, Mobile Fortress/Dread 'Ard, Rundenende-Sweep), E3e Kill Rig (psychischer Wurf, Warpath, Beastscent, ein Würfel-Slot) und Mecha Orks G1 (Bigboss, Weirdboy mit Da Jump und eigenem Warpath, Gunwagon)
 - Ork-Fahrzeuge (2026-09-Codex): Warbikers, Deffkoptas, Trukk, Battlewagon, Deff Dread — Etappe E3d
 - Kill Rig (2026-09-Codex): Beastscent, Warpath, der psychische Wurf — Etappe E3e
+- Mecha Orks G1: Bigboss, Weirdboy, Gunwagon (2026-09-19)
 
 ### `docs/stand/audits-aeldari-und-tau.md` — die Prüfungen „werden die Aeldari-/T'au-Stratagems angeboten und wirken sie“
 - Werden die Aeldari-Stratagems überhaupt ANGEBOTEN? (Prüfung, 2026-09-07)

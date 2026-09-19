@@ -71,6 +71,15 @@ def reset_phase(squads=()):
 
 
 class WarpathController:
+    """The offer, the roll and the grant. The Weirdboy prints the same frame under
+    the same name with ANOTHER effect (game/weirdboy_warpath.py), so what differs
+    between the two is these three class attributes and nothing else: which
+    printed flag carries the ability, which Squad flag holds the grant, and the
+    words that describe it."""
+    ABILITY_FLAG = "warpath"
+    ACTIVE_FLAG = "warpath_active"
+    EFFECT_TEXT = "its melee attacks have [LETHAL HITS] and [PSYCHIC]"
+
     def __init__(self, psychic_roll, decision_manager=None, game_log=None, auto_players=(), verdict=None):
         self.psychic_roll = psychic_roll
         self.decision_manager = decision_manager
@@ -78,11 +87,14 @@ class WarpathController:
         self.auto_players = ai_mode.players(auto_players)
         self.verdict = verdict  # callable(squad) -> bool, the AI's rule; injected (game/ must not import ai/)
 
+    def has_ability(self, squad):
+        return squad is not None and bool(unit_wide_ability(squad, self.ABILITY_FLAG))
+
     def can_use(self, squad):
-        # No "not already active" term: a use spends the Kill Rig's whole psyker
+        # No "not already active" term: a use spends the unit's whole psyker
         # level for the battle round, so can_roll() refuses first - a gate term
         # that can never be the one that holds is a dead branch.
-        return (has_ability(squad) and self.psychic_roll is not None
+        return (self.has_ability(squad) and self.psychic_roll is not None
                 and self.psychic_roll.can_roll(squad, WARPATH_PSYCHIC_LEVEL))
 
     def offer(self, squad):
@@ -99,8 +111,8 @@ class WarpathController:
             return False
         self.decision_manager.request(
             squad.owner,
-            "%s: %s (psychic level %d) - this unit's melee attacks gain [LETHAL HITS] and [PSYCHIC]; "
-            "roll one D6, on a 1 it is battle-shocked?" % (squad.name, WARPATH_NAME, WARPATH_PSYCHIC_LEVEL),
+            "%s: %s (psychic level %d) - %s; roll one D6, on a 1 it is battle-shocked?"
+            % (squad.name, WARPATH_NAME, WARPATH_PSYCHIC_LEVEL, self.EFFECT_TEXT),
             [(ROLL_LABEL, lambda s=squad: self.use(s)), (DECLINE_LABEL, lambda: None)],
         )
         return True
@@ -108,10 +120,9 @@ class WarpathController:
     def use(self, squad):
         if not self.can_use(squad):
             return False
-        squad.warpath_active = True
+        setattr(squad, self.ACTIVE_FLAG, True)
         if self.game_log is not None:
-            self.game_log.add("%s uses %s: its melee attacks have [LETHAL HITS] and [PSYCHIC]."
-                              % (squad.name, WARPATH_NAME))
+            self.game_log.add("%s uses %s: %s." % (squad.name, WARPATH_NAME, self.EFFECT_TEXT))
         self.psychic_roll.roll(squad, WARPATH_NAME, WARPATH_PSYCHIC_LEVEL)
         return True
 

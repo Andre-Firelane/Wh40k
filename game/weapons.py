@@ -1148,6 +1148,151 @@ class SkorchaProfile(KombiWeaponPointBlankProfile):
     name = "Skorcha"
 
 
+# --- Gunwagon (Orks) datasheet, see game/factions/orks.py ---
+#
+# Every gun but the Big Shoota prints BS4+ while the Big Shoota prints BS5+.
+# The model carries the Big Shoota's 5+ (GunwagonProfile), so BigShootaS5Profile
+# stays the one class the Battlewagon, the Deff Dread and the Gunwagon share,
+# and the five guns below each carry their better skill on the weapon - the
+# Strike Team's per-weapon override, the other way round.
+
+class KannonShellProfile(WeaponProfile):
+    """Gunwagon (2026-09 Ork codex): Kannon - Shell, 36" A2 BS4+ S10 AP-2 D D6+1,
+    [RAPID FIRE 2]; second of two profiles. `damage` is the notation's maximum,
+    the grouping placeholder."""
+    name = "Kannon - Shell"
+    weapon_type = RANGED
+    range_in = 36
+    attacks = 2
+    ballistic_skill = "4+"
+    strength = 10
+    ap = -2
+    damage = 7
+    damage_notation = D6(1)
+    rapid_fire = 2
+
+
+class KannonFragProfile(WeaponProfile):
+    """Gunwagon (2026-09 Ork codex): Kannon - Frag, 36" A4 BS4+ S5 AP0 D1,
+    [BLAST 3], [RAPID FIRE 4]; first of two profiles (rule 04.01.03)."""
+    name = "Kannon - Frag"
+    weapon_type = RANGED
+    range_in = 36
+    attacks = 4
+    ballistic_skill = "4+"
+    strength = 5
+    ap = 0
+    damage = 1
+    blast = 3
+    rapid_fire = 4
+    overcharge_profile = KannonShellProfile
+
+
+class KillkannonProfile(WeaponProfile):
+    """Gunwagon (2026-09 Ork codex): Killkannon, 24" A4 BS4+ S6 AP-3 D2,
+    [ANTI-INFANTRY 3+], [BLAST 1], [RAPID FIRE 4]."""
+    name = "Killkannon"
+    weapon_type = RANGED
+    range_in = 24
+    attacks = 4
+    ballistic_skill = "4+"
+    strength = 6
+    ap = -3
+    damage = 2
+    anti = ("INFANTRY", 3)  # [ANTI-INFANTRY 3+], rule 24.03
+    blast = 1
+    rapid_fire = 4
+
+
+class LobbaProfile(WeaponProfile):
+    """Gunwagon (2026-09 Ork codex): Lobba, 48" A3 BS4+ S5 AP0 D1, [BLAST 3],
+    [INDIRECT FIRE]. Not the Kill Rig's 'Eavy Lobba (S6 D2 [BLAST 2])."""
+    name = "Lobba"
+    weapon_type = RANGED
+    range_in = 48
+    attacks = 3
+    ballistic_skill = "4+"
+    strength = 5
+    ap = 0
+    damage = 1
+    blast = 3
+    indirect_fire = True  # [INDIRECT FIRE], rule 10.07
+
+
+class ZzapGunProfile(WeaponProfile):
+    """Gunwagon (2026-09 Ork codex): Zzap Gun, 36" A2 BS4+ S8 AP-2 D4,
+    [ANTI-MONSTER/VEHICLE 4+], [DEVASTATING WOUNDS: MONSTER/VEHICLE], [RAPID FIRE
+    2], [SUSTAINED HITS 2]. A flat S8 now - the pre-codex Battlewagon's Zzap Gun,
+    retired in stage E3d, rolled its Strength."""
+    name = "Zzap Gun"
+    weapon_type = RANGED
+    range_in = 36
+    attacks = 2
+    ballistic_skill = "4+"
+    strength = 8
+    ap = -2
+    damage = 4
+    anti = (("MONSTER", 4), ("VEHICLE", 4))
+    conditional_keywords = (("devastating_wounds", True, MONSTER_OR_VEHICLE_TARGETS),)
+    rapid_fire = 2
+    sustained_hits = 2
+
+
+class GunwagonCrushinBulkProfile(CrushinBulkProfile):
+    """Gunwagon (2026-09 Ork codex): Crushin' Bulk, A6 WS3+ S8 AP-2 D2, [CLEAVE 2].
+    The Battlewagon prints the same row at [CLEAVE 1] - same name, other number,
+    so a subclass that changes that one keyword."""
+    cleave = 2
+
+
+# --- Bigboss (Orks) datasheet, see game/factions/orks.py ---
+
+class BigbossBigChoppaProfile(WeaponProfile):
+    """Bigboss (2026-09 Ork codex): Big Choppa, A5 WS3+ S7 AP-2 D2, [PRECISION].
+    Not the Boyz Nob's Big Choppa (A4 AP-1 [CLEAVE 2]) - same name, other numbers."""
+    name = "Big Choppa"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 5
+    strength = 7
+    ap = -2
+    damage = 2
+    precision = True  # [PRECISION], rule 24.28
+
+
+# --- Weirdboy (Orks) datasheet, see game/factions/orks.py ---
+
+class PowerVomitProfile(WeaponProfile):
+    """Weirdboy (2026-09 Ork codex): Power Vomit, 12" A3 BS- S5 AP-3 D2, [BLAST 1],
+    [HAZARDOUS], [PSYCHIC], [TORRENT]. The printed BS "-" needs no override:
+    [TORRENT] never makes a Hit roll (rule 24.37), as on the Wurrtower."""
+    name = "Power Vomit"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 3
+    strength = 5
+    ap = -3
+    damage = 2
+    blast = 1
+    hazardous = True  # [HAZARDOUS], rule 24.15
+    psychic = True  # [PSYCHIC], rule 24.29
+    torrent = True  # [TORRENT], rule 24.37
+
+
+class CopperStaffProfile(WeaponProfile):
+    """Weirdboy (2026-09 Ork codex): Copper Staff, A3 WS3+ S8 AP-1 D2, [PSYCHIC] -
+    printed on the weapon, so FightController._hit_modifiers()' rule 24.29 drop
+    reads it without any grant."""
+    name = "Copper Staff"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 3
+    strength = 8
+    ap = -1
+    damage = 2
+    psychic = True  # [PSYCHIC], rule 24.29
+
+
 # --- Painboy (Orks) datasheet, see game/factions/orks.py ---
 
 class UrtySyringeProfile(WeaponProfile):

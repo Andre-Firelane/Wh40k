@@ -286,6 +286,16 @@ SQUAD_SPRITE_KEYS = {
     # Sprites/ - kept verbatim, since _resolve_path() matches exactly.
     "Flash Gitz": "Flash GItz",
     "Battlewagon": "Ork Battle Wagon",
+    # The user's own art, named after each datasheet (Mecha Orks stage G1). No
+    # substring hazard among them: none of these names contains another key.
+    # The Weirdboy takes "Weirdboy.png", dropped in beside the older
+    # "Wurrboy.png" - the file named for the datasheet wins, and "Wurrboy" is
+    # the Kill Rig's psyker, not a datasheet here.
+    "Bigboss": "Bigboss",
+    "Weirdboy": "Weirdboy",
+    "Gunwagon": "Gunwagon",
+    # The Painboy's art arrived with them; the datasheet had none until then.
+    "Painboy": "Painboy",
 
     # --- Necrons ---
     # The folder wins wherever it disagrees with the datasheet, the same

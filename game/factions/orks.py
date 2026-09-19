@@ -6,14 +6,13 @@ game/riled_up.py and War Cry in game/war_cry.py - a prompt for a human at the
 start of every Command phase until used, a deterministic verdict for the AI
 (ai/agent_driver.py's war_cry_verdict()). The old user-supplied Waaagh! and its
 WaaaghController are retired; see game/waaagh.py's docstring for what went
-with them. Detachment rule
-is still to come (user announcement, not yet supplied). This module
-currently holds sixteen datasheets: Boyz, Warbikers, Stormboyz, Trukk,
-Gretchin, Warboss, Meganobz, Warboss in Mega Armour, Tankbustas,
-Deffkoptas, Deff Dread, Beast Snagga Boyz, Beastboss, Kill Rig, Flash Gitz,
-Battlewagon - every
-one of their UnitProfile classes sets `waaagh = True` (user: "ALLE bisher
-angelegten Ork einheiten haben die Waaagh! ability").
+with them. This module holds twenty datasheets: Boyz, Warbikers,
+Stormboyz, Trukk, Gretchin, Warboss, Meganobz, Warboss in Mega Armour,
+Tankbustas, Deffkoptas, Deff Dread, Beast Snagga Boyz, Beastboss, Painboy,
+Kill Rig, Flash Gitz, Battlewagon, and the three the Mecha Orks list added
+(Bigboss, Weirdboy, Gunwagon) - every one of their UnitProfile classes sets
+`waaagh = True` (user: "ALLE bisher angelegten Ork einheiten haben die
+Waaagh! ability").
 
 Beast Snagga Boyz (2026-09 codex) carry this module's first HUNTER weapon:
 the Choppa prints a Standard and a Hunter profile (rule 04.01.03), the Hunter
@@ -88,6 +87,18 @@ per battle (game/crude_surgery.py). The user-supplied Grot Orderly, Dok's
 Toolz' Feel No Pain and Hold Still and Say 'Aargh!' are gone with the
 pre-codex sheet.
 
+Three datasheets built for the user's Mecha Orks list (stage G1). The Bigboss
+is a SUPPORT of Boyz, Breaka Boyz and Nobz - a mob takes a Warboss AND a Bigboss
+- with Sumfin' to Prove (game/sumfin_to_prove.py: +1 to hit on the unit's melee
+attacks). The Weirdboy is a SUPPORT of Beast Snagga Boyz and Boyz and a psyker
+level 1: Da Jump (game/da_jump.py - a psychic roll places his unit in Strategic
+Reserves with Deep Strike) and HIS Warpath (game/weirdboy_warpath.py - the Kill
+Rig's frame, but a re-roll of wound 1s and [PSYCHIC]; one name, two effects).
+The Gunwagon is the Battlewagon's gun variant: a two-profile Kannon swappable for
+a Killkannon or a (priced) Zzap Gun, four free additions, Mobile Arsenal
+(game/mobile_arsenal.py: re-roll hit rolls of 1 in your Shooting phase) and a
+12-model transport.
+
 Tankbustas (2026-09 codex) are a Nob and five Tankbustas; the Busta Rokkit
 Launcha and the Smash Hammer each print a Standard and a Hunter profile. All
 three abilities are engine-wired: Rokkit Barrage (game/rokkit_barrage.py, a
@@ -128,7 +139,7 @@ from game.factions.orks_points import ORKS_POINTS
 from game.units import (
     BattlewagonProfile, BeastbossProfile, FlashGitzKaptinProfile, FlashGitzProfile, KillRigProfile,
     BeastSnaggaBoyProfile, BeastSnaggaNobProfile, BikerNobProfile, BoyzNobProfile, BoyzProfile,
-    DeffDreadProfile, DeffkoptaProfile, GretchinProfile,
+    BigbossProfile, DeffDreadProfile, DeffkoptaProfile, GretchinProfile, GunwagonProfile, WeirdboyProfile,
     MeganobzProfile, PainboyProfile, StormboyProfile, StormboyzNobProfile, TankbustaNobProfile,
     TankbustaProfile, TrukkProfile, WarbikerProfile, WarbossMegaArmourProfile, WarbossProfile,
 )
@@ -154,6 +165,9 @@ from game.weapons import (
     DeffkoptaRokkitLaunchaBlastaProfile, DreadKlawsProfile, DualBigShootaProfile, DualDakkagunProfile,
     DualKombiRokkitDakkagunProfile, ExtraKlawProfile, GrabbinKlawProfile, KustomMegaBlastaProfile,
     SkorchaProfile, SpikedRamProfile, SpinninBladesProfile, WreckinBallProfile,
+    # Mecha Orks stage G1 - Bigboss, Weirdboy, Gunwagon
+    BigbossBigChoppaProfile, CopperStaffProfile, GunwagonCrushinBulkProfile, KannonFragProfile,
+    KillkannonProfile, LobbaProfile, PowerVomitProfile, ZzapGunProfile,
 )
 
 ORKS = Faction("Orks", "ORKS")
@@ -789,5 +803,104 @@ BATTLEWAGON = ORKS.add_datasheet(Datasheet(
 # Damaged 6, Deadly Demise D6 and Firing Deck 11 are generic fields. The
 # pre-codex Ramshackle but Rugged, 'Ard Case, Zzap Gun and Killkannon clause
 # are gone. GHAZGHKULL THRAKA taking 4 slots is not modeled (no such datasheet).
+
+_BIGBOSS_LOADOUT = [BigbossBigChoppaProfile, SluggaProfile]
+
+BIGBOSS = ORKS.add_datasheet(Datasheet(
+    "Bigboss",
+    keywords=("INFANTRY", "CHARACTER"),
+    # 2026-09 codex (rules/orks/Bigboss.md): 1 model with a Big Choppa and a
+    # Slugga, no wargear options. SUPPORT (Boyz, Breaka Boyz, Nobz).
+    model_lines=[
+        ModelLine(BigbossProfile, 1, _BIGBOSS_LOADOUT, name="Bigboss"),
+    ],
+    points=ORKS_POINTS["Bigboss"],
+    abilities_text=[
+        "Sumfin' to Prove: This unit's melee attacks have +1 to hit rolls.",
+    ],
+))
+# Sumfin' to Prove is engine-wired (game/sumfin_to_prove.py, in
+# FightController's hit modifiers only - "melee").
+
+_WEIRDBOY_LOADOUT = [PowerVomitProfile, CopperStaffProfile]
+
+WEIRDBOY = ORKS.add_datasheet(Datasheet(
+    "Weirdboy",
+    keywords=("INFANTRY", "CHARACTER", "PSYKER"),
+    # 2026-09 codex (rules/orks/Weirdboy.md): 1 model with a Power Vomit and a
+    # Copper Staff, no wargear options. SUPPORT (Beast Snagga Boyz, Boyz). NOT
+    # BEAST SNAGGA - a mob he supports does not fit a Kill Rig.
+    model_lines=[
+        ModelLine(WeirdboyProfile, 1, _WEIRDBOY_LOADOUT, name="Weirdboy"),
+    ],
+    points=ORKS_POINTS["Weirdboy"],
+    abilities_text=[
+        "Da Jump (psychic level 1, once per army, per battle round): In your Movement phase, if this unit is "
+        "not battle-shocked, you can make a psychic roll for this unit by rolling one D6. If you do: On a 1, "
+        "this unit is battle-shocked. Place this unit in strategic reserves. This unit has Deep Strike.",
+        "Warpath (psychic level 1): In the Fight phase, when this unit is selected to fight, if this unit is "
+        "not battle-shocked, you can make a psychic roll for this unit by rolling one D6. If you do: On a 1, "
+        "this unit is battle-shocked. This unit's melee attacks can re-roll wound rolls of 1. This unit's "
+        "melee attacks have [Psychic].",
+        "Waaagh! Energy (psyker level 1): This model has the psychic abilities listed in the Psychic "
+        "Abilities section (see above).",
+    ],
+))
+# Both psychic abilities are engine-wired through the Kill Rig's psychic roll
+# (game/psychic_roll.py) and one shared psyker level: Da Jump (game/da_jump.py,
+# a panel button in your Movement phase) and Warpath (game/weirdboy_warpath.py,
+# offered in FightController._start_fighting()). Deadly Demise D3 is a generic
+# field.
+
+_GUNWAGON_LOADOUT = [GunwagonCrushinBulkProfile, KannonFragProfile]
+
+GUNWAGON_ADD_WRECKIN_BALL = "+ Wreckin' Ball"
+GUNWAGON_ADD_GRABBIN_KLAW = "+ Grabbin' Klaw"
+GUNWAGON_ADD_LOBBA = "+ Lobba"
+GUNWAGON_ADD_BIG_SHOOTAS = "+ 4x Big Shoota"
+GUNWAGON_KANNON_TO_KILLKANNON = "Kannon -> Killkannon"
+GUNWAGON_KANNON_TO_ZZAP_GUN = "Kannon -> Zzap Gun"
+
+GUNWAGON = ORKS.add_datasheet(Datasheet(
+    "Gunwagon",
+    keywords=("VEHICLE", "FRAME", "TRANSPORT", "WAGON"),
+    model_lines=[
+        ModelLine(GunwagonProfile, 1, _GUNWAGON_LOADOUT, name="Gunwagon"),
+    ],
+    # 2026-09 codex (rules/orks/Gunwagon.md), the printed Wargear Options in
+    # order: four ADDITIONS beside the Crushin' Bulk and the Kannon, then "This
+    # model's Kannon can be replaced with one of the following: 1 Killkannon / 1
+    # Zzap Gun" - two options giving up the same weapon, so they share
+    # build_squad()'s cursor, which on a one-model line is "one of" exactly. Only
+    # the Zzap Gun is priced ("per Zzap Gun 10").
+    # KNOWN LIMITATION, the Battlewagon's: "up to 4 Big Shoota" is offered as the
+    # four at once - a WargearOption counts models, and this line has one.
+    wargear_options=[
+        WargearOption("Gunwagon", replaces=None, with_weapons=[WreckinBallProfile], max_models=1,
+                      name=GUNWAGON_ADD_WRECKIN_BALL),
+        WargearOption("Gunwagon", replaces=None, with_weapons=[GrabbinKlawProfile], max_models=1,
+                      name=GUNWAGON_ADD_GRABBIN_KLAW),
+        WargearOption("Gunwagon", replaces=None, with_weapons=[LobbaProfile], max_models=1,
+                      name=GUNWAGON_ADD_LOBBA),
+        WargearOption("Gunwagon", replaces=None, with_weapons=[BigShootaS5Profile] * 4, max_models=1,
+                      name=GUNWAGON_ADD_BIG_SHOOTAS),
+        WargearOption("Gunwagon", replaces=KannonFragProfile, with_weapons=[KillkannonProfile], max_models=1,
+                      name=GUNWAGON_KANNON_TO_KILLKANNON),
+        WargearOption("Gunwagon", replaces=KannonFragProfile, with_weapons=[ZzapGunProfile], max_models=1,
+                      name=GUNWAGON_KANNON_TO_ZZAP_GUN,
+                      points=ORKS_POINTS["Gunwagon"].wargear["Zzap Gun"]),
+    ],
+    points=ORKS_POINTS["Gunwagon"],
+    abilities_text=[
+        "Mobile Arsenal: In your Shooting phase, this unit's ranged attacks can re-roll hit rolls of 1.",
+        "Transport: This model has a transport capacity of 12 ORKS INFANTRY models. Each MEGA ARMOUR/JUMP "
+        "PACK model takes up the space of 2 models. Each GHAZGHKULL THRAKA model takes up the space of 4 "
+        "models.",
+    ],
+))
+# Mobile Arsenal is engine-wired (game/mobile_arsenal.py, in ShootingController's
+# automatic re-roll of 1s). Damaged 6 and Deadly Demise D6 are generic fields; the
+# Gunwagon prints no Firing Deck and no Mobile Fortress. GHAZGHKULL THRAKA taking 4
+# slots is not modeled (no such datasheet yet).
 
 register_faction(ORKS)

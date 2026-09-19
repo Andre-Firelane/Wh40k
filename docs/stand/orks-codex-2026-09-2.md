@@ -243,3 +243,106 @@ Lesen, ein `advance_turn_phase()` und der `_handle_fight()`-Aufruf. **Der Zugend
 Uhr**, nicht den nächsten Besitzer: war der gestellte Zug in Wahrheit Player 2s zweiter der Runde,
 gehört der nächste wieder Player 1 - so ist die erste Fassung der Prüfung in einem von drei Läufen
 fälschlich rot geworden.
+
+## Mecha Orks G1: Bigboss, Weirdboy, Gunwagon (2026-09-19)
+
+Plan: `C:\Users\Andre\.claude\plans\mecha-orks.md` (die App-Liste des Users spielbar machen, G1–G6).
+Gedruckter Text in `rules/orks/Bigboss.md`, `Weirdboy.md`, `Gunwagon.md` (per `--only` in derselben
+Sitzung geschrieben), jedes Modul trägt ihn im Docstring. `armies/orks.json` ist UNVERÄNDERT — die
+Liste wird erst in G6 ersetzt; bis dahin fieldet keine Liste die drei Blätter (dormant by roster).
+
+**Datenblätter:**
+- **Bigboss** (50, vorher App-Stand 55 als LEADER): jetzt **SUPPORT** für Boyz/Breaka Boyz/Nobz — ein
+  Mob nimmt Warboss UND Bigboss (19.01). M6 T5 Sv4+ W5, WS3+/BS5+. Eigene **Big Choppa** (A5 AP-2 D2
+  [PRECISION]) — gleicher Name, andere Zahlen als die des Boyz-Nobs (A4 AP-1 [CLEAVE 2]).
+- **Weirdboy** (65): SUPPORT für Beast Snagga Boyz und Boyz, 50 mm, INFANTRY CHARACTER PSYKER — **kein
+  BEAST SNAGGA**, eine Beast-Snagga-Einheit MIT ihm passt nicht mehr in den Kill Rig (gepinnt).
+  Deadly Demise D3, psyker level 1 („Waaagh! Energy"); Power Vomit (TORRENT, kein BS nötig), Copper
+  Staff ([PSYCHIC] auf der Waffe).
+- **Gunwagon** (150/160, Zzap Gun +10): M10 T12 Sv3+ W16 OC5 InSv 6+, Damaged 6, Deadly Demise D6 —
+  **kein** Firing Deck und **keine** Mobile Fortress (beides Battlewagon). Transport 12 ORKS INFANTRY
+  mit den Battlewagon-Sätzen, `transport._model_capacity_cost()` ist dafür exakt. Kannon als
+  Zweiprofil (Frag → Shell, D6+1), Killkannon/Zzap Gun als „one of" (teilen den Cursor), vier
+  kostenlose Zusätze („up to 4 Big Shoota" als alle vier — die Battlewagon-Grenze). **BS:** das
+  Modell trägt die 5+ der Big Shoota (`BigShootaS5Profile` bleibt die eine Klasse für Battlewagon,
+  Deff Dread und Gunwagon), die vier Kanonen tragen ihre 4+ auf der Waffe. Crushin' Bulk druckt
+  hier [CLEAVE 2] → `GunwagonCrushinBulkProfile`.
+- **Benannte Basen:** beide drucken „Use model" — Gunwagon 2.1" (die Battlewagon-Entscheidung des
+  Users übernommen), Bigboss 40 mm (die gedruckte Warboss-Base). `verify_rules_vs_engine.py` bleibt 68.
+- **Punkte:** Bigboss/Weirdboy als `supports=` mit Codex-Preis, Gunwagon neu (fehlte im App-Export
+  vom Juli). Der App-Eintrag „Wurrboy" hat kein Codex-Blatt und bleibt wie jeder ungebaute Eintrag.
+- **Sprites:** Bigboss, Gunwagon, **Weirdboy.png** (vom User neben dem älteren Wurrboy.png abgelegt;
+  die namentlich passende Datei gewinnt, „Wurrboy" ist der Psyker des Kill Rig) und der **Painboy**,
+  der bis dahin keine Kunst hatte. `test_token_base_fill.py` nimmt deshalb The Visarch (gleiche
+  0.63"-Base) als kunstlosen Fall.
+
+| Fähigkeit | Träger | Modul | Naht |
+|---|---|---|---|
+| Sumfin' to Prove | Bigboss | `sumfin_to_prove.py` | +1 Hit NUR in `FightController._hit_modifiers()` („melee"), 19.04 komponentenweise |
+| Warpath (Weirdboy) | Weirdboy | `weirdboy_warpath.py` | Unterklasse des parametrisierten `WarpathController`, eigener Slot `FightController(weirdboy_warpath=)`; [PSYCHIC] in der Kette, Wund-1er in `_wound_without_optional_reroll()` |
+| Da Jump | Weirdboy | `da_jump.py` | Registry-Knopf ohne CP, psychischer Wurf, `withdraw_to_reserves()`, `Squad.da_jump_deep_strike` in `IngressController._has_deep_strike()` |
+| Mobile Arsenal | Gunwagon | `mobile_arsenal.py` | automatische Hit-1er in `ShootingController._hit_step()`, nie reaktiv |
+
+- **Ein Name, zwei Wirkungen (Fehlerklasse 11):** Kill Rig und Weirdboy drucken beide „Warpath" mit
+  demselben Rahmen und verschiedener Wirkung. Der RAHMEN ist geteilt — `WarpathController` trägt
+  jetzt drei Klassenattribute (`ABILITY_FLAG`, `ACTIVE_FLAG`, `EFFECT_TEXT`), alle Sondenanker des
+  Kill-Rig-Treibers blieben stehen und beißen weiter (14/14) —, die Wirkung hat eigenes Flag und
+  eigenes Modul. Das Budget (psyker level 1) teilt der Weirdboy zwischen Warpath und Da Jump.
+- **Da Jump (Lesarten):** der Effekt kommt bei JEDEM Wurf, eine 1 schockt zusätzlich (Kill-Rig-
+  Lesart des Rahmens). Die Einheit kommt über die gewöhnliche Ingress zurück — ab Runde 2 in
+  derselben Phase, das ist die Engine-Lesart der Strategic Reserves, nichts Eigenes. Deep Strike
+  ohne Ende (Squad-Flag, gespeichert). Einziges Nicht-Text-Tor: nicht mitten im eigenen Zug
+  (`move_start`). Nach einer Bewegung oder engaged ist er erlaubt — der Text verbietet es nicht.
+  „Once per army, per battle round" über `PerArmyRoundLimit` (`Squad.da_jump_round`), die Auswahl
+  wird nach dem Sprung geleert (sonst böte das Panel einen Move für Modelle ohne Brett).
+- **KI (0 API-Calls):** Weirdboy-Warpath über den injizierten `warpath_verdict()` (nicht in
+  Objective-Reichweite). Da Jump über `_handle_da_jump()` in `_handle_movement()` VOR dem
+  Ingress-Schritt: Runde ≥ 2, `can_make_move()`, nicht in Objective-Reichweite, nächster Feind jenseits
+  Advance + Charge; unter mehreren die fernste. Die Landung ist `_auto_ingress_squad()`s samt
+  Deep-Strike-Raster.
+- **Nachgezogen:** `test_ork_army_rules.py` (20 Blätter drucken Waaagh!), `test_ork_wargear.py` (Zzap Gun
+  und Lobba sind als GUNWAGON-Zeilen zurück; gepinnt ist jetzt, dass die gewürfelte Stärke und das
+  Battlewagon-Menü weg bleiben), `test_unit_datacard.py` (die breiteste Keyword-Zeile ist jetzt die
+  Zzap Gun mit 546 px statt 346 — die Karte bricht um, gepinnt sind jetzt höchstens zwei Zeilen, die
+  mitgewachsene Zeilenhöhe und beide Zeilen an einer echten Gunwagon-Karte), `test_token_base_fill.py`,
+  `rules/README.md` (Orks 20). Die Gunwagon-Kommentare sind eindeutig gemacht: die kopierte Zeile
+  `damaged_threshold = 6  # CORE: Damaged 6 (rule 24.39)` hatte einen Anker von `ab_ork_vehicles.py`
+  verdoppelt (`--check` über alle Treiber fand es).
+
+**Getestet:** neu `test_ork_mecha_sheets.py` (**138/138**, zehn Abschnitte — Datenblätter gegen die
+Korpus-Keywords, Waffen, Wargear, Anbindung und Transport an 18.01 UND 18.02, Sumfin' durch die echte
+Fight-Kette, Warpath bis in den ECHTEN Wundwurf, Da Jump durch echten Controller, `IngressController`
+und das echte `ActionPanel` in allen fünf Phasen, Mobile Arsenal im echten Hit Roll, die KI, AST-Pins)
+und `ab_ork_mecha_sheets.py` (**62 Sonden, 69 Läufe, alle beißend, kein Rest**). **Acht bissen zuerst
+nicht, alle Befunde über den TEST:** fünf Abstürze (`next()` ohne Default, `attach()` wirft bei einer
+geänderten Paarung — die Szenen binden jetzt mit `force=True`, die Paarungen prüft `can_attach()` —,
+`None.name`, `_resolve_path(None)`), zwei Sonden gegen die Kill-Rig-Suite, die die Weirdboy-Hälfte gar
+nicht sehen kann, und „jede Einheit hat Da Jump", das vom Psyker-Level-Tor VERDECKT war: eine Einheit
+ohne Psyker-Stufe erreicht die Fähigkeitsfrage nie. Die Gegenprobe ist jetzt ein Kill Rig (Stufe 1,
+kein Da Jump). **Der Sondenlauf lief einmal gleichzeitig mit zwei Quell-Sonden einer
+Parallelsitzung auf `game/shooting.py`** (Fehlerklasse 20) — auf deren Hinweis komplett wiederholt, wieder
+62/62, kein Rest. Die Kill-Rig-Sonden auf den umgebauten `warpath.py` beißen weiter (14/14). Volle
+Regression **238 Suiten, ~23213 Prüfungen, 237 grün / 0 rot / 1 bekannt** (darin schon die neue
+`test_roll_modifier_cap.py` der Parallelsitzung, die Sumfin' to Prove als ROLL-Modifikator führt),
+`run_tests.py --smoke` komplett grün. `selfplay.py map2 1500` Orks gegen Necrons in beiden Sitzordnungen
+exit 0. `verify_rules_vs_engine.py` **68** (unverändert), `fetch_datasheet_rules.py --offline` nur mit
+den drei neuen Blättern im README, `measure_crowded_movement.py` unverändert gedrängt
+**62 % / 210.2"**, isoliert **87 % / 292.3"**.
+
+**Im ECHTEN Spiel belegt** (`verify_ork_mecha_sheets.py map2`, Orks als Player 1; 15/15, unter
+`--neutralize` 9/9 Abwesenheitsprüfungen):
+
+| | gefixt | `--neutralize` |
+|---|---|---|
+| Weirdboy-Warpath am Live-`FightController`, Da Jump auf `main()`s Registry | ja, auf `main()`s Wurf/State/Mover/Uhr | nein |
+| KI-Da-Jump über `main()`s Auto-Play | Player-2-Mob 26.7" vom Feind springt, `main()` quittiert, dieselbe Phase landet er wieder (Deep Strike) — 10.3" vom Feind | springt nie |
+| Da Jump auf `main()`s Panel | gezeichnet, gedrückt: Wurf, ganze Einheit in Reserve, Deep Strike, Auswahl geleert, Landung in Brettmitte legal | nie gezeichnet |
+| Weirdboy-Warpath | gefragt, Grant, [PSYCHIC] in der Live-Kette, im echten Wundwurf `Wound Roll re-roll of 1s (Warpath (Weirdboy))` | kein Prompt, kein Re-roll |
+| Sumfin' / Mobile Arsenal an den Live-Controllern | −1 nur im Nahkampf / `Hit Roll re-roll of 1s (Mobile Arsenal)` | nichts |
+| `advance_turn_phase()` | Grant aus C weg | von Hand gestellt, überlebt |
+
+GESTELLT: Orks als Player 1, gebaute Einheiten (die Liste fieldet sie erst ab G6), Runde 2 und die
+Phasen, W6 = 4 für psychische Würfe, erzwungene Treffer/Wunden (Copper Staff 6/1, Kannon 1), damit
+kein Rettungswurf zu verteilen bleibt, der Kampfschritt ohne Pile-in. **F läuft im selben Frame, in
+dem C fertig wird** — die erste Fassung stellte F einen Frame später, selfplay hatte dazwischen „Next
+Phase" geklickt, und die ECHTE Grenze hatte den Grant schon gelöscht.

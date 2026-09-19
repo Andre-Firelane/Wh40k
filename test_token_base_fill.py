@@ -48,7 +48,7 @@ from game.board import Board          # noqa: E402  (needs a display)
 from game import renderer as rmod     # noqa: E402
 from game.renderer import Renderer    # noqa: E402
 from game.factions.aeldari import AVATAR_OF_KHAINE  # noqa: E402
-from game.factions.orks import PAINBOY               # noqa: E402
+from game.factions.aeldari import THE_VISARCH       # noqa: E402
 
 BACKDROP = (255, 0, 255)  # a color nothing in the token draw uses, so any pixel still holding it was left alone
 BOARD = Board(60.0, 44.0, 22.0)
@@ -117,8 +117,10 @@ def ring_present(surface, token):
 
 # --- a model with no art of its own (ring + 2-letter label only) -----------
 
-painboy = token_of(PAINBOY, "Player 2", "2 Painboy 1")
-c.true("the Painboy is the art-less case this covers",
+# The Visarch, on the Painboy's 0.63" base: the Painboy was this case until the
+# user's Painboy.png arrived with the Mecha Orks sheets (stage G1).
+painboy = token_of(THE_VISARCH, "Player 2", "2 The Visarch 1")
+c.true("The Visarch is the art-less case this covers",
        sprites.sprite_for(painboy) is None)
 
 untouched, total = interior(render(painboy), painboy)

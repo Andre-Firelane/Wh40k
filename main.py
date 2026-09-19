@@ -233,6 +233,9 @@ from game import warpath
 from game.beastscent import BeastscentController
 from game.psychic_roll import PsychicRollController
 from game.warpath import WarpathController
+from game import weirdboy_warpath
+from game.weirdboy_warpath import WeirdboyWarpathController
+from game.da_jump import DaJumpController
 from game import hand_of_asuryan
 from game import branching_fates
 from game import psychic_communion
@@ -2486,6 +2489,13 @@ def main(map_key=None):
             psychic_roll_controller, decision_manager=decision_manager, game_log=game_log,
             auto_players=ai_players,
             verdict=lambda squad: warpath_verdict(state, squad)),
+        # The Weirdboy's Warpath - the same frame and instant, its own effect
+        # (a re-roll of wound 1s and [PSYCHIC]). The AI answers with the Kill
+        # Rig's verdict: roll unless a 1 would cost an objective.
+        weirdboy_warpath=WeirdboyWarpathController(
+            psychic_roll_controller, decision_manager=decision_manager, game_log=game_log,
+            auto_players=ai_players,
+            verdict=lambda squad: warpath_verdict(state, squad)),
     )
 
     # Placed AFTER fight_controller: Experimental Modifications takes it for
@@ -3135,6 +3145,12 @@ def main(map_key=None):
         game_log=game_log))
     da_boss_controller = proactive_stratagems.add(DaBossIsWatchinController(
         turn_tracker=turn_tracker, squads_provider=state.all_squads, game_log=game_log))
+    # The Weirdboy's Da Jump: a panel button in your Movement phase (no CP), a
+    # psychic roll on main()'s one roll controller, and Strategic Reserves with
+    # Deep Strike. The AI's handler is ai/agent_driver.py's _handle_da_jump().
+    da_jump_controller = proactive_stratagems.add(DaJumpController(
+        psychic_roll_controller, game_state=state, movement_controller=movement_controller,
+        turn_tracker=turn_tracker, game_log=game_log, squads_provider=state.all_squads))
     # The Warbosses' Intimidating Motivation and the Beastboss's Keep Huntin'!
     # (game/boss_motivation.py): panel buttons for a human while the start or
     # end window of the bearer's move is open, and the two move hooks for the
@@ -4286,6 +4302,8 @@ def main(map_key=None):
         nova_charge_controller.reset_phase({t.squad for t in state.tokens if t.squad is not None})
         # The Kill Rig's Warpath: a grant for the phase the unit fought in.
         warpath.reset_phase({t.squad for t in state.tokens if t.squad is not None})
+        # ...and the Weirdboy's, the same lifetime.
+        weirdboy_warpath.reset_phase({t.squad for t in state.tokens if t.squad is not None})
         # The Tankbustas' Pulsa Rokkit: its mark lasts the phase.
         pulsa_rokkit_controller.reset_phase()
         # Boyz' Ammo Runts and Stormboyz' Rokkit Charge: phase grants. Ammo
@@ -5670,6 +5688,8 @@ def main(map_key=None):
             close_range_dakka_controller=close_range_dakka_controller,
             hit_em_harder_controller=hit_em_harder_controller, mow_em_down_controller=mow_em_down_controller,
             breakin_heads_controller=breakin_heads_controller,
+            # The Weirdboy's Da Jump, a panel button with a deterministic handler.
+            da_jump_controller=da_jump_controller,
             # The one list of controllers that can wait for a model click, so
             # the AI answers an allocation it OWNS from every one of them - not
             # just the twelve take_one_action() names by hand.

@@ -1,6 +1,7 @@
 from game.homing_beacon import HOMING_BEACON_MIN_ENEMY_DISTANCE_IN, HOMING_BEACON_RANGE_IN
 from game import tunnelling_horrors
 from game import obelisk_node_control, unshrouded_truth
+from game import da_jump
 from game.squad import edge_distance
 from game import eternity_gate, ride_the_wind
 
@@ -203,6 +204,10 @@ class IngressController:
         not subject to the every-model test - the datasheet ability is what that
         test is about."""
         if unshrouded_truth.applies(squad):
+            return True
+        # The Weirdboy's Da Jump: "This unit has Deep Strike" - a unit-level
+        # grant too, and one with no end (game/da_jump.py).
+        if da_jump.grants_deep_strike(squad):
             return True
         return all(m.profile.deep_strike for m in squad.models)
 

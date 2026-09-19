@@ -40,14 +40,15 @@ the Hit ROLL, the other improves the CHARACTERISTIC. They are kept as two
 flags (`psychic_guidance` and `psychic_guidance_characteristics`) and two
 predicates, because they are two printed effects.
 
-WHY THE WRAITHLORD'S HALF IS STILL IMPLEMENTED AS A -1 MODIFIER: in this engine
-every skill is a threshold and game/modifiers.py adjusts thresholds, so
-"improve the characteristic by 1" and "add 1 to the roll" land on the same
-number. The one place they could diverge is an "ignore Hit roll modifiers"
-effect (24.29, and the Weapon Support System) - and both of those filters drop
-only WORSENING modifiers and keep improving ones, so an improvement survives
-them either way. The two readings therefore cannot produce a different result
-here; the distinction is preserved in the flags rather than in the arithmetic.
+THE TWO HALVES ARE TWO KINDS OF MODIFIER, and they DO diverge: both are a -1
+on the hit threshold, but the Wraithguard's is kind ROLL and the Wraithlord's
+is kind CHARACTERISTIC (game/modifiers.py). Every ROLL modifier on an attack is
+summed and capped at +/-1, a CHARACTERISTIC one is not. Under two -1 to hit
+maluses on a base 3+: the Wraithlord's improved 2+ takes the capped +1 and
+hits on a 3+; the Wraithguard's +1 to the roll is summed WITH the maluses
+(net -1) and it hits on a 4+. An "ignore Hit roll modifiers" filter (24.29,
+the Weapon Support System) still treats them alike: it drops only WORSENING
+entries of either kind, and both halves improve.
 
 "FRIENDLY" is same-owner, and AELDARI is read off the datasheet's FACTION
 rather than its keyword line: game/factions/aeldari.py deliberately does not

@@ -130,7 +130,8 @@ for _keyword, _faction in sorted(FACTIONS.items()):
                 _ue_wrong.append(_name)
 c.true("the sweep read every faction's sheets (%d)" % _checked, _checked > 100)
 c.eq("every datasheet's waaagh flag matches its printed FACTION line", _waaagh_wrong, [])
-c.eq("all 17 built Ork sheets print Waaagh!", len(_ork_printed), 17)
+# 17 codex sheets, plus the Bigboss, Weirdboy and Gunwagon of the Mecha Orks list.
+c.eq("all 20 built Ork sheets print Waaagh!", len(_ork_printed), 20)
 c.eq("...and every Ork psyker level matches a printed Unstable Energies", _ue_wrong, [])
 
 

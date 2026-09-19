@@ -9,7 +9,7 @@ from game.damage_resolution import DamageAllocationSession, DevastatingWoundAllo
 from game.hazard import hazard_failures, hazard_mortal_wounds
 from game.dice import ATTACKS_ROLL, HIT_ROLL, SAVE_ROLL, SNAP_SHOT_HIT_ROLL, WOUND_ROLL
 from game.dice_notation import DiceNotation, DiceNotationRoll, describe as describe_dice_notation
-from game.modifiers import Modifier, apply_modifiers, describe_modifiers, for_display
+from game.modifiers import CHARACTERISTIC, Modifier, apply_modifiers, describe_modifiers, for_display
 from game import roll_choice
 from game.objectives import is_on_objective
 from game.arrokon_protocol import arrokon_adjusted_weapon
@@ -41,7 +41,7 @@ from game import structural_collapse
 from game.bladestorm import bladestorm_adjusted_weapon
 from game import crit_ap
 from game import fate_inescapable
-from game import boss_ammo_runt, dodge_dis, finderz_keeperz, ork_ammo_runts
+from game import boss_ammo_runt, dodge_dis, finderz_keeperz, mobile_arsenal, ork_ammo_runts
 from game.nova_charge import nova_charge_adjusted_weapon
 from game import damaged_attacks, triarch_auras
 from game import awakened_dynasty, destroyer_cult, nekrosor_ammentar, dlc_mortarions_teachings, exemplars_of_montka, gift_of_contagion, hovering_death, miasma_of_pestilence, protocol_conquering_tyrant, protocol_sudden_storm, guardian_protocols, implacable_eradication, mechanical_augmentation, overwhelming_obliteration, plagues, reroll_scope, sunforge, target_uploaded, way_of_the_short_blade
@@ -2717,6 +2717,9 @@ class ShootingController:
         Cover both "worsen the [hit] characteristic by 1" (i.e. +1 to the
         threshold, since lower is better for BS); rule 24.16's [HEAVY]
         "add 1 to the hit roll" is the opposite - a -1 to the threshold.
+        The first two are CHARACTERISTIC modifiers and the third a ROLL
+        modifier: apply_modifiers() caps the ROLL ones at +/-1 as a sum and
+        leaves the characteristic ones whole (game/modifiers.py).
         Rule 15.09 (Snap Shooting) ignores every one of these: "irrespective
         of... any modifiers"."""
         if self.shooting_type == SNAP_SHOOTING:
@@ -2767,10 +2770,10 @@ class ShootingController:
         # The Wraithlord prints the same ability NAME with the other half:
         # "improve the Ballistic Skill and Weapon Skill characteristics of
         # weapons equipped by this model by 1". Separate flag, separate
-        # predicate, same arithmetic - see game/psychic_guidance.py for why
-        # the two readings cannot diverge in this engine.
+        # predicate, and a CHARACTERISTIC modifier rather than a roll one -
+        # outside the +/-1 cap, see game/psychic_guidance.py.
         if psychic_guidance.applies_characteristics(self.active_squad, self.all_tokens):
-            modifiers.append(Modifier(-1, "Psychic Guidance"))
+            modifiers.append(Modifier(-1, "Psychic Guidance", CHARACTERISTIC))
         # The Farseer's Guide: "each time a friendly AELDARI model makes an
         # attack that targets that enemy unit, add 1 to the Hit roll" - a
         # bonus, so a -1 on the threshold. Army-wide, not unit-wide, which
@@ -2787,9 +2790,9 @@ class ShootingController:
             # plainly IS one sends the next investigation back to the board.
             targets_engaged_unit = self.active_squad.is_engaged_with(target_squad)
             if not is_close_quarters(weapon, self.active_squad):
-                modifiers.append(Modifier(1, "Close-Quarters (non-[CLOSE-QUARTERS] weapon)"))
+                modifiers.append(Modifier(1, "Close-Quarters (non-[CLOSE-QUARTERS] weapon)", CHARACTERISTIC))
             elif not targets_engaged_unit:
-                modifiers.append(Modifier(1, "Close-Quarters (target not engaged with this unit)"))
+                modifiers.append(Modifier(1, "Close-Quarters (target not engaged with this unit)", CHARACTERISTIC))
         # Strike Team's Suppression Volley ability (user-supplied, not a
         # core rule): "each time a model in that [suppressed] unit makes an
         # attack, subtract 1 from the Hit roll" - checked against the
@@ -2810,21 +2813,21 @@ class ShootingController:
         # sub-group by the time this runs (see _dispatch_group()), so this
         # is now an exact per-model result, not an approximation.
         if not self._cover_ignored_for_group(weapon, target_squad) and self._has_benefit_of_cover(shooter_model, target_squad):
-            modifiers.append(Modifier(1, "Benefit of Cover"))
+            modifiers.append(Modifier(1, "Benefit of Cover", CHARACTERISTIC))
         if weapon.heavy and self._heavy_bonus_applies():
             modifiers.append(Modifier(-1, "[HEAVY] (stationary)"))
         if guided:
             # "improve the Ballistic Skill characteristic of that attack by
             # 1" - a better BS is a LOWER threshold, so -1 per this file's
             # Modifier convention (see [HEAVY] above).
-            modifiers.append(Modifier(-1, "For the Greater Good (Guided)"))
+            modifiers.append(Modifier(-1, "For the Greater Good (Guided)", CHARACTERISTIC))
         elif target_uploaded.applies(self.greater_good, self.active_squad, target_squad):
             # Pathfinder Team's Target Uploaded - the same "+1 BS" the
             # Guided branch above gives, for the case Guided structurally
             # cannot cover: an Observer unit shooting the target it marked
             # itself. `elif` rather than a second `if` so the two can never
             # stack into -2; see game/target_uploaded.py.
-            modifiers.append(Modifier(-1, "Target Uploaded"))
+            modifiers.append(Modifier(-1, "Target Uploaded", CHARACTERISTIC))
         modifiers.extend(tank_hunters_modifiers(shooter_model, target_squad))
         # Warhost's Lightning-Fast Reactions - DEFENDER-side, like Guardian
         # Drone above: a penalty on the attacker's Hit roll because of
@@ -2897,7 +2900,7 @@ class ShootingController:
         # stays true by construction.
         if kauyon_coordinate_to_engage.applies(
                 self.greater_good, self.active_squad, target_squad):
-            modifiers.append(Modifier(-1, "Coordinate to Engage"))
+            modifiers.append(Modifier(-1, "Coordinate to Engage", CHARACTERISTIC))
         if kauyon.hit_modifiers_ignored(
                 self.active_squad, target_squad, self.turn_tracker, self.greater_good):
             modifiers = [m for m in modifiers if m.amount <= 0]
@@ -4397,6 +4400,9 @@ class ShootingController:
         # which drives the failures-or-whole offer this text never gives.
         stars_aura = triarch_auras.is_active(
             self.active_squad, triarch_auras.PHAERON_OF_THE_STARS)
+        # The Gunwagon's Mobile Arsenal: "in your Shooting phase ... can re-roll
+        # hit rolls of 1" - plain automatic 1s, never on a reactive activation.
+        arsenal_ones = mobile_arsenal.applies(self.active_squad, reactive=self._reactive)
         automatic_ones = ones and not ones_or_whole_choice and (
             self._forward_observers_applies(target_squad)
             or swift_demise.applies(self.active_squad)
@@ -4409,6 +4415,7 @@ class ShootingController:
             or reavers_ones
             or warrior_hit_ones
             or stars_aura
+            or arsenal_ones
         )
         if automatic_ones:
             if self._forward_observers_applies(target_squad):
@@ -4426,6 +4433,8 @@ class ShootingController:
             elif stars_aura:
                 ones_reason = triarch_auras.TRIARCH_ABILITY_NAMES[
                     triarch_auras.PHAERON_OF_THE_STARS]
+            elif arsenal_ones:
+                ones_reason = mobile_arsenal.MOBILE_ARSENAL_LABEL
             elif swift_demise.applies(self.active_squad):
                 ones_reason = swift_demise.SWIFT_DEMISE_LABEL
             elif hard_wired:

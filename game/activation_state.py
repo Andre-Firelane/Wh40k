@@ -135,6 +135,12 @@ SQUAD_FLAGS = (
     # (the turn, on the disembarked unit).
     "warpath_active",
     "beastscent_active",
+    # The Weirdboy (Mecha Orks G1): his Warpath's phase grant, Da Jump's Deep
+    # Strike (no end - a unit in reserves must keep it through a save) and the
+    # battle round Da Jump was used in (once per battle round per army).
+    "weirdboy_warpath_active",
+    "da_jump_deep_strike",
+    "da_jump_round",
     # The Tankbustas' Bomb Squigs: tokens spent and the turn of the last use.
     "bomb_squigs_used",
     "bomb_squigs_turn",

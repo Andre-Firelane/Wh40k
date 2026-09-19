@@ -6415,6 +6415,9 @@ def _take_one_action(
     # Fight phase. Breakin' Heads is here for deadly_vectors_controller's reason.
     da_boss_controller=None, fungus_fuel_controller=None, close_range_dakka_controller=None,
     hit_em_harder_controller=None, mow_em_down_controller=None, breakin_heads_controller=None,
+    # The Weirdboy's Da Jump (Mecha Orks G1): a panel button with a
+    # deterministic Movement-phase handler. Appended.
+    da_jump_controller=None,
     # main.py's ONE list of controllers that can be waiting for a model click
     # (game/damage_pick.py). The hand-picked list below answers the AI's OWN
     # rule 06.02 allocations for twelve controllers, and every other carrier
@@ -6685,6 +6688,7 @@ def _take_one_action(
             shooting_controller=shooting_controller,
             cosmic_precision_controller=cosmic_precision_controller,
             da_boss_controller=da_boss_controller, fungus_fuel_controller=fungus_fuel_controller,
+            da_jump_controller=da_jump_controller,
         )
     elif phase == PHASE_SHOOTING:
         acted = _handle_shooting(
@@ -8686,6 +8690,50 @@ def _handle_da_boss(player, all_tokens, da_boss_controller, game_log=None):
     return True
 
 
+def _handle_da_jump(player, state, movement_controller, da_jump_controller, game_log=None):
+    """The Weirdboy's Da Jump (psychic level 1, no CP, once per army per battle
+    round): a psychic roll puts his unit into Strategic Reserves with Deep Strike,
+    and the Ingress step of this same handler lands it again.
+
+    Jumps a unit only when all of these hold, and among several the one furthest
+    from a fight (it gains the most):
+      * the battle round lets it arrive THIS phase (rule 20.03's round 2) - a
+        unit held in reserves over a turn is a unit that does nothing;
+      * it could make a Normal move - not yet moved, not engaged, not
+        ingress-locked (an engaged unit's Fall Back is its own decision);
+      * it is not within range of an objective - it may be holding it, and a 1
+        on the roll leaves it battle-shocked (OC 0) wherever it lands;
+      * its nearest enemy is beyond an Advance plus a charge - a unit that can
+        reach a fight on foot keeps its turn.
+    The landing is _auto_ingress_squad()'s, Deep Strike grid included."""
+    if da_jump_controller is None or movement_controller is None:
+        return False
+    tt = getattr(da_jump_controller, "turn_tracker", None)
+    if tt is None or (getattr(tt, "battle_round", 0) or 0) < INGRESS_MIN_BATTLE_ROUND:
+        return False
+    all_tokens = state.tokens
+    best = None
+    for squad in sorted(_all_squads(all_tokens), key=lambda s: s.name):
+        if squad.owner != player or not da_jump_controller.can_use(squad):
+            continue
+        if not movement_controller.can_make_move(squad):
+            continue
+        if is_within_range_of_objective(squad, getattr(state, "objectives", None) or []):
+            continue
+        gap = _nearest_enemy_gap(squad, all_tokens)
+        if gap is None or gap <= observation.advance_reach_in(squad) + CHARGE_RANGE_IN:
+            continue
+        if best is None or gap > best[0]:
+            best = (gap, squad)
+    if best is None or not da_jump_controller.use(best[1]):
+        return False
+    if game_log is not None:
+        game_log.add(
+            f"[da jump] {player}: {best[1].name} - {best[0]:.1f}\" from the nearest enemy, beyond an "
+            "Advance and a charge; into Strategic Reserves with Deep Strike.", file_only=True)
+    return True
+
+
 def _handle_fungus_fuel(player, all_tokens, fungus_fuel_controller, game_log=None):
     """Fungus-Fuel Injection (1CP): for a unit whose nearest enemy is further
     than its Move and within Move + 2" - exactly the gap the +2" closes."""
@@ -8786,6 +8834,7 @@ def _handle_movement(
     sudden_storm_controller=None, shooting_controller=None,
     cosmic_precision_controller=None,
     da_boss_controller=None, fungus_fuel_controller=None,
+    da_jump_controller=None,
 ):
     all_tokens = state.tokens
 
@@ -8828,6 +8877,10 @@ def _handle_movement(
     if _handle_da_boss(player, all_tokens, da_boss_controller, game_log):
         return True
     if _handle_fungus_fuel(player, all_tokens, fungus_fuel_controller, game_log):
+        return True
+    # The Weirdboy's Da Jump, for the same reason - and BEFORE the Ingress step
+    # below, which is what brings the jumped unit straight back down.
+    if _handle_da_jump(player, state, movement_controller, da_jump_controller, game_log):
         return True
 
     # Resume a Disembark Move already in progress: a Combat/Emergency

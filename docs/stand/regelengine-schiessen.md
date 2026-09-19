@@ -309,3 +309,51 @@ ZÄHLER in `test_arrokon_protocol.py` Abschnitt 8.
   `shooting.py`s `_detectable_models()` jetzt zum Verwechseln ähnlich, deshalb steht die Lücke als
   Kommentar am Aufrufort UND als Testzeile — eine bewusst offene Lücke, die nur ein Kommentar hält,
   ist keine.
+
+## Hit- und Wound-Modifikatoren: ±1-Deckel und 2+-Untergrenze (game/modifiers.py, 2026-09-19)
+
+**Gemeldet:** *"wenn etwas +1 oder -1 auf hit oder wound gibt, dann kann diese modifikation maximal
+1 vom ursprungswert abweichen. es stackt also nicht ... aber modifikatoren können sich gegenseitig
+neutralisieren ... 1+ gibt es nicht, das beste mögliche ist immer 2+"*, und nachgeschoben: *"das
+betrifft hit und wound roll, aber modifikationen auf werte zb. Ballistic Skill werden extra
+behandelt. Zb Cover"*.
+
+- **Vorher:** `apply_modifiers()` summierte schlicht. Zwei -1 auf den Trefferwurf machten aus 3+ ein
+  5+, ein Guided-+1 auf 2+ druckte `needed 1+`. Die AUFLÖSUNG war an der 1 schon richtig
+  (`_resolve_roll()` wertet den rohen Würfel: 1 scheitert, 6 ist kritisch). Falsch war die
+  SCHWELLE, und die lesen Würfelpanel, Log und jede Crit-Regel, die gegen sie vergleicht.
+- **`Modifier.kind`:** `ROLL` ("add/subtract 1 to/from the Hit/Wound roll", "+1 to hit rolls",
+  Default) oder `CHARACTERISTIC` ("improve/worsen the Ballistic Skill characteristic"). Die ROLL-
+  Einträge werden erst summiert (sie heben sich auf) und dann auf ±1 gedeckelt; die CHARACTERISTIC-
+  Einträge zählen voll daneben; das Ergebnis ist nie besser als 2+. Nach oben gibt es keine
+  Grenze: 7+ bleibt stehen, eine unmodifizierte 6 trifft trotzdem.
+- **Die acht Kennwert-Stellen**, alle in `shooting.py`/`fight.py`: Benefit of Cover (13.08), die
+  zwei Close-Quarters-Mali (10.06 — laut Docstring derselbe "worsen the characteristic"-Wortlaut
+  wie Cover; der gedruckte Kernregeltext liegt nicht im Repo), For the Greater Good (Guided),
+  Target Uploaded, Coordinate to Engage und die Wraithlord-Hälfte von Psychic Guidance (Schuss +
+  Nahkampf). Die übrigen 54 Konstruktionen drucken ROLL-Wortlaut, einzeln geprüft.
+- **Psychic Guidance läuft jetzt WIRKLICH auseinander:** der Docstring behauptete, die zwei
+  Lesarten könnten hier kein anderes Ergebnis geben. Mit dem Deckel stimmt das nicht mehr
+  (korrigiert, mit Beispiel).
+- **Anzeige:** das Log hängt `; roll modifiers +2 capped at +1` an, wenn der Deckel greift; das
+  Würfelpanel zeigt die Korrektur als LETZTE Zeile ("+1 (roll modifiers capped at ±1)" unter zwei
+  -1), sonst stünden dort -1, -1 neben einer Schwelle, die sich um eins bewegt hat.
+- **KI-Schätzung:** `damage_estimate.attack_modifiers()` faltet jetzt über dieselben Funktionen,
+  statt `.amount` selbst zu summieren.
+- **Die „Ignore modifiers"-Filter bleiben unverändert** (Riptide/Dark Reapers, Kauyon, Warrior
+  Focus, Weapon Sentinels, [PSYCHIC]): jeder nennt „BS characteristic UND Hit roll“ und wirft die
+  verschlechternden Einträge beider Sorten weg. Das bleibt auch mit Deckel die beste Wahl.
+- **Wächter, `test_roll_modifier_cap.py` §6:** (a) JEDE `Modifier(...)`-Konstruktion in `game/`,
+  `ai/`, `main.py` steht in genau einer von zwei Listen (8 CHARACTERISTIC, 54 ROLL), als
+  Multimengen-Differenz in beide Richtungen: eine neue Stelle wird rot, bis jemand ihren gedruckten
+  Text gelesen hat, und eine entfernte Stelle hinterlässt einen toten Eintrag, der ebenfalls rot
+  wird. (b) Das `.amount` eines Modifikators wird außerhalb von `game/modifiers.py` nur VERGLICHEN
+  (die Filter), nie summiert.
+- **Getestet:** `test_roll_modifier_cap.py` **52/52**: die Beispiele des Users, eine echte Schuss-
+  und eine echte Nahkampfszene mit A/B auf denselben Würfeln (Ghostkeel „Damaged“ + Lightning-Fast
+  Reactions: 5+ statt 6+, die zwei 5er treffen; Kroot in Deckung: 6+, die Deckung zählt voll; Boyz
+  gegen Forewarned + LFR: 4+ statt 5+), die KI-Schätzung und die Wächter. Sechs A/B-Sonden, alle
+  beißen: alte Summe, kein Deckel, keine Untergrenze, „alles ist ROLL“, Cover ohne `kind`, eine von
+  Hand gerollte Summe in einem neuen Modul. Volle Regression 238 Suiten / ~23213 Prüfungen, 237 grün
+  / 0 rot / 1 bekannt; `--smoke` grün inkl. `selfplay.py map2 1500`. Keine bestehende Suite kippte
+  — keine hatte je zwei gleichgerichtete Wurf-Modifikatoren gestapelt.

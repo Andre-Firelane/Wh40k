@@ -147,3 +147,9 @@ passenden Abschnitt hier; ein neuer `##`-Abschnitt braucht eine Zeile im Verzeic
     Shock-Tür), von Beginn an von zwei Fähigkeiten gelesen (Beastscent, Warpath). Die leicht zu
     verfehlende Hälfte: ein ERSETZTER Wurf - der Controller löst mit seiner eigenen Augenzahl auf,
     statt den Würfel eines fremden Wurfs zu lesen.
+    Dann der **`WarpathController`** (Mecha Orks G1) - kein neues Modul, sondern der Rahmen des
+    Kill-Rig-Warpath, parametrisiert (`ABILITY_FLAG`, `ACTIVE_FLAG`, `EFFECT_TEXT`), als der
+    Weirdboy dieselbe Fähigkeit unter demselben Namen mit anderer Wirkung druckte; die Wirkung
+    selbst steht in `game/weirdboy_warpath.py` (Fehlerklasse 11). Die leicht zu verfehlende
+    Hälfte: die ANKER des Kill-Rig-Sondentreibers - der Umbau hat jede sondierte Zeile wörtlich
+    stehen lassen, die 14 Warpath-Sonden beißen weiter.
