@@ -2548,4 +2548,113 @@ for _n in ast.walk(_shooting_tree):
 ck.true("the sweep is live - it found both cover readers (%d)" % _cover_calls, _cover_calls >= 2)
 ck.eq("every one is handed self._adjusted_weapon(...), never the printed weapon", _cover_raw, [])
 
+
+# --- 30. the Save characteristic has ONE reader --------------------------------
+print("--- 30. the Save characteristic is read through game/save_characteristic.py ---")
+# Six places read `armor_save`: the save roll and its panel heading, the
+# allocation order, every AI damage estimate, the AI's observation, its weapon
+# matchup hint and the datacard. The Tomb Blades' Shieldvanes ("the bearer has a
+# 3+ Save characteristic") replaced the value at the save roll ONLY, so the
+# datacard, the AI and the allocation order all read 4+ - and Green Tide's
+# 'Ardboyz (Mecha Orks G3) is the second such override. Every read of the
+# attribute is named here with the reason it may read it directly; a seventh
+# reader has to be added to this list, which is the moment to ask whether it
+# should ask save_characteristic.armour_save() instead.
+_SV_ALLOWED = {
+    ("game/save_characteristic.py", "armour_save"): "the one reader",
+    ("game/units.py", "stat_rows"): "fallback - the datacard passes armour_save()",
+    ("game/damage_estimate.py", "__init__"): "DefenderStats' fallback for a bare profile",
+    ("game/damage_estimate.py", "expected_wounds"): "reads a DefenderStats defender_soak() built",
+    ("game/horde_hit_em_harder.py", "expected_lethal_gain"): "reads a DefenderStats",
+    ("game/court_cynosure_of_eradication.py", "expected_devastating_gain"): "reads a DefenderStats",
+}
+
+
+def _sv_reads(path):
+    tree = ast.parse(io.open(path, encoding="utf-8").read())
+    found = []
+
+    def visit(node, func):
+        for child in ast.iter_child_nodes(node):
+            inner = child.name if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) else func
+            if (isinstance(child, ast.Attribute) and child.attr == "armor_save"
+                    and isinstance(child.ctx, ast.Load)):
+                found.append((func, child.lineno))
+            visit(child, inner)
+    visit(tree, None)
+    return found
+
+
+_sv_seen, _sv_stray = set(), []
+for _dir in ("game", "ai"):
+    for _root, _dirs, _files in os.walk(_dir):
+        for _f in _files:
+            if not _f.endswith(".py"):
+                continue
+            _rel = os.path.join(_root, _f).replace(os.sep, "/")
+            for _func, _line in _sv_reads(os.path.join(_root, _f)):
+                if (_rel, _func) in _SV_ALLOWED:
+                    _sv_seen.add((_rel, _func))
+                else:
+                    _sv_stray.append("%s:%d (%s)" % (_rel, _line, _func))
+ck.eq("the sweep is live - every named reader was found", sorted(set(_SV_ALLOWED) - _sv_seen), [])
+ck.eq("no other module reads armor_save directly", _sv_stray, [])
+
+
+# --- 31. the melee Attacks COUNT reads the adjusted weapon ---------------------
+print("--- 31. the Fight phase counts Attacks off the adjusted weapon ---")
+# Section 27's shape at the one reader it did not cover: the NUMBER of attacks.
+# FightController._begin_resolution() summed the raw pairs' Attacks, so every +A
+# grant in the fight chain - Might Is Right's +3, Rokkit Charge's +1, The Stars
+# Are Right's x3 - lived on the copy each suite checked and never changed the
+# number of dice thrown (measured, Mecha Orks G3: a charged Warboss rolled the
+# same 10 Hit dice as an uncharged one). shooting.py's count site asks Psychic
+# Communion for the same reason.
+_fight_tree = ast.parse(io.open(os.path.join("game", "fight.py"), encoding="utf-8").read())
+_begin = next((n for n in ast.walk(_fight_tree)
+               if isinstance(n, ast.FunctionDef) and n.name == "_begin_resolution"), None)
+_bound = set()
+_count_args, _notation_args = [], []
+for _n in ast.walk(_begin) if _begin is not None else ():
+    if (isinstance(_n, ast.Assign) and isinstance(_n.value, ast.Call)
+            and getattr(_n.value.func, "attr", None) == "_adjusted_weapon"):
+        _bound.update(t.id for t in _n.targets if isinstance(t, ast.Name))
+    if isinstance(_n, ast.Call) and ast.unparse(_n.func) == "damaged_attacks.attacks_for":
+        _count_args.append(ast.unparse(_n.args[1]) if len(_n.args) > 1 else None)
+    if isinstance(_n, ast.Call) and getattr(_n.func, "id", None) == "DiceNotationRoll":
+        _notation_args.append(ast.unparse(_n.args[0]) if _n.args else None)
+ck.true("the sweep is live - _begin_resolution() binds the adjusted weapon (%s)" % sorted(_bound), bool(_bound))
+ck.true("the fixed-Attacks count reads it (%s)" % _count_args,
+        bool(_count_args) and all(a in _bound for a in _count_args))
+ck.true("the dice-notation Attacks roll reads it (%s)" % _notation_args,
+        bool(_notation_args) and all(a is not None and a.split(".")[0] in _bound for a in _notation_args))
+# And the modules that WRITE an Attacks characteristic on a copy - each is either
+# in fight.py's chain (reached by the count above) or at shooting.py's count
+# site. A new one lands here and has to say which.
+_ATTACKS_WRITERS = {
+    "enh_ferocious_show_off.py": "fight chain", "green_tide_unbridled_carnage.py": "fight chain",
+    "might_is_right.py": "fight chain", "rokkit_charge.py": "fight chain",
+    "the_stars_are_right.py": "fight chain", "psychic_communion.py": "shooting.py's count site",
+}
+_writers = set()
+for _f in os.listdir("game"):
+    if not _f.endswith(".py"):
+        continue
+    for _n in ast.walk(ast.parse(io.open(os.path.join("game", _f), encoding="utf-8").read())):
+        if isinstance(_n, ast.Assign) and any(
+                isinstance(t, ast.Attribute) and t.attr in ("attacks", "attacks_notation")
+                and not (isinstance(t.value, ast.Name) and t.value.id == "self") for t in _n.targets):
+            _writers.add(_f)
+ck.eq("every module writing Attacks on a copy is named with the reader that counts it",
+      sorted(_writers), sorted(_ATTACKS_WRITERS))
+_fight_src = io.open(os.path.join("game", "fight.py"), encoding="utf-8").read()
+_shoot_src = io.open(os.path.join("game", "shooting.py"), encoding="utf-8").read()
+for _f, _where in sorted(_ATTACKS_WRITERS.items()):
+    _mod = _f[:-3]
+    if _where == "fight chain":
+        ck.true("%s is in FightController's chain" % _mod, "%s.adjusted_weapon(" % _mod in _fight_src)
+    else:
+        ck.true("%s is at shooting.py's count site" % _mod,
+                "attacks_weapon = psychic_communion.psychic_communion_adjusted_weapon(weapon, pairs)" in _shoot_src)
+
 ck.finish()

@@ -153,6 +153,10 @@ SQUAD_FLAGS = (
     "mow_em_down_active",
     "fungus_fuel_injection_active",
     "close_range_dakka_active",
+    # Green Tide's three Stratagems (Mecha Orks G3), each a paid phase grant.
+    "unbridled_carnage_active",
+    "ere_we_go_active",
+    "mob_mentality_active",
     # The 2026-09 Ork datasheets: Ammo Runts' once-per-battle spend and its
     # phase grant, and Rokkit Charge's grant.
     "ammo_runts_used",

@@ -178,18 +178,10 @@ def _unit_is(squad, datasheet_names):
     in: attached_components keeps the provenance, so a merged unit still knows
     which datasheets it is made of. A hand-built Squad with no datasheet (every
     testkit.py scene) answers False, which is the safe direction - it withholds
-    the Enhancement rather than inventing one."""
-    if squad is None:
-        return False
-    names = []
-    sheet = getattr(squad, "datasheet", None)
-    if sheet is not None and getattr(sheet, "name", None):
-        names.append(sheet.name)
-    for component in getattr(squad, "attached_components", ()) or ():
-        sheet = getattr(component, "datasheet", None)
-        if sheet is not None and getattr(sheet, "name", None):
-            names.append(sheet.name)
-    return any(n in datasheet_names for n in names)
+    the Enhancement rather than inventing one. The reading itself is
+    game/attached_units.py's unit_is_datasheet() (extracted at its third copy)."""
+    from game import attached_units
+    return attached_units.unit_is_datasheet(squad, datasheet_names)
 
 
 # --- the Aeldari printed BEARER restrictions -----------------------------
@@ -338,6 +330,19 @@ def _orks_character(model, squad):
             and bool(getattr(model.profile, "orks", False)))
 
 
+def _orks_infantry_character(model, squad):
+    """"ORKS INFANTRY model only" - Green Tide's Ferocious Show-off. The model's
+    own two flags plus the CHARACTER rule, as _orks_character() above."""
+    return (_orks_character(model, squad)
+            and bool(getattr(model.profile, "infantry", False)))
+
+
+def _boyz_unit(model, squad):
+    """"BOYZ unit only" - Green Tide's 'Ardboyz. BOYZ is a datasheet name, not a
+    keyword on the Boyz' line."""
+    return _unit_is(squad, ("Boyz",))
+
+
 # --- the registry --------------------------------------------------------
 #
 # Every engine-wired Enhancement, keyed by its printed name. `flag` names the
@@ -372,6 +377,8 @@ _HYPERCRYPT_LEGION = ("Hypercrypt Legion", "HYPERCRYPT_LEGION_PLAYERS")
 
 # The Ork detachment War Horde (2026-09 codex) - all four are wired.
 _WAR_HORDE = ("War Horde", "WAR_HORDE_PLAYERS")
+# Green Tide (Mecha Orks stage G3) - both wired.
+_GREEN_TIDE = ("Green Tide", "GREEN_TIDE_PLAYERS")
 
 ENHANCEMENTS = {}
 
@@ -556,6 +563,13 @@ _add("Kunnin' But Brutal", 20, _WAR_HORDE, "kunnin_but_brutal",
      _orks_character, "ORKS model only")
 _add("Follow Me Ladz", 20, _WAR_HORDE, "follow_me_ladz",
      _orks_character, "ORKS model only")
+
+# Green Tide - game/enh_ferocious_show_off.py (per bearer) and game/enh_ardboyz.py
+# (a whole BOYZ unit, like the T'au "... unit only" ones).
+_add("Ferocious Show-off", 15, _GREEN_TIDE, "ferocious_show_off",
+     _orks_infantry_character, "ORKS INFANTRY model only")
+_add("'Ardboyz", 25, _GREEN_TIDE, "ardboyz",
+     _boyz_unit, "BOYZ unit only", unit_level=True)
 
 
 def get(name):

@@ -164,6 +164,8 @@ class UnitProfile:
     da_boss_is_watchin = False  # War Horde Enhancement: once per battle per army, a Movement-phase panel button makes the bearer's unit riled up - see game/enh_da_boss_is_watchin.py
     kunnin_but_brutal = False  # War Horde Enhancement: Falling Back does not stop the unit shooting or charging - game/move_exceptions.py's two Fall Back folds; see game/enh_kunnin_but_brutal.py
     follow_me_ladz = False  # War Horde Enhancement: +2" Move for the bearer's unit - game/coldstar.py's effective_movement_in(); see game/enh_follow_me_ladz.py
+    ferocious_show_off = False  # Green Tide Enhancement: +1 A (+2 A while the unit has 11+ models) on the BEARER's melee attacks - game/fight.py's chain and _melee_attack_key(); see game/enh_ferocious_show_off.py
+    ardboyz = False  # Green Tide Enhancement, UNIT-level (every Boyz model is marked): the unit has 4+ Sv - game/save_characteristic.py; see game/enh_ardboyz.py
     thievin_scavengers = False  # Gretchin's Thievin' Scavengers (2026-09 codex): at the end of your Movement phase, an objective this unit is controlling becomes secured (rule 14.03) - see game/thievin_scavengers.py
     ammo_runts = False  # Boyz' Ammo Runts (2026-09 codex): once per battle per unit, +1 to hit for its ranged attacks when selected to shoot - see game/ork_ammo_runts.py
     tide_of_muscle = False  # Boyz' Tide of Muscle: [LETHAL HITS] on its melee attacks in a turn it made a charge move - see game/tide_of_muscle.py
@@ -447,7 +449,10 @@ class UnitProfile:
         decision), so that branch is treated as never applying."""
         return self.infantry or self.beasts or self.swarm or self.mobile
 
-    def stat_rows(self, current_wounds=None):
+    def stat_rows(self, current_wounds=None, armor_save=None):
+        """The M/WS/BS/T/W/Ld/Sv/OC block. `armor_save` is the model's Save
+        CHARACTERISTIC when a rule replaces the printed one (the datacard passes
+        game/save_characteristic.py's answer); None prints the profile's."""
         wounds_display = f"{current_wounds}/{self.wounds}" if current_wounds is not None else str(self.wounds)
         return [
             ("M", f'{self.movement_in}"'),
@@ -456,7 +461,7 @@ class UnitProfile:
             ("T", str(self.toughness)),
             ("W", wounds_display),
             ("Ld", str(self.leadership)),
-            ("Sv", self.armor_save),
+            ("Sv", armor_save if armor_save is not None else self.armor_save),
             ("OC", str(self.oc)),
         ]
 

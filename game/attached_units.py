@@ -689,6 +689,39 @@ def unit_has_datasheet_keyword(squad, keyword):
 
 
 
+def unit_datasheet_names(squad):
+    """The datasheet NAMES behind this unit: its own sheet plus every 19.01
+    component's, in that order, without duplicates.
+
+    For a restriction printed as a datasheet name in capitals - "BOYZ unit
+    only", "a friendly BEAST SNAGGA BOYZ/BOYZ unit" - which this engine keeps
+    as the Datasheet's name rather than as a keyword on its line (the Boyz
+    print INFANTRY, BATTLELINE, EXPLOSIVES, MOB). Rule 19.03 hands an attached
+    unit all of its components' keywords, so a Warboss-led mob is still a
+    BOYZ unit.
+
+    Extracted at the THIRD copy (Mecha Orks G3): game/enhancements.py's
+    _unit_is() and game/far_reaching_doom.py's _datasheet_names() each wrote
+    it out, and Green Tide asks it four more times. A hand-built Squad with no
+    datasheet (every testkit.py scene) answers [], which is the safe
+    direction - it withholds a rule rather than inventing one."""
+    names = []
+    sheets = [getattr(squad, "datasheet", None)]
+    sheets += [getattr(c, "datasheet", None) for c in getattr(squad, "attached_components", None) or ()]
+    for sheet in sheets:
+        name = getattr(sheet, "name", None) if sheet is not None else None
+        if name and name not in names:
+            names.append(name)
+    return names
+
+
+def unit_is_datasheet(squad, datasheet_names):
+    """Whether any datasheet behind `squad` is one of `datasheet_names`."""
+    if squad is None:
+        return False
+    return any(name in datasheet_names for name in unit_datasheet_names(squad))
+
+
 def model_has_datasheet_keyword(squad, model, keyword):
     """Whether THIS MODEL carries a datasheet keyword, asked of the COMPONENT
     it came from.

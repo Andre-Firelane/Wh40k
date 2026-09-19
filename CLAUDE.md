@@ -157,6 +157,12 @@ Nebuloscope, More Dakka) nahm je Cover weg. Ein VIERTES Keyword mit eigenem Tor
 kostet wieder einen Abschnitt — die Frage von Hand lautet *wer liest dieses
 Keyword ausser der Kette?*, und die Antwort ist fast nie „niemand".
 
+**Ein KENNWERT-Grant hat dieselbe zweite Stelle.** +A lebte in der Nahkampfkette,
+aber die ANZAHL der Würfel zählte `_begin_resolution()` von den rohen Waffen —
+Might Is Right, Rokkit Charge und The Stars Are Right warfen nie einen Würfel mehr
+(Mecha Orks G3, **§31**). Ein ERSETZTER Kennwert (Sv) hat sechs Leser; der eine
+Weg ist `save_characteristic.armour_save()` (**§30**).
+
 **Braucht die Bedingung etwas, das der Leser nicht bekommt** (eine Runde, einen
 `turn_tracker`)? Dann ein **SQUAD-FLAG**, einmal pro Phase gestempelt — nicht
 das Argument durch elf Aufrufstellen fädeln. Muster:
@@ -831,8 +837,9 @@ Fraktion deren Dateien plus `fraktionen.md`; bei einer gemeldeten Fehlerform zue
 - Kill Rig (2026-09-Codex): Beastscent, Warpath, der psychische Wurf — Etappe E3e
 - Mecha Orks G1: Bigboss, Weirdboy, Gunwagon (2026-09-19)
 
-### `docs/stand/orks-mecha-orks.md` — Mecha Orks ab G2: Big Mek in Mega Armour (More Dakka, der Cover-Tor-Fix), Ghazghkull Thraka, der Warlord samt Da Boss
+### `docs/stand/orks-mecha-orks.md` — Mecha Orks ab G2: Big Mek in Mega Armour (More Dakka, der Cover-Tor-Fix), Ghazghkull Thraka, der Warlord samt Da Boss; G3 Green Tide (Zählstellen-Fix für +A im Nahkampf, der Save-Wert mit einem Leser)
 - Mecha Orks G2: Big Mek in Mega Armour, Ghazghkull Thraka, der Warlord (2026-09-19)
+- Mecha Orks G3: Green Tide (2026-09-19)
 
 ### `docs/stand/audits-aeldari-und-tau.md` — die Prüfungen „werden die Aeldari-/T'au-Stratagems angeboten und wirken sie“
 - Werden die Aeldari-Stratagems überhaupt ANGEBOTEN? (Prüfung, 2026-09-07)

@@ -109,10 +109,9 @@ def psychic_communion_adjusted_weapon(weapon, pairs):
     # too, purely so the preview and _attack_key stay consistent with it. Same
     # treatment melta_adjusted_weapon() gives a dice-notation Damage.
     boosted.attacks = weapon.attacks + bonus
-    if weapon.attacks_notation is not None:
-        from game.dice_notation import DiceNotation
+    # game/dice_notation.py's plus() - which also keeps the notation's dice
+    # COUNT, the field this used to drop.
+    from game import dice_notation
 
-        boosted.attacks_notation = DiceNotation(
-            weapon.attacks_notation.sides, weapon.attacks_notation.bonus + bonus,
-        )
+    boosted.attacks_notation = dice_notation.plus(weapon.attacks_notation, bonus)
     return boosted

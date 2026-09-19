@@ -98,7 +98,7 @@ passenden Abschnitt hier; ein neuer `##`-Abschnitt braucht eine Zeile im Verzeic
   gefixt 8 Phasen / 8 Autosaves, `--neutralize` 7 / 1 plus Überschreiben beim Load.
   **`verify_ork_*.py [map] [frames] [--neutralize]`** — je Ork-Codex-Etappe eine Laufzeit-Sonde
   (`army_rules`, `war_horde`, `mobs`, `characters`, `specialists`, `vehicles`, `kill_rig`, und für die
-  Mecha-Orks-Etappen `mecha_sheets`, `mecha_characters`), alle nach demselben
+  Mecha-Orks-Etappen `mecha_sheets`, `mecha_characters`, `green_tide`), alle nach demselben
   Muster: Orks als PLAYER 1, gebaute Träger statt der Liste, `main()`s Locals per Frame-Walk,
   `--neutralize` per Import-Hook auf `main.py`. Was jede belegt und stellt, steht in ihrer Etappe in
   `orks-codex-2026-09*.md`. **`verify_ork_vehicles.py`** ist die erste, die eine Platzierung des
@@ -116,3 +116,7 @@ passenden Abschnitt hier; ein neuer `##`-Abschnitt braucht eine Zeile im Verzeic
   klickt in Player 1s Zug in jedem freien Frame „Next Phase", und eine echte Grenze hatte den zu
   messenden Grant sonst schon gelöscht; (b) erzwungene Würfel so wählen, dass der Angriff OHNE
   Rettungswurf endet (alle Wunden 1), sonst wartet der Lauf auf eine Zuteilung, die niemand gibt.
+  **`verify_ork_green_tide.py`** stellt als erste eine ECHTE Engagement-Lage auf `main()`s Brett
+  (jedes Infanterieziel der Reihe nach, bis eines Platz daneben hat) und unterscheidet zwei Regeln
+  mit demselben sichtbaren Ergebnis am LOG: ein Battle-shock-Test ohne Würfel kann Mob Mentality
+  oder Insane Bravery sein - neutralisiert hat die KI genau Letzteres gekauft.

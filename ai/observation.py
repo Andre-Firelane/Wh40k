@@ -4,6 +4,7 @@ from game import court_power_matrix
 from game import formation_layout
 from game import line_of_sight
 from game import reanimation_protocols
+from game import save_characteristic
 from game import status_effects
 from game.ingress import INGRESS_MIN_BATTLE_ROUND
 from game.missions import BATTLE_ROUNDS
@@ -96,7 +97,9 @@ def defensive_profile(squad):
         # bodyguard models' Toughness, which is what an opponent sizing up
         # the unit actually faces.
         "toughness": attached_unit_toughness(squad),
-        "save": p.armor_save,
+        # The Save CHARACTERISTIC, overrides included ('Ardboyz, Shieldvanes) -
+        # game/save_characteristic.py, the one reader.
+        "save": save_characteristic.armour_save(squad.models[0]),
         "wounds_per_model": p.wounds,
         # Rule 19.03: "an attached unit has all of the keywords of all of its
         # component units" - any(), so a FLY character joining INFANTRY makes
@@ -116,7 +119,7 @@ def defensive_profile(squad):
         out["attached_characters"] = [{
             "name": m.profile.name,
             "toughness": m.profile.toughness,
-            "save": m.profile.armor_save,
+            "save": save_characteristic.armour_save(m),
             "wounds": m.profile.wounds,
         } for m in characters]
         out["note"] = (

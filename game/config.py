@@ -173,6 +173,11 @@ HYPERCRYPT_LEGION_PLAYERS = ()
 # army_lists.apply_to_config() rewrites it from the chosen lists at startup.
 WAR_HORDE_PLAYERS = ("Player 2",)
 
+# The Ork detachment GREEN TIDE (Mob-handed Brutality - see game/green_tide.py;
+# Mecha Orks stage G3). Empty by default like the Canoptek Court: nobody holds
+# it until army_lists.apply_to_config() writes it from a list that declares it.
+GREEN_TIDE_PLAYERS = ()
+
 # Which players field the Death Guard detachment "Death Lord's Chosen", whose
 # rule is Deadly Vectors (game/deadly_vectors.py) and whose six Stratagems all
 # gate on game/death_lords_chosen.py's stratagem_target_ok().

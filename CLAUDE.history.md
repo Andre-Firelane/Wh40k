@@ -9862,3 +9862,33 @@ Necrons beide Sitzordnungen exit 0; `verify_ork_mecha_characters.py` 9/9, neutra
 die KI, die Makari über `main()`s echtes Auto-Play nutzt); `verify_rules_vs_engine.py` 68;
 `measure_crowded_movement.py` unverändert 62 % / 87 %. Neue Stand-Datei
 `docs/stand/orks-mecha-orks.md` für G2-G6.
+
+## 2026-09-19 - Mecha Orks G3: Green Tide
+
+**Auftrag:** „weiter" nach G2 - Etappe G3 des Plans `mecha-orks.md`.
+
+**Gebaut:** das Detachment Green Tide (1 DP, Take and Hold, `GREEN_TIDE_PLAYERS`) mit Mob-handed
+Brutality als Glied der Nahkampfkette, Ferocious Show-off (pro Träger, Attack-Key-Term) und
+'Ardboyz (Einheiten-Enhancement), dazu drei Registry-Knöpfe: Unbridled Carnage, 'Ere We Go (nur
+der Advance-Wurf, über ein neues `roll_bonus.advance_sources()`) und Mob Mentality (Pick der
+begünstigten Einheit, gezahlt beim Pick; die drei Battle-shock-Eingänge fragen
+`auto_success_source()` - der 08.03-Test ohne Würfel, erzwungene Würfe werfen weiter und werden als
+bestanden gewertet, weil sechs Aufrufer auf die Quittung warten). KI deterministisch für alle drei.
+
+**Zwei Funde, vorbestehend:** (1) die Nahkampf-ZÄHLSTELLE las die rohen Waffen - Might Is Right,
+Rokkit Charge und The Stars Are Right warfen nie einen Würfel mehr (gemessen 10 gegen 10, nach dem
+Fix 13 gegen 10), Wächter §31. (2) die Shieldvanes der Tomb Blades erreichten nur den Rettungswurf;
+Datacard, KI und Zuteilung lasen die gedruckte Sv. Jetzt `save_characteristic.py` als einziger
+Leser, Wächter §30. Dazu zwei kleine Extraktionen (`unit_datasheet_names()`, `dice_notation.plus()`,
+letztere fand Psychic Communions verlorene Würfelanzahl).
+
+**Sonden:** 73, im ersten Lauf sechs nicht beißend und ein Absturz - alle über die Tests (fehlendes
+Gegenbeispiel für INFANTRY, ein werfender Grant, zwei im Panel-Test verdeckte Mob-Mentality-Terme,
+15.01 verdeckte die Besitzerprüfung, ein Sichtlinien-Pin, der eine fremde Lambda fand). Danach alle
+beißend; `--check` über 11 Treiber sauber; keine Rückstände.
+
+**Verifiziert:** Suiten 180/180 und 107/107; volle Regression 241 Suiten, ~23644 Prüfungen, 240
+grün / 1 bekannt; `--smoke` grün; selfplay Orks gegen Necrons beide Sitzordnungen exit 0;
+`verify_ork_green_tide.py` 11/11, neutralisiert 7/7 (die KI kauft Mob Mentality über `main()`s
+Auto-Play; neutralisiert nahm sie Insane Bravery - die Sonde unterscheidet beide am Log);
+`verify_rules_vs_engine.py` 68; `measure_crowded_movement.py` unverändert 62 % / 87 %.

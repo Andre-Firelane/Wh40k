@@ -112,3 +112,103 @@ isoliert **87 % / 292.3"**.
 GESTELLT: Orks als Player 1, gebaute Einheiten (die Liste fieldet sie erst ab G6), Player 1s
 Ghazghkull von Hand als Warlord markiert, die Uhr je Stufe, einmal Deckung für die Cover-Lesung, und
 für die KI-Stufe Ork-Einheiten für Player 2 (dessen Armee sind Necrons).
+
+## Mecha Orks G3: Green Tide (2026-09-19)
+
+Gedruckter Text in `rules/orks/detachments/Green Tide.md`, jedes Modul trägt ihn im Docstring.
+`armies/orks.json` UNVERÄNDERT (G6): keine ausgelieferte Liste fieldet Green Tide,
+`config.GREEN_TIDE_PLAYERS` ist leer, bis eine Liste es deklariert.
+
+**Detachment** (`game/factions/orks.py`, 1 DP, Take and Hold, Setting `GREEN_TIDE_PLAYERS`).
+
+| Teil | Modul | Naht / Lesart |
+|---|---|---|
+| Mob-handed Brutality | `green_tide.py` | ein Glied der Nahkampfkette: BOYZ → [SUSTAINED HITS 1]; ORKS INFANTRY nach Charge → [LETHAL HITS] nur gegen ein Ziel, das `NON_MONSTER_VEHICLE_TARGETS` erfüllt (ohne Ziel: nichts). Nie ein Downgrade, Würfelnotation unberührt |
+| Ferocious Show-off (15) | `enh_ferocious_show_off.py` | pro TRÄGER (+Term in `_melee_attack_key()`): +1 A, bei 11+ LEBENDEN Modellen der Einheit +2 A (Alternativen, keine Summe); ORKS INFANTRY CHARACTER |
+| 'Ardboyz (25) | `enh_ardboyz.py` | Einheiten-Enhancement (vor 19.01 vergeben → nur die Boyz tragen das Flag); 4+ Sv als ERSETZUNG über `save_characteristic.py`, per 19.04 für die ganze angeschlossene Einheit, solange ein Boy lebt |
+| Unbridled Carnage (1CP) | `green_tide_unbridled_carnage.py` | Registry-Knopf, „Fight phase" ohne „your" → auch im gegnerischen; BOYZ, die diesen Zug gechargt haben, eligible, nicht gekämpft/kämpfend; +1 A für die Phase |
+| 'Ere We Go (1CP) | `green_tide_ere_we_go.py` | Registry-Knopf, eigene Bewegungsphase, BEAST SNAGGA BOYZ/BOYZ, noch nicht bewegt/advanced; +2 NUR auf den Advance-Wurf (`roll_bonus.advance_sources()`), nie auf die Charge |
+| Mob Mentality (1CP) | `green_tide_mob_mentality.py` | Registry-Knopf auf der 13+-Einheit, dann Pick der BEGÜNSTIGTEN Einheit (sichtbar, 12", schuldet einen Wurf; die Einheit selbst zählt); gezahlt wird beim Pick |
+
+**BOYZ ist ein DATENBLATT, kein Keyword** (die Boyz drucken INFANTRY, BATTLELINE, EXPLOSIVES, MOB):
+gelesen über `attached_units.unit_is_datasheet()` — eine angeschlossene Einheit hat alle Keywords
+ihrer Komponenten (19.03), ein Warboss-geführter Mob ist also BOYZ. Beast Snagga Boyz sind KEINE
+Boyz ('Ere We Go druckt beide getrennt).
+
+**Mob Mentality — die Lesarten.** „Start of the Battle-shock step" = kein Battle-shock-Wurf des
+Spielers in dieser Command-Phase gemacht oder offen (`rolled_squad_ids`/`rolling_squad`); ein Wurf
+des GEGNERS schließt das Fenster nicht. „Automatically successful" ohne Dauer = die Phase. Die drei
+Wurf-Eingänge von `BattleShockController` fragen `auto_success_source()`: der 08.03-Test (`start_roll`)
+löst OHNE Würfel auf (`force_pass(source=...)`, wie Insane Bravery); erzwungene und Desperate-Escape-
+Würfe WERFEN weiter und werden bei der Bestätigung als bestanden gewertet — sechs Aufrufer warten auf
+genau diese Bestätigung (Warteschlangen, eine Charge, die weiterläuft), ein nicht gestarteter Wurf
+hätte sie alle festgehalten. Insane Bravery wird für so eine Einheit verweigert (kauft nichts). 
+**Benannte Grenze:** der Psychomancer (Nightmare Shroud) wirft seine Tests schon, während `main()` die Command-Phase öffnet - vor jedem möglichen Knopfdruck, und sein erster Wurf schließt das Fenster („step has begun"). Gedruckt stünde Mob Mentality am START des Schritts davor; die Engine hat keine Unterschritte, in denen beide Seiten sich einreihen könnten.
+
+**DER ZÄHLSTELLEN-FIX (vorbestehend, beim Bau von Unbridled Carnage gefunden).**
+`FightController._begin_resolution()` zählte die Attacken von den ROHEN `pairs` — jeder +A-Grant der
+Nahkampfkette (Might Is Right +3, Rokkit Charge +1, The Stars Are Right ×3) stand nur auf der Kopie,
+die die Suiten prüften. Gemessen: ein gechargter Warboss warf dieselben 10 Trefferwürfel wie ein
+ungechargter. Die Zählstelle (fest UND Würfelnotation) liest jetzt `self._adjusted_weapon(...)` — die
+Fernkampfseite hatte das für Psychic Communion schon an ihrer Zählstelle gelöst. Nach dem Fix: 13
+gegen 10. Wächter `test_event_chain_wiring.py` **§31** (die Zählstelle liest die gebundene angepasste
+Waffe; jedes Modul, das `attacks` auf einer Kopie schreibt, ist mit seinem zählenden Leser benannt).
+
+**DER SAVE-WERT HAT EINEN LESER (`game/save_characteristic.py`, Extraktion).** Sechs Stellen lasen
+`armor_save`: Rettungswurf samt Panel-Überschrift, Zuteilungsreihenfolge, jede KI-Schätzung
+(`defender_soak()`), die KI-Beobachtung, der Waffen-Matchup-Hinweis, die Datacard. Die Shieldvanes
+der Tomb Blades („has a 3+ Save characteristic") erreichten nur den Wurf — Datacard, KI und
+Zuteilung lasen 4+. 'Ardboyz ist die zweite Ersetzung; beide gehen jetzt durch `armour_save(model)`.
+Wächter **§30**: jeder verbleibende `.armor_save`-Leser ist namentlich begründet.
+
+**Zwei kleine Extraktionen:** `attached_units.unit_datasheet_names()`/`unit_is_datasheet()` (dritte
+Kopie, dazu Green Tides vier Fragen) und `dice_notation.plus()` (vierte Kopie; Psychic Communion
+verlor dabei still den Würfel-ANZAHL-Anteil einer Notation).
+
+**KI (0 API-Calls):** Mob Mentality in der Command-Phase VOR dem ersten eigenen Battle-shock-Wurf,
+für den Kandidaten mit der höchsten Fehlschlagchance × Punkte, ab 25 % (Ld 7+: 15/36);
+'Ere We Go in `_handle_movement()` genau im Moment der Advance-Entscheidung; Unbridled Carnage im
+Fight-Handler ab 2 erwarteten Zusatzwunden.
+
+**Getestet:** neu `test_ork_green_tide.py` (**180/180**, elf Abschnitte — Detachment gegen Korpus,
+Mob-handed Brutality über den echten `FightController` samt Fahrzeug-Ziel und Downgrade-Schutz, die
+ZÄHLSTELLE über echte Aktivierungen (Might Is Right +3, Rokkit Charge +1 je Stormboy), Ferocious
+Show-off samt Attack-Key und 11-Modell-Grenze, 'Ardboyz an allen sechs Lesern plus Shieldvanes,
+Unbridled Carnage/'Ere We Go/Mob Mentality mit WHEN/TARGET-Negativen, echtem Advance-Wurf, allen drei
+Wurf-Eingängen und Insane Bravery, die drei KI-Handler, die Extraktionen, AST-Pins),
+`test_ork_green_tide_ui.py` (**107/107**, echtes `ActionPanel`: Liveness, Matrix 3 Knöpfe × 2
+Einheiten × jede Phase, „whose phase" samt gegnerischer Fight-Phase, Detachment-Tor am Panel,
+Negative, Resets einzeln, Klick zahlt — Mob Mentalitys Pick per `drain()`, Label gegen Korpus, AST)
+und `ab_ork_green_tide.py` (**73 Sonden, 96 Läufe**). **Im ersten Lauf bissen sechs nicht, eine
+stürzte ab** — alle Befunde über die TESTS: die INFANTRY-Klausel von Ferocious Show-off hat kein
+gebautes Gegenbeispiel (jetzt ein Warboss, dessen Profil-INSTANZ das Keyword verliert), 'Ardboyz'
+Einheiten-Grant warf statt rot zu werden, Mob Mentalitys „Schritt begonnen" und „deine
+Command-Phase" waren im Panel-Test hinter „niemand schuldet einen Wurf" verdeckt (jetzt: der Wurf des
+MOBS selbst; ein eigenes Entscheidungsfenster im gegnerischen Zug), 'Ere We Go für die fremde Einheit
+hinter 15.01, und der Sichtlinien-Pin fand dieselbe Lambda eines anderen Controllers (jetzt per AST
+am `visible=`-Keyword von `MobMentalityController`). Danach alle beißend, `--check` über alle **11**
+Treiber sauber, keine Rückstände. Volle Regression **241 Suiten, ~23644 Prüfungen, 240 grün / 0 rot /
+1 bekannt**, `--smoke` grün, `selfplay` Orks gegen Necrons beide Sitzordnungen exit 0,
+`verify_rules_vs_engine.py` **68**, `fetch_datasheet_rules.py --offline` nur Datumswechsel
+(zurückgesetzt), `measure_crowded_movement.py` unverändert **62 % / 210.2"**, **87 % / 292.3"**.
+Nachgezogen: `test_detachments.py` (Orks namentlich: War Horde, Green Tide), `test_force_dispositions.py`
+(20 Detachments).
+
+**Im ECHTEN Spiel belegt** (`verify_ork_green_tide.py map2`, Orks als Player 1; 11/11, unter
+`--neutralize` 7/7):
+
+| | gefixt | `--neutralize` |
+|---|---|---|
+| Registry | alle drei, mit `main()`s BattleShock-/Fight-/Movement-Controller, Token-Liste, Sichtlinie | keiner |
+| KI-Mob-Mentality über `main()`s Auto-Play | gekauft; ihr Battle-shock-Test besteht OHNE Würfel, Log nennt Mob Mentality | nie gekauft (die KI nahm Insane Bravery) |
+| Mob Mentality auf `main()`s Panel | gezeichnet, ein Kandidat ohne Prompt, 1 CP; 08.03-Test ohne Würfel bestanden | nie gezeichnet |
+| 'Ere We Go auf `main()`s Panel | gezeichnet, 1 CP, Advance-Terme `+2`, eine 3 wird 5 | nie gezeichnet |
+| Unbridled Carnage (echt engaged) | gezeichnet, 1 CP; Choppa A3→4, [SUSTAINED HITS 1]; BSB [LETHAL HITS] gegen Infanterie | nie; A3, SH 0, kein Lethal |
+| 'Ardboyz | Datacard 4+, Save-Schwelle 4 | 5+ / 5 |
+| `main()`s Phasengrenze | alle drei Grants enden | — |
+
+GESTELLT: Orks als Player 1, gebaute Einheiten (die Liste fieldet Green Tide erst ab G6),
+`GREEN_TIDE_PLAYERS` für beide Seiten und `WAR_HORDE_PLAYERS` geleert (sonst gäbe Get Stuck In
+jedem Ork [SUSTAINED HITS 1]), die Uhr je Stufe samt `reset_command_phase()` und CP-Auffüllung, ein
+Beast-Snagga-Trupp „unter halber Stärke" als 4 von 10 gebaut, der Nahkampf-Mob neben ein
+Player-2-Infanterieziel gestellt.

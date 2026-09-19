@@ -46,6 +46,7 @@ from game import critical_wound_split
 from game import enh_mirage_field
 from game import enh_aspect_of_murder
 from game import enh_headwoppas_killchoppa, horde_hit_em_harder, horde_mow_em_down
+from game import enh_ferocious_show_off, green_tide, green_tide_unbridled_carnage
 from game import aspect_warrior_focus
 from game import conclave_blades_from_beyond
 from game import conclave_seers_eye
@@ -159,6 +160,9 @@ def _melee_attack_key(model, weapon):
             # War Horde's Headwoppa's Killchoppa is per BEARER as well - see
             # game/enh_headwoppas_killchoppa.py.
             enh_headwoppas_killchoppa.attack_key(model),
+            # And Green Tide's Ferocious Show-off (+1/+2 A) - see
+            # game/enh_ferocious_show_off.py.
+            enh_ferocious_show_off.attack_key(model),
             # The Warboss's Might Is Right is per MODEL too (+3 A, +2 S) -
             # see game/might_is_right.py.
             might_is_right.attack_key(model),
@@ -1258,13 +1262,26 @@ class FightController:
             self.turn_tracker.set_active(fighter_model.squad.owner)
 
         weapon = pairs[0][1]
-        if weapon.attacks_notation is not None:
+        # The Attacks characteristic is read HERE, before anything else in the
+        # sequence - and it has to be the ADJUSTED one. It was the raw
+        # pairs[0][1]: every +A in the chain below (Might Is Right's +3, Rokkit
+        # Charge's +1, The Stars Are Right's x3) changed only the copy the tests
+        # read and never the number of dice thrown - measured (Mecha Orks G3): a
+        # charged Warboss rolled the same 10 Hit dice as an uncharged one.
+        # shooting.py learned the same lesson for Psychic Communion ("an
+        # adjuster that touches Attacks has to land at the count site"); here
+        # the whole chain is asked, because it is the chain's own +A grants
+        # that need it. Only the count reads it: the raw weapon is what is
+        # handed on, so the late chain still starts from pairs and cannot
+        # double-apply. test_event_chain_wiring.py section 31 pins the site.
+        attacks_weapon = self._adjusted_weapon(pairs, target_squad)
+        if attacks_weapon.attacks_notation is not None:
             # See shooting.py's identical branch - a dice-notation Attacks
             # characteristic (e.g. a printed "D6") has to be rolled, once
             # per attacking model, before the Hit roll can even start.
             self._pending_attacks_roll = DiceNotationRoll(
-                weapon.attacks_notation, count=len(pairs), dice_manager=self.dice_manager,
-                label=f"Attacks: {weapon_label} ({len(pairs)} model(s), {describe_dice_notation(weapon.attacks_notation)} each)",
+                attacks_weapon.attacks_notation, count=len(pairs), dice_manager=self.dice_manager,
+                label=f"Attacks: {weapon_label} ({len(pairs)} model(s), {describe_dice_notation(attacks_weapon.attacks_notation)} each)",
                 title="Attacks Roll", subtitle=weapon_label,
                 rolled_for=self.fighting_squad, roll_kind=ATTACKS_ROLL, log=self._log,
                 target_name=target_squad.name,
@@ -1279,8 +1296,11 @@ class FightController:
             self._continue_resolution_with_attacks(weapon, total_attacks)
             return
 
-        # Per PAIR, not on the total - see shooting.py's twin.
-        total_attacks = sum(damaged_attacks.attacks_for(m, w) for m, w in pairs)
+        # Per PAIR, not on the total - see shooting.py's twin. Every pair of a
+        # group shares the representative's adjusted Attacks: _melee_attack_key()
+        # keeps each per-MODEL grant (Might Is Right, Ferocious Show-off) in a
+        # group of its own.
+        total_attacks = sum(damaged_attacks.attacks_for(m, attacks_weapon) for m, _w in pairs)
         total_attacks += extra_attack_dice(self._adjusted_weapon(pairs, target_squad), target_squad, weapon_key, self.split_fire, self.assignments, pairs)
         self._continue_resolution_with_attacks(weapon, total_attacks)
 
@@ -1666,6 +1686,17 @@ class FightController:
         weapon = horde_hit_em_harder.adjusted_weapon(weapon, self.fighting_squad)
         weapon = horde_mow_em_down.adjusted_weapon(weapon, self.fighting_squad)
         weapon = enh_headwoppas_killchoppa.adjusted_weapon(weapon, pairs[0][0] if pairs else None)
+        # Green Tide (Mecha Orks G3): Mob-handed Brutality's two keyword grants
+        # ([SUSTAINED HITS 1] for BOYZ; [LETHAL HITS] against a non-MONSTER/
+        # VEHICLE target after a charge - so it takes the target), Unbridled
+        # Carnage's +1 A, and Ferocious Show-off's +1/+2 A per BEARER (exact
+        # because _melee_attack_key() carries it). In the chain because the hit
+        # step, _crit_note() and the Attacks count read the returned weapon.
+        weapon = green_tide.adjusted_weapon(
+            weapon, self.fighting_squad,
+            target_squad if target_squad is not None else self.target_squad)
+        weapon = green_tide_unbridled_carnage.adjusted_weapon(weapon, self.fighting_squad)
+        weapon = enh_ferocious_show_off.adjusted_weapon(weapon, pairs[0][0] if pairs else None)
         # Orikan The Diviner's The Stars Are Right: triple the Attacks and
         # Strength of HIS Staff of Tomorrow for the phase. Read off
         # pairs[0][0] rather than swept over the group, and that is exact

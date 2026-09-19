@@ -49,15 +49,12 @@ def save_thresholds(model, weapon):
     save, so an invulnerable save is untouched and AP still applies on top.
     Here rather than at the two callers precisely because this function exists
     to stop the panel and the resolution disagreeing about a save."""
-    # The Tomb Blades' Shieldvanes: "the bearer has a 3+ Save
-    # characteristic". A per-BEARER OVERRIDE of the printed value, so it
-    # replaces the profile read rather than adjusting the threshold after
-    # it - and it sits here, above the two modifiers, because it changes
-    # the CHARACTERISTIC they then modify.
-    from game import tomb_blade_wargear
-    _sv_override = tomb_blade_wargear.save_override(model)
-    sv = parse_threshold(_sv_override if _sv_override is not None
-                         else model.profile.armor_save)
+    # The Save CHARACTERISTIC, overrides included (the Tomb Blades'
+    # Shieldvanes, Green Tide's 'Ardboyz) - game/save_characteristic.py, the
+    # one reader. It sits here, above the two modifiers, because an override
+    # changes the CHARACTERISTIC they then modify.
+    from game import save_characteristic
+    sv = parse_threshold(save_characteristic.armour_save(model))
     if sv is not None:
         sv += plagues.save_penalty(getattr(model, "squad", None))
         # Advanced Acquisition Cadre's Autoreactive Camouflage: "+1 Sv" is a

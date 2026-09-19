@@ -66,9 +66,13 @@ class DefenderStats:
     more parameters, and so the 19.02 substitution happens in exactly one
     place."""
 
-    def __init__(self, toughness, model_profile):
+    def __init__(self, toughness, model_profile, armor_save=None):
         self.toughness = toughness
-        self.armor_save = model_profile.armor_save
+        # The Save CHARACTERISTIC of the soaking model, overrides included
+        # (game/save_characteristic.py) - defender_soak() passes it. The
+        # profile's printed value is only the fallback for a caller that
+        # hands a bare profile.
+        self.armor_save = armor_save if armor_save is not None else model_profile.armor_save
         self.invulnerable_save = getattr(model_profile, "invulnerable_save", None)
         self.wounds = model_profile.wounds
 
@@ -86,7 +90,10 @@ def defender_soak(defender):
     standing."""
     toughness = attached_unit_toughness(defender)
     soak_group = next((g for g in defender.allocation_groups() if g), defender.models)
-    return DefenderStats(toughness, soak_group[0].profile), max(1, soak_group[0].profile.wounds)
+    from game import save_characteristic
+    return (DefenderStats(toughness, soak_group[0].profile,
+                          armor_save=save_characteristic.armour_save(soak_group[0])),
+            max(1, soak_group[0].profile.wounds))
 
 
 def models_destroyed_by(defender, total_wounds):

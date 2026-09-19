@@ -1,6 +1,6 @@
 import pygame
 
-from game import attached_units, config, enhancements, rules_text, starflare_ignition
+from game import attached_units, config, enhancements, rules_text, save_characteristic, starflare_ignition
 from game.fight import effective_weapon_skill
 from game.shooting import effective_ballistic_skill
 from game.ui import stat_table
@@ -179,7 +179,10 @@ class UnitDatacardOverlay:
         KEYWORDS section went straight past that copy and the invariant broke
         on four fixtures at once. One gatherer, two readers (error class 10)."""
         return dict(
-            stat_rows=token.profile.stat_rows(token.current_wounds),
+            # The Sv shown is the CHARACTERISTIC the model has, overrides
+            # included ('Ardboyz, Shieldvanes) - game/save_characteristic.py.
+            stat_rows=token.profile.stat_rows(
+                token.current_wounds, armor_save=save_characteristic.armour_save(token)),
             # Rule 04.01.03: every PROFILE is a printed row of its own (a
             # Kombi-weapon's Shoota, Kill Shot and Point Blank; a Choppa's
             # Standard and Hunter), so each gets its row.

@@ -44,6 +44,9 @@ from game.crude_surgery import CrudeSurgeryController
 from game.fix_dat_armour_up import FixDatArmourUpController
 from game.da_boss import DaBossController
 from game.makari import MakariController
+from game.green_tide_ere_we_go import EreWeGoController
+from game.green_tide_mob_mentality import MobMentalityController
+from game.green_tide_unbridled_carnage import UnbridledCarnageController
 from game.krushin_impetus import KrushinImpetusController
 from game.bomb_squigs import BombSquigsController
 from game.aerial_manoover import AerialManooverController
@@ -3178,6 +3181,27 @@ def main(map_key=None):
     makari_controller = proactive_stratagems.add(MakariController(
         turn_tracker=turn_tracker, decision_manager=decision_manager,
         squads_provider=state.all_squads, game_log=game_log))
+    # --- Green Tide (Orks, Mecha Orks stage G3) -----------------------------------
+    # Three Stratagem buttons on the registry. Mob Mentality opens a unit pick
+    # (the unit whose Battle-shock rolls then pass - game/battle_shock.py asks
+    # it) and takes the real line-of-sight test the card prints ("visible").
+    # The AI: _handle_unbridled_carnage() and _handle_mob_mentality() in
+    # ai/agent_driver.py, and 'Ere We Go inside _handle_movement() at the
+    # moment it decides to Advance. No API call.
+    unbridled_carnage_controller = proactive_stratagems.add(UnbridledCarnageController(
+        stratagem_controller, turn_tracker=turn_tracker, fight_controller=fight_controller,
+        game_log=game_log))
+    ere_we_go_controller = proactive_stratagems.add(EreWeGoController(
+        stratagem_controller, turn_tracker=turn_tracker, movement_controller=movement_controller,
+        game_log=game_log))
+    mob_mentality_controller = proactive_stratagems.add(MobMentalityController(
+        stratagem_controller, battle_shock_controller=battle_shock_controller,
+        turn_tracker=turn_tracker, decision_manager=decision_manager, all_tokens=state.tokens,
+        game_log=game_log,
+        visible=lambda observer, other: any(
+            line_of_sight.has_line_of_sight(a, b, state.obstacles, state.tokens, state.terrain_areas)
+            for a in observer.models if not a.is_dead()
+            for b in other.models if not b.is_dead())))
     # The Warbosses' Intimidating Motivation and the Beastboss's Keep Huntin'!
     # (game/boss_motivation.py): panel buttons for a human while the start or
     # end window of the bearer's move is open, and the two move hooks for the
@@ -4251,6 +4275,10 @@ def main(map_key=None):
         mow_em_down_controller.reset_phase(_horde_squads)
         fungus_fuel_controller.reset_phase(_horde_squads)
         close_range_dakka_controller.reset_phase(_horde_squads)
+        # Green Tide: its three phase-long grants.
+        unbridled_carnage_controller.reset_phase(_horde_squads)
+        ere_we_go_controller.reset_phase(_horde_squads)
+        mob_mentality_controller.reset_phase(_horde_squads)
         never_beaten_controller.reset_phase()
         # Hypercrypt Legion - everything that lasts "until the end of the phase".
         hypercrypt_quantum_deflection.reset_phase(_court_squads)
@@ -5728,6 +5756,10 @@ def main(map_key=None):
             da_jump_controller=da_jump_controller,
             # Ghazghkull's Makari, the same kind of button.
             makari_controller=makari_controller,
+            # Green Tide: its three buttons get handlers.
+            unbridled_carnage_controller=unbridled_carnage_controller,
+            ere_we_go_controller=ere_we_go_controller,
+            mob_mentality_controller=mob_mentality_controller,
             # The one list of controllers that can wait for a model click, so
             # the AI answers an allocation it OWNS from every one of them - not
             # just the twelve take_one_action() names by hand.

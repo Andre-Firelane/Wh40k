@@ -3,10 +3,14 @@ roll sites ask.
 
 Extracted from game/ere_we_go.py, which owned it while that Ork stratagem was
 the only source; the Avatar of Khaine's "The Bloody-Handed" was the second. The
-2026-09 Ork codex retired 'Ere We Go, so the aura is the one source today. The
-module stays: game/movement.py's advance_total() and game/charge.py's
-_capped_roll() each ask once and get everything, and a second source later needs
-no second site.
+2026-09 Ork codex retired that 'Ere We Go, so the aura is the one source of
+BOTH rolls today. The module stays: game/movement.py's advance_total() and
+game/charge.py's _capped_roll() each ask once and get everything, and a second
+source later needs no second site.
+
+GREEN TIDE'S 'ERE WE GO (Mecha Orks G3) is a different card under the old name:
+"+2 to advance rolls", nothing on a Charge. So it is a term of advance_sources()
+only, which the Advance side reads and the Charge side does not.
 
 SOURCES STACK, unlike the crit-threshold and invulnerable-save sources next door
 where the BEST value wins. Two different bonuses to the same roll are separate
@@ -35,4 +39,18 @@ def sources(squad, all_tokens=None):
     aura = bloody_handed.roll_bonus(squad, all_tokens)
     if aura:
         out.append(("The Bloody-Handed", aura))
+    return out
+
+
+def advance_sources(squad, all_tokens=None):
+    """sources() plus every bonus that names the ADVANCE roll alone - Green
+    Tide's 'Ere We Go ("+2 to advance rolls", Mecha Orks stage G3). The Charge
+    roll keeps reading sources()/advance_and_charge_bonus(), so a bonus here can
+    never leak into a charge; game/movement.py's advance_roll_modifiers() is the
+    one reader."""
+    from game import green_tide_ere_we_go
+    out = sources(squad, all_tokens)
+    ere_we_go = green_tide_ere_we_go.advance_bonus(squad)
+    if ere_we_go:
+        out.append((green_tide_ere_we_go.ERE_WE_GO_NAME, ere_we_go))
     return out

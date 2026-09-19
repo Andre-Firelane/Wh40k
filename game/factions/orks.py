@@ -222,6 +222,30 @@ WAR_HORDE = ORKS.add_detachment(Detachment(
     # detachment's.
 ))
 
+GREEN_TIDE = ORKS.add_detachment(Detachment(
+    "Green Tide",
+    rule_name="Mob-handed Brutality",
+    points=1,
+    force_dispositions=(force_dispositions.TAKE_AND_HOLD,),
+    # Mecha Orks stage G3. The rule is game/green_tide.py, gated on this
+    # setting like War Horde's.
+    setting="GREEN_TIDE_PLAYERS",
+    rule_text=(
+        "Mob-handed Brutality: Friendly BOYZ units' melee attacks have [Sustained Hits 1]. "
+        "If a friendly ORKS INFANTRY unit made a charge move this turn, that unit's melee "
+        "attacks have [Lethal Hits: non-Monster/Vehicle]."
+    ),
+    enhancements=[
+        # ENGINE-WIRED, both - registered in game/enhancements.py, the rules in
+        # game/enh_ferocious_show_off.py and game/enh_ardboyz.py.
+        Enhancement("Ferocious Show-off", 15, description=(
+            "ORKS INFANTRY model only. This model's melee attacks have: +1 A. Or: If this unit "
+            "has 11+ models, +2 A.")),
+        Enhancement("'Ardboyz", 25, description="BOYZ unit only. This unit has 4+ Sv."),
+    ],
+    # The three Stratagems (game/green_tide_*.py) are built in main.py.
+))
+
 _NOB_LOADOUT = [KustomChoppaProfile, KombiSkorchaShootaProfile]
 _BOY_LOADOUT = [ChoppaProfile, ShootaProfile, SluggaProfile]
 

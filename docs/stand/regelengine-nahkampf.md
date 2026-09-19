@@ -327,3 +327,16 @@ ihrer teuersten Form — die zweite Stelle beantwortet nicht bloß anders, sie b
   **Die MockAgent-Grenze greift hier wörtlich:** über 14 000 Frames kommt die Kombination
   „gekauft UND advanced UND geschossen" nie zustande, die Sonde stellt die Advance-Tatsache
   deshalb selbst her und fragt die ECHTE Modulfunktion gegen die ECHTE Tokenliste.
+
+### +A in der Nahkampfkette erreichte die Würfel nicht (Mecha Orks G3, 2026-09-19)
+
+`FightController._begin_resolution()` zählte die Attacken von den ROHEN `pairs`
+(`attacks_for(m, w)`, und die Würfelnotation von `pairs[0][1]`), während jeder +A-Grant auf der
+Kopie aus `_adjusted_weapon()` lebt: Might Is Right (+3), Rokkit Charge (+1), The Stars Are Right
+(×3) - jede Suite prüfte die Kopie. Gemessen: ein gechargter Warboss warf dieselben 10 Trefferwürfel
+wie ein ungechargter; nach dem Fix 13. Die Zählstelle liest jetzt die angepasste Waffe (fest UND
+Notation), die weitergereichte bleibt die rohe (keine Doppelanwendung) - die Form, die
+`shooting.py` für Psychic Communion an SEINER Zählstelle schon hatte. `test_event_chain_wiring.py`
+**§31** pinnt die Zählstelle und nennt jedes Modul, das `attacks` auf einer Kopie schreibt, mit dem
+Leser, der es zählt. Gefunden beim Bau von Unbridled Carnage und Ferocious Show-off, siehe
+`## Mecha Orks G3: Green Tide`.

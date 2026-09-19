@@ -70,16 +70,10 @@ def has_detachment(player):
 def _datasheet_names(squad):
     """The datasheet names behind this unit, including an attached unit's
     components - 19.01 merges a leader in, and the printed text names the
-    UNIT."""
-    names = []
-    sheet = getattr(squad, "datasheet", None)
-    if sheet is not None:
-        names.append(sheet.name)
-    for component in getattr(squad, "attached_components", None) or ():
-        sheet = getattr(component, "datasheet", None)
-        if sheet is not None:
-            names.append(sheet.name)
-    return names
+    UNIT. game/attached_units.py's unit_datasheet_names() (extracted at its
+    third copy)."""
+    from game import attached_units
+    return attached_units.unit_datasheet_names(squad)
 
 
 def applies(squad):

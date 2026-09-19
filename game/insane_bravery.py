@@ -55,6 +55,12 @@ class InsaneBraveryController:
         ok, reason = self.battle_shock_controller.why_cannot_roll(squad)
         if not ok:
             return False, reason
+        # Green Tide's Mob Mentality already makes this roll automatically
+        # successful - Insane Bravery would buy nothing (error class 5).
+        from game.battle_shock import auto_success_source
+        already = auto_success_source(squad)
+        if already is not None:
+            return False, f"this unit's Battle-Shock rolls are already automatically successful ({already})"
         refusal = self.stratagem_controller.refusal(squad.owner, self._stratagem, [squad])
         if refusal is not None:
             return False, refusal

@@ -15,7 +15,7 @@ from game import guardian_time_to_strike
 from game import montka_aggressive_mobility, montka_pulse_onslaught
 from game import formation_layout, front_rank, line_drag
 from game.dice import ADVANCE_ROLL
-from game.roll_bonus import advance_and_charge_bonus, sources as roll_bonus_sources
+from game.roll_bonus import advance_and_charge_bonus, advance_sources as roll_bonus_advance_sources
 from game.selection import Selection
 from game.squad import model_engaged_with, model_terrain_violation, model_overlaps_any
 from game.terrain import DENSE, may_cross_walls
@@ -28,10 +28,10 @@ MOVING = "moving"
 
 def advance_total(squad, values, all_tokens=None):
     """Rule 09.06's Advance roll turned into extra inches: the D6 plus every
-    bonus to Advance rolls this unit currently has - see game/roll_bonus.py,
-    which folds War Horde's 'Ere We Go (+2, a unit flag) and the Avatar of
-    Khaine's The Bloody-Handed (+1, a 6" aura, which is why `all_tokens` is
-    needed at all).
+    bonus to Advance rolls this unit currently has - see game/roll_bonus.py's
+    advance_sources(), which folds the Avatar of Khaine's The Bloody-Handed
+    (+1, a 6" aura, which is why `all_tokens` is needed at all) and Green
+    Tide's 'Ere We Go (+2, a unit flag, the Advance roll only).
 
     One helper because TWO places have to agree on it: start_run() applies the
     result the moment the die is rolled, and on_dice_acknowledged() re-derives
@@ -56,7 +56,9 @@ def advance_roll_modifiers(squad, all_tokens=None):
     it is). The bonus total is the sum of roll_bonus.sources() by that module's
     own construction, which is what lets the sum here replace
     advance_and_charge_bonus()."""
-    terms = list(roll_bonus_sources(squad, all_tokens))
+    # advance_sources(), not sources(): Green Tide's 'Ere We Go names the
+    # Advance roll alone, so it is a term here and never on a Charge roll.
+    terms = list(roll_bonus_advance_sources(squad, all_tokens))
     shaken = montka_pulse_onslaught.roll_penalty_for(squad)
     if shaken:
         terms.append(("shaken", -shaken))

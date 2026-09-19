@@ -153,3 +153,14 @@ passenden Abschnitt hier; ein neuer `##`-Abschnitt braucht eine Zeile im Verzeic
     selbst steht in `game/weirdboy_warpath.py` (Fehlerklasse 11). Die leicht zu verfehlende
     Hälfte: die ANKER des Kill-Rig-Sondentreibers - der Umbau hat jede sondierte Zeile wörtlich
     stehen lassen, die 14 Warpath-Sonden beißen weiter.
+    Mit Green Tide (Mecha Orks G3) drei: **`game/save_characteristic.py`** - der Save-KENNWERT
+    samt Ersetzungen (Shieldvanes, 'Ardboyz), am ZWEITEN Ersetzer; sechs Leser (Wurf und Panel,
+    Zuteilung, `defender_soak()`, Beobachtung, Matchup-Hinweis, Datacard). Die leicht zu
+    verfehlende Hälfte: die ersten fünf sahen die Shieldvanes nie - der erste Ersetzer war nur am
+    Wurf verdrahtet; `test_event_chain_wiring.py` §30 nennt jeden verbleibenden Direktleser.
+    **`attached_units.unit_datasheet_names()`/`unit_is_datasheet()`** - „welche Datenblätter
+    stecken in dieser (angeschlossenen) Einheit", an der DRITTEN Kopie (`enhancements._unit_is`,
+    `far_reaching_doom._datasheet_names`); für Datenblattnamen in Großbuchstaben (BOYZ), die kein
+    Keyword der Zeile sind. **`dice_notation.plus()`** - „+N auf eine Würfelnotation", an der
+    VIERTEN Kopie; Psychic Communion hatte dabei die Würfel-ANZAHL fallen lassen (2D6 → D6,
+    latent, weil ihr Träger 1W6 würfelt).

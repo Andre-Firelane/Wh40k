@@ -286,8 +286,8 @@ class ChargeController:
         definition, shared by the roll that is being acknowledged and by
         targets_reachable_with()'s forecast about a roll that isn't.
 
-        Bonuses to the Charge roll (game/roll_bonus.py: War Horde's 'Ere We
-        Go and the Avatar of Khaine's The Bloody-Handed, which stack) are added
+        Bonuses to the Charge roll (game/roll_bonus.py's sources(): the Avatar
+        of Khaine's The Bloody-Handed; bonuses stack) are added
         here, which puts them BEFORE the cap, exactly as Into the Fray's own
         "after modifiers" wording requires. Both callers get them for the same
         reason they both get the cap."""

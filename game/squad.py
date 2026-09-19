@@ -499,7 +499,8 @@ def _group_weakness(models):
     is_undamaged = all(m.current_wounds >= m.profile.wounds for m in models)
     wounds_fraction_remaining = min(m.current_wounds / m.profile.wounds for m in models)
     wounds_remaining = min(m.current_wounds for m in models)
-    save_threshold = parse_threshold(models[0].profile.armor_save) or 7  # no save = weakest
+    from game import save_characteristic
+    save_threshold = parse_threshold(save_characteristic.armour_save(models[0])) or 7  # no save = weakest
     return (is_undamaged, wounds_fraction_remaining, wounds_remaining, -save_threshold)
 
 
@@ -559,6 +560,9 @@ class Squad:
         self.mow_em_down_active = False  # War Horde's Mow 'Em Down: [CLEAVE] +1 on this unit's melee attacks until the end of the phase - see game/horde_mow_em_down.py
         self.fungus_fuel_injection_active = False  # War Horde's Fungus-Fuel Injection: +2" Move until the end of the phase - read by game/coldstar.py; see game/horde_fungus_fuel_injection.py
         self.close_range_dakka_active = False  # War Horde's Close-Range Dakka: [RAPID FIRE] +1 on this unit's ranged attacks until the end of the phase - see game/horde_close_range_dakka.py
+        self.unbridled_carnage_active = False  # Green Tide's Unbridled Carnage: +1 A on this unit's melee attacks until the end of the phase - see game/green_tide_unbridled_carnage.py
+        self.ere_we_go_active = False  # Green Tide's 'Ere We Go: +2 to this unit's Advance rolls until the end of the phase - read by game/roll_bonus.py's advance_sources(); see game/green_tide_ere_we_go.py
+        self.mob_mentality_active = False  # Green Tide's Mob Mentality: this unit's Battle-shock rolls are automatically successful until the end of the phase - read by game/battle_shock.py; see game/green_tide_mob_mentality.py
         self.ammo_runts_used = False  # Boyz' Ammo Runts: the once-per-battle-per-unit spend - see game/ork_ammo_runts.py; saved (activation_state.SQUAD_FLAGS)
         self.ammo_runts_active = False  # Boyz' Ammo Runts: +1 to hit on this unit's ranged attacks for the phase it was used in
         self.rokkit_charge_active = False  # Stormboyz' Rokkit Charge: +1 A/S and [HAZARDOUS] on melee attacks for the phase - see game/rokkit_charge.py
@@ -865,12 +869,16 @@ class Squad:
         group goes before undamaged CHARACTER groups" as a side effect of
         sorting weakest-to-strongest throughout.
         """
+        from game import save_characteristic
+
         characters = [m for m in self.models if m.profile.character]
         others = [m for m in self.models if not m.profile.character]
 
         other_groups = {}
         for model in others:
-            key = (model.profile.wounds, model.profile.armor_save)
+            # The Save CHARACTERISTIC, overrides included - a Shieldvanes
+            # Tomb Blade is not the same group as its 4+ squadmates.
+            key = (model.profile.wounds, save_characteristic.armour_save(model))
             other_groups.setdefault(key, []).append(model)
 
         ordered_others = sorted(other_groups.values(), key=_group_weakness)

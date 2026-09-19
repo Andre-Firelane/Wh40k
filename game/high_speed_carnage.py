@@ -25,7 +25,7 @@ NOT A CHOICE ("have", not "you can"), so there is no prompt and no AI path.
 
 import copy
 
-from game.dice_notation import DiceNotation
+from game import dice_notation
 from game.squad import unit_wide_ability
 from game.weapons import MELEE
 
@@ -39,9 +39,7 @@ def applies(squad):
 
 
 def _plus(notation):
-    if notation is None:
-        return None
-    return DiceNotation(notation.sides, notation.bonus + HIGH_SPEED_CARNAGE_BONUS, notation.dice)
+    return dice_notation.plus(notation, HIGH_SPEED_CARNAGE_BONUS)
 
 
 def adjusted_weapon(weapon, squad):

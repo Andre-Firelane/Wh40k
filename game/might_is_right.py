@@ -25,7 +25,7 @@ the attack count, the Strength of the wound roll and extra_attack_dice() read.
 
 import copy
 
-from game.dice_notation import DiceNotation
+from game import dice_notation
 from game.weapons import MELEE
 
 MIGHT_IS_RIGHT_NAME = "Might Is Right"
@@ -52,9 +52,7 @@ def applies(model):
 
 
 def _plus(notation, bonus):
-    if notation is None:
-        return None
-    return DiceNotation(notation.sides, notation.bonus + bonus, notation.dice)
+    return dice_notation.plus(notation, bonus)
 
 
 def adjusted_weapon(weapon, model):

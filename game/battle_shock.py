@@ -19,6 +19,24 @@ def _ld_label(squad, all_tokens=None):
     return f"{threshold}+" if threshold is not None else "-"
 
 
+def auto_success_source(squad):
+    """The rule that makes this unit's Battle-shock rolls automatically
+    successful right now, by name, or None.
+
+    One source today, Green Tide's Mob Mentality (Mecha Orks G3), and asked at
+    all three roll entries below. How each honours it differs ON PURPOSE:
+    start_roll() - the 08.03 test, which nothing sequences behind - resolves
+    without dice, exactly as Insane Bravery's force_pass() does; the forced and
+    Desperate Escape rolls still throw their dice and are graded as a pass on
+    acknowledgement, because six callers wait for that acknowledgement (a queue
+    that drains one test per roll, a charge that resumes on it) and a roll that
+    silently did not start would stall every one of them."""
+    from game import green_tide_mob_mentality
+    if green_tide_mob_mentality.auto_passes(squad):
+        return green_tide_mob_mentality.MOB_MENTALITY_NAME
+    return None
+
+
 class BattleShockController:
     """Rule 01.07: a battle-shock roll is a leadership roll (01.06) for a
     unit - success means the unit does not become (or stops being)
@@ -106,7 +124,13 @@ class BattleShockController:
         return sorted((squad for squad in squads if self.can_roll(squad)), key=lambda s: s.name)
 
     def start_roll(self, squad):
-        if not self.can_roll(squad) or self.dice_manager is None:
+        if not self.can_roll(squad):
+            return
+        source = auto_success_source(squad)
+        if source is not None:
+            self.force_pass(squad, source=source)
+            return
+        if self.dice_manager is None:
             return
         label = f"Battle-Shock Roll (Ld {_ld_label(squad, self.all_tokens)})"
         self._start_roll_dice(squad, label)
@@ -159,6 +183,12 @@ class BattleShockController:
         # every other route leaves it at 0.
         self._penalty = penalty
         threshold = leadership_threshold(squad, self.all_tokens)
+        # Mob Mentality: the dice are still thrown (see auto_success_source()),
+        # shown as successes and graded as a pass on acknowledgement.
+        self._auto_success = auto_success_source(squad)
+        if self._auto_success is not None:
+            label = f"{label} - automatically successful ({self._auto_success})"
+            threshold = 1
         self.dice_manager.roll(
             count=LEADERSHIP_DICE_COUNT, sides=LEADERSHIP_DICE_SIDES,
             label=label,
@@ -177,17 +207,20 @@ class BattleShockController:
         rolls = self.dice_manager.last_values
         penalty = getattr(self, "_penalty", 0)
         self._penalty = 0
+        automatic = getattr(self, "_auto_success", None)
+        self._auto_success = None
         total = sum(rolls) - penalty
         # all_tokens is passed on purpose: leadership_success() used to
         # recompute the threshold without it and grade the roll against the
         # PRINTED Ld while _start_roll_dice() above showed the overridden one
         # on the dice panel - see that function's own note.
-        if leadership_success(rolls, squad, self.all_tokens, penalty):
+        if automatic is not None or leadership_success(rolls, squad, self.all_tokens, penalty):
             was_shocked = squad.battle_shocked
             squad.battle_shocked = False
             outcome = "is no longer battle-shocked" if was_shocked else "is not battle-shocked"
+            how = f", automatically successful ({automatic})" if automatic is not None else ""
             self._log(f"{squad.owner}: {squad.name} passes its Battle-Shock roll ({rolls}"
-                      f"{f' - {penalty}' if penalty else ''} = {total}) and {outcome}.")
+                      f"{f' - {penalty}' if penalty else ''} = {total}{how}) and {outcome}.")
         else:
             set_battle_shocked(squad, source="a failed Battle-shock test")
             self._log(f"{squad.owner}: {squad.name} fails its Battle-Shock roll ({rolls}"
@@ -196,16 +229,17 @@ class BattleShockController:
         self.rolled_squad_ids.add(squad)
         self.rolling_squad = None
 
-    def force_pass(self, squad):
+    def force_pass(self, squad, source="Insane Bravery"):
         """Rule 15.04 (Insane Bravery): "that battle-shock roll is
         automatically successful" - resolves the roll's outcome without any
         dice, same bookkeeping as a real passed roll (clears battle_shocked,
-        counts towards this phase's mandatory rolls)."""
+        counts towards this phase's mandatory rolls). `source` names the rule
+        in the log: Green Tide's Mob Mentality reaches the 08.03 test here too."""
         was_shocked = squad.battle_shocked
         squad.battle_shocked = False
         self.rolled_squad_ids.add(squad)
         outcome = "is no longer battle-shocked" if was_shocked else "is not battle-shocked"
-        self._log(f"{squad.owner}: {squad.name}'s Battle-Shock roll automatically succeeds (Insane Bravery) and {outcome}.")
+        self._log(f"{squad.owner}: {squad.name}'s Battle-Shock roll automatically succeeds ({source}) and {outcome}.")
 
     def _log(self, message):
         if self.game_log is not None:

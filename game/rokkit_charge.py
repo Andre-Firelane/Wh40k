@@ -27,7 +27,7 @@ auto player uses it outright.
 import copy
 
 from game import ai_mode
-from game.dice_notation import DiceNotation
+from game import dice_notation
 from game.squad import unit_wide_ability
 from game.weapons import MELEE
 
@@ -44,9 +44,7 @@ def is_active(squad):
 
 
 def _plus(notation):
-    if notation is None:
-        return None
-    return DiceNotation(notation.sides, notation.bonus + ROKKIT_CHARGE_BONUS, notation.dice)
+    return dice_notation.plus(notation, ROKKIT_CHARGE_BONUS)
 
 
 def adjusted_weapon(weapon, squad):

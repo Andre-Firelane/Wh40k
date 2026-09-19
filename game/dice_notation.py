@@ -41,6 +41,20 @@ def D6(bonus=0, dice=1):
     return DiceNotation(6, bonus, dice)
 
 
+def plus(notation, bonus):
+    """`notation` with `bonus` added to its flat part - "+1 A" on a D6+1 is a
+    D6+2 - or None for a characteristic that is no dice notation at all.
+
+    Extracted at the FOURTH copy (Mecha Orks G3): Rokkit Charge, High-speed
+    Carnage and Might Is Right each had a private `_plus()`, and Psychic
+    Communion built the tuple by hand and DROPPED `dice` (harmless only because
+    its one carrier rolls a single D6). `_replace()` keeps every field it is
+    not told to change, so a 2D6 stays a 2D6."""
+    if notation is None:
+        return None
+    return notation._replace(bonus=notation.bonus + bonus)
+
+
 def describe(notation):
     text = f"D{notation.sides}"
     if notation.dice > 1:

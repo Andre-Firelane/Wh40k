@@ -6421,6 +6421,11 @@ def _take_one_action(
     # Ghazghkull's Makari, Hoist Dat Banner! (Mecha Orks G2): the same kind of
     # button, the same kind of handler. Appended.
     makari_controller=None,
+    # Green Tide (Mecha Orks G3): its three Stratagem buttons, each with a
+    # deterministic handler - Mob Mentality in the Command phase, 'Ere We Go at
+    # the moment _handle_movement() decides to Advance, Unbridled Carnage in
+    # the Fight phase. Appended.
+    unbridled_carnage_controller=None, ere_we_go_controller=None, mob_mentality_controller=None,
     # main.py's ONE list of controllers that can be waiting for a model click
     # (game/damage_pick.py). The hand-picked list below answers the AI's OWN
     # rule 06.02 allocations for twelve controllers, and every other carrier
@@ -6678,6 +6683,10 @@ def _take_one_action(
         # own offer, through war_cry_verdict() below.
         acted = _handle_reanimation_crypts(player, all_tokens, reanimation_crypts_controller,
                                            game_log=game_log)
+        # Green Tide's Mob Mentality: "START of the Battle-shock step", so
+        # before the first roll below - which is also what shuts its window.
+        if not acted:
+            acted = _handle_mob_mentality(player, all_tokens, mob_mentality_controller, game_log=game_log)
         if not acted:
             acted = _handle_battle_shock(agent, player, all_tokens, battle_shock_controller, insane_bravery_controller, turn_tracker, on_thinking)
     elif phase == PHASE_MOVEMENT:
@@ -6692,6 +6701,7 @@ def _take_one_action(
             cosmic_precision_controller=cosmic_precision_controller,
             da_boss_controller=da_boss_controller, fungus_fuel_controller=fungus_fuel_controller,
             da_jump_controller=da_jump_controller, makari_controller=makari_controller,
+            ere_we_go_controller=ere_we_go_controller,
         )
     elif phase == PHASE_SHOOTING:
         acted = _handle_shooting(
@@ -6719,6 +6729,7 @@ def _take_one_action(
             grim_reapers_controller=grim_reapers_controller,
             cynosure_controller=cynosure_controller,
             hit_em_harder_controller=hit_em_harder_controller, mow_em_down_controller=mow_em_down_controller,
+            unbridled_carnage_controller=unbridled_carnage_controller,
         )
     else:
         acted = False
@@ -8867,6 +8878,86 @@ def _handle_hit_em_harder(player, all_tokens, fight_controller, hit_em_harder_co
     return True
 
 
+#: Green Tide's Mob Mentality: the AI buys it when the unit it would cover fails
+#: its Battle-shock test at least this often (an Ork's Ld 7+ fails 15/36).
+MOB_MENTALITY_MIN_FAIL_CHANCE = 0.25
+
+
+def _battle_shock_fail_chance(squad, all_tokens):
+    """P(2D6 < the unit's Leadership threshold) - 1.0 when it cannot pass."""
+    from game.leadership import leadership_threshold
+    threshold = leadership_threshold(squad, all_tokens)
+    if threshold is None:
+        return 1.0
+    passing = sum(1 for a in range(1, 7) for b in range(1, 7) if a + b >= threshold)
+    return 1.0 - passing / 36.0
+
+
+def _handle_mob_mentality(player, all_tokens, mob_mentality_controller, game_log=None):
+    """Green Tide's Mob Mentality (1CP): at the start of the Battle-shock step,
+    cover the unit whose failed test would cost the most - the likeliest to
+    fail, weighted by its points - and only when it fails at least
+    MOB_MENTALITY_MIN_FAIL_CHANCE of the time. Picks through use_on(), no
+    prompt; 0 API calls."""
+    if mob_mentality_controller is None:
+        return False
+    best = None
+    for mob in sorted(_all_squads(all_tokens), key=lambda s: s.name):
+        if mob.owner != player or not mob_mentality_controller.can_use(mob):
+            continue
+        for other in mob_mentality_controller.candidates(mob):
+            fail = _battle_shock_fail_chance(other, all_tokens)
+            if fail < MOB_MENTALITY_MIN_FAIL_CHANCE:
+                continue
+            value = fail * float(getattr(other, "points", None) or len(other.models))
+            if best is None or value > best[0]:
+                best = (value, mob, other, fail)
+    if best is None or not mob_mentality_controller.use_on(best[1], best[2]):
+        return False
+    if game_log is not None:
+        game_log.add(f"[mob mentality] {player}: {best[2].name} (from {best[1].name}) - it would fail "
+                     f"its Battle-shock test {best[3]:.0%} of the time.", file_only=True)
+    return True
+
+
+def _handle_unbridled_carnage(player, all_tokens, fight_controller, unbridled_carnage_controller,
+                              game_log=None):
+    """Green Tide's Unbridled Carnage (1CP): for the charged Boyz mob the extra
+    attacks help most against an engaged enemy, and only when that is at least
+    UNBRIDLED_CARNAGE_MIN_GAIN wounds. Bought before any unit is selected to
+    fight, like Hit 'Em Harder."""
+    from game import green_tide_unbridled_carnage as uc
+    if unbridled_carnage_controller is None or fight_controller is None:
+        return False
+    best = None
+    for squad in sorted(_all_squads(all_tokens), key=lambda s: s.name):
+        if squad.owner != player or not unbridled_carnage_controller.can_use(squad):
+            continue
+        gains = [uc.expected_extra_wounds(squad, t) for t in fight_controller.engaged_enemy_squads(squad)]
+        gain = max(gains) if gains else 0.0
+        if gain >= uc.UNBRIDLED_CARNAGE_MIN_GAIN and (best is None or gain > best[0]):
+            best = (gain, squad)
+    if best is None or not unbridled_carnage_controller.use(best[1]):
+        return False
+    if game_log is not None:
+        game_log.add(f"[unbridled carnage] {player}: {best[1].name} - +1 A is worth about "
+                     f"{best[0]:.1f} extra wound(s).", file_only=True)
+    return True
+
+
+def _buy_ere_we_go(player, squad, ere_we_go_controller, game_log=None):
+    """Green Tide's 'Ere We Go (1CP): +2 to the Advance roll of a Boyz or Beast
+    Snagga Boyz unit the AI has just decided to Advance with. Called from
+    _handle_movement() at that decision, before the roll."""
+    if ere_we_go_controller is None or squad is None or squad.owner != player:
+        return False
+    if not ere_we_go_controller.can_use(squad) or not ere_we_go_controller.use(squad):
+        return False
+    if game_log is not None:
+        game_log.add(f"[ere we go] {player}: {squad.name} Advances with +2 to the roll.", file_only=True)
+    return True
+
+
 def _handle_mow_em_down(player, all_tokens, fight_controller, mow_em_down_controller, game_log=None):
     """Mow 'Em Down (1CP): for a charging vehicle engaged with an enemy of at
     least MOW_EM_DOWN_MIN_TARGET_MODELS models - below five, [CLEAVE] adds no die."""
@@ -8898,6 +8989,7 @@ def _handle_movement(
     cosmic_precision_controller=None,
     da_boss_controller=None, fungus_fuel_controller=None,
     da_jump_controller=None, makari_controller=None,
+    ere_we_go_controller=None,
 ):
     all_tokens = state.tokens
 
@@ -9383,6 +9475,12 @@ def _handle_movement(
                 "advance_to_nearest_enemy", "advance_to_objective", "advance_to_planned_target",
                 "advance_to_planned_position",
             )
+            # Green Tide's 'Ere We Go (+2 to the Advance roll): bought HERE,
+            # at the one moment the decision to Advance is known and before
+            # the roll (and before the move starts, which is what "selected to
+            # move" still admits). Deterministic, no agent call.
+            if use_advance:
+                _buy_ere_we_go(player, squad, ere_we_go_controller, game_log)
 
             def start_fn():
                 movement_controller.start_move()
@@ -9640,7 +9738,9 @@ def _target_profile_hint(target):
         keyword = ", VEHICLE"
     elif profile.monster:
         keyword = ", MONSTER"
-    return f"T{profile.toughness}, Sv{profile.armor_save}{keyword}"
+    # The Save CHARACTERISTIC, overrides included - game/save_characteristic.py.
+    from game import save_characteristic
+    return f"T{profile.toughness}, Sv{save_characteristic.armour_save(target.models[0])}{keyword}"
 
 
 def _advance_charge_note(squad, enemy, waaagh_charge_ok):
@@ -12092,6 +12192,7 @@ def _handle_fight(
     hungry_void_controller=None, grim_reapers_controller=None,
     cynosure_controller=None,
     hit_em_harder_controller=None, mow_em_down_controller=None,
+    unbridled_carnage_controller=None,
 ):
     # Rule 12.07/12.08 (Consolidate): checked first, for any of player's own
     # squads that have already fought and haven't consolidated (or declined
@@ -12174,6 +12275,10 @@ def _handle_fight(
     if _handle_hit_em_harder(player, all_tokens, fight_controller, hit_em_harder_controller, game_log):
         return True
     if _handle_mow_em_down(player, all_tokens, fight_controller, mow_em_down_controller, game_log):
+        return True
+    # Green Tide's Unbridled Carnage: the same window and the same "selected to
+    # fight" reading.
+    if _handle_unbridled_carnage(player, all_tokens, fight_controller, unbridled_carnage_controller, game_log):
         return True
 
     eligible = sorted(fight_controller.eligible_to_select_now(), key=lambda s: s.name)
