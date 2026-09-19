@@ -41,7 +41,7 @@ from game import structural_collapse
 from game.bladestorm import bladestorm_adjusted_weapon
 from game import crit_ap
 from game import fate_inescapable
-from game import boss_ammo_runt, dodge_dis, finderz_keeperz, mobile_arsenal, ork_ammo_runts
+from game import boss_ammo_runt, dodge_dis, finderz_keeperz, mobile_arsenal, more_dakka, ork_ammo_runts
 from game.nova_charge import nova_charge_adjusted_weapon
 from game import damaged_attacks, triarch_auras
 from game import awakened_dynasty, destroyer_cult, nekrosor_ammentar, dlc_mortarions_teachings, exemplars_of_montka, gift_of_contagion, hovering_death, miasma_of_pestilence, protocol_conquering_tyrant, protocol_sudden_storm, guardian_protocols, implacable_eradication, mechanical_augmentation, overwhelming_obliteration, plagues, reroll_scope, sunforge, target_uploaded, way_of_the_short_blade
@@ -2413,8 +2413,9 @@ class ShootingController:
             self._begin_resolution(weapon_key, weapon_label, pairs, target_squad)
             return
 
-        weapon = pairs[0][1]
-        if self._cover_ignored_for_group(weapon, target_squad):
+        # The ADJUSTED weapon, for the reason _hit_modifiers() gives: an
+        # [IGNORES COVER] granted in the chain lives only on its copy.
+        if self._cover_ignored_for_group(self._adjusted_weapon(pairs, target_squad), target_squad):
             self._begin_resolution(weapon_key, weapon_label, pairs, target_squad)
             return
 
@@ -2812,7 +2813,16 @@ class ShootingController:
         # for it. shooter_model already reflects a cover-homogeneous
         # sub-group by the time this runs (see _dispatch_group()), so this
         # is now an exact per-model result, not an approximation.
-        if not self._cover_ignored_for_group(weapon, target_squad) and self._has_benefit_of_cover(shooter_model, target_squad):
+        #
+        # Asked of the ADJUSTED weapon: every [IGNORES COVER] granted in the
+        # adjuster chain (Pech'ra, Faolchu, the Oversight Drone, the Nebuloscope,
+        # Preternatural Precision, More Dakka) lives only on _adjusted_weapon()'s
+        # copy, and reading the printed `weapon` here - as this did - left every
+        # one of them in cover. Measured with an active Oversight Drone: the copy
+        # said ignores_cover=True and the Hit roll still carried +1 (Benefit of
+        # Cover). test_event_chain_wiring.py section 29 pins both readers.
+        if (not self._cover_ignored_for_group(self._adjusted_weapon(group["pairs"], target_squad), target_squad)
+                and self._has_benefit_of_cover(shooter_model, target_squad)):
             modifiers.append(Modifier(1, "Benefit of Cover", CHARACTERISTIC))
         if weapon.heavy and self._heavy_bonus_applies():
             modifiers.append(Modifier(-1, "[HEAVY] (stationary)"))
@@ -3788,6 +3798,11 @@ class ShootingController:
         weapon = finderz_keeperz.adjusted_weapon(
             weapon, self.active_squad, target_squad, self.objectives,
             reactive=self._reactive)
+        # The Big Mek in Mega Armour's More Dakka: [IGNORES COVER] on the unit's
+        # ranged attacks, and [SUSTAINED HITS 1] while it is riled up. The cover
+        # half has a second reader - the cover gate - which is handed this
+        # chain's copy (test_event_chain_wiring.py section 29).
+        weapon = more_dakka.adjusted_weapon(weapon, self.active_squad)
         # Kroot Farstalkers' Pech'ra: [IGNORES COVER] on the whole unit's
         # ranged weapons, unconditionally once taken - the simplest grant
         # in this chain, and ranged-only by its own printed wording.

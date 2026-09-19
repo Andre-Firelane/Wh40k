@@ -141,6 +141,11 @@ SQUAD_FLAGS = (
     "weirdboy_warpath_active",
     "da_jump_deep_strike",
     "da_jump_round",
+    # The Mecha Orks characters (G2): Fix Dat Armour Up's and Makari's spends,
+    # and the round Da Boss last paid its CP (a mid-round load must not pay twice).
+    "fix_dat_armour_up_used",
+    "makari_used",
+    "da_boss_round",
     # The Tankbustas' Bomb Squigs: tokens spent and the turn of the last use.
     "bomb_squigs_used",
     "bomb_squigs_turn",

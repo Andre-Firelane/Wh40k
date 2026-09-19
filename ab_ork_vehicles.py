@@ -145,9 +145,8 @@ PROBES = [
 
     # --------------------------------------------------------- transport lines
     ("Trukk: JUMP PACK models are not refused",
-     [(UN, '    transport_excludes = ("jump_pack",)  # "cannot transport GHAZGHKULL THRAKA/JUMP PACK models"'
-           " (GHAZGHKULL THRAKA is not built)",
-       "    transport_excludes = ()" + MARK)], (TV,)),
+     [(UN, '    transport_excludes = ("jump_pack", "ghazghkull_thraka")  # "cannot transport GHAZGHKULL THRAKA/JUMP PACK models"',
+       '    transport_excludes = ("ghazghkull_thraka",)' + MARK)], (TV,)),
     ("Battlewagon: a capacity of 12",
      [(UN, '    transport_capacity = 22  # "a transport capacity of 22 ORKS INFANTRY models"',
        "    transport_capacity = 12" + MARK)], (TV,)),

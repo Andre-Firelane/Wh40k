@@ -149,8 +149,12 @@ wörtlich in `weapon_has_assault()`s Docstring steht: sie galt nur nicht fürs
 Nachbar-Keyword, und die zwei Zeilen standen NEBENEINANDER in derselben Funktion.
 → **§7** für [ASSAULT], **§19** für [PISTOL]. Beide sind dieselbe
 MENGENDIFFERENZ: wer das Keyword zur Laufzeit vergibt, muss im RUMPF des Tors
-genannt sein. Ein DRITTES Keyword mit eigenem Eignungs-Tor kostet einen
-weiteren solchen Abschnitt — die Frage von Hand lautet *wer liest dieses
+genannt sein. Das DRITTE war [IGNORES COVER] (Mecha Orks G2, **§29**): dessen
+Tor nimmt die WAFFE entgegen, also heißt die Regel dort „dem Tor die angepasste
+Waffe reichen" (§27s Form) statt einer Namensliste — beide Cover-Leser bekamen
+die gedruckte, und kein Ketten-Grant (Pech'ra, Faolchu, Oversight Drone,
+Nebuloscope, More Dakka) nahm je Cover weg. Ein VIERTES Keyword mit eigenem Tor
+kostet wieder einen Abschnitt — die Frage von Hand lautet *wer liest dieses
 Keyword ausser der Kette?*, und die Antwort ist fast nie „niemand".
 
 **Braucht die Bedingung etwas, das der Leser nicht bekommt** (eine Runde, einen
@@ -239,7 +243,7 @@ Die Wächter decken die vierzehn gefundenen Formen ab. Nicht abgedeckt und
 deshalb weiterhin Kopfarbeit:
 
 - **Ein neues Keyword mit einem eigenen Eignungs-Tor** (§7 deckt [ASSAULT] ab,
-  §19 [PISTOL] — ein drittes braucht seinen eigenen Abschnitt).
+  §19 [PISTOL], §29 [IGNORES COVER] — ein viertes braucht seinen eigenen Abschnitt).
 - **Die zweite Hälfte einer Regel**, die ein anderer Trichter liest — „ein
   KEYWORD-Grant wird regelmäßig an zwei ganz verschiedenen Orten gelesen".
 - **Ob eine Liste die Fähigkeit überhaupt fieldet.** Eine Regel kann
@@ -826,6 +830,9 @@ Fraktion deren Dateien plus `fraktionen.md`; bei einer gemeldeten Fehlerform zue
 - Ork-Fahrzeuge (2026-09-Codex): Warbikers, Deffkoptas, Trukk, Battlewagon, Deff Dread — Etappe E3d
 - Kill Rig (2026-09-Codex): Beastscent, Warpath, der psychische Wurf — Etappe E3e
 - Mecha Orks G1: Bigboss, Weirdboy, Gunwagon (2026-09-19)
+
+### `docs/stand/orks-mecha-orks.md` — Mecha Orks ab G2: Big Mek in Mega Armour (More Dakka, der Cover-Tor-Fix), Ghazghkull Thraka, der Warlord samt Da Boss
+- Mecha Orks G2: Big Mek in Mega Armour, Ghazghkull Thraka, der Warlord (2026-09-19)
 
 ### `docs/stand/audits-aeldari-und-tau.md` — die Prüfungen „werden die Aeldari-/T'au-Stratagems angeboten und wirken sie“
 - Werden die Aeldari-Stratagems überhaupt ANGEBOTEN? (Prüfung, 2026-09-07)

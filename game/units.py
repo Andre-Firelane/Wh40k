@@ -245,6 +245,15 @@ class UnitProfile:
     da_jump = False  # Weirdboy's "Da Jump (psychic level 1, once per army, per battle round)" (2026-09 Ork codex): in your Movement phase a psychic roll places this unit in Strategic Reserves with Deep Strike - see game/da_jump.py
     sumfin_to_prove = False  # Bigboss's "Sumfin' to Prove" (2026-09 Ork codex): this unit's melee attacks have +1 to hit rolls - see game/sumfin_to_prove.py
     mobile_arsenal = False  # Gunwagon's "Mobile Arsenal" (2026-09 Ork codex): in your Shooting phase, this unit's ranged attacks can re-roll hit rolls of 1 - see game/mobile_arsenal.py
+    more_dakka = False  # Big Mek in Mega Armour's "More Dakka" (2026-09 Ork codex): this unit's ranged attacks have [IGNORES COVER], and [SUSTAINED HITS 1] while riled up - see game/more_dakka.py
+    fix_dat_armour_up = False  # Big Mek in Mega Armour's "Fix Dat Armour Up" (once per battle, per unit): in your Command phase this unit heals 3 wounds - see game/fix_dat_armour_up.py
+    big_mek = False  # the BIG MEK keyword - Blitz Brigade's Targetin' Gizmos asks for an embarked BIG MEK (stage G4)
+    da_boss = False  # the Orks army rule "Da Boss" (2026-09 codex): at the start of the battle round, if a model with this ability is your WARLORD, gain 1CP - see game/da_boss.py
+    supreme_commander = False  # "Supreme Commander: If this model is in your army, it must be your WARLORD" - enforced when a list is loaded, see game/warlord.py
+    ghazghkull_thraka = False  # the GHAZGHKULL THRAKA keyword - 4 transport slots in a Battlewagon/Gunwagon, refused by a Trukk (game/transport.py's _model_capacity_cost(), TrukkProfile.transport_excludes)
+    da_grand_warlords_ladz = False  # Ghazghkull's "Da Grand Warlord's Ladz": LONE OPERATIVE while within 3" of another friendly ORKS INFANTRY unit - see game/grand_warlords_ladz.py
+    makari = False  # Ghazghkull's "Makari, Hoist Dat Banner!" (once per battle, per army): riles up up to battle-round-many ORKS units - see game/makari.py
+    prophet_of_da_great_waaagh = False  # Ghazghkull's "Prophet of da Great Waaagh! (Aura)": friendly ORKS units within 6" get +1 to hit and wound in melee - see game/prophet_of_da_great_waaagh.py
     mega_armour = False  # the MEGA ARMOUR keyword - matters for a TRANSPORT's capacity math ("each MEGA ARMOUR model takes up the space of 2 models", rule 18.01/Trukk's own printed exception) - see game/transport.py's _model_capacity_cost()
     coldstar_commander = False  # Commander in Coldstar Battlesuit's own "Coldstar Commander" ability (user-supplied, not a core rule): while this model is LEADING a unit (19.01), models in that unit have a Move characteristic of 12" and their ranged weapons have [ASSAULT] - a leader ability granted to the whole attached unit, so read with squad_has_coldstar_commander() rather than unit_wide_ability(); see game/coldstar.py
     might_is_right = False  # Warboss's "Might Is Right" (2026-09 Ork codex): if this unit made a charge move this turn, this model's melee attacks have +3 A and +2 S - per MODEL, see game/might_is_right.py. The pre-codex +1-to-hit leader grant of that name is gone
@@ -393,7 +402,7 @@ class UnitProfile:
     root_of_honour = False  # Kroot War Shaper's own ability: once per battle, at the start of any phase, one friendly Battle-shocked KROOT unit within 12" stops being Battle-shocked - see game/root_of_honour.py
     technomancer_repair = False  # Technomancer's own ability: at the end of your Movement phase, one friendly NECRONS model within 6" regains up to D3 lost wounds, once per model per turn - see game/technomancer.py
     matter_absorption = False  # Void Dragon's own ability: at the start of your Shooting phase, one enemy VEHICLE unit within 12" takes D3 mortal wounds on a 2+, and this model regains up to that many lost wounds - see game/mortal_wound_abilities.py
-    enslaved_star_god = False  # Void Dragon's own "Enslaved Star God": "this model cannot be your WARLORD". A documented NO-OP - this engine has no Warlord concept at all, the same status as the "ignore vertical distance" abilities
+    enslaved_star_god = False  # the C'tan Shards' "Enslaved Star God": "this model cannot be your WARLORD" - a list naming one as its Warlord is refused at load, see game/warlord.py
     drain_life = False  # C'tan Shard of the Nightbringer's own ability: at the end of the Fight phase, roll one D6 for each enemy unit within 6" of this model - on a 4+ that unit suffers D3 mortal wounds - see game/drain_life.py
     grand_illusion = False  # C'tan Shard of the Deceiver's own ability: if your army includes this model, after both players have deployed, redeploy up to three NECRONS units (any of them may go into Strategic Reserves) - see game/grand_illusion.py
     transdimensional_displacement = False  # Transcendent C'tan's own ability: an Advance move with no maximum distance that may pass through all models, and must end more than 8" from every enemy unit - see game/transdimensional_displacement.py
@@ -660,7 +669,7 @@ class TrukkProfile(UnitProfile):
     transport_capacity = 12
     transport_requires_infantry = True  # "12 ORKS INFANTRY models" - the INFANTRY half
     transport_requires = ("orks",)  # ...and the ORKS half
-    transport_excludes = ("jump_pack",)  # "cannot transport GHAZGHKULL THRAKA/JUMP PACK models" (GHAZGHKULL THRAKA is not built)
+    transport_excludes = ("jump_pack", "ghazghkull_thraka")  # "cannot transport GHAZGHKULL THRAKA/JUMP PACK models"
     firing_deck = 12  # "Firing Deck 12"
     pilin_out = True  # see game/pilin_out.py
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
@@ -722,6 +731,7 @@ class WarbossProfile(UnitProfile):
     boss_ammo_runt = True  # Boss' Ammo Runt - see game/boss_ammo_runt.py
     might_is_right = True  # Might Is Right - see game/might_is_right.py
     intimidating_motivation = True  # Intimidating Motivation - see game/boss_motivation.py
+    da_boss = True  # FACTION: Da Boss - see game/da_boss.py
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
     orks = True  # Orks Faction - see UnitProfile.orks' own note
 
@@ -785,6 +795,7 @@ class WarbossMegaArmourProfile(UnitProfile):
     leader = True  # the Leader core ability (24.22) - Meganobz
     krushin_impetus = True  # Krushin' Impetus - see game/krushin_impetus.py
     intimidating_motivation = True  # Intimidating Motivation - see game/boss_motivation.py
+    da_boss = True  # FACTION: Da Boss - see game/da_boss.py
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
     orks = True  # Orks Faction - see UnitProfile.orks' own note
 
@@ -1157,6 +1168,81 @@ class WeirdboyProfile(UnitProfile):
     orks = True  # Orks Faction - see UnitProfile.orks' own note
 
 
+class BigMekMegaArmourProfile(UnitProfile):
+    """Datasheet: Big Mek in Mega Armour (Orks), 2026-09 codex - rules/orks/Big Mek
+    In Mega Armour.md, built in game/factions/orks.py. KEYWORDS: INFANTRY; BIG MEK;
+    CHARACTER; EXPLOSIVES; MEGA ARMOUR.
+
+    base_radius_in: the printed 40mm (0.79").
+
+    WS3+ off the Power Klaw (the Killsaw's 4+ rides on the weapon), BS4+ off every
+    ranged row. LEADER for Meganobz and Mek Gunz (Mek Gunz are not built).
+
+    More Dakka (game/more_dakka.py) and Fix Dat Armour Up (game/fix_dat_armour_up.py)
+    are his; the Kustom Force Field is a Gear item (Token.kustom_force_field,
+    read by game/kustom_force_field.py) - "one of" with the Tellyport Blasta, not
+    enforced (the Tankbustas' named limitation)."""
+    name = "Big Mek in Mega Armour"
+    base_radius_in = 0.79
+    movement_in = 5
+    weapon_skill = "3+"
+    ballistic_skill = "4+"
+    toughness = 6
+    wounds = 5
+    leadership = "7+"
+    armor_save = "2+"
+    oc = 1
+    character = True  # the CHARACTER keyword
+    infantry = True  # the INFANTRY keyword
+    explosives = True  # the EXPLOSIVES keyword
+    mega_armour = True  # the MEGA ARMOUR keyword - 2 transport slots, see game/transport.py
+    big_mek = True  # the BIG MEK keyword
+    leader = True  # the Leader core ability (24.22) - Meganobz, Mek Gunz
+    more_dakka = True  # More Dakka - see game/more_dakka.py
+    fix_dat_armour_up = True  # Fix Dat Armour Up - see game/fix_dat_armour_up.py
+    waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
+    orks = True  # Orks Faction - see UnitProfile.orks' own note
+
+
+class GhazghkullThrakaProfile(UnitProfile):
+    """Datasheet: Ghazghkull Thraka (Orks), 2026-09 codex - rules/orks/Ghazghkull
+    Thraka.md, built in game/factions/orks.py. KEYWORDS: INFANTRY; CHARACTER; EPIC
+    HERO; EXPLOSIVES; WARBOSS. One model (the pre-codex Makari model is gone; his
+    banner is an ability now).
+
+    base_radius_in: the printed 80mm (1.575").
+
+    WS2+ off both melee rows, BS5+ off Mork's Roar - Aimed. No Leader section: he
+    is never attached. SUPREME COMMANDER (game/warlord.py) and Da Boss
+    (game/da_boss.py); Da Grand Warlord's Ladz (game/grand_warlords_ladz.py),
+    Makari, Hoist Dat Banner! (game/makari.py) and Prophet of da Great Waaagh!
+    (game/prophet_of_da_great_waaagh.py). GHAZGHKULL THRAKA takes 4 slots in a
+    Battlewagon or Gunwagon and none in a Trukk."""
+    name = "Ghazghkull Thraka"
+    base_radius_in = 1.575
+    movement_in = 8
+    weapon_skill = "2+"
+    ballistic_skill = "5+"
+    toughness = 10
+    wounds = 16
+    leadership = "6+"
+    armor_save = "2+"
+    invulnerable_save = "4+"  # printed INSV 4+
+    oc = 4
+    character = True  # the CHARACTER keyword
+    epic_hero = True  # the EPIC HERO keyword
+    infantry = True  # the INFANTRY keyword
+    explosives = True  # the EXPLOSIVES keyword
+    ghazghkull_thraka = True  # the GHAZGHKULL THRAKA keyword - see UnitProfile.ghazghkull_thraka
+    supreme_commander = True  # "If this model is in your army, it must be your WARLORD" - see game/warlord.py
+    da_boss = True  # FACTION: Da Boss - see game/da_boss.py
+    da_grand_warlords_ladz = True  # see game/grand_warlords_ladz.py
+    makari = True  # see game/makari.py
+    prophet_of_da_great_waaagh = True  # see game/prophet_of_da_great_waaagh.py
+    waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
+    orks = True  # Orks Faction - see UnitProfile.orks' own note
+
+
 class KillRigProfile(UnitProfile):
     """Datasheet: Kill Rig (Orks), 2026-09 codex - rules/orks/Kill Rig.md, built
     in game/factions/orks.py. KEYWORDS: MONSTER; BEAST SNAGGA; PSYKER; TRANSPORT;
@@ -1234,6 +1320,7 @@ class BeastbossProfile(UnitProfile):
     leader = True  # the Leader core ability (24.22) - Beast Snagga Boyz
     feel_no_pain = "6+"  # CORE: Feel No Pain 6+ (rule 24.12)
     keep_huntin = True  # Keep Huntin'! - see game/boss_motivation.py
+    da_boss = True  # FACTION: Da Boss - see game/da_boss.py
     dodge_dis = True  # Dodge Dis! - see game/dodge_dis.py
     waaagh = True  # Orks army rule - see UnitProfile.waaagh's own note
     orks = True  # Orks Faction - see UnitProfile.orks' own note
@@ -1623,8 +1710,8 @@ class CommanderShadowsunProfile(UnitProfile):
     # change to the Stratagem flow rather than to this datasheet. Recorded on
     # the datasheet's abilities_text and asserted in test_tau_characters.py.
     # Supreme Commander ("if this model is in your army, it must be your
-    # WARLORD") is a documented NO-OP - this engine has no Warlord concept at
-    # all, the same status as the Void Dragon's Enslaved Star God.
+    # WARLORD") is enforced when a list is loaded - see game/warlord.py.
+    supreme_commander = True
 
 
 class KrootHoundProfile(UnitProfile):
@@ -4906,6 +4993,7 @@ class SzarekhProfile(UnitProfile):
     invulnerable_save = "4+"
     vehicle = True
     character = True
+    supreme_commander = True        # "Supreme Commander" - the unit's Warlord is Szarekh, enforced at list load (game/warlord.py)
     epic_hero = True
     reanimation_protocols = True
     deadly_demise = 9                   # documentation leftover only, see deadly_demise_notation below
@@ -4986,7 +5074,7 @@ class CtanShardProfile(UnitProfile):
     deep_strike = True
     reanimation_protocols = True
     damage_reduction = 1            # "Necrodermis", see game/damage_reduction.py
-    enslaved_star_god = True        # "cannot be your WARLORD" - a documented no-op, this engine has no Warlord
+    enslaved_star_god = True        # "cannot be your WARLORD" - refused at list load, see game/warlord.py
     deadly_demise = 6               # documentation leftover only, see deadly_demise_notation below
     deadly_demise_notation = D6()   # "Deadly Demise D6"
 

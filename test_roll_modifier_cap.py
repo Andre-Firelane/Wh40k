@@ -290,6 +290,8 @@ ROLL_SITES = [
     ("game/krumpin_time.py", "KRUMPIN_TIME_NAME"),
     ("game/ork_ammo_runts.py", "AMMO_RUNTS_NAME"),
     ("game/plagues.py", "Skullsquirm Blight"),
+    ("game/prophet_of_da_great_waaagh.py", "PROPHET_NAME"),  # "+1 to hit rolls"
+    ("game/prophet_of_da_great_waaagh.py", "PROPHET_NAME"),  # "+1 to wound rolls"
     ("game/shepherds_of_the_dead.py", "VENGEFUL_DEAD_LABEL"),  # hit
     ("game/shepherds_of_the_dead.py", "VENGEFUL_DEAD_LABEL"),  # wound
     ("game/shooting.py", "Damaged"),  # the model's own tier
@@ -380,8 +382,10 @@ c.eq("every Modifier construction is classified - a new one needs its printed "
      "('improve/worsen the ... characteristic', pass CHARACTERISTIC)",
      sorted(f"{f}:{where.get((f, l, k), '?')} {l!r} as {k}" for (f, l, k) in unlisted), [])
 c.eq("...and no listed site is gone or has changed kind", sorted(stale), [])
-c.eq("the lists hold 8 characteristic and 54 roll sites",
-     (len(CHARACTERISTIC_SITES), len(ROLL_SITES)), (8, 54))
+# 54 at the cap's own stage, +2 for Ghazghkull's Prophet of da Great Waaagh!
+# (Mecha Orks G2: "+1 to hit rolls", "+1 to wound rolls").
+c.eq("the lists hold 8 characteristic and 56 roll sites",
+     (len(CHARACTERISTIC_SITES), len(ROLL_SITES)), (8, 56))
 c.eq("nobody reads a Modifier's amount except to COMPARE it (no hand-rolled sums)",
      amount_sums, [])
 

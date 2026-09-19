@@ -133,7 +133,7 @@ for name, prof in sorted(PROFILES.items()):
     c.true("%s: MONSTER, CHARACTER, FLY, Deep Strike" % name,
            prof.monster and prof.character and prof.fly and prof.deep_strike)
     c.eq("%s: Necrodermis is a flat -1" % name, prof.damage_reduction, 1)
-    c.true("%s: Enslaved Star God, the documented no-op" % name, prof.enslaved_star_god)
+    c.true("%s: Enslaved Star God (refused as a Warlord at list load)" % name, prof.enslaved_star_god)
     c.eq("%s: Deadly Demise D6" % name, describe(prof.deadly_demise_notation), "D6")
 
 # THE AGREEMENT IS STRUCTURAL, not four copies that happen to match today. A

@@ -492,8 +492,9 @@ ck.true("Jammer Array is recorded as not engine-wired",
 _ss_text = " ".join(COMMANDER_SHADOWSUN.abilities_text)
 ck.true("the Command-link Drone is recorded as not engine-wired",
         "Command-link Drone" in _ss_text and "NOT ENGINE-WIRED" in _ss_text)
-ck.true("Supreme Commander is recorded as a no-op",
-        "Supreme Commander" in _ss_text and "NO-OP" in _ss_text)
+ck.true("Supreme Commander is recorded as enforced at list load (game/warlord.py)",
+        "Supreme Commander" in _ss_text and "game/warlord.py" in _ss_text
+        and COMMANDER_SHADOWSUN.model_lines[0].profile_cls.supreme_commander)
 _enf_text = " ".join(COMMANDER_IN_ENFORCER_BATTLESUIT.abilities_text)
 ck.true("the Battlesuit Support System's second clause is recorded as unenforced",
         "NOT ENFORCED" in _enf_text)

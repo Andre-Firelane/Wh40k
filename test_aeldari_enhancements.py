@@ -290,8 +290,8 @@ from game.enh_light_of_clarity import LightOfClarityController  # noqa: E402
 c.eq("the registered conditional sources, by module",
      sorted(f.__module__.rsplit(".", 1)[-1]
             for f, _r in conditional_lone_operative.SOURCES),
-     ["death_guard_defenders", "enh_spirit_stone_of_raelyth", "illuminor",
-      "nekrosor_ammentar", "spiritseer"])
+     ["death_guard_defenders", "enh_spirit_stone_of_raelyth", "grand_warlords_ladz",
+      "illuminor", "nekrosor_ammentar", "spiritseer"])
 _se_src = io.open("game/status_effects.py", encoding="utf-8").read()
 c.true("status_effects folds them instead of listing them",
        "conditional_lone_operative.granted_ranges(squad, all_tokens)" in _se_src)

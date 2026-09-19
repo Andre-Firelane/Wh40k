@@ -10,6 +10,7 @@ from ai import observation as ai_observation
 from ai.agent_driver import AIMemory, take_one_action
 from ai.agent_driver import reactive_subroutines_destination, reactive_subroutines_move
 from ai.agent_driver import aerial_manoover_choice, beastscent_verdict, boss_motivation_choice, catch_dat_red_bit_verdict, hyperphasing_choice, hyperphasic_recall_verdict, pilin_out_verdict, rokkit_charge_verdict, war_cry_verdict, warpath_verdict
+from ai.agent_driver import fix_dat_armour_up_verdict
 from ai.agent_driver import battle_shock_target_choice
 from ai.claude_agent import ClaudeAgent
 # from ai.mock_agent import MockAgent  # free/offline alternative - no API key or network needed
@@ -40,6 +41,9 @@ from game import boss_ammo_runt, ork_ammo_runts, rokkit_charge
 from game.boss_ammo_runt import BossAmmoRuntController
 from game.boss_motivation import IntimidatingMotivationController, KeepHuntinController
 from game.crude_surgery import CrudeSurgeryController
+from game.fix_dat_armour_up import FixDatArmourUpController
+from game.da_boss import DaBossController
+from game.makari import MakariController
 from game.krushin_impetus import KrushinImpetusController
 from game.bomb_squigs import BombSquigsController
 from game.aerial_manoover import AerialManooverController
@@ -1149,6 +1153,22 @@ def main(map_key=None):
             model, x, y, squad=model.squad,
         ),
     )
+    # The Big Mek in Mega Armour's Fix Dat Armour Up ("Once per battle, per
+    # unit: in your Command phase, this unit heals 3 wounds") - the same heal,
+    # but a single use, so it is OFFERED at the start of the owner's Command
+    # phase. The AI answers through its injected verdict, 0 API calls.
+    fix_dat_armour_up_controller = FixDatArmourUpController(
+        decision_manager=decision_manager, game_log=game_log, game_state=state,
+        auto_players=ai_players, verdict=fix_dat_armour_up_verdict,
+        position_valid=lambda model, x, y: setup_controller.position_valid(
+            model, x, y, squad=model.squad,
+        ),
+    )
+    # The Orks army rule Da Boss: "At the start of the battle round, if a model
+    # with this ability is your WARLORD, gain 1CP" - idempotent per round, on
+    # the seam the Battle Focus pool and the Fate dice use (game/da_boss.py).
+    da_boss_rule_controller = DaBossController(
+        command_points=command_points, squads_provider=state.all_squads, game_log=game_log)
     # --- Necrons -----------------------------------------------------------
     # All of these are built unconditionally rather than only when the Necrons
     # are fielded: every one of them is inert without a Necron unit on the
@@ -2085,6 +2105,7 @@ def main(map_key=None):
     )
     reanimation_controller.placer = return_placement_controller
     crude_surgery_controller.placer = return_placement_controller
+    fix_dat_armour_up_controller.placer = return_placement_controller
     unquenchable_resolve_controller.placer = return_placement_controller
     # The Resurrection Orb is a SECOND DOOR into reanimation_protocols.reanimate()
     # - the army rule's own controller is not the only funnel (Fehlerklasse 9).
@@ -3151,6 +3172,12 @@ def main(map_key=None):
     da_jump_controller = proactive_stratagems.add(DaJumpController(
         psychic_roll_controller, game_state=state, movement_controller=movement_controller,
         turn_tracker=turn_tracker, game_log=game_log, squads_provider=state.all_squads))
+    # Ghazghkull's Makari, Hoist Dat Banner!: a panel button in your Movement
+    # phase (no CP, once per battle per army) that opens a unit pick. The AI's
+    # handler is ai/agent_driver.py's _handle_makari().
+    makari_controller = proactive_stratagems.add(MakariController(
+        turn_tracker=turn_tracker, decision_manager=decision_manager,
+        squads_provider=state.all_squads, game_log=game_log))
     # The Warbosses' Intimidating Motivation and the Beastboss's Keep Huntin'!
     # (game/boss_motivation.py): panel buttons for a human while the start or
     # end window of the bearer's move is open, and the two move hooks for the
@@ -3850,6 +3877,8 @@ def main(map_key=None):
         # complete - the same reason the points lines below are logged here.
         battle_focus_pool.sync_battle_round(turn_tracker.battle_round)
         fate_dice_pool.sync_battle_round(turn_tracker.battle_round)
+        # Da Boss: "at the start of the battle round" - round 1's CP here.
+        da_boss_rule_controller.sync_battle_round(turn_tracker.battle_round)
         # "At the start of the battle round, select one Triarch ability" -
         # idempotent per round, so it rides the same seam as the two above.
         voice_of_the_triarch_controller.sync_battle_round(
@@ -4291,6 +4320,10 @@ def main(map_key=None):
         # reset_phase() counterpart for the same reason: the dice are the whole
         # state, and they last the battle.
         fate_dice_pool.sync_battle_round(turn_tracker.battle_round)
+        # Da Boss, on the same idempotent schedule: the first phase change of a
+        # new battle round is its start, and the paid round is stamped on the
+        # Warlord's unit, so a mid-round load does not pay twice.
+        da_boss_rule_controller.sync_battle_round(turn_tracker.battle_round)
         # The Secondary Mission deck's 15 VP-per-battle-round ledger, reset on
         # the same idempotent every-phase-change schedule and for the same
         # reason: the reset must not depend on catching one exact moment.
@@ -4739,6 +4772,9 @@ def main(map_key=None):
             # heals 3 wounds" - resolved at the start, for the phase's own
             # turn owner, wherever the unit is (a unit in reserves heals too).
             crude_surgery_controller.begin_command_phase(state.all_squads(), turn_tracker.turn_owner)
+            # The Big Mek in Mega Armour's Fix Dat Armour Up - the same instant,
+            # offered rather than automatic (once per battle).
+            fix_dat_armour_up_controller.begin_command_phase(state.all_squads(), turn_tracker.turn_owner)
         if turn_tracker.phase == PHASE_MOVEMENT:
             # The Monolith's Eternity Gate: "In your Movement phase (excluding
             # the first battle round)". The per-turn ledger is cleared first,
@@ -5690,6 +5726,8 @@ def main(map_key=None):
             breakin_heads_controller=breakin_heads_controller,
             # The Weirdboy's Da Jump, a panel button with a deterministic handler.
             da_jump_controller=da_jump_controller,
+            # Ghazghkull's Makari, the same kind of button.
+            makari_controller=makari_controller,
             # The one list of controllers that can wait for a model click, so
             # the AI answers an allocation it OWNS from every one of them - not
             # just the twelve take_one_action() names by hand.

@@ -39,7 +39,7 @@ import io
 import json
 import os
 
-from game import enhancements, force_dispositions
+from game import enhancements, force_dispositions, warlord
 from game.army_roster import Leader, Unit
 from game.factions.faction import get_faction
 
@@ -205,6 +205,10 @@ def parse(data, path="<data>"):
     roster = []
     if faction is not None:
         roster = _parse_roster(data.get("roster") or [], faction, detachments, problems)
+        # The WARLORD rules - at most one, a CHARACTER, not a model that
+        # "cannot be your WARLORD", and a Supreme Commander must be it (named
+        # implicitly when the list names nobody). See game/warlord.py.
+        warlord.validate_roster(roster, problems)
 
     army = ArmyFile(key, name, faction_keyword, army_rule, detachments,
                     disposition, sort_order, data.get("note"), roster, path)
@@ -276,6 +280,10 @@ def _parse_entry(raw, faction, detachments, problems, where, leaders_allowed):
     gear = _gear(raw.get("gear"), datasheet, problems, where)
     choices = _choices(raw.get("choices"), datasheet, compositions[composition], problems, where)
     enhancement = _enhancement(raw.get("enhancement"), detachments, problems, where)
+    is_warlord = raw.get("warlord", False)
+    if not isinstance(is_warlord, bool):
+        problems.append("%s: 'warlord' must be true or false, got %r" % (where, is_warlord))
+        is_warlord = False
 
     leaders = []
     for i, spec in enumerate(raw.get("leaders") or ()):
@@ -286,12 +294,13 @@ def _parse_entry(raw, faction, detachments, problems, where, leaders_allowed):
                            "%s.leaders[%d]" % (where, i), leaders_allowed=False)
         if led is not None:
             leaders.append(Leader(led.datasheet, led.color, led.composition_index,
-                                  led.gear, led.choices, led.enhancement, spec.get("note")))
+                                  led.gear, led.choices, led.enhancement, spec.get("note"),
+                                  warlord=led.warlord))
 
     if color is None:
         return None
     return Unit(datasheet, color, composition, gear, choices, leaders,
-                None, enhancement, raw.get("id"), raw.get("note"))
+                None, enhancement, raw.get("id"), raw.get("note"), warlord=is_warlord)
 
 
 def _datasheet(name, faction, problems, where):

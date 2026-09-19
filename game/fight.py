@@ -6,6 +6,7 @@ from game import battle_stats
 from game import damaged_attacks, triarch_auras
 from game import beastscent, dodge_dis, high_speed_carnage, krumpin_time, might_is_right, rokkit_charge, tide_of_muscle, warpath
 from game import sumfin_to_prove, weirdboy_warpath
+from game import prophet_of_da_great_waaagh
 from game import aux_experimental_modifications, awakened_dynasty, nekrosor_ammentar, swift_demise, montka_pinpoint_counter_offensive, destroyer_cult, destroyer_hive, dlc_grim_reapers, gift_of_contagion, guardian_protocols, protocol_hungry_void, implacable_eradication, mechanical_augmentation, plagues, plasmacyte, reroll_scope
 from game import way_of_the_short_blade
 from game import strength_over_toughness
@@ -2830,6 +2831,9 @@ class FightController:
         # The Bigboss's Sumfin' to Prove: "This unit's MELEE attacks have +1 to
         # hit rolls" - Dodge Dis! with one word more, so this side only.
         modifiers.extend(sumfin_to_prove.hit_modifiers(self.fighting_squad))
+        # Ghazghkull's Prophet of da Great Waaagh! (Aura): "+1 to hit rolls",
+        # the same aura's first half - see game/prophet_of_da_great_waaagh.py.
+        modifiers.extend(prophet_of_da_great_waaagh.hit_modifiers(self.fighting_squad, self.all_tokens))
         # Meganobz' Krumpin' Time: +1 to hit in this phase while riled up.
         modifiers.extend(krumpin_time.hit_modifiers(self.fighting_squad))
         # Awakened Dynasty's Command Protocols: a leader granting his whole
@@ -2948,6 +2952,9 @@ class FightController:
         # The Kill Rig's Beastscent - "attacks", so both phases; see
         # game/shooting.py's twin and game/beastscent.py.
         modifiers.extend(beastscent.wound_modifiers(self.fighting_squad, target_squad))
+        # Ghazghkull's Prophet of da Great Waaagh! (Aura): "+1 to wound rolls"
+        # on the melee attacks of a friendly ORKS unit within 6" of him.
+        modifiers.extend(prophet_of_da_great_waaagh.wound_modifiers(self.fighting_squad, self.all_tokens))
         return modifiers
 
     def _report_group_statistics(self):

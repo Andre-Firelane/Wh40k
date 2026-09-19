@@ -296,6 +296,11 @@ SQUAD_SPRITE_KEYS = {
     "Gunwagon": "Gunwagon",
     # The Painboy's art arrived with them; the datasheet had none until then.
     "Painboy": "Painboy",
+    # Mecha Orks stage G2, the user's art under the datasheet names. Neither
+    # contains another key ("Warboss in Mega Armour" and "Big Mek in Mega
+    # Armour" share only their tail).
+    "Big Mek in Mega Armour": "Big Mek in Mega Armour",
+    "Ghazghkull Thraka": "Ghazghkull Thraka",
 
     # --- Necrons ---
     # The folder wins wherever it disagrees with the datasheet, the same

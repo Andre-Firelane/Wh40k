@@ -6,11 +6,12 @@ game/riled_up.py and War Cry in game/war_cry.py - a prompt for a human at the
 start of every Command phase until used, a deterministic verdict for the AI
 (ai/agent_driver.py's war_cry_verdict()). The old user-supplied Waaagh! and its
 WaaaghController are retired; see game/waaagh.py's docstring for what went
-with them. This module holds twenty datasheets: Boyz, Warbikers,
+with them. This module holds twenty-two datasheets: Boyz, Warbikers,
 Stormboyz, Trukk, Gretchin, Warboss, Meganobz, Warboss in Mega Armour,
 Tankbustas, Deffkoptas, Deff Dread, Beast Snagga Boyz, Beastboss, Painboy,
-Kill Rig, Flash Gitz, Battlewagon, and the three the Mecha Orks list added
-(Bigboss, Weirdboy, Gunwagon) - every one of their UnitProfile classes sets
+Kill Rig, Flash Gitz, Battlewagon, and the five the Mecha Orks list added
+(Bigboss, Weirdboy, Gunwagon, Big Mek in Mega Armour, Ghazghkull Thraka) -
+every one of their UnitProfile classes sets
 `waaagh = True` (user: "ALLE bisher angelegten Ork einheiten haben die
 Waaagh! ability").
 
@@ -99,6 +100,17 @@ a Killkannon or a (priced) Zzap Gun, four free additions, Mobile Arsenal
 (game/mobile_arsenal.py: re-roll hit rolls of 1 in your Shooting phase) and a
 12-model transport.
 
+Two more for the same list (stage G2). The Big Mek in Mega Armour LEADS
+Meganobz: More Dakka (game/more_dakka.py: [IGNORES COVER], and [SUSTAINED HITS 1]
+while riled up, on the unit's ranged attacks), Fix Dat Armour Up
+(game/fix_dat_armour_up.py: heal 3, once per battle) and the Kustom Force Field
+gear (game/kustom_force_field.py: 4+ InSv against ranged attacks for the unit).
+Ghazghkull Thraka is a SUPREME COMMANDER - the army's Warlord (game/warlord.py) -
+with Da Boss (game/da_boss.py), Da Grand Warlord's Ladz (a conditional Lone
+Operative, game/grand_warlords_ladz.py), Makari, Hoist Dat Banner!
+(game/makari.py) and the Prophet of da Great Waaagh! aura
+(game/prophet_of_da_great_waaagh.py).
+
 Tankbustas (2026-09 codex) are a Nob and five Tankbustas; the Busta Rokkit
 Launcha and the Smash Hammer each print a Standard and a Hunter profile. All
 three abilities are engine-wired: Rokkit Barrage (game/rokkit_barrage.py, a
@@ -139,7 +151,8 @@ from game.factions.orks_points import ORKS_POINTS
 from game.units import (
     BattlewagonProfile, BeastbossProfile, FlashGitzKaptinProfile, FlashGitzProfile, KillRigProfile,
     BeastSnaggaBoyProfile, BeastSnaggaNobProfile, BikerNobProfile, BoyzNobProfile, BoyzProfile,
-    BigbossProfile, DeffDreadProfile, DeffkoptaProfile, GretchinProfile, GunwagonProfile, WeirdboyProfile,
+    BigbossProfile, BigMekMegaArmourProfile, DeffDreadProfile, DeffkoptaProfile, GhazghkullThrakaProfile,
+    GretchinProfile, GunwagonProfile, WeirdboyProfile,
     MeganobzProfile, PainboyProfile, StormboyProfile, StormboyzNobProfile, TankbustaNobProfile,
     TankbustaProfile, TrukkProfile, WarbikerProfile, WarbossMegaArmourProfile, WarbossProfile,
 )
@@ -168,6 +181,8 @@ from game.weapons import (
     # Mecha Orks stage G1 - Bigboss, Weirdboy, Gunwagon
     BigbossBigChoppaProfile, CopperStaffProfile, GunwagonCrushinBulkProfile, KannonFragProfile,
     KillkannonProfile, LobbaProfile, PowerVomitProfile, ZzapGunProfile,
+    # Mecha Orks stage G2 - Big Mek in Mega Armour, Ghazghkull Thraka
+    AdamantineEadbuttProfile, GorksKlawProfile, MorksRoarAimedProfile, TellyportBlastaProfile,
 )
 
 ORKS = Faction("Orks", "ORKS")
@@ -900,7 +915,98 @@ GUNWAGON = ORKS.add_datasheet(Datasheet(
 ))
 # Mobile Arsenal is engine-wired (game/mobile_arsenal.py, in ShootingController's
 # automatic re-roll of 1s). Damaged 6 and Deadly Demise D6 are generic fields; the
-# Gunwagon prints no Firing Deck and no Mobile Fortress. GHAZGHKULL THRAKA taking 4
-# slots is not modeled (no such datasheet yet).
+# Gunwagon prints no Firing Deck and no Mobile Fortress. GHAZGHKULL THRAKA takes 4
+# slots (game/transport.py's _model_capacity_cost()).
+
+_BIG_MEK_MA_LOADOUT = [KustomShootaAimedProfile, PowerKlawProfile]
+
+BIG_MEK_MA_TELLYPORT_BLASTA = "+ Tellyport Blasta"
+BIG_MEK_MA_KUSTOM_FORCE_FIELD = "Kustom Force Field"
+BIG_MEK_MA_KUSTOM_SHOOTA_TO_KILLSAW = "Kustom Shoota -> Killsaw"
+BIG_MEK_MA_KUSTOM_SHOOTA_TO_KOMBI_WEAPON = "Kustom Shoota -> Kombi-weapon"
+BIG_MEK_MA_KUSTOM_SHOOTA_TO_KUSTOM_MEGA_BLASTA = "Kustom Shoota -> Kustom Mega-blasta"
+
+
+def _apply_kustom_force_field(token):
+    """The bearer carries a Kustom Force Field - wargear with no weapon profile;
+    what it grants is the unit's 4+ InSv against ranged attacks (see
+    game/kustom_force_field.py)."""
+    token.kustom_force_field = True
+
+
+BIG_MEK_MEGA_ARMOUR = ORKS.add_datasheet(Datasheet(
+    "Big Mek in Mega Armour",
+    keywords=("INFANTRY", "BIG MEK", "CHARACTER", "EXPLOSIVES", "MEGA ARMOUR"),
+    # 2026-09 codex (rules/orks/Big Mek In Mega Armour.md): 1 model with a Kustom
+    # Shoota and a Power Klaw. LEADER for Meganobz and Mek Gunz.
+    model_lines=[
+        ModelLine(BigMekMegaArmourProfile, 1, _BIG_MEK_MA_LOADOUT, name="Big Mek in Mega Armour"),
+    ],
+    # "This model can be equipped with one of the following: 1 Tellyport Blasta /
+    # 1 Kustom Force Field" - an ADDITION (a weapon) or a Gear item. KNOWN
+    # LIMITATION: the "one of" is not enforced, a WargearOption cannot exclude a
+    # Gear item - the Tankbustas' named gap. "This model's Kustom Shoota can be
+    # replaced with one of the following: 1 Killsaw / 1 Kombi-weapon / 1 Kustom
+    # Mega-blasta" - three swaps of the same weapon, which share build_squad()'s
+    # cursor, so on a one-model line they are "one of" exactly. The Kombi-weapon
+    # and the Kustom Shoota are the Meganob's profile chains (same printed rows).
+    wargear_options=[
+        WargearOption("Big Mek in Mega Armour", replaces=None, with_weapons=[TellyportBlastaProfile],
+                      max_models=1, name=BIG_MEK_MA_TELLYPORT_BLASTA),
+        WargearOption("Big Mek in Mega Armour", replaces=KustomShootaAimedProfile, with_weapons=[KillsawProfile],
+                      max_models=1, name=BIG_MEK_MA_KUSTOM_SHOOTA_TO_KILLSAW),
+        WargearOption("Big Mek in Mega Armour", replaces=KustomShootaAimedProfile,
+                      with_weapons=[KombiWeaponShootaProfile], max_models=1,
+                      name=BIG_MEK_MA_KUSTOM_SHOOTA_TO_KOMBI_WEAPON),
+        WargearOption("Big Mek in Mega Armour", replaces=KustomShootaAimedProfile,
+                      with_weapons=[KustomMegaBlastaProfile], max_models=1,
+                      name=BIG_MEK_MA_KUSTOM_SHOOTA_TO_KUSTOM_MEGA_BLASTA),
+    ],
+    gear_options=[
+        Gear("Big Mek in Mega Armour", BIG_MEK_MA_KUSTOM_FORCE_FIELD, _apply_kustom_force_field),
+    ],
+    gear_slots={"Big Mek in Mega Armour": 1},
+    points=ORKS_POINTS["Big Mek in Mega Armour"],
+    abilities_text=[
+        "Fix Dat Armour Up (Once per battle, per unit): In your Command phase, this unit heals 3 wounds.",
+        "More Dakka: This unit's ranged attacks have: [Ignores Cover]. If this unit is riled up, "
+        "[Sustained Hits 1].",
+        "Kustom Force Field: This unit has 4+ InSv against ranged attacks.",
+    ],
+))
+# All three are engine-wired: Fix Dat Armour Up (game/fix_dat_armour_up.py, offered
+# at the start of your Command phase), More Dakka (game/more_dakka.py, in
+# ShootingController's adjuster chain - and the cover gate reads that chain's copy)
+# and the Kustom Force Field (game/kustom_force_field.py, folded into
+# invulnerable_save.effective_invulnerable_save()).
+
+_GHAZGHKULL_LOADOUT = [MorksRoarAimedProfile, AdamantineEadbuttProfile, GorksKlawProfile]
+
+GHAZGHKULL_THRAKA = ORKS.add_datasheet(Datasheet(
+    "Ghazghkull Thraka",
+    keywords=("INFANTRY", "CHARACTER", "EPIC HERO", "EXPLOSIVES", "WARBOSS"),
+    # 2026-09 codex (rules/orks/Ghazghkull Thraka.md): ONE model with Mork's Roar,
+    # an Adamantine 'Eadbutt and Gork's Klaw; no wargear options, no Leader
+    # section. The 'Eadbutt is [EXTRA ATTACKS], so it swings beside the Klaw.
+    model_lines=[
+        ModelLine(GhazghkullThrakaProfile, 1, _GHAZGHKULL_LOADOUT, name="Ghazghkull Thraka"),
+    ],
+    points=ORKS_POINTS["Ghazghkull Thraka"],
+    abilities_text=[
+        "Supreme Commander: If this model is in your army, it must be your WARLORD.",
+        "Da Grand Warlord's Ladz: While this unit is within 3\" of another friendly ORKS INFANTRY unit, "
+        "this unit has Lone Operative.",
+        "Makari, Hoist Dat Banner! (Once per battle, per army): In your Movement phase, you can select a "
+        "number of friendly ORKS units equal to or less than the current battle round number. Those units "
+        "are riled up until the start of your next turn.",
+        "Prophet of da Great Waaagh! (Aura): While a friendly ORKS unit is within 6\" of this unit, that "
+        "unit's melee attacks have: +1 to hit rolls. +1 to wound rolls.",
+    ],
+))
+# All four are engine-wired: Supreme Commander at list load (game/warlord.py), Da
+# Grand Warlord's Ladz as the sixth conditional Lone Operative
+# (game/grand_warlords_ladz.py), Makari (game/makari.py, a panel button) and the
+# Prophet aura (game/prophet_of_da_great_waaagh.py, in FightController's hit and
+# wound modifiers). Da Boss, his FACTION ability, is game/da_boss.py.
 
 register_faction(ORKS)

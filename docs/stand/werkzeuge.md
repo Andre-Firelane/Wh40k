@@ -98,7 +98,7 @@ passenden Abschnitt hier; ein neuer `##`-Abschnitt braucht eine Zeile im Verzeic
   gefixt 8 Phasen / 8 Autosaves, `--neutralize` 7 / 1 plus Überschreiben beim Load.
   **`verify_ork_*.py [map] [frames] [--neutralize]`** — je Ork-Codex-Etappe eine Laufzeit-Sonde
   (`army_rules`, `war_horde`, `mobs`, `characters`, `specialists`, `vehicles`, `kill_rig`, und für die
-  Mecha-Orks-Etappen `mecha_sheets`), alle nach demselben
+  Mecha-Orks-Etappen `mecha_sheets`, `mecha_characters`), alle nach demselben
   Muster: Orks als PLAYER 1, gebaute Träger statt der Liste, `main()`s Locals per Frame-Walk,
   `--neutralize` per Import-Hook auf `main.py`. Was jede belegt und stellt, steht in ihrer Etappe in
   `orks-codex-2026-09*.md`. **`verify_ork_vehicles.py`** ist die erste, die eine Platzierung des

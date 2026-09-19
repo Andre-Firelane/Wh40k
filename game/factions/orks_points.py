@@ -3,7 +3,8 @@
 datasheets rebuilt for the 2026-09 codex (Boyz, Beast Snagga Boyz, Stormboyz,
 Gretchin, Meganobz, Warboss, Warboss in Mega Armour, Beastboss, Painboy, Flash Gitz,
 Tankbustas, Warbikers, Deffkoptas, Trukk, Battlewagon, Deff Dread, Kill Rig) and of the
-datasheets built for the Mecha Orks list (Bigboss, Weirdboy, Gunwagon) follow the
+datasheets built for the Mecha Orks list (Bigboss, Weirdboy, Gunwagon, Big Mek in Mega
+Armour, Ghazghkull Thraka) follow the
 POINTS table of their rules/orks/*.md page instead, and say so where they stand.
 
 All 58 entries of that paste plus the Gunwagon, which the July app did not
@@ -55,7 +56,9 @@ ORKS_POINTS = {
     "Big'ed Bossbunka": flat_points({1: 135}),
     "Big Mek": flat_points({1: 70}, leads=_LEADS_MEK_UNITS),
     "Big Mek Dakkarig": flat_points({1: 115}),
-    "Big Mek in Mega Armour": flat_points({1: 80}, leads=("Meganobz",)),
+    # 2026-09 codex (rules/orks/Big Mek In Mega Armour.md) - LEADER for Meganobz
+    # and Mek Gunz (Mek Gunz are not built).
+    "Big Mek in Mega Armour": flat_points({1: 90}, leads=("Meganobz", "Mek Gunz")),
     "Big Mek with Shokk Attack Gun": UnitPoints(
         [
             PointsTier({1: 70}, to_unit=1),
@@ -98,8 +101,9 @@ ORKS_POINTS = {
         PointsTier({1: 440}, to_unit=1),
         PointsTier({1: 490}, from_unit=2),
     ]),
-    # 2 models: Ghazghkull comes with Makari on the same datasheet.
-    "Ghazghkull Thraka": flat_points({2: 235}, leads=("Boyz", "Breaka Boyz", "Meganobz", "Nobz")),
+    # 2026-09 codex (rules/orks/Ghazghkull Thraka.md): ONE model now (Makari is an
+    # ability, not a second model) and no Leader section - he joins nothing.
+    "Ghazghkull Thraka": flat_points({1: 300}),
     "Gorkanaut": UnitPoints([
         PointsTier({1: 255}, to_unit=2),
         PointsTier({1: 275}, from_unit=3),

@@ -44,6 +44,7 @@ meaning what it did.
 from game import death_guard_defenders, illuminor, spiritseer
 from game import enh_spirit_stone_of_raelyth
 from game import nekrosor_ammentar
+from game import grand_warlords_ladz
 
 #: (predicate, range) for every CONDITIONAL grant. A source is a pair, not a
 #: subclass: what it shares is the question, not any behaviour.
@@ -68,6 +69,10 @@ SOURCES = (
     # is the whole point of the fold.
     (nekrosor_ammentar.grants_lone_operative,
      nekrosor_ammentar.PROTECTIVE_DISCIPLES_LONE_OPERATIVE_RANGE_IN),
+    # Ghazghkull Thraka's Da Grand Warlord's Ladz - the SIXTH: within 3" of
+    # another friendly ORKS INFANTRY unit. See game/grand_warlords_ladz.py.
+    (grand_warlords_ladz.grants_lone_operative,
+     grand_warlords_ladz.GRAND_WARLORDS_LADZ_LONE_OPERATIVE_RANGE_IN),
 )
 
 

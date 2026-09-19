@@ -85,6 +85,11 @@ def effective_invulnerable_save(model, melee=False):
         # is folded in exactly the same way, and a model with neither keeps
         # whatever invulnerable_save prints.
         save = _better(save, getattr(model.profile, "invulnerable_save_vs_ranged", None))
+        # The Big Mek in Mega Armour's Kustom Force Field: "This UNIT has 4+
+        # InSv against ranged attacks" - the same clause as the line above,
+        # but a unit grant carried by one model (game/kustom_force_field.py).
+        from game import kustom_force_field
+        save = _better(save, kustom_force_field.ranged_invulnerable_save(model))
     squad = getattr(model, "squad", None)
 
     # The Orks' riled up (army rule Waaagh!): "that unit has 5+ InSv". A state

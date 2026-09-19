@@ -171,6 +171,11 @@ reaktiv). Split Fire, und die Weapon Abilities [ANTI-X]/[ASSAULT]/[BLAST]/[CLEAV
     die NICHT anbieten dürfen; das echte `ActionPanel`; Quell-Wächter auf `main.py`), dazu
     `test_aspect_shrine.py` **72/72** und `test_farseer.py` **106/106** auf den neuen Weg
     umgeschrieben. Sieben A/B-Sonden, jede kippt mindestens eine Suite.
+- **[IGNORES COVER] aus der Kette erreicht das Cover-Tor** (2026-09-19, beim Bau von More Dakka
+  gefunden, siehe `## Mecha Orks G2`): `_dispatch_group()`s Cover-Split und `_hit_modifiers()`s
+  Benefit-of-Cover-Term lasen die GEDRUCKTE Waffe, also nahm kein Ketten-Grant (Pech'ra, Faolchu,
+  Oversight Drone, Nebuloscope, Preternatural Precision) je Deckung weg. Beide bekommen jetzt
+  `self._adjusted_weapon(...)`; `test_event_chain_wiring.py` §29 hält beide Aufrufe.
 - **Hausregel**: befreundete Modelle blockieren keine Sichtlinie — am BEOBACHTER festgemacht (beide
   Enden auszunehmen würde Modell-Blockade ganz abschaffen). Gegnerische blockieren unverändert,
   Screening funktioniert also weiter.

@@ -27,8 +27,9 @@ and the Meganobz' Feel No Pain "Krumpin' Time". Their trigger no longer exists;
 the datasheets print new abilities in their place, built with the datasheet
 stages.
 
-"Da Boss" (a WARLORD gains 1CP at the start of the battle round) is a documented
-no-op, like every other WARLORD rule here: this engine has no Warlord.
+"Da Boss" (a WARLORD gains 1CP at the start of the battle round) is
+game/da_boss.py since the Mecha Orks stage G2 gave army lists a Warlord
+(game/warlord.py).
 "Unstable Energies" is game/unstable_energies.py. The "Special Move Types" (pulse
 jet move, assault disembark move) are rules OTHER rules point at, and no built
 Ork datasheet points at either - so there is nothing to build until one does.

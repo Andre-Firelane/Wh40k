@@ -765,8 +765,8 @@ COMMANDER_SHADOWSUN = TAU_EMPIRE.add_datasheet(Datasheet(
         'Command-link Drone (wargear, Aura): While a friendly T\'AU EMPIRE unit is within 6" of the '
         'bearer, each time you select that unit as the target of a Stratagem, roll one D6: on a '
         '5+, you gain 1CP. NOT ENGINE-WIRED - see the note below this datasheet.',
-        'Supreme Commander: If this model is in your army, it must be your Warlord. A documented '
-        'NO-OP - this engine has no Warlord concept.',
+        'Supreme Commander: If this model is in your army, it must be your Warlord. Enforced '
+        'when a list is loaded (game/warlord.py): a list that fields her names her or nobody.',
         'Core: Infiltrators, Lone Operative, Stealth.',
     ],
 ))
@@ -779,10 +779,9 @@ COMMANDER_SHADOWSUN = TAU_EMPIRE.add_datasheet(Datasheet(
 #
 # THE COMMAND-LINK DRONE IS NOT WIRED: StratagemController has no per-use hook
 # a listener could hang a D6 on, and adding one changes the Stratagem flow
-# rather than this datasheet. SUPREME COMMANDER is a documented no-op - there
-# is no Warlord concept here at all, the same status as the Void Dragon's
-# Enslaved Star God. Both are recorded above and asserted in
-# test_tau_characters.py.
+# rather than this datasheet. SUPREME COMMANDER is enforced at list load since
+# the Mecha Orks stage G2 gave lists a Warlord (game/warlord.py) - recorded above
+# and asserted in test_tau_characters.py.
 
 # --- Kroot Hounds ---
 

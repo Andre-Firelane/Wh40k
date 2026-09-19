@@ -36,7 +36,7 @@ Last fetched: 2026-09-14
 | Faction | Files | Wahapedia version |
 | --- | --- | --- |
 | [Aeldari](aeldari/) | 74 | Faction Pack. Aeldari (11th edition, version 1.3) |
-| [Orks](orks/) | 20 | Faction Pack. Orks (11th edition, version 1.2) |
+| [Orks](orks/) | 22 | Faction Pack. Orks (11th edition, version 1.2) |
 | [Necrons](necrons/) | 49 | Faction Pack. Necrons (11th edition, version 1.2) |
 | [T'au Empire](tau_empire/) | 43 | Faction Pack. T’au Empire (11th edition, version 1.2) |
 | [Death Guard](death_guard/) | 11 | Faction Pack. Death Guard (11th edition, version 1.2) |
@@ -167,11 +167,13 @@ Last fetched: 2026-09-14
 - [Battlewagon](orks/Battlewagon.md)
 - [Beast Snagga Boyz](orks/Beast Snagga Boyz.md)
 - [Beastboss](orks/Beastboss.md)
+- [Big Mek In Mega Armour](orks/Big Mek In Mega Armour.md)
 - [Bigboss](orks/Bigboss.md)
 - [Boyz](orks/Boyz.md)
 - [Deff Dread](orks/Deff Dread.md)
 - [Deffkoptas](orks/Deffkoptas.md)
 - [Flash Gitz](orks/Flash Gitz.md)
+- [Ghazghkull Thraka](orks/Ghazghkull Thraka.md)
 - [Gretchin](orks/Gretchin.md)
 - [Gunwagon](orks/Gunwagon.md)
 - [Kill Rig](orks/Kill Rig.md)

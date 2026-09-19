@@ -33,6 +33,15 @@ class Token:
     # sweep took the zero-wound model again and the ledger rolled for it again,
     # so a kept model was gone after a median of one frame.
     kept_after_death: bool = False
+    # The army's WARLORD (one model per army, named by the list - see
+    # game/warlord.py). On the MODEL rather than the squad, because a warlord
+    # is a character and survives attach() as one model among many; the list
+    # rebuilds it on a load, so nothing saves it.
+    warlord: bool = False
+    # The Big Mek in Mega Armour's "Kustom Force Field" Gear item (2026-09 Ork
+    # codex): "This unit has 4+ InSv against ranged attacks" - read by
+    # game/kustom_force_field.py.
+    kustom_force_field: bool = False
 
     def __post_init__(self):
         if self.current_wounds is None and self.profile is not None:

@@ -23,6 +23,8 @@ DISEMBARK_DISTANCE_IN = {
 }
 
 DOUBLE_CAPACITY_COST = 2  # rule 18.01: what a MEGA ARMOUR or JUMP PACK model costs a TRANSPORT, per Trukk's and Battlewagon's own printed exceptions - see _model_capacity_cost()
+#: Battlewagon/Gunwagon: "Each GHAZGHKULL THRAKA model takes up the space of 4 models."
+GHAZGHKULL_CAPACITY_COST = 4
 MEGA_ARMOUR_CAPACITY_COST = DOUBLE_CAPACITY_COST  # kept as the original name for existing importers
 
 
@@ -42,9 +44,13 @@ def _model_capacity_cost(model):
     either, since none of them accept AELDARI models. A TRANSPORT that prints
     a DIFFERENT cost would need this made per-profile.
 
-    Battlewagon's third clause, "the GHAZGHKULL THRAKA model takes up the
-    space of 4 models", is not modeled - that datasheet does not exist here,
-    so there is nothing to charge."""
+    The Battlewagon's and Gunwagon's third clause, "each GHAZGHKULL THRAKA
+    model takes up the space of 4 models", is GHAZGHKULL_CAPACITY_COST - global
+    for the same reason: the only other TRANSPORTs that could carry him refuse
+    him outright (the Trukk prints "cannot transport GHAZGHKULL THRAKA", the Kill
+    Rig takes BEAST SNAGGA only)."""
+    if getattr(model.profile, "ghazghkull_thraka", False):
+        return GHAZGHKULL_CAPACITY_COST
     if (model.profile.mega_armour or model.profile.jump_pack
             or getattr(model.profile, "wraith_construct", False)):
         return DOUBLE_CAPACITY_COST

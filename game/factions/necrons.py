@@ -968,9 +968,8 @@ CTAN_SHARD_OF_THE_VOID_DRAGON = NECRONS.add_datasheet(Datasheet(
     abilities_text=[
         _REANIMATION_PROTOCOLS_TEXT,
         "Deadly Demise D6, Deep Strike, Feel No Pain 5+ (Core).",
-        "Enslaved Star God: \"This model cannot be your WARLORD.\" A documented NO-OP - "
-        "this engine has no Warlord concept at all, the same status as the "
-        "\"ignore vertical distance\" abilities.",
+        "Enslaved Star God: \"This model cannot be your WARLORD.\" A list that names it "
+        "as its Warlord is refused at load - see game/warlord.py.",
         "Matter Absorption: \"At the start of your Shooting phase, select one enemy "
         "VEHICLE unit within 12\" of this model and roll one D6: on a 2+, that enemy unit "
         "suffers D3 mortal wounds and this model regains up to that many lost wounds.\" - "
@@ -1018,9 +1017,8 @@ CTAN_SHARD_OF_THE_NIGHTBRINGER = NECRONS.add_datasheet(Datasheet(
     abilities_text=[
         _REANIMATION_PROTOCOLS_TEXT,
         "Deadly Demise D6, Deep Strike, Feel No Pain 5+ (Core).",
-        "Enslaved Star God: \"This model cannot be your WARLORD.\" A documented NO-OP - "
-        "this engine has no Warlord concept at all, the same status as the "
-        "\"ignore vertical distance\" abilities.",
+        "Enslaved Star God: \"This model cannot be your WARLORD.\" A list that names it "
+        "as its Warlord is refused at load - see game/warlord.py.",
         "Drain Life: \"At the end of the Fight phase, roll one D6 for each enemy unit "
         "within 6\" of this model: on a 4+, that enemy unit suffers D3 mortal wounds.\" - "
         "see game/drain_life.py.",
@@ -1049,8 +1047,8 @@ CTAN_SHARD_OF_THE_DECEIVER = NECRONS.add_datasheet(Datasheet(
     abilities_text=[
         _REANIMATION_PROTOCOLS_TEXT,
         "Deadly Demise D6, Deep Strike, Feel No Pain 5+, Stealth (Core).",
-        "Enslaved Star God: \"This model cannot be your WARLORD.\" A documented NO-OP - "
-        "this engine has no Warlord concept at all.",
+        "Enslaved Star God: \"This model cannot be your WARLORD.\" A list that names it "
+        "as its Warlord is refused at load - see game/warlord.py.",
         "Grand Illusion: \"If your army includes this model, after both players have "
         "deployed their armies, select up to three NECRONS units from your army and "
         "redeploy them. When doing so, any of those units can be placed into Strategic "
@@ -1078,8 +1076,8 @@ TRANSCENDENT_CTAN = NECRONS.add_datasheet(Datasheet(
     abilities_text=[
         _REANIMATION_PROTOCOLS_TEXT,
         "Deadly Demise D6, Deep Strike, Feel No Pain 5+ (Core).",
-        "Enslaved Star God: \"This model cannot be your WARLORD.\" A documented NO-OP - "
-        "this engine has no Warlord concept at all.",
+        "Enslaved Star God: \"This model cannot be your WARLORD.\" A list that names it "
+        "as its Warlord is refused at load - see game/warlord.py.",
         "C'Tan Shard: \"This model cannot be given Enhancements.\" A documented NO-OP "
         "today - game/enhancements.py's registry holds 47 specs across T'au and Aeldari "
         "detachments and not one Necron entry, so there is nothing here to refuse. "
@@ -2034,10 +2032,9 @@ THE_SILENT_KING = NECRONS.add_datasheet(Datasheet(
         "remaining, halve the Attacks characteristic of that model's weapons, and each "
         "time this unit makes an attack, subtract 1 from the Hit roll.\" - TWO different "
         "subjects in one sentence; see game/damaged_attacks.py.",
-        "NOT ENGINE-WIRED: Supreme Commander (\"If this unit is in your army, it must be "
-        "your Warlord.\"). A demonstrated no-op - nothing in this engine reads a Warlord, "
-        "the same finding recorded for Commander Farsight and for Shadowsun's own "
-        "Supreme Commander line.",
+        "Supreme Commander: \"If this unit is in your army, it must be your Warlord.\" "
+        "Enforced when a list is loaded - Szarekh is the Warlord of any list that fields "
+        "him (game/warlord.py).",
     ],
 ))
 

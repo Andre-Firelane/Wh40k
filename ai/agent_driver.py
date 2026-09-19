@@ -6418,6 +6418,9 @@ def _take_one_action(
     # The Weirdboy's Da Jump (Mecha Orks G1): a panel button with a
     # deterministic Movement-phase handler. Appended.
     da_jump_controller=None,
+    # Ghazghkull's Makari, Hoist Dat Banner! (Mecha Orks G2): the same kind of
+    # button, the same kind of handler. Appended.
+    makari_controller=None,
     # main.py's ONE list of controllers that can be waiting for a model click
     # (game/damage_pick.py). The hand-picked list below answers the AI's OWN
     # rule 06.02 allocations for twelve controllers, and every other carrier
@@ -6688,7 +6691,7 @@ def _take_one_action(
             shooting_controller=shooting_controller,
             cosmic_precision_controller=cosmic_precision_controller,
             da_boss_controller=da_boss_controller, fungus_fuel_controller=fungus_fuel_controller,
-            da_jump_controller=da_jump_controller,
+            da_jump_controller=da_jump_controller, makari_controller=makari_controller,
         )
     elif phase == PHASE_SHOOTING:
         acted = _handle_shooting(
@@ -8690,6 +8693,66 @@ def _handle_da_boss(player, all_tokens, da_boss_controller, game_log=None):
     return True
 
 
+#: Makari is once per battle: hold it until at least this many units (or the
+#: battle round's own count, if lower) would gain from it.
+MAKARI_MIN_UNITS = 3
+
+
+def _handle_makari(player, all_tokens, makari_controller, game_log=None):
+    """Ghazghkull's Makari, Hoist Dat Banner! (once per battle per army, no CP):
+    riles up as many friendly ORKS units as the battle round allows.
+
+    Once per battle, so it is held for a turn that pays: the candidates are the
+    units the grant would extend that have an enemy within their Advance reach
+    plus a charge - riled up is what keeps their charge after an Advance, the
+    reading Da Boss is Watchin' already uses - and it is used when at least
+    min(battle round, MAKARI_MIN_UNITS) of them exist. The nearest to the enemy
+    are picked first."""
+    if makari_controller is None:
+        return False
+    bearer = next((s for s in sorted(_all_squads(all_tokens), key=lambda s: s.name)
+                   if s.owner == player and makari_controller.can_use(s)), None)
+    if bearer is None:
+        return False
+    limit = makari_controller.limit()
+    scored = []
+    on_board = {id(t) for t in all_tokens or ()}
+    for squad in makari_controller.candidates(player):
+        if not any(id(m) in on_board for m in squad.models if not m.is_dead()):
+            continue   # in reserves or embarked: no distance to measure, and no charge this turn
+        gap = _nearest_enemy_gap(squad, all_tokens)
+        reach = observation.advance_reach_in(squad) + CHARGE_RANGE_IN
+        if gap is None or gap > reach:
+            continue
+        scored.append((gap, squad.name, squad))
+    if len(scored) < min(limit, MAKARI_MIN_UNITS):
+        return False
+    picked = [squad for _gap, _name, squad in sorted(scored)[:limit]]
+    done = makari_controller.use_on(bearer, picked)
+    if not done:
+        return False
+    if game_log is not None:
+        game_log.add("[makari] %s: %s riled up (round %d, up to %d)."
+                     % (player, ", ".join(s.name for s in done), makari_controller.turn_tracker.battle_round, limit),
+                     file_only=True)
+    return True
+
+
+#: Fix Dat Armour Up is once per battle: spend it on a heal worth its full 3.
+FIX_DAT_ARMOUR_UP_MIN_HEALABLE = 3
+
+
+def fix_dat_armour_up_verdict(squad):
+    """The Big Mek in Mega Armour's Fix Dat Armour Up (Mecha Orks G2), the AI's
+    answer - injected by main.py into game/fix_dat_armour_up.py as `verdict`.
+
+    Heals once the unit has at least the full 3 wounds to recover (a destroyed
+    Meganob counts as its wounds), so the single use is not spent on a scratch.
+    0 API calls."""
+    from game import heal as heal_rule
+    return squad is not None and heal_rule.healable_wounds(squad) >= FIX_DAT_ARMOUR_UP_MIN_HEALABLE
+
+
 def _handle_da_jump(player, state, movement_controller, da_jump_controller, game_log=None):
     """The Weirdboy's Da Jump (psychic level 1, no CP, once per army per battle
     round): a psychic roll puts his unit into Strategic Reserves with Deep Strike,
@@ -8834,7 +8897,7 @@ def _handle_movement(
     sudden_storm_controller=None, shooting_controller=None,
     cosmic_precision_controller=None,
     da_boss_controller=None, fungus_fuel_controller=None,
-    da_jump_controller=None,
+    da_jump_controller=None, makari_controller=None,
 ):
     all_tokens = state.tokens
 
@@ -8877,6 +8940,9 @@ def _handle_movement(
     if _handle_da_boss(player, all_tokens, da_boss_controller, game_log):
         return True
     if _handle_fungus_fuel(player, all_tokens, fungus_fuel_controller, game_log):
+        return True
+    # Ghazghkull's Makari - before anything moves, like Da Boss is Watchin'.
+    if _handle_makari(player, all_tokens, makari_controller, game_log):
         return True
     # The Weirdboy's Da Jump, for the same reason - and BEFORE the Ingress step
     # below, which is what brings the jumped unit straight back down.

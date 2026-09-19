@@ -17,7 +17,8 @@ WHAT THIS SUITE HAS TO PROVE, and why each part is its own section:
   6. the AI's War Cry verdict at its decision boundaries;
   7. the Advance re-roll on the shared machinery;
   8. Unstable Energies' budget (spent by the Kill Rig's psychic rolls since E3e);
-  9. Da Boss and the Special Move Types as documented no-ops, measured;
+  9. the Special Move Types as a documented no-op, measured (Da Boss is wired
+     since Mecha Orks G2 - game/da_boss.py, test_ork_mecha_characters.py);
  10. what the planner is told;
  11. the wiring in main.py and the retired `waaagh=` threading, at the source.
 
@@ -109,6 +110,7 @@ c.eq("qualifying_players() reads the armies", sorted(waaagh.qualifying_players([
 # does, is the Battle Focus bug the Aeldari had - a rule silently widened or
 # silently absent.
 _waaagh_wrong, _ue_wrong, _checked, _ork_printed = [], [], 0, []
+_da_boss_wrong, _da_boss_printed = [], []
 for _keyword, _faction in sorted(FACTIONS.items()):
     for _name, _ds in sorted(_faction.datasheets.items()):
         _path = rules_text.rules_path(_ds)
@@ -128,11 +130,19 @@ for _keyword, _faction in sorted(FACTIONS.items()):
             _levels = [getattr(p, "psyker_level", 0) or 0 for p in _profiles]
             if ("Unstable Energies" in _line) != any(level > 0 for level in _levels):
                 _ue_wrong.append(_name)
+            if ("Da Boss" in _line) != any(getattr(p, "da_boss", False) for p in _profiles):
+                _da_boss_wrong.append(_name)
+            if "Da Boss" in _line:
+                _da_boss_printed.append(_name)
 c.true("the sweep read every faction's sheets (%d)" % _checked, _checked > 100)
 c.eq("every datasheet's waaagh flag matches its printed FACTION line", _waaagh_wrong, [])
-# 17 codex sheets, plus the Bigboss, Weirdboy and Gunwagon of the Mecha Orks list.
-c.eq("all 20 built Ork sheets print Waaagh!", len(_ork_printed), 20)
+# 17 codex sheets, plus the Bigboss, Weirdboy, Gunwagon, Big Mek in Mega Armour
+# and Ghazghkull Thraka of the Mecha Orks list.
+c.eq("all 22 built Ork sheets print Waaagh!", len(_ork_printed), 22)
 c.eq("...and every Ork psyker level matches a printed Unstable Energies", _ue_wrong, [])
+c.eq("...and every Ork da_boss flag matches a printed Da Boss", _da_boss_wrong, [])
+c.eq("...which is the three bosses and Ghazghkull", sorted(_da_boss_printed),
+     ["Beastboss", "Ghazghkull Thraka", "Warboss", "Warboss in Mega Armour"])
 
 
 # ===========================================================================
@@ -478,20 +488,14 @@ c.true("no psyker, no budget", not unstable_energies.can_use(boyz, 1, 1))
 
 
 # ===========================================================================
-print("\n10. Da Boss and the Special Move Types: documented no-ops, measured")
+print("\n10. the Special Move Types: a documented no-op, measured (Da Boss is wired)")
 # ===========================================================================
-_warlord_names = []
-for _root in ("game", "ai"):
-    for _dp, _dirs, _files in os.walk(_root):
-        for _f in _files:
-            if not _f.endswith(".py"):
-                continue
-            for _n in ast.walk(ast.parse(io.open(os.path.join(_dp, _f), encoding="utf-8").read())):
-                _ident = (getattr(_n, "id", None) or getattr(_n, "attr", None) or getattr(_n, "arg", None)
-                          or (_n.name if isinstance(_n, (ast.FunctionDef, ast.ClassDef)) else None))
-                if isinstance(_ident, str) and "warlord" in _ident.lower():
-                    _warlord_names.append("%s:%s" % (_f, _ident))
-c.eq("Da Boss: this engine has no Warlord to gain a CP for", _warlord_names, [])
+# Da Boss WAS pinned here as a no-op ("this engine has no Warlord") until Mecha
+# Orks G2 gave lists a Warlord (game/warlord.py) and the rule its module
+# (game/da_boss.py); test_ork_mecha_characters.py drives it. What stays here is
+# only that it is no longer a no-op.
+c.true("Da Boss is engine-wired now (game/da_boss.py)",
+       os.path.exists(os.path.join("game", "da_boss.py")) and os.path.exists(os.path.join("game", "warlord.py")))
 _army_text = io.open(os.path.join("rules", "orks", "army_rules.md"), encoding="utf-8").read().lower()
 c.true("the army rules really print both Special Move Types",
        "pulse jet move" in _army_text and "assault disembark move" in _army_text)

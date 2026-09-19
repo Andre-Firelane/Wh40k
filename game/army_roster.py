@@ -58,10 +58,10 @@ class Leader:
     """
 
     __slots__ = ("datasheet", "color", "composition_index", "gear", "choices",
-                 "enhancement", "note")
+                 "enhancement", "note", "warlord")
 
     def __init__(self, datasheet, color, composition_index=0, gear=None,
-                 choices=None, enhancement=None, note=None):
+                 choices=None, enhancement=None, note=None, warlord=False):
         self.datasheet = datasheet
         self.color = tuple(color)
         self.composition_index = composition_index
@@ -69,6 +69,7 @@ class Leader:
         self.choices = choices
         self.enhancement = enhancement
         self.note = note
+        self.warlord = bool(warlord)  # the army's WARLORD - see game/warlord.py
 
 
 class Unit:
@@ -87,11 +88,11 @@ class Unit:
     """
 
     __slots__ = ("datasheet", "color", "composition_index", "gear", "choices",
-                 "leaders", "transport", "enhancement", "entry_id", "note")
+                 "leaders", "transport", "enhancement", "entry_id", "note", "warlord")
 
     def __init__(self, datasheet, color, composition_index=0, gear=None,
                  choices=None, leaders=(), transport=None, enhancement=None,
-                 entry_id=None, note=None):
+                 entry_id=None, note=None, warlord=False):
         self.datasheet = datasheet
         self.color = tuple(color)
         self.composition_index = composition_index
@@ -102,6 +103,7 @@ class Unit:
         self.enhancement = enhancement
         self.entry_id = entry_id
         self.note = note
+        self.warlord = bool(warlord)  # the army's WARLORD - see game/warlord.py
 
 
 def unit_name(owner, text):
@@ -152,6 +154,14 @@ def apply_positions(squad, model_positions, index):
     return positions
 
 
+def _mark_warlord(squad):
+    """The WARLORD is a model (game/warlord.py): the entry's CHARACTER model(s),
+    not a whole unit - The Silent King's two Menhirs stay unmarked."""
+    characters = [m for m in squad.models if getattr(m.profile, "character", False)]
+    for model in characters or squad.models:
+        model.warlord = True
+
+
 def build(roster, owner, register, list_name="army", state=None, model_positions=None):
     """Put `roster` on the table for `owner`, reporting each finished unit to
     `register`. Returns None - like every builder it replaced, the result is
@@ -197,13 +207,19 @@ def build(roster, owner, register, list_name="army", state=None, model_positions
     for index, entry in enumerate(roster):
         built.append((entry, make(entry, index), [make(spec) for spec in entry.leaders]))
 
-    # PASS 2 - Enhancements, while every character is still its own squad.
+    # PASS 2 - Enhancements and the WARLORD, while every character is still its
+    # own squad: after 19.01 the Warlord is one model among many, and the flag
+    # belongs to that model (Token.warlord, game/warlord.py).
     for entry, squad, leader_squads in built:
         if entry.enhancement:
             enhancements.grant(squad, entry.enhancement)
+        if getattr(entry, "warlord", False):
+            _mark_warlord(squad)
         for spec, leader_squad in zip(entry.leaders, leader_squads):
             if spec.enhancement:
                 enhancements.grant(leader_squad, spec.enhancement)
+            if getattr(spec, "warlord", False):
+                _mark_warlord(leader_squad)
 
     # PASS 3 - 19.01. attach() returns the surviving squad and empties the
     # leader's model list, so the result is re-bound rather than assumed to be

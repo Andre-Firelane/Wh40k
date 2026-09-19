@@ -2526,4 +2526,26 @@ ck.true("...folds it into the resolver's list",
 ck.true("...and hands that list to _resolve_own_damage_choice()",
         bool(_resolve) and ast.unparse(_resolve[0].args[1]) == "controllers")
 
+
+# --- 29. the cover gate reads the ADJUSTED weapon ------------------------------
+print("--- 29. _cover_ignored_for_group() is handed the adjusted weapon ---")
+# Section 27's shape, one keyword over: [IGNORES COVER]. Both of its readers -
+# _dispatch_group()'s cover split and _hit_modifiers()' Benefit of Cover - were
+# handed the PRINTED weapon, while Pech'ra, Faolchu, the Oversight Drone, the
+# Nebuloscope, Preternatural Precision (and More Dakka, which found it) grant the
+# keyword on _adjusted_weapon()'s copy. Measured with an active Oversight Drone:
+# the copy said ignores_cover=True and the Hit roll still carried +1 (Benefit of
+# Cover). Every such grant was dead at the one place it matters, and each of their
+# suites checked only the flag on the copy.
+_cover_calls, _cover_raw = 0, []
+_shooting_tree = ast.parse(io.open(os.path.join("game", "shooting.py"), encoding="utf-8").read())
+for _n in ast.walk(_shooting_tree):
+    if isinstance(_n, ast.Call) and getattr(_n.func, "attr", None) == "_cover_ignored_for_group":
+        _cover_calls += 1
+        _first = _n.args[0] if _n.args else None
+        if not (isinstance(_first, ast.Call) and getattr(_first.func, "attr", None) == "_adjusted_weapon"):
+            _cover_raw.append("game/shooting.py:%d" % _n.lineno)
+ck.true("the sweep is live - it found both cover readers (%d)" % _cover_calls, _cover_calls >= 2)
+ck.eq("every one is handed self._adjusted_weapon(...), never the printed weapon", _cover_raw, [])
+
 ck.finish()

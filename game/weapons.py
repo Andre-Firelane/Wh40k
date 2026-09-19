@@ -1293,6 +1293,90 @@ class CopperStaffProfile(WeaponProfile):
     psychic = True  # [PSYCHIC], rule 24.29
 
 
+# --- Big Mek in Mega Armour (Orks) datasheet, see game/factions/orks.py ---
+#
+# Every other gun and blade on the sheet is a row this module already carries at
+# the same numbers - the Meganob's Kustom Shoota and Kombi-weapon chains, the Deff
+# Dread's Kustom Mega-blasta, the Meganobz' Killsaw and the Power Klaw.
+
+class TellyportBlastaProfile(WeaponProfile):
+    """Big Mek in Mega Armour (2026-09 Ork codex): Tellyport Blasta, 12" A6 BS4+
+    S9 AP-2 D3, [BLAST 1]."""
+    name = "Tellyport Blasta"
+    weapon_type = RANGED
+    range_in = 12
+    attacks = 6
+    strength = 9
+    ap = -2
+    damage = 3
+    blast = 1
+
+
+# --- Ghazghkull Thraka (Orks) datasheet, see game/factions/orks.py ---
+
+class MorksRoarPointBlankProfile(WeaponProfile):
+    """Ghazghkull Thraka (2026-09 Ork codex): Mork's Roar - Point Blank, 9" A
+    2D6+2, no Hit roll ([TORRENT]), S6 AP-1 D1, [CLOSE-QUARTERS]; second of two
+    profiles. `attacks` is the notation's mean, the grouping placeholder."""
+    name = "Mork's Roar - Point Blank"
+    weapon_type = RANGED
+    range_in = 9
+    attacks = 9
+    attacks_notation = D6(2, dice=2)
+    strength = 6
+    ap = -1
+    damage = 1
+    close_quarters = True
+    torrent = True
+
+
+class MorksRoarAimedProfile(WeaponProfile):
+    """Ghazghkull Thraka (2026-09 Ork codex): Mork's Roar - Aimed, 36" A12 BS5+ S6
+    AP-1 D1, [LETHAL HITS: non-MONSTER/VEHICLE], [RAPID FIRE 4]; first of two
+    profiles (rule 04.01.03)."""
+    name = "Mork's Roar - Aimed"
+    weapon_type = RANGED
+    range_in = 36
+    attacks = 12
+    strength = 6
+    ap = -1
+    damage = 1
+    rapid_fire = 4
+    conditional_keywords = (("lethal_hits", True, NON_MONSTER_VEHICLE_TARGETS),)
+    overcharge_profile = MorksRoarPointBlankProfile
+
+
+class AdamantineEadbuttProfile(WeaponProfile):
+    """Ghazghkull Thraka (2026-09 Ork codex): Adamantine 'Eadbutt, A1 WS2+ S14
+    AP-2 D D3+3, [DEVASTATING WOUNDS], [EXTRA ATTACKS], [PRECISION] - it swings
+    beside Gork's Klaw (rule 04.01, 24.11). `damage` is the notation's maximum."""
+    name = "Adamantine 'Eadbutt"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 1
+    strength = 14
+    ap = -2
+    damage = 6
+    damage_notation = D3(3)
+    devastating_wounds = True
+    extra_attacks = True
+    precision = True
+
+
+class GorksKlawProfile(WeaponProfile):
+    """Ghazghkull Thraka (2026-09 Ork codex): Gork's Klaw, A7 WS2+ S14 AP-3 D4,
+    [CLEAVE 2], [DEVASTATING WOUNDS]."""
+    name = "Gork's Klaw"
+    weapon_type = MELEE
+    range_in = 2
+    attacks = 7
+    strength = 14
+    ap = -3
+    damage = 4
+    cleave = 2
+    devastating_wounds = True
+
+
 # --- Painboy (Orks) datasheet, see game/factions/orks.py ---
 
 class UrtySyringeProfile(WeaponProfile):

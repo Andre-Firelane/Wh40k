@@ -9830,3 +9830,35 @@ nach der Landung.
 237 grün / 0 rot / 1 bekannt; `--smoke` grün; `selfplay.py map2 1500` Orks gegen Necrons beide
 Sitzordnungen exit 0; `verify_rules_vs_engine.py` 68 (unverändert); `fetch --offline` nur mit den drei
 neuen Blättern im README (Datum zurückgesetzt); `measure_crowded_movement.py` unverändert 62 % / 87 %.
+
+## 2026-09-19 - Mecha Orks G2: Big Mek in Mega Armour, Ghazghkull Thraka, der Warlord
+
+**Auftrag:** „weiter" nach G1 - Etappe G2 des Plans `mecha-orks.md`.
+
+**Gebaut:** Big Mek in Mega Armour (More Dakka, Kustom Force Field, Fix Dat Armour Up) und
+Ghazghkull Thraka (Da Grand Warlord's Ladz als sechste bedingte Lone-Operative-Quelle, Makari als
+Panel-Knopf mit Einheiten-Pick, Prophet-Aura). Dazu der WARLORD, den die Engine nie hatte: ein
+`"warlord": true` in der Liste, geprüft beim Laden (höchstens einer, CHARACTER, kein C'tan,
+Supreme Commander muss es sein - implizit, wenn die Liste niemanden nennt), vom Builder aufs Modell
+geschrieben; Da Boss zahlt darüber seinen CP. Shadowsun und The Silent King tragen das
+Supreme-Commander-Flag jetzt auch; ihre „kein Warlord"-No-op-Texte sind korrigiert. Keine
+ausgelieferte Liste nennt einen Warlord.
+
+**Der Fund, vorbestehend:** beide Leser von [IGNORES COVER] bekamen die gedruckte Waffe - kein
+Ketten-Grant (Pech'ra, Faolchu, Oversight Drone, Nebuloscope, Preternatural Precision) nahm je Deckung
+weg, alle Suiten prüften nur das Flag an der Kopie. Gemessen an der Oversight Drone, an der Quelle
+behoben, Wächter §29 und im CLAUDE.md-Rezept als drittes Keyword-Tor eingetragen.
+
+**Sonden:** 67 im ersten Lauf, sieben bissen nicht - zwei Abstürze, drei verdeckte Terme (zweimal
+Da Boss hinter dem +1-CP-Deckel: der Deckel-Zähler wird nicht gespeichert, erst ein frisches Ledger
+zeigte den haltenden Term), eine KI-Szene ohne qualifizierende Einheit, und ein toter Zweig in
+Makari (entfernt, Sonde gestrichen). Danach 66/66. `--check` über alle Treiber fand zwei von G2
+verschobene Anker in älteren Treibern (Trukk-Ausschluss, eine wörtlich kopierte Zeile im
+Makari-Handler), beide umgezogen und wieder beißend.
+
+**Verifiziert:** `test_ork_mecha_characters.py` 122/122; volle Regression 239 Suiten, ~23339
+Prüfungen, 238 grün / 0 rot / 1 bekannt; `--smoke` grün; `selfplay.py map2 1500` Orks gegen
+Necrons beide Sitzordnungen exit 0; `verify_ork_mecha_characters.py` 9/9, neutralisiert 7/7 (darin
+die KI, die Makari über `main()`s echtes Auto-Play nutzt); `verify_rules_vs_engine.py` 68;
+`measure_crowded_movement.py` unverändert 62 % / 87 %. Neue Stand-Datei
+`docs/stand/orks-mecha-orks.md` für G2-G6.
