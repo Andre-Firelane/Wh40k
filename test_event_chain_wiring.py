@@ -1011,16 +1011,20 @@ _MC = next(n for n in _MOVE_TREE.body
 # make an advance move"), so it happens inside the Movement phase and leaves
 # move_mode None, exactly as start_run does. A door is a move granted OUTSIDE
 # the phase, which is what the OUT_OF_PHASE_MOVE_MODES sweep below is for.
+# start_surge_move is a door rather than a phase starter since Da Big Hunt's
+# Goaded into Action became its first caller (Mecha Orks G5): rule 21.02's surge
+# move is granted in the OPPONENT's Shooting phase, and "surge" is in
+# REACTIVE_MOVE_MODES. Like start_retro_thruster_move it names its own mode.
 _DOOR_NAMES = ("start_post_shooting_move", "start_battle_focus_move",
-               "start_retro_thruster_move")
+               "start_retro_thruster_move", "start_surge_move")
 _PHASE_STARTERS = ("start_move", "start_fall_back_move", "start_charge_move",
-                   "start_surge_move", "start_scout_move", "start_pile_in_move",
+                   "start_scout_move", "start_pile_in_move",
                    "start_consolidate_move", "start_run",
                    "start_transdimensional_displacement")
 
 _STARTERS = {n.name for n in _MC.body
              if isinstance(n, ast.FunctionDef) and n.name.startswith("start_")}
-ck.true("the three extension doors still exist", set(_DOOR_NAMES) <= _STARTERS)
+ck.true("the four extension doors still exist", set(_DOOR_NAMES) <= _STARTERS)
 ck.eq("every MovementController.start_* method is classified",
       sorted(_STARTERS - set(_DOOR_NAMES) - set(_PHASE_STARTERS)), [])
 
@@ -2661,5 +2665,184 @@ for _f, _where in sorted(_ATTACKS_WRITERS.items()):
     else:
         ck.true("%s is at shooting.py's count site" % _mod,
                 "attacks_weapon = psychic_communion.psychic_communion_adjusted_weapon(weapon, pairs)" in _shoot_src)
+
+print("--- 32. no local is read before the same block binds it ---")
+
+# THE BUG THIS PINS killed main() on the first phase change of the first real
+# run of Mecha Orks G5: a reset call was written into advance_turn_phase()
+# ABOVE the line that builds the set it is handed, and Python raised
+# UnboundLocalError. Nothing else could see it - section 4 checks `a.b = c` at
+# main()'s OWN level, and this was a call ARGUMENT inside a nested function; no
+# suite runs main(); the smokes reach it, but in minutes rather than the two
+# seconds this takes.
+#
+# The rule is the one thing about execution order that is decidable without
+# solving control flow: WITHIN ONE straight-line block, a statement that reads
+# a name the SAME block only binds further down cannot run. Everything that
+# could make that legal is excluded rather than guessed at:
+#   * loop bodies and everything under them (bound at the end, read at the top
+#     of the next turn - legal, and common);
+#   * nested def/lambda/class bodies (they run when called, not here) - only
+#     their decorators and default arguments run at the def's own position;
+#   * comprehension loop variables (their own scope since Python 3);
+#   * names bound by an ANCESTOR block, by a parameter, at module level, or
+#     declared global/nonlocal;
+#   * `a.b = c` and `a[i] = c`, which bind nothing.
+# Measured over main.py, selfplay.py, game/ and ai/: 640 files, ~2s, ZERO
+# reports - and the pre-fix main.py yields exactly one, naming line and name.
+
+_ORDER_SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)
+_ORDER_COMPS = (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
+_ORDER_BLOCKS = ("body", "orelse", "finalbody", "handlers")
+
+
+def _binds(node):
+    """Names this statement BINDS."""
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        return {node.name}
+    if isinstance(node, (ast.Import, ast.ImportFrom)):
+        return {(a.asname or a.name).split(".")[0] for a in node.names}
+    if isinstance(node, ast.Assign):
+        targets = list(node.targets)
+    elif isinstance(node, (ast.AugAssign, ast.AnnAssign)):
+        targets = [node.target]
+    elif isinstance(node, (ast.For, ast.AsyncFor)):
+        targets = [node.target]
+    elif isinstance(node, (ast.With, ast.AsyncWith)):
+        targets = [i.optional_vars for i in node.items if i.optional_vars is not None]
+    else:
+        return set()
+    out, stack = set(), list(targets)
+    while stack:
+        sub = stack.pop()
+        if isinstance(sub, ast.Name):
+            out.add(sub.id)
+        elif isinstance(sub, (ast.Tuple, ast.List, ast.Starred)):
+            stack += list(ast.iter_child_nodes(sub))
+    return out
+
+
+def _scope_seeds(node):
+    """What a def/lambda/class reads AT ITS OWN POSITION: decorators and
+    default arguments. Never its body."""
+    out = list(getattr(node, "decorator_list", []))
+    args = getattr(node, "args", None)
+    if args is not None:
+        out += [d for d in list(args.defaults) + list(args.kw_defaults) if d is not None]
+    return out
+
+
+def _header_children(node):
+    """The parts of a statement that run at its own position - an `if`'s test,
+    a `for`'s iterable. Its blocks are visited as blocks of their own."""
+    if not isinstance(node, ast.stmt):
+        return list(ast.iter_child_nodes(node))
+    out = []
+    for field, value in ast.iter_fields(node):
+        if field in _ORDER_BLOCKS and isinstance(value, list) and value and isinstance(value[0], ast.stmt):
+            continue
+        if isinstance(value, list):
+            out += [v for v in value if isinstance(v, ast.AST)]
+        elif isinstance(value, ast.AST):
+            out.append(value)
+    return out
+
+
+def _reads(node):
+    """Names this statement READS when it runs."""
+    out = set()
+    stack = _scope_seeds(node) if isinstance(node, _ORDER_SCOPES) else _header_children(node)
+    while stack:
+        cur = stack.pop()
+        if isinstance(cur, _ORDER_SCOPES):
+            stack += _scope_seeds(cur)
+            continue
+        if isinstance(cur, _ORDER_COMPS):
+            inner = {sub.id for gen in cur.generators for sub in ast.walk(gen.target)
+                     if isinstance(sub, ast.Name)}
+            for child in ast.iter_child_nodes(cur):
+                out |= _reads(ast.Expression(body=child)) - inner
+            continue
+        if isinstance(cur, ast.Name) and isinstance(cur.ctx, ast.Load):
+            out.add(cur.id)
+        stack += _header_children(cur)
+    return out
+
+
+def _straight_blocks(fn):
+    """(statements, names bound by an ANCESTOR block) per straight-line block."""
+    out, stack = [], [(fn.body, False, frozenset())]
+    while stack:
+        body, in_loop, above = stack.pop()
+        if not in_loop:
+            out.append((body, above))
+        here = set(above)
+        for node in body:
+            here |= _binds(node)
+        for node in body:
+            if isinstance(node, _ORDER_SCOPES):
+                continue
+            deeper = in_loop or isinstance(node, (ast.For, ast.While, ast.AsyncFor))
+            for field, value in ast.iter_fields(node):
+                if field in _ORDER_BLOCKS and isinstance(value, list) and value \
+                        and isinstance(value[0], ast.stmt):
+                    stack.append((value, deeper, frozenset(here)))
+    return out
+
+
+def _module_level_names(tree):
+    out, stack = set(), list(tree.body)
+    while stack:
+        node = stack.pop()
+        out |= _binds(node)
+        if isinstance(node, (ast.If, ast.Try, ast.With, ast.For, ast.While)):
+            for field in _ORDER_BLOCKS:
+                stack += list(getattr(node, field, []) or [])
+    return out
+
+
+def _too_late_bindings(path):
+    tree = ast.parse(io.open(path, encoding="utf-8").read())
+    module_names = _module_level_names(tree)
+    out = []
+    for fn in [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]:
+        args = fn.args
+        outer = {a.arg for g in (args.posonlyargs, args.args, args.kwonlyargs) for a in g}
+        outer |= {a.arg for a in (args.vararg, args.kwarg) if a is not None}
+        outer |= module_names
+        for node in ast.walk(fn):
+            if isinstance(node, (ast.Global, ast.Nonlocal)):
+                outer |= set(node.names)
+        for body, above in _straight_blocks(fn):
+            bound_at = {}
+            for i, stmt in enumerate(body):
+                for name in _binds(stmt):
+                    bound_at.setdefault(name, i)
+            for i, stmt in enumerate(body):
+                for name in _reads(stmt):
+                    j = bound_at.get(name)
+                    if j is None or j <= i or name in outer or name in above:
+                        continue
+                    out.append("%s:%d in %s() reads %r, which this block only binds at line %d"
+                               % (os.path.basename(path), stmt.lineno, fn.name, name, body[j].lineno))
+    return out
+
+
+_ORDER_ROOTS = ("main.py", "selfplay.py", "game", "ai")
+_order_scanned, _order_late = 0, []
+for _root in _ORDER_ROOTS:
+    _order_paths = []
+    if os.path.isdir(_root):
+        for _dirpath, _dirs, _files in os.walk(_root):
+            _order_paths += [os.path.join(_dirpath, _f) for _f in _files if _f.endswith(".py")]
+    else:
+        _order_paths = [_root]
+    for _order_path in _order_paths:
+        _order_scanned += 1
+        _order_late += _too_late_bindings(_order_path)
+
+ck.eq("no statement reads a local its own block only binds further down", sorted(_order_late), [])
+ck.true("the sweep is live - it read %d files" % _order_scanned, _order_scanned > 300)
+
 
 ck.finish()

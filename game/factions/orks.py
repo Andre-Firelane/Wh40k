@@ -272,6 +272,31 @@ BLITZ_BRIGADE = ORKS.add_detachment(Detachment(
     # NOT wired - game/blitz_brigade.py's NOT_WIRED says why.
 ))
 
+DA_BIG_HUNT = ORKS.add_detachment(Detachment(
+    "Da Big Hunt",
+    rule_name="Da Hunt is On",
+    points=1,
+    force_dispositions=(force_dispositions.PURGE_THE_FOE,),
+    # Mecha Orks stage G5. The rule is game/da_big_hunt.py.
+    setting="DA_BIG_HUNT_PLAYERS",
+    rule_text=(
+        "Da Hunt is On: Friendly BEAST SNAGGA units' attacks that target a MONSTER/VEHICLE "
+        "unit have +1 AP."
+    ),
+    enhancements=[
+        # Glory Hog is ENGINE-WIRED (game/enh_glory_hog.py). It Came from da
+        # Drops is printed and deliberately NOT wired: no BEASTBOSS ON
+        # SQUIGOSAUR datasheet exists here, so no model could bear it - see
+        # game/da_big_hunt.py's NOT_WIRED.
+        Enhancement("Glory Hog", 25, description=(
+            "BEAST SNAGGA model only. When this unit is selected to make a fall-back move, that "
+            "fall-back move does not prevent this unit from being eligible to declare a charge.")),
+        Enhancement("It Came from da Drops", 20, description=(
+            "BEASTBOSS ON SQUIGOSAUR model only. This model has +1 T.")),
+    ],
+    # The three Stratagems (game/da_hunt_*.py) are built in main.py.
+))
+
 _NOB_LOADOUT = [KustomChoppaProfile, KombiSkorchaShootaProfile]
 _BOY_LOADOUT = [ChoppaProfile, ShootaProfile, SluggaProfile]
 

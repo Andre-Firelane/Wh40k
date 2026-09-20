@@ -127,3 +127,13 @@ passenden Abschnitt hier; ein neuer `##`-Abschnitt braucht eine Zeile im Verzeic
   zufällig ans Ziel kommt, bleibt offen und hält das Panel auf dem Charge-Bildschirm (flakig 1 von 3,
   bis die Stufe sie nach der Messung ablehnt); und ein Preis an der Fight-Grenze wird NACH der Grenze
   gemessen, weil sie den Kern-CP der nächsten Command-Phase schon gezahlt hat.
+
+  **`verify_ork_da_big_hunt.py`** (G5) treibt zwei Momente, die ein MockAgent-Lauf nicht
+  produziert, mit `main()`s eigenen Methoden an: `fall_back_controller.declare()` (die Methode, die
+  der Fall-Back-Knopf ruft) für eine Necron-VEHICLE in Ork-Engagement, und das
+  Aktivierungs-Ledger des ShootingControllers, gestempelt wie `_handle_hit_results()` es stempelt,
+  bevor `main()`s eigene `on_squad_finished_shooting`-Liste gefeuert wird. Danach gehört alles der
+  Engine, bis hin zu `main()`s Quittungstür, die den D6 in einen offenen `"surge"`-Zug verwandelt.
+  Die Lehre dieses Harness: **an einer Phasengrenze können mehrere Prompts gleichzeitig offen
+  sein** — wer auf seinen eigenen wartet, statt die vorderen abzulehnen, misst „angeboten, aber nie
+  gepickt" und hält es für einen Engine-Fehler.

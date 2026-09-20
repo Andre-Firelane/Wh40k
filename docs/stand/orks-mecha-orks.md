@@ -287,3 +287,114 @@ kurzzeitig getauschtem `random.randint` (NICHT `testkit` — dessen Import setzt
 Reroll zufällig ans Ziel bringt, bleibt offen und hält das Panel auf dem Charge-Bildschirm — C lehnt sie
 nach der Messung ab (11.02); und Keep It Runnins Preis wird NACH der Grenze gemessen, weil die
 Fight-Grenze schon den Kern-CP der nächsten Command-Phase gezahlt hat.
+
+
+## Mecha Orks G5: Da Big Hunt (2026-09-20)
+
+Gedruckter Text in `rules/orks/detachments/Da Big Hunt.md`. `armies/orks.json` UNVERÄNDERT (G6),
+`DA_BIG_HUNT_PLAYERS` leer, bis eine Liste es deklariert. BEAST SNAGGA ist ein Modell-Flag
+(`beast_snagga`), über 19.03 gepoolt — ein Beastboss, der Beast Snagga Boyz führt, ist EINE BEAST
+SNAGGA unit, und ein angeschlossener Weirdboy verwässert das nicht.
+
+| Teil | Modul | Naht / Lesart |
+|---|---|---|
+| Da Hunt is On | `da_big_hunt.py` | „attacks", nicht „melee attacks": ein Glied in BEIDEN Adjuster-Ketten (`shooting.py` UND `fight.py`), +1 AP gegen MONSTER/VEHICLE. Die Bedingung gehört dem ZIEL, also nimmt der Adjuster es entgegen; ohne Ziel wird nichts gewährt (kann unter-, nie überberichten) |
+| Glory Hog (25) | `enh_glory_hog.py` | NUR `may_charge_after_falling_back()` — der gedruckte Text sagt „declare a charge", nicht „shoot"; genau die Hälfte, die eine Kopie des Ork-Nachbarn Kunnin' But Brutal verlieren würde (dieselbe Unterscheidung wie Relentless Combatants) |
+| Where D'ya Fink You're Going? (1CP) | `da_hunt_where_dya_fink.py` | Cornered Prey, gekauft, plus eine Klausel: dieselbe Tür `forced_desperate_escape.py`. Der MARK sitzt auf der BEAST SNAGGA unit (der gedruckte TARGET), jeder engagierte Feind wird live gemessen; das Angebot hängt an `FallBackController.declare()`s `on_fall_back_declared` (zweiter Reaktor nach Khaine's Vengeance) |
+| Goaded into Action (1CP) | `da_hunt_goaded_into_action.py` | **Der erste Surge Move (21.02) dieser Engine** — die Maschinerie stand seit ihrem Bau ohne Aufrufer da. D6 als sichtbarer `DiceNotationRoll`, dann der reaktive Zug auf `main()`s MovementController, `active_player` beim reagierenden Spieler bis Confirm/Cancel (Path of the Outcasts Form). „lost a wound as a result of those attacks" beantwortet ein neues Aktivierungs-Ledger des ShootingControllers |
+| Instinctive Hunters (1CP) | `da_hunt_instinctive_hunters.py` | Aerial Manoovers Naht und Rückzug, gekauft: `PhaseWindow` statt Uhr, `mover_before` statt `turn_owner`, `withdrawal_is_doomed()`; NEU ist „within 6" of a battlefield edge" (`board_edges.py`) und dass es EINE Einheit nennt |
+| It Came from da Drops | — | **NICHT verdrahtet**: es gibt kein Datenblatt BEASTBOSS ON SQUIGOSAUR in dieser Engine, also könnte es niemand tragen. `da_big_hunt.NOT_WIRED` nennt die Lücke samt Grund, die Suite pinnt sie (und dass die Registry es nicht führt) |
+
+**Zwei Extraktionen, beide am fälligen Konsumenten** (Details in `extraktionen.md`):
+`game/forced_desperate_escape.py` (wer zwingt eine zurückfallende Einheit in DESPERATE ESCAPE, und was
+kostet es sie — `fall_back.py` fragt die Registry statt Cornered Prey namentlich) und
+`game/board_edges.py` (die Brettkanten-Helfer aus `secondary_missions.py`, das sie re-exportiert).
+
+**Drei Engine-Fehler, die erst der erste echte Aufrufer sichtbar machte:**
+
+- **`can_make_surge_move()` verlangte die BEWEGUNGSPHASE.** Es lief über `can_move()`, dessen Sinn
+  „ist das der Bewegungsphasen-Zug dieser Einheit?" ist — und Goaded into Action feuert in der
+  SCHUSSPHASE DES GEGNERS. Solange 21.02 keinen Aufrufer hatte, kostete das nichts und war
+  unsichtbar; mit Aufrufer hätte es JEDEN Surge Move abgelehnt, den die Engine gewähren kann. Jetzt
+  prüft die Methode die drei gedruckten Punkte selbst (nicht battle-shocked, unengaged, hat diese
+  Phase nicht bewegt) — dieselbe Entscheidung, die `start_post_shooting_move()` und
+  `start_battle_focus_move()` in ihren Docstrings begründen. `"surge"` steht dazu in der
+  Ausschlussliste von `confirm_move()`s Bewegungs-Buchführung (ein reaktiver Zug bucht keine
+  Bewegungsphase, die dem anderen Spieler gehört).
+- **Cornered Preys −1 konnte die Hazard-Würfe nie erreichen** — ein VORBESTEHENDER Fehler, den erst
+  die zweite Quelle sichtbar machte. Beide gedruckten Sätze messen „engaged with", und die Kosten
+  landen auf den Hazard-Würfen; ein Fall-Back-Zug ENDET aber per 09.07 unengaged, also ist die
+  Live-Zählung am Wurf für jede Einheit, die dort ankommt, null. `test_exodites.py` war grün, weil es
+  die Modulfunktionen fragt, während die zwei Einheiten noch beieinanderstehen. Jetzt friert
+  `forced_desperate_escape.snapshot()` die Kosten an den Momenten ein, in denen die Engagement noch
+  besteht (`choose_mode()`, und für ein Stratagem, das ein Mensch Frames später kauft, dessen
+  `use()`); `fall_back.py` räumt den Snapshot an beiden Enden wieder ab. Belegt: dieselbe Szene rollt
+  jetzt −2 („Cornered Prey and Where D'ya Fink You're Going?"), vorher −1.
+- **Die Hazard-Zeile log den falschen NAMEN.** `HazardRollStep` schrieb `(-1 Cornered Prey)` fest
+  verdrahtet — Fehlerklasse 11, sobald ein zweiter Träger denselben Satz druckt. Der Aufrufer weiß,
+  wer spricht (`forced_desperate_escape.reasons()`), also sagt er es; die Zeile trägt den Modifikator
+  jetzt auch auf dem WÜRFELPANEL, nicht nur im Log.
+
+**Ein `main()`-Reihenfolgefehler, gefunden vom ersten echten Lauf** (Fehlerklasse 23):
+`where_dya_fink_controller.reset_phase(_horde_squads)` stand ÜBER der Zeile, die `_horde_squads`
+baut — `UnboundLocalError` beim ersten Phasenwechsel. §4 des Verdrahtungs-Wächters sieht das nicht
+(es prüft `a.b = c` auf `main()`s EIGENER Ebene, das hier war ein Aufruf-ARGUMENT in einer
+verschachtelten Funktion). Dafür gibt es jetzt **`test_event_chain_wiring.py` §32**: innerhalb EINES
+geradlinigen Blocks darf keine Anweisung einen Namen lesen, den derselbe Block erst weiter unten
+bindet. Alles, was das legal machen könnte, wird ausgeschlossen statt geraten (Schleifenrümpfe und
+alles darunter, verschachtelte def-/lambda-Rümpfe — nur Dekoratoren und Default-Argumente laufen an
+der def-Zeile —, Comprehension-Variablen, Namen aus einem ÜBERGEORDNETEN Block, Parametern, Modulebene
+oder `global`/`nonlocal`, und `a.b = c`, das gar nichts bindet). Gemessen über `main.py`,
+`selfplay.py`, `game/` und `ai/`: **640 Dateien, ~2 s, NULL Meldungen** — und die Vor-Fix-`main.py`
+liefert genau eine, mit Zeile und Namen.
+
+**Getestet:** neu `test_ork_da_big_hunt.py` (**132/132**, acht Abschnitte — die Regel durch beide
+echten Ketten, Glory Hogs Träger-Zeile und die Charge-Hälfte, Where D'ya Fink an einem echten
+`FallBackController.declare()`/`confirm()` samt Extra-Würfeln, −1 und der Registry-Summe MIT einem
+Clanblade auf demselben Brett, Goaded into Action durch eine ECHTE Schuss-Aktivierung bis zum
+`start_surge_move()` und dem echten ActionPanel, Instinctive Hunters an der Fight-Ende-Naht, die
+benannte Lücke, die Extraktionen, die Quell-Wächter). Nachgezogen: `test_detachments.py`,
+`test_force_dispositions.py` (22), `test_event_chain_wiring.py` §13 (`start_surge_move` ist jetzt eine
+TÜR, kein Phasenstarter) und `test_aeldari_detachment_stratagems.py` (die Khaine's-Vengeance-Zeile las
+die schließende Klammer einer Ein-Eintrags-Liste).
+
+**A/B-Sonden** (`ab_ork_da_big_hunt.py`, **76 Sonden**, alle beißen). Der erste Lauf meldete 16
+Befunde, davon 12 über den TEST und 4 über die SONDE:
+- **Vier Sonden krachten, statt rot zu machen**: ein Träger-Prädikat auf `None` ist nicht aufrufbar
+  (jetzt `_orks_character` — ein plausibler Fehlgriff statt eines Absturzes); ein Marker hinter der
+  offenen Klammer einer EINZEILIGEN `def`-Zeile ist ein SyntaxError; und zweimal stürzte die SUITE an
+  einer Zeile ab, die in ein anstehendes Würfelergebnis indexierte, das die Sonde gerade wegnahm —
+  die Prüfung stellt die Prämisse jetzt fest, statt sie anzunehmen.
+- **Zwölf Befunde über den Test**, darunter drei „Gürtel-und-Hosenträger"-Stellen, an denen ein
+  zweites Tor dieselbe Frage beantwortet (die Ledger-Mitgliedschaft in `eligible()`, das „unengaged"
+  des Controllers neben 21.02s eigenem): die Sonde zielt jetzt auf die Stelle, die die Antwort
+  WIRKLICH gibt, oder bricht beide Tore in EINER Sonde. Ein battle-shocktes Ziel wird nicht von 21.02
+  abgelehnt, sondern von 01.07 (keine Stratagems auf eine battle-shockte Einheit) — der einzige Term,
+  den nur 21.02 hält, ist „hat diese Phase schon bewegt", und genau der steht jetzt im Test.
+- **Ein vorbestehender Befund in einem FREMDEN Test**: `test_ork_vehicles.py` pinnte die AI-Politik
+  von Aerial Manoover mit einem blanken Teilstring auf `main.py` — Instinctive Hunters injiziert
+  dieselbe Politik, also stand der Ausdruck zweimal da und die Sonde des Deffkopta-Treibers biss
+  nicht mehr. Der Pin nennt jetzt SEINEN Controller (dieselbe Ausfallart wie ein Wächter, der einen
+  NAMEN zählt statt den Aufruf zu lesen).
+
+**Im ECHTEN Spiel belegt** (`verify_ork_da_big_hunt.py map2`, Orks als Player 1; 8/8, unter
+`--neutralize` 5/5):
+
+| | gefixt | `--neutralize` |
+|---|---|---|
+| Wiring | alle drei Controller halten `main()`s Kollaborateure (Fall-Back-Hakenliste, das Wund-Ledger des ShootingControllers, GameState/Turn-Tracker) | Haken fehlen |
+| Da Hunt is On | Slugga AP 0 → −1 gegen eine Ghost Ark, 0 gegen Wraiths | AP 0 |
+| Glory Hog | Beastboss darf nach dem Fall Back chargen, der Warboss nicht | darf nicht |
+| Where D'ya Fink | angeboten, 1 CP, markiert; Ordered Retreat abgelehnt, 3 Extra-Würfe | nie angeboten, Ordered Retreat erlaubt |
+| Goaded into Action | Haken feuert, 1 CP, D6 auf `main()`s Würfeln, Quittungstür öffnet `"surge"` mit `active_player` beim Reaktor und der gewürfelten Weite | nie gehört |
+| Instinctive Hunters | an der Fight-Grenze angeboten, gepickt, 1 CP, in Reserve und vom Brett | nie angeboten |
+
+GESTELLT: Orks als Player 1, gebaute Einheiten, `DA_BIG_HUNT_PLAYERS` für beide Seiten und
+`WAR_HORDE_PLAYERS` geleert, die Uhr je Stufe und CP-Auffüllung. D und E stellen den MOMENT, nicht die
+Partie: ein MockAgent-Lauf produziert weder eine Necron-VEHICLE, die sich aus einer Ork-Engagement
+zurückzieht, noch eine Necron-Einheit, die genau eine bestimmte Beast-Snagga-Einheit verwundet — D ruft
+`main()`s `fall_back_controller.declare()` (die Methode, die der Fall-Back-Knopf ruft), E stempelt das
+Aktivierungs-Ledger so, wie `_handle_hit_results()` es stempelt, und feuert dann `main()`s eigene
+Hakenliste. Alles nach diesen zwei Aufrufen gehört der Engine. Eine Bühnen-Lehre: an einer Phasengrenze
+können mehrere Prompts gleichzeitig offen sein — der Harness muss die vorderen ABLEHNEN, statt auf
+seinen eigenen zu warten (F meldete sonst „angeboten, aber nie gepickt").

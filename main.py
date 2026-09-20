@@ -8,7 +8,8 @@ import pygame
 from ai import deployment_ai
 from ai import observation as ai_observation
 from ai.agent_driver import AIMemory, take_one_action
-from ai.agent_driver import reactive_subroutines_destination, reactive_subroutines_move
+from ai.agent_driver import (goaded_into_action_destination, goaded_into_action_move,
+                             reactive_subroutines_destination, reactive_subroutines_move)
 from ai.agent_driver import aerial_manoover_choice, beastscent_verdict, boss_motivation_choice, catch_dat_red_bit_verdict, hyperphasing_choice, hyperphasic_recall_verdict, pilin_out_verdict, rokkit_charge_verdict, war_cry_verdict, warpath_verdict
 from ai.agent_driver import fix_dat_armour_up_verdict
 from ai.agent_driver import battle_shock_target_choice
@@ -162,6 +163,9 @@ from game.relentless_combatants import RelentlessCombatantsController
 from game.blitz_brigade import UnstoppableMomentumChargeRerollController
 from game.blitz_impending_krunch import ImpendingKrunchController
 from game.blitz_keep_it_runnin import KeepItRunninController
+from game.da_hunt_goaded_into_action import GoadedIntoActionController
+from game.da_hunt_instinctive_hunters import InstinctiveHuntersController
+from game.da_hunt_where_dya_fink import WhereDyaFinkController
 from game import harassment_swarm, spyder_wargear
 from game.canoptek_swarm import CanoptekSwarmController
 from game.macrocyte_wargear import AcceleratorMandibleController
@@ -2828,8 +2832,16 @@ def main(map_key=None):
     )
     # "Just after an enemy unit IS SELECTED to Fall Back" - the OTHER Fall Back
     # instant, one word apart from Feigned Retreat's.
+    # Da Big Hunt's Where D'ya Fink You're Going? - the SECOND reactor at "an
+    # enemy unit is selected to make a fall-back move" (Mecha Orks G5). Its
+    # effect goes through game/forced_desperate_escape.py, the registry
+    # game/fall_back.py itself asks.
+    where_dya_fink_controller = WhereDyaFinkController(
+        stratagem_controller, turn_tracker=turn_tracker, decision_manager=decision_manager,
+        all_tokens=state.tokens, game_log=game_log, auto_players=ai_players)
     fall_back_controller.on_fall_back_declared = [
-        khaines_vengeance_controller.notify_selected_to_fall_back]
+        khaines_vengeance_controller.notify_selected_to_fall_back,
+        where_dya_fink_controller.notify_selected_to_fall_back]
     # Skyborne Sanctuary's SECOND printing - one module, one instance per
     # detachment that prints it, each with its own gate.
     skyborne_sanctuary_controllers.append(SkyborneSanctuaryController(
@@ -2839,6 +2851,26 @@ def main(map_key=None):
         decision_manager=decision_manager, game_log=game_log,
         auto_players=ai_players,
     ))
+    # Da Big Hunt's Goaded into Action: the first surge move (rule 21.02) in
+    # this engine - a D6 and a reactive move in the OPPONENT's Shooting phase.
+    # Its AI policy is injected, like Reactive Subroutines': game/ must not
+    # import ai/.
+    goaded_into_action_controller = GoadedIntoActionController(
+        stratagem_controller, movement_controller=movement_controller, turn_tracker=turn_tracker,
+        decision_manager=decision_manager, dice_manager=dice_manager, all_tokens=state.tokens,
+        game_log=game_log, auto_players=ai_players,
+        ai_destination=lambda squad, shooter: goaded_into_action_destination(state, squad, shooter),
+        ai_mover=lambda squad, point, distance: goaded_into_action_move(
+            movement_controller, squad, point, distance))
+    goaded_into_action_controller.shooting_controller = shooting_controller
+    shooting_controller.on_squad_finished_shooting.append(
+        goaded_into_action_controller.on_squad_finished_shooting)
+    # Da Big Hunt's Instinctive Hunters - Aerial Manoover's seam and withdrawal,
+    # bought, for ONE unit and only within 6" of a battlefield edge.
+    instinctive_hunters_controller = InstinctiveHuntersController(
+        stratagem_controller, game_state=state, all_tokens=state.tokens, turn_tracker=turn_tracker,
+        decision_manager=decision_manager, game_log=game_log, auto_players=ai_players,
+        choose=lambda eligible: aerial_manoover_choice(state, turn_tracker, eligible))
     # Blitz Brigade's Keep It Runnin' - the THIRD printing of the same
     # end-of-Fight embark (game/end_of_fight_embark.py), for ORKS INFANTRY.
     keep_it_runnin_controller = KeepItRunninController(
@@ -4288,6 +4320,7 @@ def main(map_key=None):
         for _skyborne in skyborne_sanctuary_controllers:
             _skyborne.reset_phase()
         keep_it_runnin_controller.reset_phase()
+        instinctive_hunters_controller.reset_phase()
         # An unattributed death does not outlive the phase it happened in.
         pinpoint_controller.reset_phase()
         # Canoptek Court - everything that lasts "until the end of the phase".
@@ -4311,6 +4344,12 @@ def main(map_key=None):
         unbridled_carnage_controller.reset_phase(_horde_squads)
         ere_we_go_controller.reset_phase(_horde_squads)
         mob_mentality_controller.reset_phase(_horde_squads)
+        # Da Big Hunt: Where D'ya Fink You're Going?'s mark lasts the phase it
+        # was bought in. HERE rather than beside the other end-of-phase resets
+        # above, because it needs _horde_squads - which is bound on this line's
+        # side of that block. Placed above it, main() died with an
+        # UnboundLocalError on the first phase change of the first real run.
+        where_dya_fink_controller.reset_phase(_horde_squads)
         never_beaten_controller.reset_phase()
         # Hypercrypt Legion - everything that lasts "until the end of the phase".
         hypercrypt_quantum_deflection.reset_phase(_court_squads)
@@ -4517,6 +4556,10 @@ def main(map_key=None):
             # Blitz Brigade's Keep It Runnin' - "End of THE Fight phase" as well.
             keep_it_runnin_controller.offer_at_end_of_fight_phase(
                 {t.squad for t in state.tokens if t.squad is not None})
+            # Da Big Hunt's Instinctive Hunters: "End of your OPPONENT'S Fight
+            # phase", so mover_before decides who is asked.
+            instinctive_hunters_controller.offer_at_end_of_fight_phase(
+                {t.squad for t in state.tokens if t.squad is not None}, mover_before)
             # The Stonesinger's Elemental Ensnarement: "at the end of YOUR Fight
             # phase", so it is offered to the player whose phase just ended -
             # the opposite side from Wall of Mirrors directly above it. Its
@@ -5541,6 +5584,10 @@ def main(map_key=None):
             # Hypercrypt Legion's Reanimation Crypts drains one D3 per reserve
             # unit; the phase must not roll over the units still owed a roll.
             or reanimation_crypts_controller.is_busy
+            # Goaded into Action holds active_player while its D6 is on the
+            # table and its surge move is open - the same reason Path of the
+            # Outcast is in this gate.
+            or goaded_into_action_controller.is_busy
             or epic_challenge_controller.state != epic_challenge.IDLE
             or greater_good_controller.state != greater_good.IDLE
             or crushing_impact_controller.state != crushing_impact.IDLE
@@ -6214,6 +6261,8 @@ def main(map_key=None):
         lambda: superlative_strategist_controller.pending_roll_choice(movement_controller.selected_squad),
         lambda: sudden_storm_controller.pending_roll_choice(movement_controller.selected_squad),
         lambda: waaagh_advance_reroll_controller.pending_roll_choice(movement_controller.selected_squad),
+        # Goaded into Action's riled-up re-roll of its surge D6.
+        goaded_into_action_controller,
     ))
 
     def _acknowledge_pending_roll():
@@ -6245,6 +6294,10 @@ def main(map_key=None):
         # only datasheet re-roll of this kind; it asks the
         # CHARGING unit, which is the only one whose Charge
         # roll this can be.
+        # Goaded into Action's D6: "if your unit is riled up, it can re-roll
+        # that D6". The AI answers here, before the roll is accepted - a human
+        # gets the dice panel's own button (pending_roll_choice()).
+        goaded_into_action_controller.maybe_reroll_for_ai()
         if dice_manager.roll_kind == CHARGE_ROLL:
             relentless_combatants_controller.maybe_offer_charge_reroll()
             # The SECOND carrier of the same sentence - The
@@ -6279,6 +6332,8 @@ def main(map_key=None):
         mobbed_controller.on_dice_acknowledged()
         # Impending Krunch drains the same kind of queue, one test per roll.
         impending_krunch_controller.on_dice_acknowledged()
+        # Goaded into Action's D6 becomes the distance of its surge move.
+        goaded_into_action_controller.on_dice_acknowledged()
         # After battle_shock's: the Grav-Inhibitor Field's own
         # first step IS a Battle-Shock test, and its second roll
         # is queued only once that outcome has been applied.
@@ -8713,6 +8768,7 @@ def main(map_key=None):
             overflight_controller=overflight_controller,
             higher_duty_controller=higher_duty_controller,
             reactive_subroutines_controller=reactive_subroutines_controller,
+            goaded_into_action_controller=goaded_into_action_controller,
             warhost_fire_and_fade_controller=warhost_fire_and_fade_controller,
             targeting_array_controller=targeting_array_controller,
             # An open "click a unit on the board" request from a Secondary

@@ -41,7 +41,7 @@ from game import structural_collapse
 from game.bladestorm import bladestorm_adjusted_weapon
 from game import crit_ap
 from game import fate_inescapable
-from game import boss_ammo_runt, dodge_dis, finderz_keeperz, mobile_arsenal, more_dakka, ork_ammo_runts
+from game import boss_ammo_runt, da_big_hunt, dodge_dis, finderz_keeperz, mobile_arsenal, more_dakka, ork_ammo_runts
 from game.nova_charge import nova_charge_adjusted_weapon
 from game import damaged_attacks, triarch_auras
 from game import awakened_dynasty, destroyer_cult, nekrosor_ammentar, dlc_mortarions_teachings, exemplars_of_montka, gift_of_contagion, hovering_death, miasma_of_pestilence, protocol_conquering_tyrant, protocol_sudden_storm, guardian_protocols, implacable_eradication, mechanical_augmentation, overwhelming_obliteration, plagues, reroll_scope, sunforge, target_uploaded, way_of_the_short_blade
@@ -199,6 +199,15 @@ def _weapon_split_across_targets(weapon_key, split_fire, assignments):
         return False
     targets = {target for key, target in assignments if key == weapon_key}
     return len(targets) > 1
+
+
+def _squad_wound_total(squad):
+    """Wounds left in a unit - the living models' current_wounds.
+
+    A model that DIES takes its remaining wounds out of the total as well, so
+    "did this unit lose a wound" answers yes for a unit that lost a model."""
+    return sum(max(0, m.current_wounds or 0) for m in (getattr(squad, "models", ()) or ())
+               if not m.is_dead())
 
 
 def extra_attack_dice(weapon, target_squad, weapon_key, split_fire, assignments, pairs=()):
@@ -836,6 +845,7 @@ class ShootingController:
         self._resolved_weapon_names_this_activation = {}
         self._living_when_first_hit = {}  # id(squad) -> living models when first hit this activation; see _handle_hit_results() and models_lost_this_activation()
         self._hit_target_squads_this_activation = set()  # Suppression Volley: enemy squads hit by 1+ attacks this activation, see _handle_hit_results()/on_squad_finished_shooting
+        self._wounds_when_hit_this_activation = {}  # Goaded into Action: id(squad) -> its wound total when this activation first hit it, see squads_wounded_this_activation()
         # Maugan Ra's Harvester of Souls needs "every attack targets the SAME
         # unit", which the hit set above cannot answer: a group that targeted a
         # second unit and missed with everything still split the fire. Recorded
@@ -1047,6 +1057,7 @@ class ShootingController:
         self._hazardous_count = 0
         self._lethal_hits_auto_wounds = 0
         self._hit_target_squads_this_activation = set()
+        self._wounds_when_hit_this_activation = {}
         self._living_when_first_hit = {}
         self._targeted_squads_this_activation = set()
         self._hit_weapon_names_this_activation = {}
@@ -1193,6 +1204,7 @@ class ShootingController:
         self._hazardous_count = 0
         self._lethal_hits_auto_wounds = 0
         self._hit_target_squads_this_activation = set()
+        self._wounds_when_hit_this_activation = {}
         self._living_when_first_hit = {}
         self._targeted_squads_this_activation = set()
         self._hit_weapon_names_this_activation = {}
@@ -1248,6 +1260,7 @@ class ShootingController:
         self._hazardous_count = 0
         self._lethal_hits_auto_wounds = 0
         self._hit_target_squads_this_activation = set()
+        self._wounds_when_hit_this_activation = {}
         self._living_when_first_hit = {}
         self._targeted_squads_this_activation = set()
         self._hit_weapon_names_this_activation = {}
@@ -3639,6 +3652,16 @@ class ShootingController:
             labels = ["DEVASTATING WOUND"] if weapon.devastating_wounds else []
         return {"crit_threshold": threshold, "crit_labels": tuple(labels)}
 
+    def squads_wounded_this_activation(self):
+        """Every unit this activation HIT that has fewer wounds now than when it
+        was first hit - "lost a wound as a result of those attacks" (Da Big
+        Hunt's Goaded into Action). Asked from on_squad_finished_shooting, i.e.
+        before the per-activation ledgers are cleared."""
+        return sorted(
+            (squad for squad in self._hit_target_squads_this_activation
+             if _squad_wound_total(squad) < self._wounds_when_hit_this_activation.get(id(squad), 0)),
+            key=lambda s: s.name)
+
     def embarked_squads(self):
         """The game's embarked units, or () with no provider."""
         provider = self.embarked_squads_provider
@@ -3816,6 +3839,10 @@ class ShootingController:
         # Targetin' Gizmos is its second source (a WAGON carrying a BIG MEK), so
         # the embarked units come along.
         weapon = more_dakka.adjusted_weapon(weapon, self.active_squad, self.embarked_squads())
+        # Da Big Hunt's Da Hunt is On: +1 AP for a BEAST SNAGGA unit shooting a
+        # MONSTER/VEHICLE - "attacks", not "melee attacks", so it is a link in
+        # this chain as well as in game/fight.py's.
+        weapon = da_big_hunt.adjusted_weapon(weapon, self.active_squad, target_squad)
         # Kroot Farstalkers' Pech'ra: [IGNORES COVER] on the whole unit's
         # ranged weapons, unconditionally once taken - the simplest grant
         # in this chain, and ranged-only by its own printed wording.
@@ -3955,6 +3982,11 @@ class ShootingController:
             # that already knows a target_squad was actually hit (as
             # opposed to just targeted), regardless of shooting type/weapon.
             self._hit_target_squads_this_activation.add(target_squad)
+            # "lost a wound as a result of those attacks" (Da Big Hunt's Goaded
+            # into Action) needs a BEFORE, and this is the one moment it exists:
+            # the unit has just been hit and nothing has been allocated yet.
+            self._wounds_when_hit_this_activation.setdefault(
+                id(target_squad), _squad_wound_total(target_squad))
             # How many models that unit still had when it was FIRST hit this
             # activation. Path of the Outcast's Eldritch Suppression asks "was
             # a model in that enemy unit destroyed BY THOSE ATTACKS", and there

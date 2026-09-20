@@ -174,3 +174,22 @@ passenden Abschnitt hier; ein neuer `##`-Abschnitt braucht eine Zeile im Verzeic
     INFANTRY, am dritten Frager, von War Horde und Green Tide re-exportiert (Fehlerklasse 11: sonst
     importiert Blitz Brigade aus einem fremden Detachment-Modul). Dazu Unstoppable Momentum als
     DRITTER Träger von `charge_reroll.py` (kein neues Modul).
+
+    Mit Da Big Hunt (G5) zwei: **`game/forced_desperate_escape.py`** — „wer zwingt eine
+    zurückfallende Einheit in DESPERATE ESCAPE, und was kostet es sie", an der ZWEITEN Quelle
+    (Cornered Prey, dann Where D'ya Fink You're Going?). `fall_back.py` fragte die erste an DREI
+    Stellen namentlich; eine zweite Quelle hätte drei weitere `or`-Terme und drei Gelegenheiten
+    bedeutet, nur zwei davon zu setzen. Die Registry ist ein Modul-TUPEL (wie
+    `conditional_lone_operative.py`), kein Import-Nebeneffekt: eine Quelle, die sich selbst
+    registriert, fehlt genau dann, wenn niemand sie importiert hat. Drei Fragen, weil die
+    gedruckten Sätze drei stellen (Zwang, −1 auf die Würfe, zusätzliche Würfe), und die Quellen
+    SUMMIEREN sich. Die leicht zu verfehlende Hälfte war eine andere als erwartet: **beide Sätze
+    messen „engaged with", aber ihre Kosten landen auf den Hazard-Würfen — und ein Fall-Back-Zug
+    endet per 09.07 unengaged.** Die Live-Zählung am Wurf ist also immer null; Cornered Preys −1
+    hatte seit seinem Bau nie gewirkt, unbemerkt, weil sein Test die Modulfunktion fragt, während
+    die Einheiten noch beieinanderstehen. `snapshot()`/`clear_snapshot()` frieren die Kosten an den
+    Momenten ein, in denen die Engagement noch besteht, und `fall_back.py` besitzt beide Enden.
+    **`game/board_edges.py`** — „wie weit ist dieses Modell/diese Einheit von einer Brettkante",
+    am zweiten Leser (Secondary Missions, dann Instinctive Hunters); `secondary_missions.py`
+    re-exportiert. Die leicht zu verfehlende Hälfte: die Distanz wird vom BASEN-RAND gemessen und
+    ein totes Modell hält keine Kante — beides stand nur in der Missions-Fassung.

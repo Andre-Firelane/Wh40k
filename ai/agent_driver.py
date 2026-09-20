@@ -11921,6 +11921,57 @@ def _cosmic_precision_improves(relaxed_score, plain_score):
     return tuple(relaxed_score[:2]) < tuple(plain_score[:2])
 
 
+#: The most a Goaded into Action surge move can cover - its D6.
+GOADED_SURGE_MAX_IN = 6.0
+
+
+def goaded_into_action_destination(state, squad, shooter):
+    """Da Big Hunt's Goaded into Action, the AI's policy - injected into
+    game/da_hunt_goaded_into_action.py by main.py, because game/ must not
+    import ai/.
+
+    A surge move (rule 21.02) has to end unengaged with everything except its
+    surge target, so it is not a charge: it is a free step toward whoever just
+    shot the unit, which is exactly what a goaded BEAST SNAGGA mob does. The
+    point is observation.first_leg_toward()'s - the one definition of "a legal
+    point on the way there" - and None declines (the CP is spent on a
+    destination, like Reactive Subroutines').
+
+    The distance is the D6 already rolled; the controller hands the move the
+    same number, so this only decides the direction."""
+    if shooter is None:
+        return None
+    movers = [m for m in shooter.models if not m.is_dead()]
+    if not movers:
+        return None
+    goal = (sum(m.x_in for m in movers) / len(movers), sum(m.y_in for m in movers) / len(movers))
+    reach = GOADED_SURGE_MAX_IN
+    obstacles = list(getattr(state, "obstacles", ()) or ())
+    leg = observation.first_leg_toward(squad, goal, reach, obstacles)
+    return (leg["x"], leg["y"]) if leg is not None else goal
+
+
+def goaded_into_action_move(movement_controller, squad, point, distance):
+    """The injected mover for Goaded into Action.
+
+    The controller has already selected the unit and opened the SURGE move with
+    its rolled distance, so every retry of _advance_toward()'s sweep has to
+    re-prime THAT move with the SAME distance - a Normal move would spend the
+    unit's own Movement-phase move in the opponent's turn, and a re-rolled
+    distance would give the unit a second D6. Returns whether the move landed."""
+    from game.squad import closest_enemy_squad
+
+    def start_fn():
+        movement_controller.start_surge_move(
+            squad, float(distance), closest_enemy_squad(squad, movement_controller.all_tokens))
+
+    moved = _advance_toward(
+        movement_controller, squad, point, start_move_fn=start_fn,
+        allow_bulk_fallback=not all(m.profile.vehicle for m in squad.models),
+    )
+    return bool(moved) and not movement_controller.errors
+
+
 def reactive_subroutines_destination(state, squad, mover):
     """Canoptek Court's Reactive Subroutines, the AI's policy - injected into
     game/court_reactive_subroutines.py by main.py, because game/ must not

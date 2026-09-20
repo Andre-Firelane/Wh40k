@@ -609,7 +609,14 @@ for _hook in ("movement_controller.on_move_finished.append(pilin_out_controller.
               "pilin_out_controller.reset_movement_phase()"):
     c.eq("main.py runs %s" % _hook, len(calls(TREE, _hook)), 1)
 c.true("the AI's Pilin' Out verdict is injected", "pilin_out_verdict(" in MAIN)
-c.true("...and the Aerial Manoover policy", "aerial_manoover_choice(state, turn_tracker, eligible)" in MAIN)
+# Named with ITS controller, not on its own: Da Big Hunt's Instinctive Hunters
+# injects the same policy (Mecha Orks G5), so the bare expression is in main.py
+# twice and a substring test for it cannot see this one disappear - the same
+# failure mode as a wiring guard that counts a NAME instead of reading the call.
+c.true("...and the Aerial Manoover policy, on the AerialManooverController",
+       "    aerial_manoover_controller = AerialManooverController(" in MAIN
+       and MAIN.split("    aerial_manoover_controller = AerialManooverController(", 1)[1]
+           .split(")" + chr(10), 1)[0].count("aerial_manoover_choice(state, turn_tracker, eligible)") == 1)
 _offer = "aerial_manoover_controller.offer_at_end_of_fight_phase({t.squad for t in state.tokens if t.squad is not None}, mover_before)"
 c.eq("Aerial Manoover is offered at the end-of-Fight seam with mover_before", len(calls(TREE, _offer)), 1)
 

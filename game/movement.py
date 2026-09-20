@@ -396,12 +396,23 @@ class MovementController:
         self.charge_targets = charge_targets
 
     def can_make_surge_move(self, squad):
-        """Rule 21.02 ELIGIBLE IF (minus "the rule allowing this move type
-        has been triggered", which is up to whatever ability/stratagem
-        calls start_surge_move() - we have none yet, this is the reusable
-        move-type machinery for whenever one arrives, the same way
-        start_charge_move() is reusable infra ChargeController drives)."""
-        if not self.can_move(squad):
+        """Rule 21.02 ELIGIBLE IF, minus "the rule allowing this move type has
+        been triggered" - that one belongs to whatever ability or Stratagem
+        calls start_surge_move(), the same division start_charge_move() has.
+        The printed list is: not battle-shocked, unengaged, and has not moved
+        this phase.
+
+        NOT gated on can_move(), for the reason start_post_shooting_move() and
+        start_battle_focus_move() give: that asks "is this the unit's
+        MOVEMENT-PHASE move?" and answers no in every other phase. A surge is
+        triggered by a rule, and the first rule in this engine that triggers
+        one - Da Big Hunt's Goaded into Action - fires in the OPPONENT's
+        Shooting phase. This method was written against can_move() while it had
+        no caller at all, so the phase test cost nothing and was invisible;
+        with a caller it refused every surge the engine can actually grant.
+        "Has not moved this phase" survives as its own term below, which is
+        what the printed line actually says."""
+        if squad is None or squad in self.moved_squad_ids:
             return False
         if squad.battle_shocked:
             return False
@@ -493,7 +504,12 @@ class MovementController:
                                      "raid_and_run", "overflight", "higher_duty",
                                      # Canoptek Court's Reactive Subroutines -
                                      # game/court_reactive_subroutines.py.
-                                     "court_reactive_subroutines"})
+                                     "court_reactive_subroutines",
+                                     # Da Big Hunt's Goaded into Action: rule
+                                     # 21.02's surge move, made in the opponent's
+                                     # Shooting phase - the first caller of
+                                     # start_surge_move() (Mecha Orks G5).
+                                     "surge"})
 
     #: "a Normal, Advance or Fall Back move" - exactly those three, the phrase
     #: several printed rules use (rule 09.07's shooting/charge bans, Aeldari
@@ -1191,7 +1207,7 @@ class MovementController:
             self.selected_squad.charged_this_turn = True
         elif self.move_mode not in ("pile_in", "consolidate", "scout", "torchstar",
                                     "tactical_acumen", "fire_and_fade",
-                                    "battle_focus", "path_of_the_outcast"):
+                                    "battle_focus", "path_of_the_outcast", "surge"):
             # The two post-shooting modes are excluded for a related reason
             # (see start_post_shooting_move()): they happen in the SHOOTING
             # phase and are
@@ -1203,11 +1219,12 @@ class MovementController:
             # shooting still ahead of it is a Snap Shot (15.09), which
             # ignores every modifier anyway.
             #
-            # The two REACTIVE modes ("battle_focus" - Fade Back and
-            # Opportunity Seized - and "path_of_the_outcast") are excluded for
-            # the same reason one step further out: they happen in the
-            # OPPONENT's turn, so booking them claims a Movement phase that is
-            # not merely over but belongs to the other player. It self-heals
+            # The REACTIVE modes ("battle_focus" - Fade Back and Opportunity
+            # Seized -, "path_of_the_outcast" and "surge", the last being Da
+            # Big Hunt's Goaded into Action) are excluded for the same reason
+            # one step further out: they happen in the OPPONENT's turn, so
+            # booking them claims a Movement phase that is not merely over but
+            # belongs to the other player. It self-heals
             # today, because reset_movement_phase() runs before the reacting
             # player's own Movement phase - but Rangers are the datasheet that
             # makes the stakes concrete, since [HEAVY] (24.16) is on their main

@@ -227,6 +227,7 @@ class ActionPanel:
         # Confirm/Cancel hand-back, like higher_duty_controller above. Appended
         # BY KEYWORD at the very end, for this chain's positional reasons.
         reactive_subroutines_controller=None,
+        goaded_into_action_controller=None,
     ):
         surface.fill(config.PANEL_BG_COLOR, rect)
         pygame.draw.rect(surface, config.PANEL_BORDER_COLOR, rect, width=2)
@@ -288,6 +289,7 @@ class ActionPanel:
             damage_pick=damage_pick,
             decision_rule=decision_rule,
             reactive_subroutines_controller=reactive_subroutines_controller,
+            goaded_into_action_controller=goaded_into_action_controller,
         )
         # The FULL rect, not the shortened one: this strip is pinned to the
         # BOTTOM edge, which the selection box does not move.
@@ -346,6 +348,7 @@ class ActionPanel:
         # The printed rule behind a board pick, drawn by _draw_unit_pick_ui().
         decision_rule=None,
         reactive_subroutines_controller=None,
+        goaded_into_action_controller=None,
     ):
         """The old draw() body, verbatim - one big state dispatch with an
         early return per screen (setup/firing-deck/damage-choice/dice-roll/
@@ -588,6 +591,7 @@ class ActionPanel:
             primary_mission_controller=primary_mission_controller,
             unmodified_six_controller=unmodified_six_controller,
             reactive_subroutines_controller=reactive_subroutines_controller,
+            goaded_into_action_controller=goaded_into_action_controller,
         )
 
     def _draw_selection_header(self, surface, rect, movement_controller):
@@ -2281,6 +2285,7 @@ class ActionPanel:
         proactive_stratagems=None,
         return_placement_controller=None,
         reactive_subroutines_controller=None,
+        goaded_into_action_controller=None,
     ):
         squad = movement_controller.selected_squad
         turn_tracker = movement_controller.turn_tracker
@@ -2426,6 +2431,11 @@ class ActionPanel:
                 confirm_callback = battle_focus_pool.confirm_reactive_move
             elif is_path_of_the_outcast and path_of_the_outcast_controller is not None:
                 confirm_callback = path_of_the_outcast_controller.confirm_move
+            elif is_surge and goaded_into_action_controller is not None:
+                # Da Big Hunt's Goaded into Action owns the only surge move in
+                # this engine (rule 21.02); Confirm goes through its controller
+                # so the reacting player's hold on active_player is released.
+                confirm_callback = goaded_into_action_controller.confirm_move
             elif is_torchstar and torchstar_controller is not None:
                 confirm_callback = torchstar_controller.confirm_move
             elif is_tactical_acumen and tactical_acumen_controller is not None:
@@ -2515,6 +2525,8 @@ class ActionPanel:
                 cancel_callback = battle_focus_pool.cancel_reactive_move
             elif is_path_of_the_outcast and path_of_the_outcast_controller is not None:
                 cancel_callback = path_of_the_outcast_controller.cancel_move
+            elif is_surge and goaded_into_action_controller is not None:
+                cancel_callback = goaded_into_action_controller.cancel_move
             elif is_fire_and_fade and fire_and_fade_controller is not None:
                 cancel_callback = fire_and_fade_controller.cancel_move
             elif is_chronometron and chronometron_controller is not None:

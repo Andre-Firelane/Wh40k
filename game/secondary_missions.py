@@ -654,37 +654,12 @@ A_TEMPTING_TARGET = SecondaryMissionCard(
 # board has no facing of its own. What matters is which two are OPPOSITE, and
 # the card says it outright: "Opposite battlefield edges are the ones that run
 # parallel to each other."
-EDGE_NORTH, EDGE_SOUTH, EDGE_WEST, EDGE_EAST = "north", "south", "west", "east"
+# The four edges and the two functions that measure them live in
+# game/board_edges.py since Da Big Hunt's Instinctive Hunters became their
+# second reader (Mecha Orks G5); re-exported here, so nothing below moves.
+from game.board_edges import (EDGE_EAST, EDGE_NORTH, EDGE_SOUTH, EDGE_WEST,  # noqa: E402,F401
+                              model_distance_to_edges, unit_edges_within)
 OPPOSITE_EDGE_PAIRS = ((EDGE_NORTH, EDGE_SOUTH), (EDGE_WEST, EDGE_EAST))
-
-
-def model_distance_to_edges(model):
-    """Base-EDGE distance from a model to each of the four board edges."""
-    width, height = config.BOARD_WIDTH_IN, config.BOARD_HEIGHT_IN
-    r = model.radius_in
-    return {
-        EDGE_NORTH: max(0.0, model.y_in - r),
-        EDGE_SOUTH: max(0.0, height - model.y_in - r),
-        EDGE_WEST: max(0.0, model.x_in - r),
-        EDGE_EAST: max(0.0, width - model.x_in - r),
-    }
-
-
-def unit_edges_within(squad, range_in=None):
-    """Which board edges this unit is within `range_in` of.
-
-    Unit-level and permissive, matching how Centre Ground reads the same
-    "units ... are within X of Y" shape: ANY model close enough puts the unit
-    at that edge. (Contrast Behind Enemy Lines' "wholly within", which is the
-    strict form and says so.)"""
-    if range_in is None:
-        range_in = OUTFLANK_EDGE_RANGE_IN
-    edges = set()
-    for model in squad.models:
-        for edge, distance in model_distance_to_edges(model).items():
-            if distance <= range_in:
-                edges.add(edge)
-    return edges
 
 
 def _outflank_units(ctx):

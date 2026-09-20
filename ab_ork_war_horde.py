@@ -239,9 +239,9 @@ PROBES = [
                  "            or any(_flag(squad, name) for name in SHOOT_AFTER_FALL_BACK_FLAGS))"),
        "            or any(_flag(squad, name) for name in SHOOT_AFTER_FALL_BACK_FLAGS))" + MARK)], (WH,)),
     ("Kunnin' But Brutal loses its CHARGE half",
-     [(MX, lines("            or enh_kunnin_but_brutal.applies(squad)",
-                 "            or any(_flag(squad, name) for name in CHARGE_AFTER_FALL_BACK_FLAGS))"),
-       "            or any(_flag(squad, name) for name in CHARGE_AFTER_FALL_BACK_FLAGS))" + MARK)], (WH,)),
+     [(MX, "            or enh_kunnin_but_brutal.applies(squad)" + NL
+       + "            # Da Big Hunt's Glory Hog prints ONLY \"declare a charge\", so it is",
+       "            # Da Big Hunt's Glory Hog prints ONLY \"declare a charge\", so it is" + MARK)], (WH,)),
     ("a registry point value drifts from the corpus",
      [(ENH, '_add("Follow Me Ladz", 20, _WAR_HORDE,',
        '_add("Follow Me Ladz", 25, _WAR_HORDE,' + MARK + NL + "    ")], (WH,)),

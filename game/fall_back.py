@@ -24,7 +24,7 @@ and charge.py's can_declare_charge()) and "cannot start an action" (a no-op
 - this engine has no Actions system yet, same as every other move type's
 identical clause)."""
 
-from game import cornered_prey
+from game import cornered_prey, forced_desperate_escape  # noqa: F401 - cornered_prey registers itself
 
 from game.hazard import HazardRollStep
 
@@ -92,7 +92,7 @@ class FallBackController:
         # battle-shocked and would otherwise have a real choice - which is
         # what makes it a different clause from the battle-shock rule beside
         # it rather than a restatement. See game/cornered_prey.py.
-        if squad.battle_shocked or cornered_prey.forces_desperate_escape(
+        if squad.battle_shocked or forced_desperate_escape.forces(
                 squad, self._all_tokens()):
             self.choose_mode(DESPERATE_ESCAPE)
         else:
@@ -103,20 +103,29 @@ class FallBackController:
             return
         if mode == ORDERED_RETREAT and self.acting_squad.battle_shocked:
             return  # rule 09.07: Ordered Retreat isn't available to a battle-shocked unit
-        if mode == ORDERED_RETREAT and cornered_prey.forces_desperate_escape(
+        if mode == ORDERED_RETREAT and forced_desperate_escape.forces(
                 self.acting_squad, self._all_tokens()):
-            return  # Cornered Prey: "must use the desperate escape mode"
+            return  # Cornered Prey / Where D'ya Fink You're Going?: "must use the desperate escape mode"
         self.mode = mode
+        # What the hazard rolls will cost, frozen while the unit is still
+        # engaged - see forced_desperate_escape.snapshot(). HERE rather than in
+        # declare(): every path to the hazard rolls comes through this method
+        # (they belong to Desperate Escape alone), and a human answering a
+        # Stratagem offer has by now had its frames. A probe that removed a
+        # second, earlier snapshot in declare() could not be told from the
+        # world with it - which is what redundant means.
+        forced_desperate_escape.snapshot(self.acting_squad, self._all_tokens())
         self.state = IDLE  # nothing more to show pre-move - the normal MOVING-state Confirm/Cancel UI takes over
         self.movement_controller.start_fall_back_move(mode)
 
-    def decline(self):
+    def decline(self):  # noqa: D401 - see below
         """Cancel, at any point: before a mode is even chosen (mode-choice
         screen's own Cancel button) or mid-drag after one was (MOVING-state
         Cancel button) - same "one decline method covers every stage"
         pattern as ChargeController.decline_charge_move()."""
         if self.movement_controller.move_mode == "fall_back":
             self.movement_controller.cancel_move()
+        forced_desperate_escape.clear_snapshot(self.acting_squad)
         self.state = IDLE
         self.mode = None
         self.acting_squad = None
@@ -144,10 +153,19 @@ class FallBackController:
         for listener in (self.on_fall_back_finished or ()):
             listener(squad)
         if self.mode == DESPERATE_ESCAPE and self.dice_manager is not None and squad is not None and squad.models:
+            tokens = self._all_tokens()
+            # One D6 per model, plus whatever a source adds ("three additional
+            # hazard rolls for each BEAST SNAGGA unit it is engaged with"), at
+            # whatever penalty the sources total - game/forced_desperate_escape.py.
             self._hazard_step = HazardRollStep(
-                squad, len(squad.models), self.dice_manager, log=self._log,
-                penalty=cornered_prey.hazard_penalty_for(squad, self._all_tokens()))
+                squad, len(squad.models) + forced_desperate_escape.extra_hazard_rolls(squad, tokens),
+                self.dice_manager, log=self._log,
+                penalty=forced_desperate_escape.hazard_penalty(squad, tokens),
+                # Who is speaking - the roll line names the source rather than
+                # the one source that existed when it was written.
+                penalty_label=" and ".join(forced_desperate_escape.reasons(squad, tokens)))
         else:
+            forced_desperate_escape.clear_snapshot(squad)
             self.mode = None
             self.acting_squad = None
 
@@ -176,6 +194,7 @@ class FallBackController:
     def _finish_hazard_step(self):
         self._hazard_step = None
         squad = self.acting_squad
+        forced_desperate_escape.clear_snapshot(squad)
         if squad is not None and squad.models and not squad.battle_shocked:
             self.battle_shock_controller.start_desperate_escape_roll(squad)
         self.mode = None

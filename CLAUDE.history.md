@@ -9920,3 +9920,51 @@ Danach alle beißend; `--check` über 12 Treiber sauber.
 8/8, neutralisiert 7/7 (drei Bühnen-Lehren: `testkit` pinnt beim Import alle Würfel auf 1; eine offen
 gebliebene gestellte Charge hielt das Panel fest, flakig 1 von 3; der KIR-Preis wird nach der
 Fight-Grenze gemessen); `verify_rules_vs_engine.py` 68; `measure_crowded_movement.py` unverändert.
+
+
+## 2026-09-20 - Mecha Orks G5: Da Big Hunt
+
+**Gebaut:** die Detachment-Regel Da Hunt is On (+1 AP gegen MONSTER/VEHICLE, ein Glied in BEIDEN
+Adjuster-Ketten), Glory Hog (25, nur die CHARGE-Hälfte von 09.07), und die drei Stratagems: Where
+D'ya Fink You're Going? (Cornered Prey gekauft, plus drei Hazard-Würfe je engagierter BEAST SNAGGA
+unit gegen MONSTER/VEHICLE), Goaded into Action (**der erste Surge Move dieser Engine** - D6,
+reaktiver Zug in der gegnerischen Schussphase, riled-up-Reroll), Instinctive Hunters (Aerial
+Manoovers Naht, gekauft, mit Brettkante). It Came from da Drops NICHT verdrahtet: kein Datenblatt
+BEASTBOSS ON SQUIGOSAUR, also könnte es niemand tragen - als `NOT_WIRED` benannt und gepinnt.
+
+**Extraktionen:** `forced_desperate_escape.py` (die Registry, die `fall_back.py` an drei Stellen
+fragt) und `board_edges.py` (aus dem Missions-Deck).
+
+**Drei Engine-Fehler, die erst der erste echte Aufrufer zeigte:** `can_make_surge_move()` verlangte
+über `can_move()` die BEWEGUNGSPHASE - der erste Aufrufer feuert in der Schussphase des Gegners, es
+hätte also jeden Surge Move abgelehnt; Cornered Preys −1 konnte die Hazard-Würfe NIE erreichen (der
+Fall-Back-Zug endet unengaged, die Live-Zählung am Wurf ist immer null - ein vorbestehender Fehler,
+den erst die zweite Quelle sichtbar machte, jetzt ein eingefrorener Snapshot); und `HazardRollStep`
+log den Namen der einen Quelle fest verdrahtet.
+
+**Ein `main()`-Reihenfolgefehler beim ERSTEN echten Lauf:** die Reset-Zeile stand über dem Ausdruck,
+der ihr Argument baut - `UnboundLocalError` beim ersten Phasenwechsel. §4 sieht das nicht (Aufruf-
+ARGUMENT, verschachtelte Funktion), also gibt es jetzt `test_event_chain_wiring.py` §32: kein
+Statement liest einen Namen, den sein eigener geradliniger Block erst weiter unten bindet. 640
+Dateien, ~2 s, null Fehlalarme; die Vor-Fix-`main.py` liefert genau eine Meldung.
+
+**Sonden:** 76. Erster Lauf 16 Befunde - 12 über die TESTS (darunter drei Stellen, an denen ein
+zweites Tor dieselbe Frage beantwortet, und ein battle-shocktes Ziel, das nicht 21.02, sondern 01.07
+ablehnt) und 4 über die SONDEN selbst (ein Träger-Prädikat auf `None` kracht statt rot zu machen;
+ein Marker hinter der Klammer einer einzeiligen `def`-Zeile ist ein SyntaxError; zwei Suite-Zeilen
+indexierten in ein Würfelergebnis, das die Sonde gerade wegnahm). Danach alle 76 beißend.
+Vorbestehend gefunden: `test_ork_vehicles.py` pinnte Aerial Manoovers KI-Politik mit einem blanken
+Teilstring, den Instinctive Hunters seither ein zweites Mal erfüllt - der Pin nennt jetzt seinen
+Controller.
+
+**Eine teure Prozess-Lehre:** `for f in ab_*.py; do python "$f" --check; done` startet die Treiber
+OHNE `--check` vollständig. Abgebrochen lief ihr Restore nicht, und weil manche Sonden mit dem
+LEEREN String ersetzen, blieb kein Marker: vier Zeilen fehlten danach in `main.py` (der
+Panel-Klick-Zweig bei offener Schadenszuteilung), gefunden allein von einem Quell-Wächter. Seitdem
+filtert die Schleife auf Treiber, die `--check` kennen, und nach einem Abbruch wird `git diff` auf
+LÖSCHUNGEN gelesen.
+
+**Verifiziert:** Suite 132/132; volle Regression 243 Suiten, ~23917 Prüfungen, 242 grün / 1 bekannt;
+`--smoke` grün; selfplay Orks gegen Necrons beide Sitzordnungen exit 0; `verify_ork_da_big_hunt.py`
+8/8, neutralisiert 5/5; `verify_rules_vs_engine.py` 68; `measure_crowded_movement.py` unverändert
+(62 %/210.2", 87 %/292.3").

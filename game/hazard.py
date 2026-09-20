@@ -61,16 +61,28 @@ class HazardRollStep:
     callers that aren't themselves a hit/wound/save state machine (rules
     18.04's Combat Disembark and 18.05's Emergency Disembark)."""
 
-    def __init__(self, squad, count, dice_manager, log=None, penalty=0):
+    def __init__(self, squad, count, dice_manager, log=None, penalty=0, penalty_label=""):
         self.squad = squad
-        # "-1 from those hazard rolls" - the Clanblade's Cornered Prey. 0 for
-        # every other caller, so they are unchanged.
+        # "-1 from those hazard rolls". 0 for every caller that has no such
+        # source, so they are unchanged. `penalty_label` NAMES the source(s):
+        # the Clanblade's Cornered Prey was the only one when this was built
+        # and its name was baked into the log line, which turned into a lie the
+        # moment Da Big Hunt's Where D'ya Fink You're Going? printed the same
+        # clause. The caller knows who is speaking - game/forced_desperate_escape.py
+        # answers exactly that with reasons() - so it says.
         self.penalty = penalty
+        self.penalty_label = penalty_label
+        # A roll line that leaves out the modifier sends the next investigation
+        # back to the board - see CLAUDE.md's logging rule. On the dice panel too,
+        # not only in the log.
+        self._note = (" (-%d%s)" % (penalty, ", " + penalty_label if penalty_label else "")
+                      if penalty else "")
         self.dice_manager = dice_manager
         self.log = log
         self.mortal_wound_session = None
         self._rolled = False
-        dice_manager.roll(count=count, sides=6, label=f"Hazard Rolls: {squad.name} ({count} model(s))")
+        dice_manager.roll(count=count, sides=6,
+                          label=f"Hazard Rolls: {squad.name} ({count} model(s)){self._note}")
 
     @property
     def done(self):
@@ -101,7 +113,7 @@ class HazardRollStep:
         total = hazard_mortal_wounds(self.squad, rolls, self.penalty)
         if self.log is not None:
             self.log(
-                f"Hazard Rolls {rolls}: {hazard_failures(rolls, self.penalty)}/{len(rolls)} failed{' (-' + str(self.penalty) + ' Cornered Prey)' if self.penalty else ''} -> {total} mortal wound(s)."
+                f"Hazard Rolls {rolls}: {hazard_failures(rolls, self.penalty)}/{len(rolls)} failed{self._note} -> {total} mortal wound(s)."
             )
         if total > 0:
             self.mortal_wound_session = MortalWoundAllocationSession(

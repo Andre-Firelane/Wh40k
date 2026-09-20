@@ -337,6 +337,13 @@ def _orks_infantry_character(model, squad):
             and bool(getattr(model.profile, "infantry", False)))
 
 
+def _beast_snagga_character(model, squad):
+    """"BEAST SNAGGA model only" - Da Big Hunt's Glory Hog, plus the general
+    rule that a bearer is a CHARACTER."""
+    return (bool(getattr(model.profile, "character", False))
+            and bool(getattr(model.profile, "beast_snagga", False)))
+
+
 def _wagon_unit(model, squad):
     """"WAGON unit only" - Blitz Brigade's two. WAGON is a datasheet keyword
     (Kill Rig, Battlewagon, Gunwagon)."""
@@ -388,6 +395,9 @@ _WAR_HORDE = ("War Horde", "WAR_HORDE_PLAYERS")
 _GREEN_TIDE = ("Green Tide", "GREEN_TIDE_PLAYERS")
 # Blitz Brigade (Mecha Orks stage G4) - both wired.
 _BLITZ_BRIGADE = ("Blitz Brigade", "BLITZ_BRIGADE_PLAYERS")
+# Da Big Hunt (Mecha Orks stage G5) - Glory Hog is wired; It Came from da Drops
+# names a datasheet this engine does not have (game/da_big_hunt.py's NOT_WIRED).
+_DA_BIG_HUNT = ("Da Big Hunt", "DA_BIG_HUNT_PLAYERS")
 
 ENHANCEMENTS = {}
 
@@ -587,6 +597,10 @@ _add("Targetin' Gizmos", 10, _BLITZ_BRIGADE, "targetin_gizmos",
      _wagon_unit, "WAGON unit only", unit_level=True)
 _add("Boss Boomer", 10, _BLITZ_BRIGADE, "boss_boomer",
      _wagon_unit, "WAGON unit only", unit_level=True)
+
+# Da Big Hunt - game/enh_glory_hog.py.
+_add("Glory Hog", 25, _DA_BIG_HUNT, "glory_hog",
+     _beast_snagga_character, "BEAST SNAGGA model only")
 
 
 def get(name):

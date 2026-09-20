@@ -169,8 +169,10 @@ PROBES = [
      [(MAIN, "            aerial_manoover_controller.offer_at_end_of_fight_phase(",
        "            (lambda *_a: None)(" + MARK)], (TV, WIRING)),
     ("main.py: no AI policy for Aerial Manoover",
-     [(MAIN, "        choose=lambda eligible: aerial_manoover_choice(state, turn_tracker, eligible))",
-       "        choose=None)" + MARK)], (TV,)),
+     [(MAIN, "        turn_tracker=turn_tracker, auto_players=ai_players," + NL
+       + "        choose=lambda eligible: aerial_manoover_choice(state, turn_tracker, eligible))",
+       "        turn_tracker=turn_tracker, auto_players=ai_players," + NL
+       + "        choose=None)" + MARK)], (TV,)),
 
     # ------------------------------------------------------------ Pilin' Out
     ("Pilin' Out: fires in the Trukk owner's own Movement phase",

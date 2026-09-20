@@ -198,10 +198,23 @@ GameLog-Objekt kracht, sobald eine Wunde auf einem Ein-Modell-Ziel landet.
 nicht als Objekt behandeln (`self.log.add(...)`). Genau daran ist das Feuern
 der D-cannon abgestürzt; siehe `## Diagnose-Logging` für die zwei Konventionen.
 
+**Misst die Bedingung einen Zustand, den die WIRKUNG selbst auflöst?** Dann wird sie
+EINGEFROREN, nicht am Ende live gelesen. Beide gedruckten Fassungen von „an enemy unit ENGAGED WITH
+this unit is selected to make a fall-back move" legen ihre Kosten auf die Hazard-Würfe — und ein
+Fall-Back-Zug endet per 09.07 unengaged, die Live-Zählung dort ist also IMMER null. Cornered Prey
+hatte deshalb seit seinem Bau ein wirkungsloses −1, und kein Test sah es: der fragt die
+Modulfunktion, während die Einheiten noch beieinanderstehen. `forced_desperate_escape.snapshot()`
+ist die Antwort, und die Frage von Hand lautet: *steht die Bedingung zu dem Zeitpunkt, an dem
+abgerechnet wird, überhaupt noch?*
+
 **Ein Zug außerhalb der Bewegungsphase** → der Modus gehört in
 `MovementController.OUT_OF_PHASE_MOVE_MODES`, und ein REAKTIVER zusätzlich in
 `REACTIVE_MOVE_MODES`.
-→ **§13**, beide Richtungen.
+→ **§13**, beide Richtungen. **Und das EIGNUNGS-Tor des Zugtyps prüfen:** `can_make_*_move()`
+über `can_move()` fragt „ist das der BEWEGUNGSPHASEN-Zug dieser Einheit?" und antwortet in jeder
+anderen Phase nein. Solange ein Zugtyp keinen Aufrufer hat, kostet das nichts und ist unsichtbar —
+`start_surge_move()` (21.02) stand so jahrelang da und hätte jeden Surge Move abgelehnt, den die
+Engine gewähren kann. Der erste Aufrufer prüft dieses Tor mit.
 
 **Blockiert es den Phasenwechsel?** Dann muss es auflösbar sein — sonst ist es
 kein Wächter, sondern ein Deadlock.
@@ -478,6 +491,16 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
     Datei, schreibt der Restore fremden Code um: `roll_choice.take()`s `return True` wurde zu
     einer `NameError`-Zeile. Ein Sondentreiber muss einen bereits vorhandenen Ersatztext
     ABLEHNEN (`ab_command_reroll_owner.py` tut es).
+    **SIEBTE Form (2026-09-20), und die gefährlichste: ein ABGEBROCHENER Sondenlauf hinterlässt
+    eine LÖSCHUNG, nach der sich nicht greppen lässt.** `for f in ab_*.py; do python "$f" --check;
+    done` sieht harmlos aus und ist es nicht: die Treiber OHNE `--check` ignorieren das Flag und
+    fahren ihren vollen Lauf. Abgebrochen (TaskStop) läuft ihr `finally`-Restore nicht mehr — und
+    weil die Ersetzung mancher Sonden der LEERE STRING ist, bleibt kein Marker und kein Ersatztext
+    übrig, nach dem die Restprüfung suchen könnte. Konkret fehlten danach vier Zeilen in `main.py`
+    (der Panel-Klick-Zweig bei offener Schadenszuteilung); gefunden hat es allein ein Quell-Wächter,
+    der die Zeile ohnehin prüft. Daher: **die Schleife filtert auf `grep -l -- '--check' ab_*.py`**,
+    und nach JEDEM abgebrochenen Lauf wird `git diff` auf LÖSCHUNGEN gelesen
+    (`git diff | grep "^-" | grep -v "^---"`), nicht nur auf Marker.
     **FÜNFTE Form (2026-09-17): `git grep` übergeht UNGETRACKTE Dateien.** Ein beim Kompaktieren
     abgebrochener Sondenlauf ließ eine Sonde in einer NEUEN Datei stehen, und die Restprüfung war
     leer. Die Restprüfung ist `git grep --untracked "AB-PROBE"`; ein Sondenlauf ohne
@@ -506,6 +529,15 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
     die Form aller drei Fehler, in 20 Sekunden statt in einem Smoke-Lauf; A/B belegt (er nennt
     Zeile und schuldigen Namen). Bewusst eng gehalten — jede Benutzung jedes Namens zu ordnen ist
     bei echtem Kontrollfluss unentscheidbar, und die Fehlalarme machten den Wächter wertlos.
+   **Die Form, die dieser enge Wächter NICHT sieht, kam beim ersten echten Lauf von Mecha Orks G5:
+   ein Aufruf-ARGUMENT in einer VERSCHACHTELTEN Funktion** (`ctrl.reset_phase(_horde_squads)` über
+   der Zeile, die `_horde_squads` baut) — `UnboundLocalError` beim ersten Phasenwechsel. Dafür gibt
+   es **Abschnitt 32**: innerhalb EINES geradlinigen Blocks darf keine Anweisung einen Namen lesen,
+   den derselbe Block erst weiter unten bindet. Das ist der eine Teil der Ausführungsreihenfolge,
+   der ohne Kontrollfluss-Analyse entscheidbar ist; alles andere wird AUSGESCHLOSSEN statt geraten
+   (Schleifenrümpfe und alles darunter, verschachtelte def-Rümpfe, Comprehension-Variablen, Namen
+   aus übergeordnetem Block/Parameter/Modulebene/`global`/`nonlocal`, und `a.b = c`, das nichts
+   bindet). 640 Dateien, ~2 s, null Fehlalarme; A/B belegt.
 24. **Ein Verdrahtungs-Wächter muss den AUFRUFAUSDRUCK prüfen, nicht den Namen zählen.** Das
     etablierte `_driver.count("_handle_x(") >= 2` blieb grün, nachdem die Aufrufstelle entfernt
     war — eine Erwähnung im Docstring zählte als zweites Vorkommen. Aufgefallen nur, weil die
@@ -843,10 +875,11 @@ Fraktion deren Dateien plus `fraktionen.md`; bei einer gemeldeten Fehlerform zue
 - Kill Rig (2026-09-Codex): Beastscent, Warpath, der psychische Wurf — Etappe E3e
 - Mecha Orks G1: Bigboss, Weirdboy, Gunwagon (2026-09-19)
 
-### `docs/stand/orks-mecha-orks.md` — Mecha Orks ab G2: Big Mek in Mega Armour (More Dakka, der Cover-Tor-Fix), Ghazghkull Thraka, der Warlord samt Da Boss; G3 Green Tide (Zählstellen-Fix für +A im Nahkampf, der Save-Wert mit einem Leser); G4 Blitz Brigade (Readied Brawlers als benannte Lücke, Fight-Ende-Einsteigen und Schock-Warteschlange extrahiert)
+### `docs/stand/orks-mecha-orks.md` — Mecha Orks ab G2: Big Mek in Mega Armour (More Dakka, der Cover-Tor-Fix), Ghazghkull Thraka, der Warlord samt Da Boss; G3 Green Tide (Zählstellen-Fix für +A im Nahkampf, der Save-Wert mit einem Leser); G4 Blitz Brigade (Readied Brawlers als benannte Lücke, Fight-Ende-Einsteigen und Schock-Warteschlange extrahiert); G5 Da Big Hunt (der erste Surge Move, das Phasen-Tor davor, Cornered Preys nie angewandtes −1)
 - Mecha Orks G2: Big Mek in Mega Armour, Ghazghkull Thraka, der Warlord (2026-09-19)
 - Mecha Orks G3: Green Tide (2026-09-19)
 - Mecha Orks G4: Blitz Brigade (2026-09-19)
+- Mecha Orks G5: Da Big Hunt (2026-09-20)
 
 ### `docs/stand/audits-aeldari-und-tau.md` — die Prüfungen „werden die Aeldari-/T'au-Stratagems angeboten und wirken sie“
 - Werden die Aeldari-Stratagems überhaupt ANGEBOTEN? (Prüfung, 2026-09-07)

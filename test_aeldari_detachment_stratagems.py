@@ -3891,7 +3891,8 @@ c.true("...and is fed from the death sweep",
 c.true("...and resolves after the attacker has finished",
        "to_their_final_breath_controller.resolve_after_attacks(_fighter)" in _main7)
 c.true("Khaine's Vengeance is fed from the selected-to-Fall-Back moment",
-       "khaines_vengeance_controller.notify_selected_to_fall_back]" in _main7)
+       "khaines_vengeance_controller.notify_selected_to_fall_back," in _main7
+       or "khaines_vengeance_controller.notify_selected_to_fall_back]" in _main7)
 _shoot7 = io.open("game/shooting.py", encoding="utf-8").read()
 c.true("Warrior Focus reaches the SHOOTING hit filter",
        "aspect_warrior_focus.ignores_hit_modifiers(self.active_squad)" in _shoot7)

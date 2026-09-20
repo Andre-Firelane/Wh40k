@@ -47,7 +47,7 @@ from game.adaptive_strategy import squad_has_adaptive_strategy
 from game.squad import (squad_has_agile_combatant, squad_has_battlesuit_support_system,
                         squad_has_full_throttle, squad_has_war_construct)
 from game import riled_up
-from game import enh_kunnin_but_brutal
+from game import enh_glory_hog, enh_kunnin_but_brutal
 
 
 def _flag(squad, name):
@@ -126,6 +126,9 @@ def may_charge_after_falling_back(squad):
             or squad_has_relentless_combatants(squad)
             or squad_has_adaptive_strategy(squad)
             or enh_kunnin_but_brutal.applies(squad)
+            # Da Big Hunt's Glory Hog prints ONLY "declare a charge", so it is
+            # here and deliberately NOT in may_shoot_after_falling_back() above.
+            or enh_glory_hog.applies(squad)
             or any(_flag(squad, name) for name in CHARGE_AFTER_FALL_BACK_FLAGS))
 
 

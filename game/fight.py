@@ -47,6 +47,7 @@ from game import enh_mirage_field
 from game import enh_aspect_of_murder
 from game import enh_headwoppas_killchoppa, horde_hit_em_harder, horde_mow_em_down
 from game import enh_ferocious_show_off, green_tide, green_tide_unbridled_carnage
+from game import da_big_hunt, enh_glory_hog  # noqa: F401 - enh_glory_hog for the fall-back fold's import graph
 from game import aspect_warrior_focus
 from game import conclave_blades_from_beyond
 from game import conclave_seers_eye
@@ -1697,6 +1698,10 @@ class FightController:
             target_squad if target_squad is not None else self.target_squad)
         weapon = green_tide_unbridled_carnage.adjusted_weapon(weapon, self.fighting_squad)
         weapon = enh_ferocious_show_off.adjusted_weapon(weapon, pairs[0][0] if pairs else None)
+        # Da Big Hunt's Da Hunt is On: +1 AP against a MONSTER/VEHICLE target.
+        weapon = da_big_hunt.adjusted_weapon(
+            weapon, self.fighting_squad,
+            target_squad if target_squad is not None else self.target_squad)
         # Orikan The Diviner's The Stars Are Right: triple the Attacks and
         # Strength of HIS Staff of Tomorrow for the phase. Read off
         # pairs[0][0] rather than swept over the group, and that is exact

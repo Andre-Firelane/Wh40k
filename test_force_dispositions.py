@@ -4,7 +4,7 @@ Every detachment permits at least one Force Disposition (War Horde, since the
 2026-09 Ork codex, permits two), and the one a list declares decides which
 Primary Mission it plays. This suite pins:
 
-- the twenty-one modelled detachments' dispositions AGAINST THE CORPUS
+- the twenty-two modelled detachments' dispositions AGAINST THE CORPUS
   (rules/*/detachments/*.md), not against literals. Those files are generated
   straight from Wahapedia's own headings, so this is engine-versus-GW rather
   than one hand-typed list versus another - and a GW change shows up as a
@@ -84,7 +84,7 @@ for keyword, folder in FOLDERS.items():
         checks.eq(f"{name}: Force Dispositions match the corpus",
                   detachment.force_dispositions, fd.from_printed_list(printed or ""))
 
-checks.eq("all twenty-one modelled detachments were checked (Green Tide G3, Blitz Brigade G4)", seen, 21)
+checks.eq("all twenty-two modelled detachments were checked (the Mecha Orks three, G3-G5)", seen, 22)
 
 # The one detachment that permits two, pinned by name so the pair cannot quietly
 # collapse back to its first entry.

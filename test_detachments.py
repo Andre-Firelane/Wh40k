@@ -95,7 +95,7 @@ c.eq("the Necrons model Awakened Dynasty plus the detachments being built",
 # The Orks grow the same way through the Mecha Orks stages (Green Tide in G3,
 # then Blitz Brigade and Da Big Hunt), so they are named as well.
 c.eq("the Orks model War Horde plus the Mecha Orks detachments being built",
-     list(orks.ORKS.detachments), ["War Horde", "Green Tide", "Blitz Brigade"])
+     list(orks.ORKS.detachments), ["War Horde", "Green Tide", "Blitz Brigade", "Da Big Hunt"])
 c.eq("...and Death Guard models one",
      [len(f.detachments) for k, f in FACTION_MODULES
       if k not in ("T'AU EMPIRE", "AELDARI", "NECRONS", "ORKS")], [1])
@@ -116,7 +116,7 @@ EXPECTED_POINTS = {
     # The Necron detachments, one per stage.
     "Canoptek Court": 3, "Hypercrypt Legion": 2,
     # The Mecha Orks list's three 1-DP Ork detachments, one per stage (G3-G5).
-    "Green Tide": 1, "Blitz Brigade": 1,
+    "Green Tide": 1, "Blitz Brigade": 1, "Da Big Hunt": 1,
 }
 for _keyword, faction in FACTION_MODULES:
     for name, detachment in faction.detachments.items():

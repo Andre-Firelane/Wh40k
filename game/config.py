@@ -182,6 +182,10 @@ GREEN_TIDE_PLAYERS = ()
 # game/blitz_brigade.py; Mecha Orks stage G4). Empty by default, like Green Tide.
 BLITZ_BRIGADE_PLAYERS = ()
 
+# The Ork detachment DA BIG HUNT (Da Hunt is On - see game/da_big_hunt.py;
+# Mecha Orks stage G5). Empty by default, like the two above.
+DA_BIG_HUNT_PLAYERS = ()
+
 # Which players field the Death Guard detachment "Death Lord's Chosen", whose
 # rule is Deadly Vectors (game/deadly_vectors.py) and whose six Stratagems all
 # gate on game/death_lords_chosen.py's stratagem_target_ok().

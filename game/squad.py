@@ -563,6 +563,8 @@ class Squad:
         self.unbridled_carnage_active = False  # Green Tide's Unbridled Carnage: +1 A on this unit's melee attacks until the end of the phase - see game/green_tide_unbridled_carnage.py
         self.ere_we_go_active = False  # Green Tide's 'Ere We Go: +2 to this unit's Advance rolls until the end of the phase - read by game/roll_bonus.py's advance_sources(); see game/green_tide_ere_we_go.py
         self.mob_mentality_active = False  # Green Tide's Mob Mentality: this unit's Battle-shock rolls are automatically successful until the end of the phase - read by game/battle_shock.py; see game/green_tide_mob_mentality.py
+        self.where_dya_fink_active = False  # Da Big Hunt's Where D'ya Fink You're Going?: every enemy engaged with this unit must fall back in desperate escape mode until the end of the phase - read by game/forced_desperate_escape.py; see game/da_hunt_where_dya_fink.py
+        self.forced_escape_hazard = None  # (penalty, extra_rolls, labels) frozen when this unit was selected to fall back - a fall-back move ends unengaged, so the hazard rolls at the end of it cannot count the engagement live; see game/forced_desperate_escape.py
         self.ammo_runts_used = False  # Boyz' Ammo Runts: the once-per-battle-per-unit spend - see game/ork_ammo_runts.py; saved (activation_state.SQUAD_FLAGS)
         self.ammo_runts_active = False  # Boyz' Ammo Runts: +1 to hit on this unit's ranged attacks for the phase it was used in
         self.rokkit_charge_active = False  # Stormboyz' Rokkit Charge: +1 A/S and [HAZARDOUS] on melee attacks for the phase - see game/rokkit_charge.py

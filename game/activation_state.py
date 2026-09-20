@@ -157,6 +157,9 @@ SQUAD_FLAGS = (
     "unbridled_carnage_active",
     "ere_we_go_active",
     "mob_mentality_active",
+    # Da Big Hunt's Where D'ya Fink You're Going? (G5): the mark on the BEAST
+    # SNAGGA unit, a paid phase grant like the three above.
+    "where_dya_fink_active",
     # The 2026-09 Ork datasheets: Ammo Runts' once-per-battle spend and its
     # phase grant, and Rokkit Charge's grant.
     "ammo_runts_used",
@@ -207,6 +210,12 @@ SQUAD_FLAGS_EXCLUDED = {
     "triarch_auras_active": "re-derived every frame by triarch_auras.refresh_active_auras() - the CHOICE it comes from, triarch_ability, IS saved",
     "nova_charge_grants": "keyed by model.id and weapon instance id - neither survives a rebuild",
     "attached_ability_grace": "rule 19.04's window, open only inside an attack sequence",
+    # What a falling-back unit's hazard rolls will cost, frozen at its
+    # declaration. Only ever read between "selected to fall back" and that
+    # unit's hazard rolls - inside one activation, which no snapshot is ever
+    # taken in the middle of; the MARK it can come from (where_dya_fink_active)
+    # IS saved.
+    "forced_escape_hazard": "lives only inside one fall-back move - game/forced_desperate_escape.py",
     # A Token, not a scalar, so it is captured by name below rather than
     # through SQUAD_FLAGS.
     "disembarked_from_this_turn": "a Token - saved as its transport's unit name instead",

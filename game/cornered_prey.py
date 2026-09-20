@@ -17,6 +17,10 @@ So the two clauses stack rather than overlap:
   * not battle-shocked -> forced into Desperate Escape at the normal threshold;
   * battle-shocked     -> already in Desperate Escape, now at -1.
 
+game/forced_desperate_escape.py is the registry game/fall_back.py asks; this
+ability is its first source and Da Big Hunt's Where D'ya Fink You're Going? its
+second.
+
 "ENGAGED WITH THIS UNIT" is measured when the fall back is SELECTED, which is
 the moment game/fall_back.py asks - so the question is asked live rather than
 from a mark, and a Clanblade that dies before then stops imposing it.

@@ -168,6 +168,7 @@ class UnitProfile:
     ardboyz = False  # Green Tide Enhancement, UNIT-level (every Boyz model is marked): the unit has 4+ Sv - game/save_characteristic.py; see game/enh_ardboyz.py
     targetin_gizmos = False  # Blitz Brigade Enhancement, UNIT-level (a WAGON): More Dakka's two points while a BIG MEK is embarked within it - game/more_dakka.py; see game/enh_targetin_gizmos.py
     boss_boomer = False  # Blitz Brigade Enhancement, UNIT-level (a WAGON): it has an embarked WARBOSS's Intimidating Motivation/Keep Huntin' - game/boss_motivation.py's bearer_models(); see game/enh_boss_boomer.py
+    glory_hog = False  # Da Big Hunt Enhancement: a fall-back move does not stop the bearer's unit declaring a charge (charge only, not shooting) - game/move_exceptions.py; see game/enh_glory_hog.py
     thievin_scavengers = False  # Gretchin's Thievin' Scavengers (2026-09 codex): at the end of your Movement phase, an objective this unit is controlling becomes secured (rule 14.03) - see game/thievin_scavengers.py
     ammo_runts = False  # Boyz' Ammo Runts (2026-09 codex): once per battle per unit, +1 to hit for its ranged attacks when selected to shoot - see game/ork_ammo_runts.py
     tide_of_muscle = False  # Boyz' Tide of Muscle: [LETHAL HITS] on its melee attacks in a turn it made a charge move - see game/tide_of_muscle.py
