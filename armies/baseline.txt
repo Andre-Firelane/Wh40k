@@ -355,143 +355,135 @@
   enhancements: -
 
 ### orks / Player 1
+1 Battlewagon 1 | deploy | pts=160 | models=1
+  components: -
+  Battlewagon x1 (75,95,55) [Big Shoota, Big Shoota, Big Shoota, Big Shoota, Crushin' Bulk, Grabbin' Klaw, Wreckin' Ball] {}
+  enhancements: Boss Boomer
+1 Boyz 1 + Warboss + Bigboss | embark | via=1 Battlewagon 1 | pts=345 | models=22
+  components: Boyz/bodyguard, Warboss/leader, Bigboss/support
+  Nob x1 (70,140,60) [Big Choppa] {}
+  Nob x1 (70,140,60) [Kombi-skorcha - Shoota, Power Klaw] {}
+  Boy x2 (70,140,60) [Big Shoota, Choppa, Slugga] {}
+  Boy x2 (70,140,60) [Choppa, Rokkit Launcha - Blasta, Slugga] {}
+  Boy x2 (70,140,60) [Burna, Choppa, Slugga] {}
+  Boy x12 (70,140,60) [Choppa, Shoota, Slugga] {}
+  Warboss x1 (170,60,60) [Kombi-skorcha - Shoota, Power Klaw] {}
+  Bigboss x1 (175,95,50) [Big Choppa, Slugga] {}
+  enhancements: Ferocious Show-off
+1 Gunwagon 1 | deploy | pts=170 | models=1
+  components: -
+  Gunwagon x1 (95,90,70) [Big Shoota, Big Shoota, Big Shoota, Big Shoota, Crushin' Bulk, Grabbin' Klaw, Lobba, Wreckin' Ball, Zzap Gun] {}
+  enhancements: Targetin' Gizmos
+1 Meganobz 1 + Big Mek in Mega Armour | embark | via=1 Gunwagon 1 | pts=200 | models=4
+  components: Meganobz/bodyguard, Big Mek in Mega Armour/leader
+  Meganob x3 (120,100,130) [Kombi-weapon - Shoota, Power Klaw] {}
+  Big Mek in Mega Armour x1 (110,120,150) [Kustom Mega-blasta, Power Klaw, Tellyport Blasta] {}
+  enhancements: -
 1 Kill Rig 1 | deploy | pts=175 | models=1
   components: -
   Kill Rig x1 (100,85,65) ['Eavy Lobba, Butcha Boyz, Savage Horns and Hooves, Saw Blades, Stikka Kannon, Wurrtower] {}
   enhancements: -
-1 Beast Snagga Boyz 1 + Beastboss | embark | via=1 Kill Rig 1 | pts=170 | models=11
-  components: Beast Snagga Boyz/bodyguard, Beastboss/leader
+1 Beast Snagga Boyz 1 | embark | via=1 Kill Rig 1 | pts=85 | models=10
+  components: -
+  Beast Snagga Nob x1 (120,145,55) [Power Snappa, Slugga] {}
+  Beast Snagga Boy x9 (120,145,55) [Choppa - Standard, Slugga] {}
+  enhancements: -
+1 Beast Snagga Boyz 2 + Beastboss + Weirdboy | deploy | pts=235 | models=12
+  components: Beast Snagga Boyz/bodyguard, Beastboss/leader, Weirdboy/support
   Beast Snagga Nob x1 (120,145,55) [Power Snappa, Slugga] {}
   Beast Snagga Boy x9 (120,145,55) [Choppa - Standard, Slugga] {}
   Beastboss x1 (185,80,45) [Beast Snagga Klaw and Beastchoppa, Shoota] {}
+  Weirdboy x1 (90,150,145) [Copper Staff, Power Vomit] {}
   enhancements: -
-1 Battlewagon 1 | deploy | pts=150 | models=1
+1 Ghazghkull Thraka 1 | deploy | pts=300 | models=1
   components: -
-  Battlewagon x1 (75,95,55) [Big Shoota, Big Shoota, Big Shoota, Big Shoota, Crushin' Bulk] {}
+  Ghazghkull Thraka x1 (60,110,50) [Adamantine 'Eadbutt, Gork's Klaw, Mork's Roar - Aimed] {}
   enhancements: -
-1 Meganobz 1 + Warboss in Mega Armour | embark | via=1 Battlewagon 1 | pts=350 | models=7
-  components: Meganobz/bodyguard, Warboss in Mega Armour/leader
-  Meganob x6 (120,100,130) [Kustom Shoota - Aimed, Power Klaw] {}
-  Warboss in Mega Armour x1 (170,60,60) ['Uge Choppa, Big Shoota] {}
-  enhancements: -
-1 Boyz 1 + Warboss + Painboy | deploy | pts=325 | models=22
-  components: Boyz/bodyguard, Warboss/leader, Painboy/support
+1 Boyz 2 | deploy | pts=115 | models=10
+  components: -
   Nob x1 (70,140,60) [Kombi-skorcha - Shoota, Power Klaw] {}
-  Nob x1 (70,140,60) [Kombi-skorcha - Shoota, Kustom Choppa] {}
-  Boy x18 (70,140,60) [Choppa, Shoota, Slugga] {}
-  Warboss x1 (170,60,60) [Kustom Choppa, Kustom Shoota] {}
-  Painboy x1 (150,65,105) ['Urty Syringe, Dok's Toolz] {}
-  enhancements: -
+  Boy x1 (70,140,60) [Big Shoota, Choppa, Slugga] {}
+  Boy x1 (70,140,60) [Choppa, Rokkit Launcha - Blasta, Slugga] {}
+  Boy x1 (70,140,60) [Burna, Choppa, Slugga] {}
+  Boy x6 (70,140,60) [Choppa, Shoota, Slugga] {}
+  enhancements: 'Ardboyz
 1 Gretchin 1 | deploy | pts=45 | models=10
   components: -
   Gretchin x10 (140,110,70) [Grot Blasta, Scavenged Shivs] {}
   enhancements: -
-1 Gretchin 2 | deploy | pts=45 | models=10
+1 Deffkoptas 1 | deploy | pts=80 | models=3
   components: -
-  Gretchin x10 (140,110,70) [Grot Blasta, Scavenged Shivs] {}
+  Deffkopta x3 (130,145,165) [Choppa, Rokkit Launcha - Blasta, Slugga, Spinnin' Blades] {}
   enhancements: -
-1 Warbikers 1 | deploy | pts=75 | models=3
+1 Deffkoptas 2 | deploy | pts=80 | models=3
   components: -
-  Biker Nob x1 (150,130,60) [Dual Kombi-rokkit - Dakkagun, Kustom Choppa] {}
-  Warbiker x2 (150,130,60) [Choppa, Dual Dakkagun] {}
-  enhancements: -
-1 Warbikers 2 | deploy | pts=75 | models=3
-  components: -
-  Biker Nob x1 (150,130,60) [Dual Kombi-rokkit - Dakkagun, Kustom Choppa] {}
-  Warbiker x2 (150,130,60) [Choppa, Dual Dakkagun] {}
-  enhancements: -
-1 Stormboyz 1 | deploy | pts=140 | models=10
-  components: -
-  Nob x1 (110,150,70) [Power Klaw, Slugga] {}
-  Stormboy x9 (110,150,70) [Choppa, Slugga] {}
-  enhancements: -
-1 Deff Dread 1 | deploy | pts=130 | models=1
-  components: -
-  Deff Dread x1 (80,80,90) [Big Shoota, Dread Klaws, Skorcha] {}
-  enhancements: -
-1 Deffkoptas 1 | deploy | pts=160 | models=6
-  components: -
-  Deffkopta x6 (130,145,165) [Choppa, Rokkit Launcha - Blasta, Slugga, Spinnin' Blades] {}
-  enhancements: -
-1 Flash Gitz 1 | deploy | pts=210 | models=10
-  components: -
-  Kaptin x1 (170,150,55) [Choppa, Snazzgun - Cutta] {}
-  Flash Git x9 (170,150,55) [Choppa, Snazzgun - Cutta] {}
-  enhancements: -
-1 Tankbustas 1 | deploy | pts=145 | models=6
-  components: -
-  Nob x1 (160,110,40) [Choppa, Rokkit Pistol, Rokkit Pistol] {}
-  Tankbusta x5 (160,110,40) [Busta Rokkit Launcha - Standard, Gitstikka] {}
+  Deffkopta x3 (130,145,165) [Choppa, Rokkit Launcha - Blasta, Slugga, Spinnin' Blades] {}
   enhancements: -
 
 ### orks / Player 2
+2 Battlewagon 1 | deploy | pts=160 | models=1
+  components: -
+  Battlewagon x1 (75,95,55) [Big Shoota, Big Shoota, Big Shoota, Big Shoota, Crushin' Bulk, Grabbin' Klaw, Wreckin' Ball] {}
+  enhancements: Boss Boomer
+2 Boyz 1 + Warboss + Bigboss | embark | via=2 Battlewagon 1 | pts=345 | models=22
+  components: Boyz/bodyguard, Warboss/leader, Bigboss/support
+  Nob x1 (70,140,60) [Big Choppa] {}
+  Nob x1 (70,140,60) [Kombi-skorcha - Shoota, Power Klaw] {}
+  Boy x2 (70,140,60) [Big Shoota, Choppa, Slugga] {}
+  Boy x2 (70,140,60) [Choppa, Rokkit Launcha - Blasta, Slugga] {}
+  Boy x2 (70,140,60) [Burna, Choppa, Slugga] {}
+  Boy x12 (70,140,60) [Choppa, Shoota, Slugga] {}
+  Warboss x1 (170,60,60) [Kombi-skorcha - Shoota, Power Klaw] {}
+  Bigboss x1 (175,95,50) [Big Choppa, Slugga] {}
+  enhancements: Ferocious Show-off
+2 Gunwagon 1 | deploy | pts=170 | models=1
+  components: -
+  Gunwagon x1 (95,90,70) [Big Shoota, Big Shoota, Big Shoota, Big Shoota, Crushin' Bulk, Grabbin' Klaw, Lobba, Wreckin' Ball, Zzap Gun] {}
+  enhancements: Targetin' Gizmos
+2 Meganobz 1 + Big Mek in Mega Armour | embark | via=2 Gunwagon 1 | pts=200 | models=4
+  components: Meganobz/bodyguard, Big Mek in Mega Armour/leader
+  Meganob x3 (120,100,130) [Kombi-weapon - Shoota, Power Klaw] {}
+  Big Mek in Mega Armour x1 (110,120,150) [Kustom Mega-blasta, Power Klaw, Tellyport Blasta] {}
+  enhancements: -
 2 Kill Rig 1 | deploy | pts=175 | models=1
   components: -
   Kill Rig x1 (100,85,65) ['Eavy Lobba, Butcha Boyz, Savage Horns and Hooves, Saw Blades, Stikka Kannon, Wurrtower] {}
   enhancements: -
-2 Beast Snagga Boyz 1 + Beastboss | embark | via=2 Kill Rig 1 | pts=170 | models=11
-  components: Beast Snagga Boyz/bodyguard, Beastboss/leader
+2 Beast Snagga Boyz 1 | embark | via=2 Kill Rig 1 | pts=85 | models=10
+  components: -
+  Beast Snagga Nob x1 (120,145,55) [Power Snappa, Slugga] {}
+  Beast Snagga Boy x9 (120,145,55) [Choppa - Standard, Slugga] {}
+  enhancements: -
+2 Beast Snagga Boyz 2 + Beastboss + Weirdboy | deploy | pts=235 | models=12
+  components: Beast Snagga Boyz/bodyguard, Beastboss/leader, Weirdboy/support
   Beast Snagga Nob x1 (120,145,55) [Power Snappa, Slugga] {}
   Beast Snagga Boy x9 (120,145,55) [Choppa - Standard, Slugga] {}
   Beastboss x1 (185,80,45) [Beast Snagga Klaw and Beastchoppa, Shoota] {}
+  Weirdboy x1 (90,150,145) [Copper Staff, Power Vomit] {}
   enhancements: -
-2 Battlewagon 1 | deploy | pts=150 | models=1
+2 Ghazghkull Thraka 1 | deploy | pts=300 | models=1
   components: -
-  Battlewagon x1 (75,95,55) [Big Shoota, Big Shoota, Big Shoota, Big Shoota, Crushin' Bulk] {}
+  Ghazghkull Thraka x1 (60,110,50) [Adamantine 'Eadbutt, Gork's Klaw, Mork's Roar - Aimed] {}
   enhancements: -
-2 Meganobz 1 + Warboss in Mega Armour | embark | via=2 Battlewagon 1 | pts=350 | models=7
-  components: Meganobz/bodyguard, Warboss in Mega Armour/leader
-  Meganob x6 (120,100,130) [Kustom Shoota - Aimed, Power Klaw] {}
-  Warboss in Mega Armour x1 (170,60,60) ['Uge Choppa, Big Shoota] {}
-  enhancements: -
-2 Boyz 1 + Warboss + Painboy | deploy | pts=325 | models=22
-  components: Boyz/bodyguard, Warboss/leader, Painboy/support
+2 Boyz 2 | deploy | pts=115 | models=10
+  components: -
   Nob x1 (70,140,60) [Kombi-skorcha - Shoota, Power Klaw] {}
-  Nob x1 (70,140,60) [Kombi-skorcha - Shoota, Kustom Choppa] {}
-  Boy x18 (70,140,60) [Choppa, Shoota, Slugga] {}
-  Warboss x1 (170,60,60) [Kustom Choppa, Kustom Shoota] {}
-  Painboy x1 (150,65,105) ['Urty Syringe, Dok's Toolz] {}
-  enhancements: -
+  Boy x1 (70,140,60) [Big Shoota, Choppa, Slugga] {}
+  Boy x1 (70,140,60) [Choppa, Rokkit Launcha - Blasta, Slugga] {}
+  Boy x1 (70,140,60) [Burna, Choppa, Slugga] {}
+  Boy x6 (70,140,60) [Choppa, Shoota, Slugga] {}
+  enhancements: 'Ardboyz
 2 Gretchin 1 | deploy | pts=45 | models=10
   components: -
   Gretchin x10 (140,110,70) [Grot Blasta, Scavenged Shivs] {}
   enhancements: -
-2 Gretchin 2 | deploy | pts=45 | models=10
+2 Deffkoptas 1 | deploy | pts=80 | models=3
   components: -
-  Gretchin x10 (140,110,70) [Grot Blasta, Scavenged Shivs] {}
+  Deffkopta x3 (130,145,165) [Choppa, Rokkit Launcha - Blasta, Slugga, Spinnin' Blades] {}
   enhancements: -
-2 Warbikers 1 | deploy | pts=75 | models=3
+2 Deffkoptas 2 | deploy | pts=80 | models=3
   components: -
-  Biker Nob x1 (150,130,60) [Dual Kombi-rokkit - Dakkagun, Kustom Choppa] {}
-  Warbiker x2 (150,130,60) [Choppa, Dual Dakkagun] {}
-  enhancements: -
-2 Warbikers 2 | deploy | pts=75 | models=3
-  components: -
-  Biker Nob x1 (150,130,60) [Dual Kombi-rokkit - Dakkagun, Kustom Choppa] {}
-  Warbiker x2 (150,130,60) [Choppa, Dual Dakkagun] {}
-  enhancements: -
-2 Stormboyz 1 | deploy | pts=140 | models=10
-  components: -
-  Nob x1 (110,150,70) [Power Klaw, Slugga] {}
-  Stormboy x9 (110,150,70) [Choppa, Slugga] {}
-  enhancements: -
-2 Deff Dread 1 | deploy | pts=130 | models=1
-  components: -
-  Deff Dread x1 (80,80,90) [Big Shoota, Dread Klaws, Skorcha] {}
-  enhancements: -
-2 Deffkoptas 1 | deploy | pts=160 | models=6
-  components: -
-  Deffkopta x6 (130,145,165) [Choppa, Rokkit Launcha - Blasta, Slugga, Spinnin' Blades] {}
-  enhancements: -
-2 Flash Gitz 1 | deploy | pts=210 | models=10
-  components: -
-  Kaptin x1 (170,150,55) [Choppa, Snazzgun - Cutta] {}
-  Flash Git x9 (170,150,55) [Choppa, Snazzgun - Cutta] {}
-  enhancements: -
-2 Tankbustas 1 | deploy | pts=145 | models=6
-  components: -
-  Nob x1 (160,110,40) [Choppa, Rokkit Pistol, Rokkit Pistol] {}
-  Tankbusta x5 (160,110,40) [Busta Rokkit Launcha - Standard, Gitstikka] {}
+  Deffkopta x3 (130,145,165) [Choppa, Rokkit Launcha - Blasta, Slugga, Spinnin' Blades] {}
   enhancements: -
 
 ### necrons / Player 1

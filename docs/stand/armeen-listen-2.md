@@ -264,9 +264,20 @@ dazukommen.
   Ethereal steht weiter allein, weil der User es so gesagt hat. **Die vierte hat VIER
   Anbindungen**, alle vier nachgereicht (User: "die charactere sind keinen squads zugeordnet") —
   siehe `### Die VIERTE T'au-Liste`.
-- **Orks — 14 Einheiten, 101 Modelle, 2105 pts** (seit E3c). Attached: Warboss + Painboy (SUPPORT) im 20er-Boyz-Mob,
-  Beastboss in Beast Snagga Boyz (im Kill Rig), Warboss in Mega Armour bei den Meganobz (im
-  Battlewagon). Stormboyz und Deffkoptas in Reserve.
+- **Orks — „Mecha Orks", 12 Einheiten, 78 Modelle, 1990 pts** (seit 2026-09-20, G6: die Liste des
+  Users ersetzt die bis dahin minimal gehaltene; Key `orks` bleibt). **DREI Detachments zu genau
+  3 DP** — Blitz Brigade + Da Big Hunt + Green Tide —, Take and Hold, und **vier Enhancements, die
+  wirklich getragen werden**: Ferocious Show-off (Bigboss), 'Ardboyz (Zehner-Boyz), Boss Boomer
+  (Battlewagon), Targetin' Gizmos (Gunwagon). **Ghazghkull ist der WARLORD** (Supreme Commander
+  verlangt es, Da Boss zahlt dadurch 1 CP je Schlachtrunde) — die erste Liste, die das
+  `warlord`-Feld benutzt. Attached: Warboss + Bigboss (SUPPORT) im 20er-Boyz-Mob (im Battlewagon,
+  22/22), Big Mek in Mega Armour bei drei Meganobz (im Gunwagon, 8/12), Beastboss + Weirdboy
+  (SUPPORT) bei Beast Snagga Boyz (zu Fuß — der Weirdboy ist kein BEAST SNAGGA, der Kill Rig nimmt
+  nur solche); die zweite Beast-Snagga-Einheit fährt im Kill Rig (10/12). Die Transporte stehen
+  NICHT im Export und sind in der `note` der Datei als Engine-Entscheidung benannt — sie sind es,
+  die die zwei Fahrzeug-Enhancements überhaupt wirksam machen. Aus der Liste GEFALLEN (die
+  Datenblätter bleiben gebaut und getestet): Warbikers, Stormboyz, Flash Gitz, Tankbustas, Deff
+  Dread, ein zweiter Grotmob, Painboy, Warboss in Mega Armour.
 - **Death Guard — 16 Listeneinträge, 14 Einheiten nach zwei Anbindungen, 49 Modelle, 2020 pts**,
   Death Lord's Chosen. Die fünfte FRAKTION; Defaults unverändert. Vollständig beschrieben im
   Death-Guard-Abschnitt unter `## Fraktionen`. **Mit ihr wird die Paginierung des Auswahl-Screens

@@ -9968,3 +9968,39 @@ LÖSCHUNGEN gelesen.
 `--smoke` grün; selfplay Orks gegen Necrons beide Sitzordnungen exit 0; `verify_ork_da_big_hunt.py`
 8/8, neutralisiert 5/5; `verify_rules_vs_engine.py` 68; `measure_crowded_movement.py` unverändert
 (62 %/210.2", 87 %/292.3").
+
+
+## 2026-09-20 - Mecha Orks G6: die Liste selbst
+
+**Ersetzt:** `armies/orks.json` ist die Mecha-Orks-Liste des Users - 12 Einträge, 1990 Punkte, jeder
+Preis wie im App-Export, drei Detachments zu genau 3 DP, vier getragene Enhancements, Ghazghkull als
+WARLORD (erste Liste mit `warlord`-Feld). Transporte stehen nicht im Export: die drei hier sind eine
+Engine-Entscheidung und in der `note` der Datei benannt - und sie sind es, die Boss Boomer und
+Targetin' Gizmos überhaupt wirksam machen (beide lesen die eingestiegenen Einheiten).
+
+**Mitgezogen (Fehlerklasse 17):** neun Suiten plus `armies/baseline.txt`. `test_player2_army.py` neu
+geschrieben (104 Prüfungen); `test_army_select.py`, `test_detachments.py`, `test_home_garrison.py`
+(ohne Tankbustas halten die Gretchin das Heim-Objective auf jeder Karte - wieder die Einheit, die der
+ursprüngliche Report benannt hatte), `test_ork_war_horde.py` (stellt sein Detachment jetzt selbst),
+`test_stratagem_tooltip.py`, `test_take_to_the_skies_policy.py`, `test_unit_datacard.py`,
+`test_pack_inner_ring.py`.
+
+**`measure_crowded_movement.py` behält seine eingefrorene Messvorlage** (die ganze
+Bewegungsqualitäts-Reihe hängt daran, und ihr Docstring sagt das seit jeher) und hat ein drittes Ziel
+bekommen: `--army=mecha` misst die ausgelieferte Liste. Sie bewegt sich BESSER - gedrängt 78 % /
+205.3" gegen 62 % / 210.2", isoliert 91 % gegen 87 % -, weil 12 statt 14 Einheiten und 78 statt 101
+Modelle auf demselben Brett stehen. Kein Fix, eine Folge der Liste.
+
+**Laufzeitsonde:** `verify_mecha_orks_list.py` (10/10, neutralisiert 10/10) - das Gegenstück zu jeder
+anderen hier: sie baut nichts und stellt keine Detachment-Config, sondern fragt `main()`s Objekte,
+was die LISTE allein erzeugt hat. Drei Bühnen-Lehren, alle zuerst als Engine-Fehler getarnt: ein
+Teilstring-Name misst die falsche Einheit („Boyz 2" steckt in „Beast Snagga Boyz 2 + ..."); der
+Messzeitpunkt ist der erste Frame NACH dem Vorspiel, weil die KI danach zwei ihrer drei Transporte
+wieder auslädt; und die Transport-Hints einer Liste gelten für die AUFSTELLUNGS-KI, also muss die
+Sonde die Orks auf der KI-Seite fielden (mit ihnen auf Player 1 stieg niemand ein).
+
+**Verifiziert:** volle Regression 243 Suiten, ~23926 Prüfungen, 242 grün / 1 bekannt; `--smoke` grün;
+selfplay Orks gegen Necrons beide Sitzordnungen exit 0 (2500 Frames); `verify_mecha_orks_list.py`
+10/10 und 10/10.
+
+**Damit ist der Mecha-Orks-Plan (G1-G6) abgeschlossen.**

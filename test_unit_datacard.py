@@ -83,7 +83,7 @@ def ink(surface, rect, bg=BG):
     return count
 
 
-BOYZ = find("orks", "Boyz 1 + Warboss")          # attached: Boyz + Warboss + Painboy
+BOYZ = find("orks", "Boyz 1 + Warboss")          # attached: Boyz + Warboss + Bigboss
 AVENGERS = find("aeldari", "Dire Avengers")      # attached: Dire Avengers + Asurmen
 REAPERS = find("aeldari", "Dark Reapers")        # plain, one datasheet
 WRAITHS = find("necrons", "Canoptek Wraiths")    # plain, and short enough to fit anywhere
@@ -202,7 +202,7 @@ titles = [a.title for _, abilities in groups for a in abilities if a.title]
 # merged into the unit.
 checks.true("the bodyguard's own rule is shown", "Tide of Muscle" in titles)
 checks.true("the Warboss's rule is shown too", "Might Is Right" in titles)
-checks.true("and the Painboy's", "Crude Surgery" in titles)
+checks.true("and the Bigboss's", "Sumfin' to Prove" in titles)
 
 # A plain unit gets no component heading - there is one datasheet, and naming
 # it would just repeat the card's own title.

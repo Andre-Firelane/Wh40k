@@ -137,3 +137,15 @@ passenden Abschnitt hier; ein neuer `##`-Abschnitt braucht eine Zeile im Verzeic
   Die Lehre dieses Harness: **an einer Phasengrenze können mehrere Prompts gleichzeitig offen
   sein** — wer auf seinen eigenen wartet, statt die vorderen abzulehnen, misst „angeboten, aber nie
   gepickt" und hält es für einen Engine-Fehler.
+
+  **`verify_mecha_orks_list.py`** (G6) ist das Gegenstück zu jeder anderen Laufzeitsonde hier: sie
+  BAUT nichts und STELLT keine Detachment-Config, sondern fragt `main()`s Objekte, was die
+  ausgelieferte LISTE allein erzeugt hat (Einheiten, Punkte, Settings, Enhancements, Warlord, die
+  drei Transporte, und dass die gekauften Regeln an `main()`s Controllern wirken). `--neutralize`
+  nimmt genau das eine weg, was die Liste tut und Config nicht kann: `detachments.apply_to_config()`.
+  Drei Lehren stecken in ihr: ein Teilstring-Name misst die falsche Einheit; der Messzeitpunkt ist
+  der erste Frame NACH dem Vorspiel (die KI steigt danach wieder aus); und die Transport-Hints einer
+  Liste gelten für die AUFSTELLUNGS-KI, also muss die Sonde die Liste auf der KI-Seite fielden.
+  **`measure_crowded_movement.py`** hat dazu ein drittes Ziel bekommen: `--army=mecha` misst
+  `armies/orks.json`, während `--army=orks` die eingefrorene Messvorlage bleibt, an der die ganze
+  Reihe hängt (gedrängt 78 % gegen 62 % — eine Folge der kleineren Liste, kein Fix).

@@ -148,7 +148,9 @@ for key, expected in [("tau", ["Kauyon", "Advanced Acquisition Cadre"]),
                       ("necrons", ["Awakened Dynasty"]),
                       ("necrons_hypercrypt", ["Hypercrypt Legion"]),
                       ("aeldari", ["Seer Council", "Path of the Outcast"]),
-                      ("orks", ["War Horde"]),
+                      # The Mecha Orks list spends the whole 3 DP budget on
+                      # three detachments, none of which shares an exclusion tag.
+                      ("orks", ["Blitz Brigade", "Da Big Hunt", "Green Tide"]),
                       ("death_guard", ["Death Lord's Chosen"])]:
     c.eq("%s fields %s" % (key, expected), detachments.names_for(key), expected)
 # Swept over EVERY shipped list rather than a hand-written five: the hand-written
@@ -259,12 +261,18 @@ with settings_as(**ALL):
 c.true("game/army_lists.py no longer writes the settings itself",
        "setattr(cfg, setting" not in io.open("game/army_lists.py", encoding="utf-8").read())
 
-# An Ork list writes War Horde's setting, and only that one.
+# An Ork list writes the settings of its THREE detachments, and no others -
+# War Horde's among them, since the Mecha Orks list does not field it.
 with settings_as(**ALL):
     detachments.apply_to_config({"Player 1": "orks", "Player 2": "orks"})
-    c.eq("an Ork list writes War Horde's setting and no other",
-         [s for s in detachments.all_settings() if getattr(config, s)], ["WAR_HORDE_PLAYERS"])
-    c.eq("...for both players fielding it", config.WAR_HORDE_PLAYERS, ("Player 1", "Player 2"))
+    c.eq("an Ork list writes its three detachments' settings and no others",
+         sorted(s for s in detachments.all_settings() if getattr(config, s)),
+         ["BLITZ_BRIGADE_PLAYERS", "DA_BIG_HUNT_PLAYERS", "GREEN_TIDE_PLAYERS"])
+    c.eq("...for both players fielding them",
+         (config.BLITZ_BRIGADE_PLAYERS, config.DA_BIG_HUNT_PLAYERS, config.GREEN_TIDE_PLAYERS),
+         (("Player 1", "Player 2"),) * 3)
+    c.eq("...and War Horde, which this list no longer fields, stays empty",
+         config.WAR_HORDE_PLAYERS, ())
 
 
 # --- 4. Retaliation Cadre is gated ----------------------------------------

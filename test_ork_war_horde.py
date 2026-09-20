@@ -1028,9 +1028,18 @@ for _flag in ("hit_em_harder_active", "mow_em_down_active", "fungus_fuel_injecti
               "close_range_dakka_active", "da_boss_is_watchin_used"):
     c.true("a save keeps %s" % _flag, _flag in activation_state.SQUAD_FLAGS)
 
+# THIS SUITE STAGES ITS OWN DETACHMENT (settings_as(**WH) throughout) and no
+# longer asks the shipped list for it: the Mecha Orks list (2026-09-20) fields
+# Blitz Brigade, Da Big Hunt and Green Tide, so War Horde is a detachment the
+# engine models and this roster does not buy. What still has to be true is that
+# it remains REACHABLE - a modelled detachment nothing can declare is dead code.
 _orks_list = army_lists.get("orks")
-c.eq("the shipped Ork list declares War Horde", tuple(_orks_list.detachments), ("War Horde",))
-c.eq("...and buys none of its Enhancements - they are dormant by roster, the Stratagems are live",
-     list(_orks_list.enhancement_names()), [])
+c.eq("the shipped Ork list no longer fields War Horde",
+     "War Horde" in tuple(_orks_list.detachments), False)
+c.true("...but the faction still models it, so a list may declare it",
+       "War Horde" in ork.ORKS.detachments)
+c.eq("...and at 3 DP it is the whole budget on its own, which is why the Mecha "
+     "Orks list cannot have it beside its three",
+     ork.ORKS.detachments["War Horde"].points, 3)
 
 c.finish()

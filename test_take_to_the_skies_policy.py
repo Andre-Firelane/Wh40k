@@ -216,12 +216,11 @@ for builder in (army_lists.get("aeldari").build, army_lists.get("orks").build,
     for unit in flying_units(builder):
         (keeps if take_to_the_skies_pays(unit) else declines).append(unit)
 
-checks.eq("six flying units across the four rosters stop declaring 21.03",
+checks.eq("five flying units across the four rosters stop declaring 21.03",
           sorted(u.name for u in declines),
           ["2 Necron Warriors 1 + Technomancer",
            "2 Stealth Battlesuits 1", "2 Stealth Battlesuits 2",
-           "2 Stormboyz 1", "2 Vespid Stingwings 1",
-           "2 Warp Spiders 1 + Lhykhis"])
+           "2 Vespid Stingwings 1", "2 Warp Spiders 1 + Lhykhis"])
 checks.true("...and every one of them is all-INFANTRY, i.e. covered by 13.06",
             all(all(m.profile.infantry for m in u.models) for u in declines))
 # FOURTEEN, and it has now moved three times for reasons worth carrying: a
@@ -252,7 +251,11 @@ checks.true("...and every one of them is all-INFANTRY, i.e. covered by 13.06",
 #             Crisis Sunforge (which the Commander in Coldstar merges into, so
 #             he is not a unit of his own) and lost one Piranha; declines lost
 #             Commander Shadowsun, who left the list.
-checks.eq("fourteen keep it", len(keeps), 14)
+#   14 -> 15  the 2026-09-20 Mecha Orks list, and again both columns moved: the
+#             Stormboyz left the list (the only Ork entry in the DECLINES
+#             column, 6 -> 5), and the single six-model Deffkoptas unit became
+#             two of three, which is one more unit at the same model count.
+checks.eq("fifteen keep it", len(keeps), 15)
 checks.true("...and not one of them is all-INFANTRY",
             not any(all(m.profile.infantry for m in u.models) for u in keeps))
 # The Crisis Battlesuits the policy was written for left with the 2026-08-30

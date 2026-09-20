@@ -875,11 +875,12 @@ Fraktion deren Dateien plus `fraktionen.md`; bei einer gemeldeten Fehlerform zue
 - Kill Rig (2026-09-Codex): Beastscent, Warpath, der psychische Wurf — Etappe E3e
 - Mecha Orks G1: Bigboss, Weirdboy, Gunwagon (2026-09-19)
 
-### `docs/stand/orks-mecha-orks.md` — Mecha Orks ab G2: Big Mek in Mega Armour (More Dakka, der Cover-Tor-Fix), Ghazghkull Thraka, der Warlord samt Da Boss; G3 Green Tide (Zählstellen-Fix für +A im Nahkampf, der Save-Wert mit einem Leser); G4 Blitz Brigade (Readied Brawlers als benannte Lücke, Fight-Ende-Einsteigen und Schock-Warteschlange extrahiert); G5 Da Big Hunt (der erste Surge Move, das Phasen-Tor davor, Cornered Preys nie angewandtes −1)
+### `docs/stand/orks-mecha-orks.md` — Mecha Orks ab G2: Big Mek in Mega Armour (More Dakka, der Cover-Tor-Fix), Ghazghkull Thraka, der Warlord samt Da Boss; G3 Green Tide (Zählstellen-Fix für +A im Nahkampf, der Save-Wert mit einem Leser); G4 Blitz Brigade (Readied Brawlers als benannte Lücke, Fight-Ende-Einsteigen und Schock-Warteschlange extrahiert); G5 Da Big Hunt (der erste Surge Move, das Phasen-Tor davor, Cornered Preys nie angewandtes −1); G6 die Liste selbst (12 Einträge, 1990 pts, drei Detachments, die Transport-Entscheidung)
 - Mecha Orks G2: Big Mek in Mega Armour, Ghazghkull Thraka, der Warlord (2026-09-19)
 - Mecha Orks G3: Green Tide (2026-09-19)
 - Mecha Orks G4: Blitz Brigade (2026-09-19)
 - Mecha Orks G5: Da Big Hunt (2026-09-20)
+- Mecha Orks G6: die Liste selbst (2026-09-20)
 
 ### `docs/stand/audits-aeldari-und-tau.md` — die Prüfungen „werden die Aeldari-/T'au-Stratagems angeboten und wirken sie“
 - Werden die Aeldari-Stratagems überhaupt ANGEBOTEN? (Prüfung, 2026-09-07)

@@ -143,7 +143,13 @@ EXPECTED = {
     # The Ork vehicles stage (Battlewagon 160 -> 150, Deff Dread 110 -> 130,
     # Deffkoptas 140 -> 160, two Warbikers 60 + 60 -> 75 + 75): 2165.
     # The Kill Rig stage (Kill Rig 145 -> 175): 2195.
-    "orks": (14, 101, 2195),     # 17 list entries, three attachments merged
+    # REPLACED WHOLESALE on 2026-09-20 (Mecha Orks G6) by the list the user
+    # supplied: 12 list entries, three of them attachments, 1990 pts to the
+    # point - out go Warbikers, Stormboyz, Flash Gitz, Tankbustas, Deff Dread,
+    # the second Gretchin mob, the Painboy and the Warboss in Mega Armour; in
+    # come Ghazghkull, a Bigboss, a Big Mek in Mega Armour, a Weirdboy, a
+    # Gunwagon, a second Beast Snagga mob and a ten-Boy mob.
+    "orks": (12, 78, 1990),      # 15 list entries, three attachments merged
     "necrons": (9, 68, 2020),    # 15 list entries, SIX attachments merged
     # Replaced wholesale on 2026-08-30 by the list the user supplied: out go
     # the Ghostkeel, the Strike Team, the Coldstar + Starscythes and Farsight +

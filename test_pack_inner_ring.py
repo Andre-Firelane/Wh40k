@@ -216,12 +216,15 @@ for army, needle, want_before, want_after in (
 
 # Units with a front-rank fighter get the ring too - an ADDED ring cannot take
 # a slot away from anyone, so there is no reason to exempt them. Whether it
-# helps depends on where their wide model actually stands: at the default
-# pitch Meganobz close their moat, while the Boyz mob's two characters are up
-# at the front edge where game/front_rank.py put them and nothing changes.
+# helps depends on where their wide model actually stands: the Beast Snagga mob
+# closes its moat, while the twenty-Boy mob's two characters are up at the front
+# edge where game/front_rank.py put them and nothing changes.
+# (Meganobz stood here until the Mecha Orks list, where their leader is a Big Mek
+# in Mega Armour - no front-rank fighter at all, so the premise below would be
+# false rather than the measurement wrong.)
 for army, needle, want_before, want_after in (
-    ("orks", "Meganobz", 1.59, 0.05),
-    ("orks", "Beast Snagga Boyz", 0.25, 0.05),
+    ("orks", "Beast Snagga Boyz 2", 0.99, 0.05),
+    ("orks", "Boyz 1 +", 0.99, 0.99),
 ):
     squad = unit(army, needle)
     c.true(f"{needle} has a front-rank fighter",
@@ -263,7 +266,7 @@ c.true(f"summed over every unit of both demo armies the footprint shrinks "
 
 print("--- 4. one base size: nothing changes ---")
 
-for army, needle in (("necrons", "Canoptek Wraiths"), ("orks", "Stormboyz"),
+for army, needle in (("necrons", "Canoptek Wraiths"), ("orks", "Beast Snagga Boyz 1"),
                      ("aeldari", "Rangers"), ("necrons", "Immortals")):
     squad = unit(army, needle)
     radii = {round(m.radius_in, 3) for m in squad.models}
@@ -285,7 +288,7 @@ print("--- 4b. the pitch's own justification, pinned ---")
 # rather than asserted from the comment, and pinned so the next reader gets the
 # qualified version.
 
-mob = unit("orks", "Boyz 1 + Warboss + Painboy")
+mob = unit("orks", "Boyz 1 + Warboss + Bigboss")
 narrow = formation_layout.MODEL_GAP_IN
 wide = 2 * max(m.radius_in for m in mob.models) + 0.1
 
@@ -299,8 +302,8 @@ def spread_at(squad, gap):
 
 
 c.eq("the mob is the 22-model one", len(mob.models), 22)
-c.eq("pitched off the smallest base it is 6.24\" across",
-     round(spread_at(mob, narrow), 2), 6.24)
+c.eq("pitched off the smallest base it is 6.13\" across",
+     round(spread_at(mob, narrow), 2), 6.13)
 c.eq("pitched off the widest, 9.00\"", round(spread_at(mob, wide), 2), 9.00)
 
 for owner, enforced, wide_verdict in (("Player 1", True, False), ("Player 2", False, True)):
@@ -317,7 +320,7 @@ for owner, enforced, wide_verdict in (("Player 1", True, False), ("Player 2", Fa
     c.true(f"{owner}: the narrow pitch is legal either way",
            not mob.check_coherency())
 
-c.true("so the narrow pitch is not merely a rules workaround - it is 2.76\" "
+c.true("so the narrow pitch is not merely a rules workaround - it is 2.87\" "
        "of footprint, which is the design goal on its own (13.09 needs EVERY "
        "model in the dense area)", spread_at(mob, wide) - spread_at(mob, narrow) > 2.5)
 

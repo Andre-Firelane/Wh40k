@@ -299,17 +299,17 @@ for map_key in ("map1", "map2", "map3", "map4"):
     c.eq(f"{map_key}: the Necron home garrison is the Immortals, not the Lychguard",
          home_pick(map_key, "necrons").name, "2 Immortals 1 + Plasmancer")
 
-# THE ORK ANSWER MOVED WITH THE 2026-09 CODEX, and not because this rule changed.
-# The Gretchin held it (an earlier report asked for them by name - "gretchins das
-# homeobjective halten") while the Orks had no top-band unit at all. The codex
-# Tankbustas shoot BS4+ with 24" rokkits and are decisively a shooting unit
-# (ratio 1.84), so they ARE the top band wherever 24" covers the needed reach -
-# map1-3 (17.1", 14.8", 11.6-13.8") - and the rule the user set for this job
-# ("fernkampfeinheiten stark bevorzugen") puts them there. map4 needs 24.2", one
-# fifth of an inch more than the rokkits reach, so the Gretchin keep it there.
-# A decision named in the stage report, not a silent drift.
-for map_key, want in (("map1", "2 Tankbustas 1"), ("map2", "2 Tankbustas 1"),
-                      ("map3", "2 Tankbustas 1"), ("map4", "2 Gretchin 1")):
+# THE ORK ANSWER MOVED TWICE, and neither time because this rule changed.
+# The Gretchin held it first (an earlier report asked for them by name -
+# "gretchins das homeobjective halten") while the Orks had no top-band unit at
+# all. The 2026-09 codex Tankbustas then took map1-3: BS4+ with 24" rokkits,
+# decisively a shooting unit (ratio 1.84), and the rule the user set for this job
+# ("fernkampfeinheiten stark bevorzugen") puts such a unit there wherever 24"
+# covers the reach; map4 needs 24.2" and stayed Gretchin. The Mecha Orks list
+# (2026-09-20) fields no Tankbustas at all, so the Gretchin hold it on every map
+# again - the rule picking the same unit the report originally named.
+for map_key, want in (("map1", "2 Gretchin 1"), ("map2", "2 Gretchin 1"),
+                      ("map3", "2 Gretchin 1"), ("map4", "2 Gretchin 1")):
     c.eq(f"{map_key}: the Ork home garrison is {want}",
          home_pick(map_key, "orks").name, want)
     # The Aeldari answer MOVED, and not because this rule changed: the Warlock

@@ -398,3 +398,70 @@ Aktivierungs-Ledger so, wie `_handle_hit_results()` es stempelt, und feuert dann
 Hakenliste. Alles nach diesen zwei Aufrufen gehört der Engine. Eine Bühnen-Lehre: an einer Phasengrenze
 können mehrere Prompts gleichzeitig offen sein — der Harness muss die vorderen ABLEHNEN, statt auf
 seinen eigenen zu warten (F meldete sonst „angeboten, aber nie gepickt").
+
+
+## Mecha Orks G6: die Liste selbst (2026-09-20)
+
+`armies/orks.json` IST jetzt die Mecha-Orks-Liste des Users (Key `orks` bleibt, damit Config,
+Screens und Tests weiter finden). **12 Einträge, 1990 Punkte, jeder Preis stimmt mit dem App-Export
+überein**, drei Detachments zu genau 3 DP (Blitz Brigade + Da Big Hunt + Green Tide), Take and Hold,
+und vier Enhancements, die diesmal wirklich jemand TRÄGT: Ferocious Show-off (Bigboss), 'Ardboyz
+(Zehner-Boyz), Boss Boomer (Battlewagon), Targetin' Gizmos (Gunwagon). Ghazghkull ist der WARLORD —
+sein Supreme Commander verlangt das, und Da Boss zahlt deshalb je Schlachtrunde 1 CP.
+
+**Transporte stehen NICHT im Export** und sind eine Entscheidung dieser Engine, in der `note` der
+Datei benannt: die Boyz mit Warboss und Bigboss fahren im Battlewagon (22/22 — randvoll), dem sie
+Boss Boomer leihen; Big Mek und Meganobz im Gunwagon (8/12), der Targetin' Gizmos trägt; die
+SCHMUCKLOSE Beast-Snagga-Einheit im Kill Rig (10/12). Die andere Beast-Snagga-Einheit kann NICHT —
+der Weirdboy, der sie führt, ist kein BEAST SNAGGA, und der Kill Rig nimmt nur solche. Erst diese
+Sitzordnung macht die zwei Fahrzeug-Enhancements überhaupt wirksam (beide lesen die EINGESTIEGENEN
+Einheiten), und genau das belegt die Laufzeitsonde.
+
+**Was mit der Liste umgezogen ist** (Fehlerklasse 17 — ein Test, der seinen eigenen Roster baut,
+bleibt grün, während er die falsche Armee prüft): neun Suiten.
+`test_player2_army.py` ist komplett neu geschrieben (104 Prüfungen, Einheit für Einheit gegen den
+Export, und Abschnitt 6 vergleicht den handgebauten Roster gegen `armies/orks.json`s eigenen Bau);
+`armies/baseline.txt` per `--write` erneuert und Zeile für Zeile gelesen; `test_army_select.py`
+(12/78/1990 statt 14/101/2195), `test_detachments.py` (drei Settings statt War Horde),
+`test_home_garrison.py` (ohne Tankbustas halten die Gretchin das Heim-Objective auf JEDER Karte
+wieder — genau die Einheit, die der ursprüngliche Report benannt hatte), `test_ork_war_horde.py`
+(stellt sein Detachment selbst; die Liste fieldet War Horde nicht mehr, und bei 3 DP ginge es auch
+gar nicht neben den dreien), `test_stratagem_tooltip.py` (39 statt 36 gedruckte Stratagems),
+`test_take_to_the_skies_policy.py` (Stormboyz raus, zwei Deffkopta-Einheiten statt einer),
+`test_unit_datacard.py` (der Support-Charakter der 20er-Boyz ist der Bigboss) und
+`test_pack_inner_ring.py` (drei Einheiten-Referenzen; die 22er-Mob-Spannweite ist mit dem Bigboss
+6.13" statt 6.24").
+
+**`measure_crowded_movement.py` behält seine EIGENE Ork-Armee** — die ist eine eingefrorene
+Messvorlage, an der die ganze Bewegungsqualitäts-Reihe hängt, und das steht seit jeher in ihrem
+Docstring. Neu benannt (sie ist jetzt auch nicht mehr `armies/orks.json`) und um ein drittes Ziel
+ergänzt: **`--army=mecha` misst die ausgelieferte Liste**. Sie bewegt sich BESSER als die Vorlage —
+gedrängt **78 % / 205.3"**, isoliert **91 % / 252.3"** gegen 62 % / 210.2" und 87 % / 292.3" —, was
+kein Fix ist, sondern eine Folge der Liste: 12 statt 14 Einheiten und 78 statt 101 Modelle auf
+demselben Brett.
+
+**Im ECHTEN Spiel belegt** (`verify_mecha_orks_list.py map2`, Orks als **Player 2** — die Seite, auf
+der diese Liste gespielt wird; 10/10, unter `--neutralize` 10/10). Diese Sonde ist das Gegenstück zu
+allen anderen `verify_*.py`: sie BAUT nichts und STELLT keine Detachment-Config, sondern fragt, was
+die LISTE allein erzeugt hat.
+
+| | die Liste | `--neutralize` (der Detachment-Schreibvorgang weg) |
+|---|---|---|
+| A | 12 Einheiten, 1990 pts, drei Settings, vier Enhancements aktiv | dieselben 12/1990, keines der drei Settings, kein Enhancement |
+| B | Ghazghkull ist der einzige Warlord, Da Boss zahlt 1 CP | unverändert (Warlord und Armeeregel hängen an der LISTE, nicht am Detachment) |
+| C | alle drei Transporte tragen | unverändert |
+| D | Gunwagon ignoriert Cover (Big Mek an Bord), Battlewagon leiht die Motivation des Warboss, Zehner-Boyz 4+ Sv, Bigboss +2 A in einem 22er-Mob | alles tot: Cover bleibt, nichts geliehen, 5+ Sv, gedruckte A |
+| E | Da Hunt is On: +1 AP gegen eine Necron-VEHICLE, 0 gegen den Rest | gedruckter AP |
+
+DREI Bühnen-Lehren aus dieser Sonde, alle zuerst als scheinbare Engine-Fehler aufgetreten:
+- **Ein Teilstring-Name misst die falsche Einheit**: „Boyz 2" steckt in „Beast Snagga Boyz 2 +
+  Beastboss + Weirdboy", und die erste Fassung meldete 'Ardboyz als tot. Der Namensvergleich ist
+  jetzt exakt (Präfix abgeschnitten, dann `==` oder `startswith(name + " ")`).
+- **Der MOMENT der Messung entscheidet**: alle drei Transporte laden in Declare Battle Formations
+  (18.01) — und die KI steigt in ihrer ersten Bewegungsphase aus zweien wieder aus. Gemessen wird
+  deshalb im ERSTEN Frame nach dem Vorspiel („die Armee steht so da, wie die Liste es wollte"),
+  nicht im ersten stillen Frame, der schon Spiel misst.
+- **Wer deployt, entscheidet, ob die Transport-Hints überhaupt gelten**: mit den Orks auf Player 1
+  (dem Menschen) stieg niemand ein — die Hints sind eine Vorgabe für die AUFSTELLUNGS-KI
+  (`_transport_affinity`), ein Mensch stellt von Hand auf. Die Sonde fieldet die Liste deshalb dort,
+  wo sie gespielt wird.

@@ -1,13 +1,103 @@
 {
   "format": 1,
   "key": "orks",
-  "name": "Orks",
+  "name": "Mecha Orks",
   "faction_keyword": "ORKS",
   "army_rule": "Waaagh!",
-  "detachments": ["War Horde"],
+  "detachments": ["Blitz Brigade", "Da Big Hunt", "Green Tide"],
   "force_disposition": "take_and_hold",
   "sort_order": 20,
+  "note": "User-supplied export 'Mecha Orks', 1990 pts, and every one of the seventeen prices agrees with it. THREE detachments at exactly the 3 DP budget (Blitz Brigade 1 + Da Big Hunt 1 + Green Tide 1), each contributing one Enhancement that is actually carried: Ferocious Show-off on the Bigboss, 'Ardboyz on the small Boyz mob, Boss Boomer on the Battlewagon, Targetin' Gizmos on the Gunwagon. Take and Hold is Blitz Brigade's disposition. Ghazghkull Thraka is the WARLORD - his Supreme Commander says he must be, and Da Boss pays 1CP at the start of each battle round because of it. Three attached units (19.01), one of them a Leader plus a Support character on one bodyguard. TRANSPORTS ARE NOT IN THE EXPORT: the three named here are this engine's choice and are what makes the two vehicle Enhancements do anything - the Warboss/Bigboss mob rides the Battlewagon it lends Boss Boomer to (22/22), the Big Mek and his Meganobz ride the Gunwagon carrying Targetin' Gizmos (8/12), and the plain Beast Snagga mob rides the Kill Rig. The Beastboss mob cannot: the Weirdboy leading it is no BEAST SNAGGA.",
   "roster": [
+    {
+      "datasheet": "Battlewagon",
+      "color": [75, 95, 55],
+      "enhancement": "Boss Boomer",
+      "note": "Wreckin' Ball, four Big Shootas and a Grabbin' Klaw, all free; 150 + 10 for the Enhancement = the export's 160.",
+      "choices": {
+        "Battlewagon": {
+          "+ Wreckin' Ball": 1,
+          "+ 4x Big Shoota": 1,
+          "+ Grabbin' Klaw": 1
+        }
+      },
+      "id": "battlewagon_1"
+    },
+    {
+      "datasheet": "Boyz",
+      "color": [70, 140, 60],
+      "composition_index": 1,
+      "note": "Twenty: eighteen Boyz and two Nobs, one with a Power Klaw and one with a Big Choppa. Rides the Battlewagon it lends Boss Boomer to.",
+      "choices": {
+        "Nob": {
+          "Kustom Choppa -> Power Klaw": 1,
+          "Kustom Choppa + Kombi-skorcha -> Big Choppa": 1
+        },
+        "Boy": {
+          "Shoota -> Big Shoota": 2,
+          "Shoota -> Rokkit Launcha": 2,
+          "Shoota -> Burna": 2
+        }
+      },
+      "leaders": [
+        {
+          "datasheet": "Warboss",
+          "color": [170, 60, 60],
+          "choices": {
+            "Warboss": {
+              "Kustom Choppa -> Power Klaw": 1,
+              "Kustom Shoota -> Kombi-skorcha": 1
+            }
+          }
+        },
+        {
+          "datasheet": "Bigboss",
+          "color": [175, 95, 50],
+          "enhancement": "Ferocious Show-off"
+        }
+      ],
+      "transport": "battlewagon_1"
+    },
+    {
+      "datasheet": "Gunwagon",
+      "color": [95, 90, 70],
+      "enhancement": "Targetin' Gizmos",
+      "note": "Zzap Gun in place of the Kannon (+10), plus the free Lobba, four Big Shootas, Wreckin' Ball and Grabbin' Klaw; 160 + 10 for the Enhancement = the export's 170.",
+      "choices": {
+        "Gunwagon": {
+          "Kannon -> Zzap Gun": 1,
+          "+ Lobba": 1,
+          "+ 4x Big Shoota": 1,
+          "+ Wreckin' Ball": 1,
+          "+ Grabbin' Klaw": 1
+        }
+      },
+      "id": "gunwagon_1"
+    },
+    {
+      "datasheet": "Meganobz",
+      "color": [120, 100, 130],
+      "composition_index": 1,
+      "note": "Three, each swapping its Kustom Shoota for a Kombi-weapon.",
+      "choices": {
+        "Meganob": {
+          "Kustom Shoota -> Kombi-weapon": 3
+        }
+      },
+      "leaders": [
+        {
+          "datasheet": "Big Mek in Mega Armour",
+          "color": [110, 120, 150],
+          "choices": {
+            "Big Mek in Mega Armour": {
+              "Kustom Shoota -> Kustom Mega-blasta": 1,
+              "+ Tellyport Blasta": 1
+            }
+          }
+        }
+      ],
+      "transport": "gunwagon_1"
+    },
     {
       "datasheet": "Kill Rig",
       "color": [100, 85, 65],
@@ -16,99 +106,57 @@
     {
       "datasheet": "Beast Snagga Boyz",
       "color": [120, 145, 55],
+      "note": "The plain mob, riding the Kill Rig.",
+      "transport": "kill_rig_1"
+    },
+    {
+      "datasheet": "Beast Snagga Boyz",
+      "color": [120, 145, 55],
+      "note": "The Beastboss and the Weirdboy lead this one; it walks, because the Weirdboy is no BEAST SNAGGA and the Kill Rig only carries those.",
       "leaders": [
         {
           "datasheet": "Beastboss",
           "color": [185, 80, 45]
-        }
-      ],
-      "transport": "kill_rig_1"
-    },
-    {
-      "datasheet": "Battlewagon",
-      "color": [75, 95, 55],
-      "choices": {
-        "Battlewagon": {
-          "+ 4x Big Shoota": 1
-        }
-      },
-      "id": "battlewagon_1"
-    },
-    {
-      "datasheet": "Meganobz",
-      "color": [120, 100, 130],
-      "composition_index": 3,
-      "leaders": [
-        {
-          "datasheet": "Warboss in Mega Armour",
-          "color": [170, 60, 60]
-        }
-      ],
-      "transport": "battlewagon_1"
-    },
-    {
-      "datasheet": "Boyz",
-      "color": [70, 140, 60],
-      "composition_index": 1,
-      "choices": {
-        "Nob": {
-          "Kustom Choppa -> Power Klaw": 1
-        }
-      },
-      "leaders": [
-        {
-          "datasheet": "Warboss",
-          "color": [170, 60, 60]
         },
         {
-          "datasheet": "Painboy",
-          "color": [150, 65, 105]
+          "datasheet": "Weirdboy",
+          "color": [90, 150, 145]
         }
       ]
     },
     {
-      "datasheet": "Gretchin",
-      "color": [140, 110, 70]
+      "datasheet": "Ghazghkull Thraka",
+      "color": [60, 110, 50],
+      "warlord": true,
+      "note": "SUPREME COMMANDER: if he is in the army he must be the Warlord, and Da Boss then pays 1CP at the start of each battle round."
     },
     {
-      "datasheet": "Gretchin",
-      "color": [140, 110, 70]
-    },
-    {
-      "datasheet": "Warbikers",
-      "color": [150, 130, 60]
-    },
-    {
-      "datasheet": "Warbikers",
-      "color": [150, 130, 60]
-    },
-    {
-      "datasheet": "Stormboyz",
-      "color": [110, 150, 70],
-      "composition_index": 1,
+      "datasheet": "Boyz",
+      "color": [70, 140, 60],
+      "enhancement": "'Ardboyz",
+      "note": "Ten, with a Power Klaw Nob; 90 + 25 for the Enhancement = the export's 115.",
       "choices": {
         "Nob": {
           "Kustom Choppa -> Power Klaw": 1
+        },
+        "Boy": {
+          "Shoota -> Big Shoota": 1,
+          "Shoota -> Rokkit Launcha": 1,
+          "Shoota -> Burna": 1
         }
       }
     },
     {
-      "datasheet": "Deff Dread",
-      "color": [80, 80, 90]
+      "datasheet": "Gretchin",
+      "color": [140, 110, 70]
     },
     {
       "datasheet": "Deffkoptas",
-      "color": [130, 145, 165],
-      "composition_index": 1
+      "color": [130, 145, 165]
     },
     {
-      "datasheet": "Flash Gitz",
-      "color": [170, 150, 55],
-      "composition_index": 1
-    },
-    {
-      "datasheet": "Tankbustas",
-      "color": [160, 110, 40]
+      "datasheet": "Deffkoptas",
+      "color": [130, 145, 165]
     }
   ]
 }

@@ -101,7 +101,8 @@ for key in SHIPPED:
                        for d in entry.detachments)
 c.true("every shipped list's detachments have printed Stratagems",
        all(count > 0 for count in _totals.values()))
-c.eq("...36 of them in total", sum(_totals.values()), 36)
+c.eq("...39 of them in total (the Mecha Orks list declares three detachments, so the Ork share is 18 rather than the six War Horde printed)",
+     sum(_totals.values()), 39)
 
 
 # --- 2. name lookup: the half that could silently show the WRONG rules ------

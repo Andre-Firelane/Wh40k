@@ -1,10 +1,12 @@
 """How far does the AI actually get, on a board that has an army on it?
 
-MEASURES THE ORK ARMY, DELIBERATELY, AND NO LONGER THE DEFAULT ONE. This script
-builds its own roster from game/factions/orks.py rather than reading
+MEASURES A FROZEN ORK FIXTURE, DELIBERATELY, AND NO LONGER ANY SHIPPED LIST.
+This script builds its own roster from game/factions/orks.py rather than reading
 config.PLAYER2_ARMY, so it kept measuring the Orks when Player 2's default army
 switched to the Necrons - and that is the intended behaviour, not an oversight
-of the kind CLAUDE.md's error class 16 describes.
+of the kind CLAUDE.md's error class 16 describes. Since 2026-09-20 the fixture
+is not armies/orks.json either: that file now holds the user's Mecha Orks
+export, and `--army=mecha` measures it as its own baseline.
 
 The reason is that this is a BASELINE, not a test: every number in CLAUDE.md's
 movement-quality section (54% -> 64% achieved progress, 185" -> 206" of ground,
@@ -80,7 +82,7 @@ Also reported, because the AI is meant to keep its units packed (small
 footprints hide better and leave room for the neighbours): final spread per
 unit, and how many units end fully out of the enemy's line of sight.
 
-Run:  python measure_crowded_movement.py [map_key] [--turns=N] [--army=orks|necrons]
+Run:  python measure_crowded_movement.py [map_key] [--turns=N] [--army=orks|necrons|mecha]
 
 `--army=necrons` is the SECOND baseline the header above asks for: the same
 fixture, goals and terrain, with armies/necrons.json on the table (the
@@ -180,20 +182,33 @@ def movers(state):
     return out
 
 
-def necron_movers(state):
-    """Player 2's NECRON list (armies/necrons.json), built the way main() builds
-    it - the 21-model Necron Warriors + Technomancer blob, the two Immortals
-    units, the Lychguard and the C'tan the 2026-09 reports are about.
+def list_movers(key):
+    """Player 2's units as a SHIPPED LIST builds them - the same code path
+    main() uses.
 
-    A SECOND baseline beside the Ork one, never a replacement (see the module
-    docstring): `--army=necrons` prints its own numbers, and the default run is
-    byte-identical to what it was before the flag existed."""
-    squads = []
-    army_lists.get("necrons").build("Player 2", squads.append, state=state)
-    return [(sq.name, sq) for sq in squads if sq.models]
+    A baseline BESIDE the frozen Ork fixture above, never a replacement (see the
+    module docstring): each `--army=` prints its own numbers, and the default run
+    is byte-identical to what it was before any of these flags existed.
+
+    `--army=necrons` is armies/necrons.json (the 21-model Warriors + Technomancer
+    blob, the two Immortals units, the Lychguard and the C'tan the 2026-09
+    reports are about). `--army=mecha` is armies/orks.json as it stands TODAY -
+    the Mecha Orks list, which since 2026-09-20 is no longer the army the
+    fixture above describes: it has a 22-model mob in a Battlewagon, a Gunwagon,
+    Ghazghkull on foot and two 3-model Deffkopta units, and no Warbikers,
+    Stormboyz, Flash Gitz, Tankbustas or Deff Dread at all."""
+    def build_them(state):
+        squads = []
+        # *a/**k: a list that declares transports registers its passengers as
+        # (squad, EMBARK, transport=token), and a bare list.append refuses the
+        # keyword. The passengers are measured like everything else - this is a
+        # movement baseline, not a deployment one.
+        army_lists.get(key).build("Player 2", lambda sq, *a, **k: squads.append(sq), state=state)
+        return [(sq.name, sq) for sq in squads if sq.models]
+    return build_them
 
 
-MOVERS = {"orks": movers, "necrons": necron_movers}
+MOVERS = {"orks": movers, "necrons": list_movers("necrons"), "mecha": list_movers("orks")}
 
 
 def defenders():
