@@ -165,7 +165,10 @@ KI-Pfad.**
   dann Charge").
 - **Deterministische Entscheidungen ohne API-Call** (jeweils weil es ein VOLLSTÄNDIGES Verfahren ohne
   Restermessen gibt, und ein Test mit werfendem Agenten belegt die 0 Calls): Command Re-roll auf einen
-  verfehlten Charge (verfehlt + Nahkampfeinheit + Lücke ≤7"), War Cry (`war_cry_verdict`), der
+  verfehlten Charge (verfehlt + Nahkampfeinheit + Lücke ≤7"), War Cry (`war_cry_verdict` — seit
+  2026-09-21 wieder eine Funktion der UHR allein: eigene Command-Phase ab `WAR_CRY_ROUND = 2`, die
+  User-Vorgabe, die schon das alte `_maybe_call_waaagh()` trug; die Reichweiten-Heuristik, die sie
+  bei Orks E1 ersetzt hatte, feuerte auf jedem Brett in Runde 1), der
   Waaagh!-Advance-Reroll (unter 4), War Horde (Da Boss is Watchin', Fungus-Fuel Injection,
   Close-Range Dakka, Hit 'Em Harder, Mow 'Em Down als `_handle_*` ohne `agent`; Breakin' Heads und
   Orks Is Never Beaten über `auto_players` plus injiziertes Urteil), Ammo Runt, Boss' Ammo Runt, die

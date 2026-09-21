@@ -29,7 +29,7 @@ from ai.agent_driver import (
     _centroid,
     _ingress_pack_positions,
 )
-from game import attached_units, combat_focus, deployment, formations, movement, pregame, weapon_profiles
+from game import attached_units, combat_focus, conditional_lone_operative, deployment, formations, movement, pregame, weapon_profiles
 from game.squad import max_model_radius, squad_has_infiltrators
 
 # Candidate grid over the deploying player's own zone. 2" is fine enough that
@@ -64,6 +64,12 @@ DEPLOY_HIDDEN_ATTEMPTS = 4
 # A unit whose best ranged weapon reaches at least this far is treated as a
 # shooter: it wants a firing lane, not a hiding hole.
 SHOOTER_RANGE_IN = 24.0
+# Expected melee wounds (game/combat_focus.py's reference defender) above which a
+# "key" unit is a melee THREAT and belongs in the front band rather than hidden
+# at the back. See _deployment_role() for the measured band this sits in: every
+# standalone "key" unit in every shipped list is either at 0.89 or below, or at
+# 10.88 or above.
+KEY_MELEE_THREAT_OUTPUT = 5.0
 # Below this it is a short-ranged body that has to close the distance anyway.
 # Only the FALLBACK passenger test now - see TRANSPORT_PASSENGER_PRIORITY.
 TRANSPORT_PASSENGER_MAX_RANGE_IN = 18.0
@@ -249,6 +255,35 @@ def _deployment_role(squad):
         return "heavy"
     profile = squad.models[0].profile if squad.models else None
     if profile is not None and (profile.vehicle or profile.character or getattr(profile, "monster", False)):
+        # ...unless it is a melee THREAT, in which case "key" is the wrong half
+        # of the same argument that created the "assault" role. User, on finding
+        # Ghazghkull Thraka in the back corner: "Ghazkhull hat eigentlich Lone Op
+        # durch seine Fähigkeit ... auf jeden fall muss der vorne stehen."
+        #
+        # He is a CHARACTER, so this branch took him before the assault test at
+        # the bottom ever ran - and he is also INFANTRY, which is what made it
+        # bite for the first time: the "key" key below leads with `hidden`, and
+        # its own comment excuses that by saying a key unit is a vehicle or
+        # character that rule 13.09 cannot hide anyway, so the term is constant.
+        # For a non-attachable INFANTRY character it is not constant, it
+        # dominates, and he took the most rearward fully-hidden spot in the zone:
+        # measured on the reported board, rank 9 of 9 by forward progress,
+        # -3.39", 25.7" from the nearest enemy, with the next unit 8" ahead of
+        # him.
+        #
+        # TWO TESTS, NOT ONE, and the second is the load-bearing half.
+        # is_assault_unit() alone says yes to the T'au Ethereal - a support
+        # character with no guns, whose ratio is melee-dominant because it has
+        # nothing else, and which is the archetypal unit "key" exists to hide.
+        # Measured melee output against combat_focus's reference defender, over
+        # every standalone "key" unit in every shipped list:
+        #     must go forward   Deathshroud Champion 20.83, Ghazghkull 10.88
+        #     must stay hidden  Hexmark Destroyer 0.89, Lokhust Heavy 0.67,
+        #                       Ethereal 0.33, Darkstrider 0.25, D-cannon 0.22
+        # A clean band of 0.89 .. 10.88 - a factor of twelve, not a close call.
+        if (combat_focus.is_assault_unit(squad)
+                and combat_focus.squad_output(squad, melee=True) >= KEY_MELEE_THREAT_OUTPUT):
+            return "assault"
         return "key"
     points = squad.points or 0
     if points >= 100 and len(squad.models) <= 3:
@@ -641,6 +676,27 @@ def deployment_score(point, squad, pregame_ctrl, context):
     # whereas a Hidden unit cannot be TARGETED at all from beyond 15".
     hidden = 0 if hidden_at(squad, x, y, context["terrain_areas"]) else 1
 
+    # Rule 24.24 where it is CONDITIONAL: 0 = a source would be ON here, 1 = it
+    # would be off. Constant 0 - and therefore invisible to the sort - for the
+    # units that have no such source, which is almost all of them.
+    #
+    # This is what makes standing forward SURVIVABLE for the unit the melee-
+    # threat exception moves there. Ghazghkull's Da Grand Warlord's Ladz gives
+    # him Lone Operative 12" while he is within 3" of another friendly ORKS
+    # INFANTRY unit - so a front-rank spot beside his own Boyz is one he cannot
+    # be shot at from across the table, and the same spot three inches further
+    # off is one where 300 points stand in the open. It is ranked directly under
+    # the role's own leading term and ABOVE `hidden`, because a 12" Lone
+    # Operative is the tighter limit of the two (13.09's is 15") and, unlike
+    # Hidden, does not end the moment the unit fires.
+    #
+    # Only two fielded units have a conditional source at all - Ghazghkull and
+    # the Daemon Prince of Nurgle (Death Guard Defenders, role "heavy") - which
+    # is why the term is in every role's key rather than only in the one that
+    # prompted it.
+    lone_off = 0 if conditional_lone_operative.would_grant_at(
+        squad, x, y, context["all_tokens"]) else 1
+
     # The one unit designated to hold the home objective ranks standing ON it
     # above everything else - see home_garrison_squad(). Nothing else in this
     # scorer would put it there: "screen" wants the forward edge of the zone,
@@ -657,7 +713,8 @@ def deployment_score(point, squad, pregame_ctrl, context):
         # spends the first turns grinding through it. Safety is not dropped,
         # only demoted - within the same forward band it still takes the least
         # visible spot it can find, so it hides where hiding is free.
-        return (-int(forward // HEAVY_FORWARD_BUCKET_IN), exposure, round(to_objective, 1))
+        return (-int(forward // HEAVY_FORWARD_BUCKET_IN), lone_off, exposure,
+                round(to_objective, 1))
     if role in ("screen", "assault"):
         # Still the most forward bucket - a screen that hides is not screening
         # anything - but within that bucket it takes cover and 13.09 rather
@@ -669,7 +726,7 @@ def deployment_score(point, squad, pregame_ctrl, context):
         # versteckt". What an assault unit needed was not a different key but
         # an earlier place in the queue and the fully-hidden pass - see
         # deployment_order_key() and _wants_hidden_pass().
-        return (-forward_bucket, hidden, exposure, round(to_objective, 1))
+        return (-forward_bucket, lone_off, hidden, exposure, round(to_objective, 1))
     if role == "shooter":
         # Wants a lane into SOME of the enemy zone but not to stand in the
         # open: exposure 0 means no shot at all, exposure 12 means every gun
@@ -679,12 +736,12 @@ def deployment_score(point, squad, pregame_ctrl, context):
         # turn or the previous one") - so a spot that has both is strictly best.
         lo, hi = SHOOTER_IDEAL_EXPOSURE
         in_band = 0 if lo <= exposure <= hi else 1
-        return (in_band, hidden, exposure, -forward_bucket, round(to_objective, 1))
+        return (in_band, lone_off, hidden, exposure, -forward_bucket, round(to_objective, 1))
     # "key": hide it. This is the user's "am Anfang seine wichtigen Einheiten
     # moeglichst hinter Gelaende verstecken". A vehicle or character cannot be
     # Hidden (13.09 is INFANTRY/BEASTS/SWARM only), so `hidden` is a constant 1
     # for most of these and the key degrades to exactly what it was before.
-    return (hidden, exposure, -forward_bucket, round(to_objective, 1))
+    return (lone_off, hidden, exposure, -forward_bucket, round(to_objective, 1))
 
 
 def _score_context(pregame_ctrl, squad, objectives, board_w_in, board_h_in):

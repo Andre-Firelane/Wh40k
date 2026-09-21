@@ -50,7 +50,7 @@ CLOSE_DETECTION_RANGE_IN = 12.0  # House rule (NOT in the rulebook - user call):
 LONE_OPERATIVE_DEFAULT_RANGE_IN = 12.0  # rule 24.24: the range when the ability isn't given as "LONE OPERATIVE X\""
 
 
-def targeting_range_limit(squad):
+def targeting_range_limit(squad, all_tokens=()):
     """The tightest "can only be selected as the target of a ranged attack from
     within X inches" limit on this unit, or None.
 
@@ -62,10 +62,29 @@ def targeting_range_limit(squad):
     Read off the squad rather than through the stratagem's controller, the same
     arrangement Squad.stim_injectors_active uses -
     so game/shooting.py's two targeting sites need one call and no new
-    dependency, and a third source later needs no third site."""
+    dependency, and a third source later needs no third site.
+
+    `all_tokens` IS NOT OPTIONAL IN PRACTICE, and this is the one function where
+    leaving it out was silently fatal. Lone Operative has six CONDITIONAL
+    sources (game/conditional_lone_operative.py - Illuminor Szeras, the
+    Spiritseer, Death Guard Defenders, the Spirit Stone of Raelyth, Nekrosor
+    Ammentar, Ghazghkull's Da Grand Warlord's Ladz), every one of them a
+    question about the BOARD, and lone_operative_range() can only answer it when
+    it is handed the board. This function is the ONLY enforcement site in the
+    engine - game/shooting.py's two targeting gates - and for as long as it took
+    no `all_tokens` it passed the default empty tuple, so all six granted
+    nothing at the only place it counts. Reported by the user about the sixth
+    ("Ghazkhull hat eigentlich Lone Op durch seine Fähigkeit. die kommt
+    wahrscheinlich nirgends an") and reproduced: Ghazghkull 2" from a Boyz mob
+    answered 12" to lone_operative_range(squad, tokens), None to this function,
+    and a Strike Team 20" away was allowed to shoot him. Every suite was green,
+    because each of the six is pinned against the MODULE function with the board
+    in hand and none of them goes through the gate.
+    test_event_chain_wiring.py section 33 is the set difference that keeps the
+    board from being dropped again."""
     # Canoptek Court's Countertemporal Shift prints Psychic Shield's EFFECT word
     # for word, so it is a third source of the same limit and folds here too.
-    limits = [r for r in (lone_operative_range(squad),
+    limits = [r for r in (lone_operative_range(squad, all_tokens),
                           getattr(squad, "psychic_shield_range", None),
                           getattr(squad, "countertemporal_shift_range", None)) if r is not None]
     return min(limits) if limits else None
@@ -169,7 +188,7 @@ def is_detectable(model, observer_squad, terrain_areas, turn_tracker, last_range
 
 
 def active_effects(model, terrain_areas, turn_tracker, last_ranged_attack_turn, greater_good=None,
-                   guide=None, doom=None, whispering_web=None):
+                   guide=None, doom=None, whispering_web=None, all_tokens=()):
     """Which status effects currently apply to this model, for the board
     label overlay. battle_shocked, lone_operative and marked are unit-wide;
     hidden is per-model. Every controller argument is optional, like everywhere
@@ -186,7 +205,12 @@ def active_effects(model, terrain_areas, turn_tracker, last_ranged_attack_turn, 
         effects.append(BATTLE_SHOCKED)
     if is_hidden(model, terrain_areas, turn_tracker, last_ranged_attack_turn):
         effects.append(HIDDEN)
-    if lone_operative_range(model.squad) is not None:
+    # The board, so a CONDITIONAL grant shows its badge too - the label is how a
+    # player sees that Ghazghkull's Da Grand Warlord's Ladz is on right now, and
+    # it switches on and off as he moves in and out of 3" of an ORKS INFANTRY
+    # unit. Appended as a keyword argument (error class 22): main.py calls this
+    # positionally down to `last_ranged_attack_turn`.
+    if lone_operative_range(model.squad, all_tokens) is not None:
         effects.append(LONE_OPERATIVE)
     if greater_good is not None and model.squad is not None and greater_good.is_spotted(model.squad):
         effects.append(MARKED)

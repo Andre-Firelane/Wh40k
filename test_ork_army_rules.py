@@ -395,51 +395,49 @@ c.true("a 'yes' uses it, still without a prompt",
 # ===========================================================================
 print("\n7. the AI's War Cry verdict")
 # ===========================================================================
-def verdict_scene(close_units, far_units, gap_in, owner=ORK, battle_round=1):
+def verdict_scene(battle_round=1, owner=ORK, close=True):
+    """A board the OLD reach heuristic would have called War Cry on, so the
+    round-1 negatives below are not merely "nothing was near enough".
+
+    `close=True` puts two Boyz mobs 15" from the enemy - inside Move + average
+    Advance + 12", which is what the heuristic measured and what made it say yes
+    before a single model had moved (user report, logs/game_20260920_120530.log:
+    8 of 9 units cleared a threshold of 4 in battle round 1)."""
     state = GameState()
     foe = on_board(state, unit("Necron Warriors", owner=FOE, faction=NECRONS, composition_index=0), 10.0, 40.0)
     top = min(m.y_in for m in foe.models)
-    for i in range(close_units):
+    for i in range(2):
         mob = unit("Boyz")
-        mob.name = "2 Boyz close %d" % i
+        mob.name = "2 Boyz %d" % i
         on_board(state, mob, 10.0 + i * 16.0, 0.0)
-        shift = (top - gap_in) - max(m.y_in for m in mob.models)
-        for m in mob.models:
-            m.y_in += shift
-    for i in range(far_units):
-        mob = unit("Boyz")
-        mob.name = "2 Boyz far %d" % i
-        on_board(state, mob, 10.0 + i * 16.0, -60.0)
+        if close:
+            shift = (top - 15.0) - max(m.y_in for m in mob.models)
+            for m in mob.models:
+                m.y_in += shift
     return state, tracker(owner=owner, battle_round=battle_round, first=ORK)
 
 
-_st, _tt = verdict_scene(close_units=2, far_units=1, gap_in=20.0)
-_close = [s for s in {t.squad for t in _st.tokens} if "close" in s.name]
+_st, _tt = verdict_scene(battle_round=1)
+_mobs = [s for s in {t.squad for t in _st.tokens} if s.owner == ORK]
 _enemy = next(s for s in {t.squad for t in _st.tokens} if s.owner == FOE)
-c.true("the verdict scene puts the close mobs 18-21.5\" away",
-       all(18.0 < s.min_distance_to(_enemy) < observation.advance_reach_in(s) + 12.0 for s in _close))
-c.true("own Command phase: 2 of 3 Waaagh! units within Move+Advance+12\" - use it",
-       agent_driver.war_cry_verdict(ORK, _tt, _st.tokens))
-_st, _tt = verdict_scene(close_units=2, far_units=1, gap_in=20.0, owner=FOE)
-c.true("the SAME board in the enemy's Command phase: outside 18\" - keep it",
+c.true("the scene is one the old reach heuristic would have fired on",
+       all(s.min_distance_to(_enemy) <= observation.advance_reach_in(s) + 12.0 for s in _mobs))
+c.true("battle round 1, own Command phase, enemies in charge reach: KEEP it",
        not agent_driver.war_cry_verdict(ORK, _tt, _st.tokens))
-_st, _tt = verdict_scene(close_units=2, far_units=1, gap_in=15.0, owner=FOE)
-c.true("...within 18\" in the enemy's Command phase - use it",
-       agent_driver.war_cry_verdict(ORK, _tt, _st.tokens))
-_st, _tt = verdict_scene(close_units=1, far_units=4, gap_in=15.0)
-c.true("one unit of five is not enough", not agent_driver.war_cry_verdict(ORK, _tt, _st.tokens))
-_st, _tt = verdict_scene(close_units=2, far_units=4, gap_in=20.0)
-c.true("two of six is below the 40% share (three are needed) - keep it",
+_st, _tt = verdict_scene(battle_round=1, owner=FOE)
+c.true("...and not in the opponent's round-1 Command phase either",
        not agent_driver.war_cry_verdict(ORK, _tt, _st.tokens))
-_st, _tt = verdict_scene(close_units=1, far_units=0, gap_in=15.0)
-c.true("...but an army down to that one unit is", agent_driver.war_cry_verdict(ORK, _tt, _st.tokens))
-_st, _tt = verdict_scene(close_units=0, far_units=3, gap_in=15.0, battle_round=2)
-c.true("nothing in reach in round 2: keep it", not agent_driver.war_cry_verdict(ORK, _tt, _st.tokens))
-_st, _tt = verdict_scene(close_units=0, far_units=3, gap_in=15.0, battle_round=3)
-c.true("...in round 3 it is used anyway, never simply left unused",
+_st, _tt = verdict_scene(battle_round=2, close=False)
+c.true("battle round 2, own Command phase: USE it - and nothing is in reach",
        agent_driver.war_cry_verdict(ORK, _tt, _st.tokens))
-_st, _tt = verdict_scene(close_units=0, far_units=3, gap_in=15.0, battle_round=3, owner=FOE)
+_st, _tt = verdict_scene(battle_round=2, owner=FOE, close=False)
 c.true("...but only in its OWN Command phase", not agent_driver.war_cry_verdict(ORK, _tt, _st.tokens))
+_st, _tt = verdict_scene(battle_round=4, close=False)
+c.true("a battle resumed past round 2 still gets it (>=, not ==)",
+       agent_driver.war_cry_verdict(ORK, _tt, _st.tokens))
+c.eq("the round is the one the user set, not a derived number", agent_driver.WAR_CRY_ROUND, 2)
+c.true("no reach heuristic is left in the verdict",
+       "advance_reach_in" not in inspect.getsource(agent_driver.war_cry_verdict))
 c.eq("the verdict takes no agent - 0 API calls by construction",
      list(inspect.signature(agent_driver.war_cry_verdict).parameters), ["player", "turn_tracker", "all_tokens"])
 

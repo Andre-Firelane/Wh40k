@@ -4922,7 +4922,7 @@ def _has_target_after_disembark(squad, predicted_positions, all_tokens, obstacle
             # caps how far away the shooter may be; the check was documented
             # as ignoring it, and the result was Boyz unloading on turn 1 to
             # "shoot Sluggas" at something they could never have targeted.
-            lone_range = status_effects.lone_operative_range(enemy)
+            lone_range = status_effects.lone_operative_range(enemy, all_tokens)
             nearest = _nearest_model_to_point(enemy, probe.x_in, probe.y_in)
             if lone_range is not None and edge_distance(probe, nearest) > lone_range:
                 continue
@@ -6849,46 +6849,56 @@ def _announce_fight_wait(player, turn_tracker, fight_controller,
     )
 
 
-#: War Cry, the AI's policy (user decision). In its OWN Command phase it calls
-#: War Cry once at least WAR_CRY_MIN_SHARE of its on-board Waaagh! units - and at
-#: least WAR_CRY_MIN_UNITS of them, or all it has left - have an enemy within a
-#: plain move, an average Advance and a 12" charge; in the OPPONENT'S Command
-#: phase the same share within WAR_CRY_ENEMY_TURN_REACH_IN, because riled up's 5+
-#: invulnerable save then covers the enemy's turn and the army's own next one;
-#: and otherwise in its own Command phase of battle round WAR_CRY_FALLBACK_ROUND,
-#: so a once-per-battle rule is never simply left unused.
-WAR_CRY_MIN_UNITS = 2
-WAR_CRY_MIN_SHARE = 0.4
-WAR_CRY_ENEMY_TURN_REACH_IN = 18.0
-WAR_CRY_FALLBACK_ROUND = 3
+#: War Cry, the AI's policy - a deterministic one, restored 2026-09-21 on the
+#: user's own word ("Wir hatten eigentlich eingestellt, dass die KI den Warcry
+#: deterministisch in der 2ten Runde zündet. Das soll wieder so sein.").
+#:
+#: It is the policy the RETIRED Waaagh! controller had, and its argument survived
+#: the rule change intact: the old _maybe_call_waaagh() wrote "round 2
+#: specifically (not 'as soon as possible' in round 1) is the user's own choice
+#: ... presumably because round 1 is normally spent Advancing into position
+#: rather than already fighting, so the round 2 charge phase is the first one
+#: where the melee/invulnerable-save boost reliably matters".
+#:
+#: WHAT REPLACED IT AND WHY IT FAILED. Stage E1 swapped the round for a reach
+#: heuristic: use War Cry once 40% of the on-board Waaagh! units have an enemy
+#: within "Move + average Advance + CHARGE_RANGE_IN". That last term is 12", the
+#: MAXIMUM possible 2D6 charge, treated as a given - a 21.5" to 27.5" radius per
+#: unit, which two deployment zones already satisfy before anything has moved.
+#: Reported by the user and reproduced on the board of
+#: logs/game_20260920_120530.log: 8 of 9 units cleared a threshold of 4, the
+#: army called War Cry in round 1, and that round's Charge and Fight phases were
+#: both EMPTY - the "Advance no longer stops a charge" and [ASSAULT] halves were
+#: spent on a walking turn, and riled up expires at the start of the army's own
+#: turn 2 (riled_up.until_end_of_next_turn), which is the turn its own plan had
+#: written "disembark and strike next turn" for.
+#:
+#: ">= " rather than "== ": the round is the EARLIEST, not a window. A battle
+#: resumed from a save in round 3 has no round-2 Command phase left, and a
+#: once-per-battle ability that can no longer be used at all is the one outcome
+#: worse than using it early. In a game played from the start this is round 2.
+WAR_CRY_ROUND = 2
 
 
-def war_cry_verdict(player, turn_tracker, all_tokens):
+def war_cry_verdict(player, turn_tracker, all_tokens=()):
     """Whether the AI uses War Cry at the start of this Command phase.
 
     Injected into game/war_cry.py's WarCryController by main.py, so the AI
-    answers inside the controller - deterministic, 0 API calls. A pure
-    function of the board: a "no" this phase is asked again at the next
-    Command phase, which is exactly the printed window."""
+    answers inside the controller - deterministic, 0 API calls. A "no" this
+    phase is asked again at the next Command phase, which is exactly the
+    printed window.
+
+    `all_tokens` is accepted and deliberately unused: main.py injects this as
+    `lambda player, tracker: war_cry_verdict(player, tracker, state.tokens)`,
+    and a policy that is a function of the CLOCK alone is the point - the board
+    is what the reach heuristic read, and reading the board is what put the
+    call in round 1. Kept in the signature so the injection site does not have
+    to change shape if a later policy needs it again."""
     if turn_tracker is None:
         return False
-    squads = _all_squads(all_tokens)
-    own = [s for s in squads if s.owner == player and riled_up.has_ability(s)
-           and any(not m.is_dead() for m in s.models)]
-    enemies = [s for s in squads if s.owner != player
-               and any(not m.is_dead() for m in s.models)]
-    own_phase = turn_tracker.turn_owner == player
-    if own and enemies:
-        def _reach(squad):
-            if own_phase:
-                return observation.advance_reach_in(squad) + CHARGE_RANGE_IN
-            return WAR_CRY_ENEMY_TURN_REACH_IN
-        close = sum(1 for s in own
-                    if any(s.min_distance_to(e) <= _reach(s) for e in enemies))
-        needed = min(len(own), max(WAR_CRY_MIN_UNITS, math.ceil(WAR_CRY_MIN_SHARE * len(own))))
-        if close >= needed:
-            return True
-    return own_phase and (turn_tracker.battle_round or 0) >= WAR_CRY_FALLBACK_ROUND
+    if turn_tracker.turn_owner != player:
+        return False
+    return (turn_tracker.battle_round or 0) >= WAR_CRY_ROUND
 
 
 def _handle_battle_shock(agent, player, all_tokens, battle_shock_controller, insane_bravery_controller, turn_tracker, on_thinking):
@@ -7724,7 +7734,7 @@ def _unshootable_from_position_problems(plan, squads_by_name, state):
         target = _squad_by_name(target_name, state.tokens)
         if squad is None or not squad.models or target is None or not target.models:
             continue
-        lone_range = status_effects.lone_operative_range(target)
+        lone_range = status_effects.lone_operative_range(target, state.tokens)
         if lone_range is None:
             continue
         gap = _distance_from_squad_to_point(target, spot) - _squad_half_width(squad)
@@ -8223,7 +8233,7 @@ def _validate_turn_plan(plan, player, state, turn_tracker, game_log=None):
         # the whole argument for this function existing: a rule taught only
         # as prompt text stays optional, a rule checked here does not.
         target = _squad_by_name(entry.get("target"), state.tokens) if entry.get("target") else None
-        lone_range = status_effects.lone_operative_range(target) if target is not None else None
+        lone_range = status_effects.lone_operative_range(target, state.tokens) if target is not None else None
         if lone_range is not None and squad.models:
             gap = squad.min_distance_to(target) - min_model_movement(squad)
             if gap > lone_range:

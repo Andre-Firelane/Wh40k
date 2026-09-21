@@ -262,7 +262,8 @@ Die Wächter decken die vierzehn gefundenen Formen ab. Nicht abgedeckt und
 deshalb weiterhin Kopfarbeit:
 
 - **Ein neues Keyword mit einem eigenen Eignungs-Tor** (§7 deckt [ASSAULT] ab,
-  §19 [PISTOL], §29 [IGNORES COVER] — ein viertes braucht seinen eigenen Abschnitt).
+  §19 [PISTOL], §29 [IGNORES COVER], §33 LONE OPERATIVE — ein fünftes braucht
+  seinen eigenen Abschnitt).
 - **Die zweite Hälfte einer Regel**, die ein anderer Trichter liest — „ein
   KEYWORD-Grant wird regelmäßig an zwei ganz verschiedenen Orten gelesen".
 - **Ob eine Liste die Fähigkeit überhaupt fieldet.** Eine Regel kann
@@ -370,6 +371,18 @@ Das Destillat aus ~2400 Zeilen Historie. Fast jeder gemeldete Fehler fiel in ein
     für [ASSAULT], Abschnitt 19 für [PISTOL]).
     Und eine bekannte, bewusst offene Lücke gehört NAMENTLICH in denselben Wächter, sonst
     verschwindet sie still.
+    **Die VIERTE Ausprägung ist die stillste, weil der Code seinen eigenen Fehler für eine
+    Sicherheitszusage hält.** `status_effects.lone_operative_range(squad, all_tokens)` beantwortet
+    Regel 24.24, und `all_tokens` war optional — mit der ausgeschriebenen Begründung, ein Aufrufer
+    ohne Brett sehe „simply never a conditional grant, **which is the safe direction**". Die
+    EINZIGE Durchsetzungsstelle (`targeting_range_limit()`, die zwei Zieltore in
+    `game/shooting.py`) nahm gar kein `all_tokens` entgegen und reichte diese Vorgabe weiter — also
+    gewährten ALLE SECHS bedingten Quellen dort nichts, und eine Einheit, die jenseits 12" nicht
+    anvisierbar sein sollte, wurde aus 20" beschossen. Jede Suite war grün, weil jede Quelle gegen
+    die MODUL-Funktion MIT Brett gepinnt ist und keine durch das Tor geht. Regel daraus: **eine
+    Vorgabe, die eine Frage still mit „nein" beantwortet, ist keine sichere Richtung, sondern eine
+    unsichtbare** — sie braucht eine Mengendifferenz über die Leser (§33), und wer eine solche
+    Begründung schreibt, muss vorher die Aufrufer der Durchsetzungsstelle zählen.
     **Die dritte Ausprägung: EIN Vertrag, ZWEI Lesarten, beide ausgeliefert.** Das Vorspiel-Protokoll
     `step.start(controller, on_done)` wurde in einem Modul als "on_done UND False ist verboten"
     ausgeschrieben und in einem Test als genau dieses Paar GEPINNT — vier ausgelieferte Schritte
@@ -911,9 +924,10 @@ Fraktion deren Dateien plus `fraktionen.md`; bei einer gemeldeten Fehlerform zue
 - Fünf Meldungen aus einer Partie (2026-09-09)
 - Cleanse bot einen Knopf an, der nicht auszahlen konnte (2026-09-10)
 
-### `docs/stand/meldungen-4.md` — 2026-09-11/-12: Vier Meldungen (T'au gegen Death Guard), GRENADES-Keyword
+### `docs/stand/meldungen-4.md` — 2026-09-11/-12: Vier Meldungen (T'au gegen Death Guard), GRENADES-Keyword; 2026-09-20/-21: War Cry in Runde 1 und Ghazghkulls nie ankommende LONE OPERATIVE
 - Vier Meldungen aus einer T'au-gegen-Death-Guard-Partie (2026-09-11)
 - GRENADES fehlte auf 18 Profilklassen — Explosives unerreichbar (2026-09-12)
+- Zwei KI-Fragen zur neuen Ork-Liste: War Cry in Runde 1, Ghazghkull ganz hinten (2026-09-20/-21)
 
 ## Kataloge
 

@@ -314,7 +314,7 @@ def _model_can_reach(model, weapon, target_squad, obstacles, visible_models, all
     a visibility question."""
     bypass_los = shooting_type == INDIRECT_SHOOTING and weapon.indirect_fire
     if bypass_los:
-        lone_range = status_effects.targeting_range_limit(target_squad)
+        lone_range = status_effects.targeting_range_limit(target_squad, all_tokens)
         if lone_range is not None and not any(
             edge_distance(model, defender) <= lone_range for defender in target_squad.models
         ):
@@ -1510,7 +1510,7 @@ class ShootingController:
         # restriction from two sources - see status_effects.targeting_range_limit().
         # Measured LIVE, not from the rule-10.02 snapshot, which is what lets a
         # reactive Psychic Shield invalidate a selection that already happened.
-        lone_range = status_effects.targeting_range_limit(target_squad)
+        lone_range = status_effects.targeting_range_limit(target_squad, all_tokens)
         if lone_range is not None and not any(
             edge_distance(shooter, defender) <= lone_range
             for shooter in attacking_squad.models

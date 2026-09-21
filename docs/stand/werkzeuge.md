@@ -149,3 +149,21 @@ passenden Abschnitt hier; ein neuer `##`-Abschnitt braucht eine Zeile im Verzeic
   **`measure_crowded_movement.py`** hat dazu ein drittes Ziel bekommen: `--army=mecha` misst
   `armies/orks.json`, während `--army=orks` die eingefrorene Messvorlage bleibt, an der die ganze
   Reihe hängt (gedrängt 78 % gegen 62 % — eine Folge der kleineren Liste, kein Fix).
+
+  **`measure_key_melee_deployment.py`** (2026-09-21, aus der Ghazghkull-Meldung) deployt beide
+  echten Listen über `deployment_ai` auf ALLEN VIER Karten und fragt die fertige Tabelle: wo steht
+  der Nahkampf-Charakter, auf welchem Rang der Armee nach Vorwärtsfortschritt, und ist seine
+  BEDINGTE Lone Operative dort an? A/B im selben Lauf — die `fixed=False`-Welt tauscht BEIDE
+  Hälften gleichzeitig (`_deployment_role` auf die Fassung vor der Nahkampf-Ausnahme, plus
+  `conditional_lone_operative.would_grant_at` auf `False`), weil eine halbe Vor-Fix-Welt hier
+  gemeldet hätte, der Fehler habe nie existiert. Drei Dinge, die es bewusst so macht:
+  - **Die KONTROLLE läuft mit**, nicht nur der gemeldete Fall: der Daemon Prince of Nurgle trägt
+    dieselbe Art Quelle (Death Guard Defenders), behält aber die Rolle „heavy" — ein Term, der IHN
+    verschoben hätte, wäre eine Regression und keine Behebung gewesen. Er bewegt sich auf keiner
+    der vier Karten.
+  - **Der RANG ist die Zahl, nicht die Koordinate.** „−3,39" Vorwärtsfortschritt" sagt nichts ohne
+    die Armee daneben; „Rang 9 von 9" ist die gemeldete Beschwerde in einer Zahl.
+  - **Ein bewusster Tausch ist von einer Regression getrennt.** Verliert die Einheit ihre Lone
+    Operative UND gewinnt Boden, wird das als `traded:` gedruckt und der Lauf bleibt grün; verliert
+    sie sie ohne Gegenwert oder geht rückwärts, ist es eine Regression und der Exit-Code ist 1. Die
+    Zusicherung wurde damit BENANNT statt aufgeweicht.

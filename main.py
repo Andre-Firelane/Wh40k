@@ -8333,6 +8333,7 @@ def main(map_key=None):
                 greater_good=greater_good_controller,
                 guide=guide_controller, doom=doom_controller,
                 whispering_web=whispering_web_controller,
+                all_tokens=state.tokens,
             )
             if effects:
                 status_by_token[token] = effects

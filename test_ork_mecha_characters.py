@@ -58,7 +58,7 @@ from game.movement import MovementController  # noqa: E402
 from game.proactive_stratagems import ProactiveStratagems  # noqa: E402
 from game.shooting import ShootingController  # noqa: E402
 from game.transport import TransportController  # noqa: E402
-from game.turn import PHASES, PHASE_COMMAND, PHASE_FIGHT, PHASE_MOVEMENT  # noqa: E402
+from game.turn import PHASES, PHASE_COMMAND, PHASE_FIGHT, PHASE_MOVEMENT, PHASE_SHOOTING  # noqa: E402
 from game.weapons import MELEE, RANGED  # noqa: E402
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -466,6 +466,54 @@ c.eq("...not beyond 3\"", ladz(orks.BOYZ, 4.0), None)
 c.eq("...not beside an ORKS VEHICLE", ladz(orks.BATTLEWAGON, 1.0), None)
 c.eq("...not beside ENEMY infantry", ladz(orks.BOYZ, 1.0, owner=FOE), None)
 c.eq("...and never on his own", status_effects.lone_operative_range(_gh, _gh.models), None)
+
+
+# ...AND THROUGH THE REAL TARGETING GATE, which is the half that was missing.
+# Every check above asks status_effects.lone_operative_range() with the board in
+# hand, and that function was right the whole time. Rule 24.24 is ENFORCED in
+# game/shooting.py, through status_effects.targeting_range_limit() - which took
+# no all_tokens at all and so passed the empty default down, making this ability
+# (and the other five conditional sources) a no-op where it counts. The suite was
+# green and a Strike Team 20" away could shoot him (user: "Ghazkhull hat
+# eigentlich Lone Op durch seine Fähigkeit. die kommt wahrscheinlich nirgends
+# an"). See test_event_chain_wiring.py section 33 for the set difference that
+# keeps the board from being dropped again; these are the behaviour half.
+def ladz_shot(gap_to_friend, shooter_gap):
+    """Can a T'au Strike Team `shooter_gap` inches away select Ghazghkull as a
+    target, with a Boyz mob `gap_to_friend` inches from him?"""
+    st = GameState()
+    gh = build(orks.GHAZGHKULL_THRAKA, ORK, name="2 Ghazghkull Thraka 8b")
+    gh.models[0].x_in, gh.models[0].y_in = 20.0, 20.0
+    st.add_token(gh.models[0])
+    friend = build(orks.BOYZ, ORK, name="2 Boyz 8b")
+    edge = 20.0 + gh.models[0].radius_in + gap_to_friend + friend.models[0].radius_in
+    for i, m in enumerate(friend.models):
+        m.x_in, m.y_in = edge + (i % 2) * 0.1, 20.0 + (i // 2) * 2.0 if i else 20.0
+        st.add_token(m)
+    shooter = build(tau.STRIKE_TEAM, FOE, name="1 Strike Team 8b")
+    line_up(shooter, x=20.0, y=20.0 + shooter_gap + 2.0)
+    for m in shooter.models:
+        st.add_token(m)
+
+    tt = TurnTracker(first_player=FOE)
+    while tt.phase != PHASE_SHOOTING:
+        tt.advance_phase()
+    sc = ShootingController(dice_manager=tk.RecordingDice(), turn_tracker=tt,
+                            all_tokens=st.tokens, decision_manager=DecisionManager(),
+                            obstacles=[])
+    return (sc._is_valid_target_squad(gh, st.tokens, attacking_squad=shooter),
+            status_effects.targeting_range_limit(gh, st.tokens))
+
+
+_allowed, _limit = ladz_shot(gap_to_friend=2.5, shooter_gap=20.0)
+c.eq("the gate itself sees the granted 12\" (not just the module function)", _limit, 12)
+c.true("beside his Boyz, he cannot be selected as a target from 20\"", not _allowed)
+_allowed, _limit = ladz_shot(gap_to_friend=2.5, shooter_gap=8.0)
+c.true("...but he can from 8\", inside the granted range", _allowed)
+_allowed, _limit = ladz_shot(gap_to_friend=6.0, shooter_gap=20.0)
+c.eq("with the Boyz 6\" off, the gate has no limit to apply", _limit, None)
+c.true("...so the same 20\" shot is legal", _allowed)
+
 
 
 # ===========================================================================

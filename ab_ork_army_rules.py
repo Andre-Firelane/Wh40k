@@ -212,21 +212,16 @@ PROBES = [
      [(ACT, '    "war_cry_called",', "    # AB-PROBE")], (T, SCENE)),
 
     # ------------------------------------------------------ the AI's verdict
-    ("the round-3 fallback waits a round longer",
-     [(AG, "    return own_phase and (turn_tracker.battle_round or 0) >= WAR_CRY_FALLBACK_ROUND",
-       "    return own_phase and (turn_tracker.battle_round or 0) > WAR_CRY_FALLBACK_ROUND" + MARK)], (T,)),
-    ("the fallback also fires in the opponent's Command phase",
-     [(AG, "    return own_phase and (turn_tracker.battle_round or 0) >= WAR_CRY_FALLBACK_ROUND",
-       "    return (turn_tracker.battle_round or 0) >= WAR_CRY_FALLBACK_ROUND" + MARK)], (T,)),
-    ("the enemy's Command phase measures the full charge reach instead of 18\"",
-     [(AG, "            return WAR_CRY_ENEMY_TURN_REACH_IN",
-       "            return observation.advance_reach_in(squad) + CHARGE_RANGE_IN" + MARK)], (T,)),
-    ("an army down to one unit can never reach the two-unit floor",
-     [(AG, "        needed = min(len(own), max(WAR_CRY_MIN_UNITS, math.ceil(WAR_CRY_MIN_SHARE * len(own))))",
-       "        needed = max(WAR_CRY_MIN_UNITS, math.ceil(WAR_CRY_MIN_SHARE * len(own)))" + MARK)], (T,)),
-    ("the 40% share is dropped (two units always suffice)",
-     [(AG, "        needed = min(len(own), max(WAR_CRY_MIN_UNITS, math.ceil(WAR_CRY_MIN_SHARE * len(own))))",
-       "        needed = min(len(own), max(WAR_CRY_MIN_UNITS, 1))" + MARK)], (T,)),
+    # The policy is the CLOCK and nothing else (restored 2026-09-21), so there
+    # are two ways to break it and both are here: the wrong round, and losing
+    # the "own Command phase" half. The three probes that used to stand here
+    # (the round-3 fallback, the 18" enemy-turn reach, the 40% share) went with
+    # the reach heuristic they measured - it is what called War Cry in round 1.
+    ("War Cry is called a round early (back to round 1)",
+     [(AG, "WAR_CRY_ROUND = 2", "WAR_CRY_ROUND = 1" + MARK)], (T,)),
+    ("the verdict also fires in the OPPONENT's Command phase",
+     [(AG, lines("    if turn_tracker.turn_owner != player:", "        return False"),
+       "    pass" + MARK)], (T,)),
     ("the AI's charge planning forgets that riled up keeps the charge",
      [(AG, "        waaagh_charge_ok = riled_up.is_riled_up(squad)",
        "        waaagh_charge_ok = False" + MARK)], (ADVANCE,)),

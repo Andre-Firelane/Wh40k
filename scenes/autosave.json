@@ -3,863 +3,1718 @@
  "map": "map4",
  "squads": [
   {
-   "name": "1 Monolith 1",
+   "name": "1 Broadside Battlesuits 1",
    "owner": "Player 1",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 19.563838469273247,
-     "y_in": 24.188350110227738,
-     "wounds": 18,
-     "model": "Monolith",
+     "x_in": 11.779102134617993,
+     "y_in": 20.716449693767164,
+     "wounds": 8,
+     "model": "Broadside Shas'vre",
      "weapons": [
-      "Death Ray",
-      "Death Ray",
-      "Death Ray",
-      "Death Ray",
-      "Particle Whip",
-      "Portal of Exile"
+      "Crushing Bulk",
+      "High-yield Missile Pods",
+      "Missile Pod",
+      "Missile Pod",
+      "Seeker Missile",
+      "Twin Plasma Rifle"
+     ]
+    },
+    {
+     "x_in": 10.217139529157748,
+     "y_in": 18.813368818148934,
+     "wounds": 8,
+     "model": "Broadside Shas'ui",
+     "weapons": [
+      "Crushing Bulk",
+      "High-yield Missile Pods",
+      "Missile Pod",
+      "Missile Pod",
+      "Seeker Missile",
+      "Twin Plasma Rifle"
+     ]
+    },
+    {
+     "x_in": 8.655176923697503,
+     "y_in": 16.910287942530704,
+     "wounds": 8,
+     "model": "Broadside Shas'ui",
+     "weapons": [
+      "Crushing Bulk",
+      "High-yield Missile Pods",
+      "Missile Pod",
+      "Missile Pod",
+      "Seeker Missile",
+      "Twin Plasma Rifle"
      ]
     }
    ]
   },
   {
-   "name": "2 Defiler 1",
+   "name": "2 Kill Rig 1",
    "owner": "Player 2",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 23.252424849187488,
-     "y_in": 21.27556269644156,
-     "wounds": 1,
-     "model": "Defiler",
+     "x_in": 19.099769553618078,
+     "y_in": 15.876437880301417,
+     "wounds": 16,
+     "model": "Kill Rig",
      "weapons": [
-      "Excruciator Cannon",
-      "Excruciator Cannon",
-      "Hades Battle Cannon",
-      "Heavy Missile Launcher - krak",
-      "Heavy Reaper Autocannon",
-      "Shearing Claws - strike"
+      "'Eavy Lobba",
+      "Butcha Boyz",
+      "Savage Horns and Hooves",
+      "Saw Blades",
+      "Stikka Kannon",
+      "Wurrtower"
      ]
     }
    ]
   },
   {
-   "name": "2 Daemon Prince of Nurgle 1",
-   "owner": "Player 2",
-   "placement": "board",
-   "embarked_in": null,
-   "battle_shocked": false,
-   "models": [
-    {
-     "x_in": 18.594955691281207,
-     "y_in": 16.67267459426411,
-     "wounds": 10,
-     "model": "Daemon Prince of Nurgle",
-     "weapons": [
-      "Hellforged Weapons - strike",
-      "Infernal Cannon"
-     ]
-    }
-   ]
-  },
-  {
-   "name": "1 Immortals 1 + Plasmancer",
+   "name": "1 Darkstrider 1",
    "owner": "Player 1",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 9.2406767866932,
-     "y_in": 24.147706523248146,
-     "wounds": 1,
-     "model": "Immortal",
+     "x_in": 6.567567567567567,
+     "y_in": 34.9054054054054,
+     "wounds": 3,
+     "model": "Darkstrider",
      "weapons": [
       "Close Combat Weapon",
-      "Tesla Carbine"
-     ]
-    },
-    {
-     "x_in": 7.711661892740599,
-     "y_in": 22.020899481073705,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Tesla Carbine"
-     ]
-    },
-    {
-     "x_in": 9.319078397423253,
-     "y_in": 22.193992423896233,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Tesla Carbine"
-     ]
-    },
-    {
-     "x_in": 9.338336676993501,
-     "y_in": 27.959744302852194,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Tesla Carbine"
-     ]
-    },
-    {
-     "x_in": 9.60758562154386,
-     "y_in": 25.878842978033894,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Tesla Carbine"
-     ]
-    },
-    {
-     "x_in": 6.417158616393696,
-     "y_in": 20.616086520100787,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Tesla Carbine"
-     ]
-    },
-    {
-     "x_in": 8.426221282871676,
-     "y_in": 20.448747058120937,
-     "wounds": 4,
-     "model": "Plasmancer",
-     "weapons": [
-      "Plasmic Lance",
-      "Plasmic Lance"
-     ]
-    },
-    {
-     "x_in": 7.556738983525209,
-     "y_in": 23.906919968784607,
-     "wounds": 1,
-     "model": "Immortal",
-     "weapons": [
-      "Close Combat Weapon",
-      "Tesla Carbine"
+      "Shade"
      ]
     }
    ]
   },
   {
-   "name": "2 Plagueburst Crawler 1",
+   "name": "2 Gunwagon 1",
    "owner": "Player 2",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 33.82543331181051,
-     "y_in": 24.616987410489646,
-     "wounds": 2,
-     "model": "Plagueburst Crawler",
+     "x_in": 13.801712754081306,
+     "y_in": 5.377762396617321,
+     "wounds": 16,
+     "model": "Gunwagon",
      "weapons": [
-      "Armoured Tracks",
-      "Entropy Cannon",
-      "Entropy Cannon",
-      "Heavy Slugger",
-      "Plagueburst Mortar"
+      "Big Shoota",
+      "Big Shoota",
+      "Big Shoota",
+      "Big Shoota",
+      "Crushin' Bulk",
+      "Grabbin' Klaw",
+      "Lobba",
+      "Wreckin' Ball",
+      "Zzap Gun"
      ]
     }
    ]
   },
   {
-   "name": "1 Necron Warriors 1 + Technomancer",
+   "name": "1 Kroot Carnivores 1",
    "owner": "Player 1",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 8.067904810749555,
-     "y_in": 9.523173761832037,
+     "x_in": 9.447918827124813,
+     "y_in": 10.749558094293047,
      "wounds": 1,
-     "model": "Necron Warrior",
+     "model": "Long-quill",
      "weapons": [
       "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 10.148576551102888,
-     "y_in": 12.247506544165175,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 10.974047253226729,
-     "y_in": 13.328338686514378,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 7.242434108625712,
-     "y_in": 8.442341619482832,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 11.799517955350572,
-     "y_in": 14.409170828863585,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 6.4169634065018695,
-     "y_in": 7.361509477133627,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 9.120283082756995,
-     "y_in": 10.87329853754328,
-     "wounds": 4,
-     "model": "Technomancer",
-     "weapons": [
-      "Staff of Light",
-      "Staff of Light"
-     ]
-    },
-    {
-     "x_in": 9.869828450806384,
-     "y_in": 9.186995100603058,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 7.672526435686441,
-     "y_in": 12.063345642082782,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
-     ]
-    },
-    {
-     "x_in": 11.17292943471382,
-     "y_in": 11.303707014576174,
-     "wounds": 1,
-     "model": "Necron Warrior",
-     "weapons": [
-      "Close Combat Weapon",
-      "Gauss Flayer"
+      "Kroot Pistol",
+      "Kroot Rifle"
      ]
     }
    ]
   },
   {
-   "name": "2 Foetid Bloat-drone 1",
+   "name": "2 Battlewagon 1",
    "owner": "Player 2",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 32.886793637856165,
-     "y_in": 19.854966385136887,
-     "wounds": 10,
-     "model": "Foetid Bloat-drone",
+     "x_in": 33.8,
+     "y_in": 14.3,
+     "wounds": 13,
+     "model": "Battlewagon",
      "weapons": [
-      "Fleshmower",
-      "Plague Probe"
+      "Big Shoota",
+      "Big Shoota",
+      "Big Shoota",
+      "Big Shoota",
+      "Crushin' Bulk",
+      "Grabbin' Klaw",
+      "Wreckin' Ball"
      ]
     }
    ]
   },
   {
-   "name": "1 Skorpekh Destroyers 1 + Skorpekh Lord",
+   "name": "1 Pathfinder Team 1",
    "owner": "Player 1",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": true,
    "models": [
     {
-     "x_in": 33.65546572771626,
-     "y_in": 31.5318447902139,
-     "wounds": 7,
-     "model": "Skorpekh Lord",
+     "x_in": 19.09459459459459,
+     "y_in": 35.6554054054054,
+     "wounds": 1,
+     "model": "Pathfinder Shas'ui",
      "weapons": [
-      "Enmitic Annihilator",
-      "Flensing Claw",
-      "Hyperphase Harvester"
+      "Close Combat Weapon",
+      "Pulse Carbine",
+      "Pulse Pistol",
+      "Semi-automatic Grenade Launcher - EMP",
+      "Twin Pulse Carbine",
+      "Twin Pulse Carbine"
+     ]
+    },
+    {
+     "x_in": 17.69720304074639,
+     "y_in": 37.28569194562727,
+     "wounds": 1,
+     "model": "Pathfinder",
+     "weapons": [
+      "Close Combat Weapon",
+      "Ion Rifle - Standard",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 17.506702336249376,
+     "y_in": 33.22598186967942,
+     "wounds": 1,
+     "model": "Pathfinder",
+     "weapons": [
+      "Close Combat Weapon",
+      "Ion Rifle - Standard",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 17.512927549275254,
+     "y_in": 35.440082549734726,
+     "wounds": 1,
+     "model": "Pathfinder",
+     "weapons": [
+      "Close Combat Weapon",
+      "Ion Rifle - Standard",
+      "Pulse Pistol"
      ]
     }
    ]
   },
   {
-   "name": "2 Foetid Bloat-drone 2",
+   "name": "2 Beast Snagga Boyz 2 + Beastboss + Weirdboy",
    "owner": "Player 2",
    "placement": "board",
    "embarked_in": null,
    "battle_shocked": false,
    "models": [
     {
-     "x_in": 21.12838699230298,
-     "y_in": 13.42765474382536,
-     "wounds": 10,
-     "model": "Foetid Bloat-drone",
-     "weapons": [
-      "Fleshmower",
-      "Plague Probe"
-     ]
-    }
-   ]
-  },
-  {
-   "name": "2 Myphitic Blight-hauler 1",
-   "owner": "Player 2",
-   "placement": "board",
-   "embarked_in": null,
-   "battle_shocked": false,
-   "models": [
-    {
-     "x_in": 50.16,
-     "y_in": 8.61,
-     "wounds": 10,
-     "model": "Myphitic Blight-hauler",
-     "weapons": [
-      "Bile Spurt",
-      "Gnashing Maw",
-      "Missile Launcher - krak",
-      "Multi-melta"
-     ]
-    }
-   ]
-  },
-  {
-   "name": "2 Myphitic Blight-hauler 2",
-   "owner": "Player 2",
-   "placement": "board",
-   "embarked_in": null,
-   "battle_shocked": false,
-   "models": [
-    {
-     "x_in": 30.51772778584108,
-     "y_in": 27.601267479922683,
-     "wounds": 10,
-     "model": "Myphitic Blight-hauler",
-     "weapons": [
-      "Bile Spurt",
-      "Gnashing Maw",
-      "Missile Launcher - krak",
-      "Multi-melta"
-     ]
-    }
-   ]
-  },
-  {
-   "name": "2 Chaos Spawn 1",
-   "owner": "Player 2",
-   "placement": "board",
-   "embarked_in": null,
-   "battle_shocked": false,
-   "models": [
-    {
-     "x_in": 22.411638422205986,
-     "y_in": 15.180988253479594,
-     "wounds": 4,
-     "model": "Chaos Spawn",
-     "weapons": [
-      "Hideous Mutations"
-     ]
-    },
-    {
-     "x_in": 24.446226940726596,
-     "y_in": 16.242192447261402,
-     "wounds": 4,
-     "model": "Chaos Spawn",
-     "weapons": [
-      "Hideous Mutations"
-     ]
-    }
-   ]
-  },
-  {
-   "name": "2 Plague Marines 1 + Malignant Plaguecaster",
-   "owner": "Player 2",
-   "placement": "board",
-   "embarked_in": null,
-   "battle_shocked": false,
-   "models": [
-    {
-     "x_in": 47.625986875814384,
-     "y_in": 23.289491696975606,
-     "wounds": 2,
-     "model": "Plague Champion",
-     "weapons": [
-      "Boltgun",
-      "Plague Knives"
-     ]
-    },
-    {
-     "x_in": 43.83156921778939,
-     "y_in": 19.62023185974227,
-     "wounds": 1,
-     "model": "Plague Marine",
-     "weapons": [
-      "Heavy Plague Weapon",
-      "Plague Knives"
-     ]
-    },
-    {
-     "x_in": 45.14564545386568,
-     "y_in": 19.62891181388249,
-     "wounds": 2,
-     "model": "Plague Marine",
-     "weapons": [
-      "Heavy Plague Weapon",
-      "Plague Knives"
-     ]
-    },
-    {
-     "x_in": 47.2818142608423,
-     "y_in": 21.559219117618248,
-     "wounds": 2,
-     "model": "Plague Marine",
-     "weapons": [
-      "Boltgun",
-      "Plague Knives"
-     ]
-    },
-    {
-     "x_in": 46.24736211608647,
-     "y_in": 20.710266182289917,
-     "wounds": 2,
-     "model": "Plague Marine",
-     "weapons": [
-      "Boltgun",
-      "Plague Knives"
-     ]
-    },
-    {
-     "x_in": 43.44873934812757,
-     "y_in": 21.559219117618248,
-     "wounds": 2,
-     "model": "Plague Marine",
-     "weapons": [
-      "Boltgun",
-      "Plague Knives"
-     ]
-    },
-    {
-     "x_in": 44.4831914928834,
-     "y_in": 20.710266182289917,
-     "wounds": 4,
-     "model": "Malignant Plaguecaster",
-     "weapons": [
-      "Bolt Pistol",
-      "Corrupted Staff",
-      "Plague Wind - witchfire"
-     ]
-    }
-   ]
-  },
-  {
-   "name": "2 Poxwalkers 1",
-   "owner": "Player 2",
-   "placement": "board",
-   "embarked_in": null,
-   "battle_shocked": false,
-   "models": [
-    {
-     "x_in": 28.8594133202162,
-     "y_in": 22.14177558543188,
-     "wounds": 1,
-     "model": "Poxwalker",
-     "weapons": [
-      "Improvised Weapon"
-     ]
-    },
-    {
-     "x_in": 30.267605493302575,
-     "y_in": 21.625060186340406,
-     "wounds": 1,
-     "model": "Poxwalker",
-     "weapons": [
-      "Improvised Weapon"
-     ]
-    },
-    {
-     "x_in": 30.01099806889922,
-     "y_in": 23.10294808118936,
-     "wounds": 1,
-     "model": "Poxwalker",
-     "weapons": [
-      "Improvised Weapon"
-     ]
-    },
-    {
-     "x_in": 29.116020744619554,
-     "y_in": 20.663887690582925,
-     "wounds": 1,
-     "model": "Poxwalker",
-     "weapons": [
-      "Improvised Weapon"
-     ]
-    },
-    {
-     "x_in": 28.602805895812843,
-     "y_in": 23.619663480280835,
-     "wounds": 1,
-     "model": "Poxwalker",
-     "weapons": [
-      "Improvised Weapon"
-     ]
-    },
-    {
-     "x_in": 27.707828571533177,
-     "y_in": 21.180603089674403,
-     "wounds": 1,
-     "model": "Poxwalker",
-     "weapons": [
-      "Improvised Weapon"
-     ]
-    },
-    {
-     "x_in": 31.675797666388956,
-     "y_in": 21.108344787248928,
-     "wounds": 1,
-     "model": "Poxwalker",
-     "weapons": [
-      "Improvised Weapon"
-     ]
-    },
-    {
-     "x_in": 31.815189109914108,
-     "y_in": 22.654990434238595,
-     "wounds": 1,
-     "model": "Poxwalker",
-     "weapons": [
-      "Improvised Weapon"
-     ]
-    },
-    {
-     "x_in": 30.781758311731156,
-     "y_in": 19.838606088065834,
-     "wounds": 1,
-     "model": "Poxwalker",
-     "weapons": [
-      "Improvised Weapon"
-     ]
-    },
-    {
-     "x_in": 31.16258281758224,
-     "y_in": 24.064120576946838,
-     "wounds": 1,
-     "model": "Poxwalker",
-     "weapons": [
-      "Improvised Weapon"
-     ]
-    }
-   ]
-  },
-  {
-   "name": "2 Deathshroud Terminators 1 + Typhus",
-   "owner": "Player 2",
-   "placement": "board",
-   "embarked_in": null,
-   "battle_shocked": false,
-   "models": [
-    {
-     "x_in": 19.338797247280187,
-     "y_in": 20.611422315540814,
-     "wounds": 4,
-     "model": "Deathshroud Champion",
-     "weapons": [
-      "Manreaper - strike",
-      "Plaguespurt Gauntlet"
-     ]
-    },
-    {
-     "x_in": 16.624316935244405,
-     "y_in": 16.664199676467586,
-     "wounds": 4,
-     "model": "Deathshroud Terminator",
-     "weapons": [
-      "Manreaper - strike",
-      "Plaguespurt Gauntlet"
-     ]
-    },
-    {
-     "x_in": 19.343861565114967,
-     "y_in": 14.843920526197302,
-     "wounds": 1,
-     "model": "Deathshroud Terminator",
-     "weapons": [
-      "Manreaper - strike",
-      "Plaguespurt Gauntlet"
-     ]
-    },
-    {
-     "x_in": 17.83923415386974,
-     "y_in": 19.393105545765838,
-     "wounds": 6,
-     "model": "Typhus",
-     "weapons": [
-      "Lakrimae - strike"
-     ]
-    }
-   ]
-  },
-  {
-   "name": "2 Deathshroud Terminators 2",
-   "owner": "Player 2",
-   "placement": "board",
-   "embarked_in": null,
-   "battle_shocked": false,
-   "models": [
-    {
-     "x_in": 12.0,
-     "y_in": 4.0,
-     "wounds": 4,
-     "model": "Deathshroud Champion",
-     "weapons": [
-      "Manreaper - strike",
-      "Plaguespurt Gauntlet"
-     ]
-    },
-    {
-     "x_in": 13.66816149346109,
-     "y_in": 4.1396897696098875,
+     "x_in": 36.59366755546465,
+     "y_in": 10.999892101962764,
      "wounds": 3,
-     "model": "Deathshroud Terminator",
+     "model": "Beast Snagga Nob",
      "weapons": [
-      "Manreaper - strike",
-      "Plaguespurt Gauntlet"
-     ]
-    }
-   ]
-  },
-  {
-   "name": "1 Triarch Praetorians 1",
-   "owner": "Player 1",
-   "placement": "board",
-   "embarked_in": null,
-   "battle_shocked": false,
-   "models": [
-    {
-     "x_in": 35.02981997319536,
-     "y_in": 29.643250199025992,
-     "wounds": 2,
-     "model": "Triarch Praetorian",
-     "weapons": [
-      "Rod of covenant",
-      "Rod of covenant"
+      "Power Snappa",
+      "Slugga"
      ]
     },
     {
-     "x_in": 41.57020957097097,
-     "y_in": 28.160096496951525,
-     "wounds": 2,
-     "model": "Triarch Praetorian",
+     "x_in": 39.64166527589311,
+     "y_in": 7.855883052287664,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
      "weapons": [
-      "Rod of covenant",
-      "Rod of covenant"
+      "Choppa - Standard",
+      "Slugga"
      ]
     },
     {
-     "x_in": 39.25555620678726,
-     "y_in": 28.89058446591906,
-     "wounds": 2,
-     "model": "Triarch Praetorian",
+     "x_in": 35.3185985293687,
+     "y_in": 9.50926760167532,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
      "weapons": [
-      "Rod of covenant",
-      "Rod of covenant"
+      "Choppa - Standard",
+      "Slugga"
      ]
     },
     {
-     "x_in": 39.899471473405235,
-     "y_in": 27.13225673091829,
-     "wounds": 2,
-     "model": "Triarch Praetorian",
+     "x_in": 39.02546132792543,
+     "y_in": 11.022573447521081,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
      "weapons": [
-      "Rod of covenant",
-      "Rod of covenant"
+      "Choppa - Standard",
+      "Slugga"
      ]
     },
     {
-     "x_in": 38.44106368222736,
-     "y_in": 26.38492155987,
-     "wounds": 2,
-     "model": "Triarch Praetorian",
+     "x_in": 42.420484523742225,
+     "y_in": 10.04298584152828,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
      "weapons": [
-      "Rod of covenant",
-      "Rod of covenant"
+      "Choppa - Standard",
+      "Slugga"
      ]
     },
     {
-     "x_in": 39.75540461881997,
-     "y_in": 25.225073609734114,
-     "wounds": 2,
-     "model": "Triarch Praetorian",
+     "x_in": 39.22532489942779,
+     "y_in": 9.188642473535186,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
      "weapons": [
-      "Rod of covenant",
-      "Rod of covenant"
+      "Choppa - Standard",
+      "Slugga"
      ]
     },
     {
-     "x_in": 39.288799450030524,
-     "y_in": 31.164482455687036,
-     "wounds": 2,
-     "model": "Triarch Praetorian",
+     "x_in": 38.008791928762484,
+     "y_in": 11.812808061830658,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
      "weapons": [
-      "Rod of covenant",
-      "Rod of covenant"
+      "Choppa - Standard",
+      "Slugga"
      ]
     },
     {
-     "x_in": 37.807923424845995,
-     "y_in": 27.88999730566454,
-     "wounds": 2,
-     "model": "Triarch Praetorian",
+     "x_in": 37.80029878509323,
+     "y_in": 9.294120971236572,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
      "weapons": [
-      "Rod of covenant",
-      "Rod of covenant"
+      "Choppa - Standard",
+      "Slugga"
      ]
     },
     {
-     "x_in": 36.50042107165215,
-     "y_in": 29.05128933905224,
-     "wounds": 2,
-     "model": "Triarch Praetorian",
+     "x_in": 34.72225553627681,
+     "y_in": 5.1757769190900165,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
      "weapons": [
-      "Rod of covenant",
-      "Rod of covenant"
+      "Choppa - Standard",
+      "Slugga"
      ]
     },
     {
-     "x_in": 37.88596526449364,
-     "y_in": 29.822830861454175,
-     "wounds": 2,
-     "model": "Triarch Praetorian",
+     "x_in": 34.82392602063382,
+     "y_in": 8.143839305625503,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
      "weapons": [
-      "Rod of covenant",
-      "Rod of covenant"
-     ]
-    }
-   ]
-  },
-  {
-   "name": "1 C'tan Shard of the Void Dragon 1",
-   "owner": "Player 1",
-   "placement": "board",
-   "embarked_in": null,
-   "battle_shocked": false,
-   "models": [
-    {
-     "x_in": 45.365276804484935,
-     "y_in": 22.83980850472843,
-     "wounds": 11,
-     "model": "C'tan Shard of the Void Dragon",
-     "weapons": [
-      "Canoptek Tail Blades",
-      "Spear of the Void Dragon",
-      "Spear of the Void Dragon - Strike",
-      "Voltaic Storm"
-     ]
-    }
-   ]
-  },
-  {
-   "name": "1 Lychguard 1 + Overlord",
-   "owner": "Player 1",
-   "placement": "board",
-   "embarked_in": null,
-   "battle_shocked": false,
-   "models": [
-    {
-     "x_in": 3.5798187670425783,
-     "y_in": 21.415792465505653,
-     "wounds": 2,
-     "model": "Lychguard",
-     "weapons": [
-      "Hyperphase Sword"
+      "Choppa - Standard",
+      "Slugga"
      ]
     },
     {
-     "x_in": 5.176886629711964,
-     "y_in": 21.54115032814842,
-     "wounds": 2,
-     "model": "Lychguard",
-     "weapons": [
-      "Hyperphase Sword"
-     ]
-    },
-    {
-     "x_in": 4.743883557888842,
-     "y_in": 19.603002428815042,
+     "x_in": 33.54441090170633,
+     "y_in": 9.760000000000002,
      "wounds": 6,
-     "model": "Overlord",
+     "model": "Beastboss",
      "weapons": [
-      "Voidscythe"
+      "Beast Snagga Klaw and Beastchoppa",
+      "Shoota"
+     ]
+    },
+    {
+     "x_in": 40.822098631887044,
+     "y_in": 8.954569201817051,
+     "wounds": 4,
+     "model": "Weirdboy",
+     "weapons": [
+      "Copper Staff",
+      "Power Vomit"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "1 Riptide Battlesuit 1",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 21.840442053826777,
+     "y_in": 25.30345201798357,
+     "wounds": 14,
+     "model": "Riptide Battlesuit",
+     "weapons": [
+      "Ion Accelerator - Standard",
+      "Missile Pod",
+      "Missile Pod",
+      "Riptide Fists",
+      "Twin Fusion Blaster"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2 Boyz 2",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 45.40519202767057,
+     "y_in": 27.945585138193643,
+     "wounds": 3,
+     "model": "Nob",
+     "weapons": [
+      "Kombi-skorcha - Shoota",
+      "Power Klaw"
+     ]
+    },
+    {
+     "x_in": 46.81338420075695,
+     "y_in": 27.42886973910217,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Big Shoota",
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 46.556776776353594,
+     "y_in": 28.906757633951123,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Rokkit Launcha - Blasta",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 45.66179945207393,
+     "y_in": 26.467697243344688,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Burna",
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 48.22157637384333,
+     "y_in": 26.91215434001069,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Shoota",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 48.36096781736848,
+     "y_in": 28.458799987000358,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Shoota",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 47.32753701918553,
+     "y_in": 25.642415640827597,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Shoota",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 47.708361525036615,
+     "y_in": 29.8679301297086,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Shoota",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 45.918406876477285,
+     "y_in": 24.989809348495733,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Shoota",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 44.371761229487625,
+     "y_in": 25.129200792020885,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Shoota",
+      "Slugga"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "1 The Twin Lance 1",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 39.55799666877202,
+     "y_in": 31.125126714486644,
+     "wounds": 8,
+     "model": "Ri'Lantar",
+     "weapons": [
+      "Fusion Eliminator",
+      "Fusion Eliminator",
+      "Shardstorm Burst System",
+      "Twin Pulse Blaster",
+      "XV Pulse Pistol",
+      "XV Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 39.73391204291586,
+     "y_in": 34.17657215643485,
+     "wounds": 8,
+     "model": "Ri'Locai",
+     "weapons": [
+      "Ion Scattercannon",
+      "Ion Scattercannon - Standard",
+      "Shardstorm Burst System",
+      "Twin Pulse Blaster",
+      "XV Pulse Pistol",
+      "XV Pulse Pistol"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2 Gretchin 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 46.285714285714285,
+     "y_in": 9.700000000000001,
+     "wounds": 1,
+     "model": "Gretchin",
+     "weapons": [
+      "Grot Blasta",
+      "Scavenged Shivs"
+     ]
+    },
+    {
+     "x_in": 47.69390645880066,
+     "y_in": 9.183284600908525,
+     "wounds": 1,
+     "model": "Gretchin",
+     "weapons": [
+      "Grot Blasta",
+      "Scavenged Shivs"
+     ]
+    },
+    {
+     "x_in": 47.437299034397306,
+     "y_in": 10.66117249575748,
+     "wounds": 1,
+     "model": "Gretchin",
+     "weapons": [
+      "Grot Blasta",
+      "Scavenged Shivs"
+     ]
+    },
+    {
+     "x_in": 46.54232171011764,
+     "y_in": 8.222112105151046,
+     "wounds": 1,
+     "model": "Gretchin",
+     "weapons": [
+      "Grot Blasta",
+      "Scavenged Shivs"
+     ]
+    },
+    {
+     "x_in": 46.02910686131093,
+     "y_in": 11.177887894848956,
+     "wounds": 1,
+     "model": "Gretchin",
+     "weapons": [
+      "Grot Blasta",
+      "Scavenged Shivs"
+     ]
+    },
+    {
+     "x_in": 49.102098631887046,
+     "y_in": 8.666569201817051,
+     "wounds": 1,
+     "model": "Gretchin",
+     "weapons": [
+      "Grot Blasta",
+      "Scavenged Shivs"
+     ]
+    },
+    {
+     "x_in": 49.241490075412194,
+     "y_in": 10.213214848806714,
+     "wounds": 1,
+     "model": "Gretchin",
+     "weapons": [
+      "Grot Blasta",
+      "Scavenged Shivs"
+     ]
+    },
+    {
+     "x_in": 48.20805927722924,
+     "y_in": 7.396830502633955,
+     "wounds": 1,
+     "model": "Gretchin",
+     "weapons": [
+      "Grot Blasta",
+      "Scavenged Shivs"
+     ]
+    },
+    {
+     "x_in": 46.798929134520996,
+     "y_in": 6.744224210302091,
+     "wounds": 1,
+     "model": "Gretchin",
+     "weapons": [
+      "Grot Blasta",
+      "Scavenged Shivs"
+     ]
+    },
+    {
+     "x_in": 45.25228348753134,
+     "y_in": 6.883615653827244,
+     "wounds": 1,
+     "model": "Gretchin",
+     "weapons": [
+      "Grot Blasta",
+      "Scavenged Shivs"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "1 Devilfish 2",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 12.749145361577792,
+     "y_in": 25.893235491705855,
+     "wounds": 13,
+     "model": "Devilfish",
+     "weapons": [
+      "Accelerator Burst Cannon",
+      "Armoured Hull",
+      "Seeker Missile",
+      "Seeker Missile",
+      "Twin Pulse Carbine",
+      "Twin Pulse Carbine"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2 Ghazghkull Thraka 1",
+   "owner": "Player 2",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 42.303671337473844,
+     "y_in": 5.699981651503924,
+     "wounds": 16,
+     "model": "Ghazghkull Thraka",
+     "weapons": [
+      "Adamantine 'Eadbutt",
+      "Gork's Klaw",
+      "Mork's Roar - Aimed"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "1 Devilfish 1",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 6.187986514896115,
+     "y_in": 10.986564001860371,
+     "wounds": 13,
+     "model": "Devilfish",
+     "weapons": [
+      "Accelerator Burst Cannon",
+      "Armoured Hull",
+      "Seeker Missile",
+      "Seeker Missile",
+      "Twin Pulse Carbine",
+      "Twin Pulse Carbine"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "1 Stealth Battlesuits 2",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 6.663796610616001,
+     "y_in": 21.511450312080356,
+     "wounds": 2,
+     "model": "Stealth Shas'vre",
+     "weapons": [
+      "Battlesuit Fists",
+      "Fusion Blaster",
+      "Twin Pulse Carbine"
+     ]
+    },
+    {
+     "x_in": 4.540761778904961,
+     "y_in": 17.66786272202274,
+     "wounds": 2,
+     "model": "Stealth Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Burst Cannon"
+     ]
+    },
+    {
+     "x_in": 6.4360519568356,
+     "y_in": 17.525121202345954,
+     "wounds": 2,
+     "model": "Stealth Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Burst Cannon"
+     ]
+    },
+    {
+     "x_in": 5.413071065818643,
+     "y_in": 19.126998256496538,
+     "wounds": 2,
+     "model": "Stealth Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Burst Cannon"
+     ]
+    },
+    {
+     "x_in": 7.308361243749286,
+     "y_in": 18.984256736819752,
+     "wounds": 2,
+     "model": "Stealth Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Burst Cannon"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "1 Stealth Battlesuits 1",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 10.244594594594592,
+     "y_in": 33.59810087333988,
+     "wounds": 2,
+     "model": "Stealth Shas'vre",
+     "weapons": [
+      "Battlesuit Fists",
+      "Fusion Blaster",
+      "Twin Pulse Carbine"
+     ]
+    },
+    {
+     "x_in": 10.18104189241076,
+     "y_in": 35.76301029078158,
+     "wounds": 2,
+     "model": "Stealth Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Burst Cannon"
+     ]
+    },
+    {
+     "x_in": 5.436532744848938,
+     "y_in": 32.90698361743497,
+     "wounds": 2,
+     "model": "Stealth Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Burst Cannon"
+     ]
+    },
+    {
+     "x_in": 8.452892836900887,
+     "y_in": 34.68744409198898,
+     "wounds": 2,
+     "model": "Stealth Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Burst Cannon"
+     ]
+    },
+    {
+     "x_in": 6.31779910663832,
+     "y_in": 31.222979579560203,
+     "wounds": 2,
+     "model": "Stealth Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Burst Cannon"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "1 Crisis Sunforge Battlesuits 1 + Commander Farsight",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 2.671581001791095,
+     "y_in": 4.452926781485821,
+     "wounds": 5,
+     "model": "Crisis Sunforge Shas'vre",
+     "weapons": [
+      "Battlesuit Fists",
+      "Fusion Blaster",
+      "Fusion Blaster"
+     ]
+    },
+    {
+     "x_in": 2.6116581446311176,
+     "y_in": 6.490742015611428,
+     "wounds": 5,
+     "model": "Crisis Sunforge Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Fusion Blaster",
+      "Fusion Blaster",
+      "Twin Pulse Carbine"
+     ]
+    },
+    {
+     "x_in": 3.081796932067202,
+     "y_in": 8.583007924120787,
+     "wounds": 5,
+     "model": "Crisis Sunforge Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Fusion Blaster",
+      "Fusion Blaster",
+      "Twin Pulse Carbine"
+     ]
+    },
+    {
+     "x_in": 2.995224844777209,
+     "y_in": 2.1435694537749987,
+     "wounds": 8,
+     "model": "Commander Farsight",
+     "weapons": [
+      "Dawn Blade - Strike",
+      "Dawn Blade - Sweep",
+      "High-intensity Plasma Rifle"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "1 Breacher Team 1 + Cadre Fireblade",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 10.106089472055535,
+     "y_in": 8.741178097048373,
+     "wounds": 2,
+     "model": "Breacher Fire Warrior Shas'ui",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 9.700370533937111,
+     "y_in": 13.524046502798056,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 10.80939984124811,
+     "y_in": 10.44036399572158,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 5.519666227739086,
+     "y_in": 6.292473758139453,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 10.596408308900925,
+     "y_in": 12.344596019597196,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 9.080498452325084,
+     "y_in": 12.093001243765773,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 8.80971109735723,
+     "y_in": 9.105247202953592,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 6.0868465202703455,
+     "y_in": 7.8458789109732585,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 7.6170021672185335,
+     "y_in": 8.110768374698555,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 6.998933162118364,
+     "y_in": 6.6909594976853155,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 8.70899128231391,
+     "y_in": 7.410867716257644,
+     "wounds": 3,
+     "model": "Cadre Fireblade",
+     "weapons": [
+      "Close Combat Weapon",
+      "Fireblade Pulse Rifle",
+      "Twin Pulse Carbine",
+      "Twin Pulse Carbine"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "1 Breacher Team 2 + Cadre Fireblade",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 16.263689520341014,
+     "y_in": 27.336277194977004,
+     "wounds": 2,
+     "model": "Breacher Fire Warrior Shas'ui",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 17.246925088566442,
+     "y_in": 26.248767505555268,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 16.93312650296258,
+     "y_in": 24.72207121079014,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 16.28460942604794,
+     "y_in": 23.38359774688647,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 15.364133574943288,
+     "y_in": 22.14969252235027,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 13.857900364044763,
+     "y_in": 21.689592269133378,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 15.949890934737157,
+     "y_in": 25.914149139579354,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 15.385053480650212,
+     "y_in": 24.408366492687716,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 14.401817912424786,
+     "y_in": 23.195374916025013,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 13.042024041474722,
+     "y_in": 23.007152085163558,
+     "wounds": 1,
+     "model": "Breacher Fire Warrior",
+     "weapons": [
+      "Close Combat Weapon",
+      "Pulse Blaster",
+      "Pulse Pistol"
+     ]
+    },
+    {
+     "x_in": 11.493951019162354,
+     "y_in": 23.195374916025013,
+     "wounds": 3,
+     "model": "Cadre Fireblade",
+     "weapons": [
+      "Close Combat Weapon",
+      "Fireblade Pulse Rifle",
+      "Twin Pulse Carbine",
+      "Twin Pulse Carbine"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "1 Crisis Starscythe Battlesuits 1 + Commander in Coldstar Battlesuit",
+   "owner": "Player 1",
+   "placement": "board",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 18.87876664330764,
+     "y_in": 27.00241847966513,
+     "wounds": 5,
+     "model": "Crisis Starscythe Shas'vre",
+     "weapons": [
+      "Battlesuit Fists",
+      "Burst Cannon",
+      "Burst Cannon"
+     ]
+    },
+    {
+     "x_in": 22.916604481145477,
+     "y_in": 28.40267169655315,
+     "wounds": 5,
+     "model": "Crisis Starscythe Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Burst Cannon",
+      "Burst Cannon",
+      "Twin Pulse Carbine"
+     ]
+    },
+    {
+     "x_in": 17.896589871941675,
+     "y_in": 29.00278021807658,
+     "wounds": 5,
+     "model": "Crisis Starscythe Shas'ui",
+     "weapons": [
+      "Battlesuit Fists",
+      "Burst Cannon",
+      "Burst Cannon",
+      "Twin Pulse Carbine"
+     ]
+    },
+    {
+     "x_in": 20.479351011459574,
+     "y_in": 28.784558937522608,
+     "wounds": 8,
+     "model": "Commander in Coldstar Battlesuit",
+     "weapons": [
+      "Battlesuit Fists",
+      "Burst Cannon",
+      "Burst Cannon",
+      "Cyclic Ion Blaster - Standard",
+      "High-output Burst Cannon"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2 Deffkoptas 1",
+   "owner": "Player 2",
+   "placement": "reserves",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4,
+     "model": "Deffkopta",
+     "weapons": [
+      "Choppa",
+      "Rokkit Launcha - Blasta",
+      "Slugga",
+      "Spinnin' Blades"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4,
+     "model": "Deffkopta",
+     "weapons": [
+      "Choppa",
+      "Rokkit Launcha - Blasta",
+      "Slugga",
+      "Spinnin' Blades"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4,
+     "model": "Deffkopta",
+     "weapons": [
+      "Choppa",
+      "Rokkit Launcha - Blasta",
+      "Slugga",
+      "Spinnin' Blades"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2 Deffkoptas 2",
+   "owner": "Player 2",
+   "placement": "reserves",
+   "embarked_in": null,
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4,
+     "model": "Deffkopta",
+     "weapons": [
+      "Choppa",
+      "Rokkit Launcha - Blasta",
+      "Slugga",
+      "Spinnin' Blades"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4,
+     "model": "Deffkopta",
+     "weapons": [
+      "Choppa",
+      "Rokkit Launcha - Blasta",
+      "Slugga",
+      "Spinnin' Blades"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 4,
+     "model": "Deffkopta",
+     "weapons": [
+      "Choppa",
+      "Rokkit Launcha - Blasta",
+      "Slugga",
+      "Spinnin' Blades"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2 Boyz 1 + Warboss + Bigboss",
+   "owner": "Player 2",
+   "placement": "embarked",
+   "embarked_in": "2 Battlewagon 1",
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 3,
+     "model": "Nob",
+     "weapons": [
+      "Big Choppa"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 3,
+     "model": "Nob",
+     "weapons": [
+      "Kombi-skorcha - Shoota",
+      "Power Klaw"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Big Shoota",
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Big Shoota",
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Rokkit Launcha - Blasta",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Rokkit Launcha - Blasta",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Burna",
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Burna",
+      "Choppa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Shoota",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Shoota",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Shoota",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Shoota",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Shoota",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Shoota",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Shoota",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Shoota",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Shoota",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Shoota",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Shoota",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Boy",
+     "weapons": [
+      "Choppa",
+      "Shoota",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 6,
+     "model": "Warboss",
+     "weapons": [
+      "Kombi-skorcha - Shoota",
+      "Power Klaw"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 5,
+     "model": "Bigboss",
+     "weapons": [
+      "Big Choppa",
+      "Slugga"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2 Meganobz 1 + Big Mek in Mega Armour",
+   "owner": "Player 2",
+   "placement": "embarked",
+   "embarked_in": "2 Gunwagon 1",
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 3,
+     "model": "Meganob",
+     "weapons": [
+      "Kombi-weapon - Shoota",
+      "Power Klaw"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 3,
+     "model": "Meganob",
+     "weapons": [
+      "Kombi-weapon - Shoota",
+      "Power Klaw"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 3,
+     "model": "Meganob",
+     "weapons": [
+      "Kombi-weapon - Shoota",
+      "Power Klaw"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 5,
+     "model": "Big Mek in Mega Armour",
+     "weapons": [
+      "Kustom Mega-blasta",
+      "Power Klaw",
+      "Tellyport Blasta"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "2 Beast Snagga Boyz 1",
+   "owner": "Player 2",
+   "placement": "embarked",
+   "embarked_in": "2 Kill Rig 1",
+   "battle_shocked": false,
+   "models": [
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 3,
+     "model": "Beast Snagga Nob",
+     "weapons": [
+      "Power Snappa",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
+     "weapons": [
+      "Choppa - Standard",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
+     "weapons": [
+      "Choppa - Standard",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
+     "weapons": [
+      "Choppa - Standard",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
+     "weapons": [
+      "Choppa - Standard",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
+     "weapons": [
+      "Choppa - Standard",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
+     "weapons": [
+      "Choppa - Standard",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
+     "weapons": [
+      "Choppa - Standard",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
+     "weapons": [
+      "Choppa - Standard",
+      "Slugga"
+     ]
+    },
+    {
+     "x_in": 0.0,
+     "y_in": 0.0,
+     "wounds": 1,
+     "model": "Beast Snagga Boy",
+     "weapons": [
+      "Choppa - Standard",
+      "Slugga"
      ]
     }
    ]
   }
  ],
  "armies": {
-  "Player 1": "necrons_hypercrypt",
-  "Player 2": "death_guard"
+  "Player 1": "tau_montka",
+  "Player 2": "orks"
  },
  "turn": {
-  "battle_round": 3,
-  "phase": "Fight",
+  "battle_round": 2,
+  "phase": "Shooting",
   "turn_owner": "Player 1",
   "active_player": "Player 1"
  },
  "command_points": {
-  "Player 1": 1,
-  "Player 2": 1
+  "Player 1": 3,
+  "Player 2": 4
  },
  "missions": {
   "ledger": {
    "primary_points": {
-    "Player 1": 11,
-    "Player 2": 36
+    "Player 1": 8,
+    "Player 2": 0
    },
    "secondary_points": {
-    "Player 1": 0,
-    "Player 2": 6
+    "Player 1": 3,
+    "Player 2": 0
    },
    "unscored_kills": {
     "Player 1": 0,
@@ -868,37 +1723,38 @@
   },
   "secondary": {
    "deck": [
+    "a_grievous_blow",
+    "a_tempting_target",
     "behind_enemy_lines",
+    "overwhelming_force",
+    "bring_it_down",
+    "assassination",
+    "plunder",
+    "outflank",
+    "defend_stronghold",
+    "centre_ground",
     "no_prisoners",
     "cleanse",
-    "overwhelming_force",
-    "centre_ground",
-    "engage_on_all_fronts",
-    "defend_stronghold",
-    "outflank",
-    "assassination",
-    "a_tempting_target",
-    "plunder"
+    "secure_no_mans_land"
    ],
    "hand": [
-    "secure_no_mans_land",
-    "forward_position",
     "beacon",
-    "bring_it_down",
-    "a_grievous_blow",
+    "forward_position",
     "display_of_might"
    ],
-   "discarded": [],
-   "drawn_round": 3,
-   "scored_round": 3,
+   "discarded": [
+    "engage_on_all_fronts"
+   ],
+   "drawn_round": 2,
+   "scored_round": 2,
    "scored_vp_this_round": 0,
    "destroyed_characters": [],
    "picks": {
-    "beacon": "1 Monolith 1"
+    "beacon": "1 Darkstrider 1"
    }
   },
   "primary": {
-   "points": 11,
+   "points": 8,
    "battle_scored": false,
    "announced": true,
    "trapped": []
@@ -906,226 +1762,220 @@
  },
  "activation": {
   "squads": {
-   "1 Lychguard 1 + Overlord": {
+   "2 Gunwagon 1": {
+    "riled_up_expires_turn": 3
+   },
+   "2 Battlewagon 1": {
+    "riled_up_expires_turn": 3,
+    "intimidating_motivation_round": 1
+   },
+   "2 Beast Snagga Boyz 2 + Beastboss + Weirdboy": {
+    "riled_up_expires_turn": 3,
+    "keep_huntin_round": 1
+   },
+   "2 Boyz 2": {
+    "ammo_runts_used": true
+   },
+   "2 Ghazghkull Thraka 1": {
+    "makari_used": true,
+    "da_boss_round": 2
+   },
+   "1 Crisis Sunforge Battlesuits 1 + Commander Farsight": {
     "set_up_this_turn": true,
-    "eternity_gate_charge_locked": true,
-    "eternity_gate_bearer_started_on_board": true
+    "ingress_locked": true
+   },
+   "1 Breacher Team 1 + Cadre Fireblade": {
+    "set_up_this_turn": true,
+    "charge_locked_until_end_of_turn": true,
+    "disembarked_from": "1 Devilfish 1"
+   },
+   "1 Breacher Team 2 + Cadre Fireblade": {
+    "set_up_this_turn": true,
+    "charge_locked_until_end_of_turn": true,
+    "disembarked_from": "1 Devilfish 2"
+   },
+   "1 Crisis Starscythe Battlesuits 1 + Commander in Coldstar Battlesuit": {
+    "set_up_this_turn": true,
+    "ingress_locked": true
    }
   },
   "controllers": {
    "movement": {
     "moved_squad_ids": [
-     "1 Immortals 1 + Plasmancer",
-     "1 Necron Warriors 1 + Technomancer",
-     "1 Skorpekh Destroyers 1 + Skorpekh Lord",
-     "1 Triarch Praetorians 1"
+     "1 Breacher Team 1 + Cadre Fireblade",
+     "1 Breacher Team 2 + Cadre Fireblade",
+     "1 Broadside Battlesuits 1",
+     "1 Devilfish 1",
+     "1 Devilfish 2",
+     "1 Kroot Carnivores 1",
+     "1 Pathfinder Team 1",
+     "1 Riptide Battlesuit 1",
+     "1 Stealth Battlesuits 1",
+     "1 Stealth Battlesuits 2",
+     "1 The Twin Lance 1"
     ],
     "moved_distance_this_turn": {
-     "1 Triarch Praetorians 1": 10.000000000000002,
-     "1 Skorpekh Destroyers 1 + Skorpekh Lord": 3.374975746777835,
-     "1 Necron Warriors 1 + Technomancer": 5.0170299719502935,
-     "1 Immortals 1 + Plasmancer": 5.000000000000003
+     "1 Kroot Carnivores 1": 6.898717017837365,
+     "1 The Twin Lance 1": 10.000000000000004,
+     "1 Stealth Battlesuits 1": 8.000000000000002,
+     "1 Broadside Battlesuits 1": 2.0192727257230683,
+     "1 Stealth Battlesuits 2": 8.000000000000002,
+     "1 Devilfish 1": 4.498190007840773,
+     "1 Riptide Battlesuit 1": 7.822319988155405,
+     "1 Devilfish 2": 5.75031366383729,
+     "1 Pathfinder Team 1": 2.8656877804035155
     }
    },
    "shooting": {
-    "shot_squad_ids": [
-     "1 C'tan Shard of the Void Dragon 1",
-     "1 Immortals 1 + Plasmancer",
-     "1 Monolith 1",
-     "1 Necron Warriors 1 + Technomancer",
-     "1 Triarch Praetorians 1"
-    ],
     "last_ranged_attack_turn": {
-     "2 Daemon Prince of Nurgle 1": 3,
-     "2 Defiler 1": 3,
-     "2 Myphitic Blight-hauler 1": 1,
-     "2 Myphitic Blight-hauler 2": 3,
-     "2 Plagueburst Crawler 1": 3,
-     "1 Immortals 1 + Plasmancer": 3,
-     "1 Monolith 1": 3,
-     "1 Lokhust Heavy Destroyers 1": 1,
-     "2 Deathshroud Terminators 1 + Typhus": 3,
-     "2 Deathshroud Terminators 2": 3,
-     "1 Triarch Praetorians 1": 3,
-     "1 C'tan Shard of the Void Dragon 1": 3,
-     "1 Hexmark Destroyer 1": 2,
-     "1 Necron Warriors 1 + Technomancer": 3,
-     "2 Plague Marines 1 + Malignant Plaguecaster": 3
+     "1 Riptide Battlesuit 1": 1,
+     "2 Battlewagon 1": 1,
+     "2 Gunwagon 1": 1,
+     "2 Kill Rig 1": 1
     }
+   },
+   "charge": {
+    "charged_squad_ids": [
+     "2 Gunwagon 1",
+     "2 Kill Rig 1"
+    ]
+   },
+   "fight": {
+    "fought_squad_ids": [
+     "1 Kroot Carnivores 1",
+     "2 Gunwagon 1",
+     "2 Kill Rig 1"
+    ]
+   },
+   "pile_in": {
+    "piled_in_squad_ids": [
+     "1 Kroot Carnivores 1",
+     "2 Gunwagon 1",
+     "2 Kill Rig 1"
+    ]
+   },
+   "consolidate": {
+    "consolidated_squad_ids": [
+     "2 Gunwagon 1",
+     "2 Kill Rig 1"
+    ]
    },
    "battle_shock": {
     "rolled_squad_ids": [
-     "1 Lychguard 1 + Overlord",
-     "1 Necron Warriors 1 + Technomancer",
-     "1 Skorpekh Destroyers 1 + Skorpekh Lord"
+     "1 Kroot Carnivores 1",
+     "1 Pathfinder Team 1"
     ]
    }
   }
  },
  "stats": {
   "units": {
-   "1 C'tan Shard of the Void Dragon 1": {
-    "owner": "Player 1",
-    "wounds_dealt": 28,
-    "points_dealt": 300.833,
-    "prevented": 122.0,
-    "distance_in": 0.0
-   },
-   "1 Hexmark Destroyer 1": {
-    "owner": "Player 1",
-    "wounds_dealt": 1,
-    "points_dealt": 13.333,
-    "prevented": 10.0,
-    "distance_in": 0.0
-   },
-   "1 Immortals 1 + Plasmancer": {
-    "owner": "Player 1",
-    "wounds_dealt": 7,
-    "points_dealt": 59.167,
-    "prevented": 28.0,
-    "distance_in": 7.538
-   },
-   "1 Lokhust Heavy Destroyers 1": {
+   "1 Broadside Battlesuits 1": {
     "owner": "Player 1",
     "wounds_dealt": 0,
     "points_dealt": 0.0,
-    "prevented": 60.0,
-    "distance_in": 3.485
-   },
-   "1 Lychguard 1 + Overlord": {
-    "owner": "Player 1",
-    "wounds_dealt": 5,
-    "points_dealt": 87.5,
-    "prevented": 45.0,
-    "distance_in": 3.853
-   },
-   "1 Monolith 1": {
-    "owner": "Player 1",
-    "wounds_dealt": 12,
-    "points_dealt": 210.0,
-    "prevented": 82.0,
-    "distance_in": 8.416
-   },
-   "1 Necron Warriors 1 + Technomancer": {
-    "owner": "Player 1",
-    "wounds_dealt": 5,
-    "points_dealt": 46.167,
-    "prevented": 99.0,
-    "distance_in": 7.464
-   },
-   "1 Skorpekh Destroyers 1 + Skorpekh Lord": {
-    "owner": "Player 1",
-    "wounds_dealt": 9,
-    "points_dealt": 90.0,
-    "prevented": 42.0,
-    "distance_in": 19.951
-   },
-   "1 Triarch Praetorians 1": {
-    "owner": "Player 1",
-    "wounds_dealt": 2,
-    "points_dealt": 28.333,
     "prevented": 0.0,
-    "distance_in": 20.0
+    "distance_in": 2.019
    },
-   "2 Chaos Spawn 1": {
+   "1 Devilfish 1": {
+    "owner": "Player 1",
+    "wounds_dealt": 0,
+    "points_dealt": 0.0,
+    "prevented": 0.0,
+    "distance_in": 4.498
+   },
+   "1 Devilfish 2": {
+    "owner": "Player 1",
+    "wounds_dealt": 0,
+    "points_dealt": 0.0,
+    "prevented": 0.0,
+    "distance_in": 5.75
+   },
+   "1 Kroot Carnivores 1": {
+    "owner": "Player 1",
+    "wounds_dealt": 0,
+    "points_dealt": 0.0,
+    "prevented": 14.0,
+    "distance_in": 17.741
+   },
+   "1 Pathfinder Team 1": {
+    "owner": "Player 1",
+    "wounds_dealt": 0,
+    "points_dealt": 0.0,
+    "prevented": 35.0,
+    "distance_in": 2.866
+   },
+   "1 Riptide Battlesuit 1": {
+    "owner": "Player 1",
+    "wounds_dealt": 3,
+    "points_dealt": 30.0,
+    "prevented": 20.0,
+    "distance_in": 13.876
+   },
+   "1 Stealth Battlesuits 1": {
+    "owner": "Player 1",
+    "wounds_dealt": 0,
+    "points_dealt": 0.0,
+    "prevented": 0.0,
+    "distance_in": 8.0
+   },
+   "1 Stealth Battlesuits 2": {
+    "owner": "Player 1",
+    "wounds_dealt": 0,
+    "points_dealt": 0.0,
+    "prevented": 0.0,
+    "distance_in": 13.756
+   },
+   "1 The Twin Lance 1": {
+    "owner": "Player 1",
+    "wounds_dealt": 0,
+    "points_dealt": 0.0,
+    "prevented": 0.0,
+    "distance_in": 22.231
+   },
+   "2 Battlewagon 1": {
+    "owner": "Player 2",
+    "wounds_dealt": 0,
+    "points_dealt": 0.0,
+    "prevented": 29.0,
+    "distance_in": 7.761
+   },
+   "2 Beast Snagga Boyz 2 + Beastboss + Weirdboy": {
     "owner": "Player 2",
     "wounds_dealt": 0,
     "points_dealt": 0.0,
     "prevented": 0.0,
-    "distance_in": 27.197
+    "distance_in": 6.0
    },
-   "2 Chaos Spawn 2": {
+   "2 Boyz 2": {
     "owner": "Player 2",
-    "wounds_dealt": 4,
-    "points_dealt": 43.75,
-    "prevented": 43.0,
-    "distance_in": 23.491
-   },
-   "2 Daemon Prince of Nurgle 1": {
-    "owner": "Player 2",
-    "wounds_dealt": 5,
-    "points_dealt": 71.562,
+    "wounds_dealt": 0,
+    "points_dealt": 0.0,
     "prevented": 0.0,
-    "distance_in": 22.171
+    "distance_in": 6.0
    },
-   "2 Deathshroud Terminators 1 + Typhus": {
+   "2 Ghazghkull Thraka 1": {
+    "owner": "Player 2",
+    "wounds_dealt": 0,
+    "points_dealt": 0.0,
+    "prevented": 0.0,
+    "distance_in": 8.0
+   },
+   "2 Gunwagon 1": {
+    "owner": "Player 2",
+    "wounds_dealt": 6,
+    "points_dealt": 60.0,
+    "prevented": 0.0,
+    "distance_in": 21.675
+   },
+   "2 Kill Rig 1": {
     "owner": "Player 2",
     "wounds_dealt": 18,
-    "points_dealt": 178.462,
-    "prevented": 18.0,
-    "distance_in": 16.786
-   },
-   "2 Deathshroud Terminators 2": {
-    "owner": "Player 2",
-    "wounds_dealt": 5,
-    "points_dealt": 56.25,
-    "prevented": 57.0,
-    "distance_in": 0.0
-   },
-   "2 Defiler 1": {
-    "owner": "Player 2",
-    "wounds_dealt": 31,
-    "points_dealt": 381.899,
-    "prevented": 156.0,
-    "distance_in": 20.608
-   },
-   "2 Foetid Bloat-drone 1": {
-    "owner": "Player 2",
-    "wounds_dealt": 0,
-    "points_dealt": 0.0,
+    "points_dealt": 117.0,
     "prevented": 0.0,
-    "distance_in": 22.15
-   },
-   "2 Foetid Bloat-drone 2": {
-    "owner": "Player 2",
-    "wounds_dealt": 0,
-    "points_dealt": 0.0,
-    "prevented": 0.0,
-    "distance_in": 25.484
-   },
-   "2 Myphitic Blight-hauler 1": {
-    "owner": "Player 2",
-    "wounds_dealt": 1,
-    "points_dealt": 11.25,
-    "prevented": 0.0,
-    "distance_in": 11.59
-   },
-   "2 Myphitic Blight-hauler 2": {
-    "owner": "Player 2",
-    "wounds_dealt": 4,
-    "points_dealt": 76.364,
-    "prevented": 0.0,
-    "distance_in": 27.728
-   },
-   "2 Plague Marines 1 + Malignant Plaguecaster": {
-    "owner": "Player 2",
-    "wounds_dealt": 3,
-    "points_dealt": 64.688,
-    "prevented": 13.0,
-    "distance_in": 26.903
-   },
-   "2 Plagueburst Crawler 1": {
-    "owner": "Player 2",
-    "wounds_dealt": 11,
-    "points_dealt": 157.557,
-    "prevented": 76.0,
-    "distance_in": 17.786
-   },
-   "2 Poxwalkers 1": {
-    "owner": "Player 2",
-    "wounds_dealt": 0,
-    "points_dealt": 0.0,
-    "prevented": 0.0,
-    "distance_in": 2.108
-   },
-   "2 Poxwalkers 2": {
-    "owner": "Player 2",
-    "wounds_dealt": 2,
-    "points_dealt": 22.5,
-    "prevented": 23.0,
-    "distance_in": 16.927
+    "distance_in": 20.724
    }
   },
-  "unattributed_wounds": 27
+  "unattributed_wounds": 0
  }
 }

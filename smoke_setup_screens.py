@@ -288,8 +288,17 @@ check("Player 1 is on the board as ORKS", results.get("fielded", {}).get("Player
 check("Player 2 is on the board as AELDARI",
       results.get("fielded", {}).get("Player 2") == ["AELDARI"],
       str(results.get("fielded", {}).get("Player 2")))
-check("Player 1 fields the whole Ork list (14 units)",
-      results.get("unit_counts", {}).get("Player 1") == 14,
+# 12, down from 14: Mecha Orks G6 (2026-09-20) replaced the Ork roster
+# wholesale - eight entries out (Warbikers, Stormboyz, Flash Gitz, Tankbustas,
+# Deff Dread, a second Gretchin mob, the Painboy, the Warboss in Mega Armour)
+# for seven in (Ghazghkull, a Bigboss, a Big Mek in Mega Armour, a Weirdboy, a
+# Gunwagon, a second Beast Snagga mob, a ten-Boy mob), and three of the twelve
+# ride in transports rather than standing as their own unit. The number was not
+# pulled along with the list, so this smoke printed FAIL and run_tests --smoke
+# returned 1 for a day - error class 17, "a test that carries its own roster
+# expectation has to be pulled along at every army change".
+check("Player 1 fields the whole Ork list (12 units)",
+      results.get("unit_counts", {}).get("Player 1") == 12,
       str(results.get("unit_counts", {}).get("Player 1")))
 # 11, down from 12: the 2026-09-01 revision took out the Falcon and the Shining
 # Spears and put in the Avatar of Khaine, who has no LEADER line and so stands

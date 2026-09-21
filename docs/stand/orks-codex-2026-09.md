@@ -24,8 +24,12 @@ Plan: `C:\Users\Andre\.claude\plans\transient-munching-boot.md`. Gedruckter Text
 - **War Cry (`game/war_cry.py`):** „At the start of THE Command phase" → in JEDER Command-Phase
   angeboten, dem Phasenbesitzer zuerst; einmal pro Schlacht pro Armee. Mensch: Prompt mit rotem
   Decline. KI: injizierte `agent_driver.war_cry_verdict(player, tracker, tokens)` (0 API-Calls) —
-  eigene Command-Phase ≥ min(alle, max(2, ⌈40 %⌉)) der Waaagh!-Einheiten mit Feind in
-  Move+Advance+12", gegnerische dieselbe Schwelle in 18", sonst eigene Command-Phase ab Runde 3.
+  **seit 2026-09-21 die UHR allein: eigene Command-Phase, `battle_round >= WAR_CRY_ROUND = 2`.**
+  Die bis dahin gebaute Reichweiten-Heuristik (≥ min(alle, max(2, ⌈40 %⌉)) der Waaagh!-Einheiten mit
+  Feind in Move+Advance+12", gegnerisch dieselbe Schwelle in 18", sonst ab Runde 3) ist gestrichen:
+  ihre 12" waren der MAXIMALE 2W6-Charge als gegeben, also feuerte sie direkt nach der Aufstellung.
+  Sie hatte die User-Vorgabe ersetzt, die schon das alte `_maybe_call_waaagh()` trug. Siehe
+  `## Zwei KI-Fragen zur neuen Ork-Liste` in `docs/stand/meldungen-4.md` für die Messung.
   `orks_players` aus `waaagh.qualifying_players()`: `None` = unbeschränkt (Harness), LEERE Menge =
   echte Absage. Die Nutzung steht auf den Einheiten (`Squad.war_cry_called`, gespeichert). Die erste
   Command-Phase bietet `begin_battle()` an, beim Resume nicht (`resuming=True`). **Benannte Grenze:**

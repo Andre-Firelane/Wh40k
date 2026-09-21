@@ -34,11 +34,23 @@ invented: lone_operative_range() already returned max() over the printed values,
 because a model with two sources of the ability keeps the better one - the same
 reading rule 05.04 gives armour and invulnerable saves. Nothing here changes it.
 
-`all_tokens` STAYS OPTIONAL. Every one of these predicates needs the board, and
-lone_operative_range()'s own note explains why the default is empty rather than
-required: a caller that does not pass the board simply never sees a conditional
-grant, which is the safe direction and is what keeps every existing call site
-meaning what it did.
+`all_tokens` IS STILL OPTIONAL IN THE SIGNATURE, AND THAT WAS NOT "THE SAFE
+DIRECTION" - corrected 2026-09-21. This paragraph used to argue that a caller
+which does not pass the board "simply never sees a conditional grant, which is
+the safe direction and is what keeps every existing call site meaning what it
+did". Both halves were wrong in the same way: the ONLY place in the engine that
+enforces rule 24.24 is status_effects.targeting_range_limit(), it took no
+all_tokens at all, and so every one of the six sources granted nothing where it
+counts. A unit that should have been untargetable beyond 12" was shot at from
+20", and every suite stayed green because each source is pinned against
+granted_ranges() with the board in hand and none of them goes through the gate
+(user, about the sixth: "Ghazkhull hat eigentlich Lone Op durch seine Fähigkeit.
+die kommt wahrscheinlich nirgends an").
+
+The default stays - dozens of harnesses and tests call these with a squad alone -
+but it is a CONVENIENCE, not a safety property, and test_event_chain_wiring.py
+section 33 now names any reader in game/, ai/ or main.py that leaves the board
+out.
 """
 
 from game import death_guard_defenders, illuminor, spiritseer
@@ -81,3 +93,41 @@ def granted_ranges(squad, all_tokens=()):
     unit, as a list. Empty when none does."""
     return [range_in for applies, range_in in SOURCES
             if applies(squad, all_tokens)]
+
+
+def would_grant_at(squad, x_in, y_in, all_tokens=()):
+    """Whether any source would be ON if this unit stood at (x_in, y_in).
+
+    For ai/deployment_ai.py, which has to score a drop point BEFORE the unit is
+    on the table: Ghazghkull's whole case for standing at the front is that Da
+    Grand Warlord's Ladz makes him untargetable beyond 12", and that is only
+    true beside an ORKS INFANTRY unit - so the scorer has to be able to ask the
+    question of a POINT, not of the unit's current position.
+
+    Implemented by translating the unit there, asking the real predicates, and
+    putting it back, rather than by re-deriving "within 3" of a friendly X" in
+    ai/. The six predicates differ in exactly the part that would have to be
+    re-derived (which keyword, which distance, and Ghazghkull's "ANOTHER"), and
+    a seventh source must not need a second implementation of itself - the same
+    argument that made this module a fold in the first place. The translation is
+    safe precisely where it is used: during deployment scoring the unit is not
+    on the table yet, so its models are in no other structure, and the restore
+    is in a finally.
+
+    Every predicate tests a cheap ability flag first and returns False, so this
+    costs nothing for the units - almost all of them - that have no source."""
+    if squad is None or not getattr(squad, "models", None):
+        return False
+    models = squad.models
+    n = len(models)
+    dx = x_in - sum(m.x_in for m in models) / n
+    dy = y_in - sum(m.y_in for m in models) / n
+    saved = [(m.x_in, m.y_in) for m in models]
+    try:
+        for m in models:
+            m.x_in += dx
+            m.y_in += dy
+        return bool(granted_ranges(squad, all_tokens))
+    finally:
+        for m, (sx, sy) in zip(models, saved):
+            m.x_in, m.y_in = sx, sy

@@ -2845,4 +2845,70 @@ ck.eq("no statement reads a local its own block only binds further down", sorted
 ck.true("the sweep is live - it read %d files" % _order_scanned, _order_scanned > 300)
 
 
+# ===========================================================================
+print("--- 33. rule 24.24's readers are handed the board ---")
+# ===========================================================================
+# THE SET DIFFERENCE, not a behaviour test - and the one error class this repo
+# keeps paying for: a keyword grant read at two very different places, wired at
+# one of them.
+#
+# LONE OPERATIVE has six CONDITIONAL sources (game/conditional_lone_operative.py)
+# and every one is a question about the BOARD: "while this unit is within 3" of
+# ...". status_effects.lone_operative_range(squad, all_tokens) answers it, and
+# `all_tokens` defaults to () so that "a caller that does not pass the board
+# simply never sees a conditional grant" - which its own module calls "the safe
+# direction". It was not: the ONLY enforcement site in the engine,
+# targeting_range_limit(), took no all_tokens at all and passed that default, so
+# all six granted nothing where it counts (user, about the sixth: "Ghazkhull hat
+# eigentlich Lone Op durch seine Fähigkeit. die kommt wahrscheinlich nirgends
+# an"). Every suite stayed green because each source is pinned against the module
+# function WITH the board in hand, and none of them goes through the gate.
+#
+# A behaviour test cannot see the SEVENTH source, because it does not exist yet.
+# This can: a reader that forgets the board is named here by file and line.
+_LONE_READERS = ("lone_operative_range", "targeting_range_limit")
+
+
+def _boardless_lone_calls(path):
+    try:
+        tree = ast.parse(io.open(path, encoding="utf-8").read())
+    except SyntaxError:
+        return []
+    out = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        fn = node.func
+        name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", None)
+        if name not in _LONE_READERS:
+            continue
+        # The definitions themselves are not calls; a call is boardless when it
+        # passes exactly the squad and nothing else.
+        if len(node.args) >= 2 or any(k.arg == "all_tokens" for k in node.keywords):
+            continue
+        out.append("%s:%d %s() is called without the board"
+                   % (os.path.basename(path), node.lineno, name))
+    return out
+
+
+_lone_paths = ["main.py"]
+for _root in ("game", "ai"):
+    for _dirpath, _dirs, _files in os.walk(_root):
+        _lone_paths += [os.path.join(_dirpath, _f) for _f in _files if _f.endswith(".py")]
+_lone_boardless = []
+for _lone_path in _lone_paths:
+    _lone_boardless += _boardless_lone_calls(_lone_path)
+
+ck.eq("every rule-24.24 reader in game/, ai/ and main.py passes all_tokens",
+      sorted(_lone_boardless), [])
+ck.true("the sweep is live - it read %d files" % len(_lone_paths), len(_lone_paths) > 300)
+# And the fold itself must still ASK the conditional sources, which is the other
+# half a boardless call would hide.
+_STATUS_SRC = io.open(os.path.join("game", "status_effects.py"), encoding="utf-8").read()
+ck.true("lone_operative_range() folds in the conditional sources",
+        "conditional_lone_operative.granted_ranges(squad, all_tokens)" in _STATUS_SRC)
+ck.true("targeting_range_limit() forwards the board to it",
+        "lone_operative_range(squad, all_tokens)" in _STATUS_SRC)
+
+
 ck.finish()

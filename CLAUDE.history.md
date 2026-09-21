@@ -10004,3 +10004,73 @@ selfplay Orks gegen Necrons beide Sitzordnungen exit 0 (2500 Frames); `verify_me
 10/10 und 10/10.
 
 **Damit ist der Mecha-Orks-Plan (G1-G6) abgeschlossen.**
+
+## 2026-09-21 — Zwei KI-Fragen zur neuen Ork-Liste: War Cry in Runde 1, Ghazghkull ganz hinten
+
+Zwei Meldungen aus der ersten Partie mit den Mecha Orks (`logs/game_20260920_120530.log`, map4,
+tau_montka gegen orks). Der ausführliche Stand steht in
+`docs/stand/meldungen-4.md` → `## Zwei KI-Fragen zur neuen Ork-Liste`.
+
+- **War Cry in Runde 1 — eine Heuristik hatte eine EINGESTELLTE Regel ersetzt, und niemand hat es
+  gemerkt.** Der User: „Wir hatten eigentlich eingestellt, dass die KI den Warcry deterministisch in
+  der 2ten Runde zündet." Er hatte recht: das RETIRED `_maybe_call_waaagh()` des alten Waaagh! stand
+  auf `battle_round != 2 → False` und begründete es im eigenen Docstring. Orks E1 hat es beim
+  Codex-Umbau durch `war_cry_verdict()`s Reichweiten-Heuristik ersetzt. **Die Lehre ist nicht die
+  Heuristik, sondern der Tausch:** eine User-Vorgabe wurde beim Neubau derselben Fähigkeit stillos
+  weggeräumt, weil die neue Regel ein anderes Modul war. Vor dem Ersetzen eines Verfahrens gehört
+  die Frage dazu, welche Vorgaben in dem alten steckten.
+  - Warum sie in Runde 1 feuert: `CHARGE_RANGE_IN` ist 12,0", der MAXIMALE 2W6-Charge, als gegeben
+    behandelt → 21,5"–27,5" Radius je Einheit, was zwei Aufstellungszonen auf 60×44 vor der ersten
+    Bewegung erfüllen. Nachgestellt: **8 von 9 über einer Schwelle von 4.**
+  - Was es kostete: P2s Charge- UND Fight-Phase in Runde 1 waren leer. Riled up endet zu Beginn von
+    P2s Zug 2 — dem Zug, für den derselbe Plan „disembark and strike next turn" schrieb.
+  - Fix: `WAR_CRY_ROUND = 2`, Verdict wieder eine Funktion der UHR allein; `all_tokens` bleibt in der
+    Signatur und wird bewusst nicht gelesen. Der Planner bekommt `war_cry_comes_in_battle_round`
+    (Fehlerklasse 1: er schrieb sonst einen Runde-1-Alles-oder-nichts-Plan und HAT es getan).
+  - In-Prozess-A/B belegt beide Bruchstellen (falsche Runde / „eigene Command-Phase" weg).
+    `ab_ork_army_rules.py` hat dafür zwei neue Quell-Sonden, Anker per `--check` geprüft (48/48) —
+    **der volle Sondenlauf steht noch aus, weil der User während der Sitzung `python main.py` offen
+    hatte und ein Sondenlauf Quelldateien schreibt.**
+
+- **Ghazghkull hinten — zwei Fehler, und den zweiten hat der User vorhergesagt** („Ghazkhull hat
+  eigentlich Lone Op durch seine Fähigkeit. die kommt wahrscheinlich nirgends an").
+  - **Die Rolle:** `_deployment_role()` nimmt `profile.character` VOR dem Nahkampf-Test → „key" →
+    verstecken. Neu davor: `is_assault_unit()` UND `squad_output(melee) >= KEY_MELEE_THREAT_OUTPUT`
+    (5.0). **Der zweite Test ist der tragende** — `is_assault_unit()` allein sagt auch beim T'au-
+    Ethereal ja, weil der gar keine Waffen hat. Gemessenes Band über jede eigenständige „key"-Einheit
+    jeder Liste: 0,89 … 10,88, Faktor zwölf.
+  - **Warum es GERADE JETZT auffiel:** der „key"-Schlüssel führt mit `hidden`, und sein Kommentar
+    rechtfertigt das damit, dass ein Fahrzeug/Charakter nach 13.09 gar nicht Hidden sein KANN. Bei
+    einem nicht anschließbaren INFANTRY-Charakter ist der Term nicht konstant — Ghazghkull ist der
+    erste, und er nahm die hinterste voll verdeckte Stelle der Zone. **Eine Rechtfertigung, die auf
+    „dieser Term ist hier ohnehin konstant" beruht, läuft ab, sobald ein Datenblatt die Annahme
+    bricht** — dieselbe Ausfallart wie der abgelaufene `## Bekannte offene Punkte`-Eintrag zu
+    Mont'ka.
+  - **Die LONE OPERATIVE kam WIRKLICH nirgends an, und nicht nur seine.**
+    `status_effects.targeting_range_limit()` — die EINZIGE Durchsetzungsstelle von 24.24 — nahm gar
+    kein `all_tokens` entgegen, also gewährten **alle SECHS** bedingten Quellen am Tor nichts.
+    Reproduziert: Strike Team aus 20" auf einen Ghazghkull mit 12" Lone Operative. Das Modul hatte
+    seinen eigenen Fehler ausgeschrieben („which is the safe direction"); der Absatz ist korrigiert.
+    Mitgezogen: beide Schusstore, das Status-Label, drei `agent_driver`-Stellen,
+    `observation.squad_summary()`. **`test_event_chain_wiring.py` §33** ist die Mengendifferenz
+    (287 → 293 Prüfungen), `test_ork_mecha_characters.py` §8 die Verhaltenshälfte durch das echte
+    Tor (121 → 127). Quell-A/B belegt beide Richtungen; die Gate-Prüfung kippt in der Vor-Fix-Welt.
+  - **Der Scorer-Term** (`conditional_lone_operative.would_grant_at()`, Punkt statt Einheit) macht
+    das Vornestehen überlebbar. **Sein RANG war eine Messung:** über dem Vorwärts-Term kostete er auf
+    map1 4,25" ohne Gegenwert, als Ein-Bucket-Gutschrift hielt er die Fähigkeit überall und ließ ihn
+    auf zwei Karten auf Rang 7/9 und 8/9 — das gemeldete Problem zurück. Unter dem Vorwärts-Term:
+    nie Boden verloren, Fähigkeit auf map2 dazugewonnen.
+  - **Gemessen** (`measure_key_melee_deployment.py`, neu): Rang 7/9→**1/9**, 9/9→**1/9**, 9/9→**6/9**,
+    9/9→**6/9**; **+3,38" im Mittel, best +8,12", nie rückwärts.** Der Daemon Prince of Nurgle ist die
+    KONTROLLE (gleiche Art Quelle, Rolle „heavy") und bewegt sich auf keiner Karte.
+
+- **Nebenbefund, Fehlerklasse 18 in Reinform — an mir selbst.** `run_tests.py --smoke` durch
+  `| tail -20` gepipet meldete `EXIT=0`, während es in Wahrheit 1 zurückgab: `$?` gehört dem `tail`.
+  Genau die Falle, die in CLAUDE.md steht („beim Backgrounden nie durch `tail` pipen, wenn der
+  Exit-Code zählt"). Darunter lag ein echter, VORBESTEHENDER Fehlschlag: `smoke_setup_screens.py`
+  erwartete 14 Ork-Einheiten, seit dem Listentausch von Mecha Orks G6 (10d7eb4, einen Tag alt) sind
+  es 12 — Fehlerklasse 17, eine Erwartung, die beim Armeewechsel nicht mitgezogen wurde. Korrigiert
+  samt Begründung. `--smoke` ist danach wieder grün (alle 9 schweren Skripte ok).
+
+**Volle Regression:** 243 Suiten, ~23.933 Prüfungen, **242 grün / 0 rot / 1 bekannt** (der
+dokumentierte `test_formation_coherency.py`-Vorbestand), plus alle 9 `--smoke`-Skripte.

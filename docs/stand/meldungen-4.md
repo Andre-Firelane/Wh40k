@@ -314,3 +314,139 @@ den Lauf abbrechen.
   Kroot-Hound-Basis). Volle Regression **228 Suiten, ~20938 Prüfungen, 226 grün / 1 rot / 1 bekannt** —
   der eine rote ist `test_ere_we_go.py` (seit Orks E2 gelöscht), die dokumentierte Parallel-Runner-Flake,
   einzeln 3 von 3 grün.
+
+---
+
+## Zwei KI-Fragen zur neuen Ork-Liste: War Cry in Runde 1, Ghazghkull ganz hinten (2026-09-20/-21)
+
+User, nach der ersten Partie mit den Mecha Orks: „warum wurde der waagh schin in zug 1 gezündet?
+solte das nicht in zug 2 passieren?" und „warum ist ghakhull so weit hinten platziert wurden? starke
+nahkampf einheit. der muss nach vorne." Log: `logs/game_20260920_120530.log`, map4 (Sundered),
+tau_montka gegen orks.
+
+### 1. War Cry in Runde 1 — eine Heuristik hatte eine eingestellte Regel ersetzt
+
+**Die Regel war schon einmal da, und der User hat sie benannt:** „Wir hatten eigentlich eingestellt,
+dass die KI den Warcry deterministisch in der 2ten Runde zündet." Stimmt — das RETIRED
+`_maybe_call_waaagh()` des alten Waaagh! stand auf `if turn_tracker.battle_round != 2: return False`
+und begründete es in seinem eigenen Docstring. Etappe E1 hat die Regel beim Codex-Umbau durch eine
+Reichweiten-Heuristik ersetzt, und damit war eine User-Vorgabe weg, ohne dass es auffiel.
+
+**Warum die Heuristik in Runde 1 feuert:** `war_cry_verdict()` zählte eine Einheit als „nah", wenn
+ein Feind innerhalb `Move + mittlerer Advance (3,5") + CHARGE_RANGE_IN` steht — und
+`CHARGE_RANGE_IN` ist **12,0", der maximal mögliche 2W6-Wurf**, als gegeben behandelt. Das sind
+21,5"–27,5" Radius je Ork-Einheit; zwei Aufstellungszonen auf 60×44 erfüllen das, bevor sich
+irgendetwas bewegt hat. Nachgestellt (echte Listen, echter `deployment_ai`, dieselbe Karte):
+**8 von 9 Einheiten über einer Schwelle von 4** — Faktor 2, kein Grenzfall. Nur Ghazghkull lag mit
+25,7" darüber, weil er ganz hinten stand (Meldung 2).
+
+**Was es gekostet hat, steht im Log:** P2s Charge- und Fight-Phase in Runde 1 waren **beide leer**
+(Zeilen 174–177). Die „Advance hebt das Charge-Verbot auf"- und die [ASSAULT]-Hälfte liefen ins
+Leere; bezahlt hat sich nur der 5+ Retter in P1s Zug. Und riled up endet zu Beginn von P2s Zug 2
+(`riled_up.until_end_of_next_turn` = Serial +2) — also genau in dem Zug, für den derselbe Plan
+„disembark and strike **next turn**" schrieb.
+
+**Fix:** `WAR_CRY_ROUND = 2`, `war_cry_verdict()` ist wieder eine Funktion der UHR allein (eigene
+Command-Phase, `battle_round >= 2`). `>=` statt `==`: eine aus einem Save fortgesetzte Schlacht hat
+keine Runde-2-Command-Phase mehr, und eine Einmal-pro-Schlacht-Fähigkeit, die gar nicht mehr geht,
+ist das einzige schlechtere Ergebnis als eine zu frühe. `all_tokens` bleibt in der Signatur, wird
+aber bewusst nicht gelesen — **das Brett zu lesen war der Fehler.**
+
+**Und der Planner wird es jetzt gesagt** (Fehlerklasse 1): `war_cry_summary()` meldete nur „still
+available", also konnte der Planner einen Runde-1-Alles-oder-nichts-Plan schreiben — und hat es
+getan („War Cry is up - this is our strongest turn"). Es trägt jetzt
+`war_cry_comes_in_battle_round` und sagt im Klartext, welche Runde die Positionierungsrunde ist.
+
+`ab_ork_army_rules.py`: die drei Sonden der Reichweiten-Heuristik sind mit ihr gegangen, zwei neue
+treffen die zwei Arten, die Uhr-Regel zu brechen (falsche Runde / die „eigene Command-Phase"-Hälfte
+verlieren). `test_ork_army_rules.py` §7 prüft die Runde-1-Negative auf einer Bühne, die die ALTE
+Heuristik ausgelöst hätte — sonst wäre „keine Einheit war nah genug" nicht zu unterscheiden.
+
+### 2. Ghazghkull hinten — und seine LONE OPERATIVE kam nirgends an
+
+**Zwei getrennte Fehler, und der User hat den zweiten vorhergesagt** („Ghazkhull hat eigetnlich Lone
+Op durch seine fähigkeit. die kommt wahrscheinlich nirgends an").
+
+**(a) Die Rolle.** `_deployment_role()` prüft `profile.character` VOR dem Nahkampf-Test und gibt
+`"key"` zurück — „versteck es". Der Assault-Test (`combat_focus.is_assault_unit`), der genau für die
+frühere Skorpekh-Meldung gebaut wurde („Nahkämpfer sollten eher weiter vorne starten, aber möglichst
+versteckt"), steht am Ende und nimmt nur Einheiten, die sonst `"screen"` wären. Ghazghkull erreicht
+ihn nie, obwohl `is_assault_unit()` für ihn True sagt.
+
+**Und der „key"-Schlüssel hat bei ihm zum ersten Mal wirklich gewirkt:** er lautet
+`(hidden, exposure, -forward_bucket, …)`, und sein eigener Kommentar rechtfertigt das damit, dass ein
+Fahrzeug/Charakter nach 13.09 gar nicht Hidden sein KANN, `hidden` also konstant 1 ist und der
+Schlüssel zu „vorne" degradiert. Ghazghkull ist **INFANTRY** CHARACTER und die einzige nicht
+anschließbare Infanterie-Figur der Liste — bei ihm ist `hidden = 0` erreichbar und dominiert alles.
+Gemessen auf dem gemeldeten Brett: **Rang 9 von 9** nach Vorwärtsfortschritt, −3,39", 25,7" vom
+nächsten Feind, die nächste Einheit 8" vor ihm. Folgekosten eine Seite weiter im Log: der Planner
+wollte ihn auch noch als Garnison aufs Home Objective stellen, und der Validator musste 300 Punkte
+von Hand freischaufeln (Zeilen 81–82).
+
+**Der Fix braucht ZWEI Tests, und der zweite ist der tragende.** `is_assault_unit()` allein sagt auch
+beim T'au-**Ethereal** ja — ein Support-Charakter ohne Waffen, dessen Verhältnis nur deshalb
+nahkampflastig ist, weil er sonst nichts hat, und der Archetyp dessen, wofür es „key" gibt. Gemessene
+Nahkampfleistung gegen `combat_focus`' Referenzverteidiger über JEDE eigenständige „key"-Einheit
+JEDER ausgelieferten Liste:
+
+| muss nach vorne | | muss versteckt bleiben | |
+| --- | --- | --- | --- |
+| Deathshroud Champion | 20,83 | Hexmark Destroyer | 0,89 |
+| Ghazghkull Thraka | 10,88 | Lokhust Heavy Destroyer | 0,67 |
+| | | Ethereal | 0,33 |
+| | | Darkstrider | 0,25 |
+| | | D-cannon Platform | 0,22 |
+
+Sauberes Band 0,89 … 10,88 — Faktor zwölf. `KEY_MELEE_THREAT_OUTPUT = 5.0`.
+
+**(b) Die LONE OPERATIVE kam wirklich nirgends an — und nicht nur seine.**
+`status_effects.targeting_range_limit()` ist die EINZIGE Durchsetzungsstelle von Regel 24.24
+(`game/shooting.py`s zwei Zieltore) und nahm **gar kein `all_tokens` entgegen**. Damit reichte es
+`lone_operative_range()` die leere Vorgabe weiter — und **alle SECHS bedingten Quellen**
+(`game/conditional_lone_operative.py`: Illuminor Szeras, Spiritseer, Death Guard Defenders, Spirit
+Stone of Raelyth, Nekrosor Ammentar, Da Grand Warlord's Ladz) gewährten an der einzigen Stelle, an
+der es zählt, **nichts**.
+
+Reproduziert: Ghazghkull 0,8" neben einem Boyz-Mob antwortet `lone_operative_range(squad, tokens)`
+mit 12, `targeting_range_limit(squad)` mit `None`, und ein Strike Team **20" entfernt durfte auf ihn
+schießen**. Jede Suite war grün, weil jede der sechs gegen die MODUL-Funktion MIT Brett gepinnt ist
+und keine durch das Tor geht.
+
+**Das Modul hat seinen eigenen Fehler ausgeschrieben:** „a caller that does not pass the board simply
+never sees a conditional grant, **which is the safe direction** and is what keeps every existing call
+site meaning what it did." War es nicht. Der Absatz ist korrigiert, die Vorgabe bleibt (Dutzende
+Harnesses rufen mit einem Squad allein) — aber als BEQUEMLICHKEIT, nicht als Sicherheitszusage.
+**`test_event_chain_wiring.py` §33** ist die Mengendifferenz: jeder Leser von
+`lone_operative_range`/`targeting_range_limit` in `game/`, `ai/` und `main.py` muss das Brett
+reichen, sonst wird er mit Datei und Zeile genannt. Mitgezogen: beide Schusstore, das Status-Label
+(`active_effects(all_tokens=…)` aus `main.py`), drei Stellen im `agent_driver` und
+`observation.squad_summary()` — der Planner sah einen bedingten Lone Operative ebenfalls nie.
+
+**(c) Der Scorer-Term.** Vorne zu stehen ist nur überlebbar, wenn die Fähigkeit dabei AN ist:
+`conditional_lone_operative.would_grant_at(squad, x, y, tokens)` beantwortet die Frage für einen
+PUNKT (Einheit hinversetzen, echte Prädikate fragen, zurücksetzen — damit eine siebte Quelle keine
+zweite Implementierung ihrer selbst braucht), und `deployment_score()` trägt sie in jedem
+Rollen-Schlüssel. **Der RANG war eine Messung, keine Meinung:** über den Vorwärts-Term gestellt
+kostete sie auf map1 4,25" Vorwärtsfortschritt ohne Gegenwert; als Vorwärts-Gutschrift von einem
+Bucket hielt sie die Fähigkeit auf allen vier Karten und ließ ihn auf zweien auf Rang 7/9 und 8/9 —
+also wieder das gemeldete Problem. Unter dem Vorwärts-Term kostet sie **nie** Boden und kauft die
+Fähigkeit auf map2 zum selben Preis.
+
+**Gemessen** (`measure_key_melee_deployment.py`, vier Karten × beide Träger-Armeen, A/B mit der
+GANZEN Vor-Fix-Welt):
+
+| | vorher | nachher |
+| --- | --- | --- |
+| map1 | Rang 7/9, +3,18" | **Rang 1/9**, +7,43" |
+| map2 | Rang 9/9, −2,21", keine Lone Op | **Rang 1/9**, +4,43", **Lone Op 12"** |
+| map3 | Rang 9/9, −1,27" | **Rang 6/9**, +6,73" |
+| map4 | Rang 9/9, −3,39" | **Rang 6/9**, +4,73" |
+
+**+3,38" im Mittel, bestenfalls +8,12", nie rückwärts.** Der Daemon Prince of Nurgle
+(Death-Guard-Defenders-Träger, Rolle „heavy") ist die KONTROLLE und bewegt sich auf keiner Karte —
+ein Term, der IHN verschoben hätte, wäre eine Regression gewesen.
+
+**Ein benannter Tausch:** auf map3 verliert er eine Lone Op, die er vorher hatte — sie kam daher,
+dass er in der hinteren Ecke zufällig neben der Home-Garnison stand. +8,00" Boden dafür; die Vorgabe
+des Users ist das andere („auf jeden fall muss der vorne stehen"). Das Skript trennt diesen Fall
+ausdrücklich von einer echten Regression (Fähigkeit weg OHNE Bodengewinn).

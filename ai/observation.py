@@ -915,7 +915,8 @@ def visible_enemy_units_from_point(x_in, y_in, radius_in, enemy_squads, obstacle
 
 
 def squad_summary(squad, in_reserve=False, embarked_in=None, include_weapons=False,
-                  terrain_areas=(), turn_tracker=None, last_ranged_attack_turn=None):
+                  terrain_areas=(), turn_tracker=None, last_ranged_attack_turn=None,
+                  all_tokens=()):
     summary = {
         "name": squad.name,
         "owner": squad.owner,
@@ -978,7 +979,11 @@ def squad_summary(squad, in_reserve=False, embarked_in=None, include_weapons=Fal
     # den geschossen werden." The engine has enforced this the whole time
     # (game/shooting.py reads lone_operative_range()); the planner was simply
     # never told, so it kept writing orders the Shooting phase had to drop.
-    lone_range = status_effects.lone_operative_range(squad)
+    # WITH the board: six of the sources are conditional and answer only when
+    # handed it (game/conditional_lone_operative.py). Without it the planner is
+    # told nothing about a Ghazghkull standing beside his Boyz, and writes the
+    # unshootable order this field exists to prevent.
+    lone_range = status_effects.lone_operative_range(squad, all_tokens)
     if lone_range is not None:
         summary["lone_operative"] = (
             f"cannot be shot at from further than {lone_range:.0f}\" away (rule 24.24)"
@@ -1154,7 +1159,7 @@ def build_observation(all_squads, turn_tracker, available_actions, player, objec
             "phase": turn_tracker.phase,
             "player": player,
         },
-        "squads": [squad_summary(s) for s in all_squads],
+        "squads": [squad_summary(s, all_tokens=tokens) for s in all_squads],
         "objectives": [objective_summary(o, tokens) for o in objectives] if objectives else [],
         "available_actions": available_actions,
     }
@@ -1794,8 +1799,19 @@ def war_cry_summary(player, war_cry_controller):
         }
     if war_cry_controller.is_used(player):
         return {"riled_up_now": False, "note": "your War Cry is already spent and will not come again"}
+    # WHEN it comes is as load-bearing as THAT it is coming: the AI's own use is
+    # a fixed round (ai/agent_driver.py's WAR_CRY_ROUND, the user's policy), so a
+    # planner told only "still available" can write a round-1 all-in for a turn
+    # that will not be riled up - which is the plan shape the round-1 call
+    # produced for real (logs/game_20260920_120530.log: "War Cry is up - this is
+    # our strongest turn"). Imported inside the function because ai/agent_driver
+    # imports this module.
+    from ai.agent_driver import WAR_CRY_ROUND
     return {"riled_up_now": False,
-            "note": "your War Cry is still available - it is offered at the start of every Command phase"}
+            "war_cry_comes_in_battle_round": WAR_CRY_ROUND,
+            "note": "your War Cry is still available - your army calls it at the start of your "
+                    "Command phase in battle round %d, so battle round %d is the turn to be in "
+                    "position for, not this one" % (WAR_CRY_ROUND, WAR_CRY_ROUND)}
 
 
 def build_planning_observation(on_board_squads, reserve_squads, turn_tracker, player, objectives=None,
@@ -1827,6 +1843,7 @@ def build_planning_observation(on_board_squads, reserve_squads, turn_tracker, pl
         summary = squad_summary(
             s, include_weapons=s.owner == player, terrain_areas=terrain_areas,
             turn_tracker=turn_tracker, last_ranged_attack_turn=last_ranged_attack_turn,
+            all_tokens=tokens,
         )
         if s.owner == player and s.models:
             add_planning_distances(
@@ -1836,7 +1853,7 @@ def build_planning_observation(on_board_squads, reserve_squads, turn_tracker, pl
             )
         squads.append(summary)
     for s in reserve_squads:
-        summary = squad_summary(s, in_reserve=True, include_weapons=True)
+        summary = squad_summary(s, in_reserve=True, include_weapons=True, all_tokens=tokens)
         # What this unit is FOR, as a number. A reserve unit has no position
         # yet, so threat_assessment()'s "can it reach this turn" gating has
         # nothing to gate on - but the matchup question is answerable without a
@@ -1846,7 +1863,8 @@ def build_planning_observation(on_board_squads, reserve_squads, turn_tracker, pl
             summary["best_targets_when_you_arrive"] = matchup_targets(s, enemy_squads)
         squads.append(summary)
     for s in embarked_squads:
-        summary = squad_summary(s, embarked_in=s.embarked_in, include_weapons=True)
+        summary = squad_summary(s, embarked_in=s.embarked_in, include_weapons=True,
+                                all_tokens=tokens)
         # What getting out would be WORTH. Passengers used to be described only as
         # "embarked, can do nothing while aboard" - no threat numbers at all,
         # because add_planning_distances() (which attaches threat_assessment) only
